@@ -5,6 +5,10 @@
 /.pnp
 .pnp.js
 
+# this project uses pnpm — ignore other package managers' lockfiles
+package-lock.json
+yarn.lock
+
 # testing
 /coverage
 
