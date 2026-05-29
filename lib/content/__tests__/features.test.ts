@@ -42,6 +42,12 @@ describe('feature content model', () => {
     }
   })
 
+  it('gives every feature a short navLabel for the nav strip', () => {
+    for (const f of features) {
+      expect(f.navLabel.length).toBeGreaterThan(0)
+    }
+  })
+
   it('returns features ordered by display order from getAllFeatures()', () => {
     const ordered = getAllFeatures()
     const orders = ordered.map((f) => f.order)
