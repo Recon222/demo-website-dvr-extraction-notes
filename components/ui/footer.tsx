@@ -34,6 +34,11 @@ export default function Footer() {
                   Join the beta
                 </Link>
               </li>
+              <li>
+                <Link className="text-indigo-200/65 transition hover:text-indigo-500" href="/privacy">
+                  Privacy
+                </Link>
+              </li>
               {siteConfig.contactEmail ? (
                 <li>
                   <a
