@@ -75,27 +75,30 @@ export const features: readonly Feature[] = [
     order: 2,
   },
   {
-    // DRAFT — Notes content pending discussion with Kris (talk about notes first).
+    // PLACEHOLDER — Kris is writing the Notes copy. The notes screens hold a lot of
+    // domain knowledge: captured fields partly feed the auto-generated bullets and
+    // partly make up the report. Header is "Notes"; text areas are intentionally
+    // "placeholder" until Kris's copy lands.
     slug: 'notes',
     navLabel: 'Notes Wizard',
-    eyebrow: 'Notes',
-    title: 'Your case notes, written as you go',
-    painLine: 'Clean, consistent case notes by hand are the tax at the end of every job.',
+    eyebrow: 'placeholder',
+    title: 'Notes',
+    painLine: 'placeholder',
     rows: [
       {
-        heading: 'Notes that assemble themselves',
-        body: 'As you work through the wizard, the app aggregates everything into clear bullet-point notes — regenerated only when something actually changes.',
+        heading: 'placeholder',
+        body: 'placeholder',
         media: 'demos/notes/generate.mp4',
       },
       {
-        heading: 'Review before it ships',
-        body: 'The notes screen shows the generated write-up so you can read it over or adjust it before it flows into the report.',
+        heading: 'placeholder',
+        body: 'placeholder',
         media: 'demos/notes/review.mp4',
       },
     ],
     diagram: {
       src: 'diagrams/notes.svg',
-      caption: 'Every field across the wizard → aggregated, change-detected bullet notes.',
+      caption: 'placeholder',
     },
     priority: 'p0',
     order: 3,
