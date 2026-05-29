@@ -14,6 +14,7 @@ vi.mock('next/link', () => ({
 const features: Feature[] = [
   {
     slug: 'time-calibration',
+    navLabel: 'Time Offset',
     eyebrow: 'Time calibration',
     title: 'Defend the timestamp',
     painLine: 'Clocks are wrong.',
@@ -23,6 +24,7 @@ const features: Feature[] = [
   },
   {
     slug: 'import',
+    navLabel: 'Import Request',
     eyebrow: 'Import',
     title: 'Auto-fill the case',
     painLine: 'Re-typing is slow.',

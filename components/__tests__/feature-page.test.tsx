@@ -14,6 +14,7 @@ vi.mock('next/link', () => ({
 
 const feature: Feature = {
   slug: 'time-calibration',
+  navLabel: 'Time Offset',
   eyebrow: 'Time calibration',
   title: 'The timestamp you can defend',
   painLine: 'DVR clocks are almost always wrong.',
