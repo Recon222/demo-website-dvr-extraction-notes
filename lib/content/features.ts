@@ -1,44 +1,51 @@
 import type { Feature } from './types'
 
 /**
- * The feature catalog. Copy is first-draft, derived from
- * docs/planning/02-app-feature-inventory.md, and is utility-first per the
- * forensic-restraint rule — only `time-calibration` leans into the courtroom
- * framing, which is the one sanctioned exception. Numbers/claims are pending
- * sign-off; the one-liner and final wording are open decisions (doc 07).
+ * The feature catalog, in display/nav order (the second-row strip reads top-to-bottom
+ * here, left-to-right on screen). Copy is first-draft, derived from
+ * docs/planning/02-app-feature-inventory.md, utility-first per the forensic-restraint
+ * rule — only `time-calibration` leans into the courtroom framing.
  *
- * `navLabel` is the short button text for the second-row feature nav strip
- * (provided by Kris). `title`/`eyebrow` are being rewritten separately.
+ * `navLabel` is the short second-row button text (provided by Kris). `title`/`eyebrow`
+ * are being rewritten separately.
+ *
+ * STATUS NOTES (per Kris):
+ *  - `notes` ("Notes Wizard") content is DRAFT — we discuss Notes before finalizing.
+ *  - `reports` content is PROVISIONAL — finalized LAST, since it summarizes the output
+ *    of the other features.
  *
  * Media/diagram paths point at intended /public locations; assets are produced
  * separately and the page renders placeholders until they exist.
  */
 export const features: readonly Feature[] = [
   {
-    slug: 'time-calibration',
-    navLabel: 'Time Offset',
-    eyebrow: 'Time calibration',
-    title: 'The timestamp you can defend',
+    slug: 'cases-locations',
+    navLabel: 'Cases & Locations',
+    eyebrow: 'Cases & locations',
+    title: 'Every case, every location, in order',
     painLine:
-      "DVR clocks are almost always wrong — and proving your own device's time was right is the question that ends people on the stand.",
+      'One recovery job can span a dozen addresses, and the files for each scatter the moment you start.',
     rows: [
       {
-        heading: "Read the DVR clock — don't retype it",
-        body: 'Point your phone at the on-screen timestamp. On-device text recognition reads it for you: no transcription, no typos.',
-        media: 'demos/time-calibration/ocr.mp4',
+        heading: 'One case, many locations',
+        body: 'Open a case by occurrence number, then add a location for each address — every location keeps its own details, media, and report.',
+        media: 'demos/cases-locations/cases.mp4',
       },
       {
-        heading: 'Calibrate against an atomic clock, at the moment of capture',
-        body: 'The app reaches a regional atomic-clock time server the instant you capture, computes the offset between DVR time and real time, and falls back to an HTTP time source when the network blocks NTP.',
-        media: 'demos/time-calibration/sync.mp4',
+        heading: 'Filed on disk, automatically',
+        body: 'Each location gets its own folders for photos, video, audio, and documents — created as you go and named so nothing breaks when you rename a case.',
+        media: 'demos/cases-locations/locations.mp4',
+      },
+      {
+        heading: 'Duplicate a repeat visit',
+        body: 'Going back to the same site? Duplicate a location — with or without its requested scopes — instead of re-typing everything.',
       },
     ],
     diagram: {
-      src: 'diagrams/time-calibration.svg',
-      caption:
-        'The traceability chain printed into every Time Offset Report: DVR clock → phone OCR → NTP server → atomic clock → UTC → your offset.',
+      src: 'diagrams/cases-locations.svg',
+      caption: 'Case → locations → media & documents: one tidy tree per job.',
     },
-    priority: 'p0',
+    priority: 'p1',
     order: 1,
   },
   {
@@ -68,52 +75,53 @@ export const features: readonly Feature[] = [
     order: 2,
   },
   {
-    slug: 'reports',
-    navLabel: 'Notes & Reports',
-    eyebrow: 'Notes & reports',
-    title: 'The write-up, already written',
-    painLine:
-      'After the field work, you still have to write the notes and the report — by hand, every time.',
+    // DRAFT — Notes content pending discussion with Kris (talk about notes first).
+    slug: 'notes',
+    navLabel: 'Notes Wizard',
+    eyebrow: 'Notes',
+    title: 'Your case notes, written as you go',
+    painLine: 'Clean, consistent case notes by hand are the tax at the end of every job.',
     rows: [
       {
-        heading: 'Notes generate themselves',
-        body: 'Everything you enter across the wizard is aggregated into clean bullet-point notes — regenerated only when something actually changes.',
-        media: 'demos/reports/notes.mp4',
+        heading: 'Notes that assemble themselves',
+        body: 'As you work through the wizard, the app aggregates everything into clear bullet-point notes — regenerated only when something actually changes.',
+        media: 'demos/notes/generate.mp4',
       },
       {
-        heading: 'One tap to a finished PDF',
-        body: 'Produce a complete case-notes report from the data you already captured. You verify; the app types.',
-        media: 'demos/reports/pdf.mp4',
+        heading: 'Review before it ships',
+        body: 'The notes screen shows the generated write-up so you can read it over or adjust it before it flows into the report.',
+        media: 'demos/notes/review.mp4',
       },
     ],
     diagram: {
-      src: 'diagrams/reports.svg',
-      caption: 'Every field you enter → aggregator → bullet notes plus a finished PDF report.',
+      src: 'diagrams/notes.svg',
+      caption: 'Every field across the wizard → aggregated, change-detected bullet notes.',
     },
     priority: 'p0',
     order: 3,
   },
   {
-    slug: 'evidence-capture',
-    navLabel: 'Media Capture',
-    eyebrow: 'Evidence capture',
-    title: 'Photos, video, and audio — filed for you',
-    painLine: 'Scene media ends up scattered in your camera roll, cut off from the case.',
+    slug: 'location',
+    navLabel: 'Location',
+    eyebrow: 'Location & GPS',
+    title: 'Pin the site and every camera',
+    painLine:
+      "Back at the office, 'where exactly was this — and where were the cameras?' is hard to reconstruct from memory.",
     rows: [
       {
-        heading: 'Capture inside the case',
-        body: "Shoot photo and video at native resolution and record audio with a live waveform — all from inside the location you're documenting.",
-        media: 'demos/evidence-capture/capture.mp4',
+        heading: 'Use my location, or just the address',
+        body: 'Drop the site with one tap using multi-sample GPS (accuracy-filtered), or type the address with autocomplete — it geocodes either way.',
+        media: 'demos/location/use-location.mp4',
       },
       {
-        heading: 'Organized automatically',
-        body: "Every file lands in the right location's folder, sorted into photos, videos, and audio. No renaming or sorting later.",
-        media: 'demos/evidence-capture/library.mp4',
+        heading: 'GPS-mark every camera on site',
+        body: 'Stand under each camera and capture its position, tied to the location it belongs to.',
+        media: 'demos/location/camera.mp4',
       },
     ],
     diagram: {
-      src: 'diagrams/evidence-capture.svg',
-      caption: 'Case → locations → photo, video, and audio folders, organized as you capture.',
+      src: 'diagrams/location.svg',
+      caption: 'Address ⇄ coordinates, plus a GPS pin for every camera.',
     },
     priority: 'p1',
     order: 4,
@@ -141,30 +149,82 @@ export const features: readonly Feature[] = [
     order: 5,
   },
   {
-    slug: 'camera-gps',
-    navLabel: 'GPS-Location',
-    eyebrow: 'Camera positions',
-    title: 'GPS-mark every camera',
+    slug: 'time-calibration',
+    navLabel: 'Time Offset',
+    eyebrow: 'Time calibration',
+    title: 'The timestamp you can defend',
     painLine:
-      "Back at the office, 'where exactly was each camera?' is hard to reconstruct from memory.",
+      "DVR clocks are almost always wrong — and proving your own device's time was right is the question that ends people on the stand.",
     rows: [
       {
-        heading: 'Mark them on site',
-        body: 'Stand under each camera and capture its GPS position with multi-sample accuracy.',
-        media: 'demos/camera-gps/mark.mp4',
+        heading: "Read the DVR clock — don't retype it",
+        body: 'Point your phone at the on-screen timestamp. On-device text recognition reads it for you: no transcription, no typos.',
+        media: 'demos/time-calibration/ocr.mp4',
       },
       {
-        heading: 'Tied to the location',
-        body: "Each camera's position is saved against the location it belongs to.",
-        media: 'demos/camera-gps/list.mp4',
+        heading: 'Calibrate against an atomic clock, at the moment of capture',
+        body: 'The app reaches a regional atomic-clock time server the instant you capture, computes the offset between DVR time and real time, and falls back to an HTTP time source when the network blocks NTP.',
+        media: 'demos/time-calibration/sync.mp4',
       },
     ],
     diagram: {
-      src: 'diagrams/camera-gps.svg',
-      caption: 'Walk the site, mark each camera, and keep every position tied to its location.',
+      src: 'diagrams/time-calibration.svg',
+      caption:
+        'The traceability chain printed into every Time Offset Report: DVR clock → phone OCR → NTP server → atomic clock → UTC → your offset.',
+    },
+    priority: 'p0',
+    order: 6,
+  },
+  {
+    slug: 'evidence-capture',
+    navLabel: 'Media Capture',
+    eyebrow: 'Evidence capture',
+    title: 'Photos, video, and audio — filed for you',
+    painLine: 'Scene media ends up scattered in your camera roll, cut off from the case.',
+    rows: [
+      {
+        heading: 'Capture inside the case',
+        body: "Shoot photo and video at native resolution and record audio with a live waveform — all from inside the location you're documenting.",
+        media: 'demos/evidence-capture/capture.mp4',
+      },
+      {
+        heading: 'Organized automatically',
+        body: "Every file lands in the right location's folder, sorted into photos, videos, and audio. No renaming or sorting later.",
+        media: 'demos/evidence-capture/library.mp4',
+      },
+    ],
+    diagram: {
+      src: 'diagrams/evidence-capture.svg',
+      caption: 'Case → locations → photo, video, and audio folders, organized as you capture.',
     },
     priority: 'p1',
-    order: 6,
+    order: 7,
+  },
+  {
+    // PROVISIONAL — Reports content finalized LAST; it summarizes the other features' output (per Kris).
+    slug: 'reports',
+    navLabel: 'Reports',
+    eyebrow: 'Reports',
+    title: 'The report, generated for you',
+    painLine: 'The court-ready write-up still has to be produced, formatted, and complete — every time.',
+    rows: [
+      {
+        heading: 'One tap to the full report',
+        body: 'Generate the complete case-notes PDF — every section assembled from the data you already captured.',
+        media: 'demos/reports/pdf.mp4',
+      },
+      {
+        heading: 'Calibration proof, attached',
+        body: 'The Time Offset Report rides along: the cropped timestamp image, the sync details, and the traceability chain.',
+        media: 'demos/reports/time-offset.mp4',
+      },
+    ],
+    diagram: {
+      src: 'diagrams/reports.svg',
+      caption: 'All your captured data → the case-notes report, plus the time-offset report.',
+    },
+    priority: 'p0',
+    order: 8,
   },
   {
     slug: 'secure-export',
@@ -189,7 +249,7 @@ export const features: readonly Feature[] = [
       caption: 'Case → password-protected encrypted archive → shared on your terms.',
     },
     priority: 'p1',
-    order: 7,
+    order: 9,
   },
   {
     slug: 'on-device',
@@ -212,7 +272,7 @@ export const features: readonly Feature[] = [
       caption: 'What stays on your device versus the little that leaves — and exactly what it is.',
     },
     priority: 'p2',
-    order: 8,
+    order: 10,
   },
 ]
 

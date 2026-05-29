@@ -48,6 +48,12 @@ describe('feature content model', () => {
     }
   })
 
+  it('includes the new Cases & Locations, Notes, and Location features (camera-gps folded into Location)', () => {
+    const slugs = getFeatureSlugs()
+    expect(slugs).toEqual(expect.arrayContaining(['cases-locations', 'notes', 'location']))
+    expect(slugs).not.toContain('camera-gps')
+  })
+
   it('returns features ordered by display order from getAllFeatures()', () => {
     const ordered = getAllFeatures()
     const orders = ordered.map((f) => f.order)
