@@ -24,6 +24,8 @@ export interface FeatureDiagram {
 export interface Feature {
   /** URL-safe identifier; also the route segment under /features. */
   slug: string
+  /** Short button label for the second-row feature nav strip (kept concise so all fit). */
+  navLabel: string
   /** Short label shown above the title. */
   eyebrow: string
   /** Page/card title. */

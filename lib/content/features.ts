@@ -7,12 +7,16 @@ import type { Feature } from './types'
  * framing, which is the one sanctioned exception. Numbers/claims are pending
  * sign-off; the one-liner and final wording are open decisions (doc 07).
  *
+ * `navLabel` is the short button text for the second-row feature nav strip
+ * (provided by Kris). `title`/`eyebrow` are being rewritten separately.
+ *
  * Media/diagram paths point at intended /public locations; assets are produced
  * separately and the page renders placeholders until they exist.
  */
 export const features: readonly Feature[] = [
   {
     slug: 'time-calibration',
+    navLabel: 'Time Offset',
     eyebrow: 'Time calibration',
     title: 'The timestamp you can defend',
     painLine:
@@ -39,6 +43,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'import',
+    navLabel: 'Import Request',
     eyebrow: 'Request import',
     title: 'The case fills itself in',
     painLine:
@@ -64,6 +69,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'reports',
+    navLabel: 'Notes & Reports',
     eyebrow: 'Notes & reports',
     title: 'The write-up, already written',
     painLine:
@@ -89,6 +95,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'evidence-capture',
+    navLabel: 'Media Capture',
     eyebrow: 'Evidence capture',
     title: 'Photos, video, and audio — filed for you',
     painLine: 'Scene media ends up scattered in your camera roll, cut off from the case.',
@@ -113,6 +120,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'map',
+    navLabel: 'Map',
     eyebrow: 'Case map',
     title: 'Your whole case on a map',
     painLine:
@@ -134,6 +142,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'camera-gps',
+    navLabel: 'GPS-Location',
     eyebrow: 'Camera positions',
     title: 'GPS-mark every camera',
     painLine:
@@ -159,6 +168,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'secure-export',
+    navLabel: 'Encrypted Export',
     eyebrow: 'Secure handoff',
     title: 'Package the whole case, encrypted',
     painLine: 'Delivering a case means bundling the report and all the media — securely.',
@@ -183,6 +193,7 @@ export const features: readonly Feature[] = [
   },
   {
     slug: 'on-device',
+    navLabel: 'Security and Privacy',
     eyebrow: 'Privacy by design',
     title: 'On your device, under your control',
     painLine: 'Evidence software that quietly ships data to a vendor cloud is a non-starter.',
