@@ -48,6 +48,13 @@ describe('feature content model', () => {
     }
   })
 
+  it('has unique navLabels for the nav strip', () => {
+    // navLabel is the accessible name of each link in <FeatureNav>; duplicates would
+    // make two links indistinguishable to assistive tech and break getByRole lookups.
+    const labels = features.map((f) => f.navLabel)
+    expect(new Set(labels).size).toBe(labels.length)
+  })
+
   it('includes the new Cases & Locations, Notes, and Location features (camera-gps folded into Location)', () => {
     const slugs = getFeatureSlugs()
     expect(slugs).toEqual(expect.arrayContaining(['cases-locations', 'notes', 'location']))
