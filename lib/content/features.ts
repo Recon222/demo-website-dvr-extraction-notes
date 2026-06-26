@@ -1,10 +1,12 @@
 import type { Feature } from './types'
 
 /**
- * The feature catalog, in display/nav order (the second-row strip reads top-to-bottom
- * here, left-to-right on screen). Copy is first-draft, derived from
- * docs/planning/02-app-feature-inventory.md, utility-first per the forensic-restraint
- * rule — only `time-calibration` leans into the courtroom framing.
+ * The feature catalog. Display/nav order is governed by each entry's `order` field —
+ * `getAllFeatures()` sorts by it, not by array position (the two happen to coincide
+ * today). Copy is first-draft, derived from docs/planning/02-app-feature-inventory.md,
+ * utility-first per the forensic-restraint rule — `time-calibration` leans hardest into
+ * the courtroom framing, with `reports` referencing court-readiness; the rest stay
+ * utility-first.
  *
  * `navLabel` is the short second-row button text (provided by Kris). `title`/`eyebrow`
  * are being rewritten separately.
