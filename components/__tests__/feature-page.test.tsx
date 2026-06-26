@@ -71,4 +71,14 @@ describe('FeaturePage', () => {
     expect(screen.queryByRole('link', { name: /Intro/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Request import/ })).not.toBeInTheDocument()
   })
+
+  it('shows a Draft badge for a draft feature', () => {
+    render(<FeaturePage feature={{ ...feature, draft: true }} />)
+    expect(screen.getByText(/draft/i)).toBeInTheDocument()
+  })
+
+  it('omits the Draft badge for a finished feature', () => {
+    render(<FeaturePage feature={feature} />)
+    expect(screen.queryByText(/draft/i)).not.toBeInTheDocument()
+  })
 })

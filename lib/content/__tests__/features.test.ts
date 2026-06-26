@@ -55,6 +55,24 @@ describe('feature content model', () => {
     expect(new Set(labels).size).toBe(labels.length)
   })
 
+  it('keeps placeholder copy out of shipped (non-draft) features', () => {
+    // Unfinished features must carry `draft: true` rather than smuggling the literal
+    // word "placeholder" into user-facing copy. This guard fails the day a draft is
+    // un-flagged without its real copy, so the placeholder can't ship unnoticed.
+    for (const f of features.filter((feature) => !feature.draft)) {
+      const copy = [
+        f.eyebrow,
+        f.title,
+        f.painLine,
+        ...f.rows.flatMap((row) => [row.heading, row.body]),
+        f.diagram?.caption ?? '',
+      ].join(' ')
+      expect(copy, `non-draft feature "${f.slug}" still contains placeholder copy`).not.toMatch(
+        /placeholder/i,
+      )
+    }
+  })
+
   it('includes the new Cases & Locations, Notes, and Location features (camera-gps folded into Location)', () => {
     const slugs = getFeatureSlugs()
     expect(slugs).toEqual(expect.arrayContaining(['cases-locations', 'notes', 'location']))

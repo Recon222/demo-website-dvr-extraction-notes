@@ -19,6 +19,13 @@ export function FeaturePage({ feature, prev, next }: FeaturePageProps) {
   return (
     <article className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-20">
       <header className="mx-auto max-w-3xl text-center">
+        {feature.draft ? (
+          <p className="mb-3">
+            <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-300">
+              Draft — copy pending
+            </span>
+          </p>
+        ) : null}
         <p className="mb-3 text-sm font-medium uppercase tracking-wide text-indigo-300">
           {feature.eyebrow}
         </p>

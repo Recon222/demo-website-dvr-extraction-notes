@@ -102,6 +102,9 @@ export const features: readonly Feature[] = [
       src: 'diagrams/notes.svg',
       caption: 'placeholder',
     },
+    // Unfinished: stays visible in the nav/grid and renders a "Draft" badge, but is
+    // exempt from the placeholder-copy guard until Kris's copy lands. Drop when done.
+    draft: true,
     priority: 'p0',
     order: 3,
   },
