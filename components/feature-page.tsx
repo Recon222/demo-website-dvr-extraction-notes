@@ -65,7 +65,10 @@ export function FeaturePage({ feature, prev, next }: FeaturePageProps) {
         </section>
       ) : null}
 
-      <nav className="mt-16 flex items-center justify-between gap-4 border-t border-gray-800 pt-8 text-sm md:mt-24">
+      <nav
+        aria-label="Feature pages"
+        className="mt-16 flex items-center justify-between gap-4 border-t border-gray-800 pt-8 text-sm md:mt-24"
+      >
         {prev ? (
           <Link href={`/features/${prev.slug}`} className="text-indigo-300 hover:text-indigo-200">
             ← {prev.title}

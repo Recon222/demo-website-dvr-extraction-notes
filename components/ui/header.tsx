@@ -15,7 +15,7 @@ export default function Header() {
           </div>
 
           {/* Primary navigation (driven by siteConfig) */}
-          <nav className="flex flex-1 items-center justify-end">
+          <nav aria-label="Main" className="flex flex-1 items-center justify-end">
             <ul className="flex items-center gap-2 sm:gap-3">
               {siteConfig.nav.map((item) => {
                 const isCta = item.href === '/beta'
