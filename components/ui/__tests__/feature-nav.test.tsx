@@ -19,6 +19,11 @@ beforeEach(() => {
 })
 
 describe('FeatureNav', () => {
+  it('exposes a labelled "Features" navigation landmark', () => {
+    render(<FeatureNav />)
+    expect(screen.getByRole('navigation', { name: 'Features' })).toBeInTheDocument()
+  })
+
   it('renders a routed button for every feature using its navLabel', () => {
     render(<FeatureNav />)
     for (const feature of getAllFeatures()) {
@@ -29,7 +34,13 @@ describe('FeatureNav', () => {
     }
   })
 
-  it('marks the active feature with aria-current="page"', () => {
+  it('renders the links in display order', () => {
+    render(<FeatureNav />)
+    const renderedLabels = screen.getAllByRole('link').map((link) => link.textContent)
+    expect(renderedLabels).toEqual(getAllFeatures().map((feature) => feature.navLabel))
+  })
+
+  it('marks exactly the active feature with aria-current="page"', () => {
     mockPathname.mockReturnValue('/features/import')
     render(<FeatureNav />)
 
@@ -38,10 +49,13 @@ describe('FeatureNav', () => {
       'page',
     )
     expect(screen.getByRole('link', { name: 'Map' })).not.toHaveAttribute('aria-current')
+    const active = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(active).toHaveLength(1)
   })
 
   it('marks nothing active on a non-feature route', () => {
-    mockPathname.mockReturnValue('/')
     render(<FeatureNav />)
     for (const feature of getAllFeatures()) {
       expect(screen.getByRole('link', { name: feature.navLabel })).not.toHaveAttribute(
