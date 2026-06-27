@@ -30,3 +30,27 @@ export * from '@/lib/demo/logic/ocr'
 export * from '@/lib/demo/logic/import'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/lib/demo/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/lib/demo/logic/pdf/time-offset'
+
+// ---- Store (Milestone 2) ----
+export {
+  createDemoStore,
+  type DemoStore,
+  type DemoState,
+  type DemoActions,
+  type CaptureState,
+  type NewCaseInput,
+  type NewLocationInput,
+} from '@/lib/demo/store/create-store'
+export {
+  selectCurrentCase,
+  selectCurrentLocation,
+  selectLocationsForCase,
+  selectVisibleWizardScreens,
+  selectDrawerItems,
+  selectCaseNotesData,
+} from '@/lib/demo/store/selectors'
+
+// ---- Director (Milestone 2) ----
+export { runBeat, realClock, type Clock, type RunBeatOptions, type BeatHandle } from '@/lib/demo/director/runner'
+export { BEATS } from '@/lib/demo/director/beats'
+export type { Beat, BeatStep, PulseEvent } from '@/lib/demo/director/types'
