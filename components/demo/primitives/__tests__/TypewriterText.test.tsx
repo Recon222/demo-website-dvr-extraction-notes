@@ -1,0 +1,31 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, act } from '@testing-library/react'
+import { TypewriterText } from '@/components/demo/primitives/TypewriterText'
+
+describe('TypewriterText', () => {
+  it('renders the full text when not animating', () => {
+    render(<TypewriterText text="Kim's Convenience" active={false} />)
+    expect(screen.getByText("Kim's Convenience")).toBeInTheDocument()
+  })
+
+  it('reveals characters progressively under fake timers', () => {
+    vi.useFakeTimers()
+    try {
+      const { container } = render(<TypewriterText text="Mississauga" active perCharMs={10} />)
+      expect(container.textContent).toBe('')
+      act(() => void vi.advanceTimersByTime(10))
+      expect(container.textContent).toBe('M')
+      act(() => void vi.advanceTimersByTime(30))
+      expect(container.textContent).toBe('Miss')
+      act(() => void vi.advanceTimersByTime(1000))
+      expect(container.textContent).toBe('Mississauga')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows no per-keystroke caret dot', () => {
+    const { container } = render(<TypewriterText text="abc" active={false} />)
+    expect(container.textContent).toBe('abc') // exactly the text — no caret/cursor glyph appended
+  })
+})

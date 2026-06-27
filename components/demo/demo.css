@@ -1,0 +1,83 @@
+/* Demo phone styles — the globals + keyframes lifted VERBATIM from the prototype's <style>
+   block (DVR Extraction Notes Tour.dc.html). The prototype is inline-styled, so the
+   phone/screen element styling lives inline on the components; this file holds only the
+   font imports, resets, and the animations those inline styles reference. Imported once by
+   DemoExperience. Do not restyle. */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700');
+
+/* border-box is required for the lifted pixel dimensions (frame 404 = 378 + 13×2 padding).
+   Scoped to the demo so the marketing site is untouched. */
+[data-demo-root],
+[data-demo-root] * {
+  box-sizing: border-box;
+}
+
+/* Hide scrollbars inside the phone (native apps have none) — scroll still works. */
+[data-phone='frame'] *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+[data-phone='frame'] * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+@keyframes scanSweep {
+  0% { transform: translateY(-60px); }
+  100% { transform: translateY(760px); }
+}
+@keyframes hudScan {
+  0% { transform: translateY(6px); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(196px); opacity: 0; }
+}
+@keyframes flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93% { opacity: 0.55; }
+  95% { opacity: 1; }
+  96% { opacity: 0.72; }
+  97% { opacity: 1; }
+}
+@keyframes blinkDot {
+  0%, 20% { opacity: 0.15; }
+  50% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slideFwd {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slideBack {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes railIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fillFlash {
+  0% { background-color: rgba(43, 140, 193, 0); }
+  35% { background-color: rgba(43, 140, 193, 0.22); }
+  100% { background-color: rgba(43, 140, 193, 0); }
+}
+
+/* Touch-pulse ripple — new primitive (the director's tap feedback) in the prototype's cyan. */
+@keyframes demoPulse {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
