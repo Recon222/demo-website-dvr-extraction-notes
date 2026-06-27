@@ -97,6 +97,12 @@ export function calculateDSTAdjustedTimeRange(
   timeRange: TimeRange,
   collectionDateTime: string,
 ): { startDateTime: string; endDateTime: string; adjustmentApplied: number } {
+  // Fail loud on an invalid collection time. isInDST silently returns false on bad input,
+  // which would otherwise apply the ±1h shift in a guessed direction with false confidence
+  // (the range-time path already throws via applyTimeOffset — this keeps the guard symmetric).
+  if (isNaN(new Date(collectionDateTime.replace(' ', 'T')).getTime())) {
+    throw new Error('Unable to parse collection date value')
+  }
   const collectionInDST = isInDST(collectionDateTime)
   const adjustmentHours = collectionInDST ? -1 : 1
   const adjustmentMs = Math.abs(adjustmentHours) * 3_600_000

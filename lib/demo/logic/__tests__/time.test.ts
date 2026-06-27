@@ -163,4 +163,15 @@ describe('invalid input fails loud (no NaN in forensic output)', () => {
       calculateDSTAdjustedTimeRange({ startDateTime: 'nope', endDateTime: 'nope' }, '2025-07-01 12:00:00'),
     ).toThrow()
   })
+
+  it('calculateDSTAdjustedTimeRange throws on an invalid collection time (valid range)', () => {
+    // The DST decision reads collectionDateTime via isInDST, which silently returns false
+    // on bad input — guard it so the adjustment direction is never applied on a guess.
+    expect(() =>
+      calculateDSTAdjustedTimeRange(
+        { startDateTime: '2025-03-08 23:00:00', endDateTime: '2025-03-09 01:00:00' },
+        'not-a-date',
+      ),
+    ).toThrow()
+  })
 })
