@@ -91,6 +91,14 @@ describe('mapAiToForm', () => {
     expect(out.requesterName).toBe('')
     expect(out._import.timeFrames).toEqual([])
   })
+
+  it('derives isActualTime case-insensitively from the time-period type', () => {
+    const dvr = mapAiToForm({
+      ...ai,
+      extractionTimeFrames: [{ ...ai.extractionTimeFrames[0], timePeriodType: 'dvr time' }],
+    })
+    expect(dvr._import.timeFrames[0].isActualTime).toBe(false)
+  })
 })
 
 describe('sanitizeInputText / buildExtractFieldsUserPrompt', () => {

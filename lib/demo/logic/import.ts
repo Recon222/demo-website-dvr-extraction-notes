@@ -177,7 +177,7 @@ export function mapAiToForm(ai: Partial<ExtractedFields>): MappedImport {
       timeFrames: tf.map((t) => ({
         startDateTime: t.extractionStartTime || '',
         endDateTime: t.extractionEndTime || '',
-        isActualTime: (t.timePeriodType || 'Actual Time') !== 'DVR Time',
+        isActualTime: String(t.timePeriodType ?? 'Actual Time').trim().toLowerCase() !== 'dvr time',
         cameras: t.cameraDetails || '',
       })),
     },

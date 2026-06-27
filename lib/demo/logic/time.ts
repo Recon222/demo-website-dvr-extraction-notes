@@ -110,7 +110,8 @@ export function calculateDSTAdjustedTimeRange(
 
 /** Current (or given) time as a local 'YYYY-MM-DD HH:MM:SS' string. */
 export function getCurrentFormattedTime(timestamp?: number): string {
-  const n = timestamp ? new Date(timestamp) : new Date()
+  // `!= null` (not truthiness) so a provided 0 means the epoch, not "now".
+  const n = timestamp != null ? new Date(timestamp) : new Date()
   return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(
     n.getMinutes(),
   )}:${pad(n.getSeconds())}`

@@ -139,6 +139,11 @@ describe('getCurrentFormattedTime', () => {
       /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
     )
   })
+
+  it('uses a provided timestamp of 0 (the epoch), not the current time', () => {
+    // Epoch 0 lands on 1969-12-31 or 1970-01-01 depending on the local zone.
+    expect(getCurrentFormattedTime(0)).toMatch(/^19(69|70)-/)
+  })
 })
 
 describe('invalid input fails loud (no NaN in forensic output)', () => {
