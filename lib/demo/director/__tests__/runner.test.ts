@@ -113,8 +113,53 @@ describe('runBeat — ordering & cancel', () => {
   })
 })
 
-describe('runBeat — resilience', () => {
-  it('skips a throwing step without aborting the rest of the beat', async () => {
+describe('runBeat — cancel mid-launch (review #2)', () => {
+  it('restores the prior screen even when cancelled inside the sub-beat', async () => {
+    const store = seededStore()
+    store.getState().setView('timeOffset')
+    // a launch sub-beat that waits then has another step, so cancel lands mid-sub-beat
+    const beats = {
+      ocr: { chapter: 'ocr' as const, steps: [{ kind: 'wait' as const, ms: 500 }, { kind: 'tap' as const, target: 'confirm' }] },
+    }
+    const beat: Beat = { chapter: 'timeOffset', steps: [{ kind: 'launch', screen: 'ocr' }] }
+    const h = runBeat(store, beat, { beats })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(store.getState().view).toBe('ocr') // launched, inside the wait
+    h.cancel()
+    await vi.runAllTimersAsync()
+    await h.done
+    expect(store.getState().view).toBe('timeOffset') // restored (would be stuck on 'ocr' without try/finally)
+  })
+
+  it('opens and closes a launch screen that has no beat', async () => {
+    const store = seededStore()
+    store.getState().setView('submission')
+    const beat: Beat = { chapter: 'submission', steps: [{ kind: 'launch', screen: 'mediaCapture' }] }
+    await runBeat(store, beat).done
+    expect(store.getState().view).toBe('submission')
+  })
+})
+
+describe('runBeat — cancel mid-type', () => {
+  it('stops part-way through the word', async () => {
+    const store = storeWithLocation()
+    const beat: Beat = {
+      chapter: 'submission',
+      steps: [{ kind: 'type', field: 'businessName', value: 'Mississauga', perCharMs: 10 }],
+    }
+    const h = runBeat(store, beat)
+    expect(selectCurrentLocation(store.getState())?.businessName).toBe('M')
+    await vi.advanceTimersByTimeAsync(10)
+    expect(selectCurrentLocation(store.getState())?.businessName).toBe('Mi')
+    h.cancel()
+    await vi.runAllTimersAsync()
+    await h.done
+    expect(selectCurrentLocation(store.getState())?.businessName).toBe('Mi') // not the full word
+  })
+})
+
+describe('runBeat — resilience & degraded signal', () => {
+  it('skips a throwing step, records a warning, and still runs the rest', async () => {
     const store = seededStore()
     const pulses: string[] = []
     const beat: Beat = {
@@ -126,9 +171,18 @@ describe('runBeat — resilience', () => {
         { kind: 'tap', target: 'after' }, // must still run
       ],
     }
-    await expect(
-      runBeat(store, beat, { onPulse: (e) => pulses.push(e.target) }).done,
-    ).resolves.toBeUndefined()
+    const h = runBeat(store, beat, { onPulse: (e) => pulses.push(e.target) })
+    await h.done
     expect(pulses).toEqual(['after'])
+    expect(h.warnings).toHaveLength(1)
+    expect(h.degraded).toBe(true)
+  })
+
+  it('a clean beat reports no warnings (degraded false)', async () => {
+    const store = offsetReady()
+    const h = runBeat(store, { chapter: 'timeOffset', steps: [{ kind: 'call', action: 'calculateOffset' }] })
+    await h.done
+    expect(h.warnings).toHaveLength(0)
+    expect(h.degraded).toBe(false)
   })
 })
