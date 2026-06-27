@@ -71,8 +71,9 @@ export interface DemoState {
   view: ChapterId | LaunchableId
   modal: ModalId | null
   drawerOpen: boolean
-  /** The chapter the tour is on — set only by chapter navigation (setView), never by
-   *  launch/closeLaunch. The director keys beat-play on this so a launch can't restart it. */
+  /** The chapter the tour is on — set by chapter navigation (setView) and store resets
+   *  (seedGuided/reset), but never by launch/closeLaunch. The director keys beat-play on this
+   *  so a launch can't restart the beat. */
   currentChapter: ChapterId
   capture: CaptureState
   auth: 'idle' | 'authorized'
