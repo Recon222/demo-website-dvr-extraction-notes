@@ -33,7 +33,7 @@ export interface Feature {
   /** One-line statement of the pain this feature removes. */
   painLine: string
   /** Ordered pain→fix content rows. */
-  rows: FeatureRow[]
+  rows: readonly FeatureRow[]
   /** Optional technical diagram + caption for the "under the hood" section. */
   diagram?: FeatureDiagram
   /** Build/priority tier. */

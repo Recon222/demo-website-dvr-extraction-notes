@@ -290,7 +290,7 @@ export function getAllFeatures(): readonly Feature[] {
 }
 
 /** All feature slugs (definition order). */
-export function getFeatureSlugs(): string[] {
+export function getFeatureSlugs(): readonly string[] {
   return features.map((feature) => feature.slug)
 }
 
