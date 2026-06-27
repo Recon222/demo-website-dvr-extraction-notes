@@ -54,4 +54,28 @@ describe('useReducedMotion', () => {
     const { result } = renderHook(() => useReducedMotion())
     expect(result.current).toBe(false)
   })
+
+  it('removes its change listener on unmount (no leak)', () => {
+    const addEventListener = vi.fn()
+    const removeEventListener = vi.fn()
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: false,
+        media: '(prefers-reduced-motion: reduce)',
+        addEventListener,
+        removeEventListener,
+      }),
+    )
+
+    const { unmount } = renderHook(() => useReducedMotion())
+    // The exact handler instance registered must be the one torn down — a mismatched
+    // reference (e.g. an anonymous wrapper) would leave the listener attached.
+    const handler = addEventListener.mock.calls[0][1]
+    expect(addEventListener).toHaveBeenCalledWith('change', handler)
+
+    unmount()
+
+    expect(removeEventListener).toHaveBeenCalledWith('change', handler)
+  })
 })

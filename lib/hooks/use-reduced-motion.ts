@@ -13,7 +13,9 @@ export function useReducedMotion(): boolean {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    // Effects run only in the browser, so `window` always exists here; guard only
+    // against environments that lack matchMedia (older WebViews, jsdom without a stub).
+    if (typeof window.matchMedia !== 'function') {
       return
     }
 
