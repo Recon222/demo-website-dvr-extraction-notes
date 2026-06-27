@@ -162,3 +162,23 @@ wires the screens + drawer triggers.
   not openable in M3).
 
 **Trigger:** Milestone 4 (screen prop-typing + drawer trigger wiring).
+
+---
+
+## 8. Milestone-4 deferrals — media-capture screens (fast-follow)
+
+**Source:** M4 build scoping. The full wizard + completion flow (splash → … → completion → real
+court PDF) is complete and plays end-to-end; the camera/mic media screens are a self-contained
+fast-follow that hangs off the drawer's media accordion (the M3-deferred drawer infra).
+
+- **MediaCaptureScreen** (real webcam photo/video + sample fallback), **AudioRecordingScreen**
+  (real mic + simulated waveform fallback), **MediaLibraryModal** (captured-media gallery). Real
+  getUserMedia/MediaRecorder with sample fallbacks per the architecture; tested via the
+  sample-fallback path (mediaDevices undefined in jsdom).
+- **Drawer "Media" accordion** that opens the three screens (+ the M3-deferred Escape/focus-trap).
+- **CamerasScreen per-camera GPS lock** (simulated `onCaptureGps`).
+- **`app/demo/page.tsx`** is a minimal route brought forward from M5 so the demo is viewable
+  in-browser during dev. The full M5 (immersive chrome-free layout, Header/FeatureNav relocation,
+  homepage/feature CTAs) is still its own milestone.
+
+**Trigger:** fast-follow after M4 merges (before M5 wires the CTAs).
