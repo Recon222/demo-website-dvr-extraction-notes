@@ -9,7 +9,7 @@ import { BEATS } from '@/lib/demo/director/beats'
 import { NARRATION } from '@/lib/demo/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/lib/demo/content/screens'
 import { mapAiToForm, SAMPLE_EXTRACTION } from '@/lib/demo/logic/import'
-import { SAMPLE_REQUEST_DOC } from '@/lib/demo/content/seed'
+import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/lib/demo/content/seed'
 import type { ChapterId, DemoMode } from '@/lib/demo/types'
 import { PhoneFrame } from '@/components/demo/PhoneFrame'
 import { StoryRail, type RailDot } from '@/components/demo/StoryRail'
@@ -27,12 +27,20 @@ import { ArrivalDepartureScreen } from '@/components/demo/screens/ArrivalDepartu
 import { TimeOffsetScreen, type CorrectedScope } from '@/components/demo/screens/TimeOffsetScreen'
 import { OcrCaptureScreen, type OcrResult } from '@/components/demo/screens/OcrCaptureScreen'
 import { ExtractedScopeScreen } from '@/components/demo/screens/ExtractedScopeScreen'
+import { DvrInfoScreen } from '@/components/demo/screens/DvrInfoScreen'
+import { CamerasScreen } from '@/components/demo/screens/CamerasScreen'
+import { ExportInfoScreen } from '@/components/demo/screens/ExportInfoScreen'
+import { NotesScreen } from '@/components/demo/screens/NotesScreen'
+import { CompletionScreen, type CompletionSummary } from '@/components/demo/screens/CompletionScreen'
+import { PdfPreview } from '@/components/demo/chrome/PdfPreview'
 import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
-import { selectDrawerItems } from '@/lib/demo/store/selectors'
+import { selectDrawerItems, selectCaseNotesData } from '@/lib/demo/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/demo/logic/ocr'
 import { getCurrentFormattedTime } from '@/lib/demo/logic/time'
+import { generateCaseNotesDoc } from '@/lib/demo/logic/pdf/case-notes'
+import { generateTimeOffsetDoc } from '@/lib/demo/logic/pdf/time-offset'
 import { toCaseCards } from '@/components/demo/screens/screenData'
-import type { ScopeEntry } from '@/lib/demo/types'
+import type { CameraEntry, ScopeEntry } from '@/lib/demo/types'
 import '@/components/demo/demo.css'
 
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
@@ -61,6 +69,13 @@ const blankImport: ImportState = { stage: 'picker', text: '', result: null, last
 let uiSeq = 0
 const blankScope = (): ScopeEntry => ({ id: `ui-s${uiSeq++}`, startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' })
 const blankVisit = () => ({ id: `ui-v${uiSeq++}`, arrival: '', departure: '' })
+const blankCamera = (): CameraEntry => ({ id: `ui-c${uiSeq++}`, cameraName: '', resolution: '', recordingFps: '' })
+
+interface PdfState {
+  title: string
+  html: string
+}
+const EMPTY_FORM = blankLocationForm()
 
 /** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id; warn (dev) on miss. */
 function slugToChapter(slug: string): ChapterId | null {
@@ -145,6 +160,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  const [pdf, setPdf] = useState<PdfState | null>(null)
+  const [caseCompleted, setCaseCompleted] = useState(false)
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -285,6 +302,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setOcrResult(null)
   }
 
+  // ---- PDF preview + completion ----
+  const previewCaseNotes = () => setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+  const previewTimeOffset = () => {
+    const off = currentLocation?.form.timeOffset
+    const addr = currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') : ''
+    setPdf({
+      title: 'Time-Offset Calibration',
+      html: generateTimeOffsetDoc({
+        occNumber: currentCase?.caseNumber,
+        address: addr,
+        isCorrect: off?.isCorrect,
+        formattedDiff: off?.formattedDifference,
+        direction: off?.direction,
+        dvrDateTime: off?.dvrDateTime,
+        actualDateTime: off?.actualDateTime,
+        captureMethod: off?.captureMethod,
+        dvrAppliesDST: off?.dvrAppliesDST,
+        sync: off?.sync ?? null,
+      }),
+    })
+  }
+
   const showTabs = view === 'dashboard' || view === 'cases'
 
   function activeScreen() {
@@ -396,6 +435,78 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'dvrInfo':
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+      case 'cameras': {
+        const cams = currentLocation?.form.cameras ?? []
+        return (
+          <CamerasScreen
+            cameras={cams}
+            onChange={(i, patch) => store.getState().updateField('form.cameras', cams.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))}
+            onAdd={() => store.getState().updateField('form.cameras', [...cams, blankCamera()])}
+            onRemove={(i) => store.getState().updateField('form.cameras', cams.filter((_, idx) => idx !== i))}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
+      case 'exportInfo':
+        return (
+          <ExportInfoScreen
+            data={currentLocation?.form.export ?? EMPTY_FORM.export}
+            onChange={(f, v) => store.getState().updateField(`form.export.${f}`, v)}
+            onToggleMediaPlayer={() => store.getState().updateField('form.export.mediaPlayerIncluded', !currentLocation?.form.export.mediaPlayerIncluded)}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      case 'notes':
+        return (
+          <NotesScreen
+            notes={currentLocation?.form.notesText ?? ''}
+            onChange={(v) => {
+              store.getState().updateField('form.notesText', v)
+              store.getState().updateField('form.notesEdited', true)
+            }}
+            onRegenerate={() => store.getState().generateNotes()}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      case 'completion': {
+        const off = currentLocation?.form.timeOffset
+        const summary: CompletionSummary = {
+          occNumber: currentCase?.caseNumber ?? '—',
+          location: currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') || currentLocation.locationName : '—',
+          dvr: currentLocation?.form.dvr.dvrTypeBrand || '—',
+          offset: off ? `${off.formattedDifference} ${off.direction}` : null,
+          scopes: currentLocation?.form.scopes.length ?? 0,
+          cameras: currentLocation?.form.cameras.length ?? 0,
+          export: currentLocation?.form.export.exportMedia || '—',
+        }
+        return (
+          <CompletionScreen
+            summary={summary}
+            isComplete={caseCompleted}
+            onPreviewPdf={previewCaseNotes}
+            onPreviewTimeOffsetPdf={previewTimeOffset}
+            onComplete={() => setCaseCompleted(true)}
+            onBackToDashboard={() => {
+              setCaseCompleted(false)
+              store.getState().setView('dashboard')
+            }}
+            onBackToCases={() => {
+              setCaseCompleted(false)
+              store.getState().setView('cases')
+            }}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
       default:
         return placeholder(view)
     }
@@ -469,6 +580,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               }}
             />
           )}
+          {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
           <TouchIndicator pulses={pulses} />
         </PhoneFrame>
       </div>

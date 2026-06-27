@@ -161,6 +161,35 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
   )
 }
 
+/** A labelled select bound to a string value. */
+export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: string[] }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 14, padding: '11px 12px', outline: 'none', colorScheme: 'dark' }}>
+        <option value="">Select…</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+/** A labelled on/off toggle. */
+export function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick(): void }) {
+  return (
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}>
+      <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
+      <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }} />
+      </div>
+    </div>
+  )
+}
+
 /** "+ Add …" dashed button + "Remove" link used by the array wizard screens. */
 export function AddRowButton({ label, onClick }: { label: string; onClick(): void }) {
   return (
