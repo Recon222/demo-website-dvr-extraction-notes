@@ -71,6 +71,14 @@ export interface ExtractedFields {
 }
 
 export interface ImportTimeFrame {
+  /**
+   * Start/end of the requested window AS EXTRACTED — frequently natural language (e.g.
+   * "11:45 PM on March 8 2025"), NOT canonical 'YYYY-MM-DD HH:MM:SS'. The extraction
+   * prompt deliberately preserves the document's wording. The requested-scope screen
+   * normalises these into a `ScopeEntry` before any time math runs (and the time math
+   * throws on un-parseable input — see `logic/time.ts`), so free text never silently
+   * reaches the offset calculation.
+   */
   startDateTime: string
   endDateTime: string
   isActualTime: boolean
@@ -187,7 +195,11 @@ export const FORM_OPTIONS = {
   fps: ['1', '5', '10', '15', '20', '25', '30', 'custom'],
 } as const
 
-/** Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo doesn't call a real model. */
+/**
+ * Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo doesn't call a real model.
+ * The time-frame times are intentionally natural-language (as the model would extract
+ * them from the email prose); see `ImportTimeFrame` for the free-text → normalise contract.
+ */
 export const SAMPLE_EXTRACTION: ExtractedFields = {
   occurrenceNumber: 'PR25-0098213',
   offenceType: 'Break & enter',
