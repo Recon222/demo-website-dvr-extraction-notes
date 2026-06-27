@@ -138,6 +138,30 @@ describe('generateExtractedScopes', () => {
     expect(ex[0].startDateTime).toBe('2025-03-08 23:50:00') // 23:45:00 + 5:30 → floor 5min
     expect(ex[0].endDateTime).toBe('2025-03-09 01:40:00') // 01:30:00 + 5:30 → ceil 5min
   })
+
+  it('handles a DVR-behind offset (subtracts for actual→DVR)', () => {
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.scopes', [scope()])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 11:55:00') // DVR behind 5:00
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+    const ex = selectCurrentLocation(store.getState())?.form.extractedScopes ?? []
+    expect(ex).toHaveLength(1)
+    expect(ex[0].startDateTime).toBe('2025-03-08 23:40:00')
+    expect(ex[0].endDateTime).toBe('2025-03-09 01:25:00')
+  })
+
+  it('is a no-op when there is no offset yet', () => {
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.scopes', [scope()])
+    store.getState().generateExtractedScopes()
+    expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(0)
+  })
 })
 
 describe('generateNotes', () => {

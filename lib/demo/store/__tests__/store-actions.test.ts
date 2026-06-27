@@ -116,3 +116,39 @@ describe('selectCaseNotesData', () => {
     expect(data.timeOffset).toBeNull()
   })
 })
+
+describe('generateExtractedScopes resilience (review #1)', () => {
+  it('skips un-normalised free-text import scopes instead of throwing', () => {
+    const store = withLocation()
+    store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION)) // free-text time frames → form.scopes
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    expect(() => store.getState().generateExtractedScopes()).not.toThrow()
+    expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(0)
+  })
+
+  it('computes the good scopes even when a bad one is present (no discard-all)', () => {
+    const store = withLocation()
+    store.getState().updateField('form.scopes', [
+      { id: 'bad', startDateTime: '11:45 PM on March 8 2025', endDateTime: 'whenever', isActualTime: true, cameras: '' },
+      { id: 'good', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3,4,7' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+    expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(1) // only the good one
+  })
+})
+
+describe('applyImport empty time frames', () => {
+  it('keeps existing scopes when the import carries no time frames', () => {
+    const store = withLocation()
+    store.getState().updateField('form.scopes', [
+      { id: 's1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3,4,7' },
+    ])
+    store.getState().applyImport(mapAiToForm({ ...SAMPLE_EXTRACTION, extractionTimeFrames: [] }))
+    expect(selectCurrentLocation(store.getState())?.form.scopes).toHaveLength(1)
+  })
+})

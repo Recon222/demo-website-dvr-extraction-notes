@@ -265,27 +265,29 @@ export function createDemoStore(): DemoStore {
       if (!id) return
       const loc = s.locations.find((l) => l.id === id)
       if (!loc || !loc.form.timeOffset) return
-      const off = loc.form.timeOffset
-      const diff = {
-        differenceMs: off.differenceMs,
-        formattedDifference: off.formattedDifference,
-        direction: off.direction,
-        isDvrAhead: off.isDvrAhead,
-      }
-      const extracted: ScopeEntry[] = loc.form.scopes.map((sc) => {
-        const corrected = calculateCorrectedTimeRange(
-          { startDateTime: sc.startDateTime, endDateTime: sc.endDateTime },
-          diff,
-          sc.isActualTime,
-        )
-        return {
-          id: nextId('es'),
-          startDateTime: roundTo5Min(corrected.startDateTime, 'down'),
-          endDateTime: roundTo5Min(corrected.endDateTime, 'up'),
-          isActualTime: false,
-          cameras: sc.cameras,
+      const off = loc.form.timeOffset // TimeOffsetData is a structural TimeDifference superset
+      // Per-entry isolation: a scope whose times aren't canonical yet (e.g. free-text
+      // import frames the requested-scope screen hasn't normalised) is skipped, not allowed
+      // to throw out of the action or abandon the scopes already computed.
+      const extracted: ScopeEntry[] = []
+      for (const sc of loc.form.scopes) {
+        try {
+          const corrected = calculateCorrectedTimeRange(
+            { startDateTime: sc.startDateTime, endDateTime: sc.endDateTime },
+            off,
+            sc.isActualTime,
+          )
+          extracted.push({
+            id: nextId('es'),
+            startDateTime: roundTo5Min(corrected.startDateTime, 'down'),
+            endDateTime: roundTo5Min(corrected.endDateTime, 'up'),
+            isActualTime: false,
+            cameras: sc.cameras,
+          })
+        } catch {
+          // skip un-parseable scope; the good ones still compute
         }
-      })
+      }
       set((st) => ({
         locations: st.locations.map((l) =>
           l.id === id ? { ...l, form: { ...l.form, extractedScopes: extracted } } : l,
