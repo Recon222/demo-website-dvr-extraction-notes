@@ -42,6 +42,18 @@ describe('AppDemo', () => {
     expect(sources[1]).toHaveAttribute('src', '/demos/time-calibration/ocr.mp4')
   })
 
+  it('emits a single source (no fabricated WebM twin) when the src is not an .mp4', () => {
+    // WebM is derived by swapping the .mp4 extension. A non-.mp4 src must not
+    // produce a bogus video/webm <source> pointing at the same file.
+    render(<AppDemo src="demos/clip.mov" label="Non-mp4 demo" />)
+
+    const video = screen.getByTestId('app-demo-video') as HTMLVideoElement
+    const sources = video.querySelectorAll('source')
+    expect(sources).toHaveLength(1)
+    expect(sources[0]).toHaveAttribute('type', 'video/mp4')
+    expect(sources[0]).toHaveAttribute('src', '/demos/clip.mov')
+  })
+
   it('renders the poster image (not a video) when the user prefers reduced motion', () => {
     mockUseReducedMotion.mockReturnValue(true)
     render(<AppDemo src="demos/x.mp4" poster="demos/x.webp" label="Reduced demo" />)

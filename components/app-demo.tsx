@@ -59,7 +59,10 @@ export function AppDemo({ src, poster, label, width, height, className }: AppDem
   }
 
   const mp4Url = toPublicUrl(src)
-  const webmUrl = mp4Url.replace(/\.mp4$/, '.webm')
+  // WebM is the same path with a .webm extension. Only offer it for genuine
+  // .mp4 sources, so a non-.mp4 src can't fabricate a duplicate <source>
+  // pointing at the same file.
+  const webmUrl = mp4Url.endsWith('.mp4') ? mp4Url.replace(/\.mp4$/, '.webm') : undefined
 
   return (
     <video
@@ -75,7 +78,7 @@ export function AppDemo({ src, poster, label, width, height, className }: AppDem
       height={height}
       className={cn(FRAME_CLASS, className)}
     >
-      <source src={webmUrl} type="video/webm" />
+      {webmUrl ? <source src={webmUrl} type="video/webm" /> : null}
       <source src={mp4Url} type="video/mp4" />
     </video>
   )
