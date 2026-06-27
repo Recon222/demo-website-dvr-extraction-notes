@@ -100,7 +100,11 @@ export function parseTimestampFromText(text: string): string | null {
   // MM/DD/YYYY (no meridiem)
   if ((m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\s*(AM|PM))/i)))
     return fmtDT(normalizeYear(m[3]), p2(m[1]), p2(m[2]), p2(m[4]), m[5], p2(m[6]))
-  // dash with meridiem (DD-MM or MM-DD)
+  // dash format. AMBIGUOUS when both parts are <= 12: we ASSUME MM-DD (North-American
+  // forensic default; seed data is Peel Regional Police). Only a first part that is clearly
+  // a day (> 12) forces DD-MM. This is an assumption, not a verified parse — M2's OCR chapter
+  // should surface it so a reviewer can correct a transposed date.
+  // dash with meridiem
   if ((m = s.match(/(\d{1,2})-(\d{1,2})-(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)/i))) {
     const f = +m[1]
     const se = +m[2]
@@ -127,7 +131,9 @@ export function parseTimestampFromText(text: string): string | null {
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h >= 0 && h <= 23)
       return fmtDT(normalizeYear(m[1]), m[2], m[3], m[4], m[5], m[6] || '00')
   }
-  // time-only HH:MM:SS → today's date
+  // time-only HH:MM:SS → today's date.
+  // TODO(M2): "today" is a guess. The OCR chapter must have the user confirm the date
+  // before a time-only result is accepted as a scope (otherwise this is a BLOCK).
   if ((m = s.match(/^(\d{2}):(\d{2}):(\d{2})$/))) {
     if (+m[1] <= 23 && +m[2] <= 59) {
       const n = new Date()

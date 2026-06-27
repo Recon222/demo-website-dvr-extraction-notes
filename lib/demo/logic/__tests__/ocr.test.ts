@@ -3,7 +3,7 @@ import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/
 
 // Ported from the app's OCR text-cleaning pipeline + timestamp parser. The cleaning
 // fixes the slips a DVR-display OCR typically makes (O→0, l→1, dropped colons) while
-// protecting day/month/meridiem words; the parser then reads six common formats.
+// protecting day/month/meridiem words; the parser then reads several common formats.
 describe('cleanOcrText', () => {
   it('substitutes OCR confusables but preserves protected words', () => {
     expect(cleanOcrText('Mon O1/O2/2O25')).toBe('Mon 01/02/2025')

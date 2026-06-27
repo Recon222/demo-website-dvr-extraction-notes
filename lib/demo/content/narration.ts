@@ -217,7 +217,7 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     title: 'Read the DVR clock',
     paras: [
       "Rather than type the DVR's on-screen time, point the camera at it. The app captures a frame, OCRs the timestamp, cleans the text and parses it — then applies the atomic-clock offset at the instant of capture.",
-      'This runs real in-browser OCR. No camera? Use the sample DVR clock — same pipeline. The cleaning fixes typical OCR slips (O→0, l→1, missing colons) before parsing six timestamp formats.',
+      'This runs real in-browser OCR. No camera? Use the sample DVR clock — same pipeline. The cleaning fixes typical OCR slips (O→0, l→1, missing colons) before parsing several timestamp formats.',
     ],
     bullets: [
       'Live webcam capture, or a generated sample DVR clock',

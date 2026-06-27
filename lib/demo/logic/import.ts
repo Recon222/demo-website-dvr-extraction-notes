@@ -1,8 +1,8 @@
 /**
  * AI field-extraction prompt + parsing + form mapping, adapted from the app's PDF-import
  * feature. The demo does not call a live model — the import chapter resolves to
- * `SAMPLE_EXTRACTION` — but `parseAiJson`/`mapAiToForm` run the app's real mapping logic
- * unchanged, so the mapping the visitor sees is the genuine one.
+ * `SAMPLE_EXTRACTION` — but `parseAiJson`/`mapAiToForm` run the app's real mapping logic,
+ * so the mapping the visitor sees is the genuine one.
  */
 
 // ============================================================================
