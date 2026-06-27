@@ -68,7 +68,7 @@ describe('mapAiToForm', () => {
   })
 
   it('does NOT map the occurrence number (the case owns it)', () => {
-    const out = mapAiToForm(ai) as Record<string, unknown>
+    const out = mapAiToForm(ai) as unknown as Record<string, unknown>
     expect(out.occNumber).toBeUndefined()
     expect(out.occurrenceNumber).toBeUndefined()
   })
