@@ -49,6 +49,9 @@ export function isDvrTimeCorrect(diff: TimeDifference): boolean {
 
 function applyTimeOffset(dateTime: string, offsetMs: number, shouldAdd: boolean): string {
   const date = new Date(dateTime.replace(' ', 'T') + 'Z')
+  // Fail loud rather than emit "NaN-NaN-NaN ..." onto a forensic document — consistent
+  // with calculateTimeDifference. Callers must pass canonical 'YYYY-MM-DD HH:MM:SS'.
+  if (isNaN(date.getTime())) throw new Error('Unable to parse date value')
   const corrected = new Date(
     shouldAdd ? date.getTime() + Math.abs(offsetMs) : date.getTime() - Math.abs(offsetMs),
   )

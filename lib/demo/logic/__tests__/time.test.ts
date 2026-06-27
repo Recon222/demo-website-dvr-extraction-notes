@@ -126,3 +126,18 @@ describe('getCurrentFormattedTime', () => {
     )
   })
 })
+
+describe('invalid input fails loud (no NaN in forensic output)', () => {
+  it('calculateCorrectedTimeRange throws on an empty/invalid range time', () => {
+    const diff = calculateTimeDifference('2025-03-08 12:05:30', '2025-03-08 12:00:00')
+    expect(() =>
+      calculateCorrectedTimeRange({ startDateTime: '', endDateTime: '2025-03-09 01:30:00' }, diff, true),
+    ).toThrow()
+  })
+
+  it('calculateDSTAdjustedTimeRange throws on an invalid range time', () => {
+    expect(() =>
+      calculateDSTAdjustedTimeRange({ startDateTime: 'nope', endDateTime: 'nope' }, '2025-07-01 12:00:00'),
+    ).toThrow()
+  })
+})
