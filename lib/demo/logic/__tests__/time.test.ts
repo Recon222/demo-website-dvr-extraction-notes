@@ -54,41 +54,55 @@ describe('isDvrTimeCorrect', () => {
   })
 })
 
-describe('calculateCorrectedTimeRange', () => {
-  it('converts an actual-time range to DVR time by adding the offset when DVR is ahead', () => {
-    const diff = calculateTimeDifference('2025-03-08 12:05:30', '2025-03-08 12:00:00') // ahead 5:30
-    const out = calculateCorrectedTimeRange(
-      { startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00' },
-      diff,
-      true, // input is actual time → produce DVR time
-    )
+describe('calculateCorrectedTimeRange — all four offset-direction quadrants', () => {
+  // The most safety-critical math in the engine: the offset direction decides which
+  // footage gets pulled. Pin concrete arithmetic for every (isActualTime × isDvrAhead)
+  // quadrant so a sign flip in applyTimeOffset cannot ship undetected.
+  const range = { startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00' }
+  const ahead = calculateTimeDifference('2025-03-08 12:05:30', '2025-03-08 12:00:00') // DVR ahead 00:05:30
+  const behind = calculateTimeDifference('2025-03-08 12:00:00', '2025-03-08 12:05:00') // DVR behind 00:05:00
+
+  it('Q1 actual-time + DVR ahead → adds the offset', () => {
+    const out = calculateCorrectedTimeRange(range, ahead, true)
     expect(out.startDateTime).toBe('2025-03-08 23:50:30')
     expect(out.endDateTime).toBe('2025-03-09 01:35:30')
     expect(out.isActualTime).toBe(false)
   })
 
-  it('flips the isActualTime flag on the returned range', () => {
-    const diff = calculateTimeDifference('2025-03-08 12:00:00', '2025-03-08 12:05:00') // behind 5:00
-    const out = calculateCorrectedTimeRange(
-      { startDateTime: '2025-03-08 10:00:00', endDateTime: '2025-03-08 11:00:00' },
-      diff,
-      false,
-    )
+  it('Q2 actual-time + DVR behind → subtracts the offset', () => {
+    const out = calculateCorrectedTimeRange(range, behind, true)
+    expect(out.startDateTime).toBe('2025-03-08 23:40:00')
+    expect(out.endDateTime).toBe('2025-03-09 01:25:00')
+    expect(out.isActualTime).toBe(false)
+  })
+
+  it('Q3 DVR-time + DVR ahead → subtracts the offset', () => {
+    const out = calculateCorrectedTimeRange(range, ahead, false)
+    expect(out.startDateTime).toBe('2025-03-08 23:39:30')
+    expect(out.endDateTime).toBe('2025-03-09 01:24:30')
+    expect(out.isActualTime).toBe(true)
+  })
+
+  it('Q4 DVR-time + DVR behind → adds the offset', () => {
+    const out = calculateCorrectedTimeRange(range, behind, false)
+    expect(out.startDateTime).toBe('2025-03-08 23:50:00')
+    expect(out.endDateTime).toBe('2025-03-09 01:35:00')
     expect(out.isActualTime).toBe(true)
   })
 })
 
 describe('calculateDSTAdjustedTimeRange', () => {
-  it('shifts the range by exactly one hour and reports the direction (±1)', () => {
-    const out = calculateDSTAdjustedTimeRange(
-      { startDateTime: '2025-03-08 23:00:00', endDateTime: '2025-03-09 01:00:00' },
-      '2025-07-01 12:00:00',
-    )
+  it('shifts start and end by exactly adjustmentApplied hours (signed, not just ±1)', () => {
+    // Ties the reported direction to the actual arithmetic: the output shift must equal
+    // adjustmentApplied × 1h with the correct sign, for both endpoints. Zone-independent.
+    const range = { startDateTime: '2025-03-08 23:00:00', endDateTime: '2025-03-09 01:00:00' }
+    const out = calculateDSTAdjustedTimeRange(range, '2025-07-01 12:00:00')
     expect([1, -1]).toContain(out.adjustmentApplied)
-    expect(out.startDateTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    const shift = out.adjustmentApplied * 3_600_000
     const startMs = new Date('2025-03-08T23:00:00Z').getTime()
-    const outMs = new Date(out.startDateTime.replace(' ', 'T') + 'Z').getTime()
-    expect(Math.abs(outMs - startMs)).toBe(3600000)
+    const endMs = new Date('2025-03-09T01:00:00Z').getTime()
+    expect(new Date(out.startDateTime.replace(' ', 'T') + 'Z').getTime() - startMs).toBe(shift)
+    expect(new Date(out.endDateTime.replace(' ', 'T') + 'Z').getTime() - endMs).toBe(shift)
   })
 })
 
