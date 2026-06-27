@@ -1,20 +1,21 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import type { WizardScreenId } from '@/lib/demo/types'
 
 export interface DrawerItem {
-  id: string
+  id: WizardScreenId
   label: string
   icon?: ReactNode
   active: boolean
-  status?: 'complete' | 'partial' | null
+  status?: 'complete' | 'partial'
 }
 
 export interface WizardDrawerProps {
   open: boolean
   items: DrawerItem[]
   onClose(): void
-  onNavigate(id: string): void
+  onNavigate(id: WizardScreenId): void
   onBackToCases(): void
 }
 
