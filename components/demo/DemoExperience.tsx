@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/lib/demo/store/create-store'
@@ -8,17 +8,43 @@ import { runBeat } from '@/lib/demo/director/runner'
 import { BEATS } from '@/lib/demo/director/beats'
 import { NARRATION } from '@/lib/demo/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/lib/demo/content/screens'
-import type { ChapterId, DemoMode, LaunchableId } from '@/lib/demo/types'
+import { mapAiToForm, SAMPLE_EXTRACTION } from '@/lib/demo/logic/import'
+import { SAMPLE_REQUEST_DOC } from '@/lib/demo/content/seed'
+import type { ChapterId, DemoMode } from '@/lib/demo/types'
 import { PhoneFrame } from '@/components/demo/PhoneFrame'
 import { StoryRail, type RailDot } from '@/components/demo/StoryRail'
 import { TouchIndicator, type Pulse } from '@/components/demo/TouchIndicator'
+import { TabBar } from '@/components/demo/controls/TabBar'
 import { SplashScreen } from '@/components/demo/screens/SplashScreen'
+import { DashboardScreen } from '@/components/demo/screens/DashboardScreen'
+import { CasesScreen } from '@/components/demo/screens/CasesScreen'
+import { NewCaseModal, type NewCaseFields } from '@/components/demo/screens/NewCaseModal'
+import { NewLocationModal, type NewLocationFields } from '@/components/demo/screens/NewLocationModal'
+import { ImportModal, type ImportStage, type ImportResult } from '@/components/demo/screens/ImportModal'
+import { toCaseCards } from '@/components/demo/screens/screenData'
 import '@/components/demo/demo.css'
 
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
 let pulseSeq = 0
 
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
+
+const blankCaseForm: NewCaseFields = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }
+const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '' }
+
+const IMPORT_STAGES: ImportStage[] = [
+  { label: 'Reading the request', state: 'done' },
+  { label: 'Extracting fields with the model', state: 'done' },
+  { label: 'Mapping to the location form', state: 'done' },
+]
+
+interface ImportState {
+  stage: 'picker' | 'paste' | 'progress' | 'result'
+  text: string
+  result: ImportResult | null
+  lastLocId: string | null
+}
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null }
 
 /** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id; warn (dev) on miss. */
 function slugToChapter(slug: string): ChapterId | null {
@@ -42,35 +68,11 @@ function applyUrlState(store: DemoStore, mode: DemoMode, step: string | null) {
   }
 }
 
-/** Render the screen for the current `view` inside the phone. Screens are added per M4 phase;
- *  not-yet-built views show a placeholder so the guided tour never crashes. */
-function renderScreen(
-  view: ChapterId | LaunchableId,
-  props: { auth: 'idle' | 'authorized'; onScan(): void },
-) {
-  switch (view) {
-    case 'splash':
-      return <SplashScreen authState={props.auth === 'authorized' ? 'authorized' : 'idle'} onScan={props.onScan} />
-    default:
-      return (
-        <div
-          style={{
-            minHeight: 786,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 40,
-            textAlign: 'center',
-            color: '#5d7a9a',
-            fontSize: 14,
-            lineHeight: 1.6,
-          }}
-        >
-          The “{view}” screen lands in a later M4 phase.
-        </div>
-      )
-  }
-}
+const placeholder = (view: string) => (
+  <div style={{ minHeight: 786, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
+    The “{view}” screen lands in a later M4 phase.
+  </div>
+)
 
 export interface DemoExperienceProps {
   /** Inject a store (test/SSR seam). Defaults to a fresh store created once per mount. */
@@ -80,8 +82,8 @@ export interface DemoExperienceProps {
 /**
  * The single store/director bridge. Creates the demo store once per mount (via ref), reads
  * ?mode/?step, subscribes selectively, plays the chapter's beat on enter in guided mode, gates
- * the phone's pointer-events, and renders the StoryRail + PhoneFrame. The ONLY component that
- * touches the store — every screen below it (M4) is presentational.
+ * the phone's pointer-events, and renders the active screen + StoryRail. The ONLY component that
+ * touches the store — every screen below it is presentational.
  *
  * Beat-play is keyed on the store's `currentChapter` (set only by chapter navigation), NOT raw
  * `view`, so a beat's own `launch('ocr')` (which moves `view`) can't re-trigger / restart it.
@@ -94,13 +96,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const storeRef = useRef<DemoStore | null>(null)
   if (!storeRef.current) {
     storeRef.current = injectedStore ?? createDemoStore()
-    // Seed before first render so the director's guided/sandbox gate is correct immediately
-    // (otherwise a sandbox mount briefly plays the splash beat before reset lands).
+    // Seed before first render so the director's guided/sandbox gate is correct immediately.
     applyUrlState(storeRef.current, mode, step)
   }
   const store = storeRef.current
 
-  // Re-apply on a later ?mode/?step change (URL nav without a remount).
   const lastUrl = useRef(`${mode}|${step ?? ''}`)
   useEffect(() => {
     const key = `${mode}|${step ?? ''}`
@@ -113,9 +113,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentMode = useStore(store, (s) => s.mode)
   const view = useStore(store, (s) => s.view)
   const auth = useStore(store, (s) => s.auth)
+  const cases = useStore(store, (s) => s.cases)
+  const locations = useStore(store, (s) => s.locations)
+  const modal = useStore(store, (s) => s.modal)
 
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
+  const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
+  const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
+  const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
+  const [imp, setImp] = useState<ImportState>(blankImport)
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -126,7 +134,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const handle = runBeat(store, beat, {
       onPulse: (e) => {
         const id = `${e.target}-${pulseSeq++}`
-        // real per-target coords land with the screens (M4); centre the ripple for now.
         setPulses((p) => [...p, { id, x: 189, y: 393 }])
         const t = setTimeout(() => {
           timers.delete(t)
@@ -152,7 +159,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title, active: id === currentChapter }))
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
+  const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
 
+  // ---- rail / chapter nav ----
   const onNext = () => {
     const n = nextChapter(currentChapter)
     if (n) store.getState().setView(n)
@@ -161,10 +170,117 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const p = prevChapter(currentChapter)
     if (p) store.getState().setView(p)
   }
-  const onJump = (id: ChapterId) => store.getState().setView(id)
-  const onSetMode = (m: DemoMode) => {
-    if (m === 'guided') store.getState().seedGuided()
-    else store.getState().reset()
+
+  // ---- screen interactions (sandbox) ----
+  const openLocation = (locationId: string) => {
+    store.getState().switchLocation(locationId)
+    store.getState().setView('submission')
+  }
+  const newCase = () => {
+    setCaseForm(blankCaseForm)
+    store.getState().openModal('newCase')
+  }
+  const addLocation = (caseId: string) => {
+    setTargetCaseId(caseId)
+    setLocForm(blankLocForm)
+    store.getState().openModal('newLocation')
+  }
+  const openImport = (caseId: string) => {
+    setTargetCaseId(caseId)
+    setImp(blankImport)
+    store.getState().openModal('import')
+  }
+  const submitCase = () => {
+    const id = store.getState().createCase({ ...caseForm })
+    setExpandedCaseId(id)
+    store.getState().closeModal()
+  }
+  const submitLocation = () => {
+    const caseId = targetCaseId ?? store.getState().currentCaseId
+    if (caseId) store.getState().addLocation(caseId, { ...locForm })
+    store.getState().closeModal()
+  }
+  const runImport = () => {
+    const caseId = targetCaseId ?? store.getState().currentCaseId
+    if (!caseId) {
+      setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
+      return
+    }
+    const patch = mapAiToForm(SAMPLE_EXTRACTION)
+    const id = store.getState().addLocation(caseId, { locationName: patch.businessName || 'Imported location' })
+    store.getState().applyImport(patch)
+    const fieldCount = [
+      patch.requesterName,
+      patch.requesterBadgeNumber,
+      patch.businessName,
+      patch.streetAddress,
+      patch.city,
+      patch.requesterPhone,
+      patch.requesterEmail,
+      patch._import.dvrTypeBrand,
+    ].filter(Boolean).length
+    setImp((s) => ({
+      ...s,
+      stage: 'result',
+      result: { ok: true, fieldCount, timeFrames: patch._import.timeFrames.length, locName: patch.businessName || 'location' },
+      lastLocId: id,
+    }))
+  }
+
+  const showTabs = view === 'dashboard' || view === 'cases'
+
+  function activeScreen() {
+    switch (view) {
+      case 'splash':
+        return <SplashScreen authState={auth === 'authorized' ? 'authorized' : 'idle'} onScan={() => store.getState().setView('dashboard')} />
+      case 'dashboard':
+        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} />
+      case 'cases':
+        return (
+          <CasesScreen
+            cases={caseCards}
+            expandedId={expandedCaseId}
+            onToggle={(id) => setExpandedCaseId((prev) => (prev === id ? null : id))}
+            onNewCase={newCase}
+            onOpenLocation={openLocation}
+            onAddLocation={addLocation}
+            onImport={openImport}
+          />
+        )
+      default:
+        return placeholder(view)
+    }
+  }
+
+  function activeModal() {
+    switch (modal) {
+      case 'newCase':
+        return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
+      case 'newLocation':
+        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} />
+      case 'import':
+        return (
+          <ImportModal
+            stage={imp.stage}
+            text={imp.text}
+            stages={IMPORT_STAGES}
+            result={imp.result}
+            onChoosePdf={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
+            onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
+            onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
+            onRun={runImport}
+            onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
+            onRetry={() => setImp((s) => ({ ...s, stage: 'picker', result: null }))}
+            onOpen={() => {
+              if (imp.lastLocId) openLocation(imp.lastLocId)
+              store.getState().closeModal()
+            }}
+            onCancel={() => store.getState().closeModal()}
+          />
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -183,11 +299,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }}
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
-        <PhoneFrame interactive={!guided}>
-          {renderScreen(view, {
-            auth,
-            onScan: () => store.getState().setView('dashboard'),
-          })}
+        <PhoneFrame
+          interactive={!guided}
+          tabBar={showTabs ? <TabBar active={view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => t !== 'map' && store.getState().setView(t)} /> : undefined}
+        >
+          {activeScreen()}
+          {activeModal()}
           <TouchIndicator pulses={pulses} />
         </PhoneFrame>
       </div>
@@ -200,8 +317,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         nextLabel={nextLabel}
         onNext={onNext}
         onPrev={onPrev}
-        onJump={onJump}
-        onSetMode={onSetMode}
+        onJump={(id) => store.getState().setView(id)}
+        onSetMode={(m) => (m === 'guided' ? store.getState().seedGuided() : store.getState().reset())}
       />
     </div>
   )
