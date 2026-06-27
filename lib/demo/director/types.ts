@@ -18,8 +18,9 @@ export type BeatStep =
   | { kind: 'call'; action: keyof DemoActions; args?: unknown[] }
   // open a launch-only screen (OCR/media), play its beat, then close it
   | { kind: 'launch'; screen: LaunchableId }
-  // patch top-level store state directly
-  | { kind: 'set'; patch: Partial<DemoState> }
+  // patch a safe slice of top-level store state (never cases/locations — those go via actions,
+  // so a beat can't bypass the isSeed invariants)
+  | { kind: 'set'; patch: Partial<Pick<DemoState, 'auth' | 'mode'>> }
   // pause
   | { kind: 'wait'; ms: number }
 

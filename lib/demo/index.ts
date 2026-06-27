@@ -2,8 +2,8 @@
  * Public API of the interactive-demo engine.
  *
  * External code imports from '@/lib/demo'; internal modules use their aliased paths.
- * Milestone 1 ships the pure logic core (types · content registries · time/OCR/import/PDF
- * logic). Milestone 2 will add the store + director to this barrel.
+ * Milestone 1 shipped the pure logic core (types · content registries · time/OCR/import/PDF
+ * logic); Milestone 2 adds the store, selectors, and director. The UI (M3+) consumes this.
  */
 
 // ---- Domain types ----

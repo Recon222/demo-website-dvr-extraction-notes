@@ -89,4 +89,28 @@ M2 gives these paths live callers.
   time-only → today default (M-3) are inline-noted in `lib/demo/logic/ocr.ts`; the M2 OCR
   chapter must let a reviewer confirm/correct both.
 
-**Trigger:** Milestone 2 (when the store / director / UI consume these surfaces).
+**Trigger:** Milestone 3 (rolled forward from M2 — these land when the UI consumes the surfaces).
+
+---
+
+## 5. Milestone-2 review deferrals — type-safety & simplification (→ M3)
+
+**Source:** PR #10 fixes-review (type-design · simplification lanes). Behaviour-preserving;
+fold in as M3 builds UI on these surfaces.
+
+- **Typed `updateField` path** — `updateField(path: string)` has no structural link to
+  `DemoLocation`/`CaptureState`, so a beat-path typo only surfaces via the dev-warn at runtime.
+  A `FieldUpdate` discriminated union (path → value type) makes typos a compile error;
+  `setPath` stays string-based behind one marked cast. (Structural fix for review #3.)
+- **Arg-checked beat actions** — `call`/`tap` `args` cast to `unknown[]`, so a wrong arg
+  type-checks. Distribute over `DemoActions` with `Parameters<DemoActions[K]>`. Contained today
+  (only zero-arg actions are invoked).
+- **`NavState` model** — `view`/`launchReturnView` are an unmodeled correlated invariant
+  (`{ view:'ocr', launchReturnView:null }` is representable; the `?? 'submission'` fallback masks it).
+- **`TimeOffsetInput` model** — `CaptureState` duplicates the input fields of `TimeOffsetData`
+  (`calculateOffset` copies field-by-field, with a `method`/`captureMethod` rename trap).
+- **Simplifications** — `patchCurrentLocation(updater)` (the repeated `get id → if(!id) → set(map)`
+  across ~6 actions); `formatAddress(loc)` (duplicated in `generateNotes` + `selectCaseNotesData`);
+  merge the runner's `waiters`/`cancels` Sets.
+
+**Trigger:** Milestone 3.
