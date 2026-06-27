@@ -29,6 +29,18 @@ function slugToChapter(slug: string): ChapterId | null {
   return null
 }
 
+/** Seed (guided) / reset (sandbox) the store from the URL state. */
+function applyUrlState(store: DemoStore, mode: DemoMode, step: string | null) {
+  const st = store.getState()
+  if (mode === 'sandbox') {
+    st.reset()
+  } else {
+    st.seedGuided()
+    const target = step ? slugToChapter(step) : null
+    if (target) st.setView(target)
+  }
+}
+
 export interface DemoExperienceProps {
   /** Inject a store (test/SSR seam). Defaults to a fresh store created once per mount. */
   store?: DemoStore
@@ -44,24 +56,26 @@ export interface DemoExperienceProps {
  * `view`, so a beat's own `launch('ocr')` (which moves `view`) can't re-trigger / restart it.
  */
 export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
-  const storeRef = useRef<DemoStore | null>(null)
-  if (!storeRef.current) storeRef.current = injectedStore ?? createDemoStore()
-  const store = storeRef.current
-
   const params = useSearchParams()
   const mode: DemoMode = params.get('mode') === 'sandbox' ? 'sandbox' : 'guided'
   const step = params.get('step')
 
-  // Seed (guided) / reset (sandbox) on mount + when the URL mode/step changes.
+  const storeRef = useRef<DemoStore | null>(null)
+  if (!storeRef.current) {
+    storeRef.current = injectedStore ?? createDemoStore()
+    // Seed before first render so the director's guided/sandbox gate is correct immediately
+    // (otherwise a sandbox mount briefly plays the splash beat before reset lands).
+    applyUrlState(storeRef.current, mode, step)
+  }
+  const store = storeRef.current
+
+  // Re-apply on a later ?mode/?step change (URL nav without a remount).
+  const lastUrl = useRef(`${mode}|${step ?? ''}`)
   useEffect(() => {
-    const st = store.getState()
-    if (mode === 'sandbox') {
-      st.reset()
-    } else {
-      st.seedGuided()
-      const target = step ? slugToChapter(step) : null
-      if (target) st.setView(target)
-    }
+    const key = `${mode}|${step ?? ''}`
+    if (lastUrl.current === key) return
+    lastUrl.current = key
+    applyUrlState(store, mode, step)
   }, [store, mode, step])
 
   const currentChapter = useStore(store, (s) => s.currentChapter)
