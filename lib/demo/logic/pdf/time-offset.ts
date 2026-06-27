@@ -1,7 +1,7 @@
 import { escapeHtml, formatDocDate, nowStamp } from '@/lib/demo/logic/pdf/shared'
 
 /**
- * The Time-Offset Calibration report — a print-ready HTML reproduction of the app's
+ * The Time-Offset Calibration report — a print-ready HTML report modelled on the app's
  * `time-offset-template`. Carries the forensic methodology: the OCR/manual capture
  * record, the NTP atomic-clock calibration, and the traceability chain.
  */

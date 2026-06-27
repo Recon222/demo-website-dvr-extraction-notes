@@ -1,9 +1,9 @@
 import { escapeHtml, formatDocDate, nowStamp } from '@/lib/demo/logic/pdf/shared'
 
 /**
- * The Case Notes court document — a faithful, print-ready HTML reproduction of the app's
+ * The Case Notes court document — a print-ready HTML report modelled on the app's
  * `case-notes-template`. Produces a complete standalone document (@page letter portrait)
- * so the demo's preview IS the real report and prints 1:1.
+ * so the demo's preview closely matches the real report.
  */
 
 export interface CaseNotesScope {

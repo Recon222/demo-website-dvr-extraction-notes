@@ -1,6 +1,6 @@
 /**
- * Bidirectional DVR ↔ actual time math, ported verbatim from the app's
- * `bidirectional-time.ts`. All arithmetic treats the 'YYYY-MM-DD HH:MM:SS' strings as
+ * Bidirectional DVR ↔ actual time math, adapted from the app's `bidirectional-time`
+ * logic. All arithmetic treats the 'YYYY-MM-DD HH:MM:SS' strings as
  * UTC (appends 'Z') so Daylight Saving never shifts a calculation — the offset is a pure
  * wall-clock delta. A separate `calculateDSTAdjustedTimeRange` handles the case where the
  * DVR itself observes DST.

@@ -1,8 +1,8 @@
 /**
- * CCTV-optimised OCR text cleaning + multi-format timestamp parsing, ported from the
+ * CCTV-optimised OCR text cleaning + multi-format timestamp parsing, adapted from the
  * app's text-cleaning-pipeline and timestamp-parser. Cleaning fixes the character slips a
  * DVR-display OCR makes (O→0, l→1, dropped colons) while protecting day/month/meridiem
- * words; the parser reads six common DVR timestamp formats into 'YYYY-MM-DD HH:MM:SS'.
+ * words; the parser reads several common DVR timestamp formats into 'YYYY-MM-DD HH:MM:SS'.
  */
 
 const OCR_CHAR_SUBS: Record<string, string> = {
@@ -78,7 +78,7 @@ function stripTimezone(text: string): string {
   return c.trim()
 }
 
-/** Parse the six common DVR timestamp formats → 'YYYY-MM-DD HH:MM:SS', or null. */
+/** Parse several common DVR timestamp formats → 'YYYY-MM-DD HH:MM:SS', or null. */
 export function parseTimestampFromText(text: string): string | null {
   const s = stripTimezone(text.replace(/\s+/g, ' ').trim())
   const to24 = (h: string, mer?: string) => {

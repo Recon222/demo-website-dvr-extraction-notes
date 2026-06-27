@@ -1,12 +1,12 @@
 /**
- * AI field-extraction prompt + parsing + form mapping, ported from the app's PDF-import
+ * AI field-extraction prompt + parsing + form mapping, adapted from the app's PDF-import
  * feature. The demo does not call a live model — the import chapter resolves to
- * `SAMPLE_EXTRACTION` — but `parseAiJson`/`mapAiToForm` are the app's real logic, run
- * verbatim so the mapping the visitor sees is the genuine one.
+ * `SAMPLE_EXTRACTION` — but `parseAiJson`/`mapAiToForm` run the app's real mapping logic
+ * unchanged, so the mapping the visitor sees is the genuine one.
  */
 
 // ============================================================================
-// AI FIELD EXTRACTION — verbatim from extract-fields-prompt.ts
+// AI FIELD EXTRACTION — adapted from extract-fields-prompt.ts
 // ============================================================================
 export const EXTRACT_FIELDS_SYSTEM_PROMPT = `You read CCTV/DVR recovery requests — formal forms or casual emails from detectives — and extract them into a JSON record. Different agencies use different labels: "Occurrence #", "OCC #", "Case #", "File #" all mean the same thing.
 
@@ -109,7 +109,7 @@ export interface MappedImport {
 }
 
 // ============================================================================
-// SANITISE + PROMPT BUILD — verbatim
+// SANITISE + PROMPT BUILD — adapted
 // ============================================================================
 /** Anti-injection: scrub the document envelope markers from input. */
 export function sanitizeInputText(text: unknown): string {
@@ -131,7 +131,7 @@ export function buildExtractFieldsUserPrompt(rawText: unknown): string {
 }
 
 // ============================================================================
-// PARSE + MAP — verbatim
+// PARSE + MAP — adapted
 // ============================================================================
 /**
  * Robustly parse the model's JSON reply: strip code fences, then slice from the first
