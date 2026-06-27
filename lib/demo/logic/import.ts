@@ -155,6 +155,11 @@ export function parseAiJson(text: string): Partial<ExtractedFields> {
  * Map the validated AI output onto the app's flat form state. `occurrenceNumber` is
  * intentionally NOT mapped — in the real app it is injected from the selected case (the
  * model consistently misreads letterheads), so the demo keeps the case's own number.
+ *
+ * DEFERRED (M-1, see docs/code-reviews/deferred.md): a garbage payload maps to an
+ * all-blank result indistinguishable from a legitimate "no fields found" — there is no
+ * recognized-field signal. Latent today (the demo never calls a live model); add a signal
+ * when M2 wires one.
  */
 export function mapAiToForm(ai: Partial<ExtractedFields>): MappedImport {
   const a = ai || {}
