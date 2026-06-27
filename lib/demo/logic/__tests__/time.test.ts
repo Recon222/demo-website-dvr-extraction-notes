@@ -116,6 +116,10 @@ describe('roundTo5Min', () => {
     expect(roundTo5Min('2025-03-08 23:45:30', 'down')).toBe('2025-03-08 23:45:00')
     expect(roundTo5Min('', 'down')).toBe('')
   })
+
+  it('returns a non-empty unparseable string unchanged', () => {
+    expect(roundTo5Min('not-a-date', 'down')).toBe('not-a-date')
+  })
 })
 
 describe('DST helpers', () => {

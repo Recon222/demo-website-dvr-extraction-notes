@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { TOUR_CHAPTERS } from '@/lib/demo/content/screens'
-import { NARRATION } from '@/lib/demo/content/narration'
+import { NARRATION, MODAL_NARRATION } from '@/lib/demo/content/narration'
 import { SEED_CASE, SEED_LOCATION, SAMPLE_REQUEST_DOC } from '@/lib/demo/content/seed'
 import { FORENSIC, getProfile } from '@/lib/demo/content/profiles'
 
@@ -20,6 +20,15 @@ describe('narration', () => {
     // Numbering now comes from the registry, so eyebrows must be number-free.
     for (const id of TOUR_CHAPTERS) {
       expect(NARRATION[id].eyebrow).not.toMatch(/^\s*\d/)
+    }
+  })
+
+  it('has modal/launch-screen copy for newCase, newLocation, import and ocr', () => {
+    for (const id of ['newCase', 'newLocation', 'import', 'ocr'] as const) {
+      const n = MODAL_NARRATION[id]
+      expect(n, `modal narration missing for "${id}"`).toBeTruthy()
+      expect(n!.title.length).toBeGreaterThan(0)
+      expect(n!.paras.length).toBeGreaterThan(0)
     }
   })
 })

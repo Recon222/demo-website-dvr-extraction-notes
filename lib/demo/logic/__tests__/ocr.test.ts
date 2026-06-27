@@ -60,6 +60,13 @@ describe('getConfidenceLevel', () => {
     expect(getConfidenceLevel(0.5).level).toBe('low')
     expect(getConfidenceLevel(0.2).level).toBe('fail')
   })
+
+  it('uses inclusive (>=) tier boundaries', () => {
+    expect(getConfidenceLevel(0.8).level).toBe('high')
+    expect(getConfidenceLevel(0.6).level).toBe('medium')
+    expect(getConfidenceLevel(0.4).level).toBe('low')
+    expect(getConfidenceLevel(0.39).level).toBe('fail')
+  })
 })
 
 describe('parser/cleaner extra formats (branch coverage)', () => {

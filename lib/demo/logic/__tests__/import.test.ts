@@ -28,6 +28,10 @@ describe('parseAiJson', () => {
   it('throws on empty input', () => {
     expect(() => parseAiJson('')).toThrow()
   })
+
+  it('throws when the sliced text passes the brace guards but is invalid JSON', () => {
+    expect(() => parseAiJson('{"k":[}')).toThrow()
+  })
 })
 
 describe('mapAiToForm', () => {
