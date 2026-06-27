@@ -36,7 +36,7 @@ export default async function FeatureRoute({ params }: FeatureRouteProps) {
     notFound()
   }
 
-  const { prev, next } = getAdjacentFeatures(slug)
+  const adjacent = getAdjacentFeatures(slug)
 
-  return <FeaturePage feature={feature} prev={prev} next={next} />
+  return <FeaturePage feature={feature} prev={adjacent?.prev} next={adjacent?.next} />
 }

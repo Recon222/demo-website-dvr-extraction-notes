@@ -93,13 +93,18 @@ describe('feature content model', () => {
     const first = ordered[0]
     const last = ordered[ordered.length - 1]
 
-    expect(getAdjacentFeatures(first.slug).prev).toBeUndefined()
-    expect(getAdjacentFeatures(first.slug).next?.slug).toBe(ordered[1].slug)
-    expect(getAdjacentFeatures(last.slug).next).toBeUndefined()
-    expect(getAdjacentFeatures(last.slug).prev?.slug).toBe(ordered[ordered.length - 2].slug)
+    const firstAdjacent = getAdjacentFeatures(first.slug)
+    expect(firstAdjacent).not.toBeNull()
+    expect(firstAdjacent!.prev).toBeUndefined()
+    expect(firstAdjacent!.next?.slug).toBe(ordered[1].slug)
+
+    const lastAdjacent = getAdjacentFeatures(last.slug)
+    expect(lastAdjacent).not.toBeNull()
+    expect(lastAdjacent!.next).toBeUndefined()
+    expect(lastAdjacent!.prev?.slug).toBe(ordered[ordered.length - 2].slug)
   })
 
-  it('returns empty neighbours for an unknown slug', () => {
-    expect(getAdjacentFeatures('nope')).toEqual({ prev: undefined, next: undefined })
+  it('returns null for an unknown slug (distinct from a feature with no neighbour)', () => {
+    expect(getAdjacentFeatures('nope')).toBeNull()
   })
 })

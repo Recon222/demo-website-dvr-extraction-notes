@@ -289,13 +289,17 @@ export function getFeatureBySlug(slug: string): Feature | undefined {
   return features.find((feature) => feature.slug === slug)
 }
 
-/** Previous/next features in display order (no wraparound). Empty for unknown slugs. */
-export function getAdjacentFeatures(slug: string): { prev?: Feature; next?: Feature } {
+/**
+ * Previous/next features in display order (no wraparound). Returns `null` for an
+ * unknown slug — distinct from a known feature at an edge, where `prev`/`next` is
+ * `undefined`. Callers should resolve the slug (e.g. via getFeatureBySlug) first.
+ */
+export function getAdjacentFeatures(slug: string): { prev?: Feature; next?: Feature } | null {
   const ordered = getAllFeatures()
   const index = ordered.findIndex((feature) => feature.slug === slug)
 
   if (index === -1) {
-    return { prev: undefined, next: undefined }
+    return null
   }
 
   return {
