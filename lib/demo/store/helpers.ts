@@ -1,10 +1,13 @@
 import type { MediaKind } from '@/lib/demo/types'
 
 /**
- * Immutably set a dot-path on a (possibly nested) object, cloning every node along the
- * path so React/Zustand subscribers see new references. Missing intermediate objects are
- * created, so a stray path is a tolerant no-op rather than a throw (the director relies on
- * this for resilience).
+ * Immutably set a dot-path on a (possibly nested) object, cloning every node along the path
+ * so React/Zustand subscribers see new references.
+ *
+ * Note: a stray path is NOT a no-op — it *writes to the new key* (and creates any missing
+ * intermediates). So in development we warn when the leaf key was previously absent, which
+ * catches typos like `form.scpoes` before they silently orphan forensic form data. The real
+ * safety net for a *throwing* step is the runner's catch, not this function.
  */
 export function setPath<T>(obj: T, path: string, value: unknown): T {
   const keys = path.split('.')
@@ -19,7 +22,11 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
     cur[k] = Array.isArray(next) ? [...next] : { ...((next as object) ?? {}) }
     cur = cur[k] as Record<string, unknown>
   }
-  cur[keys[keys.length - 1]] = value
+  const leaf = keys[keys.length - 1]
+  if (process.env.NODE_ENV !== 'production' && !(leaf in cur)) {
+    console.warn(`[demo] setPath created a previously-absent key "${path}" — possible typo`)
+  }
+  cur[leaf] = value
   return root as T
 }
 
