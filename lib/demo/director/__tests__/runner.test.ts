@@ -135,8 +135,11 @@ describe('runBeat — cancel mid-launch (review #2)', () => {
     const store = seededStore()
     store.getState().setView('submission')
     const beat: Beat = { chapter: 'submission', steps: [{ kind: 'launch', screen: 'mediaCapture' }] }
-    await runBeat(store, beat).done
+    const h = runBeat(store, beat)
+    await h.done
     expect(store.getState().view).toBe('submission')
+    expect(h.degraded).toBe(false) // the if(sub) guard skipped cleanly, no swallowed error
+    expect(h.warnings).toHaveLength(0)
   })
 })
 

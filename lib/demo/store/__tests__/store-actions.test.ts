@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
 import { selectCaseNotesData, selectCurrentLocation } from '@/lib/demo/store/selectors'
 import { mapAiToForm, SAMPLE_EXTRACTION } from '@/lib/demo/logic/import'
@@ -118,17 +118,23 @@ describe('selectCaseNotesData', () => {
 })
 
 describe('generateExtractedScopes resilience (review #1)', () => {
-  it('skips un-normalised free-text import scopes instead of throwing', () => {
+  it('skips un-normalised free-text import scopes — flags partial + warns, never silently', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const store = withLocation()
     store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION)) // free-text time frames → form.scopes
     store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
     store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     store.getState().calculateOffset()
     expect(() => store.getState().generateExtractedScopes()).not.toThrow()
-    expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(0)
+    const loc = selectCurrentLocation(store.getState())
+    expect(loc?.form.extractedScopes).toHaveLength(0)
+    expect(loc?.form.extractedScopesPartial).toBe(true) // surfaced, not silently dropped
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 
-  it('computes the good scopes even when a bad one is present (no discard-all)', () => {
+  it('computes the good scopes even when a bad one is present (no discard-all), flags partial', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const store = withLocation()
     store.getState().updateField('form.scopes', [
       { id: 'bad', startDateTime: '11:45 PM on March 8 2025', endDateTime: 'whenever', isActualTime: true, cameras: '' },
@@ -138,7 +144,10 @@ describe('generateExtractedScopes resilience (review #1)', () => {
     store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     store.getState().calculateOffset()
     store.getState().generateExtractedScopes()
-    expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(1) // only the good one
+    const loc = selectCurrentLocation(store.getState())
+    expect(loc?.form.extractedScopes).toHaveLength(1) // only the good one
+    expect(loc?.form.extractedScopesPartial).toBe(true) // the dropped one is surfaced
+    warn.mockRestore()
   })
 })
 

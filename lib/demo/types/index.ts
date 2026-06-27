@@ -137,6 +137,9 @@ export interface LocationForm {
   scopes: ScopeEntry[]
   /** Auto-generated, always DVR-time, derived from the offset. */
   extractedScopes: ScopeEntry[]
+  /** True if generateExtractedScopes skipped ≥1 non-canonical scope, so the Adjusted Scope
+   *  output is incomplete and must be annotated rather than silently omitted. */
+  extractedScopesPartial: boolean
   arrivalDepartures: ArrivalDeparture[]
   timeOffset: TimeOffsetData | null
   dvr: DvrInformation

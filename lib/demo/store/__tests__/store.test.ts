@@ -180,6 +180,8 @@ describe('generateExtractedScopes', () => {
     store.getState().updateField('form.scopes', [scope()])
     store.getState().generateExtractedScopes()
     expect(selectCurrentLocation(store.getState())?.form.extractedScopes).toHaveLength(0)
+    // early-return guard, not the per-scope catch: nothing was dropped (non-vacuous)
+    expect(selectCurrentLocation(store.getState())?.form.extractedScopesPartial).toBe(false)
   })
 })
 

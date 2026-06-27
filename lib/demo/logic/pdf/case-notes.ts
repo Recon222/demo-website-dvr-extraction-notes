@@ -63,6 +63,8 @@ export interface CaseNotesData {
   locationPhone?: string
   scopes?: CaseNotesScope[]
   adjustedScopes?: CaseNotesAdjusted[]
+  /** True if some requested scopes could not be converted — annotate, don't silently omit. */
+  adjustedScopesPartial?: boolean
   timeOffset?: CaseNotesOffset | null
   dvrDateTime?: string
   actualDateTime?: string
@@ -127,14 +129,22 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
     .filter((s) => s.start || s.end)
     .map((s) => `<tr><td>${e(formatDocDate(s.start))}</td><td>${e(formatDocDate(s.end))}</td></tr>`)
     .join('')
-  const adjustedSection = adjRows
-    ? `
+  const adjTable = adjRows
+    ? `<table><thead><tr><th>Start Date/Time (Adjusted)</th><th>End Date/Time (Adjusted)</th></tr></thead><tbody>${adjRows}</tbody></table>`
+    : ''
+  const adjPartialNote = d.adjustedScopesPartial
+    ? `<p style="font-size:10pt;color:#d9534f;font-weight:bold;">&#9888; One or more requested time ranges could not be converted to DVR time and are omitted here — confirm the requested times before relying on this section.</p>`
+    : ''
+  const adjustedSection =
+    adjRows || d.adjustedScopesPartial
+      ? `
   <div class="section">
     <div class="section-title">Adjusted Scope (Calculated Times)</div>
     <div class="callout"><p>These times have been converted using the calculated DVR time offset.</p></div>
-    <table><thead><tr><th>Start Date/Time (Adjusted)</th><th>End Date/Time (Adjusted)</th></tr></thead><tbody>${adjRows}</tbody></table>
+    ${adjTable}
+    ${adjPartialNote}
   </div>`
-    : ''
+      : ''
 
   const off = d.timeOffset
   const offsetSection = off

@@ -30,6 +30,7 @@ export function blankLocationForm(): LocationForm {
   return {
     scopes: [],
     extractedScopes: [],
+    extractedScopesPartial: false,
     arrivalDepartures: [],
     timeOffset: null,
     dvr: {

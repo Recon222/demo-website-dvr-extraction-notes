@@ -50,6 +50,7 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
       cameras: sc.cameras,
     })),
     adjustedScopes: form?.extractedScopes.map((sc) => ({ start: sc.startDateTime, end: sc.endDateTime })),
+    adjustedScopesPartial: form?.extractedScopesPartial ?? false,
     timeOffset: off
       ? { isCorrect: off.isCorrect, formattedDifference: off.formattedDifference, direction: off.direction }
       : null,

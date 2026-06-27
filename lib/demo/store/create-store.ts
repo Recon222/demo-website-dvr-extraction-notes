@@ -270,6 +270,7 @@ export function createDemoStore(): DemoStore {
       // import frames the requested-scope screen hasn't normalised) is skipped, not allowed
       // to throw out of the action or abandon the scopes already computed.
       const extracted: ScopeEntry[] = []
+      let dropped = 0
       for (const sc of loc.form.scopes) {
         try {
           const corrected = calculateCorrectedTimeRange(
@@ -285,12 +286,20 @@ export function createDemoStore(): DemoStore {
             cameras: sc.cameras,
           })
         } catch {
-          // skip un-parseable scope; the good ones still compute
+          // A scope whose times aren't canonical yet (e.g. free-text import frames the
+          // requested-scope screen hasn't normalised) is skipped — but counted + surfaced
+          // below (warn + extractedScopesPartial), never silently dropped from the record.
+          dropped++
         }
+      }
+      if (dropped > 0 && process.env.NODE_ENV !== 'production') {
+        console.warn(`[demo] generateExtractedScopes skipped ${dropped} non-canonical scope(s)`)
       }
       set((st) => ({
         locations: st.locations.map((l) =>
-          l.id === id ? { ...l, form: { ...l.form, extractedScopes: extracted } } : l,
+          l.id === id
+            ? { ...l, form: { ...l.form, extractedScopes: extracted, extractedScopesPartial: dropped > 0 } }
+            : l,
         ),
       }))
     },
