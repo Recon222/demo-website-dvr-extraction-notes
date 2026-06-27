@@ -1,7 +1,8 @@
-"use client";
+import Link from 'next/link'
 
-import Link from "next/link";
-import Logo from "./logo";
+import Logo from './logo'
+import { siteConfig } from '@/lib/site-config'
+import { cn } from '@/lib/cn'
 
 export default function Header() {
   return (
@@ -13,27 +14,31 @@ export default function Header() {
             <Logo />
           </div>
 
-          {/* Desktop sign in links */}
-          <ul className="flex flex-1 items-center justify-end gap-3">
-            <li>
-              <Link
-                href="/signin"
-                className="btn-sm relative bg-linear-to-b from-gray-800 to-gray-800/60 bg-[length:100%_100%] bg-[bottom] py-[5px] text-gray-300 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border before:border-transparent before:[background:linear-gradient(to_right,var(--color-gray-800),var(--color-gray-700),var(--color-gray-800))_border-box] before:[mask-composite:exclude_!important] before:[mask:linear-gradient(white_0_0)_padding-box,_linear-gradient(white_0_0)] hover:bg-[length:100%_150%]"
-              >
-                Sign In
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/signup"
-                className="btn-sm bg-linear-to-t from-indigo-600 to-indigo-500 bg-[length:100%_100%] bg-[bottom] py-[5px] text-white shadow-[inset_0px_1px_0px_0px_--theme(--color-white/.16)] hover:bg-[length:100%_150%]"
-              >
-                Register
-              </Link>
-            </li>
-          </ul>
+          {/* Primary navigation (driven by siteConfig) */}
+          <nav aria-label="Main" className="flex flex-1 items-center justify-end">
+            <ul className="flex items-center gap-2 sm:gap-3">
+              {siteConfig.nav.map((item) => {
+                const isCta = item.href === '/beta'
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        'btn-sm px-3 py-[5px] text-sm',
+                        isCta
+                          ? 'bg-linear-to-t from-indigo-600 to-indigo-500 text-white shadow-[inset_0px_1px_0px_0px_--theme(--color-white/.16)] hover:bg-[length:100%_150%]'
+                          : 'text-gray-300 transition-colors hover:text-white',
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </nav>
         </div>
       </div>
     </header>
-  );
+  )
 }
