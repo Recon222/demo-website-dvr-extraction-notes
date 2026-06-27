@@ -135,9 +135,11 @@ export function buildExtractFieldsUserPrompt(rawText: unknown): string {
 // ============================================================================
 /**
  * Robustly parse the model's JSON reply: strip code fences, then slice from the first
- * "{" to the last "}" before JSON.parse.
+ * "{" to the last "}" before JSON.parse. Returns `Partial` — only that the payload is a
+ * JSON object is guaranteed; individual fields are not validated (the mapper tolerates
+ * missing ones).
  */
-export function parseAiJson(text: string): ExtractedFields {
+export function parseAiJson(text: string): Partial<ExtractedFields> {
   if (!text || typeof text !== 'string') throw new Error('Empty AI response')
   let s = text.trim()
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
@@ -146,7 +148,7 @@ export function parseAiJson(text: string): ExtractedFields {
   if (first === -1 || last === -1 || last < first) {
     throw new Error('No JSON object found in AI response')
   }
-  return JSON.parse(s.slice(first, last + 1)) as ExtractedFields
+  return JSON.parse(s.slice(first, last + 1)) as Partial<ExtractedFields>
 }
 
 /**

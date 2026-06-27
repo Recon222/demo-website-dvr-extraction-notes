@@ -81,12 +81,19 @@ export interface TimeOffsetData {
   ocr?: OcrProof
 }
 
+/** A GPS fix: latitude/longitude with the achieved accuracy in metres. */
+export interface GpsCoordinates {
+  lat: number
+  lng: number
+  accuracyM: number
+}
+
 export interface CameraEntry {
   id: string
   cameraName: string
   resolution: string
   recordingFps: string
-  gps?: { lat: number; lng: number; accuracyM: number }
+  gps?: GpsCoordinates
 }
 
 export interface DvrInformation {
@@ -154,7 +161,7 @@ export interface DemoCase {
   createdLabel: string
   /** true for scripted demo seed data; false for visitor-created (fixes the
    *  prototype's canned-data-persistence bug — seed and user data never mix). */
-  isSeed: boolean
+  readonly isSeed: boolean
   locationIds: string[]
 }
 
@@ -171,8 +178,8 @@ export interface DemoLocation {
   requesterEmail: string
   locationContact: string
   locationPhone: string
-  gps?: { lat: number; lng: number; accuracyM: number; source: 'gps' | 'geocoded' | 'manual' }
-  isSeed: boolean
+  gps?: GpsCoordinates & { source: 'gps' | 'geocoded' | 'manual' }
+  readonly isSeed: boolean
   form: LocationForm
 }
 
