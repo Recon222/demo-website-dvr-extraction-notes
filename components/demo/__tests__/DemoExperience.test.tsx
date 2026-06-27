@@ -32,6 +32,11 @@ describe('DemoExperience', () => {
     expect((document.querySelector('[data-phone-screen]') as HTMLElement).style.pointerEvents).toBe('none')
   })
 
+  it('renders the active screen inside the phone (splash for the splash view)', () => {
+    render(<DemoExperience />)
+    expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument() // the SplashScreen, in the phone
+  })
+
   it('honors ?mode=sandbox (interactive phone + driving callout)', () => {
     searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
     render(<DemoExperience />)

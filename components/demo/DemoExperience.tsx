@@ -8,10 +8,11 @@ import { runBeat } from '@/lib/demo/director/runner'
 import { BEATS } from '@/lib/demo/director/beats'
 import { NARRATION } from '@/lib/demo/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/lib/demo/content/screens'
-import type { ChapterId, DemoMode } from '@/lib/demo/types'
+import type { ChapterId, DemoMode, LaunchableId } from '@/lib/demo/types'
 import { PhoneFrame } from '@/components/demo/PhoneFrame'
 import { StoryRail, type RailDot } from '@/components/demo/StoryRail'
 import { TouchIndicator, type Pulse } from '@/components/demo/TouchIndicator'
+import { SplashScreen } from '@/components/demo/screens/SplashScreen'
 import '@/components/demo/demo.css'
 
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
@@ -38,6 +39,36 @@ function applyUrlState(store: DemoStore, mode: DemoMode, step: string | null) {
     st.seedGuided()
     const target = step ? slugToChapter(step) : null
     if (target) st.setView(target)
+  }
+}
+
+/** Render the screen for the current `view` inside the phone. Screens are added per M4 phase;
+ *  not-yet-built views show a placeholder so the guided tour never crashes. */
+function renderScreen(
+  view: ChapterId | LaunchableId,
+  props: { auth: 'idle' | 'authorized'; onScan(): void },
+) {
+  switch (view) {
+    case 'splash':
+      return <SplashScreen authState={props.auth === 'authorized' ? 'authorized' : 'idle'} onScan={props.onScan} />
+    default:
+      return (
+        <div
+          style={{
+            minHeight: 786,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 40,
+            textAlign: 'center',
+            color: '#5d7a9a',
+            fontSize: 14,
+            lineHeight: 1.6,
+          }}
+        >
+          The “{view}” screen lands in a later M4 phase.
+        </div>
+      )
   }
 }
 
@@ -80,6 +111,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   const currentChapter = useStore(store, (s) => s.currentChapter)
   const currentMode = useStore(store, (s) => s.mode)
+  const view = useStore(store, (s) => s.view)
+  const auth = useStore(store, (s) => s.auth)
 
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -151,8 +184,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame interactive={!guided}>
+          {renderScreen(view, {
+            auth,
+            onScan: () => store.getState().setView('dashboard'),
+          })}
           <TouchIndicator pulses={pulses} />
-          {/* screens land in M4 — the frame renders empty for the shell milestone */}
         </PhoneFrame>
       </div>
       <StoryRail
