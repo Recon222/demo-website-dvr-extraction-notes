@@ -42,6 +42,13 @@ describe('WizardDrawer', () => {
     expect(onBackToCases).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('closes when the backdrop is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(<WizardDrawer open items={items} onClose={onClose} onNavigate={vi.fn()} onBackToCases={vi.fn()} />)
+    fireEvent.click(container.querySelector('[data-drawer-backdrop]')!)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })
 
 describe('RailNav', () => {

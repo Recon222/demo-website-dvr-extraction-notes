@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { PhoneFrame } from '@/components/demo/PhoneFrame'
 
 describe('PhoneFrame', () => {
@@ -33,5 +33,31 @@ describe('PhoneFrame', () => {
     )
     const screenEl = document.querySelector('[data-phone-screen]') as HTMLElement
     expect(screenEl.style.pointerEvents).toBe('none')
+  })
+
+  it('caps the scale at 1:1 on a tall viewport', () => {
+    window.innerHeight = 2000
+    render(
+      <PhoneFrame>
+        <div>x</div>
+      </PhoneFrame>,
+    )
+    expect((document.querySelector('[data-phone="frame"]') as HTMLElement).style.transform).toBe('scale(1)')
+  })
+
+  it('rescales on window resize', () => {
+    window.innerHeight = 2000
+    render(
+      <PhoneFrame>
+        <div>x</div>
+      </PhoneFrame>,
+    )
+    const frame = document.querySelector('[data-phone="frame"]') as HTMLElement
+    expect(frame.style.transform).toBe('scale(1)')
+    act(() => {
+      window.innerHeight = 600
+      window.dispatchEvent(new Event('resize'))
+    })
+    expect(frame.style.transform).toContain('scale(0.70')
   })
 })

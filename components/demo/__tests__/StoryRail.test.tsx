@@ -30,4 +30,17 @@ describe('StoryRail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(onNext).toHaveBeenCalledOnce()
   })
+
+  it('calls onPrev / onJump / onSetMode from the rail controls', () => {
+    const onPrev = vi.fn()
+    const onJump = vi.fn()
+    const onSetMode = vi.fn()
+    render(<StoryRail {...storyRailProps({ canPrev: true, nextLabel: 'Next', onPrev, onJump, onSetMode })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(onPrev).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' })) // the inactive progress dot
+    expect(onJump).toHaveBeenCalledWith('dashboard')
+    fireEvent.click(screen.getByRole('button', { name: 'Free explore' }))
+    expect(onSetMode).toHaveBeenCalledWith('sandbox')
+  })
 })

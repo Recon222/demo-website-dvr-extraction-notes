@@ -25,7 +25,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
   if (!open) return null
   return (
     <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)' }} />
+      <div data-drawer-backdrop onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)' }} />
       <div
         role="dialog"
         aria-label="Navigation"

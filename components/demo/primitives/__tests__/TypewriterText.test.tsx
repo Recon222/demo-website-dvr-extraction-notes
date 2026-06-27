@@ -28,4 +28,17 @@ describe('TypewriterText', () => {
     const { container } = render(<TypewriterText text="abc" active={false} />)
     expect(container.textContent).toBe('abc') // exactly the text — no caret/cursor glyph appended
   })
+
+  it('clears its typing interval on unmount', () => {
+    vi.useFakeTimers()
+    try {
+      const { unmount } = render(<TypewriterText text="abcdef" active perCharMs={10} />)
+      act(() => void vi.advanceTimersByTime(10))
+      expect(vi.getTimerCount()).toBe(1) // the typing interval is live
+      unmount()
+      expect(vi.getTimerCount()).toBe(0) // cleared on unmount
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

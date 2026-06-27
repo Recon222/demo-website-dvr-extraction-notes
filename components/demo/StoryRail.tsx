@@ -70,14 +70,18 @@ export function StoryRail({
       <div style={{ display: 'inline-flex', padding: 4, borderRadius: 11, border: '1px solid #1e3a5f', background: '#0c1727', marginBottom: 26 }}>
         <button
           type="button"
-          onClick={() => !guided && onSetMode('guided')}
+          onClick={() => {
+            if (!guided) onSetMode('guided')
+          }}
           style={{ ...(guided ? pillActive : pillIdle), border: 'none', background: guided ? '#1a3550' : 'transparent' }}
         >
           Guided tour
         </button>
         <button
           type="button"
-          onClick={() => guided && onSetMode('sandbox')}
+          onClick={() => {
+            if (guided) onSetMode('sandbox')
+          }}
           style={{ ...(!guided ? pillActive : pillIdle), border: 'none', background: !guided ? '#1a3550' : 'transparent' }}
         >
           Free explore

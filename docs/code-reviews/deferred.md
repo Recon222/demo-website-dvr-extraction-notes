@@ -145,3 +145,20 @@ once the UI is built (M3+) to confirm 1:1 parity with the phone app. Add entries
   ported; the *presentation* nuance is the parity risk).
 
 **Trigger:** parity sweep after the UI lands (M3+), before beta.
+
+---
+
+## 7. Milestone-3 review deferrals — type-tightening & drawer a11y (→ M4)
+
+**Source:** PR #11 review (type-design + code-reviewer Advisory). Deferred to the M4 pass that
+wires the screens + drawer triggers.
+
+- **`RailDot.active` → `activeDot` invariant.** StoryRail takes `dots: { id; label; active }[]`,
+  which can represent "zero or many active". Replace with `dots: { id; label }[]` + a single
+  `activeDot: ChapterId` so "exactly one active" is structural. Touches the StoryRail props API +
+  DemoExperience + the StoryRail test — fold in with the M4 screen prop-typing pass.
+- **`WizardDrawer` dialog a11y.** `role="dialog"` is present but there's no Escape-to-close, focus
+  trap, or focus return. Deferred infra to land when M4 wires the hamburger trigger (the drawer is
+  not openable in M3).
+
+**Trigger:** Milestone 4 (screen prop-typing + drawer trigger wiring).
