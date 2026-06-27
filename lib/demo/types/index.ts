@@ -1,0 +1,198 @@
+/**
+ * Domain types for the interactive demo engine. These describe the in-memory state
+ * the demo holds — there is no backend; everything is per-session. Simplified from the
+ * real app's SQLite model, keeping only what the demo renders.
+ *
+ * See docs/features/interactive-demo/01-interactive-demo-architecture.md §4.
+ */
+
+// ---- Profiles & modes -------------------------------------------------------
+export type Profile = 'forensic' | 'canvas'
+export type DemoMode = 'guided' | 'sandbox'
+
+// ---- Screen identifiers -----------------------------------------------------
+/** The 10 in-drawer wizard screens, in Next/Back order. */
+export type WizardScreenId =
+  | 'submission'
+  | 'requestedScope'
+  | 'arrivalDeparture'
+  | 'timeOffset'
+  | 'extractedScope'
+  | 'dvrInfo'
+  | 'cameras'
+  | 'exportInfo'
+  | 'notes'
+  | 'completion'
+
+/** App chapters shown before the wizard, plus the wizard screens themselves. */
+export type ChapterId = 'splash' | 'dashboard' | 'cases' | WizardScreenId
+
+/** Launch-only screens — opened by an action button, NEVER in Next/Back. */
+export type LaunchableId = 'ocr' | 'mediaCapture' | 'audioRecording'
+
+/** Overlay modals. */
+export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary'
+
+// ---- Content / form value types --------------------------------------------
+export interface ScopeEntry {
+  id: string
+  startDateTime: string
+  endDateTime: string
+  /** true = wall-clock/real time; false = DVR time. Drives the offset math. */
+  isActualTime: boolean
+  cameras: string
+}
+
+export interface ArrivalDeparture {
+  id: string
+  arrival: string
+  departure: string
+}
+
+export interface SyncResult {
+  method: 'NTP' | 'HTTP'
+  server: string
+  offsetMs: number
+  uncertaintyMs: number
+  rttMs?: number
+  traceability?: string
+}
+
+export interface OcrProof {
+  rawText: string
+  cleanedText: string
+  parsedDateTime: string
+  confidence: number
+  imageDataUrl?: string
+}
+
+export interface TimeOffsetData {
+  dvrDateTime: string
+  actualDateTime: string
+  differenceMs: number
+  formattedDifference: string
+  direction: 'AHEAD OF' | 'BEHIND'
+  isDvrAhead: boolean
+  isCorrect: boolean
+  dvrAppliesDST: boolean
+  /** NTP calibration metadata (simulated in the demo); null = manual, unverified. */
+  sync: SyncResult | null
+  captureMethod: 'manual' | 'ocr'
+  ocr?: OcrProof
+}
+
+export interface CameraEntry {
+  id: string
+  cameraName: string
+  resolution: string
+  recordingFps: string
+  gps?: { lat: number; lng: number; accuracyM: number }
+}
+
+export interface DvrInformation {
+  dvrLocation: string
+  dvrTypeBrand: string
+  serialModelNumber: string
+  dvrUsername: string
+  dvrPassword: string
+  numberOfChannels: string
+  activeCameras: string
+  recordingSchedule: string
+  resolution: string
+  recordingFps: string
+  totalDvrRetention: string
+}
+
+export interface ExportInformation {
+  exportMedia: string
+  fileType: string
+  sizeGb: string
+  mediaPlayerIncluded: boolean
+  mediaProvidedVia: string
+}
+
+export type MediaKind = 'photo' | 'video' | 'audio'
+
+export interface MediaItem {
+  id: string
+  kind: MediaKind
+  url: string
+  poster?: string
+  filename: string
+  caption: string
+  capturedAt: string
+  durationSec?: number
+  /** true when produced from a sample (no real camera/mic). */
+  sample?: boolean
+}
+
+export interface LocationForm {
+  scopes: ScopeEntry[]
+  /** Auto-generated, always DVR-time, derived from the offset. */
+  extractedScopes: ScopeEntry[]
+  arrivalDepartures: ArrivalDeparture[]
+  timeOffset: TimeOffsetData | null
+  dvr: DvrInformation
+  cameras: CameraEntry[]
+  export: ExportInformation
+  notesText: string
+  notesEdited: boolean
+  media: { photos: MediaItem[]; videos: MediaItem[]; audios: MediaItem[] }
+}
+
+// ---- Entities ---------------------------------------------------------------
+export interface DemoCase {
+  id: string
+  caseNumber: string
+  displayName: string
+  unit: string
+  oicName: string
+  oicBadge: string
+  vcName: string
+  vcBadge: string
+  status: 'draft' | 'complete' | 'archived'
+  createdLabel: string
+  /** true for scripted demo seed data; false for visitor-created (fixes the
+   *  prototype's canned-data-persistence bug — seed and user data never mix). */
+  isSeed: boolean
+  locationIds: string[]
+}
+
+export interface DemoLocation {
+  id: string
+  caseId: string
+  locationName: string
+  businessName: string
+  streetAddress: string
+  city: string
+  requesterName: string
+  requesterBadge: string
+  requesterPhone: string
+  requesterEmail: string
+  locationContact: string
+  locationPhone: string
+  gps?: { lat: number; lng: number; accuracyM: number; source: 'gps' | 'geocoded' | 'manual' }
+  isSeed: boolean
+  form: LocationForm
+}
+
+// ---- Content registries -----------------------------------------------------
+export interface ChapterNarration {
+  eyebrow: string
+  title: string
+  paras: string[]
+  bullets: string[]
+  tip?: string
+}
+
+export interface DrawerDef {
+  id: WizardScreenId
+  label: string
+  icon: string
+}
+
+export interface ProfileConfig {
+  id: Profile
+  wizardScreens: WizardScreenId[]
+  hiddenFields: string[]
+}
