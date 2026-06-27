@@ -1,6 +1,7 @@
 'use client'
 
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
+import { toPublicUrl } from '@/lib/to-public-url'
 import { cn } from '@/lib/cn'
 
 interface AppDemoProps {
@@ -19,11 +20,6 @@ interface AppDemoProps {
 const FRAME_CLASS = 'w-full overflow-hidden rounded-2xl'
 const PLACEHOLDER_CLASS =
   'flex aspect-video w-full items-center justify-center rounded-2xl bg-gray-800/40 text-sm text-indigo-200/50'
-
-/** Prefix a /public-relative path with a leading slash (leaves absolute/remote URLs alone). */
-function toPublicUrl(path: string): string {
-  return path.startsWith('/') || path.startsWith('http') ? path : `/${path}`
-}
 
 /**
  * A GIF-style looping demo: a silent, autoplaying, looping `<video>` (WebM + MP4)

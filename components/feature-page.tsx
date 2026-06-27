@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Feature } from '@/lib/content/types'
 import { AppDemo } from '@/components/app-demo'
+import { toPublicUrl } from '@/lib/to-public-url'
 import { cn } from '@/lib/cn'
 
 interface FeaturePageProps {
@@ -61,7 +62,7 @@ export function FeaturePage({ feature, prev, next }: FeaturePageProps) {
           <figure>
             {/* eslint-disable-next-line @next/next/no-img-element -- SVG diagram; next/image unnecessary and deferred */}
             <img
-              src={`/${feature.diagram.src}`}
+              src={toPublicUrl(feature.diagram.src)}
               alt={`${feature.title} data-flow diagram`}
               className="w-full rounded-2xl"
             />
