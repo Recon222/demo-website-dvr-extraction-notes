@@ -95,13 +95,14 @@ M2 gives these paths live callers.
 
 ## 5. Milestone-2 review deferrals — type-safety & simplification (→ M3)
 
-**Source:** PR #10 fixes-review (type-design · simplification lanes). Behaviour-preserving;
-fold in as M3 builds UI on these surfaces.
+**Source:** PR #10 review + fixes-delta (type-design · simplification · silent-failure lanes).
+Behaviour-preserving; fold in as M3 builds UI on these surfaces.
 
 - **Typed `updateField` path** — `updateField(path: string)` has no structural link to
   `DemoLocation`/`CaptureState`, so a beat-path typo only surfaces via the dev-warn at runtime.
   A `FieldUpdate` discriminated union (path → value type) makes typos a compile error;
-  `setPath` stays string-based behind one marked cast. (Structural fix for review #3.)
+  `setPath` stays string-based behind one marked cast. (The compile-time structural fix for the
+  same beat-path typo footgun that finding #3's `setPath` dev-warn only guards at runtime.)
 - **Arg-checked beat actions** — `call`/`tap` `args` cast to `unknown[]`, so a wrong arg
   type-checks. Distribute over `DemoActions` with `Parameters<DemoActions[K]>`. Contained today
   (only zero-arg actions are invoked).
@@ -112,5 +113,10 @@ fold in as M3 builds UI on these surfaces.
 - **Simplifications** — `patchCurrentLocation(updater)` (the repeated `get id → if(!id) → set(map)`
   across ~6 actions); `formatAddress(loc)` (duplicated in `generateNotes` + `selectCaseNotesData`);
   merge the runner's `waiters`/`cancels` Sets.
+- **`calculateOffset` empty-input no-op** (silent-failure) — when the capture datetimes are blank,
+  `calculateOffset` returns silently. This is a precondition, not a failure (the malformed-string
+  path already signals via the director's `degraded` flag once a beat invokes it). The right
+  feedback home is the M3 time-offset screen: disable "Calculate" until both datetimes are present,
+  rather than warning on every speculative call.
 
 **Trigger:** Milestone 3.
