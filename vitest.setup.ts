@@ -9,3 +9,44 @@ import { afterEach } from 'vitest'
 afterEach(() => {
   cleanup()
 })
+
+// ---- jsdom shims for components/demo UI tests (test-spec § Shared Mock Infrastructure) ----
+
+class NoopObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return []
+  }
+}
+if (!('ResizeObserver' in globalThis)) {
+  ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = NoopObserver
+}
+if (!('IntersectionObserver' in globalThis)) {
+  ;(globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = NoopObserver
+}
+
+if (!window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false
+    },
+  })) as unknown as typeof window.matchMedia
+}
+
+// Canvas 2d context stub (OCR frame grab) — returns null so screens take the sample path.
+if (!HTMLCanvasElement.prototype.getContext) {
+  HTMLCanvasElement.prototype.getContext = (() =>
+    null) as unknown as typeof HTMLCanvasElement.prototype.getContext
+}
+
+// navigator.mediaDevices is intentionally left undefined so camera/mic screens take the
+// sample-fallback path; individual tests opt into a getUserMedia mock for the live path.

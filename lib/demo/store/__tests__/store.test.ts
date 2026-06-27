@@ -208,12 +208,23 @@ describe('launch / closeLaunch', () => {
     expect(store.getState().view).toBe('timeOffset')
   })
 
-  it('launching again from a launch screen preserves the original return view', () => {
+  it('launching again from a launch screen returns to the current chapter', () => {
     const store = freshStore()
     store.getState().setView('timeOffset')
-    store.getState().launch('ocr') // returnView = timeOffset
-    store.getState().launch('mediaCapture') // already on a launchable → returnView preserved
+    store.getState().launch('ocr')
+    store.getState().launch('mediaCapture') // still launch-only; currentChapter unchanged
     store.getState().closeLaunch()
     expect(store.getState().view).toBe('timeOffset')
+  })
+
+  it('setView updates currentChapter; launch/closeLaunch leave it intact', () => {
+    const store = freshStore()
+    store.getState().setView('timeOffset')
+    expect(store.getState().currentChapter).toBe('timeOffset')
+    store.getState().launch('ocr')
+    expect(store.getState().view).toBe('ocr')
+    expect(store.getState().currentChapter).toBe('timeOffset') // a launch never moves the chapter
+    store.getState().closeLaunch()
+    expect(store.getState().view).toBe('timeOffset') // restored to currentChapter
   })
 })
