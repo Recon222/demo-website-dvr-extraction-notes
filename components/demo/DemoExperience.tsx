@@ -24,8 +24,13 @@ import { ImportModal, type ImportStage, type ImportResult } from '@/components/d
 import { SubmissionScreen, type SubmissionFields } from '@/components/demo/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/components/demo/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/components/demo/screens/ArrivalDepartureScreen'
+import { TimeOffsetScreen, type CorrectedScope } from '@/components/demo/screens/TimeOffsetScreen'
+import { OcrCaptureScreen, type OcrResult } from '@/components/demo/screens/OcrCaptureScreen'
+import { ExtractedScopeScreen } from '@/components/demo/screens/ExtractedScopeScreen'
 import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
 import { selectDrawerItems } from '@/lib/demo/store/selectors'
+import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/demo/logic/ocr'
+import { getCurrentFormattedTime } from '@/lib/demo/logic/time'
 import { toCaseCards } from '@/components/demo/screens/screenData'
 import type { ScopeEntry } from '@/lib/demo/types'
 import '@/components/demo/demo.css'
@@ -130,6 +135,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentLocationId = useStore(store, (s) => s.currentLocationId)
   const currentCaseId = useStore(store, (s) => s.currentCaseId)
   const drawerOpen = useStore(store, (s) => s.drawerOpen)
+  const capture = useStore(store, (s) => s.capture)
 
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -138,6 +144,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -248,6 +255,36 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }))
   }
 
+  // ---- time offset + OCR (the marquee) ----
+  const calcOffset = () => {
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+  }
+  const runOcrSample = () => {
+    const raw = '2025-03-08 12:05:30' // sample DVR clock
+    const cleaned = cleanOcrText(raw)
+    const parsed = parseTimestampFromText(cleaned)
+    const conf = getConfidenceLevel(0.93)
+    const st = store.getState()
+    if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    st.updateField('capture.method', 'ocr')
+    if (parsed) st.updateField('capture.dvrDateTime', parsed)
+    setOcrResult(
+      parsed
+        ? { ok: true, dvrTime: parsed, confidence: { label: conf.message, color: conf.color }, actual: store.getState().capture.actualDateTime }
+        : { ok: false, rawText: cleaned },
+    )
+  }
+  const confirmOcr = () => {
+    calcOffset()
+    store.getState().closeLaunch()
+    setOcrResult(null)
+  }
+  const cancelOcr = () => {
+    store.getState().closeLaunch()
+    setOcrResult(null)
+  }
+
   const showTabs = view === 'dashboard' || view === 'cases'
 
   function activeScreen() {
@@ -304,6 +341,55 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChange={(i, patch) => setVisits(visits.map((v, idx) => (idx === i ? { ...v, ...patch } : v)))}
             onAdd={() => setVisits([...visits, blankVisit()])}
             onRemove={(i) => setVisits(visits.filter((_, idx) => idx !== i))}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
+      case 'timeOffset': {
+        const off = currentLocation?.form.timeOffset ?? null
+        const corrected: CorrectedScope[] = (currentLocation?.form.extractedScopes ?? []).map((ex, i) => {
+          const req = currentLocation?.form.scopes[i]
+          return { id: ex.id, reqLabel: req?.isActualTime ? 'real time' : 'DVR time', reqStart: req?.startDateTime ?? '', reqEnd: req?.endDateTime ?? '', adjStart: ex.startDateTime, adjEnd: ex.endDateTime, cameras: ex.cameras }
+        })
+        return (
+          <TimeOffsetScreen
+            dvrDateTime={capture.dvrDateTime}
+            actualDateTime={capture.actualDateTime}
+            onChangeDvr={(v) => store.getState().updateField('capture.dvrDateTime', v)}
+            onChangeActual={(v) => store.getState().updateField('capture.actualDateTime', v)}
+            onUseCurrentTime={() => {
+              const now = getCurrentFormattedTime()
+              store.getState().updateField('capture.dvrDateTime', now)
+              store.getState().updateField('capture.actualDateTime', now)
+            }}
+            onCalculate={calcOffset}
+            onCaptureOcr={() => {
+              setOcrResult(null)
+              store.getState().launch('ocr')
+            }}
+            captureMethod={off?.captureMethod ?? (capture.method === 'ocr' ? 'ocr' : null)}
+            result={off ? { diff: off.formattedDifference, direction: off.direction, isCorrect: off.isCorrect } : null}
+            correctedScopes={corrected}
+            dvrAppliesDST={capture.dvrAppliesDST}
+            onToggleDst={() => store.getState().updateField('capture.dvrAppliesDST', !capture.dvrAppliesDST)}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
+      case 'ocr':
+        return <OcrCaptureScreen result={ocrResult} onUseSample={runOcrSample} onCapture={runOcrSample} onCancel={cancelOcr} onRetake={() => setOcrResult(null)} onConfirm={confirmOcr} />
+      case 'extractedScope': {
+        const exs = currentLocation?.form.extractedScopes ?? []
+        return (
+          <ExtractedScopeScreen
+            scopes={exs}
+            onChange={(i, patch) => store.getState().updateField('form.extractedScopes', exs.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))}
+            onRemove={(i) => store.getState().updateField('form.extractedScopes', exs.filter((_, idx) => idx !== i))}
+            onRegenerate={() => store.getState().generateExtractedScopes()}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

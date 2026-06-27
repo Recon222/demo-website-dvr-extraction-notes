@@ -1,0 +1,77 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { TimeOffsetScreen } from '@/components/demo/screens/TimeOffsetScreen'
+import { OcrCaptureScreen } from '@/components/demo/screens/OcrCaptureScreen'
+import { ExtractedScopeScreen } from '@/components/demo/screens/ExtractedScopeScreen'
+
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+
+describe('TimeOffsetScreen', () => {
+  const base = {
+    dvrDateTime: '2025-03-08 12:05:30',
+    actualDateTime: '2025-03-08 12:00:00',
+    onChangeDvr: vi.fn(),
+    onChangeActual: vi.fn(),
+    onUseCurrentTime: vi.fn(),
+    onCalculate: vi.fn(),
+    onCaptureOcr: vi.fn(),
+    captureMethod: 'ocr' as const,
+    result: null,
+    correctedScopes: [],
+    dvrAppliesDST: false,
+    onToggleDst: vi.fn(),
+    ...nav,
+  }
+
+  it('calculates and launches OCR', () => {
+    const onCalculate = vi.fn()
+    const onCaptureOcr = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} onCaptureOcr={onCaptureOcr} />)
+    fireEvent.click(screen.getByText('Calculate'))
+    expect(onCalculate).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByText('Capture from DVR'))
+    expect(onCaptureOcr).toHaveBeenCalledOnce()
+  })
+
+  it('shows the computed offset', () => {
+    render(<TimeOffsetScreen {...base} result={{ diff: '00:05:30', direction: 'AHEAD OF', isCorrect: false }} />)
+    expect(screen.getByText('00:05:30')).toBeInTheDocument()
+    expect(screen.getByText(/AHEAD OF/)).toBeInTheDocument()
+  })
+})
+
+describe('OcrCaptureScreen', () => {
+  it('runs the sample on the aim stage', () => {
+    const onUseSample = vi.fn()
+    render(<OcrCaptureScreen result={null} onUseSample={onUseSample} onCapture={vi.fn()} onCancel={vi.fn()} onRetake={vi.fn()} onConfirm={vi.fn()} />)
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    expect(onUseSample).toHaveBeenCalledOnce()
+  })
+
+  it('confirms a parsed result', () => {
+    const onConfirm = vi.fn()
+    render(
+      <OcrCaptureScreen
+        result={{ ok: true, dvrTime: '2025-03-08 12:05:30', confidence: { label: 'High', color: '#10d177' }, actual: '2025-03-08 12:00:00' }}
+        onUseSample={vi.fn()}
+        onCapture={vi.fn()}
+        onCancel={vi.fn()}
+        onRetake={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    )
+    expect(screen.getByText('2025-03-08 12:05:30')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Use this & calculate'))
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ExtractedScopeScreen', () => {
+  it('regenerates from the offset and shows the empty hint', () => {
+    const onRegenerate = vi.fn()
+    render(<ExtractedScopeScreen scopes={[]} onChange={vi.fn()} onRemove={vi.fn()} onRegenerate={onRegenerate} {...nav} />)
+    expect(screen.getByText(/Calculate the time offset first/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Regenerate from offset'))
+    expect(onRegenerate).toHaveBeenCalledOnce()
+  })
+})
