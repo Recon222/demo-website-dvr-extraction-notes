@@ -112,7 +112,9 @@ export function generateTimeOffsetDoc(d: TimeOffsetDocData): string {
   let processSection: string
   if (d.captureMethod === 'ocr') {
     const img = d.ocrImageDataUrl
-      ? `<div class="image-evidence"><div class="image-evidence-title">Captured DVR Display</div><div class="image-container"><img src="${d.ocrImageDataUrl}" alt="DVR Time Offset Process - Processed Image" /></div><div class="image-caption">This image shows the DVR timestamp display as captured and cropped for OCR extraction.</div></div>`
+      ? `<div class="image-evidence"><div class="image-evidence-title">Captured DVR Display</div><div class="image-container"><img src="${e(
+          d.ocrImageDataUrl,
+        )}" alt="DVR Time Offset Process - Processed Image" /></div><div class="image-caption">This image shows the DVR timestamp display as captured and cropped for OCR extraction.</div></div>`
       : ''
     const specs = d.ocrRawText
       ? `<div class="tech-specs">

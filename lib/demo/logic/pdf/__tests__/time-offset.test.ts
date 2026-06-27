@@ -66,4 +66,13 @@ describe('generateTimeOffsetDoc', () => {
     expect(html).toContain('DST Adjustment Applied')
     expect(html).toContain('12.50ms slow')
   })
+
+  it('escapes the OCR image data URL so it cannot break out of the src attribute', () => {
+    const html = generateTimeOffsetDoc({
+      ...base,
+      ocrImageDataUrl: 'data:image/png;base64,AA" onerror="alert(1)',
+    })
+    expect(html).not.toContain('onerror="alert(1)')
+    expect(html).toContain('&quot;')
+  })
 })
