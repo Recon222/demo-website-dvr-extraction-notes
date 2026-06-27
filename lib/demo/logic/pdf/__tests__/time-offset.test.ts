@@ -50,4 +50,20 @@ describe('generateTimeOffsetDoc', () => {
     expect(synced).toContain('time.nrc.ca')
     expect(generateTimeOffsetDoc({ ...base, sync: null })).toContain('Device Time Not Verified')
   })
+
+  it('handles a BEHIND offset, OCR without image, and a slow >1ms sync with DST', () => {
+    const html = generateTimeOffsetDoc({
+      occNumber: 'X',
+      isCorrect: false,
+      formattedDiff: '01:02:03',
+      direction: 'BEHIND',
+      captureMethod: 'ocr',
+      ocrRawText: '',
+      dvrAppliesDST: true,
+      sync: { method: 'NTP', server: '', offsetMs: 12.5, uncertaintyMs: 3 },
+    })
+    expect(html).toContain('behind')
+    expect(html).toContain('DST Adjustment Applied')
+    expect(html).toContain('12.50ms slow')
+  })
 })

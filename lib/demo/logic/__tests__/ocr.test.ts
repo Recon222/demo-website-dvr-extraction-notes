@@ -61,3 +61,21 @@ describe('getConfidenceLevel', () => {
     expect(getConfidenceLevel(0.2).level).toBe('fail')
   })
 })
+
+describe('parser/cleaner extra formats (branch coverage)', () => {
+  it('parses MM/DD/YYYY with a meridiem', () => {
+    expect(parseTimestampFromText('03/08/2025 11:45 PM')).toBe('2025-03-08 23:45:00')
+  })
+
+  it('parses dash MM-DD in normal order when day <= 12', () => {
+    expect(parseTimestampFromText('03-08-2025 23:45:30')).toBe('2025-03-08 23:45:30')
+  })
+
+  it('returns null for digits that do not form a valid date', () => {
+    expect(parseTimestampFromText('9999999999')).toBeNull()
+  })
+
+  it('reformats a compressed 8-digit date', () => {
+    expect(cleanOcrText('03082025')).toBe('03/08/2025')
+  })
+})

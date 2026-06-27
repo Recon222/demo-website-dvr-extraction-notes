@@ -67,4 +67,29 @@ describe('generateCaseNotesDoc', () => {
     expect(html).not.toContain('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;')
   })
+
+  it('omits every optional section when given only a case number', () => {
+    const html = generateCaseNotesDoc({ occNumber: 'PR25-X' })
+    expect(html).toContain('Case #PR25-X')
+    expect(html).toContain('No extraction scopes entered.')
+    expect(html).not.toContain('Adjusted Scope')
+    expect(html).not.toContain('DVR Time Offset')
+    expect(html).not.toContain('DVR Information')
+    expect(html).not.toContain('Individual Camera Details')
+    expect(html).not.toContain('Export Information')
+    expect(html).not.toContain('Arrival &amp; Departure')
+  })
+
+  it('renders dashes and DVR Time for partial scope/camera/export fields', () => {
+    const html = generateCaseNotesDoc({
+      occNumber: 'X',
+      scopes: [{ start: '2025-03-08 23:45:00', end: '', isActualTime: false, cameras: '' }],
+      cameras: [{ name: 'CamA', resolution: '', fps: '' }],
+      export: { exportMedia: 'USB Drive', sizeGb: '0', mediaPlayerIncluded: false },
+    })
+    expect(html).toContain('DVR Time')
+    expect(html).toContain('CamA')
+    expect(html).toContain('—')
+    expect(html).toContain('Export Information')
+  })
 })
