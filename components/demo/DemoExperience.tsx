@@ -21,7 +21,13 @@ import { CasesScreen } from '@/components/demo/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/components/demo/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/components/demo/screens/NewLocationModal'
 import { ImportModal, type ImportStage, type ImportResult } from '@/components/demo/screens/ImportModal'
+import { SubmissionScreen, type SubmissionFields } from '@/components/demo/screens/SubmissionScreen'
+import { RequestedScopeScreen } from '@/components/demo/screens/RequestedScopeScreen'
+import { ArrivalDepartureScreen } from '@/components/demo/screens/ArrivalDepartureScreen'
+import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
+import { selectDrawerItems } from '@/lib/demo/store/selectors'
 import { toCaseCards } from '@/components/demo/screens/screenData'
+import type { ScopeEntry } from '@/lib/demo/types'
 import '@/components/demo/demo.css'
 
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
@@ -45,6 +51,11 @@ interface ImportState {
   lastLocId: string | null
 }
 const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null }
+
+// Monotonic ids for UI-created scope/visit rows.
+let uiSeq = 0
+const blankScope = (): ScopeEntry => ({ id: `ui-s${uiSeq++}`, startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' })
+const blankVisit = () => ({ id: `ui-v${uiSeq++}`, arrival: '', departure: '' })
 
 /** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id; warn (dev) on miss. */
 function slugToChapter(slug: string): ChapterId | null {
@@ -116,6 +127,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const cases = useStore(store, (s) => s.cases)
   const locations = useStore(store, (s) => s.locations)
   const modal = useStore(store, (s) => s.modal)
+  const currentLocationId = useStore(store, (s) => s.currentLocationId)
+  const currentCaseId = useStore(store, (s) => s.currentCaseId)
+  const drawerOpen = useStore(store, (s) => s.drawerOpen)
 
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -160,6 +174,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+  const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
+  const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
+
+  const openMenu = () => store.getState().setDrawerOpen(true)
+  const setScopes = (scopes: ScopeEntry[]) => store.getState().updateField('form.scopes', scopes)
+  const setVisits = (visits: { id: string; arrival: string; departure: string }[]) =>
+    store.getState().updateField('form.arrivalDepartures', visits)
 
   // ---- rail / chapter nav ----
   const onNext = () => {
@@ -247,6 +268,48 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onImport={openImport}
           />
         )
+      case 'submission': {
+        const fields: SubmissionFields = {
+          requesterName: currentLocation?.requesterName ?? '',
+          requesterBadge: currentLocation?.requesterBadge ?? '',
+          requesterPhone: currentLocation?.requesterPhone ?? '',
+          requesterEmail: currentLocation?.requesterEmail ?? '',
+          businessName: currentLocation?.businessName ?? '',
+          streetAddress: currentLocation?.streetAddress ?? '',
+          city: currentLocation?.city ?? '',
+          locationContact: currentLocation?.locationContact ?? '',
+          locationPhone: currentLocation?.locationPhone ?? '',
+        }
+        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+      }
+      case 'requestedScope': {
+        const scopes = currentLocation?.form.scopes ?? []
+        return (
+          <RequestedScopeScreen
+            scopes={scopes}
+            onChange={(i, patch) => setScopes(scopes.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))}
+            onAdd={() => setScopes([...scopes, blankScope()])}
+            onRemove={(i) => setScopes(scopes.filter((_, idx) => idx !== i))}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
+      case 'arrivalDeparture': {
+        const visits = currentLocation?.form.arrivalDepartures ?? []
+        return (
+          <ArrivalDepartureScreen
+            visits={visits}
+            onChange={(i, patch) => setVisits(visits.map((v, idx) => (idx === i ? { ...v, ...patch } : v)))}
+            onAdd={() => setVisits([...visits, blankVisit()])}
+            onRemove={(i) => setVisits(visits.filter((_, idx) => idx !== i))}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
+      }
       default:
         return placeholder(view)
     }
@@ -305,6 +368,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         >
           {activeScreen()}
           {activeModal()}
+          {drawerOpen && (
+            <WizardDrawer
+              open
+              items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
+              onClose={() => store.getState().setDrawerOpen(false)}
+              onNavigate={(id) => {
+                store.getState().setView(id)
+                store.getState().setDrawerOpen(false)
+              }}
+              onBackToCases={() => {
+                store.getState().setView('cases')
+                store.getState().setDrawerOpen(false)
+              }}
+            />
+          )}
           <TouchIndicator pulses={pulses} />
         </PhoneFrame>
       </div>

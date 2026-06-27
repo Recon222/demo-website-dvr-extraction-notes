@@ -107,24 +107,65 @@ export function ModalActions({
   )
 }
 
-/** Sticky wizard header (title + step caption) shared by the wizard screens. */
-export function WizardHeader({ title, step }: { title: string; step?: string }) {
+/** Sticky wizard header — back arrow + title + hamburger (opens the wizard drawer). */
+export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(): void; onMenu(): void }) {
+  const iconBtn: CSSProperties = { cursor: 'pointer', display: 'flex', padding: 4, background: 'transparent', border: 'none' }
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 16,
-        background: 'linear-gradient(180deg,#1b2e48,#15273b)',
-        padding: '56px 16px 11px',
-        borderBottom: '1px solid #1e3a5f',
-      }}
-    >
-      <div style={{ fontSize: 19, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
-      {step && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#7a9fc4' }}>{step}</div>}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 16, background: 'linear-gradient(180deg,#1b2e48,#15273b)', padding: '56px 12px 11px', borderBottom: '1px solid #1e3a5f' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button type="button" aria-label="Back" onClick={onBack} style={iconBtn}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+        </button>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+      </div>
+      <button type="button" aria-label="Menu" onClick={onMenu} style={iconBtn}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+      </button>
     </div>
+  )
+}
+
+/** Primary "Continue" button at the foot of a wizard screen. */
+export function WizardNext({ label, onClick }: { label: string; onClick(): void }) {
+  return (
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 6px 18px rgba(37,128,173,0.35)' }}>
+      {label}
+    </button>
+  )
+}
+
+/** A titled form section card. */
+export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18, borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16 }}>
+      <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8', paddingBottom: 10, marginBottom: 14, borderBottom: '1px solid #1e3a5f' }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+/** A datetime-local field bound to a store 'YYYY-MM-DD HH:MM:SS' string. */
+export function DateTimeField({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <input
+        type="datetime-local"
+        step="1"
+        value={value.replace(' ', 'T')}
+        onChange={(e) => onChange(e.target.value.replace('T', ' '))}
+        aria-label={label}
+        style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 14, padding: '11px 12px', outline: 'none', colorScheme: 'dark' }}
+      />
+    </div>
+  )
+}
+
+/** "+ Add …" dashed button + "Remove" link used by the array wizard screens. */
+export function AddRowButton({ label, onClick }: { label: string; onClick(): void }) {
+  return (
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px dashed #2a4a6f', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
+      {label}
+    </button>
   )
 }
