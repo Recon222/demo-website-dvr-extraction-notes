@@ -38,8 +38,6 @@ export interface Feature {
   diagram?: FeatureDiagram
   /** Build/priority tier. */
   priority: FeaturePriority
-  /** Display order within the nav, grid, and prev/next sequence. */
-  order: number
   /**
    * Marks unfinished/placeholder copy. A draft feature still renders and stays in the
    * nav (so it isn't forgotten), but is exempt from the "no placeholder copy" content

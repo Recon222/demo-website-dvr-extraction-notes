@@ -24,11 +24,10 @@ const feature: Feature = {
   ],
   diagram: { src: 'diagrams/time-calibration.svg', caption: 'The traceability chain.' },
   priority: 'p0',
-  order: 1,
 }
 
-const prev: Feature = { ...feature, slug: 'intro', title: 'Intro', order: 0 }
-const next: Feature = { ...feature, slug: 'import', title: 'Request import', order: 2 }
+const prev: Feature = { ...feature, slug: 'intro', title: 'Intro' }
+const next: Feature = { ...feature, slug: 'import', title: 'Request import' }
 
 describe('FeaturePage', () => {
   it('renders the title, eyebrow, and pain line', () => {

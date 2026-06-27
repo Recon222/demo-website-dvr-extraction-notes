@@ -1,9 +1,9 @@
 import type { Feature } from './types'
 
 /**
- * The feature catalog. Display/nav order is governed by each entry's `order` field —
- * `getAllFeatures()` sorts by it, not by array position (the two happen to coincide
- * today). Copy is first-draft, derived from docs/planning/02-app-feature-inventory.md,
+ * The feature catalog. Declaration order IS display order: the homepage grid, the
+ * feature-nav strip, and prev/next all follow array position, so reordering the
+ * catalog reorders the site. Copy is first-draft, derived from docs/planning/02-app-feature-inventory.md,
  * utility-first per the forensic-restraint rule — `time-calibration` leans hardest into
  * the courtroom framing, with `reports` referencing court-readiness; the rest stay
  * utility-first.
@@ -48,7 +48,6 @@ export const features: readonly Feature[] = [
       caption: 'Case → locations → media & documents: one tidy tree per job.',
     },
     priority: 'p1',
-    order: 1,
   },
   {
     slug: 'import',
@@ -74,7 +73,6 @@ export const features: readonly Feature[] = [
       caption: 'Request (PDF or email) → on-device AI → structured case fields, entirely on your phone.',
     },
     priority: 'p0',
-    order: 2,
   },
   {
     // PLACEHOLDER — Kris is writing the Notes copy. The notes screens hold a lot of
@@ -106,7 +104,6 @@ export const features: readonly Feature[] = [
     // exempt from the placeholder-copy guard until Kris's copy lands. Drop when done.
     draft: true,
     priority: 'p0',
-    order: 3,
   },
   {
     slug: 'location',
@@ -132,7 +129,6 @@ export const features: readonly Feature[] = [
       caption: 'Address ⇄ coordinates, plus a GPS pin for every camera.',
     },
     priority: 'p1',
-    order: 4,
   },
   {
     slug: 'map',
@@ -154,7 +150,6 @@ export const features: readonly Feature[] = [
       },
     ],
     priority: 'p1',
-    order: 5,
   },
   {
     slug: 'time-calibration',
@@ -181,7 +176,6 @@ export const features: readonly Feature[] = [
         'The traceability chain printed into every Time Offset Report: DVR clock → phone OCR → NTP server → atomic clock → UTC → your offset.',
     },
     priority: 'p0',
-    order: 6,
   },
   {
     slug: 'evidence-capture',
@@ -206,7 +200,6 @@ export const features: readonly Feature[] = [
       caption: 'Case → locations → photo, video, and audio folders, organized as you capture.',
     },
     priority: 'p1',
-    order: 7,
   },
   {
     // PROVISIONAL — Reports content finalized LAST; it summarizes the other features' output (per Kris).
@@ -232,7 +225,6 @@ export const features: readonly Feature[] = [
       caption: 'All your captured data → the case-notes report, plus the time-offset report.',
     },
     priority: 'p0',
-    order: 8,
   },
   {
     slug: 'secure-export',
@@ -257,7 +249,6 @@ export const features: readonly Feature[] = [
       caption: 'Case → password-protected encrypted archive → shared on your terms.',
     },
     priority: 'p1',
-    order: 9,
   },
   {
     slug: 'on-device',
@@ -280,13 +271,12 @@ export const features: readonly Feature[] = [
       caption: 'What stays on your device versus the little that leaves — and exactly what it is.',
     },
     priority: 'p2',
-    order: 10,
   },
 ]
 
-/** All features sorted by display order. */
+/** All features in display order (i.e. declaration order). */
 export function getAllFeatures(): readonly Feature[] {
-  return [...features].sort((a, b) => a.order - b.order)
+  return features
 }
 
 /** All feature slugs (definition order). */

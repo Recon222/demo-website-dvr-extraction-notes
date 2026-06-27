@@ -20,7 +20,6 @@ const features: Feature[] = [
     painLine: 'Clocks are wrong.',
     rows: [{ heading: 'h', body: 'b' }],
     priority: 'p0',
-    order: 1,
   },
   {
     slug: 'import',
@@ -30,7 +29,6 @@ const features: Feature[] = [
     painLine: 'Re-typing is slow.',
     rows: [{ heading: 'h', body: 'b' }],
     priority: 'p0',
-    order: 2,
   },
 ]
 

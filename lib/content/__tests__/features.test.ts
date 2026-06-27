@@ -24,11 +24,6 @@ describe('feature content model', () => {
     }
   })
 
-  it('has a unique display order for every feature', () => {
-    const orders = features.map((f) => f.order)
-    expect(new Set(orders).size).toBe(orders.length)
-  })
-
   it('gives every feature an eyebrow, title, pain line, and at least one content row', () => {
     for (const f of features) {
       expect(f.eyebrow.length).toBeGreaterThan(0)
@@ -79,10 +74,9 @@ describe('feature content model', () => {
     expect(slugs).not.toContain('camera-gps')
   })
 
-  it('returns features ordered by display order from getAllFeatures()', () => {
+  it('returns features in declaration order from getAllFeatures()', () => {
     const ordered = getAllFeatures()
-    const orders = ordered.map((f) => f.order)
-    expect(orders).toEqual([...orders].sort((a, b) => a - b))
+    expect(ordered.map((f) => f.slug)).toEqual(features.map((f) => f.slug))
     expect(ordered.length).toBe(features.length)
   })
 
