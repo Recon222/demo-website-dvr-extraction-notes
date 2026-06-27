@@ -19,26 +19,38 @@ let pulseSeq = 0
 
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
-/** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id. */
+/** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id; warn (dev) on miss. */
 function slugToChapter(slug: string): ChapterId | null {
   const camel = slug.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-  return isChapter(camel) ? camel : null
+  if (isChapter(camel)) return camel
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[demo] unknown ?step slug "${slug}" — staying on the opening chapter`)
+  }
+  return null
+}
+
+export interface DemoExperienceProps {
+  /** Inject a store (test/SSR seam). Defaults to a fresh store created once per mount. */
+  store?: DemoStore
 }
 
 /**
- * The single store/director bridge. Creates the demo store once, reads ?mode/?step, subscribes
- * selectively, runs the director on chapter-enter in guided mode, gates the phone's
- * pointer-events, and renders the StoryRail + PhoneFrame. The ONLY component that touches the
- * store — every screen below it (M4) is presentational.
+ * The single store/director bridge. Creates the demo store once per mount (via ref), reads
+ * ?mode/?step, subscribes selectively, plays the chapter's beat on enter in guided mode, gates
+ * the phone's pointer-events, and renders the StoryRail + PhoneFrame. The ONLY component that
+ * touches the store — every screen below it (M4) is presentational.
+ *
+ * Beat-play is keyed on the store's `currentChapter` (set only by chapter navigation), NOT raw
+ * `view`, so a beat's own `launch('ocr')` (which moves `view`) can't re-trigger / restart it.
  */
-export function DemoExperience() {
+export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
   const storeRef = useRef<DemoStore | null>(null)
-  if (!storeRef.current) storeRef.current = createDemoStore()
+  if (!storeRef.current) storeRef.current = injectedStore ?? createDemoStore()
   const store = storeRef.current
 
   const params = useSearchParams()
-  const mode: DemoMode = params?.get('mode') === 'sandbox' ? 'sandbox' : 'guided'
-  const step = params?.get('step') ?? null
+  const mode: DemoMode = params.get('mode') === 'sandbox' ? 'sandbox' : 'guided'
+  const step = params.get('step')
 
   // Seed (guided) / reset (sandbox) on mount + when the URL mode/step changes.
   useEffect(() => {
@@ -52,40 +64,54 @@ export function DemoExperience() {
     }
   }, [store, mode, step])
 
-  const view = useStore(store, (s) => s.view)
+  const currentChapter = useStore(store, (s) => s.currentChapter)
   const currentMode = useStore(store, (s) => s.mode)
 
   const [pulses, setPulses] = useState<Pulse[]>([])
+  const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
 
-  // Play the chapter's beat on enter (guided only); cancel on leave.
+  // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
     if (currentMode !== 'guided') return
-    const beat = BEATS[view as ChapterId]
+    const beat = BEATS[currentChapter]
     if (!beat) return
+    const timers = pulseTimers.current
     const handle = runBeat(store, beat, {
       onPulse: (e) => {
-        const id = `${e.target}-${view}-${pulseSeq++}`
+        const id = `${e.target}-${pulseSeq++}`
         // real per-target coords land with the screens (M4); centre the ripple for now.
         setPulses((p) => [...p, { id, x: 189, y: 393 }])
-        setTimeout(() => setPulses((p) => p.filter((x) => x.id !== id)), 650)
+        const t = setTimeout(() => {
+          timers.delete(t)
+          setPulses((p) => p.filter((x) => x.id !== id))
+        }, 650)
+        timers.add(t)
       },
     })
-    return () => handle.cancel()
-  }, [store, currentMode, view])
+    handle.done.then(() => {
+      if (handle.degraded && process.env.NODE_ENV !== 'production') {
+        console.error(`[demo] chapter "${currentChapter}" beat degraded:`, handle.warnings)
+      }
+    })
+    return () => {
+      handle.cancel()
+      timers.forEach((t) => clearTimeout(t))
+      timers.clear()
+    }
+  }, [store, currentMode, currentChapter])
 
   const guided = currentMode === 'guided'
-  const chapterId: ChapterId = isChapter(view) ? view : 'splash'
-  const narration = NARRATION[chapterId]
-  const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title, active: id === chapterId }))
-  const stepCaption = `Step ${chapterNumber(chapterId)} of ${TOUR_CHAPTERS.length}`
-  const nextLabel = chapterId === 'splash' ? 'Start the tour' : nextChapter(chapterId) ? 'Next' : 'Replay tour'
+  const narration = NARRATION[currentChapter]
+  const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title, active: id === currentChapter }))
+  const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
+  const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
 
   const onNext = () => {
-    const n = nextChapter(chapterId)
+    const n = nextChapter(currentChapter)
     if (n) store.getState().setView(n)
   }
   const onPrev = () => {
-    const p = prevChapter(chapterId)
+    const p = prevChapter(currentChapter)
     if (p) store.getState().setView(p)
   }
   const onJump = (id: ChapterId) => store.getState().setView(id)
@@ -120,7 +146,7 @@ export function DemoExperience() {
         mode={currentMode}
         dots={dots}
         stepCaption={stepCaption}
-        canPrev={prevChapter(chapterId) !== null}
+        canPrev={prevChapter(currentChapter) !== null}
         nextLabel={nextLabel}
         onNext={onNext}
         onPrev={onPrev}

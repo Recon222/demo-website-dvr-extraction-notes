@@ -71,8 +71,9 @@ export interface DemoState {
   view: ChapterId | LaunchableId
   modal: ModalId | null
   drawerOpen: boolean
-  /** Where to return after closing a launch-only screen (OCR/media). */
-  launchReturnView: ChapterId | null
+  /** The chapter the tour is on — set only by chapter navigation (setView), never by
+   *  launch/closeLaunch. The director keys beat-play on this so a launch can't restart it. */
+  currentChapter: ChapterId
   capture: CaptureState
   auth: 'idle' | 'authorized'
 }
@@ -116,13 +117,17 @@ export function initialState(): DemoState {
     view: 'splash',
     modal: null,
     drawerOpen: false,
-    launchReturnView: null,
+    currentChapter: 'splash',
     capture: blankCapture(),
     auth: 'idle',
   }
 }
 
 const clone = <T>(v: T): T => structuredClone(v)
+
+/** True when a view value is a chapter (not a launch-only screen like OCR/media). */
+const isChapterId = (v: ChapterId | LaunchableId): v is ChapterId =>
+  !(LAUNCHABLE as readonly string[]).includes(v)
 
 export function createDemoStore(): DemoStore {
   let seq = 0
@@ -152,7 +157,7 @@ export function createDemoStore(): DemoStore {
         view: 'cases',
         modal: null,
         drawerOpen: false,
-        launchReturnView: null,
+        currentChapter: 'cases',
         capture: blankCapture(),
       })),
 
@@ -219,20 +224,14 @@ export function createDemoStore(): DemoStore {
       set((s) => ({ locations: s.locations.map((l) => (l.id === id ? setPath(l, path, value) : l)) }))
     },
 
-    setView: (view) => set({ view }),
+    setView: (view) => set(isChapterId(view) ? { view, currentChapter: view } : { view }),
     setMode: (mode) => set({ mode }),
     openModal: (modal) => set({ modal }),
     closeModal: () => set({ modal: null }),
     setDrawerOpen: (open) => set({ drawerOpen: open }),
 
-    launch: (screen) =>
-      set((s) => ({
-        launchReturnView: LAUNCHABLE.includes(s.view as LaunchableId)
-          ? s.launchReturnView
-          : (s.view as ChapterId),
-        view: screen,
-      })),
-    closeLaunch: () => set((s) => ({ view: s.launchReturnView ?? 'submission', launchReturnView: null })),
+    launch: (screen) => set({ view: screen }),
+    closeLaunch: () => set((s) => ({ view: s.currentChapter })),
 
     calculateOffset: () => {
       const s = get()
