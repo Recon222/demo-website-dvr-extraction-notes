@@ -2,8 +2,8 @@
  * Public API of the interactive-demo engine.
  *
  * External code imports from '@/lib/demo'; internal modules use their aliased paths.
- * Milestone 1 ships the pure logic core (types · content registries · time/OCR/import/PDF
- * logic). Milestone 2 will add the store + director to this barrel.
+ * Milestone 1 shipped the pure logic core (types · content registries · time/OCR/import/PDF
+ * logic); Milestone 2 adds the store, selectors, and director. The UI (M3+) consumes this.
  */
 
 // ---- Domain types ----
@@ -30,3 +30,27 @@ export * from '@/lib/demo/logic/ocr'
 export * from '@/lib/demo/logic/import'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/lib/demo/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/lib/demo/logic/pdf/time-offset'
+
+// ---- Store (Milestone 2) ----
+export {
+  createDemoStore,
+  type DemoStore,
+  type DemoState,
+  type DemoActions,
+  type CaptureState,
+  type NewCaseInput,
+  type NewLocationInput,
+} from '@/lib/demo/store/create-store'
+export {
+  selectCurrentCase,
+  selectCurrentLocation,
+  selectLocationsForCase,
+  selectVisibleWizardScreens,
+  selectDrawerItems,
+  selectCaseNotesData,
+} from '@/lib/demo/store/selectors'
+
+// ---- Director (Milestone 2) ----
+export { runBeat, realClock, type Clock, type RunBeatOptions, type BeatHandle } from '@/lib/demo/director/runner'
+export { BEATS } from '@/lib/demo/director/beats'
+export type { Beat, BeatStep, PulseEvent } from '@/lib/demo/director/types'

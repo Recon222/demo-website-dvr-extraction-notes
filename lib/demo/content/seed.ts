@@ -24,11 +24,13 @@ Thanks,
 Det. Liam McHugh #4471
 Central Robbery`
 
-/** A blank location form — empty arrays/strings; the guided tour types into it live. */
-function blankForm(): LocationForm {
+/** A blank location form — empty arrays/strings; the guided tour types into it live.
+ *  Exported so the store reuses one definition when creating new locations. */
+export function blankLocationForm(): LocationForm {
   return {
     scopes: [],
     extractedScopes: [],
+    extractedScopesPartial: false,
     arrivalDepartures: [],
     timeOffset: null,
     dvr: {
@@ -87,5 +89,5 @@ export const SEED_LOCATION: DemoLocation = {
   locationContact: 'Sandeep Gill',
   locationPhone: '905-555-0142',
   isSeed: true,
-  form: blankForm(),
+  form: blankLocationForm(),
 }

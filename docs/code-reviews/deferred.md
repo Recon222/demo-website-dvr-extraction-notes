@@ -89,4 +89,59 @@ M2 gives these paths live callers.
   time-only → today default (M-3) are inline-noted in `lib/demo/logic/ocr.ts`; the M2 OCR
   chapter must let a reviewer confirm/correct both.
 
-**Trigger:** Milestone 2 (when the store / director / UI consume these surfaces).
+**Trigger:** Milestone 3 (rolled forward from M2 — these land when the UI consumes the surfaces).
+
+---
+
+## 5. Milestone-2 review deferrals — type-safety & simplification (→ M3)
+
+**Source:** PR #10 review + fixes-delta (type-design · simplification · silent-failure lanes).
+Behaviour-preserving; fold in as M3 builds UI on these surfaces.
+
+- **Typed `updateField` path** — `updateField(path: string)` has no structural link to
+  `DemoLocation`/`CaptureState`, so a beat-path typo only surfaces via the dev-warn at runtime.
+  A `FieldUpdate` discriminated union (path → value type) makes typos a compile error;
+  `setPath` stays string-based behind one marked cast. (The compile-time structural fix for the
+  same beat-path typo footgun that finding #3's `setPath` dev-warn only guards at runtime.)
+- **Arg-checked beat actions** — `call`/`tap` `args` cast to `unknown[]`, so a wrong arg
+  type-checks. Distribute over `DemoActions` with `Parameters<DemoActions[K]>`. Contained today
+  (only zero-arg actions are invoked).
+- **`NavState` model** — `view`/`launchReturnView` are an unmodeled correlated invariant
+  (`{ view:'ocr', launchReturnView:null }` is representable; the `?? 'submission'` fallback masks it).
+- **`TimeOffsetInput` model** — `CaptureState` duplicates the input fields of `TimeOffsetData`
+  (`calculateOffset` copies field-by-field, with a `method`/`captureMethod` rename trap).
+- **Simplifications** — `patchCurrentLocation(updater)` (the repeated `get id → if(!id) → set(map)`
+  across ~6 actions); `formatAddress(loc)` (duplicated in `generateNotes` + `selectCaseNotesData`);
+  merge the runner's `waiters`/`cancels` Sets.
+- **`calculateOffset` empty-input no-op** (silent-failure) — when the capture datetimes are blank,
+  `calculateOffset` returns silently. This is a precondition, not a failure (the malformed-string
+  path already signals via the director's `degraded` flag once a beat invokes it). The right
+  feedback home is the M3 time-offset screen: disable "Calculate" until both datetimes are present,
+  rather than warning on every speculative call.
+
+**Trigger:** Milestone 3.
+
+---
+
+## 6. Phone-app parity checklist (verify against the real app before beta)
+
+**Source:** ongoing — places where the demo may diverge from the React Native app. Sweep these
+once the UI is built (M3+) to confirm 1:1 parity with the phone app. Add entries as they surface.
+
+- **Requested scopes are picker-only — the "non-canonical scope" path is unreachable in the real
+  flow.** In the app, requested-scope times come from date/time **pickers**, so `form.scopes` is
+  *always* a proper datetime. The `extractedScopesPartial` safety net + PDF "could not be converted"
+  annotation (fixes-delta #1) therefore guards a case the pickers make impossible. It only exists
+  because M2 is headless: there's no picker screen yet, and the interim `applyImport` writes the AI's
+  raw extracted text **straight into `form.scopes`**. **M3 fix:** import pre-fills the picker-backed
+  fields (normalised/confirmed by the user), *not* the canonical scope list — then nothing ever
+  drops. Once that lands, reassess whether the partial-drop net + annotation can be trimmed.
+- **Offset requires a requested scope (UX ordering).** No time-offset step is reachable without a
+  requested scope first, so an adjusted scope always exists in proper format. The M3 wizard must
+  enforce this ordering; the headless engine does not.
+- **Bidirectional DVR↔real conversion — verify presentation.** The converter flips direction via
+  `isActualTime` (ported + tested both ways: a DVR-time request and a real-time request). Confirm the
+  exact **DVR-in → real-out** wording/format in the notes + report matches the app (the math is
+  ported; the *presentation* nuance is the parity risk).
+
+**Trigger:** parity sweep after the UI lands (M3+), before beta.

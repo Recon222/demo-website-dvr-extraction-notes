@@ -92,4 +92,16 @@ describe('generateCaseNotesDoc', () => {
     expect(html).toContain('—')
     expect(html).toContain('Export Information')
   })
+
+  it('annotates the Adjusted Scope section when conversion was partial (not silently omitted)', () => {
+    const html = generateCaseNotesDoc({ occNumber: 'X', adjustedScopesPartial: true })
+    expect(html).toContain('Adjusted Scope')
+    expect(html).toContain('could not be converted')
+  })
+
+  it('shows no partial warning on a clean conversion', () => {
+    const html = generateCaseNotesDoc(full)
+    expect(html).toContain('Adjusted Scope')
+    expect(html).not.toContain('could not be converted')
+  })
 })

@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import * as demo from '@/lib/demo'
 
-// The barrel is the engine's public surface; this pins that the Milestone 1 API is
-// reachable from a single import (what Milestone 2 + the UI will consume).
+// The barrel is the engine's public surface; this pins that the engine API is reachable
+// from a single import (what the store, director, and UI consume).
 describe('lib/demo barrel', () => {
+  it('exposes the Milestone 2 store + director', () => {
+    expect(typeof demo.createDemoStore).toBe('function')
+    expect(typeof demo.runBeat).toBe('function')
+    expect(typeof demo.selectCaseNotesData).toBe('function')
+    expect(demo.BEATS).toBeTruthy()
+  })
+
   it('exposes the logic functions', () => {
     expect(typeof demo.calculateTimeDifference).toBe('function')
     expect(typeof demo.calculateCorrectedTimeRange).toBe('function')
