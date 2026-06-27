@@ -37,6 +37,25 @@ describe('seedGuided / reset', () => {
     const id = store.getState().createCase(newCaseInput())
     expect(store.getState().cases.find((c) => c.id === id)?.isSeed).toBe(false)
   })
+
+  it('reset keeps visitor-created (non-seed) records and only drops the seed', () => {
+    const store = seededStore() // seed-case + seed-loc loaded
+    const userCase = store.getState().createCase(newCaseInput({ caseNumber: 'USER-1' }))
+    const userLoc = store.getState().addLocation(userCase, newLocationInput())
+    store.getState().reset()
+    const s = store.getState()
+    expect(s.cases.some((c) => c.id === userCase)).toBe(true) // visitor data survives
+    expect(s.locations.some((l) => l.id === userLoc)).toBe(true)
+    expect(s.cases.some((c) => c.isSeed)).toBe(false) // seed gone
+    expect(s.locations.some((l) => l.isSeed)).toBe(false)
+  })
+
+  it('reset switches to sandbox mode on the cases view', () => {
+    const store = seededStore()
+    store.getState().reset()
+    expect(store.getState().mode).toBe('sandbox')
+    expect(store.getState().view).toBe('cases')
+  })
 })
 
 describe('createCase / addLocation', () => {
@@ -183,6 +202,15 @@ describe('launch / closeLaunch', () => {
     store.getState().setView('timeOffset')
     store.getState().launch('ocr')
     expect(store.getState().view).toBe('ocr')
+    store.getState().closeLaunch()
+    expect(store.getState().view).toBe('timeOffset')
+  })
+
+  it('launching again from a launch screen preserves the original return view', () => {
+    const store = freshStore()
+    store.getState().setView('timeOffset')
+    store.getState().launch('ocr') // returnView = timeOffset
+    store.getState().launch('mediaCapture') // already on a launchable → returnView preserved
     store.getState().closeLaunch()
     expect(store.getState().view).toBe('timeOffset')
   })
