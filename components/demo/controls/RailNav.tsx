@@ -29,19 +29,22 @@ export function RailNav({ canPrev, nextLabel, onPrev, onNext }: RailNavProps) {
           Back
         </button>
       ) : (
-        <div
-          aria-disabled
+        <button
+          type="button"
+          disabled
           style={{
             padding: '13px 22px',
             borderRadius: 10,
             border: '1px solid #16273c',
+            background: 'transparent',
             color: '#46607e',
             fontSize: 15,
             fontWeight: 600,
+            cursor: 'default',
           }}
         >
           Back
-        </div>
+        </button>
       )}
       <button
         type="button"

@@ -45,10 +45,10 @@ describe('WizardDrawer', () => {
 })
 
 describe('RailNav', () => {
-  it('dims Back when there is no prior step', () => {
+  it('renders Back as a real disabled button when there is no prior step', () => {
     render(<RailNav canPrev={false} nextLabel="Next" onPrev={vi.fn()} onNext={vi.fn()} />)
-    // Back is a non-button div when dimmed; Next is the only button
-    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
   })
 
   it('enables Back and fires both callbacks', () => {
