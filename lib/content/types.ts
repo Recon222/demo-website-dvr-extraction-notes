@@ -44,6 +44,10 @@ export interface Feature {
    * Marks unfinished/placeholder copy. A draft feature still renders and stays in the
    * nav (so it isn't forgotten), but is exempt from the "no placeholder copy" content
    * guard and shows a visible "Draft" badge on its page. Drop the flag when real copy lands.
+   *
+   * Modelled as an opt-in `true` (not `boolean`): a feature is either a draft
+   * (`draft: true`) or it isn't (field omitted). `draft: false` is not a meaningful
+   * state, so the type rejects it.
    */
-  draft?: boolean
+  draft?: true
 }
