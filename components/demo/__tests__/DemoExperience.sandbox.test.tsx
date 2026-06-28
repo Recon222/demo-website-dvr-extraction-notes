@@ -71,4 +71,49 @@ describe('DemoExperience — sandbox bridge paths', () => {
 
     expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
   })
+
+  it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => {
+      const st = store.getState()
+      st.updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+      st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+      st.calculateOffset()
+      st.setView('completion')
+    })
+
+    fireEvent.click(screen.getByText('Preview Time-Offset Calibration'))
+
+    expect(screen.getByTitle('Time-Offset Calibration')).toBeInTheDocument()
+  })
+
+  it('New Case modal: fill + Create Case adds the case and closes the modal', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('newCase'))
+
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-NEW' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.click(screen.getByText('Create Case'))
+
+    expect(store.getState().cases.some((c) => c.caseNumber === 'PR25-NEW')).toBe(true)
+    expect(store.getState().modal).toBeNull()
+  })
+
+  it('New Location modal: fill + Create Location adds the location and closes the modal', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-LOC', displayName: 'X', unit: 'Robbery' })
+      store.getState().openModal('newLocation')
+    })
+
+    fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'Rear Door' } })
+    fireEvent.click(screen.getByText('Create Location'))
+
+    expect(store.getState().locations.some((l) => l.locationName === 'Rear Door')).toBe(true)
+    expect(store.getState().modal).toBeNull()
+  })
 })

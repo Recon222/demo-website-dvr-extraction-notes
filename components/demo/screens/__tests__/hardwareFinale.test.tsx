@@ -28,6 +28,17 @@ describe('CamerasScreen', () => {
     fireEvent.click(screen.getByText('+ Add Camera'))
     expect(onAdd).toHaveBeenCalledOnce()
   })
+
+  it('removes the right camera by index', () => {
+    const onRemove = vi.fn()
+    const cameras = [
+      { id: 'c1', cameraName: 'A', resolution: '', recordingFps: '' },
+      { id: 'c2', cameraName: 'B', resolution: '', recordingFps: '' },
+    ]
+    render(<CamerasScreen cameras={cameras} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...nav} />)
+    fireEvent.click(screen.getAllByText('Remove')[1])
+    expect(onRemove).toHaveBeenCalledWith(1)
+  })
 })
 
 describe('ExportInfoScreen', () => {

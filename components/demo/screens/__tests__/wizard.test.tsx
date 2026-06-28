@@ -63,4 +63,15 @@ describe('ArrivalDepartureScreen', () => {
     fireEvent.click(screen.getByText('+ Add Visit'))
     expect(onAdd).toHaveBeenCalledOnce()
   })
+
+  it('removes the right visit by index', () => {
+    const onRemove = vi.fn()
+    const visits = [
+      { id: 'v1', arrival: '', departure: '' },
+      { id: 'v2', arrival: '', departure: '' },
+    ]
+    render(<ArrivalDepartureScreen visits={visits} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...nav} />)
+    fireEvent.click(screen.getAllByText('Remove')[1])
+    expect(onRemove).toHaveBeenCalledWith(1)
+  })
 })
