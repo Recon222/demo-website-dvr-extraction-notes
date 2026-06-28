@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { Toggle } from '@/components/demo/screens/_shared'
+import { Toggle, ModalShell } from '@/components/demo/screens/_shared'
 import { TimeOffsetScreen } from '@/components/demo/screens/TimeOffsetScreen'
+import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
 
 const toBase = {
   dvrDateTime: '2025-03-08 12:05:30',
@@ -37,5 +38,31 @@ describe('TimeOffsetScreen DST toggle a11y', () => {
   it('exposes the DST control as a checked switch', () => {
     render(<TimeOffsetScreen {...toBase} dvrAppliesDST />)
     expect(screen.getByRole('switch', { name: 'DVR Applies DST' })).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('ModalShell a11y', () => {
+  it('is an aria-modal dialog that closes on Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <ModalShell title="New Case" onClose={onClose}>
+        <div />
+      </ModalShell>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'New Case' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('WizardDrawer a11y', () => {
+  it('is an aria-modal dialog that closes on Escape', () => {
+    const onClose = vi.fn()
+    render(<WizardDrawer open items={[]} onClose={onClose} onNavigate={vi.fn()} onBackToCases={vi.fn()} />)
+    const dialog = screen.getByRole('dialog', { name: 'Navigation' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

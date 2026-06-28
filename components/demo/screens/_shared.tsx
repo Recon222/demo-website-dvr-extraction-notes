@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 const grid: CSSProperties = {
@@ -12,11 +13,19 @@ const grid: CSSProperties = {
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals. */
 export function ModalShell({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)' }} />
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         style={{
           position: 'absolute',
