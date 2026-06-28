@@ -180,3 +180,20 @@ fast-follow that hangs off the drawer's media accordion (the M3-deferred drawer 
   homepage/feature CTAs) is still its own milestone.
 
 **Trigger:** fast-follow after M4 merges (before M5 wires the CTAs).
+
+---
+
+## 9. Milestone-4 fixes-delta residuals (Advisory)
+
+**Source:** PR #12 fixes-delta review (APPROVE). Two Advisory items deliberately parked.
+
+- **`ImportState` discriminated union.** `ImportState` is flat (`{ stage; text; result: ImportResult |
+  null; lastLocId }`), so `{ stage: 'result', result: null }` is representable and the modal consumer
+  keeps a `stage === 'result' && result` double-guard. Discriminating it over `stage` would ripple
+  through five spread-based `setImp({ ...s, … })` updates — and the import flow itself is being
+  reworked for the §6 import→picker parity (which restructures `ImportState` anyway). Deferring avoids
+  churn the rework would undo. **Trigger:** the §6 import→staging rework.
+- **No single end-to-end "guided tour → PDF" test.** The marquee / import / PDF paths are covered by
+  the sandbox bridge tests + the un-mocked director integration test (adequate regression protection
+  per the review), but no one test walks all 13 chapters through to the exported PDF. **Trigger:** when
+  the guided beats are enriched (the user-testing #5 rework), add the full-tour e2e against the new script.

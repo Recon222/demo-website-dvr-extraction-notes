@@ -540,6 +540,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             text={imp.text}
             stages={IMPORT_STAGES}
             result={imp.result}
+            // Intentionally identical for now — NOT de-duped: the deferred import rework makes them
+            // diverge (PDF → real file picker + pdf.js extraction; Paste → blank textarea).
             onChoosePdf={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
             onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
             onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
