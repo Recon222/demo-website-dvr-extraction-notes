@@ -71,6 +71,15 @@ const blankScope = (): ScopeEntry => ({ id: `ui-s${uiSeq++}`, startDateTime: '',
 const blankVisit = () => ({ id: `ui-v${uiSeq++}`, arrival: '', departure: '' })
 const blankCamera = (): CameraEntry => ({ id: `ui-c${uiSeq++}`, cameraName: '', resolution: '', recordingFps: '' })
 
+/** change/add/remove handlers for an id-keyed list, written back through one setter. */
+function listEditHandlers<T extends { id: string }>(list: T[], write: (next: T[]) => void) {
+  return {
+    change: (i: number, patch: Partial<T>) => write(list.map((it, idx) => (idx === i ? { ...it, ...patch } : it))),
+    add: (item: T) => write([...list, item]),
+    remove: (i: number) => write(list.filter((_, idx) => idx !== i)),
+  }
+}
+
 interface PdfState {
   title: string
   html: string
@@ -204,9 +213,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   const openMenu = () => store.getState().setDrawerOpen(true)
-  const setScopes = (scopes: ScopeEntry[]) => store.getState().updateField('form.scopes', scopes)
-  const setVisits = (visits: { id: string; arrival: string; departure: string }[]) =>
-    store.getState().updateField('form.arrivalDepartures', visits)
+  const formList = <T extends { id: string }>(list: T[], path: string) =>
+    listEditHandlers(list, (next) => store.getState().updateField(path, next))
 
   // ---- rail / chapter nav ----
   const onNext = () => {
@@ -363,12 +371,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
+        const sc = formList(scopes, 'form.scopes')
         return (
           <RequestedScopeScreen
             scopes={scopes}
-            onChange={(i, patch) => setScopes(scopes.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))}
-            onAdd={() => setScopes([...scopes, blankScope()])}
-            onRemove={(i) => setScopes(scopes.filter((_, idx) => idx !== i))}
+            onChange={sc.change}
+            onAdd={() => sc.add(blankScope())}
+            onRemove={sc.remove}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
@@ -377,12 +386,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'arrivalDeparture': {
         const visits = currentLocation?.form.arrivalDepartures ?? []
+        const v = formList(visits, 'form.arrivalDepartures')
         return (
           <ArrivalDepartureScreen
             visits={visits}
-            onChange={(i, patch) => setVisits(visits.map((v, idx) => (idx === i ? { ...v, ...patch } : v)))}
-            onAdd={() => setVisits([...visits, blankVisit()])}
-            onRemove={(i) => setVisits(visits.filter((_, idx) => idx !== i))}
+            onChange={v.change}
+            onAdd={() => v.add(blankVisit())}
+            onRemove={v.remove}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
@@ -426,11 +436,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <OcrCaptureScreen result={ocrResult} onUseSample={runOcrSample} onCapture={runOcrSample} onCancel={cancelOcr} onRetake={() => setOcrResult(null)} onConfirm={confirmOcr} />
       case 'extractedScope': {
         const exs = currentLocation?.form.extractedScopes ?? []
+        const ex = formList(exs, 'form.extractedScopes')
         return (
           <ExtractedScopeScreen
             scopes={exs}
-            onChange={(i, patch) => store.getState().updateField('form.extractedScopes', exs.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))}
-            onRemove={(i) => store.getState().updateField('form.extractedScopes', exs.filter((_, idx) => idx !== i))}
+            onChange={ex.change}
+            onRemove={ex.remove}
             onRegenerate={() => store.getState().generateExtractedScopes()}
             onNext={onNext}
             onBack={onPrev}
@@ -442,12 +453,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
+        const cam = formList(cams, 'form.cameras')
         return (
           <CamerasScreen
             cameras={cams}
-            onChange={(i, patch) => store.getState().updateField('form.cameras', cams.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))}
-            onAdd={() => store.getState().updateField('form.cameras', [...cams, blankCamera()])}
-            onRemove={(i) => store.getState().updateField('form.cameras', cams.filter((_, idx) => idx !== i))}
+            onChange={cam.change}
+            onAdd={() => cam.add(blankCamera())}
+            onRemove={cam.remove}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
