@@ -197,3 +197,23 @@ fast-follow that hangs off the drawer's media accordion (the M3-deferred drawer 
   the sandbox bridge tests + the un-mocked director integration test (adequate regression protection
   per the review), but no one test walks all 13 chapters through to the exported PDF. **Trigger:** when
   the guided beats are enriched (the user-testing #5 rework), add the full-tour e2e against the new script.
+
+---
+
+## 10. Name `YMD` / `Hms` part-shape types in the pickers (type-design)
+
+**Source:** PR #14 review (type-design lane, Advisory).
+
+**What:** The `{ y, mo, d }` and `{ h, mi, s }` shapes are written inline ~4× and ~3× across the
+engine/UI boundary — `CalendarProps` (`selected`/`today`), `DateField`'s view `useState`,
+`TimeWheelProps` (`value`/`onChange`), `mergeDate`/`mergeTime` signatures, and a local (unexported)
+`Hms` in `TimeField`. They line up only by structural accident, so a field rename wouldn't surface as
+a type error at every call site.
+
+**Why deferred:** Pure behavior-neutral refactor touching ~6 files (`datetime-parts`, `Calendar`,
+`DateField`, `TimeWheel`, `TimeField`, and the retention scope shapes). PR #14 is already very large
+(pickers + retention + several iterations); folding a cross-file type churn in now adds review noise
+for no behavior change. Not a bug.
+
+**Trigger:** Next time any of these picker files is opened for real work — export `YMD`/`Hms` from
+`engine/logic/datetime-parts.ts` and thread them through, in its own small PR.
