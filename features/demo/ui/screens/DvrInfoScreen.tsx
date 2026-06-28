@@ -4,7 +4,7 @@ import type { DvrInformation } from '@/features/demo/engine/types'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 
 const RES = ['720p (1280×720)', '1080p (1920×1080)', '2K (2560×1440)', '4K (3840×2160)', 'Other']
-const FPS = ['7', '10', '15', '24', '30', 'Other']
+const FPS = ['10fps', '12fps', '15fps', '25fps', '30fps']
 
 export interface DvrInfoScreenProps {
   dvr: DvrInformation
