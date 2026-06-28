@@ -278,7 +278,7 @@ unaffected; existing tests stay green.
 - **15B** `app/layout.tsx` — remove `<Header/>` + `<FeatureNav/>`; keep `<html>/<body>` + fonts.
   (Resolves the deferred "FeatureNav site-wide" item — update `docs/code-reviews/deferred.md`.)
 - **15C** `app/demo/layout.tsx` — immersive, chrome-free shell (dark background, full height).
-- **15D** `app/demo/page.tsx` — `dynamic(() => import('@/components/demo'), { ssr: false })`,
+- **15D** `app/demo/page.tsx` — `dynamic(() => import('@/features/demo'), { ssr: false })`,
   read `?mode`/`?step` from `searchParams`, mount `<DemoExperience/>`.
 
 ### Phase 16 — Site wiring *(fast-follow; modifies existing files)*
