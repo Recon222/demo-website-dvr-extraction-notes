@@ -1,0 +1,105 @@
+'use client'
+
+import { useEffect } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { T } from '@/features/demo/ui/inputs/input-theme'
+
+export interface PickerSheetProps {
+  title: string
+  onClose(): void
+  children: ReactNode
+  /** Sticky action row at the foot of the sheet (e.g. Cancel / Confirm or Done). */
+  footer?: ReactNode
+}
+
+const dot: CSSProperties = { width: 6, height: 6, borderRadius: 3, background: T.primary }
+
+/**
+ * Bottom-anchored sheet that renders INSIDE the phone screen (like ModalShell, but
+ * auto-height and pinned to the bottom). Used by the calendar (DateField) and the time
+ * wheel (TimeField). Scrim click, the ✕ button, and Escape all dismiss.
+ */
+export function PickerSheet({ title, onClose, children, footer }: PickerSheetProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: 'absolute', inset: 0, zIndex: 31, background: T.scrim }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 32,
+          maxHeight: '92%',
+          display: 'flex',
+          flexDirection: 'column',
+          background: T.raised,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          border: `1px solid ${T.primaryEdge}`,
+          borderTop: `2px solid ${T.topHighlight}`,
+          boxShadow: '0 -16px 40px -8px rgba(0,0,0,0.6)',
+          overflow: 'hidden',
+          animation: 'sheetUp 0.28s ease',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={dot} />
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+                color: T.textDim,
+              }}
+            >
+              {title}
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMute} strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: 16 }}>{children}</div>
+
+        {/* Footer (optional) */}
+        {footer && <div style={{ padding: 16, borderTop: `1px solid ${T.border}` }}>{footer}</div>}
+      </div>
+    </>
+  )
+}

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -185,21 +186,9 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
   )
 }
 
-/** A labelled select bound to a string value. */
+/** A labelled dropdown bound to a string value — the custom picker matching the phone app. */
 export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: string[] }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 14, padding: '11px 12px', outline: 'none', colorScheme: 'dark' }}>
-        <option value="">Select…</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
+  return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 
 /** A labelled on/off switch (keyboard-operable). */
