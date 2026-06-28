@@ -58,13 +58,14 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
           animation: 'sheetUp 0.28s ease',
         }}
       >
-        {/* Header */}
+        {/* Header — gradient fill + straight solid divider (shared by all three pickers). */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '14px 18px',
+            background: 'linear-gradient(180deg,rgba(25,48,72,0.8),rgba(15,32,53,0.4))',
             borderBottom: `1px solid ${T.border}`,
           }}
         >
