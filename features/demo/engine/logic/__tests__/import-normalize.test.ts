@@ -90,18 +90,21 @@ describe('normalizeExtractedFields', () => {
     expect(fields).toContain('badgeNumber')
     expect(fields).toContain('locationContactPhone')
     expect(fields).toContain('hasVideoMonitor')
+    expect(fields).toContain('timePeriodType') // 'recorder time' → 'DVR Time'
   })
 })
 
 describe('parseNormalizeMap', () => {
   it('parses fenced/chatter-wrapped JSON and maps to a clean patch', () => {
-    const { patch } = parseNormalizeMap(RAW_MESSY)
+    const t = parseNormalizeMap(RAW_MESSY)
+    const { patch } = t
     expect(patch.requesterName).toBe('Det. Naplioni')
     expect(patch.requesterBadgeNumber).toBe('2015')
     expect(patch.locationPhone).toBe('416-487-7387')
     expect(patch._import.hasVideoMonitor).toBe('Yes')
     expect(patch._import.timeFrames[0].isActualTime).toBe(false) // DVR time
     expect(patch._import.timeFrames[0].startDateTime).toBe('11:45 PM on March 8 2025')
+    expect(t.timeFrameCount).toBe(1)
   })
   it('never maps the requester occurrence number into the patch', () => {
     const t = parseNormalizeMap(RAW_CLEAN)

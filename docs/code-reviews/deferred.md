@@ -63,6 +63,11 @@ speculative API for a path with no caller (YAGNI).
 **Trigger:** When a real on-device model is wired into the import chapter (Milestone 2+),
 add a recognized-field signal (count / validated flag / throw on zero known fields).
 
+**✅ RESOLVED — PR #15 (live PDF import).** `parseNormalizeMap` now returns a `fieldCount`,
+and `run-import.ts` rejects a live reply that parses to zero fields (`fieldCount === 0 &&
+timeFrameCount === 0`) with a "No recognizable fields found" error instead of creating a blank
+location. The sample fallback (guided/keyless) is unaffected (it always has fields).
+
 ---
 
 ## 4. Milestone-2 engine refinements (parked during M1)
