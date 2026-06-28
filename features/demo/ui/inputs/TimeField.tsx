@@ -16,8 +16,7 @@ type Hms = { h: number; mi: number; s: number }
 
 /**
  * The "TIME" button + bottom-sheet HH:MM:SS wheel. Confirm writes the time back while
- * preserving the date (via mergeTime, ms stripped); Cancel discards. Empty value seeds the
- * wheel from now().
+ * preserving the date (via mergeTime); Cancel discards. Empty value seeds the wheel from now().
  */
 export function TimeField({ value, onChange }: TimeFieldProps) {
   const [open, setOpen] = useState(false)

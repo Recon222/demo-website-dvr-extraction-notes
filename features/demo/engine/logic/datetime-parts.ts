@@ -114,8 +114,9 @@ export function mergeDate(
 }
 
 /**
- * Set the time portion (h/mi/s, milliseconds dropped) while preserving the existing
- * date. When `value` is empty, the date is seeded from `now()`.
+ * Set the time portion (h/mi/s) while preserving the existing date. The stored format has
+ * no milliseconds field, so none can ever appear. When `value` is empty, the date is
+ * seeded from `now()`.
  */
 export function mergeTime(
   value: string,

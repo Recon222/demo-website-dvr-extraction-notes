@@ -21,10 +21,10 @@ const ZERO = { y: 0, mo: 0, d: 0 }
  */
 export function DateField({ value, onChange }: DateFieldProps) {
   const [open, setOpen] = useState(false)
-  const initial = parsePartsLoose(value)
-  const [view, setView] = useState<{ y: number; mo: number }>(
-    initial ? { y: initial.y, mo: initial.mo } : { y: 2000, mo: 1 },
-  )
+  const [view, setView] = useState<{ y: number; mo: number }>(() => {
+    const p = parsePartsLoose(value)
+    return p ? { y: p.y, mo: p.mo } : { y: 2000, mo: 1 }
+  })
   const [today, setToday] = useState<{ y: number; mo: number; d: number }>(ZERO)
 
   const parts = parsePartsLoose(value)
