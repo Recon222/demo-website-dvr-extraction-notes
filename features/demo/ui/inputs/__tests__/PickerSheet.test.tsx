@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
+import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 describe('PickerSheet', () => {
   it('renders the title, children, and footer', () => {
@@ -68,5 +69,20 @@ describe('PickerSheet', () => {
     )
     fireEvent.click(container.querySelector('[data-sheet-scrim]')!)
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('portals into the PhoneOverlayContext node when one is present', () => {
+    const overlay = document.createElement('div')
+    document.body.appendChild(overlay)
+    render(
+      <PhoneOverlayContext.Provider value={overlay}>
+        <PickerSheet title="Ported" onClose={vi.fn()}>
+          <div>portaled body</div>
+        </PickerSheet>
+      </PhoneOverlayContext.Provider>,
+    )
+    expect(overlay.querySelector('[role="dialog"]')).toBeTruthy()
+    expect(overlay).toHaveTextContent('portaled body')
+    document.body.removeChild(overlay)
   })
 })

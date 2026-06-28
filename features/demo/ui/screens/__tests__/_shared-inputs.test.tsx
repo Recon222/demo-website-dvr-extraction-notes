@@ -82,4 +82,23 @@ describe('screen integration (smoke)', () => {
     expect(screen.getByText(/5 days until overwritten/)).toBeInTheDocument()
     expect(screen.getByText('Warning')).toBeInTheDocument()
   })
+
+  it('DvrInfoScreen shows "Already overwritten" + an Overwritten badge for a 0-day scope', () => {
+    const dvr: DvrInformation = {
+      dvrLocation: '', dvrTypeBrand: '', serialModelNumber: '', dvrUsername: '', dvrPassword: '',
+      numberOfChannels: '', activeCameras: '', recordingSchedule: '', resolution: '', recordingFps: '', firstRecordedDate: '2025-01-01 00:00:00', totalDvrRetention: '10 days',
+    }
+    render(
+      <DvrInfoScreen
+        dvr={dvr}
+        retention={{ totalRetention: 10, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 0, overwrittenDate: '2025-01-11' }] }}
+        onChange={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onMenu={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/Already overwritten/)).toBeInTheDocument()
+    expect(screen.getByText('Overwritten')).toBeInTheDocument()
+  })
 })

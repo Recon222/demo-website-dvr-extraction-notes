@@ -51,6 +51,12 @@ describe('getRetentionStatus', () => {
     expect(getRetentionStatus(5)).toBe('WARNING')
     expect(getRetentionStatus(30)).toBe('SAFE')
   })
+  it('uses inclusive band edges (3=CRITICAL, 4 & 7=WARNING, 8=SAFE)', () => {
+    expect(getRetentionStatus(3)).toBe('CRITICAL')
+    expect(getRetentionStatus(4)).toBe('WARNING')
+    expect(getRetentionStatus(7)).toBe('WARNING')
+    expect(getRetentionStatus(8)).toBe('SAFE')
+  })
 })
 
 describe('buildRetentionView', () => {

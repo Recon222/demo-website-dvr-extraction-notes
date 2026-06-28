@@ -116,6 +116,14 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.some((l) => l.locationName === 'Rear Door')).toBe(true)
     expect(store.getState().modal).toBeNull()
   })
+
+  it('retention bridge: setting firstRecordedDate writes a derived totalDvrRetention for the PDF', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().updateField('form.dvr.firstRecordedDate', '2025-03-01 00:00:00'))
+    expect(currentLoc(store)?.form.dvr.totalDvrRetention).toMatch(/^\d+ days$/)
+  })
 })
 
 describe('DemoExperience — Use Current Time (device sync)', () => {
