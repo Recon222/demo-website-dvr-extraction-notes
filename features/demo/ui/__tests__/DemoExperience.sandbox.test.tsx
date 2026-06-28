@@ -124,6 +124,24 @@ describe('DemoExperience — sandbox bridge paths', () => {
     act(() => store.getState().updateField('form.dvr.firstRecordedDate', '2025-03-01 00:00:00'))
     expect(currentLoc(store)?.form.dvr.totalDvrRetention).toMatch(/^\d+ days$/)
   })
+
+  it('retention bridge: clearing firstRecordedDate clears the derived totalDvrRetention', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().updateField('form.dvr.firstRecordedDate', '2025-03-01 00:00:00'))
+    expect(currentLoc(store)?.form.dvr.totalDvrRetention).toMatch(/^\d+ days$/)
+    act(() => store.getState().updateField('form.dvr.firstRecordedDate', ''))
+    expect(currentLoc(store)?.form.dvr.totalDvrRetention).toBe('')
+  })
+
+  it('retention bridge: keeps an import-provided totalDvrRetention when firstRecordedDate is empty', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().updateField('form.dvr.totalDvrRetention', '30 days'))
+    expect(currentLoc(store)?.form.dvr.totalDvrRetention).toBe('30 days')
+  })
 })
 
 describe('DemoExperience — Use Current Time (device sync)', () => {
