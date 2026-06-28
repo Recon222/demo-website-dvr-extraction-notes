@@ -39,6 +39,9 @@ Keep values complete. Do not strip qualifying words from a value — a retention
 
 Respond with the JSON shape only. No code fences. No explanatory text. JSON only.`
 
+/** Max document characters sent to the model (mirrors the app); longer input is truncated. */
+export const MAX_DOCUMENT_CHARS = 8000
+
 // ============================================================================
 // TYPES
 // ============================================================================
