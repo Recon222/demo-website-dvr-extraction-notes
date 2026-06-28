@@ -20,4 +20,9 @@ describe('requestExtraction', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     expect(await requestExtraction('doc')).toEqual({ ok: false, notConfigured: false })
   })
+
+  it('returns a generic failure on a 200 with no rawText (C3)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }) as unknown as Response))
+    expect(await requestExtraction('doc')).toEqual({ ok: false, notConfigured: false })
+  })
 })
