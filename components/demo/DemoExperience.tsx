@@ -358,6 +358,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationContact: currentLocation?.locationContact ?? '',
           locationPhone: currentLocation?.locationPhone ?? '',
         }
+        // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
         return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       }
       case 'requestedScope': {

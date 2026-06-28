@@ -2,13 +2,9 @@
 
 import type { CSSProperties } from 'react'
 
-export interface OcrResult {
-  ok: boolean
-  dvrTime?: string
-  confidence?: { label: string; color: string }
-  actual?: string
-  rawText?: string
-}
+export type OcrResult =
+  | { ok: true; dvrTime: string; confidence: { label: string; color: string }; actual: string }
+  | { ok: false; rawText: string }
 
 export interface OcrCaptureScreenProps {
   /** null = aim/camera stage; present = the confirm stage (parsed or failed). */
@@ -37,7 +33,7 @@ export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onR
               <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8', fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}>{result.dvrTime}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <span style={{ fontSize: 12, color: '#7a9fc4' }}>OCR confidence</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence?.color ?? '#10d177' }}>{result.confidence?.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence.color }}>{result.confidence.label}</span>
               </div>
               <div style={{ fontSize: 12, color: '#7a9fc4' }}>
                 Actual (atomic): <span style={{ color: '#cfe6f5', fontFamily: "'JetBrains Mono',monospace" }}>{result.actual}</span>

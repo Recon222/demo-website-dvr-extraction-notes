@@ -7,9 +7,12 @@ const MEDIA = ['USB Drive', 'External Hard Drive', 'DVD', 'SD Card', 'Cloud Link
 const FILETYPE = ['Proprietary', 'MP4', 'AVI', 'MKV', 'Mixed']
 const VIA = ['Hand Delivered', 'Mailed', 'Secure Upload', 'Picked Up']
 
+/** Only the string-valued keys — the boolean `mediaPlayerIncluded` is driven by `onToggleMediaPlayer`. */
+type StringKeys<T> = { [K in keyof T]: T[K] extends string ? K : never }[keyof T]
+
 export interface ExportInfoScreenProps {
   data: ExportInformation
-  onChange(field: keyof ExportInformation, value: string): void
+  onChange(field: StringKeys<ExportInformation>, value: string): void
   onToggleMediaPlayer(): void
   onNext(): void
   onBack(): void

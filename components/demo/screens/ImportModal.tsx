@@ -7,13 +7,9 @@ export interface ImportStage {
   label: string
   state: 'done' | 'active' | 'pending'
 }
-export interface ImportResult {
-  ok: boolean
-  error?: string
-  fieldCount?: number
-  timeFrames?: number
-  locName?: string
-}
+export type ImportResult =
+  | { ok: true; fieldCount: number; timeFrames: number; locName: string }
+  | { ok: false; error: string }
 
 export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
 

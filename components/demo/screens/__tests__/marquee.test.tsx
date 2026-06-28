@@ -73,6 +73,15 @@ describe('OcrCaptureScreen', () => {
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(onConfirm).toHaveBeenCalledOnce()
   })
+
+  it('shows the failed-parse branch and retakes', () => {
+    const onRetake = vi.fn()
+    render(<OcrCaptureScreen result={{ ok: false, rawText: 'garbled 88:99' }} onUseSample={vi.fn()} onCapture={vi.fn()} onCancel={vi.fn()} onRetake={onRetake} onConfirm={vi.fn()} />)
+    expect(screen.getByText(/Couldn't read a timestamp/)).toBeInTheDocument()
+    expect(screen.getByText(/garbled 88:99/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Try again'))
+    expect(onRetake).toHaveBeenCalledOnce()
+  })
 })
 
 describe('ExtractedScopeScreen', () => {
