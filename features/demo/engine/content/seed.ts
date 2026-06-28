@@ -44,6 +44,7 @@ export function blankLocationForm(): LocationForm {
       recordingSchedule: 'continuous',
       resolution: '',
       recordingFps: '',
+      firstRecordedDate: '',
       totalDvrRetention: '',
     },
     cameras: [],

@@ -40,6 +40,7 @@ import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
+import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -176,6 +177,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [caseCompleted, setCaseCompleted] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -219,6 +221,22 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
+
+  // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
+  // recorded date + scopes, and mirror the total back into totalDvrRetention for the PDF.
+  // The clock is read in this effect (never at render) — consistent with the demo's rule.
+  useEffect(() => {
+    const view = buildRetentionView(
+      currentLocation?.form.scopes ?? [],
+      currentLocation?.form.dvr.firstRecordedDate ?? '',
+      () => new Date(),
+    )
+    setRetentionView(view)
+    const str = view.totalRetention != null ? `${view.totalRetention} days` : ''
+    if (str && currentLocation && str !== currentLocation.form.dvr.totalDvrRetention) {
+      store.getState().updateField('form.dvr.totalDvrRetention', str)
+    }
+  }, [store, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
   const formList = <T extends { id: string }>(list: T[], path: string) =>
@@ -465,7 +483,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')

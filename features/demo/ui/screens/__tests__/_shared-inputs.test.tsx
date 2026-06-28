@@ -47,14 +47,39 @@ describe('screen integration (smoke)', () => {
     expect(screen.getAllByRole('button', { name: 'Set time' })).toHaveLength(2)
   })
 
-  it('DvrInfoScreen renders custom dropdowns for Resolution / Recording FPS', () => {
+  it('DvrInfoScreen renders custom dropdowns + a First Recorded Date picker (not a retention text field)', () => {
     const dvr: DvrInformation = {
       dvrLocation: '', dvrTypeBrand: '', serialModelNumber: '', dvrUsername: '', dvrPassword: '',
-      numberOfChannels: '', activeCameras: '', recordingSchedule: '', resolution: '', recordingFps: '', totalDvrRetention: '',
+      numberOfChannels: '', activeCameras: '', recordingSchedule: '', resolution: '', recordingFps: '', firstRecordedDate: '', totalDvrRetention: '',
     }
-    const { container } = render(<DvrInfoScreen dvr={dvr} onChange={vi.fn()} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />)
+    const { container } = render(
+      <DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />,
+    )
     expect(container.querySelector('select')).toBeNull()
     expect(screen.getByRole('button', { name: 'Resolution' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Recording FPS' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Set date' })).toBeInTheDocument() // First Recorded Date
+    expect(screen.getByText(/calculate total retention/i)).toBeInTheDocument() // empty-state prompt
+  })
+
+  it('DvrInfoScreen shows the derived total + per-scope retention when provided', () => {
+    const dvr: DvrInformation = {
+      dvrLocation: '', dvrTypeBrand: '', serialModelNumber: '', dvrUsername: '', dvrPassword: '',
+      numberOfChannels: '', activeCameras: '', recordingSchedule: '', resolution: '', recordingFps: '', firstRecordedDate: '2025-03-03 00:00:00', totalDvrRetention: '40 days',
+    }
+    render(
+      <DvrInfoScreen
+        dvr={dvr}
+        retention={{ totalRetention: 40, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 5, overwrittenDate: '2025-04-17', status: 'WARNING' }] }}
+        onChange={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onMenu={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('40 days')).toBeInTheDocument()
+    expect(screen.getByText('Scope 1')).toBeInTheDocument()
+    expect(screen.getByText(/5 days until overwritten/)).toBeInTheDocument()
+    expect(screen.getByText('Warning')).toBeInTheDocument()
   })
 })

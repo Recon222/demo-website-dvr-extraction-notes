@@ -81,7 +81,6 @@ export const BEATS: Partial<Record<ChapterId | LaunchableId, Beat>> = {
     chapter: 'dvrInfo',
     steps: [
       { kind: 'type', field: 'form.dvr.dvrTypeBrand', value: 'Hikvision DS-7608' },
-      { kind: 'type', field: 'form.dvr.totalDvrRetention', value: '35 days' },
     ],
   },
 
