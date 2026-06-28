@@ -1,4 +1,4 @@
-import type { MediaKind } from '@/lib/demo/types'
+import type { MediaKind } from '@/features/demo/engine/types'
 
 /**
  * Immutably set a dot-path on a (possibly nested) object, cloning every node along the path

@@ -1,4 +1,4 @@
-import type { DemoCase, DemoLocation, LocationForm } from '@/lib/demo/types'
+import type { DemoCase, DemoLocation, LocationForm } from '@/features/demo/engine/types'
 
 /**
  * The canonical guided-tour content. Everything here is tagged `isSeed: true` so the

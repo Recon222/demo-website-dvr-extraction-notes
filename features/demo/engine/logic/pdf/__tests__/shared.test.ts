@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { escapeHtml, formatDocDate, nowStamp } from '@/lib/demo/logic/pdf/shared'
+import { escapeHtml, formatDocDate, nowStamp } from '@/features/demo/engine/logic/pdf/shared'
 
 describe('pdf shared helpers', () => {
   it('escapes all HTML entities and leaves other characters intact', () => {

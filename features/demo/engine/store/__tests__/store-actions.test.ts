@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
-import { selectCaseNotesData, selectCurrentLocation } from '@/lib/demo/store/selectors'
-import { mapAiToForm, SAMPLE_EXTRACTION } from '@/lib/demo/logic/import'
-import type { MediaItem } from '@/lib/demo/types'
+import { selectCaseNotesData, selectCurrentLocation } from '@/features/demo/engine/store/selectors'
+import { mapAiToForm, SAMPLE_EXTRACTION } from '@/features/demo/engine/logic/import'
+import type { MediaItem } from '@/features/demo/engine/types'
 
 const media = (o: Partial<MediaItem> = {}): MediaItem => ({
   id: 'm1',

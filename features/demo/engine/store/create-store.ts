@@ -14,17 +14,17 @@ import type {
   ScopeEntry,
   SyncResult,
   TimeOffsetData,
-} from '@/lib/demo/types'
-import { SEED_CASE, SEED_LOCATION, blankLocationForm } from '@/lib/demo/content/seed'
-import { LAUNCHABLE } from '@/lib/demo/content/screens'
+} from '@/features/demo/engine/types'
+import { SEED_CASE, SEED_LOCATION, blankLocationForm } from '@/features/demo/engine/content/seed'
+import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
 import {
   calculateCorrectedTimeRange,
   calculateTimeDifference,
   isDvrTimeCorrect,
   roundTo5Min,
-} from '@/lib/demo/logic/time'
-import type { MappedImport } from '@/lib/demo/logic/import'
-import { mediaBucket, setPath } from '@/lib/demo/store/helpers'
+} from '@/features/demo/engine/logic/time'
+import type { MappedImport } from '@/features/demo/engine/logic/import'
+import { mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {

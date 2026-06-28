@@ -1,8 +1,8 @@
 import type { StoreApi } from 'zustand/vanilla'
-import type { DemoActions, DemoState } from '@/lib/demo/store/create-store'
-import type { Beat, BeatStep, PulseEvent } from '@/lib/demo/director/types'
-import type { ChapterId, LaunchableId } from '@/lib/demo/types'
-import { BEATS } from '@/lib/demo/director/beats'
+import type { DemoActions, DemoState } from '@/features/demo/engine/store/create-store'
+import type { Beat, BeatStep, PulseEvent } from '@/features/demo/engine/director/types'
+import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
+import { BEATS } from '@/features/demo/engine/director/beats'
 
 type Store = StoreApi<DemoState & DemoActions>
 type BeatMap = Partial<Record<ChapterId | LaunchableId, Beat>>

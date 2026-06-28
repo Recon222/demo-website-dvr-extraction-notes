@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { seededStore, freshStore, newCaseInput, newLocationInput } from '@/lib/demo/store/__tests__/test-utils'
-import type { DemoStore } from '@/lib/demo/store/create-store'
-import { runBeat } from '@/lib/demo/director/runner'
-import { BEATS } from '@/lib/demo/director/beats'
-import { TOUR_CHAPTERS } from '@/lib/demo/content/screens'
-import { selectCaseNotesData, selectCurrentLocation } from '@/lib/demo/store/selectors'
-import { generateCaseNotesDoc } from '@/lib/demo/logic/pdf/case-notes'
-import type { ChapterId } from '@/lib/demo/types'
+import { seededStore, freshStore, newCaseInput, newLocationInput } from '@/features/demo/engine/store/__tests__/test-utils'
+import type { DemoStore } from '@/features/demo/engine/store/create-store'
+import { runBeat } from '@/features/demo/engine/director/runner'
+import { BEATS } from '@/features/demo/engine/director/beats'
+import { TOUR_CHAPTERS } from '@/features/demo/engine/content/screens'
+import { selectCaseNotesData, selectCurrentLocation } from '@/features/demo/engine/store/selectors'
+import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
+import type { ChapterId } from '@/features/demo/engine/types'
 
 // The whole engine, headless: run the guided beats against a store (no UI) and a manual
 // sandbox flow, asserting the resulting state + the real court PDF.

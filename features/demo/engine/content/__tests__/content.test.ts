@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { TOUR_CHAPTERS } from '@/lib/demo/content/screens'
-import { NARRATION, MODAL_NARRATION } from '@/lib/demo/content/narration'
-import { SEED_CASE, SEED_LOCATION, SAMPLE_REQUEST_DOC } from '@/lib/demo/content/seed'
-import { FORENSIC, getProfile } from '@/lib/demo/content/profiles'
+import { TOUR_CHAPTERS } from '@/features/demo/engine/content/screens'
+import { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
+import { SEED_CASE, SEED_LOCATION, SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
+import { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 
 describe('narration', () => {
   it('has non-empty copy for every tour chapter', () => {

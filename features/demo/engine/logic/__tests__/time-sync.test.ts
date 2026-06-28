@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { simulateNtpSync } from '@/lib/demo/logic/time-sync'
+import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 
 describe('simulateNtpSync', () => {
   it('produces a realistic NTP sync result and the calibrated device time', () => {

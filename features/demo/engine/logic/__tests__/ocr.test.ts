@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/demo/logic/ocr'
+import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 
 // Ported from the app's OCR text-cleaning pipeline + timestamp parser. The cleaning
 // fixes the slips a DVR-display OCR typically makes (O→0, l→1, dropped colons) while

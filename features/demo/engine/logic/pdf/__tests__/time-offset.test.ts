@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/lib/demo/logic/pdf/time-offset'
+import { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
 const base: TimeOffsetDocData = {
   occNumber: 'PR25-0098213',

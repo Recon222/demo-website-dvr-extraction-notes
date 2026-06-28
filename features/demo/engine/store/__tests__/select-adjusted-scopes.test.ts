@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createDemoStore } from '@/lib/demo/store/create-store'
-import { selectAdjustedScopes, selectCaseNotesData } from '@/lib/demo/store/selectors'
+import { createDemoStore } from '@/features/demo/engine/store/create-store'
+import { selectAdjustedScopes, selectCaseNotesData } from '@/features/demo/engine/store/selectors'
 
 describe('selectAdjustedScopes', () => {
   it('returns the EXACT corrected times — no 5-minute rounding (that belongs to the extracted scope)', () => {

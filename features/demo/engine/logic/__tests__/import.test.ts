@@ -6,7 +6,7 @@ import {
   buildExtractFieldsUserPrompt,
   SAMPLE_EXTRACTION,
   type ExtractedFields,
-} from '@/lib/demo/logic/import'
+} from '@/features/demo/engine/logic/import'
 
 // The demo doesn't call a real model — the import chapter resolves to SAMPLE_EXTRACTION —
 // but the parsing + mapping below is the app's real logic, run verbatim.

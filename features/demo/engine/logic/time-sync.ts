@@ -1,4 +1,4 @@
-import type { SyncResult } from '@/lib/demo/types'
+import type { SyncResult } from '@/features/demo/engine/types'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 

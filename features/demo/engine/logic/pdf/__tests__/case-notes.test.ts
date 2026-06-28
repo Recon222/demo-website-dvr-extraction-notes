@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateCaseNotesDoc, type CaseNotesData } from '@/lib/demo/logic/pdf/case-notes'
+import { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 const full: CaseNotesData = {
   occNumber: 'PR25-0098213',

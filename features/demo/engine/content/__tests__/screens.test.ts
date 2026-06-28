@@ -8,7 +8,7 @@ import {
   wizardNumber,
   nextChapter,
   prevChapter,
-} from '@/lib/demo/content/screens'
+} from '@/features/demo/engine/content/screens'
 
 // These registries are the single source of truth for ordering and numbering.
 // They exist to kill the prototype's nav-numbering bug (hand-typed, colliding step

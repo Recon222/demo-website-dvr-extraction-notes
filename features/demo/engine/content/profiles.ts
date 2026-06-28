@@ -1,5 +1,5 @@
-import type { Profile, ProfileConfig } from '@/lib/demo/types'
-import { WIZARD_SCREENS } from '@/lib/demo/content/screens'
+import type { Profile, ProfileConfig } from '@/features/demo/engine/types'
+import { WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 
 /**
  * Profile = which wizard screens/fields a deployment shows. The demo is profile-driven

@@ -6,7 +6,7 @@ import {
   selectLocationsForCase,
   selectVisibleWizardScreens,
   selectDrawerItems,
-} from '@/lib/demo/store/selectors'
+} from '@/features/demo/engine/store/selectors'
 
 describe('selectors', () => {
   it('select current case/location return the selected entities, else null', () => {

@@ -1,4 +1,4 @@
-import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/lib/demo/types'
+import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
 
 /**
  * The story-rail copy, keyed by chapter. Lifted verbatim from the prototype (Kris's

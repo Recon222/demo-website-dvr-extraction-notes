@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { setPath, mediaBucket } from '@/lib/demo/store/helpers'
+import { setPath, mediaBucket } from '@/features/demo/engine/store/helpers'
 
 describe('setPath', () => {
   it('immutably sets a nested path, cloning along the way', () => {

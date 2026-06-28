@@ -1,5 +1,5 @@
-import type { ChapterId, LaunchableId } from '@/lib/demo/types'
-import type { Beat } from '@/lib/demo/director/types'
+import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
+import type { Beat } from '@/features/demo/engine/director/types'
 
 /**
  * Per-chapter choreography for the guided tour. Keyed by chapter (and the OCR launch

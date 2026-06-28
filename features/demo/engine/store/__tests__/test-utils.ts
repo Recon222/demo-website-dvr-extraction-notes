@@ -1,5 +1,5 @@
-import { createDemoStore, type DemoStore } from '@/lib/demo/store/create-store'
-import type { NewCaseInput, NewLocationInput } from '@/lib/demo/store/create-store'
+import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
+import type { NewCaseInput, NewLocationInput } from '@/features/demo/engine/store/create-store'
 
 /** A blank store (sandbox-style, no seed). */
 export function freshStore(): DemoStore {

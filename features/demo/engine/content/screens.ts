@@ -1,4 +1,4 @@
-import type { ChapterId, WizardScreenId, LaunchableId, DrawerDef } from '@/lib/demo/types'
+import type { ChapterId, WizardScreenId, LaunchableId, DrawerDef } from '@/features/demo/engine/types'
 
 /**
  * The single source of truth for screen ordering and numbering.

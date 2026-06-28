@@ -1,9 +1,9 @@
-import type { DemoState } from '@/lib/demo/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, WizardScreenId } from '@/lib/demo/types'
-import { getProfile } from '@/lib/demo/content/profiles'
-import { DRAWER_DEFS } from '@/lib/demo/content/screens'
-import { calculateCorrectedTimeRange } from '@/lib/demo/logic/time'
-import type { CaseNotesData } from '@/lib/demo/logic/pdf/case-notes'
+import type { DemoState } from '@/features/demo/engine/store/create-store'
+import type { DemoCase, DemoLocation, DrawerDef, WizardScreenId } from '@/features/demo/engine/types'
+import { getProfile } from '@/features/demo/engine/content/profiles'
+import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
+import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
+import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
 

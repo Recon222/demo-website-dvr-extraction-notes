@@ -1,5 +1,5 @@
-import type { ChapterId, LaunchableId } from '@/lib/demo/types'
-import type { DemoActions, DemoState } from '@/lib/demo/store/create-store'
+import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
+import type { DemoActions, DemoState } from '@/features/demo/engine/store/create-store'
 
 /**
  * The guided-tour choreography, as data. A `Beat` is one chapter's scripted sequence; the

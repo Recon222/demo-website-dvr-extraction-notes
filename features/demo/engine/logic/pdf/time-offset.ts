@@ -1,4 +1,4 @@
-import { escapeHtml, formatDocDate, nowStamp } from '@/lib/demo/logic/pdf/shared'
+import { escapeHtml, formatDocDate, nowStamp } from '@/features/demo/engine/logic/pdf/shared'
 
 /**
  * The Time-Offset Calibration report — a print-ready HTML report modelled on the app's

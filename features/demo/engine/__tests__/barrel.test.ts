@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import * as demo from '@/lib/demo'
+import * as demo from '@/features/demo/engine'
 
 // The barrel is the engine's public surface; this pins that the engine API is reachable
 // from a single import (what the store, director, and UI consume).

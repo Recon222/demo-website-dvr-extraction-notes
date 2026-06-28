@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { runBeat } from '@/lib/demo/director/runner'
+import { runBeat } from '@/features/demo/engine/director/runner'
 import {
   freshStore,
   seededStore,
   newCaseInput,
   newLocationInput,
-} from '@/lib/demo/store/__tests__/test-utils'
-import { selectCurrentLocation } from '@/lib/demo/store/selectors'
-import type { Beat } from '@/lib/demo/director/types'
+} from '@/features/demo/engine/store/__tests__/test-utils'
+import { selectCurrentLocation } from '@/features/demo/engine/store/selectors'
+import type { Beat } from '@/features/demo/engine/director/types'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())

@@ -8,7 +8,7 @@ import {
   isInDST,
   doesRangeStraddleDST,
   getCurrentFormattedTime,
-} from '@/lib/demo/logic/time'
+} from '@/features/demo/engine/logic/time'
 
 // Ported verbatim from the app's bidirectional-time logic. The offset math uses the
 // UTC trick (parse as 'Z') so it is DST-agnostic and zone-independent — which is why

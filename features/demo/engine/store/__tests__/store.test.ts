@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
-import { selectCurrentLocation } from '@/lib/demo/store/selectors'
-import type { ScopeEntry } from '@/lib/demo/types'
+import { selectCurrentLocation } from '@/features/demo/engine/store/selectors'
+import type { ScopeEntry } from '@/features/demo/engine/types'
 
 const scope = (o: Partial<ScopeEntry> = {}): ScopeEntry => ({
   id: 's1',
