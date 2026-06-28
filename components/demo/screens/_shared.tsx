@@ -178,10 +178,23 @@ export function SelectField({ label, value, onChange, options }: { label: string
   )
 }
 
-/** A labelled on/off toggle. */
+/** A labelled on/off switch (keyboard-operable). */
 export function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick(): void }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}>
+    <div
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}
+    >
       <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
       <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
         <div style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }} />

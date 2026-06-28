@@ -85,7 +85,20 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
               </>
             )}
 
-            <div onClick={p.onToggleDst} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', cursor: 'pointer', marginTop: 6 }}>
+            <div
+              role="switch"
+              aria-checked={p.dvrAppliesDST}
+              aria-label="DVR Applies DST"
+              tabIndex={0}
+              onClick={p.onToggleDst}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  p.onToggleDst()
+                }
+              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', cursor: 'pointer', marginTop: 6 }}
+            >
               <span style={{ fontSize: 15, fontWeight: 500, color: '#f0f4f8' }}>DVR Applies DST</span>
               <div style={{ width: 46, height: 28, borderRadius: 14, background: p.dvrAppliesDST ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
                 <div style={{ position: 'absolute', top: 3, [p.dvrAppliesDST ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: p.dvrAppliesDST ? '#fff' : '#7a9fc4' }} />
