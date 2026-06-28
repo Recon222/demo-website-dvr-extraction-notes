@@ -56,6 +56,10 @@ export interface SyncResult {
   uncertaintyMs: number
   rttMs?: number
   traceability?: string
+  /** Unix ms when the sync completed — drives the card's "Calibrated at" row. */
+  timestamp?: number
+  /** Responding server stratum (1–15) — encoded in the traceability chain. */
+  stratum?: number
 }
 
 export interface OcrProof {

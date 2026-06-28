@@ -37,6 +37,7 @@ import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
 import { selectDrawerItems, selectCaseNotesData } from '@/lib/demo/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/demo/logic/ocr'
 import { getCurrentFormattedTime } from '@/lib/demo/logic/time'
+import { simulateNtpSync } from '@/lib/demo/logic/time-sync'
 import { generateCaseNotesDoc } from '@/lib/demo/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/lib/demo/logic/pdf/time-offset'
 import { toCaseCards } from '@/components/demo/screens/screenData'
@@ -173,6 +174,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [caseCompleted, setCaseCompleted] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -202,6 +205,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       timers.clear()
     }
   }, [store, currentMode, currentChapter])
+
+  // Clear a pending device-sync timer if the experience unmounts mid-sync.
+  useEffect(() => () => {
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+  }, [])
 
   const guided = currentMode === 'guided'
   const narration = NARRATION[currentChapter]
@@ -286,6 +294,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const calcOffset = () => {
     store.getState().calculateOffset()
     store.getState().generateExtractedScopes()
+  }
+  // "Use Current Time": simulated atomic-clock sync — stamps ONLY the real-time field with the
+  // calibrated device time and records the sync metadata. Never touches the DVR time.
+  const runTimeSync = () => {
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    setSyncing(true)
+    syncTimer.current = setTimeout(() => {
+      const { calibratedMs, sync } = simulateNtpSync()
+      const st = store.getState()
+      st.updateField('capture.actualDateTime', getCurrentFormattedTime(calibratedMs))
+      st.updateField('capture.sync', sync)
+      setSyncing(false)
+      syncTimer.current = null
+    }, 1100)
   }
   const runOcrSample = () => {
     const raw = '2025-03-08 12:05:30' // sample DVR clock
@@ -411,17 +433,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             actualDateTime={capture.actualDateTime}
             onChangeDvr={(v) => store.getState().updateField('capture.dvrDateTime', v)}
             onChangeActual={(v) => store.getState().updateField('capture.actualDateTime', v)}
-            onUseCurrentTime={() => {
-              const now = getCurrentFormattedTime()
-              store.getState().updateField('capture.dvrDateTime', now)
-              store.getState().updateField('capture.actualDateTime', now)
-            }}
+            onUseCurrentTime={runTimeSync}
             onCalculate={calcOffset}
             onCaptureOcr={() => {
               setOcrResult(null)
               store.getState().launch('ocr')
             }}
-            captureMethod={off?.captureMethod ?? (capture.method === 'ocr' ? 'ocr' : null)}
+            sync={capture.sync}
+            syncing={syncing}
             result={off ? { diff: off.formattedDifference, direction: off.direction, isCorrect: off.isCorrect } : null}
             correctedScopes={corrected}
             dvrAppliesDST={capture.dvrAppliesDST}

@@ -1,6 +1,8 @@
 'use client'
 
 import { DateTimeField, SectionCard, switchKeyDown, WizardHeader, WizardNext } from '@/components/demo/screens/_shared'
+import { SyncStatusCard } from '@/components/demo/screens/SyncStatusCard'
+import type { SyncResult } from '@/lib/demo/types'
 
 export interface CorrectedScope {
   id: string
@@ -20,7 +22,8 @@ export interface TimeOffsetScreenProps {
   onUseCurrentTime(): void
   onCalculate(): void
   onCaptureOcr(): void
-  captureMethod: 'manual' | 'ocr' | null
+  sync: SyncResult | null
+  syncing: boolean
   result: { diff: string; direction: string; isCorrect: boolean } | null
   correctedScopes: CorrectedScope[]
   dvrAppliesDST: boolean
@@ -47,17 +50,13 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
             <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Use Current Time</button>
             <button type="button" onClick={p.onCalculate} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
           </div>
-          {p.captureMethod === 'ocr' && (
-            <div style={{ padding: 13, borderRadius: 10, border: '1px solid rgba(16,209,119,0.3)', background: 'rgba(16,209,119,0.06)', marginBottom: 12 }}>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, letterSpacing: 1.5, color: '#10d177', textTransform: 'uppercase' }}>Atomic clock sync · OCR capture</div>
-              <div style={{ fontSize: 10, color: '#5d7a9a', marginTop: 8 }}>Device → NTP → Atomic clock → UTC → SI second</div>
-            </div>
-          )}
           <button type="button" onClick={p.onCaptureOcr} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 12, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', cursor: 'pointer', width: '100%' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
             <span style={{ fontSize: 15, fontWeight: 600, color: '#4BA3D4' }}>Capture from DVR</span>
           </button>
         </SectionCard>
+
+        <SyncStatusCard sync={p.sync} syncing={p.syncing} />
 
         {p.result && (
           <>
