@@ -24,7 +24,7 @@ import { ImportModal, type ImportStage, type ImportResult } from '@/components/d
 import { SubmissionScreen, type SubmissionFields } from '@/components/demo/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/components/demo/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/components/demo/screens/ArrivalDepartureScreen'
-import { TimeOffsetScreen, type CorrectedScope } from '@/components/demo/screens/TimeOffsetScreen'
+import { TimeOffsetScreen } from '@/components/demo/screens/TimeOffsetScreen'
 import { OcrCaptureScreen, type OcrResult } from '@/components/demo/screens/OcrCaptureScreen'
 import { ExtractedScopeScreen } from '@/components/demo/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/components/demo/screens/DvrInfoScreen'
@@ -34,7 +34,7 @@ import { NotesScreen } from '@/components/demo/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/components/demo/screens/CompletionScreen'
 import { PdfPreview } from '@/components/demo/chrome/PdfPreview'
 import { WizardDrawer } from '@/components/demo/controls/WizardDrawer'
-import { selectDrawerItems, selectCaseNotesData } from '@/lib/demo/store/selectors'
+import { selectDrawerItems, selectCaseNotesData, selectAdjustedScopes } from '@/lib/demo/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/lib/demo/logic/ocr'
 import { getCurrentFormattedTime } from '@/lib/demo/logic/time'
 import { simulateNtpSync } from '@/lib/demo/logic/time-sync'
@@ -423,10 +423,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'timeOffset': {
         const off = currentLocation?.form.timeOffset ?? null
-        const corrected: CorrectedScope[] = (currentLocation?.form.extractedScopes ?? []).map((ex, i) => {
-          const req = currentLocation?.form.scopes[i]
-          return { id: ex.id, reqLabel: req?.isActualTime ? 'real time' : 'DVR time', reqStart: req?.startDateTime ?? '', reqEnd: req?.endDateTime ?? '', adjStart: ex.startDateTime, adjEnd: ex.endDateTime, cameras: ex.cameras }
-        })
         return (
           <TimeOffsetScreen
             dvrDateTime={capture.dvrDateTime}
@@ -442,7 +438,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             sync={capture.sync}
             syncing={syncing}
             result={off ? { diff: off.formattedDifference, direction: off.direction, isCorrect: off.isCorrect } : null}
-            correctedScopes={corrected}
+            correctedScopes={selectAdjustedScopes(store.getState())}
             dvrAppliesDST={capture.dvrAppliesDST}
             onToggleDst={() => store.getState().updateField('capture.dvrAppliesDST', !capture.dvrAppliesDST)}
             onNext={onNext}
