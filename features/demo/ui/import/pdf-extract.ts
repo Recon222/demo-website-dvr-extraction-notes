@@ -26,17 +26,20 @@ export async function extractPdfText(file: File): Promise<string> {
   ).toString()
 
   const data = new Uint8Array(await file.arrayBuffer())
+  // pdf.js v6 defaults isEvalSupported:false (CVE-2024-4367 patched) — no eval-based injection.
   const loadingTask = pdfjs.getDocument({ data })
-  const doc = await loadingTask.promise
   let text = ''
   try {
+    // Inside the try so a load-time rejection (corrupt/encrypted PDF) still hits finally → destroy.
+    const doc = await loadingTask.promise
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
       text += (content.items as Array<{ str?: string }>).map((it) => it.str ?? '').join(' ') + '\n'
     }
   } finally {
-    await loadingTask.destroy()
+    // Swallow teardown errors so they can't shadow the original page/load error.
+    await loadingTask.destroy().catch(() => {})
   }
 
   const trimmed = text.trim()

@@ -34,4 +34,18 @@ describe('extractPdfText', () => {
     getDocument.mockReturnValue(mockDoc(['tiny']))
     await expect(extractPdfText(file)).rejects.toBeInstanceOf(PdfExtractionError)
   })
+
+  it('joins text across multiple pages', async () => {
+    getDocument.mockReturnValue(mockDoc(['First page of the recovery request document.', 'Second page with the camera list and times.']))
+    const text = await extractPdfText(file)
+    expect(text).toContain('First page')
+    expect(text).toContain('Second page')
+  })
+
+  it('destroys the loading task even when the PDF fails to load (no worker leak)', async () => {
+    const destroy = vi.fn(() => Promise.resolve())
+    getDocument.mockReturnValue({ promise: Promise.reject(new Error('corrupt')), destroy })
+    await expect(extractPdfText(file)).rejects.toThrow('corrupt')
+    expect(destroy).toHaveBeenCalledTimes(1)
+  })
 })
