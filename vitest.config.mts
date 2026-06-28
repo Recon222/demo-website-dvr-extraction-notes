@@ -8,10 +8,11 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 // - `react()` enables JSX + Fast Refresh-compatible transform for component tests.
 // - jsdom provides the DOM for React Testing Library.
 //
-// Coverage is intentionally scoped to the logic layer (`lib/**`) for now and is
-// expanded as testable areas are added. Presentational pages/layouts (React Server
-// Components) are validated by Playwright E2E later, not unit coverage — unit
-// tests cover pure logic, helpers, and client components.
+// Coverage is intentionally scoped to the logic layer — the non-demo helpers in
+// `lib/**` plus the demo engine at `features/demo/engine/**` — and is expanded as
+// testable areas are added. Presentational pages/layouts and the demo UI
+// (`features/demo/ui/**`) are validated behaviorally / by Playwright E2E later, not
+// unit coverage — unit tests cover pure logic, helpers, and client components.
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
@@ -25,7 +26,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['lib/**/*.{ts,tsx}'],
+      include: ['lib/**/*.{ts,tsx}', 'features/demo/engine/**/*.{ts,tsx}'],
       exclude: ['**/*.{test,spec}.*', '**/__tests__/**', '**/*.d.ts'],
       thresholds: {
         lines: 80,
