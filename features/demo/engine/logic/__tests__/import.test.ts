@@ -128,14 +128,12 @@ describe('SAMPLE_EXTRACTION', () => {
   })
 })
 
-describe('import time-frame contract (free text, normalised downstream)', () => {
-  it('keeps AI-extracted times as the model wrote them, copied verbatim by the mapper', () => {
-    // Contract (Option A): ImportTimeFrame start/end are the model's verbatim extraction
-    // — natural language by design — NOT canonical 'YYYY-MM-DD HH:MM:SS'. The mapper does
-    // not normalise; the requested-scope screen does, before any time math.
+describe('import time-frame contract (normalised in the pipeline)', () => {
+  it('the mapper copies extraction times verbatim (normalization happens upstream)', () => {
+    // By the time times reach the mapper they are canonical 'YYYY-MM-DD HH:MM[:SS]'
+    // (normalizeExtractedFields ran first). mapAiToForm itself is a pure copy — no transform.
     const tf = SAMPLE_EXTRACTION.extractionTimeFrames[0]
-    expect(tf.extractionStartTime).toMatch(/March 8 2025/)
-    expect(tf.extractionStartTime).not.toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    expect(tf.extractionStartTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
 
     const mapped = mapAiToForm(SAMPLE_EXTRACTION)
     expect(mapped._import.timeFrames[0].startDateTime).toBe(tf.extractionStartTime)

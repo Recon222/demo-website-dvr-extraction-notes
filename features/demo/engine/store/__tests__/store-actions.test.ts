@@ -118,19 +118,18 @@ describe('selectCaseNotesData', () => {
 })
 
 describe('generateExtractedScopes resilience (review #1)', () => {
-  it('skips un-normalised free-text import scopes — flags partial + warns, never silently', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('generates extracted scopes from a normalized import (canonical dates → not skipped)', () => {
+    // Slice A: the import pipeline now normalizes time-frame dates to canonical form, so the
+    // sample import yields parseable scopes that generateExtractedScopes processes fully.
     const store = withLocation()
-    store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION)) // free-text time frames → form.scopes
+    store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION)) // canonical time frames → form.scopes
     store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
     store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     store.getState().calculateOffset()
     expect(() => store.getState().generateExtractedScopes()).not.toThrow()
     const loc = selectCurrentLocation(store.getState())
-    expect(loc?.form.extractedScopes).toHaveLength(0)
-    expect(loc?.form.extractedScopesPartial).toBe(true) // surfaced, not silently dropped
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
+    expect(loc?.form.extractedScopes.length).toBeGreaterThan(0)
+    expect(loc?.form.extractedScopesPartial).toBeFalsy()
   })
 
   it('computes the good scopes even when a bad one is present (no discard-all), flags partial', () => {
