@@ -12,7 +12,6 @@ export interface DropdownProps {
   /** Option list. The demo passes `string[]` (label === value). */
   options: string[]
   placeholder?: string
-  required?: boolean
 }
 
 /**
@@ -27,7 +26,6 @@ export function Dropdown({
   onChange,
   options,
   placeholder = 'Select an option',
-  required = false,
 }: DropdownProps) {
   const [open, setOpen] = useState(false)
 
@@ -52,10 +50,7 @@ export function Dropdown({
   return (
     <div style={{ marginBottom: 14 }}>
       {label && (
-        <div style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>
-          {label}
-          {required && <span style={{ color: T.error }}> *</span>}
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
       )}
 
       {/* Selector */}

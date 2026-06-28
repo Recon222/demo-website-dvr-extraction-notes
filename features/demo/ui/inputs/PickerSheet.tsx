@@ -17,9 +17,10 @@ export interface PickerSheetProps {
 const dot: CSSProperties = { width: 6, height: 6, borderRadius: 3, background: T.primary }
 
 /**
- * Bottom-anchored sheet that renders INSIDE the phone screen (like ModalShell, but
- * auto-height and pinned to the bottom). Used by the calendar (DateField) and the time
- * wheel (TimeField). Scrim click, the ✕ button, and Escape all dismiss.
+ * Bottom-anchored, auto-height sheet for the pickers (calendar, time wheel, dropdown). It
+ * portals into the phone-screen overlay (outside the scroll container) so it always anchors
+ * to the visible screen bottom regardless of scroll, and falls back to inline render when no
+ * overlay is present (e.g. isolated tests). Scrim click, the ✕ button, and Escape all dismiss.
  */
 export function PickerSheet({ title, onClose, children, footer }: PickerSheetProps) {
   useEffect(() => {
