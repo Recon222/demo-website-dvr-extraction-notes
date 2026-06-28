@@ -38,6 +38,15 @@ describe('TimeOffsetScreen', () => {
     expect(screen.getByText('00:05:30')).toBeInTheDocument()
     expect(screen.getByText(/AHEAD OF/)).toBeInTheDocument()
   })
+
+  it('disables Calculate until both datetimes are present', () => {
+    const { rerender } = render(<TimeOffsetScreen {...base} dvrDateTime="" actualDateTime="" />)
+    expect(screen.getByText('Calculate')).toBeDisabled()
+    rerender(<TimeOffsetScreen {...base} dvrDateTime="2025-03-08 12:05:30" actualDateTime="" />)
+    expect(screen.getByText('Calculate')).toBeDisabled()
+    rerender(<TimeOffsetScreen {...base} dvrDateTime="2025-03-08 12:05:30" actualDateTime="2025-03-08 12:00:00" />)
+    expect(screen.getByText('Calculate')).toBeEnabled()
+  })
 })
 
 describe('OcrCaptureScreen', () => {

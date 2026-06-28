@@ -35,6 +35,7 @@ const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, f
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
 export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
+  const canCalc = Boolean(p.dvrDateTime && p.actualDateTime)
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Time Offset" onBack={p.onBack} onMenu={p.onMenu} />
@@ -44,7 +45,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <DateTimeField label="Actual Date / Time" value={p.actualDateTime} onChange={p.onChangeActual} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Use Current Time</button>
-            <button type="button" onClick={p.onCalculate} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Calculate</button>
+            <button type="button" onClick={p.onCalculate} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
           </div>
           {p.captureMethod === 'ocr' && (
             <div style={{ padding: 13, borderRadius: 10, border: '1px solid rgba(16,209,119,0.3)', background: 'rgba(16,209,119,0.06)', marginBottom: 12 }}>
