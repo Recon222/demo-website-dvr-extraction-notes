@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode } from 'react'
 import { T } from '@/features/demo/ui/inputs/input-theme'
+import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 export interface PickerSheetProps {
   title: string
@@ -28,11 +30,13 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  const overlay = useContext(PhoneOverlayContext)
+
+  const content = (
     <>
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, zIndex: 31, background: T.scrim }}
+        style={{ position: 'absolute', inset: 0, zIndex: 31, background: T.scrim, pointerEvents: 'auto' }}
       />
       <div
         role="dialog"
@@ -45,6 +49,7 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
           right: 0,
           bottom: 0,
           zIndex: 32,
+          pointerEvents: 'auto',
           maxHeight: '92%',
           display: 'flex',
           flexDirection: 'column',
@@ -103,4 +108,8 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
       </div>
     </>
   )
+
+  // Portal into the phone-screen overlay so the sheet anchors to the visible bottom
+  // regardless of scroll. Falls back to inline render when there's no overlay (e.g. tests).
+  return overlay ? createPortal(content, overlay) : content
 }
