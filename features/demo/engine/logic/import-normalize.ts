@@ -1,13 +1,13 @@
 /**
  * Deterministic post-processing for the model's loose JSON reply — ported from the phone
- * app's pdf-import normalization layer (normalize-null / normalize-phone / normalize-enums /
- * normalize-officer). Pure functions, no AI / DOM / fetch. Every correction is recorded as an
- * auditable `ImportWarning`.
+ * app's pdf-import normalization layer (null / phone / enums / officer + the date pipeline:
+ * datetime-normalize, MM/DD-vs-DD/MM disambiguation, year-hallucination correction). Pure
+ * functions, no AI / DOM / fetch. Every correction is recorded as an auditable `ImportWarning`.
  *
- * Deliberately OMITTED vs the app: the MM/DD-vs-DD/MM and year-hallucination date
- * disambiguation. The demo carries time-frame times as FREE TEXT into the Requested-Scope
- * screen, which normalises them before any time math (see `ImportTimeFrame` in import.ts), so
- * doing it here would duplicate downstream logic.
+ * Time-frame start/end are normalized HERE to the canonical "YYYY-MM-DD HH:MM[:SS]" so the
+ * scope pickers, time-offset math, and retention can consume imported dates directly. The
+ * date modules are clock-injected (currentTimeMs) and need the source document text for the
+ * year cold-case guard — both flow in via NormalizeOptions.
  */
 
 import {
@@ -17,12 +17,24 @@ import {
   type ExtractionTimeFrame,
   type MappedImport,
 } from '@/features/demo/engine/logic/import'
+import { normalizeDateTime } from '@/features/demo/engine/logic/datetime-normalize'
+import { disambiguateHallucinatedYear } from '@/features/demo/engine/logic/year-disambiguation'
 
 export interface ImportWarning {
   field: string
   originalValue: string
   normalizedValue: string
   reason: string
+  /** Discriminates date-pipeline warnings (officer/phone/enum/null warnings leave it undefined). */
+  kind?: 'datetime' | 'year_correction'
+}
+
+/** Clock + source text for the date pipeline. */
+export interface NormalizeOptions {
+  /** Reference "today" for proximity disambiguation. Defaults to Date.now(); tests inject. */
+  currentTimeMs?: number
+  /** The source document the reply came from — used by the year cold-case guard. */
+  sourceText?: string
 }
 
 // ============================================================================
@@ -166,12 +178,32 @@ function normMonitor(value: string, warnings: ImportWarning[]): string {
 }
 
 /**
- * Clean a Partial<ExtractedFields> into a full ExtractedFields + warnings. Time-frame
- * start/end times are kept as free text (only `timePeriodType` is normalised and
- * `cameraDetails` coerced); the scope screen normalises the times later.
+ * Normalize one time-frame field: parse to canonical "YYYY-MM-DD HH:MM[:SS]", then correct a
+ * hallucinated year. Pushes auditable warnings for any transformation. (Mirrors the phone's
+ * normalizeTimeFrames + applyYearDisambiguation.)
  */
-export function normalizeExtractedFields(ai: Partial<ExtractedFields>): { fields: ExtractedFields; warnings: ImportWarning[] } {
+function normalizeFrameTime(raw: string, fieldLabel: string, currentTimeMs: number, sourceText: string, warnings: ImportWarning[]): string {
+  const dt = normalizeDateTime(raw, currentTimeMs)
+  if (dt.warning) {
+    warnings.push({ field: fieldLabel, originalValue: raw, normalizedValue: dt.normalized, reason: dt.warning, kind: 'datetime' })
+  }
+  const yr = disambiguateHallucinatedYear(dt.normalized, sourceText, currentTimeMs)
+  if (yr.reason === 'ai_year_implausibly_old' || yr.reason === 'ai_year_implausibly_future') {
+    warnings.push({ field: fieldLabel, originalValue: yr.aiOriginalDate, normalizedValue: yr.chosenDate, reason: `Corrected year ${yr.aiOriginalYear} → ${yr.chosenYear} by proximity to today; please verify.`, kind: 'year_correction' })
+    return yr.chosenDate
+  }
+  return dt.normalized
+}
+
+/**
+ * Clean a Partial<ExtractedFields> into a full ExtractedFields + warnings. Time-frame start/end
+ * are normalized to canonical "YYYY-MM-DD HH:MM[:SS]" via the date pipeline (clock + source text
+ * from `opts`); the scope screen only offers manual edit afterward.
+ */
+export function normalizeExtractedFields(ai: Partial<ExtractedFields>, opts: NormalizeOptions = {}): { fields: ExtractedFields; warnings: ImportWarning[] } {
   const a = ai || {}
+  const currentTimeMs = opts.currentTimeMs ?? Date.now()
+  const sourceText = opts.sourceText ?? ''
   const warnings: ImportWarning[] = []
 
   const officer = normalizeOfficerFields(
@@ -181,15 +213,15 @@ export function normalizeExtractedFields(ai: Partial<ExtractedFields>): { fields
   )
   warnings.push(...officer.warnings)
 
-  const frames: ExtractionTimeFrame[] = (Array.isArray(a.extractionTimeFrames) ? a.extractionTimeFrames : []).map((t) => {
+  const frames: ExtractionTimeFrame[] = (Array.isArray(a.extractionTimeFrames) ? a.extractionTimeFrames : []).map((t, i) => {
     const rawType = String(t?.timePeriodType ?? '').trim()
     const type = normalizeTimePeriodType(rawType)
     if (rawType && type !== rawType) {
       warnings.push({ field: 'timePeriodType', originalValue: rawType, normalizedValue: type, reason: `Mapped "${rawType}" to "${type}"` })
     }
     return {
-      extractionStartTime: String(t?.extractionStartTime ?? '').trim(), // FREE TEXT — scope screen normalises
-      extractionEndTime: String(t?.extractionEndTime ?? '').trim(),
+      extractionStartTime: normalizeFrameTime(String(t?.extractionStartTime ?? ''), `timeFrames[${i}].start`, currentTimeMs, sourceText, warnings),
+      extractionEndTime: normalizeFrameTime(String(t?.extractionEndTime ?? ''), `timeFrames[${i}].end`, currentTimeMs, sourceText, warnings),
       timePeriodType: type,
       cameraDetails: coerceField(t?.cameraDetails || ''),
     }
@@ -226,9 +258,9 @@ export interface ImportTransform {
 }
 
 /** parseAiJson → normalizeExtractedFields → mapAiToForm. Pure. Throws only if no JSON object. */
-export function parseNormalizeMap(rawText: string): ImportTransform {
+export function parseNormalizeMap(rawText: string, opts: NormalizeOptions = {}): ImportTransform {
   const parsed = parseAiJson(rawText) // throws on no-JSON
-  const { fields, warnings } = normalizeExtractedFields(parsed)
+  const { fields, warnings } = normalizeExtractedFields(parsed, opts)
   const patch = mapAiToForm(fields)
   const flat = [
     patch.requesterName, patch.requesterBadgeNumber, patch.requesterPhone, patch.requesterEmail,

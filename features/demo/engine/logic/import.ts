@@ -75,12 +75,11 @@ export interface ExtractedFields {
 
 export interface ImportTimeFrame {
   /**
-   * Start/end of the requested window AS EXTRACTED — frequently natural language (e.g.
-   * "11:45 PM on March 8 2025"), NOT canonical 'YYYY-MM-DD HH:MM:SS'. The extraction
-   * prompt deliberately preserves the document's wording. The requested-scope screen
-   * normalises these into a `ScopeEntry` before any time math runs (and the time math
-   * throws on un-parseable input — see `logic/time.ts`), so free text never silently
-   * reaches the offset calculation.
+   * Start/end of the requested window. The import pipeline normalizes the model's reply to
+   * canonical 'YYYY-MM-DD HH:MM[:SS]' (datetime-normalize + MM/DD-vs-DD/MM + year correction)
+   * before this reaches `applyImport`, so the scope pickers, time-offset math, and retention
+   * consume it directly. A format the normalizer can't parse (rare prose) passes through with a
+   * warning for the user to fix on the scope screen — it never silently corrupts the math.
    */
   startDateTime: string
   endDateTime: string
@@ -206,9 +205,10 @@ export const FORM_OPTIONS = {
 } as const
 
 /**
- * Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo doesn't call a real model.
- * The time-frame times are intentionally natural-language (as the model would extract
- * them from the email prose); see `ImportTimeFrame` for the free-text → normalise contract.
+ * Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo's stand-in for a model reply
+ * (used in guided mode and as the keyless/offline fallback). The time-frame times are in a
+ * canonical-ish shape the date pipeline parses cleanly (a capable model normalizes the email's
+ * "11:45 PM on March 8 2025" prose to this); the human email keeps its prose in `SAMPLE_REQUEST_DOC`.
  */
 export const SAMPLE_EXTRACTION: ExtractedFields = {
   occurrenceNumber: 'PR25-0098213',
@@ -229,8 +229,8 @@ export const SAMPLE_EXTRACTION: ExtractedFields = {
   dvrPassword: 'Sp1ce2024',
   extractionTimeFrames: [
     {
-      extractionStartTime: '11:45 PM on March 8 2025',
-      extractionEndTime: '1:30 AM on March 9 2025',
+      extractionStartTime: '2025-03-08 23:45',
+      extractionEndTime: '2025-03-09 01:30',
       timePeriodType: 'Actual Time',
       cameraDetails: 'cameras 3, 4 and 7',
     },

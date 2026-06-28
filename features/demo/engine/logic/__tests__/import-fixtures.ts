@@ -20,7 +20,7 @@ export const RAW_CLEAN = JSON.stringify({
   dvrUsername: 'admin',
   dvrPassword: 'Sp1ce2024',
   extractionTimeFrames: [
-    { extractionStartTime: '11:45 PM on March 8 2025', extractionEndTime: '1:30 AM on March 9 2025', timePeriodType: 'Actual Time', cameraDetails: 'cameras 3, 4 and 7' },
+    { extractionStartTime: '2025-03-08 23:45', extractionEndTime: '2025-03-09 01:30', timePeriodType: 'Actual Time', cameraDetails: 'cameras 3, 4 and 7' },
   ],
 })
 
@@ -42,7 +42,7 @@ const MESSY_JSON = JSON.stringify({
   dvrUsername: 'admin',
   dvrPassword: 'Sp1ce2024',
   extractionTimeFrames: [
-    { extractionStartTime: '11:45 PM on March 8 2025', extractionEndTime: '1:30 AM on March 9 2025', timePeriodType: 'recorder time', cameraDetails: 'cameras 3, 4 and 7' },
+    { extractionStartTime: 'March 8, 2025 23:45', extractionEndTime: 'March 9, 2025 01:30', timePeriodType: 'recorder time', cameraDetails: 'cameras 3, 4 and 7' },
   ],
 })
 
