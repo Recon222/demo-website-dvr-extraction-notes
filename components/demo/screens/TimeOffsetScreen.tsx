@@ -1,6 +1,6 @@
 'use client'
 
-import { DateTimeField, SectionCard, WizardHeader, WizardNext } from '@/components/demo/screens/_shared'
+import { DateTimeField, SectionCard, switchKeyDown, WizardHeader, WizardNext } from '@/components/demo/screens/_shared'
 
 export interface CorrectedScope {
   id: string
@@ -91,12 +91,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
               aria-label="DVR Applies DST"
               tabIndex={0}
               onClick={p.onToggleDst}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  p.onToggleDst()
-                }
-              }}
+              onKeyDown={switchKeyDown(p.onToggleDst)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', cursor: 'pointer', marginTop: 6 }}
             >
               <span style={{ fontSize: 15, fontWeight: 500, color: '#f0f4f8' }}>DVR Applies DST</span>

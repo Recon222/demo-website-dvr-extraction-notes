@@ -1,7 +1,17 @@
 'use client'
 
 import { useEffect } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
+
+/** Enter/Space → activate, for `role="switch"`/`button` divs. */
+export function switchKeyDown(activate: () => void) {
+  return (e: ReactKeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      activate()
+    }
+  }
+}
 
 const grid: CSSProperties = {
   position: 'absolute',
@@ -196,12 +206,7 @@ export function Toggle({ label, on, onClick }: { label: string; on: boolean; onC
       aria-label={label}
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick()
-        }
-      }}
+      onKeyDown={switchKeyDown(onClick)}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}
     >
       <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
