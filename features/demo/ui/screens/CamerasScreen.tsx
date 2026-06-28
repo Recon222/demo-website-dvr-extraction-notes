@@ -1,7 +1,8 @@
 'use client'
 
 import type { CameraEntry } from '@/features/demo/engine/types'
-import { AddRowButton, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { RESOLUTION_OPTIONS, FPS_OPTIONS } from '@/features/demo/ui/screens/field-options'
 
 export interface CamerasScreenProps {
   cameras: CameraEntry[]
@@ -27,11 +28,11 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBa
             </div>
             <Field label="Camera Name / Location" value={c.cameraName} onChange={(v) => onChange(i, { cameraName: v })} placeholder="e.g., Rear entrance" />
             <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <Field label="Resolution" value={c.resolution} onChange={(v) => onChange(i, { resolution: v })} placeholder="1080p" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SelectField label="Resolution" value={c.resolution} onChange={(v) => onChange(i, { resolution: v })} options={RESOLUTION_OPTIONS} />
               </div>
-              <div style={{ flex: 1 }}>
-                <Field label="FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} placeholder="15" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SelectField label="FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} options={FPS_OPTIONS} />
               </div>
             </div>
           </div>

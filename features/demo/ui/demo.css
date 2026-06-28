@@ -82,3 +82,9 @@
   0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.55; }
   100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
 }
+
+/* Bottom-sheet slide-up for the picker sheets (calendar / time wheel). */
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

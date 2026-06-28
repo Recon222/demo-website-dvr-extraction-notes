@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
+import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 const grid: CSSProperties = {
   position: 'absolute',
@@ -24,7 +26,9 @@ export interface PhoneFrameProps {
  *  bar · dynamic island · scan sweep · home indicator). Children render in the screen slot. */
 export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameProps) {
   const scale = usePhoneScale()
+  const [overlay, setOverlay] = useState<HTMLDivElement | null>(null)
   return (
+    <PhoneOverlayContext.Provider value={overlay}>
     <div style={{ display: 'flex', justifyContent: 'center', flex: '0 0 auto' }}>
       <div
         data-phone="frame"
@@ -156,8 +160,12 @@ export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameP
               zIndex: 25,
             }}
           />
+          {/* Overlay root for picker bottom-sheets — pinned to the screen viewport, OUTSIDE
+              the scrolling screen content, so sheets anchor to the visible bottom at any scroll. */}
+          <div ref={setOverlay} style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }} />
         </div>
       </div>
     </div>
+    </PhoneOverlayContext.Provider>
   )
 }

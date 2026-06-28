@@ -40,12 +40,19 @@ import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
+import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
 let pulseSeq = 0
+
+// Retention "today": guided mode reads a fixed scenario date so the showcased numbers stay
+// sensible against the demo's dated seed data (the guided flow itself is a deferred overhaul —
+// see deferred.md); sandbox uses the real clock. Explicit-arg Date is deterministic.
+const realNow = () => new Date()
+const GUIDED_NOW = () => new Date(2025, 3, 12)
 
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
@@ -176,6 +183,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [caseCompleted, setCaseCompleted] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
 
   // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
   useEffect(() => {
@@ -219,6 +227,30 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
+
+  // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
+  // recorded date + scopes. Clock is read here (never at render): fixed in guided mode,
+  // real in sandbox. The persisted totalDvrRetention (the PDF's source) is kept in sync —
+  // written only while firstRecordedDate drives it, and cleared on a set→empty transition,
+  // so an import-provided value (which leaves firstRecordedDate empty) is never clobbered.
+  const prevFirstRecorded = useRef('')
+  useEffect(() => {
+    const fr = currentLocation?.form.dvr.firstRecordedDate ?? ''
+    const now = currentMode === 'guided' ? GUIDED_NOW : realNow
+    const view = buildRetentionView(currentLocation?.form.scopes ?? [], fr, now)
+    setRetentionView(view)
+    if (currentLocation) {
+      if (fr) {
+        const str = view.totalRetention != null ? `${view.totalRetention} days` : ''
+        if (str !== currentLocation.form.dvr.totalDvrRetention) {
+          store.getState().updateField('form.dvr.totalDvrRetention', str)
+        }
+      } else if (prevFirstRecorded.current && currentLocation.form.dvr.totalDvrRetention) {
+        store.getState().updateField('form.dvr.totalDvrRetention', '')
+      }
+    }
+    prevFirstRecorded.current = fr
+  }, [store, currentMode, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
   const formList = <T extends { id: string }>(list: T[], path: string) =>
@@ -465,7 +497,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')

@@ -197,3 +197,62 @@ fast-follow that hangs off the drawer's media accordion (the M3-deferred drawer 
   the sandbox bridge tests + the un-mocked director integration test (adequate regression protection
   per the review), but no one test walks all 13 chapters through to the exported PDF. **Trigger:** when
   the guided beats are enriched (the user-testing #5 rework), add the full-tour e2e against the new script.
+
+---
+
+## 10. Name `YMD` / `Hms` part-shape types in the pickers (type-design)
+
+**Source:** PR #14 review (type-design lane, Advisory).
+
+**What:** The `{ y, mo, d }` and `{ h, mi, s }` shapes are written inline ~4× and ~3× across the
+engine/UI boundary — `CalendarProps` (`selected`/`today`), `DateField`'s view `useState`,
+`TimeWheelProps` (`value`/`onChange`), `mergeDate`/`mergeTime` signatures, and a local (unexported)
+`Hms` in `TimeField`. They line up only by structural accident, so a field rename wouldn't surface as
+a type error at every call site.
+
+**Why deferred:** Pure behavior-neutral refactor touching ~6 files (`datetime-parts`, `Calendar`,
+`DateField`, `TimeWheel`, `TimeField`, and the retention scope shapes). PR #14 is already very large
+(pickers + retention + several iterations); folding a cross-file type churn in now adds review noise
+for no behavior change. Not a bug.
+
+**Trigger:** Next time any of these picker files is opened for real work — export `YMD`/`Hms` from
+`engine/logic/datetime-parts.ts` and thread them through, in its own small PR.
+
+---
+
+## 11. Inline "date is in the future" signal (and other invalid-input hints)
+
+**Source:** PR #14 fixes-review (silent-failure F2, Advisory).
+
+**What:** `calculateTotalRetention` returns `null` for **both** an empty first-recorded-date and a
+**future** one, so a user who fat-fingers a future date sees the same blank retention panel as
+"not entered yet" — no "that date is in the future" hint. The same blank-vs-invalid ambiguity
+exists in a few other inputs.
+
+**Why deferred:** This wants to be done **once, deliberately**, across every place that needs it —
+and the same treatment is being added to the real phone app, which the demo mirrors. Piecemealing a
+discriminated `empty | future | ok` result into just the retention path now (when we're not focused
+on input-validation UX) risks an inconsistent half-measure. Not a bug — the value is simply blank,
+which is safe.
+
+**Trigger:** When input-validation messaging is designed for the app (and mirrored to the demo) —
+return a discriminated result from the relevant pure helpers and surface inline hints uniformly.
+
+---
+
+## 12. Guided-tour flow is piecemeal — needs a realistic start-to-finish overhaul
+
+**Source:** PR #14 fixes-review (#1) + author direction.
+
+**What:** The guided tour's beats were authored chapter-by-chapter and don't reflect how an officer
+would actually move through the app end-to-end. The DVR-retention showcase exposed this: it now
+relies on a fixed scenario "today" (`GUIDED_NOW` in `DemoExperience`) + a seeded `firstRecordedDate`
+beat so the numbers look sensible against the demo's dated seed data — a deliberate stopgap, not a
+real flow.
+
+**Why deferred:** The current focus is **parity with the phone app (UI, flow, logic)**, which is most
+evident in the free **sandbox**. Reworking the guided flow before sandbox parity is reached would
+mean re-doing it; piecemeal beat tweaks now are counter-productive.
+
+**Trigger:** Once the demo is at parity in sandbox — design the guided flow as a single, realistic
+start-to-finish walkthrough (and revisit the `GUIDED_NOW` stopgap + seed dates as part of it).

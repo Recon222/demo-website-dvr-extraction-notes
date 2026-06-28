@@ -111,6 +111,9 @@ export interface DvrInformation {
   recordingSchedule: string
   resolution: string
   recordingFps: string
+  /** Earliest date the DVR has on disk. Drives the derived retention (see logic/retention). */
+  firstRecordedDate: string
+  /** Derived: total retention window, written back as "N days" for the PDF/notes. */
   totalDvrRetention: string
 }
 

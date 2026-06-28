@@ -14,7 +14,7 @@ const form = blankLocationForm()
 describe('DvrInfoScreen', () => {
   it('edits a DVR field', () => {
     const onChange = vi.fn()
-    render(<DvrInfoScreen dvr={form.dvr} onChange={onChange} {...nav} />)
+    render(<DvrInfoScreen dvr={form.dvr} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} {...nav} />)
     fireEvent.change(screen.getByLabelText('DVR Type / Brand'), { target: { value: 'Hikvision' } })
     expect(onChange).toHaveBeenCalledWith('dvrTypeBrand', 'Hikvision')
   })
