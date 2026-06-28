@@ -51,6 +51,22 @@ export const BEATS: Partial<Record<ChapterId | LaunchableId, Beat>> = {
     chapter: 'timeOffset',
     steps: [
       { kind: 'field', field: 'capture.actualDateTime', value: '2025-03-08 12:00:00' },
+      // Scripted atomic-clock sync so the NTP card shows in the tour (the sandbox path generates
+      // it live via simulateNtpSync; the guided tour can't run a real/mock clock mid-beat).
+      {
+        kind: 'field',
+        field: 'capture.sync',
+        value: {
+          method: 'NTP',
+          server: 'time.nrc.ca',
+          stratum: 2,
+          offsetMs: 42,
+          uncertaintyMs: 11.5,
+          rttMs: 18,
+          traceability: 'NRC Canada stratum-2 → cesium atomic clocks → UTC(NRC) → UTC → SI second',
+          timestamp: Date.UTC(2025, 2, 8, 12, 0, 0),
+        },
+      },
       { kind: 'launch', screen: 'ocr' },
       { kind: 'tap', target: 'calculate', action: 'calculateOffset' },
     ],
