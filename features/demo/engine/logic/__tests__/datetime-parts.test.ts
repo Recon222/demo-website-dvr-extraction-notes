@@ -31,6 +31,14 @@ describe('parsePartsLoose', () => {
     expect(parsePartsLoose('not-a-date')).toBeNull()
     warn.mockRestore()
   })
+  it('returns null for out-of-range values (regex passes digit-count but not ranges)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(parsePartsLoose('2025-13-01 00:00:00')).toBeNull() // month 13
+    expect(parsePartsLoose('2025-02-00 00:00:00')).toBeNull() // day 0
+    expect(parsePartsLoose('2025-02-10 24:00:00')).toBeNull() // hour 24
+    expect(parsePartsLoose('2025-02-10 00:60:00')).toBeNull() // minute 60
+    warn.mockRestore()
+  })
 })
 
 describe('daysInMonth', () => {

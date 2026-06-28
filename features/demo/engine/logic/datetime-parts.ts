@@ -48,20 +48,27 @@ const STORED_RE = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
 export function parsePartsLoose(value: string): DateParts | null {
   if (!value) return null
   const m = STORED_RE.exec(value.trim())
-  if (!m) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`[demo] datetime-parts: could not parse "${value}"`)
+  if (m) {
+    const p: DateParts = {
+      y: Number(m[1]),
+      mo: Number(m[2]),
+      d: Number(m[3]),
+      h: Number(m[4]),
+      mi: Number(m[5]),
+      s: m[6] ? Number(m[6]) : 0,
     }
-    return null
+    // The regex only validates digit COUNT — range-check the values too. An out-of-range
+    // (e.g. month 13) value is treated as malformed → null, so a bad stored string can never
+    // silently half-replace the untouched field via mergeDate/mergeTime. (Day is a generic
+    // 1..31; formatStored() clamps it to the actual month length.)
+    if (p.mo >= 1 && p.mo <= 12 && p.d >= 1 && p.d <= 31 && p.h <= 23 && p.mi <= 59 && p.s <= 59) {
+      return p
+    }
   }
-  return {
-    y: Number(m[1]),
-    mo: Number(m[2]),
-    d: Number(m[3]),
-    h: Number(m[4]),
-    mi: Number(m[5]),
-    s: m[6] ? Number(m[6]) : 0,
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[demo] datetime-parts: could not parse "${value}"`)
   }
+  return null
 }
 
 /** Parts → canonical `"YYYY-MM-DD HH:MM:SS"` (day clamped to the month length). */
