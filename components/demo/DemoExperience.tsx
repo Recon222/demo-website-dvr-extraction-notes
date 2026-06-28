@@ -196,7 +196,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   const guided = currentMode === 'guided'
   const narration = NARRATION[currentChapter]
-  const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title, active: id === currentChapter }))
+  const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title }))
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
@@ -591,6 +591,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         narration={narration}
         mode={currentMode}
         dots={dots}
+        activeDot={currentChapter}
         stepCaption={stepCaption}
         canPrev={prevChapter(currentChapter) !== null}
         nextLabel={nextLabel}

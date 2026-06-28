@@ -148,20 +148,18 @@ once the UI is built (M3+) to confirm 1:1 parity with the phone app. Add entries
 
 ---
 
-## 7. Milestone-3 review deferrals — type-tightening & drawer a11y (→ M4)
+## 7. Milestone-3 review deferrals — type-tightening & drawer a11y
 
-**Source:** PR #11 review (type-design + code-reviewer Advisory). Deferred to the M4 pass that
-wires the screens + drawer triggers.
+**Source:** PR #11 review (type-design + code-reviewer Advisory).
 
-- **`RailDot.active` → `activeDot` invariant.** StoryRail takes `dots: { id; label; active }[]`,
-  which can represent "zero or many active". Replace with `dots: { id; label }[]` + a single
-  `activeDot: ChapterId` so "exactly one active" is structural. Touches the StoryRail props API +
-  DemoExperience + the StoryRail test — fold in with the M4 screen prop-typing pass.
-- **`WizardDrawer` dialog a11y.** `role="dialog"` is present but there's no Escape-to-close, focus
-  trap, or focus return. Deferred infra to land when M4 wires the hamburger trigger (the drawer is
-  not openable in M3).
+- **`RailDot.active` → `activeDot` invariant.** ✅ **Done (PR #12 fixes).** StoryRail now takes
+  `dots: { id; label }[]` + a single `activeDot: ChapterId`, so "exactly one active" is structural
+  rather than a per-dot bool that could represent zero/many active.
+- **`WizardDrawer` / `ModalShell` dialog a11y.** ✅ **Partially done (PR #12 fixes):** both now carry
+  `aria-modal="true"` + Escape-to-close. **Still deferred:** a full focus trap + focus return
+  (Tab-cycling confined to the open dialog, focus restored to the trigger on close).
 
-**Trigger:** Milestone 4 (screen prop-typing + drawer trigger wiring).
+**Trigger (remaining focus-trap):** a broader keyboard-nav/a11y pass, or before beta.
 
 ---
 
