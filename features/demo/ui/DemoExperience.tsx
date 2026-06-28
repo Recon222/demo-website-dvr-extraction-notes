@@ -8,7 +8,7 @@ import { runBeat } from '@/features/demo/engine/director/runner'
 import { BEATS } from '@/features/demo/engine/director/beats'
 import { NARRATION } from '@/features/demo/engine/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
-import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult } from '@/features/demo/ui/import/run-import'
+import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { ChapterId, DemoMode } from '@/features/demo/engine/types'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -192,6 +192,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const importCancelled = useRef(false) // set when the modal is closed mid-import (H2)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [caseCompleted, setCaseCompleted] = useState(false)
@@ -313,20 +314,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const importLive = () => currentMode === 'sandbox'
   const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
 
-  const applyImportRun = (caseId: string, res: ImportRunResult): string | null => {
-    if (res.ok && res.patch) {
-      const id = store.getState().addLocation(caseId, { locationName: res.patch.businessName || res.filename || 'Imported location' })
-      store.getState().applyImport(res.patch)
-      return id
-    }
-    return null
+  const fallbackNotice = (mode: FallbackMode): string | undefined => {
+    if (mode === 'unavailable') return 'Live model not configured — imported the sample request instead.'
+    if (mode === 'error') return 'Couldn’t reach the live model — imported the sample request instead.'
+    return undefined
+  }
+
+  const applySuccess = (caseId: string, res: Extract<ImportRunResult, { ok: true }>): string => {
+    const id = store.getState().addLocation(caseId, { locationName: res.patch.businessName || res.filename || 'Imported location' })
+    store.getState().applyImport(res.patch)
+    return id
   }
 
   interface ImportTally {
     total: number
     succeeded: number
     lastLocId: string | null
-    degraded: boolean
+    notice: string | undefined
     warnings: ImportWarningView[]
     failures: string[]
     firstFieldCount: number
@@ -340,8 +344,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const result: ImportResult =
       t.total > 1
-        ? { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: `${t.succeeded} location${t.succeeded > 1 ? 's' : ''}`, warnings: t.warnings, degraded: t.degraded, batch: { succeeded: t.succeeded, total: t.total } }
-        : { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: t.firstName, warnings: t.warnings, degraded: t.degraded }
+        ? { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: `${t.succeeded} location${t.succeeded > 1 ? 's' : ''}`, warnings: t.warnings, notice: t.notice, batch: { succeeded: t.succeeded, total: t.total } }
+        : { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: t.firstName, warnings: t.warnings, notice: t.notice }
     setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
   }
 
@@ -359,25 +363,27 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
+    importCancelled.current = false
     const live = importLive()
     const total = files.length
-    const tally: ImportTally = { total, succeeded: 0, lastLocId: null, degraded: false, warnings: [], failures: [], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' }
+    const tally: ImportTally = { total, succeeded: 0, lastLocId: null, notice: undefined, warnings: [], failures: [], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' }
     for (let i = 0; i < total; i++) {
+      if (importCancelled.current) return // user closed the modal mid-batch
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live, onStage: onImportStage })
-      const locId = applyImportRun(caseId, res)
-      if (locId && res.patch) {
+      if (importCancelled.current) return // cancelled while this file was processing
+      if (res.ok) {
         tally.succeeded++
-        tally.lastLocId = locId
-        tally.degraded = tally.degraded || res.degraded
+        tally.lastLocId = applySuccess(caseId, res)
+        tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
         tally.warnings.push(...res.warnings.map((w) => ({ field: w.field, reason: w.reason })))
         if (tally.succeeded === 1) {
-          tally.firstFieldCount = res.fieldCount ?? 0
-          tally.firstTimeFrames = res.timeFrameCount ?? 0
+          tally.firstFieldCount = res.fieldCount
+          tally.firstTimeFrames = res.timeFrameCount
           tally.firstName = res.patch.businessName || res.filename || 'location'
         }
       } else {
-        tally.failures.push(`${res.filename ?? 'file'}: ${res.error ?? 'failed'}`)
+        tally.failures.push(`${res.filename ?? 'file'}: ${res.error}`)
       }
     }
     finishImport(tally)
@@ -389,13 +395,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
+    if (importLive() && !imp.text.trim()) {
+      setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Paste the request text first.' } }))
+      return
+    }
+    importCancelled.current = false
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
     const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
-    const locId = applyImportRun(caseId, res)
-    if (locId && res.patch) {
-      finishImport({ total: 1, succeeded: 1, lastLocId: locId, degraded: res.degraded, warnings: res.warnings.map((w) => ({ field: w.field, reason: w.reason })), failures: [], firstFieldCount: res.fieldCount ?? 0, firstTimeFrames: res.timeFrameCount ?? 0, firstName: res.patch.businessName || 'location' })
+    if (importCancelled.current) return
+    if (res.ok) {
+      finishImport({ total: 1, succeeded: 1, lastLocId: applySuccess(caseId, res), notice: fallbackNotice(res.fallbackMode), warnings: res.warnings.map((w) => ({ field: w.field, reason: w.reason })), failures: [], firstFieldCount: res.fieldCount, firstTimeFrames: res.timeFrameCount, firstName: res.patch.businessName || 'location' })
     } else {
-      finishImport({ total: 1, succeeded: 0, lastLocId: null, degraded: res.degraded, warnings: [], failures: [res.error ?? 'Import failed.'], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' })
+      finishImport({ total: 1, succeeded: 0, lastLocId: null, notice: undefined, warnings: [], failures: [res.error], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' })
     }
   }
 
@@ -680,12 +691,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
               onRun={runPasteImport}
               onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
-              onRetry={() => setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))}
+              onRetry={() => {
+                importCancelled.current = false
+                setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
+              }}
               onOpen={() => {
                 if (imp.lastLocId) openLocation(imp.lastLocId)
                 store.getState().closeModal()
               }}
-              onCancel={() => store.getState().closeModal()}
+              onCancel={() => {
+                importCancelled.current = true // stop any in-flight import loop (H2)
+                store.getState().closeModal()
+              }}
             />
           </>
         )

@@ -18,7 +18,8 @@ export type ImportResult =
       timeFrames: number
       locName: string
       warnings: ImportWarningView[]
-      degraded: boolean
+      /** Set when a fallback to the sample occurred (keyless or live failure); shown as a notice. */
+      notice?: string
       batch?: { succeeded: number; total: number }
     }
   | { ok: false; error: string }
@@ -140,9 +141,9 @@ export function ImportModal(props: ImportModalProps) {
                   <span style={{ color: '#cfe6f5' }}>{result.locName}</span>.</>
                 )}
               </div>
-              {result.degraded && (
+              {result.notice && (
                 <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px' }}>
-                  Live model unavailable — imported the sample request instead.
+                  {result.notice}
                 </div>
               )}
               {result.warnings.length > 0 && (

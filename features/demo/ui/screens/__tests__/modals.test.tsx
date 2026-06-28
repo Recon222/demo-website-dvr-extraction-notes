@@ -66,7 +66,7 @@ describe('ImportModal', () => {
         text=""
         stages={[]}
         batch={null}
-        result={{ ok: true, fieldCount: 8, timeFrames: 1, locName: "Kim's Convenience", warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "2015" from officer name' }], degraded: false }}
+        result={{ ok: true, fieldCount: 8, timeFrames: 1, locName: "Kim's Convenience", warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "2015" from officer name' }] }}
         {...cb}
       />,
     )
@@ -82,13 +82,13 @@ describe('ImportModal', () => {
         text=""
         stages={[]}
         batch={null}
-        result={{ ok: true, fieldCount: 5, timeFrames: 0, locName: '2 locations', warnings: [], degraded: true, batch: { succeeded: 2, total: 3 } }}
+        result={{ ok: true, fieldCount: 5, timeFrames: 0, locName: '2 locations', warnings: [], notice: 'Live model not configured — imported the sample request instead.', batch: { succeeded: 2, total: 3 } }}
         {...cb}
       />,
     )
     expect(screen.getByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText(/of 3 requests/)).toBeInTheDocument()
-    expect(screen.getByText(/Live model unavailable/)).toBeInTheDocument()
+    expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
   })
 
   it('shows the error result with retry', () => {

@@ -9,7 +9,7 @@ vi.mock('@/features/demo/ui/import/pdf-extract', () => ({
 import { runImport, runPdfImport } from '@/features/demo/ui/import/run-import'
 import { requestExtraction } from '@/features/demo/ui/import/extract-client'
 import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pdf-extract'
-import { RAW_MESSY, RAW_NO_JSON } from '@/features/demo/engine/logic/__tests__/import-fixtures'
+import { RAW_MESSY, RAW_NO_JSON, RAW_NULLS } from '@/features/demo/engine/logic/__tests__/import-fixtures'
 
 const reqMock = vi.mocked(requestExtraction)
 const pdfMock = vi.mocked(extractPdfText)
@@ -24,9 +24,8 @@ describe('runImport', () => {
     const stages: string[] = []
     const r = await runImport({ documentText: 'x', live: false, onStage: (s) => stages.push(s) })
     expect(r.ok).toBe(true)
-    expect(r.usedFallback).toBe(true)
-    expect(r.degraded).toBe(false)
-    expect(r.patch?.requesterName).toBe('Liam McHugh') // from SAMPLE_EXTRACTION
+    expect(r.fallbackMode).toBe('guided')
+    if (r.ok) expect(r.patch.requesterName).toBe('Liam McHugh') // from SAMPLE_EXTRACTION
     expect(reqMock).not.toHaveBeenCalled()
     expect(stages).toEqual(['reading_model', 'normalizing', 'done'])
   })
@@ -35,27 +34,39 @@ describe('runImport', () => {
     reqMock.mockResolvedValue({ ok: true, rawText: RAW_MESSY })
     const r = await runImport({ documentText: 'real request', live: true })
     expect(r.ok).toBe(true)
-    expect(r.usedFallback).toBe(false)
-    expect(r.degraded).toBe(false)
-    expect(r.patch?.requesterName).toBe('Det. Naplioni')
+    expect(r.fallbackMode).toBe('none')
+    if (r.ok) expect(r.patch.requesterName).toBe('Det. Naplioni')
   })
 
-  it('falls back to SAMPLE + degraded when the model is not configured', async () => {
+  it('falls back to SAMPLE with fallbackMode=unavailable when the model is not configured', async () => {
     reqMock.mockResolvedValue({ ok: false, notConfigured: true })
     const r = await runImport({ documentText: 'real request', live: true })
-    expect(r.usedFallback).toBe(true)
-    expect(r.degraded).toBe(true)
-    expect(r.warnings.some((w) => w.reason.includes('Live model unavailable'))).toBe(true)
-    expect(r.patch?.requesterName).toBe('Liam McHugh')
+    expect(r.ok).toBe(true)
+    expect(r.fallbackMode).toBe('unavailable')
+    if (r.ok) expect(r.patch.requesterName).toBe('Liam McHugh')
   })
 
-  it('returns an error result when the reply has no JSON', async () => {
+  it('falls back to SAMPLE with fallbackMode=error on a genuine failure', async () => {
+    reqMock.mockResolvedValue({ ok: false, notConfigured: false })
+    const r = await runImport({ documentText: 'real request', live: true })
+    expect(r.ok).toBe(true)
+    expect(r.fallbackMode).toBe('error')
+  })
+
+  it('returns an error result when the live reply has no JSON', async () => {
     reqMock.mockResolvedValue({ ok: true, rawText: RAW_NO_JSON })
     const stages: string[] = []
     const r = await runImport({ documentText: 'x', live: true, onStage: (s) => stages.push(s) })
     expect(r.ok).toBe(false)
-    expect(r.error).toBeTruthy()
+    if (!r.ok) expect(r.error).toBeTruthy()
     expect(stages).toContain('error')
+  })
+
+  it('rejects a live reply that parses but yields zero fields (no blank success)', async () => {
+    reqMock.mockResolvedValue({ ok: true, rawText: RAW_NULLS })
+    const r = await runImport({ documentText: 'x', live: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toMatch(/no recognizable fields/i)
   })
 })
 
@@ -76,7 +87,14 @@ describe('runPdfImport', () => {
     pdfMock.mockRejectedValue(new PdfExtractionError('scanned'))
     const r = await runPdfImport(file, { live: true })
     expect(r.ok).toBe(false)
-    expect(r.error).toBe('scanned')
+    if (!r.ok) expect(r.error).toBe('scanned')
     expect(reqMock).not.toHaveBeenCalled()
+  })
+
+  it('maps a generic (non-PdfExtractionError) extraction failure to a readable error', async () => {
+    pdfMock.mockRejectedValue(new Error('boom'))
+    const r = await runPdfImport(file, { live: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('Could not read this PDF.')
   })
 })

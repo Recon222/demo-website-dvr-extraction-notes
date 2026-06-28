@@ -15,28 +15,21 @@ import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pd
 
 export type ImportStageId = 'extracting_text' | 'reading_model' | 'normalizing' | 'done' | 'error'
 
-export interface ImportRunResult {
-  ok: boolean
-  patch?: MappedImport
-  warnings: ImportWarning[]
-  fieldCount?: number
-  timeFrameCount?: number
-  /** SAMPLE was used (guided mode, or live unavailable). */
-  usedFallback: boolean
-  /** Live extraction was requested but unavailable — show the degraded notice. */
-  degraded: boolean
-  error?: string
-  filename?: string
-}
+/**
+ * How the result was produced:
+ * - `none` — the live model was used.
+ * - `guided` — deterministic SAMPLE (live disabled; guided tour / tests). No user notice.
+ * - `unavailable` — keyless / not-configured (503) → SAMPLE fallback. "Not configured" notice.
+ * - `error` — a genuine live failure (401/429/502/network/timeout) → SAMPLE fallback. Distinct notice.
+ */
+export type FallbackMode = 'none' | 'guided' | 'unavailable' | 'error'
+
+/** Discriminated on `ok` — a success always carries the patch + counts; a failure carries the error. */
+export type ImportRunResult =
+  | { ok: true; patch: MappedImport; fieldCount: number; timeFrameCount: number; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
+  | { ok: false; error: string; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
 
 const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
-
-const FALLBACK_WARNING: ImportWarning = {
-  field: '(model)',
-  originalValue: '',
-  normalizedValue: '',
-  reason: 'Live model unavailable — imported the sample request instead.',
-}
 
 export async function runImport(input: {
   documentText: string
@@ -47,39 +40,34 @@ export async function runImport(input: {
   onStage?.('reading_model')
 
   let rawText: string
-  let usedFallback = false
-  let degraded = false
-  const extraWarnings: ImportWarning[] = []
-
-  if (live) {
+  let fallbackMode: FallbackMode
+  if (!live) {
+    rawText = SAMPLE_RAW
+    fallbackMode = 'guided'
+  } else {
     const result = await requestExtraction(documentText)
     if (result.ok) {
       rawText = result.rawText
+      fallbackMode = 'none'
     } else {
       rawText = SAMPLE_RAW
-      usedFallback = true
-      degraded = true
-      extraWarnings.push(FALLBACK_WARNING)
+      fallbackMode = result.notConfigured ? 'unavailable' : 'error'
     }
-  } else {
-    rawText = SAMPLE_RAW
-    usedFallback = true
   }
 
   onStage?.('normalizing')
   try {
     const { patch, warnings, fieldCount, timeFrameCount } = parseNormalizeMap(rawText)
+    // Live reply that parsed but yielded nothing usable → don't create a blank location.
+    if (fallbackMode === 'none' && fieldCount === 0 && timeFrameCount === 0) {
+      onStage?.('error')
+      return { ok: false, error: 'No recognizable fields found in this document — check it and try again.', warnings, fallbackMode }
+    }
     onStage?.('done')
-    return { ok: true, patch, warnings: [...extraWarnings, ...warnings], fieldCount, timeFrameCount, usedFallback, degraded }
+    return { ok: true, patch, warnings, fieldCount, timeFrameCount, fallbackMode }
   } catch (e) {
     onStage?.('error')
-    return {
-      ok: false,
-      warnings: extraWarnings,
-      usedFallback,
-      degraded,
-      error: e instanceof Error ? e.message : 'Could not read the request.',
-    }
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not read the request.', warnings: [], fallbackMode }
   }
 }
 
@@ -94,7 +82,7 @@ export async function runPdfImport(
   } catch (e) {
     input.onStage?.('error')
     const error = e instanceof PdfExtractionError ? e.message : 'Could not read this PDF.'
-    return { ok: false, warnings: [], usedFallback: false, degraded: false, error, filename: file.name }
+    return { ok: false, error, warnings: [], fallbackMode: 'none', filename: file.name }
   }
   const result = await runImport({ documentText, live: input.live, onStage: input.onStage })
   return { ...result, filename: file.name }

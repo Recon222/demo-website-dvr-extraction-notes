@@ -18,14 +18,13 @@ import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '
 const runText = vi.mocked(runTextImport)
 const runPdf = vi.mocked(runPdfImport)
 
-const okRun = (over: Partial<ImportRunResult> = {}): ImportRunResult => ({
+const okRun = (over: Partial<Extract<ImportRunResult, { ok: true }>> = {}): ImportRunResult => ({
   ok: true,
   patch: { requesterName: '', requesterBadgeNumber: '', requesterPhone: '', requesterEmail: '', businessName: "Kim's Convenience", streetAddress: '', city: '', locationContact: '', locationPhone: '', _import: { offenceType: '', dvrTypeBrand: 'Hikvision', totalDvrRetention: '', hasVideoMonitor: '', dvrUsername: '', dvrPassword: '', timeFrames: [] } },
   warnings: [],
   fieldCount: 2,
   timeFrameCount: 0,
-  usedFallback: false,
-  degraded: false,
+  fallbackMode: 'none',
   filename: 'request.pdf',
   ...over,
 })
@@ -118,7 +117,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
   })
 
   it('import (PDF) failure: no location created, error shown', async () => {
-    runPdf.mockResolvedValue({ ok: false, warnings: [], usedFallback: false, degraded: false, error: 'This PDF looks scanned.', filename: 'scan.pdf' })
+    runPdf.mockResolvedValue({ ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'scan.pdf' })
     const store = createDemoStore()
     const { container } = render(<DemoExperience store={store} />)
     act(() => {
@@ -134,7 +133,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
 
   it('guided mode imports deterministically (live=false)', async () => {
     searchParams.get.mockImplementation(() => null) // guided (no ?mode)
-    runText.mockResolvedValue(okRun({ usedFallback: true }))
+    runText.mockResolvedValue(okRun({ fallbackMode: 'guided' }))
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
@@ -146,6 +145,77 @@ describe('DemoExperience — sandbox bridge paths', () => {
 
     expect(await screen.findByText('Location created')).toBeInTheDocument()
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
+  })
+
+  it('cancelling mid-import does not create a location (H2)', async () => {
+    let resolveRun: (r: ImportRunResult) => void = () => {}
+    runPdf.mockReturnValue(new Promise<ImportRunResult>((res) => { resolveRun = res }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-CXL', displayName: 'Cancel', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel while the import is in flight
+    await act(async () => {
+      resolveRun(okRun())
+      await Promise.resolve()
+    })
+    expect(store.getState().locations.length).toBe(0)
+  })
+
+  it('empty paste (sandbox) shows a guard message — no model call, no location (M2)', async () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-E', displayName: 'Empty', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste text')) // sandbox → blank textarea
+    fireEvent.click(screen.getByText('Extract & import'))
+    expect(await screen.findByText('Paste the request text first.')).toBeInTheDocument()
+    expect(store.getState().locations.length).toBe(0)
+    expect(runText).not.toHaveBeenCalled()
+  })
+
+  it('a live failure still imports the sample but shows the distinct "couldn’t reach" notice (M1)', async () => {
+    runPdf.mockResolvedValue(okRun({ fallbackMode: 'error' }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-ERR', displayName: 'Err', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    expect(await screen.findByText(/couldn.t reach the live model/i)).toBeInTheDocument()
+    expect(store.getState().locations.length).toBe(1)
+  })
+
+  it('a keyless fallback shows the distinct "not configured" notice (M1)', async () => {
+    runPdf.mockResolvedValue(okRun({ fallbackMode: 'unavailable' }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-UNC', displayName: 'Unc', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    expect(await screen.findByText(/not configured/i)).toBeInTheDocument()
+  })
+
+  it('import with no case shows "Select a case first." (I4)', async () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('import')) // no case
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'something' } })
+    fireEvent.click(screen.getByText('Extract & import'))
+    expect(await screen.findByText('Select a case first.')).toBeInTheDocument()
+    expect(runText).not.toHaveBeenCalled()
   })
 
   it('completion: Preview / Export PDF mounts the real generated court document', () => {
