@@ -99,9 +99,11 @@ function applyUrlState(store: DemoStore, mode: DemoMode, step: string | null) {
   }
 }
 
+// Fallback for views without a screen yet — only the not-yet-built media views
+// (mediaCapture/audioRecording) reach this, and they're a deferred fast-follow (deferred.md §8).
 const placeholder = (view: string) => (
   <div style={{ minHeight: 786, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
-    The “{view}” screen lands in a later M4 phase.
+    The “{view}” screen is a fast-follow.
   </div>
 )
 

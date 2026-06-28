@@ -22,8 +22,9 @@ export interface OcrCaptureScreenProps {
 
 const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', width: 30, height: 30, ...pos })
 
-/** Full-screen OCR capture (launch-only). Real getUserMedia where available, with a "Use sample
- *  DVR clock" fallback that runs the same real clean+parse pipeline. */
+/** Full-screen OCR capture (launch-only). A live camera feed is a fast-follow (deferred media
+ *  screens); today the capture button and the "Use sample DVR clock" button both run the same real
+ *  clean+parse pipeline (cleanOcrText/parseTimestampFromText) over a sample DVR frame. */
 export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onRetake, onConfirm }: OcrCaptureScreenProps) {
   if (result) {
     return (
