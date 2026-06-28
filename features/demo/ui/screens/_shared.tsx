@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
+import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -164,26 +165,10 @@ export function SectionCard({ title, children }: { title: string; children: Reac
   )
 }
 
-/** A datetime-local field bound to a store 'YYYY-MM-DD HH:MM:SS' string. */
+/** Date+time field bound to a store 'YYYY-MM-DD HH:MM:SS' string — separate Date/Time
+ *  buttons (bottom-sheet calendar + HH:MM:SS wheel) matching the phone app. */
 export function DateTimeField({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
-      <input
-        type="datetime-local"
-        step="1"
-        value={value.replace(' ', 'T')}
-        onChange={(e) => {
-          let v = e.target.value.replace('T', ' ')
-          // datetime-local omits :SS when the seconds are zero — keep the canonical YYYY-MM-DD HH:MM:SS
-          if (v.length === 16) v += ':00'
-          onChange(v)
-        }}
-        aria-label={label}
-        style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 14, padding: '11px 12px', outline: 'none', colorScheme: 'dark' }}
-      />
-    </div>
-  )
+  return <DateTimeFieldImpl label={label} value={value} onChange={onChange} />
 }
 
 /** A labelled dropdown bound to a string value — the custom picker matching the phone app. */
