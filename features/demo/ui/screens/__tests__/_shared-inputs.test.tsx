@@ -70,7 +70,7 @@ describe('screen integration (smoke)', () => {
     render(
       <DvrInfoScreen
         dvr={dvr}
-        retention={{ totalRetention: 40, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 5, overwrittenDate: '2025-04-17', status: 'WARNING' }] }}
+        retention={{ totalRetention: 40, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 5, overwrittenDate: '2025-04-17' }] }}
         onChange={vi.fn()}
         onNext={vi.fn()}
         onBack={vi.fn()}

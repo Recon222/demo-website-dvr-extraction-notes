@@ -66,7 +66,6 @@ describe('buildRetentionView', () => {
       label: 'Scope 1',
       daysUntilOverwritten: 5,
       overwrittenDate: '2025-04-17',
-      status: 'WARNING',
     })
   })
   it('returns null total + no scopes when there is no first recorded date', () => {

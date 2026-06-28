@@ -20,6 +20,11 @@ function utcDay(p: { y: number; mo: number; d: number }): number {
   return Date.UTC(p.y, p.mo - 1, p.d)
 }
 
+/** Whole-day difference `a − b` (date portions only, UTC). */
+function dayDiff(a: { y: number; mo: number; d: number }, b: { y: number; mo: number; d: number }): number {
+  return Math.floor((utcDay(a) - utcDay(b)) / MS_PER_DAY)
+}
+
 function addDays(p: { y: number; mo: number; d: number }, days: number): DateParts {
   const dt = new Date(utcDay(p) + days * MS_PER_DAY)
   return { y: dt.getUTCFullYear(), mo: dt.getUTCMonth() + 1, d: dt.getUTCDate(), h: 0, mi: 0, s: 0 }
@@ -29,7 +34,7 @@ function addDays(p: { y: number; mo: number; d: number }, days: number): DatePar
 export function calculateTotalRetention(firstRecordedDate: string, now: () => Date): number | null {
   const fr = parsePartsLoose(firstRecordedDate)
   if (!fr) return null
-  const diff = Math.floor((utcDay(nowParts(now)) - utcDay(fr)) / MS_PER_DAY)
+  const diff = dayDiff(nowParts(now), fr)
   return diff < 0 ? null : diff
 }
 
@@ -37,7 +42,7 @@ export function calculateTotalRetention(firstRecordedDate: string, now: () => Da
 export function calculateDaysUntilOverwritten(scopeStart: string, totalRetention: number, now: () => Date): number {
   const s = parsePartsLoose(scopeStart)
   if (!s) return 0
-  const diff = Math.floor((utcDay(addDays(s, totalRetention)) - utcDay(nowParts(now))) / MS_PER_DAY)
+  const diff = dayDiff(addDays(s, totalRetention), nowParts(now))
   return diff > 0 ? diff : 0
 }
 
@@ -57,19 +62,33 @@ export function getRetentionStatus(daysUntilOverwritten: number): RetentionStatu
   return 'SAFE'
 }
 
+/** One scope's retention. `status` is intentionally NOT stored — derive it at the render site
+ *  via `getRetentionStatus(daysUntilOverwritten)` so the two can't drift. */
 export interface ScopeRetention {
   label: string
   daysUntilOverwritten: number
   overwrittenDate: string
-  status: RetentionStatus
 }
 
-export interface RetentionView {
-  totalRetention: number | null
-  scopes: ScopeRetention[]
+/** Display-ready retention. The union makes "no total ⇒ no scopes" unrepresentable otherwise. */
+export type RetentionView =
+  | { totalRetention: null; scopes: [] }
+  | { totalRetention: number; scopes: ScopeRetention[] }
+
+/** Parse a scope start ONCE and build its entry; null for an empty or malformed start. */
+function buildScopeEntry(scopeStart: string, totalRetention: number, index: number, today: DateParts): ScopeRetention | null {
+  const s = parsePartsLoose(scopeStart)
+  if (!s) return null
+  const overwrite = addDays(s, totalRetention)
+  const diff = dayDiff(overwrite, today)
+  return {
+    label: `Scope ${index + 1}`,
+    daysUntilOverwritten: diff > 0 ? diff : 0,
+    overwrittenDate: `${overwrite.y}-${pad2(overwrite.mo)}-${pad2(overwrite.d)}`,
+  }
 }
 
-/** Display-ready retention: total window + per-scope countdown (skips scopes with no start). */
+/** Display-ready retention from the location's scopes + first recorded date. */
 export function buildRetentionView(
   scopes: ReadonlyArray<{ startDateTime: string }>,
   firstRecordedDate: string,
@@ -77,16 +96,11 @@ export function buildRetentionView(
 ): RetentionView {
   const totalRetention = calculateTotalRetention(firstRecordedDate, now)
   if (totalRetention === null) return { totalRetention: null, scopes: [] }
+  const today = nowParts(now)
   const out: ScopeRetention[] = []
   scopes.forEach((sc, i) => {
-    if (!sc.startDateTime) return
-    const daysUntilOverwritten = calculateDaysUntilOverwritten(sc.startDateTime, totalRetention, now)
-    out.push({
-      label: `Scope ${i + 1}`,
-      daysUntilOverwritten,
-      overwrittenDate: calculateOverwrittenDate(sc.startDateTime, totalRetention),
-      status: getRetentionStatus(daysUntilOverwritten),
-    })
+    const entry = buildScopeEntry(sc.startDateTime, totalRetention, i, today)
+    if (entry) out.push(entry)
   })
   return { totalRetention, scopes: out }
 }

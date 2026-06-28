@@ -1,16 +1,17 @@
 'use client'
 
 import type { DvrInformation } from '@/features/demo/engine/types'
-import type { RetentionStatus, RetentionView } from '@/features/demo/engine/logic/retention'
+import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RESOLUTION_OPTIONS, FPS_OPTIONS } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 
+const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
 const STATUS: Record<RetentionStatus, { label: string; color: string; bg: string; border: string }> = {
   SAFE: { label: 'Safe', color: '#10d177', bg: 'rgba(16,209,119,0.12)', border: 'rgba(16,209,119,0.3)' },
   WARNING: { label: 'Warning', color: '#ffd93d', bg: 'rgba(255,217,61,0.12)', border: 'rgba(255,217,61,0.3)' },
-  CRITICAL: { label: 'Critical', color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' },
-  OVERWRITTEN: { label: 'Overwritten', color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' },
+  CRITICAL: { label: 'Critical', ...danger },
+  OVERWRITTEN: { label: 'Overwritten', ...danger },
 }
 
 export interface DvrInfoScreenProps {
@@ -61,7 +62,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#cdd9e6', marginBottom: 8 }}>Retention status by scope</div>
                   {retention.scopes.map((s) => {
-                    const st = STATUS[s.status]
+                    const st = STATUS[getRetentionStatus(s.daysUntilOverwritten)]
                     return (
                       <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(30,58,95,0.5)', background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
                         <div>
