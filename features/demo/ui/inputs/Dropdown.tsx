@@ -63,7 +63,8 @@ export function Dropdown({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={label || placeholder}
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
+        aria-expanded={open}
         style={{
           display: 'flex',
           alignItems: 'stretch',
@@ -99,11 +100,11 @@ export function Dropdown({
       {/* Bottom sheet (shared chrome with the date/time pickers) */}
       {open && (
         <PickerSheet title={label || 'Select an option'} onClose={() => setOpen(false)}>
-          <div role="listbox" aria-label={label || 'Select an option'}>
+          <div role="menu" aria-label={label || 'Select an option'}>
             {options.map((o) => {
               const selected = o === value
               return (
-                <button key={o} type="button" role="option" aria-selected={selected} onClick={() => select(o)} style={optionRow(o)}>
+                <button key={o} type="button" role="menuitemradio" aria-checked={selected} onClick={() => select(o)} style={optionRow(o)}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span
                       style={{

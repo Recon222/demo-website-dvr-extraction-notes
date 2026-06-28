@@ -14,19 +14,21 @@ describe('Dropdown selector', () => {
     render(<Dropdown value="24" onChange={vi.fn()} options={OPTIONS} />)
     expect(screen.getByText('24')).toBeInTheDocument()
   })
-  it('is closed by default (no listbox in the DOM)', () => {
-    render(<Dropdown value="" onChange={vi.fn()} options={OPTIONS} />)
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  it('is closed by default (no menu in the DOM) and reports aria-expanded=false', () => {
+    render(<Dropdown label="FPS" value="" onChange={vi.fn()} options={OPTIONS} />)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'FPS' })).toHaveAttribute('aria-expanded', 'false')
   })
 })
 
 describe('Dropdown open/select', () => {
-  it('opens the option list when the selector is clicked', async () => {
+  it('opens the menu when the selector is clicked and reports aria-expanded=true', async () => {
     const user = userEvent.setup()
     render(<Dropdown label="Recording FPS" value="" onChange={vi.fn()} options={OPTIONS} />)
     await user.click(screen.getByRole('button', { name: 'Recording FPS' }))
-    expect(screen.getByRole('listbox')).toBeInTheDocument()
-    expect(screen.getAllByRole('option')).toHaveLength(OPTIONS.length)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(OPTIONS.length)
+    expect(screen.getByRole('button', { name: 'Recording FPS' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('calls onChange with the option value and closes when an option is clicked', async () => {
@@ -34,17 +36,17 @@ describe('Dropdown open/select', () => {
     const user = userEvent.setup()
     render(<Dropdown label="Recording FPS" value="" onChange={onChange} options={OPTIONS} />)
     await user.click(screen.getByRole('button', { name: 'Recording FPS' }))
-    await user.click(screen.getByRole('option', { name: '15' }))
+    await user.click(screen.getByRole('menuitemradio', { name: '15' }))
     expect(onChange).toHaveBeenCalledWith('15')
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('marks the currently-selected option', async () => {
     const user = userEvent.setup()
     render(<Dropdown label="FPS" value="24" onChange={vi.fn()} options={OPTIONS} />)
     await user.click(screen.getByRole('button', { name: 'FPS' }))
-    expect(screen.getByRole('option', { name: '24' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('option', { name: '15' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('menuitemradio', { name: '24' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: '15' })).toHaveAttribute('aria-checked', 'false')
   })
 
   it('closes on Escape without calling onChange', async () => {
@@ -53,7 +55,7 @@ describe('Dropdown open/select', () => {
     render(<Dropdown label="FPS" value="" onChange={onChange} options={OPTIONS} />)
     await user.click(screen.getByRole('button', { name: 'FPS' }))
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
   })
 })
