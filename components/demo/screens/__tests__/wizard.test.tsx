@@ -43,6 +43,16 @@ describe('RequestedScopeScreen', () => {
     fireEvent.click(screen.getByText('+ Add Scope'))
     expect(onAdd).toHaveBeenCalledOnce()
   })
+
+  it('fires onRemove for the right index when more than one scope is present', () => {
+    const onRemove = vi.fn()
+    const scopes = [scope, { ...scope, id: 's2' }]
+    render(<RequestedScopeScreen scopes={scopes} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...nav} />)
+    const removes = screen.getAllByText('Remove')
+    expect(removes).toHaveLength(2)
+    fireEvent.click(removes[1])
+    expect(onRemove).toHaveBeenCalledWith(1)
+  })
 })
 
 describe('ArrivalDepartureScreen', () => {

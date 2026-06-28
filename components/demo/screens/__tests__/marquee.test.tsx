@@ -47,6 +47,19 @@ describe('TimeOffsetScreen', () => {
     rerender(<TimeOffsetScreen {...base} dvrDateTime="2025-03-08 12:05:30" actualDateTime="2025-03-08 12:00:00" />)
     expect(screen.getByText('Calculate')).toBeEnabled()
   })
+
+  it('renders the adjusted-time-ranges table for corrected scopes (the payoff)', () => {
+    const correctedScopes = [
+      { id: 'a', reqLabel: 'real time', reqStart: '2025-03-08 23:45:00', reqEnd: '2025-03-09 01:30:00', adjStart: '2025-03-08 23:50:30', adjEnd: '2025-03-09 01:35:30', cameras: '3, 4, 7' },
+      { id: 'b', reqLabel: 'real time', reqStart: '2025-03-10 10:00:00', reqEnd: '2025-03-10 11:00:00', adjStart: '2025-03-10 10:05:30', adjEnd: '2025-03-10 11:05:30', cameras: '1' },
+    ]
+    render(<TimeOffsetScreen {...base} result={{ diff: '00:05:30', direction: 'AHEAD OF', isCorrect: false }} correctedScopes={correctedScopes} />)
+    expect(screen.getByText('Adjusted Time Ranges')).toBeInTheDocument()
+    expect(screen.getByText('Scope 1')).toBeInTheDocument()
+    expect(screen.getByText('Scope 2')).toBeInTheDocument()
+    expect(screen.getByText('2025-03-08 23:50:30')).toBeInTheDocument()
+    expect(screen.getByText(/Cameras: 3, 4, 7/)).toBeInTheDocument()
+  })
 })
 
 describe('OcrCaptureScreen', () => {
