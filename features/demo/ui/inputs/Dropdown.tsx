@@ -77,7 +77,7 @@ export function Dropdown({
           padding: 0,
         }}
       >
-        <span style={{ flex: 1, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint }}>
+        <span style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {value || placeholder}
         </span>
         <span

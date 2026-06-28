@@ -2,9 +2,7 @@
 
 import type { DvrInformation } from '@/features/demo/engine/types'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-
-const RES = ['720p (1280×720)', '1080p (1920×1080)', '2K (2560×1440)', '4K (3840×2160)', 'Other']
-const FPS = ['10fps', '12fps', '15fps', '25fps', '30fps']
+import { RESOLUTION_OPTIONS, FPS_OPTIONS } from '@/features/demo/ui/screens/field-options'
 
 export interface DvrInfoScreenProps {
   dvr: DvrInformation
@@ -29,8 +27,8 @@ export function DvrInfoScreen({ dvr, onChange, onNext, onBack, onMenu }: DvrInfo
         <SectionCard title="Recording Configuration">
           <Field label="Channels" value={dvr.numberOfChannels} onChange={(v) => onChange('numberOfChannels', v)} placeholder="e.g., 16" />
           <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />
-          <SelectField label="Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} options={RES} />
-          <SelectField label="Recording FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} options={FPS} />
+          <SelectField label="Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} options={RESOLUTION_OPTIONS} />
+          <SelectField label="Recording FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} options={FPS_OPTIONS} />
           <Field label="Total DVR Retention" value={dvr.totalDvrRetention} onChange={(v) => onChange('totalDvrRetention', v)} placeholder="e.g., 30 days" />
         </SectionCard>
         <WizardNext label="Continue →" onClick={onNext} />
