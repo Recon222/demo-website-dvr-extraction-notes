@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
@@ -8,7 +8,7 @@ import { runBeat } from '@/features/demo/engine/director/runner'
 import { BEATS } from '@/features/demo/engine/director/beats'
 import { NARRATION } from '@/features/demo/engine/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
-import { mapAiToForm, SAMPLE_EXTRACTION } from '@/features/demo/engine/logic/import'
+import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult } from '@/features/demo/ui/import/run-import'
 import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { ChapterId, DemoMode } from '@/features/demo/engine/types'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -20,7 +20,7 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
-import { ImportModal, type ImportStage, type ImportResult } from '@/features/demo/ui/screens/ImportModal'
+import { ImportModal, type ImportStage, type ImportResult, type ImportWarningView } from '@/features/demo/ui/screens/ImportModal'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
@@ -59,19 +59,32 @@ const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly stri
 const blankCaseForm: NewCaseFields = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '' }
 
-const IMPORT_STAGES: ImportStage[] = [
-  { label: 'Reading the request', state: 'done' },
-  { label: 'Extracting fields with the model', state: 'done' },
-  { label: 'Mapping to the location form', state: 'done' },
-]
+const IMPORT_STAGE_ORDER: RunStageId[] = ['extracting_text', 'reading_model', 'normalizing', 'done']
+
+/** Build the progress checklist from the active pipeline stage (PDF adds the text-extract step). */
+function buildImportStages(active: RunStageId | null, isPdf: boolean): ImportStage[] {
+  const steps: { id: RunStageId; label: string }[] = [
+    ...(isPdf ? [{ id: 'extracting_text' as RunStageId, label: 'Extracting text from the PDF' }] : []),
+    { id: 'reading_model', label: 'Reading the request with the model' },
+    { id: 'normalizing', label: 'Mapping fields to the form' },
+  ]
+  const ai = active ? IMPORT_STAGE_ORDER.indexOf(active) : -1
+  return steps.map((s) => {
+    const si = IMPORT_STAGE_ORDER.indexOf(s.id)
+    return { label: s.label, state: si < ai ? 'done' : si === ai ? 'active' : 'pending' }
+  })
+}
 
 interface ImportState {
   stage: 'picker' | 'paste' | 'progress' | 'result'
   text: string
   result: ImportResult | null
   lastLocId: string | null
+  activeStage: RunStageId | null
+  isPdf: boolean
+  batch: { current: number; total: number } | null
 }
-const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null }
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, isPdf: false, batch: null }
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -178,6 +191,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [caseCompleted, setCaseCompleted] = useState(false)
@@ -295,31 +309,94 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (caseId) store.getState().addLocation(caseId, { ...locForm })
     store.getState().closeModal()
   }
-  const runImport = () => {
+  // Live in sandbox (calls /api/extract → Ollama); deterministic SAMPLE in guided/tests.
+  const importLive = () => currentMode === 'sandbox'
+  const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
+
+  const applyImportRun = (caseId: string, res: ImportRunResult): string | null => {
+    if (res.ok && res.patch) {
+      const id = store.getState().addLocation(caseId, { locationName: res.patch.businessName || res.filename || 'Imported location' })
+      store.getState().applyImport(res.patch)
+      return id
+    }
+    return null
+  }
+
+  interface ImportTally {
+    total: number
+    succeeded: number
+    lastLocId: string | null
+    degraded: boolean
+    warnings: ImportWarningView[]
+    failures: string[]
+    firstFieldCount: number
+    firstTimeFrames: number
+    firstName: string
+  }
+  const finishImport = (t: ImportTally) => {
+    if (t.succeeded === 0) {
+      setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result: { ok: false, error: t.failures.join('; ') || 'Import failed.' } }))
+      return
+    }
+    const result: ImportResult =
+      t.total > 1
+        ? { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: `${t.succeeded} location${t.succeeded > 1 ? 's' : ''}`, warnings: t.warnings, degraded: t.degraded, batch: { succeeded: t.succeeded, total: t.total } }
+        : { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: t.firstName, warnings: t.warnings, degraded: t.degraded }
+    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
+  }
+
+  const openFilePicker = () => fileInputRef.current?.click()
+
+  const onFilesPicked = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // allow re-picking the same file
+    if (files.length) await processPdfFiles(files)
+  }
+
+  const processPdfFiles = async (files: File[]) => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (!caseId) {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
-    const patch = mapAiToForm(SAMPLE_EXTRACTION)
-    const id = store.getState().addLocation(caseId, { locationName: patch.businessName || 'Imported location' })
-    store.getState().applyImport(patch)
-    const fieldCount = [
-      patch.requesterName,
-      patch.requesterBadgeNumber,
-      patch.businessName,
-      patch.streetAddress,
-      patch.city,
-      patch.requesterPhone,
-      patch.requesterEmail,
-      patch._import.dvrTypeBrand,
-    ].filter(Boolean).length
-    setImp((s) => ({
-      ...s,
-      stage: 'result',
-      result: { ok: true, fieldCount, timeFrames: patch._import.timeFrames.length, locName: patch.businessName || 'location' },
-      lastLocId: id,
-    }))
+    const live = importLive()
+    const total = files.length
+    const tally: ImportTally = { total, succeeded: 0, lastLocId: null, degraded: false, warnings: [], failures: [], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' }
+    for (let i = 0; i < total; i++) {
+      setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
+      const res = await runPdfImport(files[i], { live, onStage: onImportStage })
+      const locId = applyImportRun(caseId, res)
+      if (locId && res.patch) {
+        tally.succeeded++
+        tally.lastLocId = locId
+        tally.degraded = tally.degraded || res.degraded
+        tally.warnings.push(...res.warnings.map((w) => ({ field: w.field, reason: w.reason })))
+        if (tally.succeeded === 1) {
+          tally.firstFieldCount = res.fieldCount ?? 0
+          tally.firstTimeFrames = res.timeFrameCount ?? 0
+          tally.firstName = res.patch.businessName || res.filename || 'location'
+        }
+      } else {
+        tally.failures.push(`${res.filename ?? 'file'}: ${res.error ?? 'failed'}`)
+      }
+    }
+    finishImport(tally)
+  }
+
+  const runPasteImport = async () => {
+    const caseId = targetCaseId ?? store.getState().currentCaseId
+    if (!caseId) {
+      setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
+      return
+    }
+    setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
+    const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
+    const locId = applyImportRun(caseId, res)
+    if (locId && res.patch) {
+      finishImport({ total: 1, succeeded: 1, lastLocId: locId, degraded: res.degraded, warnings: res.warnings.map((w) => ({ field: w.field, reason: w.reason })), failures: [], firstFieldCount: res.fieldCount ?? 0, firstTimeFrames: res.timeFrameCount ?? 0, firstName: res.patch.businessName || 'location' })
+    } else {
+      finishImport({ total: 1, succeeded: 0, lastLocId: null, degraded: res.degraded, warnings: [], failures: [res.error ?? 'Import failed.'], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' })
+    }
   }
 
   // ---- time offset + OCR (the marquee) ----
@@ -582,25 +659,35 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} />
       case 'import':
         return (
-          <ImportModal
-            stage={imp.stage}
-            text={imp.text}
-            stages={IMPORT_STAGES}
-            result={imp.result}
-            // Intentionally identical for now — NOT de-duped: the deferred import rework makes them
-            // diverge (PDF → real file picker + pdf.js extraction; Paste → blank textarea).
-            onChoosePdf={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
-            onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: SAMPLE_REQUEST_DOC }))}
-            onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
-            onRun={runImport}
-            onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
-            onRetry={() => setImp((s) => ({ ...s, stage: 'picker', result: null }))}
-            onOpen={() => {
-              if (imp.lastLocId) openLocation(imp.lastLocId)
-              store.getState().closeModal()
-            }}
-            onCancel={() => store.getState().closeModal()}
-          />
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              multiple
+              style={{ display: 'none' }}
+              onChange={onFilesPicked}
+            />
+            <ImportModal
+              stage={imp.stage}
+              text={imp.text}
+              stages={buildImportStages(imp.activeStage, imp.isPdf)}
+              result={imp.result}
+              batch={imp.batch}
+              onPickPdf={openFilePicker}
+              // Sandbox: blank textarea (paste your own). Guided: seed the sample request.
+              onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: currentMode === 'sandbox' ? '' : SAMPLE_REQUEST_DOC }))}
+              onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
+              onRun={runPasteImport}
+              onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
+              onRetry={() => setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))}
+              onOpen={() => {
+                if (imp.lastLocId) openLocation(imp.lastLocId)
+                store.getState().closeModal()
+              }}
+              onCancel={() => store.getState().closeModal()}
+            />
+          </>
         )
       default:
         return null

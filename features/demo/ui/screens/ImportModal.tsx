@@ -7,8 +7,20 @@ export interface ImportStage {
   label: string
   state: 'done' | 'active' | 'pending'
 }
+export interface ImportWarningView {
+  field: string
+  reason: string
+}
 export type ImportResult =
-  | { ok: true; fieldCount: number; timeFrames: number; locName: string }
+  | {
+      ok: true
+      fieldCount: number
+      timeFrames: number
+      locName: string
+      warnings: ImportWarningView[]
+      degraded: boolean
+      batch?: { succeeded: number; total: number }
+    }
   | { ok: false; error: string }
 
 export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
@@ -18,7 +30,9 @@ export interface ImportModalProps {
   text: string
   stages: ImportStage[]
   result: ImportResult | null
-  onChoosePdf(): void
+  /** Current file index for a batch import (shown as "Importing 2 of 3…"). */
+  batch: { current: number; total: number } | null
+  onPickPdf(): void
   onChoosePaste(): void
   onTextChange(value: string): void
   onRun(): void
@@ -44,17 +58,17 @@ const card: CSSProperties = {
 }
 
 export function ImportModal(props: ImportModalProps) {
-  const { stage, text, stages, result } = props
+  const { stage, text, stages, result, batch } = props
   return (
     <ModalShell title="Import Recovery Request" onClose={props.onCancel}>
       {stage === 'picker' && (
         <>
-          <button type="button" onClick={props.onChoosePdf} style={{ ...card, border: card.border }}>
+          <button type="button" onClick={props.onPickPdf} style={{ ...card, border: card.border }}>
             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#5AB4E6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" />
             </svg>
             <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>Pick a PDF</div>
-            <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.45 }}>Choose a PDF request or email — parsed in your browser, then read by the model.</div>
+            <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.45 }}>Choose one or more PDF requests — parsed in your browser, then read by the model.</div>
           </button>
           <button type="button" onClick={props.onChoosePaste} style={card}>
             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#5AB4E6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -88,7 +102,10 @@ export function ImportModal(props: ImportModalProps) {
 
       {stage === 'progress' && (
         <>
-          <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: 22 }}>Running the extraction pipeline…</div>
+          <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: batch ? 10 : 22 }}>Running the extraction pipeline…</div>
+          {batch && batch.total > 1 && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#cfe6f5', marginBottom: 18 }}>Importing {batch.current} of {batch.total}…</div>
+          )}
           {stages.map((st, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
               {st.state === 'done' && (
@@ -113,12 +130,31 @@ export function ImportModal(props: ImportModalProps) {
               <div style={{ width: 64, height: 64, borderRadius: 32, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
               </div>
-              <div style={{ fontSize: 19, fontWeight: 700, color: '#f0f4f8' }}>Location created</div>
+              <div style={{ fontSize: 19, fontWeight: 700, color: '#f0f4f8' }}>{result.batch ? 'Import complete' : 'Location created'}</div>
               <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5 }}>
-                Extracted <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.fieldCount}</span> fields and{' '}
-                <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.timeFrames}</span> time range(s) into{' '}
-                <span style={{ color: '#cfe6f5' }}>{result.locName}</span>.
+                {result.batch ? (
+                  <>Created <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.batch.succeeded}</span> of {result.batch.total} requests.</>
+                ) : (
+                  <>Extracted <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.fieldCount}</span> fields and{' '}
+                  <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.timeFrames}</span> time range(s) into{' '}
+                  <span style={{ color: '#cfe6f5' }}>{result.locName}</span>.</>
+                )}
               </div>
+              {result.degraded && (
+                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px' }}>
+                  Live model unavailable — imported the sample request instead.
+                </div>
+              )}
+              {result.warnings.length > 0 && (
+                <details style={{ width: '100%', textAlign: 'left' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, color: '#9fc0db' }}>{result.warnings.length} automatic adjustment{result.warnings.length > 1 ? 's' : ''}</summary>
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12.5, color: '#9fc0db', lineHeight: 1.5 }}>
+                    {result.warnings.map((w, i) => (
+                      <li key={i}>{w.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               <button type="button" onClick={props.onOpen} style={{ marginTop: 6, padding: '13px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Open location</button>
             </>
           ) : (

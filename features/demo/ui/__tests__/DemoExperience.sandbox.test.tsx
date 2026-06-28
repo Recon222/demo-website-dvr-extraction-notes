@@ -9,13 +9,34 @@ const { searchParams } = vi.hoisted(() => ({
 }))
 vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
 
+// The import orchestrator (pdf.js + the model proxy) is mocked — no network, no real PDF.
+vi.mock('@/features/demo/ui/import/run-import', () => ({ runImport: vi.fn(), runPdfImport: vi.fn() }))
+
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
+import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
+
+const runText = vi.mocked(runTextImport)
+const runPdf = vi.mocked(runPdfImport)
+
+const okRun = (over: Partial<ImportRunResult> = {}): ImportRunResult => ({
+  ok: true,
+  patch: { requesterName: '', requesterBadgeNumber: '', requesterPhone: '', requesterEmail: '', businessName: "Kim's Convenience", streetAddress: '', city: '', locationContact: '', locationPhone: '', _import: { offenceType: '', dvrTypeBrand: 'Hikvision', totalDvrRetention: '', hasVideoMonitor: '', dvrUsername: '', dvrPassword: '', timeFrames: [] } },
+  warnings: [],
+  fieldCount: 2,
+  timeFrameCount: 0,
+  usedFallback: false,
+  degraded: false,
+  filename: 'request.pdf',
+  ...over,
+})
 
 type Store = ReturnType<typeof createDemoStore>
 
 beforeEach(() => {
   searchParams.get.mockReset()
   searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
+  runText.mockReset()
+  runPdf.mockReset()
 })
 
 function setupLocation(store: Store) {
@@ -46,19 +67,85 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(screen.getByText('00:05:30')).toBeInTheDocument()
   })
 
-  it('import: paste → Extract & import creates a location and reports the result', () => {
+  it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {
+    runText.mockResolvedValue(okRun({ filename: undefined }))
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
       store.getState().createCase({ caseNumber: 'PR25-IMP', displayName: 'Import Case', unit: 'Robbery' })
       store.getState().openModal('import')
     })
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage from Store X' } })
+    fireEvent.click(screen.getByText('Extract & import'))
 
+    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(store.getState().locations.length).toBeGreaterThan(0)
+    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true, documentText: 'recover footage from Store X' }))
+  })
+
+  it('import (PDF): a file selection runs the pipeline and creates a location', async () => {
+    runPdf.mockResolvedValue(okRun())
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-PDF', displayName: 'PDF Case', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
+
+    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(store.getState().locations.length).toBe(1)
+    expect(runPdf).toHaveBeenCalledTimes(1)
+  })
+
+  it('import (PDF batch): two files create two locations + a batch summary', async () => {
+    runPdf.mockResolvedValue(okRun())
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-BAT', displayName: 'Batch Case', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    const files = [new File(['a'], 'a.pdf', { type: 'application/pdf' }), new File(['b'], 'b.pdf', { type: 'application/pdf' })]
+    fireEvent.change(input, { target: { files } })
+
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(store.getState().locations.length).toBe(2)
+    expect(runPdf).toHaveBeenCalledTimes(2)
+  })
+
+  it('import (PDF) failure: no location created, error shown', async () => {
+    runPdf.mockResolvedValue({ ok: false, warnings: [], usedFallback: false, degraded: false, error: 'This PDF looks scanned.', filename: 'scan.pdf' })
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-FAIL', displayName: 'Fail Case', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'scan.pdf', { type: 'application/pdf' })] } })
+
+    expect(await screen.findByText(/This PDF looks scanned/)).toBeInTheDocument()
+    expect(store.getState().locations.length).toBe(0)
+  })
+
+  it('guided mode imports deterministically (live=false)', async () => {
+    searchParams.get.mockImplementation(() => null) // guided (no ?mode)
+    runText.mockResolvedValue(okRun({ usedFallback: true }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-G', displayName: 'Guided', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
     fireEvent.click(screen.getByText('Paste text'))
     fireEvent.click(screen.getByText('Extract & import'))
 
-    expect(screen.getByText('Location created')).toBeInTheDocument()
-    expect(store.getState().locations.length).toBeGreaterThan(0)
+    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
   })
 
   it('completion: Preview / Export PDF mounts the real generated court document', () => {
