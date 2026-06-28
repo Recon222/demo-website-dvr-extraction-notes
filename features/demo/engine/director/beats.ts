@@ -81,6 +81,9 @@ export const BEATS: Partial<Record<ChapterId | LaunchableId, Beat>> = {
     chapter: 'dvrInfo',
     steps: [
       { kind: 'type', field: 'form.dvr.dvrTypeBrand', value: 'Hikvision DS-7608' },
+      // Earliest recorded date → retention derives ~42-day window vs the fixed guided "today"
+      // (2025-04-12); the seed scope (2025-03-08) then shows a 7-day overwrite countdown.
+      { kind: 'field', field: 'form.dvr.firstRecordedDate', value: '2025-03-01 00:00:00' },
     ],
   },
 

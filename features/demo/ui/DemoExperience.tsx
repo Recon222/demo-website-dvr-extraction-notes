@@ -48,6 +48,12 @@ import '@/features/demo/ui/demo.css'
 // Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
 let pulseSeq = 0
 
+// Retention "today": guided mode reads a fixed scenario date so the showcased numbers stay
+// sensible against the demo's dated seed data (the guided flow itself is a deferred overhaul —
+// see deferred.md); sandbox uses the real clock. Explicit-arg Date is deterministic.
+const realNow = () => new Date()
+const GUIDED_NOW = () => new Date(2025, 3, 12)
+
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
 const blankCaseForm: NewCaseFields = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }
@@ -223,20 +229,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
-  // recorded date + scopes, and mirror the total back into totalDvrRetention for the PDF.
-  // The clock is read in this effect (never at render) — consistent with the demo's rule.
+  // recorded date + scopes. Clock is read here (never at render): fixed in guided mode,
+  // real in sandbox. The persisted totalDvrRetention (the PDF's source) is kept in sync —
+  // written only while firstRecordedDate drives it, and cleared on a set→empty transition,
+  // so an import-provided value (which leaves firstRecordedDate empty) is never clobbered.
+  const prevFirstRecorded = useRef('')
   useEffect(() => {
-    const view = buildRetentionView(
-      currentLocation?.form.scopes ?? [],
-      currentLocation?.form.dvr.firstRecordedDate ?? '',
-      () => new Date(),
-    )
+    const fr = currentLocation?.form.dvr.firstRecordedDate ?? ''
+    const now = currentMode === 'guided' ? GUIDED_NOW : realNow
+    const view = buildRetentionView(currentLocation?.form.scopes ?? [], fr, now)
     setRetentionView(view)
-    const str = view.totalRetention != null ? `${view.totalRetention} days` : ''
-    if (str && currentLocation && str !== currentLocation.form.dvr.totalDvrRetention) {
-      store.getState().updateField('form.dvr.totalDvrRetention', str)
+    if (currentLocation) {
+      if (fr) {
+        const str = view.totalRetention != null ? `${view.totalRetention} days` : ''
+        if (str !== currentLocation.form.dvr.totalDvrRetention) {
+          store.getState().updateField('form.dvr.totalDvrRetention', str)
+        }
+      } else if (prevFirstRecorded.current && currentLocation.form.dvr.totalDvrRetention) {
+        store.getState().updateField('form.dvr.totalDvrRetention', '')
+      }
     }
-  }, [store, currentLocation])
+    prevFirstRecorded.current = fr
+  }, [store, currentMode, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
   const formList = <T extends { id: string }>(list: T[], path: string) =>
