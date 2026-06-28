@@ -2,9 +2,52 @@ import type { DemoState } from '@/lib/demo/store/create-store'
 import type { DemoCase, DemoLocation, DrawerDef, WizardScreenId } from '@/lib/demo/types'
 import { getProfile } from '@/lib/demo/content/profiles'
 import { DRAWER_DEFS } from '@/lib/demo/content/screens'
+import { calculateCorrectedTimeRange } from '@/lib/demo/logic/time'
 import type { CaseNotesData } from '@/lib/demo/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
+
+export interface AdjustedScopeRow {
+  id: string
+  reqLabel: string
+  reqStart: string
+  reqEnd: string
+  adjStart: string
+  adjEnd: string
+  cameras: string
+}
+
+/**
+ * Requested scopes with their EXACT corrected (adjusted) times — `calculateCorrectedTimeRange`,
+ * NO rounding. The Time-Offset screen shows these (the actual difference calculation); the
+ * Extracted-Scope screen rounds them to 5-minute boundaries separately (`generateExtractedScopes`).
+ * A scope whose requested time isn't canonical yet leaves its adjusted fields blank.
+ */
+export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
+  const loc = selectCurrentLocation(s)
+  const off = loc?.form.timeOffset
+  if (!loc || !off) return []
+  return loc.form.scopes.map((sc) => {
+    let adjStart = ''
+    let adjEnd = ''
+    try {
+      const cr = calculateCorrectedTimeRange({ startDateTime: sc.startDateTime, endDateTime: sc.endDateTime }, off, sc.isActualTime)
+      adjStart = cr.startDateTime
+      adjEnd = cr.endDateTime
+    } catch {
+      // non-canonical requested time — adjusted stays blank (the extracted screen surfaces it)
+    }
+    return {
+      id: sc.id,
+      reqLabel: sc.isActualTime ? 'real time' : 'DVR time',
+      reqStart: sc.startDateTime,
+      reqEnd: sc.endDateTime,
+      adjStart,
+      adjEnd,
+      cameras: sc.cameras,
+    }
+  })
+}
 
 export function selectCurrentCase(s: DemoState): DemoCase | null {
   return s.cases.find((c) => c.id === s.currentCaseId) ?? null
@@ -33,6 +76,9 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
   const caseObj = selectCurrentCase(s)
   const form = loc?.form
   const off = form?.timeOffset ?? null
+  // "Adjusted Scope (Calculated Times)" is the EXACT corrected time (matches the app's PDF) — not
+  // the rounded extracted scope. Rounding is the extracted-scope screen's job, not the document's.
+  const adjusted = selectAdjustedScopes(s)
   return {
     occNumber: caseObj?.caseNumber,
     address: loc ? [loc.businessName, loc.streetAddress, loc.city].filter(Boolean).join(', ') : '',
@@ -49,8 +95,8 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
       isActualTime: sc.isActualTime,
       cameras: sc.cameras,
     })),
-    adjustedScopes: form?.extractedScopes.map((sc) => ({ start: sc.startDateTime, end: sc.endDateTime })),
-    adjustedScopesPartial: form?.extractedScopesPartial ?? false,
+    adjustedScopes: adjusted.filter((r) => r.adjStart && r.adjEnd).map((r) => ({ start: r.adjStart, end: r.adjEnd })),
+    adjustedScopesPartial: adjusted.some((r) => !r.adjStart || !r.adjEnd),
     timeOffset: off
       ? { isCorrect: off.isCorrect, formattedDifference: off.formattedDifference, direction: off.direction }
       : null,

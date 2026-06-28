@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { createDemoStore } from '@/lib/demo/store/create-store'
 
@@ -115,5 +115,32 @@ describe('DemoExperience — sandbox bridge paths', () => {
 
     expect(store.getState().locations.some((l) => l.locationName === 'Rear Door')).toBe(true)
     expect(store.getState().modal).toBeNull()
+  })
+})
+
+describe('DemoExperience — Use Current Time (device sync)', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('stamps only the real time + records the sync, leaving the DVR time untouched', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => {
+      store.getState().setView('timeOffset')
+      store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:06:00')
+    })
+
+    fireEvent.click(screen.getByText('Use Current Time'))
+    act(() => {
+      vi.advanceTimersByTime(1200)
+    })
+
+    const cap = store.getState().capture
+    expect(cap.dvrDateTime).toBe('2025-03-08 12:06:00') // untouched — the dual-write bug fix
+    expect(cap.actualDateTime).not.toBe('')
+    expect(cap.actualDateTime).not.toBe('2025-03-08 12:06:00') // not copied from the DVR field
+    expect(cap.sync?.method).toBe('NTP')
+    expect(cap.sync?.server).toBe('time.nrc.ca')
   })
 })

@@ -172,7 +172,12 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
         type="datetime-local"
         step="1"
         value={value.replace(' ', 'T')}
-        onChange={(e) => onChange(e.target.value.replace('T', ' '))}
+        onChange={(e) => {
+          let v = e.target.value.replace('T', ' ')
+          // datetime-local omits :SS when the seconds are zero — keep the canonical YYYY-MM-DD HH:MM:SS
+          if (v.length === 16) v += ':00'
+          onChange(v)
+        }}
         aria-label={label}
         style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 14, padding: '11px 12px', outline: 'none', colorScheme: 'dark' }}
       />

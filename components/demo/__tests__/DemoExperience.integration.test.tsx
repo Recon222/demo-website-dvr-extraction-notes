@@ -31,6 +31,7 @@ describe('DemoExperience — director integration (un-mocked runBeat)', () => {
     const s = store.getState()
     const loc = s.locations.find((l) => l.id === s.currentLocationId)
     expect(loc?.form.timeOffset?.formattedDifference).toBeTruthy() // the marquee payoff ran
+    expect(s.capture.sync?.method).toBe('NTP') // the scripted atomic-clock sync drives the card
     expect(s.currentChapter).toBe('timeOffset')
     expect(s.view).toBe('timeOffset') // settled (closeLaunch → currentChapter), not stuck on 'ocr'
   })
