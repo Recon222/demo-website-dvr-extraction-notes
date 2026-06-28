@@ -55,6 +55,12 @@ describe('Calendar grid', () => {
     setup()
     expect(screen.getByText('March 2025')).toBeInTheDocument()
   })
+
+  it('renders the correct number of leading blank cells for the month-start weekday', () => {
+    // April 1 2025 is a Tuesday (getDay 2) → 2 leading blanks before day 1.
+    const { container } = setup({ viewYear: 2025, viewMonth: 4, selected: null })
+    expect(container.querySelectorAll('[data-blank]')).toHaveLength(2)
+  })
 })
 
 describe('Calendar navigation & selection', () => {

@@ -70,7 +70,7 @@ export function Calendar({ viewYear, viewMonth, selected, today, onPrevMonth, on
       {/* Day grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', rowGap: 3 }}>
         {leading.map((_, i) => (
-          <div key={`b${i}`} />
+          <div key={`b${i}`} data-blank />
         ))}
         {days.map((d) => {
           const sel = isSelected(d)

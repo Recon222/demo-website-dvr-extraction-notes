@@ -58,4 +58,15 @@ describe('PickerSheet', () => {
     await user.click(screen.getByText('inside'))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <PickerSheet title="x" onClose={onClose}>
+        <div />
+      </PickerSheet>,
+    )
+    fireEvent.click(container.querySelector('[data-sheet-scrim]')!)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

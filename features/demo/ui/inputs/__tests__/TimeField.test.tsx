@@ -58,4 +58,16 @@ describe('TimeField interaction', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('re-seeds the wheel from the stored value after a cancelled edit', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<TimeField value="2025-03-08 10:20:30" onChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Set time' }))
+    const hCol = () => container.querySelector('[data-wheel-col="h"]') as HTMLElement
+    hCol().scrollTop = 23 * ROW
+    fireEvent.scroll(hCol())
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Set time' }))
+    expect(hCol().scrollTop).toBe(10 * ROW) // stored 10, not the discarded 23
+  })
 })

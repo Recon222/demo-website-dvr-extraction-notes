@@ -52,4 +52,20 @@ describe('DateField interaction', () => {
     await user.click(screen.getByRole('button', { name: 'Previous month' }))
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('wraps to the previous year when paging back from January', async () => {
+    const user = userEvent.setup()
+    render(<DateField value="2025-01-15 10:00:00" onChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Set date' }))
+    await user.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(screen.getByText('December 2024')).toBeInTheDocument()
+  })
+
+  it('wraps to the next year when paging forward from December', async () => {
+    const user = userEvent.setup()
+    render(<DateField value="2025-12-10 10:00:00" onChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Set date' }))
+    await user.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(screen.getByText('January 2026')).toBeInTheDocument()
+  })
 })

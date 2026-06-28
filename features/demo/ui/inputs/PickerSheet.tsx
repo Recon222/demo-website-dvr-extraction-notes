@@ -35,6 +35,7 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
   const content = (
     <>
       <div
+        data-sheet-scrim
         onClick={onClose}
         style={{ position: 'absolute', inset: 0, zIndex: 31, background: T.scrim, pointerEvents: 'auto' }}
       />
