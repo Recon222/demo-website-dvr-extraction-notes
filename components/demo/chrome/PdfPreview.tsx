@@ -19,7 +19,9 @@ export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
         </button>
       </div>
       <div style={{ flex: 1, overflow: 'hidden', padding: 14, background: '#3a3f47' }}>
-        <iframe title={title} srcDoc={html} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 3, background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />
+        {/* sandbox="" = maximally restrictive (no scripts/forms/popups); the generated PDF HTML is
+            static and the Save button is a stub, so no iframe capability is needed. */}
+        <iframe title={title} srcDoc={html} sandbox="" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 3, background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />
       </div>
       <div style={{ padding: '14px 18px 24px', borderTop: '1px solid #2a3340', display: 'flex', gap: 10 }}>
         <button type="button" onClick={onClose} style={{ padding: '14px 20px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>

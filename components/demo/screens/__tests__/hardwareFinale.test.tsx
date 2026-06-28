@@ -77,4 +77,9 @@ describe('PdfPreview', () => {
     fireEvent.click(screen.getByText('Close'))
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('sandboxes the preview iframe (defense-in-depth)', () => {
+    render(<PdfPreview title="Doc" html="<!DOCTYPE html><html><body><p>x</p></body></html>" onClose={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.getByTitle('Doc')).toHaveAttribute('sandbox', '')
+  })
 })
