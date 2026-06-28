@@ -20,9 +20,10 @@ export function storyRailProps(o: Partial<StoryRailProps> = {}): StoryRailProps 
     narration: makeNarration(),
     mode: 'guided',
     dots: [
-      { id: 'splash', label: 'Splash', active: true },
-      { id: 'dashboard', label: 'Dashboard', active: false },
+      { id: 'splash', label: 'Splash' },
+      { id: 'dashboard', label: 'Dashboard' },
     ],
+    activeDot: 'splash',
     stepCaption: 'Step 1 of 13',
     canPrev: false,
     nextLabel: 'Start the tour',

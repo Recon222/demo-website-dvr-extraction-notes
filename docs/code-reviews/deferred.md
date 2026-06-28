@@ -148,17 +148,52 @@ once the UI is built (M3+) to confirm 1:1 parity with the phone app. Add entries
 
 ---
 
-## 7. Milestone-3 review deferrals — type-tightening & drawer a11y (→ M4)
+## 7. Milestone-3 review deferrals — type-tightening & drawer a11y
 
-**Source:** PR #11 review (type-design + code-reviewer Advisory). Deferred to the M4 pass that
-wires the screens + drawer triggers.
+**Source:** PR #11 review (type-design + code-reviewer Advisory).
 
-- **`RailDot.active` → `activeDot` invariant.** StoryRail takes `dots: { id; label; active }[]`,
-  which can represent "zero or many active". Replace with `dots: { id; label }[]` + a single
-  `activeDot: ChapterId` so "exactly one active" is structural. Touches the StoryRail props API +
-  DemoExperience + the StoryRail test — fold in with the M4 screen prop-typing pass.
-- **`WizardDrawer` dialog a11y.** `role="dialog"` is present but there's no Escape-to-close, focus
-  trap, or focus return. Deferred infra to land when M4 wires the hamburger trigger (the drawer is
-  not openable in M3).
+- **`RailDot.active` → `activeDot` invariant.** ✅ **Done (PR #12 fixes).** StoryRail now takes
+  `dots: { id; label }[]` + a single `activeDot: ChapterId`, so "exactly one active" is structural
+  rather than a per-dot bool that could represent zero/many active.
+- **`WizardDrawer` / `ModalShell` dialog a11y.** ✅ **Partially done (PR #12 fixes):** both now carry
+  `aria-modal="true"` + Escape-to-close. **Still deferred:** a full focus trap + focus return
+  (Tab-cycling confined to the open dialog, focus restored to the trigger on close).
 
-**Trigger:** Milestone 4 (screen prop-typing + drawer trigger wiring).
+**Trigger (remaining focus-trap):** a broader keyboard-nav/a11y pass, or before beta.
+
+---
+
+## 8. Milestone-4 deferrals — media-capture screens (fast-follow)
+
+**Source:** M4 build scoping. The full wizard + completion flow (splash → … → completion → real
+court PDF) is complete and plays end-to-end; the camera/mic media screens are a self-contained
+fast-follow that hangs off the drawer's media accordion (the M3-deferred drawer infra).
+
+- **MediaCaptureScreen** (real webcam photo/video + sample fallback), **AudioRecordingScreen**
+  (real mic + simulated waveform fallback), **MediaLibraryModal** (captured-media gallery). Real
+  getUserMedia/MediaRecorder with sample fallbacks per the architecture; tested via the
+  sample-fallback path (mediaDevices undefined in jsdom).
+- **Drawer "Media" accordion** that opens the three screens (+ the M3-deferred Escape/focus-trap).
+- **CamerasScreen per-camera GPS lock** (simulated `onCaptureGps`).
+- **`app/demo/page.tsx`** is a minimal route brought forward from M5 so the demo is viewable
+  in-browser during dev. The full M5 (immersive chrome-free layout, Header/FeatureNav relocation,
+  homepage/feature CTAs) is still its own milestone.
+
+**Trigger:** fast-follow after M4 merges (before M5 wires the CTAs).
+
+---
+
+## 9. Milestone-4 fixes-delta residuals (Advisory)
+
+**Source:** PR #12 fixes-delta review (APPROVE). Two Advisory items deliberately parked.
+
+- **`ImportState` discriminated union.** `ImportState` is flat (`{ stage; text; result: ImportResult |
+  null; lastLocId }`), so `{ stage: 'result', result: null }` is representable and the modal consumer
+  keeps a `stage === 'result' && result` double-guard. Discriminating it over `stage` would ripple
+  through five spread-based `setImp({ ...s, … })` updates — and the import flow itself is being
+  reworked for the §6 import→picker parity (which restructures `ImportState` anyway). Deferring avoids
+  churn the rework would undo. **Trigger:** the §6 import→staging rework.
+- **No single end-to-end "guided tour → PDF" test.** The marquee / import / PDF paths are covered by
+  the sandbox bridge tests + the un-mocked director integration test (adequate regression protection
+  per the review), but no one test walks all 13 chapters through to the exported PDF. **Trigger:** when
+  the guided beats are enriched (the user-testing #5 rework), add the full-tour e2e against the new script.

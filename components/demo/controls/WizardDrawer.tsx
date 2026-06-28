@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { WizardScreenId } from '@/lib/demo/types'
 
@@ -22,12 +23,21 @@ export interface WizardDrawerProps {
 /** The slide-in wizard navigation drawer (overlay + panel + screen list). Lifted from the
  *  prototype; the media accordion lands with the media screens in M4. */
 export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }: WizardDrawerProps) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
   if (!open) return null
   return (
     <>
       <div data-drawer-backdrop onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)' }} />
       <div
         role="dialog"
+        aria-modal="true"
         aria-label="Navigation"
         style={{
           position: 'absolute',

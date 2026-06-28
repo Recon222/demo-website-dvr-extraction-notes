@@ -9,13 +9,14 @@ const mono = "'JetBrains Mono',monospace"
 export interface RailDot {
   id: ChapterId
   label: string
-  active: boolean
 }
 
 export interface StoryRailProps {
   narration: ChapterNarration
   mode: DemoMode
   dots: RailDot[]
+  /** The single active chapter — "exactly one active" is structural, not a per-dot bool. */
+  activeDot: ChapterId
   stepCaption: string
   canPrev: boolean
   nextLabel: string
@@ -51,6 +52,7 @@ export function StoryRail({
   narration,
   mode,
   dots,
+  activeDot,
   stepCaption,
   canPrev,
   nextLabel,
@@ -91,7 +93,7 @@ export function StoryRail({
       {/* progress dots */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, flexWrap: 'wrap' }}>
         {dots.map((d) =>
-          d.active ? (
+          d.id === activeDot ? (
             <div
               key={d.id}
               title={d.label}
