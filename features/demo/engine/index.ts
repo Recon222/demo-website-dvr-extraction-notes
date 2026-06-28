@@ -1,9 +1,9 @@
 /**
- * Public API of the interactive-demo engine.
+ * Public API of the interactive-demo engine — the pure state/logic core: domain types,
+ * content registries, the time/OCR/import/PDF logic, the Zustand store + selectors, and the
+ * director. Consumed by the demo UI in features/demo/ui.
  *
  * External code imports from '@/features/demo/engine'; internal modules use their aliased paths.
- * Milestone 1 shipped the pure logic core (types · content registries · time/OCR/import/PDF
- * logic); Milestone 2 adds the store, selectors, and director. The UI (M3+) consumes this.
  */
 
 // ---- Domain types ----

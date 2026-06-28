@@ -5,7 +5,7 @@ import type { Beat } from '@/features/demo/engine/director/types'
  * Per-chapter choreography for the guided tour. Keyed by chapter (and the OCR launch
  * screen). Values are the literal demo data the director types/sets — this is where "what
  * the tour types" lives. Screens that are pure narration (no store interaction) can omit a
- * beat. Expanded as the screens land in M3+.
+ * beat.
  */
 export const BEATS: Partial<Record<ChapterId | LaunchableId, Beat>> = {
   splash: {

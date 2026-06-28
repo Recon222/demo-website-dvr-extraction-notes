@@ -3,8 +3,8 @@ import * as demo from '@/features/demo/engine'
 
 // The barrel is the engine's public surface; this pins that the engine API is reachable
 // from a single import (what the store, director, and UI consume).
-describe('lib/demo barrel', () => {
-  it('exposes the Milestone 2 store + director', () => {
+describe('features/demo/engine barrel', () => {
+  it('exposes the store + director', () => {
     expect(typeof demo.createDemoStore).toBe('function')
     expect(typeof demo.runBeat).toBe('function')
     expect(typeof demo.selectCaseNotesData).toBe('function')
