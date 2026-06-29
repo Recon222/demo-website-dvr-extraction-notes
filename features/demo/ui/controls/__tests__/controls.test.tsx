@@ -17,7 +17,7 @@ describe('TabBar', () => {
 describe('WizardDrawer', () => {
   const items: DrawerItem[] = [
     { id: 'submission', label: 'Submission', active: true },
-    { id: 'timeOffset', label: 'Time Offset', active: false, status: 'complete' },
+    { id: 'timeOffset', label: 'Time Offset', active: false },
   ]
 
   it('renders nothing when closed', () => {
