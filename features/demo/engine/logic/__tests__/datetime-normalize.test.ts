@@ -70,3 +70,15 @@ describe('normalizeDateTime — invalid / unparseable / empty / future', () => {
     expect(r.warning).toMatch(/in the future/i)
   })
 })
+
+describe('normalizeDateTime — additional coverage (L4)', () => {
+  it('month-name format with seconds', () => {
+    expect(normalizeDateTime('Jan 27, 2026 at 16:00:30', NOW).normalized).toBe('2026-01-27 16:00:30')
+  })
+  it('unambiguous MDY when the first component is > 12 (day-first)', () => {
+    expect(normalizeDateTime('25/03/2025 10:00', NOW).normalized).toBe('2025-03-25 10:00')
+  })
+  it('flags an ISO value with an invalid time', () => {
+    expect(normalizeDateTime('2026-01-04 25:00', NOW).warning).toMatch(/Invalid date\/time/i)
+  })
+})
