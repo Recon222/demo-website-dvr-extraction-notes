@@ -141,17 +141,17 @@ export function ImportModal(props: ImportModalProps) {
       )}
 
       {stage === 'result' && result && (
-        <div role="status" aria-live="polite" style={{ paddingTop: 4 }}>
+        <div style={{ paddingTop: 4 }}>
           {!result.ok ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, paddingTop: 16 }}>
               <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-              <div style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
+              <div role="status" aria-live="polite" style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
               {result.failures && result.failures.length > 0 && <div style={{ width: '100%' }}><FailuresCard failures={result.failures} /></div>}
               <button type="button" onClick={props.onRetry} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
             </div>
           ) : result.locations.length === 1 && result.failures.length === 0 ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 19, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                 </div>
@@ -168,9 +168,11 @@ export function ImportModal(props: ImportModalProps) {
             </>
           ) : (
             <>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', marginBottom: 4 }}>Import complete</div>
-              <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: 14 }}>
-                Imported {result.locations.length} of {result.locations.length + result.failures.length} requests.
+              <div role="status" aria-live="polite">
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', marginBottom: 4 }}>Import complete</div>
+                <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: 14 }}>
+                  Imported {result.locations.length} of {result.locations.length + result.failures.length} requests.
+                </div>
               </div>
               {result.notice && (
                 <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
