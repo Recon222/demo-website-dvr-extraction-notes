@@ -85,4 +85,10 @@ describe('disambiguateHallucinatedYear', () => {
     expect(r.chosenYear).toBe(2026)
     expect(r.reason).toBe('ai_year_implausibly_old')
   })
+  it('cold-case guard fires via sourceContainsFullDate on a numeric-only source (Gap5)', () => {
+    // No prose month/day fragment for findYearTokenNear to anchor on — sourceContainsFullDate is the sole trigger.
+    const r = disambiguateHallucinatedYear('2024-02-05T13:00', 'seized 2024-02-05 footage', NOW)
+    expect(r.reason).toBe('ai_year_plausible')
+    expect(r.chosenDate).toBe('2024-02-05T13:00')
+  })
 })
