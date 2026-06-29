@@ -9,6 +9,7 @@
  */
 
 import { SAMPLE_EXTRACTION, type MappedImport } from '@/features/demo/engine/logic/import'
+import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 import { parseNormalizeMap, type ImportWarning } from '@/features/demo/engine/logic/import-normalize'
 import { requestExtraction } from '@/features/demo/ui/import/extract-client'
 import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pdf-extract'
@@ -56,8 +57,13 @@ export async function runImport(input: {
   }
 
   onStage?.('normalizing')
+  // The year cold-case guard needs the document the reply came from: the live document for a
+  // real reply, or the sample email for the SAMPLE fallback. currentTimeMs is read here (event
+  // scope) for the proximity disambiguation; tests of the pure pipeline inject a fixed value.
+  const currentTimeMs = Date.now()
+  const sourceText = fallbackMode === 'none' ? documentText : SAMPLE_REQUEST_DOC
   try {
-    const { patch, warnings, fieldCount, timeFrameCount } = parseNormalizeMap(rawText)
+    const { patch, warnings, fieldCount, timeFrameCount } = parseNormalizeMap(rawText, { currentTimeMs, sourceText })
     // Live reply that parsed but yielded nothing usable → don't create a blank location.
     if (fallbackMode === 'none' && fieldCount === 0 && timeFrameCount === 0) {
       onStage?.('error')

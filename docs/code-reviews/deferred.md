@@ -261,3 +261,57 @@ mean re-doing it; piecemeal beat tweaks now are counter-productive.
 
 **Trigger:** Once the demo is at parity in sandbox — design the guided flow as a single, realistic
 start-to-finish walkthrough (and revisit the `GUIDED_NOW` stopgap + seed dates as part of it).
+
+---
+
+## 13. Date-module type-honesty (verbatim-port footguns)
+
+**Source:** PR #16 review (type-design L2/L3).
+
+**What:** Two representable-but-unused states in the ported date modules:
+- `DateTimeNormalizationResult.normalized` carries three meanings behind an untagged `string`
+  (canonical / original-passthrough / `''`-blanked); the `''` case is undocumented.
+- `YearDisambiguationResult.chosenYear` uses `0` as a magic sentinel for `unparseable_passthrough`
+  (`new Date(0, …)` hazard if a future caller reads it).
+
+**Why deferred:** These are faithful ports of the phone's forensic source. Neither state is consumed
+today (the consumers read `warning`/`reason`, not these fields), so widening to `status:'ok'|'passthrough'
+|'blanked'` / `chosenYear: number|null` is additive churn that drifts from the source and aids no
+caller (YAGNI). Latent footguns, not bugs.
+
+**Trigger:** When a consumer actually needs to distinguish the states (e.g. a richer completion UI in
+Slice B), add the discriminant/`null` at that point — and mirror it to the phone source.
+
+---
+
+## 14. DST edge in `inferYearByProximity`
+
+**Source:** PR #16 review (typescript L6).
+
+**What:** `year-disambiguation.ts inferYearByProximity` uses a raw-millisecond future-day diff rather
+than the UTC-midnight day math used elsewhere in the module. A date exactly 24–25h in the future during
+a 1-hour DST transition could pick the wrong year via the `FUTURE_GRACE_DAYS` (1) check.
+
+**Why deferred:** Extremely narrow (a ~1h window, twice a year, only for a date landing exactly on the
+grace boundary), and it's a verbatim port — "fixing" it diverges from the phone source.
+
+**Trigger:** If a real mis-inference is ever observed, align `inferYearByProximity` to the UTC-midnight
+pattern (`daysBetweenAbs`) — in both the demo and the phone source.
+
+---
+
+## 15. Pre-existing silent-failure backlog (surfaced by the PR #16 review, outside its diff)
+
+**Source:** PR #16 review (silent-failure, out-of-scope).
+
+**What:** Two latent silent-failure paths in existing demo code (not introduced by PR #16):
+- `selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
+  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.
+- `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
+  `time.ts`'s own "fail loud" convention.
+
+**Why deferred:** Both are latent — current callers guard upstream (canonical dates now reach them after
+Slice A), so neither fires today. Out of scope for the date-normalization PR.
+
+**Trigger:** Next time `selectors.ts` / `time.ts` are touched — add the dev-warn to the `selectAdjustedScopes`
+catch and make `roundTo5Min` fail loud (or document why it tolerates bad input).

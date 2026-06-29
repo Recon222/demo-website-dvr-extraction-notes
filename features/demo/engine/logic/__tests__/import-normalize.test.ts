@@ -12,6 +12,9 @@ import {
 import { parseAiJson } from '@/features/demo/engine/logic/import'
 import { RAW_CLEAN, RAW_MESSY, RAW_NULLS, RAW_NO_JSON } from '@/features/demo/engine/logic/__tests__/import-fixtures'
 
+// Fixed "today" for the date pipeline: 2025-04-12 (so the sample's March 2025 dates stay 2025).
+const NOW = new Date(2025, 3, 12).getTime()
+
 describe('coerceField / isNullValue', () => {
   it('coerces null indicators to empty and trims real values', () => {
     for (const v of ['N/A', 'none', '-', '  ', 'unknown', 'Not Specified']) {
@@ -78,14 +81,14 @@ describe('normalizeExtractedFields', () => {
     expect(fields.hasVideoMonitor).toBe('')
     expect(fields.requestingOfficerName).toBe('')
   })
-  it('keeps time-frame times as free text but normalizes type + coerces cameras', () => {
-    const { fields } = normalizeExtractedFields(parseAiJson(RAW_MESSY))
-    expect(fields.extractionTimeFrames[0].extractionStartTime).toBe('11:45 PM on March 8 2025')
+  it('normalizes the time-frame start to canonical, maps type, coerces cameras', () => {
+    const { fields } = normalizeExtractedFields(parseAiJson(RAW_MESSY), { currentTimeMs: NOW })
+    expect(fields.extractionTimeFrames[0].extractionStartTime).toBe('2025-03-08 23:45')
     expect(fields.extractionTimeFrames[0].timePeriodType).toBe('DVR Time')
     expect(fields.extractionTimeFrames[0].cameraDetails).toBe('cameras 3, 4 and 7')
   })
   it('records warnings for officer/phone/enum transformations', () => {
-    const { warnings } = normalizeExtractedFields(parseAiJson(RAW_MESSY))
+    const { warnings } = normalizeExtractedFields(parseAiJson(RAW_MESSY), { currentTimeMs: NOW })
     const fields = warnings.map((w) => w.field)
     expect(fields).toContain('badgeNumber')
     expect(fields).toContain('locationContactPhone')
@@ -96,14 +99,14 @@ describe('normalizeExtractedFields', () => {
 
 describe('parseNormalizeMap', () => {
   it('parses fenced/chatter-wrapped JSON and maps to a clean patch', () => {
-    const t = parseNormalizeMap(RAW_MESSY)
+    const t = parseNormalizeMap(RAW_MESSY, { currentTimeMs: NOW })
     const { patch } = t
     expect(patch.requesterName).toBe('Det. Naplioni')
     expect(patch.requesterBadgeNumber).toBe('2015')
     expect(patch.locationPhone).toBe('416-487-7387')
     expect(patch._import.hasVideoMonitor).toBe('Yes')
     expect(patch._import.timeFrames[0].isActualTime).toBe(false) // DVR time
-    expect(patch._import.timeFrames[0].startDateTime).toBe('11:45 PM on March 8 2025')
+    expect(patch._import.timeFrames[0].startDateTime).toBe('2025-03-08 23:45') // normalized
     expect(t.timeFrameCount).toBe(1)
   })
   it('never maps the requester occurrence number into the patch', () => {
@@ -116,5 +119,15 @@ describe('parseNormalizeMap', () => {
   })
   it('throws when there is no JSON object in the reply', () => {
     expect(() => parseNormalizeMap(RAW_NO_JSON)).toThrow()
+  })
+  it('corrects a hallucinated year and records a year_correction warning', () => {
+    const raw = JSON.stringify({
+      requestingOfficerName: 'Det. X',
+      extractionTimeFrames: [{ extractionStartTime: '2023-02-05 13:00', extractionEndTime: '', timePeriodType: 'Actual Time', cameraDetails: '' }],
+    })
+    const NOW2026 = new Date(2026, 5, 28).getTime()
+    const t = parseNormalizeMap(raw, { currentTimeMs: NOW2026, sourceText: 'Feb 5 from 1pm' })
+    expect(t.patch._import.timeFrames[0].startDateTime).toBe('2026-02-05 13:00') // proximity-corrected
+    expect(t.warnings.some((w) => w.kind === 'year_correction')).toBe(true)
   })
 })
