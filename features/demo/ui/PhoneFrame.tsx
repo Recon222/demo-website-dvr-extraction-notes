@@ -128,7 +128,8 @@ export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameP
               </svg>
             </div>
           </div>
-          {/* screen content */}
+          {/* screen content — clip/position context only; each screen (ScreenStage) owns its
+              own vertical scroll so screens can overlay and cross-slide during transitions */}
           <div
             data-phone-screen
             style={{
@@ -138,8 +139,7 @@ export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameP
               right: 0,
               bottom: 0,
               zIndex: 10,
-              overflowY: 'auto',
-              overflowX: 'hidden',
+              overflow: 'hidden',
               pointerEvents: interactive ? 'auto' : 'none',
             }}
           >
