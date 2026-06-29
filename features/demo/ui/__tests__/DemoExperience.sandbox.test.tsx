@@ -99,6 +99,23 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(runPdf).toHaveBeenCalledTimes(1)
   })
 
+  it('import (PDF): Open location switches to the imported location and closes the modal (M6)', async () => {
+    runPdf.mockResolvedValue(okRun())
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-OPEN', displayName: 'Open Case', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(await screen.findByText('Open location'))
+    const id = store.getState().locations[0].id
+    expect(store.getState().currentLocationId).toBe(id)
+    expect(store.getState().view).toBe('submission')
+    expect(store.getState().modal).toBeNull()
+  })
+
   it('import (PDF batch): two files create two locations + a batch summary', async () => {
     runPdf.mockResolvedValue(okRun())
     const store = createDemoStore()

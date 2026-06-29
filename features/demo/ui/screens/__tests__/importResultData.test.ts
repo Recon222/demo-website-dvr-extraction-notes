@@ -68,6 +68,12 @@ describe('buildImportedLocationView', () => {
     })
     expect(v2.scopes[0].range).toBe('2025-03-08 23:45')
     expect(v2.scopes[0].isActualTime).toBe(false)
+
+    const v3 = buildImportedLocationView({
+      patch: patch({}, { timeFrames: [{ startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' }] }),
+      ...base,
+    })
+    expect(v3.scopes[0].range).toBe('—')
   })
 
   it('carries case number, warnings, counts, and locId', () => {

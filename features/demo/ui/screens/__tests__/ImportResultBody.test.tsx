@@ -40,4 +40,8 @@ describe('ImportResultBody', () => {
     expect(screen.getByText(/1 automatic adjustment/)).toBeInTheDocument()
     expect(screen.getByText(/Extracted badge/)).toBeInTheDocument()
   })
+  it('renders the ACTUAL-TIME badge for a real-time scope', () => {
+    render(<ImportResultBody view={{ ...view, scopes: [{ label: 'Scope 1', range: '2025-03-08 23:45', isActualTime: true, cameras: '' }] }} />)
+    expect(screen.getByText('ACTUAL TIME')).toBeInTheDocument()
+  })
 })
