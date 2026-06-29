@@ -1,10 +1,9 @@
 'use client'
 
-import { useContext, useEffect } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { WizardScreenId } from '@/features/demo/engine/types'
-import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -25,8 +24,6 @@ export interface WizardDrawerProps {
 /** The slide-in wizard navigation drawer (overlay + panel + screen list). Lifted from the
  *  prototype; the media accordion lands with the media screens in M4. */
 export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }: WizardDrawerProps) {
-  // Pin to the phone viewport via the overlay root (outside the screen scroller); see ModalShell.
-  const overlay = useContext(PhoneOverlayContext)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -127,5 +124,5 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
       </div>
     </>
   )
-  return overlay ? createPortal(content, overlay) : content
+  return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
