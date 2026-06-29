@@ -363,3 +363,50 @@ are fully guarded and can't throw today, so there's no live path to the rejectio
 
 **Trigger:** When live-model usage widens or any awaited call in those handlers becomes capable of throwing
 — wrap the body in try/catch and route failures to the `{ ok:false, error }` result.
+
+---
+
+## 19. Double-Escape closes both a ModalShell modal and a picker opened inside it
+
+**Source:** PR #18 review (react, downgraded MEDIUM → LOW on orchestrator verification).
+
+**What:** `ModalShell` and `PickerSheet` each register a `document` keydown→Escape listener. If a
+ModalShell-based modal ever hosts a `DateTimeField`/`SelectField` (→ `PickerSheet`), one Escape would
+close both (both listeners fire).
+
+**Why deferred:** Not reachable today — `grep` confirms none of the ModalShell modals (`NewCase`/
+`NewLocation`/`Import`) render a date/select field; the pickers live in the wizard screens, which aren't
+inside `ModalShell`. Adding a guard now is speculative.
+
+**Trigger:** If a ModalShell modal gains a date/select field, add `e.stopImmediatePropagation()` to the
+picker's Escape handler so only the top-most dialog closes (ARIA APG §6.6).
+
+---
+
+## 20. z-index inversion if a PickerSheet and the WizardDrawer are open together
+
+**Source:** PR #18 review (react LOW).
+
+**What:** `WizardDrawer` backdrop is z41; a `PickerSheet` panel is z32. If both were open, the drawer
+backdrop would obscure the picker.
+
+**Why deferred:** Not reachable — the drawer hosts only navigation buttons, no form control that opens a
+picker, so the two never co-occur.
+
+**Trigger:** If the drawer ever gains a search/select field, re-base the drawer's z-index below the
+picker's (or portal ordering) so an open picker stays on top.
+
+---
+
+## 21. PdfPreview has no Escape / backdrop dismiss (buttons only)
+
+**Source:** PR #18 review (silent-failure, informational).
+
+**What:** `PdfPreview` dismisses only via its Close/Save buttons — no Escape key or backdrop-click close,
+unlike the other overlays (ModalShell scrim/Escape, WizardDrawer backdrop/Escape, PickerSheet scrim/Escape).
+
+**Why deferred:** Pre-existing UX inconsistency, not introduced by the portal sweep; the buttons work
+correctly post-portal. Low value to change in isolation.
+
+**Trigger:** Next time overlay dismissal is standardized (or PdfPreview is touched) — add an Escape
+listener + a backdrop-click close for parity.
