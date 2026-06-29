@@ -413,7 +413,11 @@ listener + a backdrop-click close for parity.
 
 ---
 
-## 22. WizardDrawer per-screen completion status dots (phone parity)
+## 22. WizardDrawer per-screen completion status dots (phone parity) — ✅ RESOLVED
+
+**RESOLVED** (`feat/demo-drawer-status-dots`): `selectDrawerStatus` selector added + `DrawerItem.status`
+and the dot render restored + wired from `DemoExperience`. Mirrors the phone's `checkFields`/`checkArray`
+with the `serialModelNumber` / `mediaPlayerIncluded` opt-outs. See `docs/planning/demo-drawer-status-dots`.
 
 **Source:** PR #19 review (simplifier L5) — removed the dead code, tracking the feature.
 
