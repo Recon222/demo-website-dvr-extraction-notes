@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
@@ -62,6 +62,8 @@ const card: CSSProperties = {
 export function ImportModal(props: ImportModalProps) {
   const { stage, text, stages, result, batch } = props
   const [openIndex, setOpenIndex] = useState(-1) // batch accordions, single-open (-1 = all collapsed)
+  // Reset on a new result so a stale index can't pre-expand the wrong accordion after Retry (H1).
+  useEffect(() => setOpenIndex(-1), [result])
   return (
     <ModalShell title="Import Recovery Request" onClose={props.onCancel}>
       {stage === 'picker' && (

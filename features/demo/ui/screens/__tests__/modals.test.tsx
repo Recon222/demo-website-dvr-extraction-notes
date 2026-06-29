@@ -96,6 +96,30 @@ describe('ImportModal', () => {
     expect(screen.getByText('Requesting Officer')).toBeInTheDocument()
   })
 
+  it('batch accordions are single-open and toggle off (M6)', () => {
+    render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Store A/ }))
+    expect(screen.getAllByText('Requesting Officer')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /Store B/ })) // opens B, A collapses
+    expect(screen.getAllByText('Requesting Officer')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /Store B/ })) // re-click collapses
+    expect(screen.queryByText('Requesting Officer')).not.toBeInTheDocument()
+  })
+
+  it('resets the open accordion when the result changes (H1)', () => {
+    const { rerender } = render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Store A/ }))
+    expect(screen.getByText('Requesting Officer')).toBeInTheDocument()
+    rerender(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'c', title: 'Store C' }), locView({ locId: 'd', title: 'Store D' })], failures: [] }} {...cb} />,
+    )
+    expect(screen.queryByText('Requesting Officer')).not.toBeInTheDocument() // stale index cleared
+  })
+
   it('partial batch: shows the summary and the failure row', () => {
     render(
       <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [{ filename: 'scan.pdf', error: 'This PDF looks scanned.' }] }} {...cb} />,
