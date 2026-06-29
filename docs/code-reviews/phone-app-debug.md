@@ -52,3 +52,24 @@ the guard misses the `2024` near the second mention.
 last hit) and return `true` if any ±150-char window contains the year.
 
 **Status:** fixed in demo (PR #16 fixes). ⬜ Port back to the phone app.
+
+---
+
+## 3. Blank time-frame date surfaces a spurious "Empty datetime value" adjustment
+
+**Phone file:** `src/features/import/pdf-import/normalization/normalize-peel-output.ts`
+(`normalizeTimeFrames` → calls `normalizeDateTime` on each start/end and pushes its warning).
+**Found via:** demo PR #17 review (M4, silent-failure — a cross-slice papercut surfaced by the
+completion screen's prominent warning rendering).
+
+**Bug:** a model legitimately returns `""` for an open-ended scope's end date. `normalizeDateTime("")`
+returns `{ normalized: "", warning: "Empty datetime value" }`, and `normalizeTimeFrames` pushes that
+warning unconditionally. The completion/review UI then shows "1 automatic adjustment: Empty datetime
+value" when nothing was adjusted (the blank is normal output, not a correction).
+
+**Fix (applied in the demo):** guard before normalizing — `if (!raw.trim()) return ''` — so a blank
+field produces no warning. (The phone should skip `normalizeDateTime` / the warning push for an
+empty `extractionStartTime`/`extractionEndTime`.)
+
+**Status:** fixed in demo (PR #17 fixes). ⬜ Port back to the phone app (confirm whether the phone's
+schema even allows an empty end; if it does, apply the same guard).

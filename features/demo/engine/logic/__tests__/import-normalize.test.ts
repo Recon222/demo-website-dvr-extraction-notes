@@ -120,6 +120,15 @@ describe('parseNormalizeMap', () => {
   it('throws when there is no JSON object in the reply', () => {
     expect(() => parseNormalizeMap(RAW_NO_JSON)).toThrow()
   })
+  it('does not warn on a legitimately blank time-frame field (M4)', () => {
+    const raw = JSON.stringify({
+      requestingOfficerName: 'Det. X',
+      extractionTimeFrames: [{ extractionStartTime: '2025-03-08 23:45', extractionEndTime: '', timePeriodType: 'Actual Time', cameraDetails: '' }],
+    })
+    const t = parseNormalizeMap(raw, { currentTimeMs: NOW, sourceText: '' })
+    expect(t.warnings.some((w) => /empty datetime/i.test(w.reason))).toBe(false)
+    expect(t.patch._import.timeFrames[0].endDateTime).toBe('')
+  })
   it('corrects a hallucinated year and records a year_correction warning', () => {
     const raw = JSON.stringify({
       requestingOfficerName: 'Det. X',

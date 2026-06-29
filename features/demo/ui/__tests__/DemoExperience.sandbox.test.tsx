@@ -78,7 +78,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage from Store X' } })
     fireEvent.click(screen.getByText('Extract & import'))
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBeGreaterThan(0)
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true, documentText: 'recover footage from Store X' }))
   })
@@ -94,9 +94,26 @@ describe('DemoExperience — sandbox bridge paths', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(1)
     expect(runPdf).toHaveBeenCalledTimes(1)
+  })
+
+  it('import (PDF): Open location switches to the imported location and closes the modal (M6)', async () => {
+    runPdf.mockResolvedValue(okRun())
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-OPEN', displayName: 'Open Case', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(await screen.findByText('Open location'))
+    const id = store.getState().locations[0].id
+    expect(store.getState().currentLocationId).toBe(id)
+    expect(store.getState().view).toBe('submission')
+    expect(store.getState().modal).toBeNull()
   })
 
   it('import (PDF batch): two files create two locations + a batch summary', async () => {
@@ -143,7 +160,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     fireEvent.click(screen.getByText('Paste text'))
     fireEvent.click(screen.getByText('Extract & import'))
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
   })
 
