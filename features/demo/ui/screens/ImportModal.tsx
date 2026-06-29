@@ -23,7 +23,7 @@ export type ImportResult =
       /** Set when a fallback to the sample occurred (keyless or live failure); shown as a notice. */
       notice?: string
     }
-  | { ok: false; error: string }
+  | { ok: false; error: string; failures?: ImportFailure[] }
 
 export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
 
@@ -57,6 +57,18 @@ const card: CSSProperties = {
   textAlign: 'center',
   gap: 9,
   width: '100%',
+}
+
+/** Per-file failures, shown identically in the all-failed view and a partial batch. */
+function FailuresCard({ failures }: { failures: ImportFailure[] }) {
+  return (
+    <div style={{ borderRadius: 10, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10, textAlign: 'left' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{failures.length} failed</div>
+      {failures.map((f, i) => (
+        <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
+      ))}
+    </div>
+  )
 }
 
 export function ImportModal(props: ImportModalProps) {
@@ -130,12 +142,11 @@ export function ImportModal(props: ImportModalProps) {
 
       {stage === 'result' && result && (
         <div role="status" aria-live="polite" style={{ paddingTop: 4 }}>
-          {!result.ok || result.locations.length === 0 ? (
+          {!result.ok ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, paddingTop: 16 }}>
               <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-              <div style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>
-                {result.ok ? result.failures.map((f) => `${f.filename}: ${f.error}`).join('; ') || 'Import failed.' : result.error}
-              </div>
+              <div style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
+              {result.failures && result.failures.length > 0 && <div style={{ width: '100%' }}><FailuresCard failures={result.failures} /></div>}
               <button type="button" onClick={props.onRetry} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
             </div>
           ) : result.locations.length === 1 && result.failures.length === 0 ? (
@@ -167,14 +178,7 @@ export function ImportModal(props: ImportModalProps) {
               {result.locations.map((v, i) => (
                 <ImportResultAccordion key={v.locId ?? `loc-${i}`} view={v} open={openIndex === i} onToggle={() => setOpenIndex(openIndex === i ? -1 : i)} onOpenLocation={props.onOpenLocation} />
               ))}
-              {result.failures.length > 0 && (
-                <div style={{ borderRadius: 10, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{result.failures.length} failed</div>
-                  {result.failures.map((f, i) => (
-                    <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
-                  ))}
-                </div>
-              )}
+              {result.failures.length > 0 && <FailuresCard failures={result.failures} />}
               <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Done</button>
             </>
           )}

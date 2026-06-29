@@ -140,4 +140,14 @@ describe('ImportModal', () => {
     expect(screen.getByText('Could not read the request.')).toBeInTheDocument()
     expect(screen.getByText('Try again')).toBeInTheDocument()
   })
+
+  it('all-failed batch: error summary + per-file failures card (M6)', () => {
+    render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: false, error: '2 imports failed.', failures: [{ filename: 'a.pdf', error: 'scanned' }, { filename: 'b.pdf', error: 'no JSON' }] }} {...cb} />,
+    )
+    expect(screen.getByText('2 imports failed.')).toBeInTheDocument()
+    expect(screen.getByText(/a\.pdf/)).toBeInTheDocument()
+    expect(screen.getByText(/b\.pdf/)).toBeInTheDocument()
+    expect(screen.getByText('Try again')).toBeInTheDocument()
+  })
 })

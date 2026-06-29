@@ -350,7 +350,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     )
   }
   const finishImport = (t: ImportTally) => {
-    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result: { ok: true, locations: t.locations, failures: t.failures, notice: t.notice }, lastLocId: t.lastLocId }))
+    // No successful locations → honest failure result (ok=false); the failure view shows the
+    // per-file failures card. A success always carries at least one location.
+    const result: ImportResult =
+      t.locations.length === 0
+        ? { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
+        : { ok: true, locations: t.locations, failures: t.failures, notice: t.notice }
+    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
   }
 
   const openFilePicker = () => fileInputRef.current?.click()
