@@ -12,6 +12,8 @@ export interface DrawerItem {
   label: string
   icon?: ReactNode
   active: boolean
+  /** Completion dot — green when complete, amber when partial; absent = no dot. */
+  status?: 'complete' | 'partial'
 }
 
 export interface WizardDrawerProps {
@@ -128,6 +130,8 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
                   <span style={{ fontSize: 15, fontWeight: 500, color: it.active ? '#f0f4f8' : '#cdd9e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {it.label}
                   </span>
+                  {it.status === 'complete' && <div data-dot="complete" style={{ flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' }} />}
+                  {it.status === 'partial' && <div data-dot="partial" style={{ flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' }} />}
                 </button>
               ))}
             </div>
