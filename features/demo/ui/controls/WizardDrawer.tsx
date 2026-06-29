@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import type { WizardScreenId } from '@/features/demo/engine/types'
+import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -23,6 +25,8 @@ export interface WizardDrawerProps {
 /** The slide-in wizard navigation drawer (overlay + panel + screen list). Lifted from the
  *  prototype; the media accordion lands with the media screens in M4. */
 export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }: WizardDrawerProps) {
+  // Pin to the phone viewport via the overlay root (outside the screen scroller); see ModalShell.
+  const overlay = useContext(PhoneOverlayContext)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -32,9 +36,9 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
   if (!open) return null
-  return (
+  const content = (
     <>
-      <div data-drawer-backdrop onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)' }} />
+      <div data-drawer-backdrop onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -51,6 +55,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
           display: 'flex',
           flexDirection: 'column',
           animation: 'screenIn 0.25s ease',
+          pointerEvents: 'auto',
         }}
       >
         <div
@@ -84,7 +89,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
           </button>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 0 14px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '10px 0 14px' }}>
           {items.map((it) => (
             <button
               key={it.id}
@@ -122,4 +127,5 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
       </div>
     </>
   )
+  return overlay ? createPortal(content, overlay) : content
 }
