@@ -59,6 +59,10 @@ const card: CSSProperties = {
   width: '100%',
 }
 
+// Shared result-action button styles (override padding/width per use).
+const secondaryBtn: CSSProperties = { borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+const primaryBtn: CSSProperties = { borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+
 /** Per-file failures, shown identically in the all-failed view and a partial batch. */
 function FailuresCard({ failures }: { failures: ImportFailure[] }) {
   return (
@@ -147,7 +151,7 @@ export function ImportModal(props: ImportModalProps) {
               <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
               <div role="status" aria-live="polite" style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
               {result.failures && result.failures.length > 0 && <div style={{ width: '100%' }}><FailuresCard failures={result.failures} /></div>}
-              <button type="button" onClick={props.onRetry} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+              <button type="button" onClick={props.onRetry} style={{ ...secondaryBtn, padding: '12px 24px' }}>Try again</button>
             </div>
           ) : result.locations.length === 1 && result.failures.length === 0 ? (
             <>
@@ -162,8 +166,8 @@ export function ImportModal(props: ImportModalProps) {
                 <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={props.onCancel} style={{ padding: '13px 18px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Done</button>
-                <button type="button" onClick={() => props.onOpenLocation(result.locations[0].locId)} style={{ flex: 1, padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Open location</button>
+                <button type="button" onClick={props.onCancel} style={{ ...secondaryBtn, padding: '13px 18px' }}>Done</button>
+                <button type="button" onClick={() => props.onOpenLocation(result.locations[0].locId)} style={{ ...primaryBtn, flex: 1, padding: 13 }}>Open location</button>
               </div>
             </>
           ) : (
@@ -181,7 +185,7 @@ export function ImportModal(props: ImportModalProps) {
                 <ImportResultAccordion key={v.locId ?? `loc-${i}`} view={v} open={openIndex === i} onToggle={() => setOpenIndex(openIndex === i ? -1 : i)} onOpenLocation={props.onOpenLocation} />
               ))}
               {result.failures.length > 0 && <FailuresCard failures={result.failures} />}
-              <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Done</button>
+              <button type="button" onClick={props.onCancel} style={{ ...secondaryBtn, width: '100%', padding: 13 }}>Done</button>
             </>
           )}
         </div>

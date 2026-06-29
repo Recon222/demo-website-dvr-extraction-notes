@@ -40,7 +40,7 @@ export function ImportResultBody({ view }: { view: ImportedLocationView }) {
         <div key={s.heading} style={card}>
           <div style={heading}>{s.heading}</div>
           {s.rows.map((r, i) => (
-            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '5px 0', borderTop: i === 0 ? 'none' : hairline }}>
+            <div key={`${r.label}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '5px 0', borderTop: i === 0 ? 'none' : hairline }}>
               <span style={{ fontSize: 13, color: '#8fa9c4', flexShrink: 0 }}>{r.label}</span>
               <span style={{ fontSize: 13, color: '#e6eef6', textAlign: 'right', wordBreak: 'break-word', fontFamily: MONO_LABELS.has(r.label) ? mono : undefined }}>{r.value}</span>
             </div>
