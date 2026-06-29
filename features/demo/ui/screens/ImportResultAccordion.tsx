@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import type { CSSProperties } from 'react'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -21,15 +22,17 @@ const wrap: CSSProperties = {
 
 /** One location in a batch result: collapsed summary header + expandable detail + Open location. */
 export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: ImportResultAccordionProps) {
+  const panelId = useId()
   return (
     <div style={wrap}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls={panelId}
         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
       >
-        <span style={{ width: 9, height: 9, borderRadius: 5, background: '#10d177', flexShrink: 0, boxShadow: '0 0 6px rgba(16,209,119,0.6)' }} />
+        <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 5, background: '#10d177', flexShrink: 0, boxShadow: '0 0 6px rgba(16,209,119,0.6)' }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#f0f4f8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{view.title}</span>
           <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
@@ -39,7 +42,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
         </svg>
       </button>
       {open && (
-        <div style={{ padding: '0 14px 14px' }}>
+        <div id={panelId} style={{ padding: '0 14px 14px' }}>
           <ImportResultBody view={view} />
           <button
             type="button"

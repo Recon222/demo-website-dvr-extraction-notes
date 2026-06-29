@@ -35,4 +35,11 @@ describe('ImportResultAccordion', () => {
     fireEvent.click(screen.getByText('Open location'))
     expect(onOpenLocation).toHaveBeenCalledWith('loc-1')
   })
+
+  it('links the toggle to its panel via aria-controls/id when open (M2)', () => {
+    render(<ImportResultAccordion view={view} open onToggle={vi.fn()} onOpenLocation={vi.fn()} />)
+    const panelId = screen.getByRole('button', { name: /Kim's Convenience/ }).getAttribute('aria-controls')
+    expect(panelId).toBeTruthy()
+    expect(document.getElementById(panelId!)).toBeInTheDocument()
+  })
 })
