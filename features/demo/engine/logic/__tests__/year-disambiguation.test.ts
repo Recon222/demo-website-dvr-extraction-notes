@@ -35,6 +35,10 @@ describe('findYearTokenNear', () => {
     const far = `Feb 5 ${'x'.repeat(200)} 2024`
     expect(findYearTokenNear(far, 'Feb 5', 2024)).toBe(false)
   })
+  it('finds the year on a later occurrence when the first is year-less (M1)', () => {
+    const src = `re Feb 5 footage ${'x'.repeat(200)} incident on Feb 5, 2024`
+    expect(findYearTokenNear(src, 'Feb 5', 2024)).toBe(true)
+  })
 })
 
 describe('inferYearByProximity', () => {

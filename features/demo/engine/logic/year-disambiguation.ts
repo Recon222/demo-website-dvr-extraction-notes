@@ -36,11 +36,17 @@ const FUTURE_GRACE_DAYS = 1
 /** Whether the AI's `year` appears as a standalone token within ±150 chars of `dateFragment`. */
 export function findYearTokenNear(sourceText: string, dateFragment: string, year: number): boolean {
   if (!sourceText || !dateFragment) return false
-  const idx = sourceText.indexOf(dateFragment)
-  if (idx < 0) return false
-  const start = Math.max(0, idx - YEAR_GUARD_WINDOW_CHARS)
-  const end = Math.min(sourceText.length, idx + dateFragment.length + YEAR_GUARD_WINDOW_CHARS)
-  return windowContainsYear(sourceText.substring(start, end), year)
+  // Scan EVERY occurrence: a document may mention the date twice (first year-less, then with the
+  // year nearby). Checking only the first would miss the later year. (Phone source checks only
+  // the first — see docs/code-reviews/phone-app-debug.md #2.)
+  let idx = sourceText.indexOf(dateFragment)
+  while (idx >= 0) {
+    const start = Math.max(0, idx - YEAR_GUARD_WINDOW_CHARS)
+    const end = Math.min(sourceText.length, idx + dateFragment.length + YEAR_GUARD_WINDOW_CHARS)
+    if (windowContainsYear(sourceText.substring(start, end), year)) return true
+    idx = sourceText.indexOf(dateFragment, idx + 1)
+  }
+  return false
 }
 
 /** `year` as a standalone date-year (not embedded in a reference number like `OCC#2024-44321`). */
