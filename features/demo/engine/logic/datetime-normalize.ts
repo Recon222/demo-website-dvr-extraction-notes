@@ -7,7 +7,9 @@
  * `"YYYY-MM-DD HH:MM"` (or `:SS` when the source carries seconds). Ambiguous MM/DD vs DD/MM is
  * delegated to date-disambiguation; future dates are flagged (both-future ⇒ blanked).
  *
- * Pure + deterministic: the only clock input is the injected `currentTimeMs`.
+ * Pure: the only clock input is `currentTimeMs`. It defaults to Date.now() for stand-alone calls,
+ * but the import pipeline always injects a single event-scope value (run-import → parseNormalizeMap),
+ * so production is deterministic. (Tests inject a fixed value.)
  */
 
 import { needsDisambiguation, disambiguateDateFormat } from '@/features/demo/engine/logic/date-disambiguation'

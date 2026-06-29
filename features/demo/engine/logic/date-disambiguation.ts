@@ -19,8 +19,10 @@ const CONFIDENCE_THRESHOLD_DAYS = 7
 const PROXIMITY_YEAR_LOOKBACK = 1
 
 export interface DateDisambiguationResult {
-  /** Chosen interpretation, ISO `YYYY-MM-DD`. (For `neither_interpretation_valid` this is a
-   *  passthrough of an invalid calendar date — narrow on `reason` before using it.) */
+  /** Chosen interpretation, ISO `YYYY-MM-DD`. For `neither_interpretation_valid` this is a raw
+   *  passthrough of an INVALID calendar date (e.g. "2026-13-13"). That arm is unreachable through
+   *  `needsDisambiguation` (which forces both parts into 1..12 → both interpretations valid); and
+   *  the one caller (datetime-normalize) re-validates with `isValidDate` before formatting anyway. */
   chosenDate: string
   chosenFormat: 'MM-DD' | 'DD-MM'
   alternativeDate: string
