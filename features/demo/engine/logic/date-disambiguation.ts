@@ -197,7 +197,10 @@ export function disambiguateDateFormat(
     }
   }
 
-  // Cases 8/9: both recent past — proximity decides
+  // Cases 8/9: both recent past — proximity decides. NOTE: the `close_call`/`equidistant`
+  // (<7-day) branches below are effectively unreachable for a real MM/DD-vs-DD/MM swap — distinct
+  // month/day interpretations always differ by ~28+ days — and are retained for defensive
+  // generality / OCR-copy parity. (PR #16 review M3.)
   const mmddDistance = daysBetween(mmddDate!, today)
   const ddmmDistance = daysBetween(ddmmDate!, today)
   const distanceDiff = Math.abs(mmddDistance - ddmmDistance)

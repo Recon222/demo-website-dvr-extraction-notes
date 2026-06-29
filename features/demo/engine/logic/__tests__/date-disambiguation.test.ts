@@ -71,21 +71,23 @@ describe('disambiguateDateFormat — reason codes', () => {
     expect(r.reason).toBe('both_interpretations_future')
     expect(r.confidence).toBe('low')
   })
-  it('year_outside_proximity_window (older than current-1)', () => {
-    const r = disambiguateDateFormat(3, 8, 2020, NOW)
-    expect(r.reason).toBe('year_outside_proximity_window')
-    expect(r.chosenFormat).toBe('MM-DD')
+  it('year_outside_proximity_window triggers at < current-1, not at current-1 (boundary)', () => {
+    expect(disambiguateDateFormat(3, 8, 2020, NOW).reason).toBe('year_outside_proximity_window')
+    expect(disambiguateDateFormat(3, 8, 2024, NOW).reason).toBe('year_outside_proximity_window') // < 2025
+    expect(disambiguateDateFormat(3, 8, 2025, NOW).reason).not.toBe('year_outside_proximity_window') // == current-1 → proximity
   })
-  it('mm_dd_closer_by_7plus', () => {
+  it('mm_dd_closer_by_7plus — also asserts the chosen calendar date', () => {
     // mm/dd = Jun 1 (27d), dd/mm = Jan 6 (173d) — both past 2026
     const r = disambiguateDateFormat(6, 1, 2026, NOW)
     expect(r.reason).toBe('mm_dd_closer_by_7plus')
     expect(r.confidence).toBe('high')
+    expect(r.chosenDate).toBe('2026-06-01')
   })
-  it('dd_mm_closer_by_7plus', () => {
+  it('dd_mm_closer_by_7plus — also asserts the chosen calendar date', () => {
     // mm/dd = Jan 6 (173d), dd/mm = Jun 1 (27d)
     const r = disambiguateDateFormat(1, 6, 2026, NOW)
     expect(r.reason).toBe('dd_mm_closer_by_7plus')
     expect(r.chosenFormat).toBe('DD-MM')
+    expect(r.chosenDate).toBe('2026-06-01')
   })
 })
