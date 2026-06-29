@@ -68,7 +68,11 @@ export function sourceContainsFullDate(sourceText: string, year: number, month: 
     `${dd}/${mm}/${y}`,
     `${d}/${m}/${y}`,
   ]
-  return candidates.some((c) => sourceText.includes(c))
+  // Boundary-guard each candidate (no adjacent digit / '/' / '-'), mirroring windowContainsYear.
+  // A raw `includes` would let an unpadded candidate ("1/5/2024") match inside a different date
+  // ("11/5/2024"), silently trusting a hallucinated year. (Also a bug in the phone source —
+  // see docs/code-reviews/phone-app-debug.md #1.)
+  return candidates.some((c) => new RegExp(`(?<![\\d/-])${c}(?![\\d/-])`).test(sourceText))
 }
 
 /** Pick the year for a given month/day relative to today (prior year if it would be future). */

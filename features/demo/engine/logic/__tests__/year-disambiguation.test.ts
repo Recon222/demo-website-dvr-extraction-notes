@@ -19,6 +19,9 @@ describe('sourceContainsFullDate', () => {
     expect(sourceContainsFullDate('footage from Feb 5', 2024, 2, 5)).toBe(false)
     expect(sourceContainsFullDate('', 2024, 2, 5)).toBe(false)
   })
+  it('does not match an unpadded date inside a different date (boundary guard, H1)', () => {
+    expect(sourceContainsFullDate('recovered 11/5/2024 footage', 2024, 1, 5)).toBe(false)
+  })
 })
 
 describe('findYearTokenNear', () => {
@@ -69,6 +72,12 @@ describe('disambiguateHallucinatedYear', () => {
   })
   it('does not let a nearby OCC number confirm a hallucinated year', () => {
     const r = disambiguateHallucinatedYear('2024-02-05T13:00', 'OCC#2024-44321 re Feb 5 from 1pm', NOW)
+    expect(r.chosenYear).toBe(2026)
+    expect(r.reason).toBe('ai_year_implausibly_old')
+  })
+  it('does not let a substring date confirm a hallucinated year (H1 end-to-end)', () => {
+    // source has "11/5/2024" (Nov 5); AI claims Jan 5 2024 — "1/5/2024" must NOT match as a substring
+    const r = disambiguateHallucinatedYear('2024-01-05 10:00', 'footage from 11/5/2024', NOW)
     expect(r.chosenYear).toBe(2026)
     expect(r.reason).toBe('ai_year_implausibly_old')
   })
