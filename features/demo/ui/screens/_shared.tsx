@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -32,9 +33,9 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
-  return (
+  const content = (
     <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)' }} />
+      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -53,6 +54,7 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
           display: 'flex',
           flexDirection: 'column',
           animation: 'screenIn 0.3s ease',
+          pointerEvents: 'auto',
         }}
       >
         <div style={grid} />
@@ -64,10 +66,11 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
             </svg>
           </button>
         </div>
-        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: 18 }}>{children}</div>
+        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }}>{children}</div>
       </div>
     </>
   )
+  return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
 
 /** A labelled text input row, lifted from the prototype's form styling. */

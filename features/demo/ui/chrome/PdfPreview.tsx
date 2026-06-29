@@ -1,5 +1,7 @@
 'use client'
 
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+
 export interface PdfPreviewProps {
   title: string
   /** The real generated court-document HTML (generateCaseNotesDoc / generateTimeOffsetDoc). */
@@ -10,8 +12,8 @@ export interface PdfPreviewProps {
 
 /** Renders the real generated PDF HTML into an iframe preview (the demo's "export"). */
 export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
-  return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: 'screenIn 0.3s ease' }}>
+  const content = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: 'screenIn 0.3s ease', pointerEvents: 'auto' }}>
       <div style={{ padding: '50px 16px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3340' }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
         <button type="button" aria-label="Close preview" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none' }}>
@@ -29,4 +31,5 @@ export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
       </div>
     </div>
   )
+  return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
