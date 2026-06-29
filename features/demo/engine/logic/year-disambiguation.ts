@@ -138,6 +138,11 @@ export function disambiguateHallucinatedYear(
 
   const { year: aiYear, month, day, timeSuffix } = parsed
 
+  // Computed once and reused by both the cold-case guard and the proximity step (L5).
+  const today = new Date(currentTimeMs)
+  const aiDate = new Date(aiYear, month - 1, day)
+  const aiDistance = daysBetweenAbs(aiDate, today)
+
   const monthNamesShort = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const monthNamesLong = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const candidateFragments = [
@@ -152,8 +157,6 @@ export function disambiguateHallucinatedYear(
     sourceContainsFullDate(sourceText, aiYear, month, day) ||
     candidateFragments.some((fragment) => findYearTokenNear(sourceText, fragment, aiYear))
   if (guardHit) {
-    const today = new Date(currentTimeMs)
-    const aiDate = new Date(aiYear, month - 1, day)
     return {
       chosenDate: aiNormalizedDate,
       chosenYear: aiYear,
@@ -161,15 +164,12 @@ export function disambiguateHallucinatedYear(
       aiOriginalYear: aiYear,
       confidence: 'high',
       reason: 'ai_year_plausible',
-      chosenDistanceDays: daysBetweenAbs(aiDate, today),
-      aiDistanceDays: daysBetweenAbs(aiDate, today),
+      chosenDistanceDays: aiDistance,
+      aiDistanceDays: aiDistance,
     }
   }
 
   // Step 3: proximity decides
-  const today = new Date(currentTimeMs)
-  const aiDate = new Date(aiYear, month - 1, day)
-  const aiDistance = daysBetweenAbs(aiDate, today)
   const inferredYear = inferYearByProximity(month, day, currentTimeMs)
   const inferredDate = new Date(inferredYear, month - 1, day)
   const inferredDistance = daysBetweenAbs(inferredDate, today)
