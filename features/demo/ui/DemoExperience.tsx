@@ -747,21 +747,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             {activeScreen()}
           </ScreenStage>
           {activeModal()}
-          {drawerOpen && (
-            <WizardDrawer
-              open
-              items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
-              onClose={() => store.getState().setDrawerOpen(false)}
-              onNavigate={(id) => {
-                store.getState().setView(id)
-                store.getState().setDrawerOpen(false)
-              }}
-              onBackToCases={() => {
-                store.getState().setView('cases')
-                store.getState().setDrawerOpen(false)
-              }}
-            />
-          )}
+          <WizardDrawer
+            open={drawerOpen}
+            items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
+            onClose={() => store.getState().setDrawerOpen(false)}
+            onNavigate={(id) => {
+              store.getState().setView(id)
+              store.getState().setDrawerOpen(false)
+            }}
+            onBackToCases={() => {
+              store.getState().setView('cases')
+              store.getState().setDrawerOpen(false)
+            }}
+          />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
           <TouchIndicator pulses={pulses} />
         </PhoneFrame>
