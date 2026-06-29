@@ -1,26 +1,27 @@
 'use client'
 
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
+import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
+import { ImportResultAccordion } from '@/features/demo/ui/screens/ImportResultAccordion'
+import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
 export interface ImportStage {
   label: string
   state: 'done' | 'active' | 'pending'
 }
-export interface ImportWarningView {
-  field: string
-  reason: string
+export interface ImportFailure {
+  filename: string
+  error: string
 }
 export type ImportResult =
   | {
       ok: true
-      fieldCount: number
-      timeFrames: number
-      locName: string
-      warnings: ImportWarningView[]
+      locations: ImportedLocationView[]
+      failures: ImportFailure[]
       /** Set when a fallback to the sample occurred (keyless or live failure); shown as a notice. */
       notice?: string
-      batch?: { succeeded: number; total: number }
     }
   | { ok: false; error: string }
 
@@ -39,7 +40,7 @@ export interface ImportModalProps {
   onRun(): void
   onBack(): void
   onRetry(): void
-  onOpen(): void
+  onOpenLocation(locId: string | null): void
   onCancel(): void
 }
 
@@ -60,6 +61,7 @@ const card: CSSProperties = {
 
 export function ImportModal(props: ImportModalProps) {
   const { stage, text, stages, result, batch } = props
+  const [openIndex, setOpenIndex] = useState(-1) // batch accordions, single-open (-1 = all collapsed)
   return (
     <ModalShell title="Import Recovery Request" onClose={props.onCancel}>
       {stage === 'picker' && (
@@ -125,44 +127,53 @@ export function ImportModal(props: ImportModalProps) {
       )}
 
       {stage === 'result' && result && (
-        <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, paddingTop: 20 }}>
-          {result.ok ? (
+        <div role="status" aria-live="polite" style={{ paddingTop: 4 }}>
+          {!result.ok || result.locations.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, paddingTop: 16 }}>
+              <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+              <div style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>
+                {result.ok ? result.failures.map((f) => `${f.filename}: ${f.error}`).join('; ') || 'Import failed.' : result.error}
+              </div>
+              <button type="button" onClick={props.onRetry} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+            </div>
+          ) : result.locations.length === 1 && result.failures.length === 0 ? (
             <>
-              <div style={{ width: 64, height: 64, borderRadius: 32, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-              </div>
-              <div style={{ fontSize: 19, fontWeight: 700, color: '#f0f4f8' }}>{result.batch ? 'Import complete' : 'Location created'}</div>
-              <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5 }}>
-                {result.batch ? (
-                  <>Created <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.batch.succeeded}</span> of {result.batch.total} requests.</>
-                ) : (
-                  <>Extracted <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.fieldCount}</span> fields and{' '}
-                  <span style={{ color: '#7fe3b4', fontWeight: 600 }}>{result.timeFrames}</span> time range(s) into{' '}
-                  <span style={{ color: '#cfe6f5' }}>{result.locName}</span>.</>
-                )}
-              </div>
-              {result.notice && (
-                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px' }}>
-                  {result.notice}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 19, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                 </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8' }}>Import complete</div>
+              </div>
+              <ImportResultBody view={result.locations[0]} />
+              {result.notice && (
+                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
               )}
-              {result.warnings.length > 0 && (
-                <details style={{ width: '100%', textAlign: 'left' }}>
-                  <summary style={{ cursor: 'pointer', fontSize: 13, color: '#9fc0db' }}>{result.warnings.length} automatic adjustment{result.warnings.length > 1 ? 's' : ''}</summary>
-                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12.5, color: '#9fc0db', lineHeight: 1.5 }}>
-                    {result.warnings.map((w, i) => (
-                      <li key={`${w.field}-${i}`}>{w.reason}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-              <button type="button" onClick={props.onOpen} style={{ marginTop: 6, padding: '13px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Open location</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={props.onCancel} style={{ padding: '13px 18px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Done</button>
+                <button type="button" onClick={() => props.onOpenLocation(result.locations[0].locId)} style={{ flex: 1, padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Open location</button>
+              </div>
             </>
           ) : (
             <>
-              <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-              <div style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
-              <button type="button" onClick={props.onRetry} style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', marginBottom: 4 }}>Import complete</div>
+              <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: 14 }}>
+                Imported {result.locations.length} of {result.locations.length + result.failures.length} requests.
+              </div>
+              {result.notice && (
+                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
+              )}
+              {result.locations.map((v, i) => (
+                <ImportResultAccordion key={v.locId ?? `loc-${i}`} view={v} open={openIndex === i} onToggle={() => setOpenIndex(openIndex === i ? -1 : i)} onOpenLocation={props.onOpenLocation} />
+              ))}
+              {result.failures.length > 0 && (
+                <div style={{ borderRadius: 10, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{result.failures.length} failed</div>
+                  {result.failures.map((f, i) => (
+                    <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Done</button>
             </>
           )}
         </div>

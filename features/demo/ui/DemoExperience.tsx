@@ -20,7 +20,8 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
-import { ImportModal, type ImportStage, type ImportResult, type ImportWarningView } from '@/features/demo/ui/screens/ImportModal'
+import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
+import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
@@ -327,26 +328,29 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
 
   interface ImportTally {
-    total: number
-    succeeded: number
     lastLocId: string | null
     notice: string | undefined
-    warnings: ImportWarningView[]
-    failures: string[]
-    firstFieldCount: number
-    firstTimeFrames: number
-    firstName: string
+    locations: ImportedLocationView[]
+    failures: ImportFailure[]
+  }
+  const recordSuccess = (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
+    const locId = applySuccess(caseId, res)
+    tally.lastLocId = locId
+    tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
+    tally.locations.push(
+      buildImportedLocationView({
+        patch: res.patch,
+        caseNumber,
+        warnings: res.warnings.map((w) => ({ field: w.field, reason: w.reason })),
+        locId,
+        fieldCount: res.fieldCount,
+        timeFrameCount: res.timeFrameCount,
+        filename: res.filename,
+      }),
+    )
   }
   const finishImport = (t: ImportTally) => {
-    if (t.succeeded === 0) {
-      setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result: { ok: false, error: t.failures.join('; ') || 'Import failed.' } }))
-      return
-    }
-    const result: ImportResult =
-      t.total > 1
-        ? { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: `${t.succeeded} location${t.succeeded > 1 ? 's' : ''}`, warnings: t.warnings, notice: t.notice, batch: { succeeded: t.succeeded, total: t.total } }
-        : { ok: true, fieldCount: t.firstFieldCount, timeFrames: t.firstTimeFrames, locName: t.firstName, warnings: t.warnings, notice: t.notice }
-    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
+    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result: { ok: true, locations: t.locations, failures: t.failures, notice: t.notice }, lastLocId: t.lastLocId }))
   }
 
   const openFilePicker = () => fileInputRef.current?.click()
@@ -363,28 +367,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
+    const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     importCancelled.current = false
     const live = importLive()
     const total = files.length
-    const tally: ImportTally = { total, succeeded: 0, lastLocId: null, notice: undefined, warnings: [], failures: [], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' }
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
       if (importCancelled.current) return // user closed the modal mid-batch
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live, onStage: onImportStage })
       if (importCancelled.current) return // cancelled while this file was processing
-      if (res.ok) {
-        tally.succeeded++
-        tally.lastLocId = applySuccess(caseId, res)
-        tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
-        tally.warnings.push(...res.warnings.map((w) => ({ field: w.field, reason: w.reason })))
-        if (tally.succeeded === 1) {
-          tally.firstFieldCount = res.fieldCount
-          tally.firstTimeFrames = res.timeFrameCount
-          tally.firstName = res.patch.businessName || res.filename || 'location'
-        }
-      } else {
-        tally.failures.push(`${res.filename ?? 'file'}: ${res.error}`)
-      }
+      if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
     finishImport(tally)
   }
@@ -399,15 +393,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Paste the request text first.' } }))
       return
     }
+    const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     importCancelled.current = false
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
     const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
     if (importCancelled.current) return
-    if (res.ok) {
-      finishImport({ total: 1, succeeded: 1, lastLocId: applySuccess(caseId, res), notice: fallbackNotice(res.fallbackMode), warnings: res.warnings.map((w) => ({ field: w.field, reason: w.reason })), failures: [], firstFieldCount: res.fieldCount, firstTimeFrames: res.timeFrameCount, firstName: res.patch.businessName || 'location' })
-    } else {
-      finishImport({ total: 1, succeeded: 0, lastLocId: null, notice: undefined, warnings: [], failures: [res.error], firstFieldCount: 0, firstTimeFrames: 0, firstName: '' })
-    }
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
+    finishImport(tally)
   }
 
   // ---- time offset + OCR (the marquee) ----
@@ -695,8 +689,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
                 importCancelled.current = false
                 setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
               }}
-              onOpen={() => {
-                if (imp.lastLocId) openLocation(imp.lastLocId)
+              onOpenLocation={(locId) => {
+                if (locId) openLocation(locId)
                 store.getState().closeModal()
               }}
               onCancel={() => {

@@ -3,6 +3,21 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal } from '@/features/demo/ui/screens/ImportModal'
+import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+
+function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView {
+  return {
+    locId: 'loc-1',
+    title: "Kim's Convenience",
+    caseNumber: 'PR25-0098213',
+    fieldCount: 8,
+    timeFrameCount: 1,
+    sections: [{ heading: 'Requesting Officer', rows: [{ label: 'Name', value: 'Det. Liam McHugh' }] }],
+    scopes: [],
+    warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "2015"' }],
+    ...over,
+  }
+}
 
 describe('NewCaseModal', () => {
   it('edits a field and submits', () => {
@@ -36,7 +51,7 @@ describe('ImportModal', () => {
     onRun: vi.fn(),
     onBack: vi.fn(),
     onRetry: vi.fn(),
-    onOpen: vi.fn(),
+    onOpenLocation: vi.fn(),
     onCancel: vi.fn(),
   }
 
@@ -59,39 +74,44 @@ describe('ImportModal', () => {
     expect(screen.getByText(/Importing 2 of 3/)).toBeInTheDocument()
   })
 
-  it('shows the success result with field counts, warnings, and an open-location action', () => {
+  it('single success: renders the detail body + warnings; Open location fires onOpenLocation', () => {
+    const onOpenLocation = vi.fn()
     render(
-      <ImportModal
-        stage="result"
-        text=""
-        stages={[]}
-        batch={null}
-        result={{ ok: true, fieldCount: 8, timeFrames: 1, locName: "Kim's Convenience", warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "2015" from officer name' }] }}
-        {...cb}
-      />,
-    )
-    expect(screen.getByText('Location created')).toBeInTheDocument()
-    expect(screen.getByText('Open location')).toBeInTheDocument()
-    expect(screen.getByText(/1 automatic adjustment/)).toBeInTheDocument()
-  })
-
-  it('shows the degraded notice and a batch summary', () => {
-    render(
-      <ImportModal
-        stage="result"
-        text=""
-        stages={[]}
-        batch={null}
-        result={{ ok: true, fieldCount: 5, timeFrames: 0, locName: '2 locations', warnings: [], notice: 'Live model not configured — imported the sample request instead.', batch: { succeeded: 2, total: 3 } }}
-        {...cb}
-      />,
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [] }} {...cb} onOpenLocation={onOpenLocation} />,
     )
     expect(screen.getByText('Import complete')).toBeInTheDocument()
-    expect(screen.getByText(/of 3 requests/)).toBeInTheDocument()
+    expect(screen.getByText('Requesting Officer')).toBeInTheDocument() // the detail body
+    expect(screen.getByText(/1 automatic adjustment/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Open location'))
+    expect(onOpenLocation).toHaveBeenCalledWith('loc-1')
+  })
+
+  it('batch success: summary + single-open accordions (expanding one reveals its detail)', () => {
+    render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+    )
+    expect(screen.getByText(/Imported 2 of 2/)).toBeInTheDocument()
+    expect(screen.queryByText('Requesting Officer')).not.toBeInTheDocument() // collapsed
+    fireEvent.click(screen.getByRole('button', { name: /Store A/ }))
+    expect(screen.getByText('Requesting Officer')).toBeInTheDocument()
+  })
+
+  it('partial batch: shows the summary and the failure row', () => {
+    render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [{ filename: 'scan.pdf', error: 'This PDF looks scanned.' }] }} {...cb} />,
+    )
+    expect(screen.getByText(/Imported 1 of 2/)).toBeInTheDocument()
+    expect(screen.getByText(/scan\.pdf/)).toBeInTheDocument()
+  })
+
+  it('renders the degraded notice', () => {
+    render(
+      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [], notice: 'Live model not configured — imported the sample request instead.' }} {...cb} />,
+    )
     expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
   })
 
-  it('shows the error result with retry', () => {
+  it('total failure: error view with retry', () => {
     render(<ImportModal stage="result" text="" stages={[]} result={{ ok: false, error: 'Could not read the request.' }} batch={null} {...cb} />)
     expect(screen.getByText('Could not read the request.')).toBeInTheDocument()
     expect(screen.getByText('Try again')).toBeInTheDocument()

@@ -78,7 +78,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage from Store X' } })
     fireEvent.click(screen.getByText('Extract & import'))
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBeGreaterThan(0)
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true, documentText: 'recover footage from Store X' }))
   })
@@ -94,7 +94,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(1)
     expect(runPdf).toHaveBeenCalledTimes(1)
   })
@@ -143,7 +143,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     fireEvent.click(screen.getByText('Paste text'))
     fireEvent.click(screen.getByText('Extract & import'))
 
-    expect(await screen.findByText('Location created')).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
   })
 
