@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
@@ -27,5 +27,27 @@ describe('ModalShell', () => {
     )
     expect(screen.getByRole('dialog', { name: 'Inline' })).toBeInTheDocument()
     expect(screen.getByText('inline body')).toBeInTheDocument()
+  })
+
+  it('calls onClose on Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <ModalShell title="x" onClose={onClose}>
+        <div />
+      </ModalShell>,
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onClose when the scrim is clicked', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <ModalShell title="x" onClose={onClose}>
+        <div />
+      </ModalShell>,
+    )
+    fireEvent.click(container.querySelector('[data-modal-scrim]')!)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

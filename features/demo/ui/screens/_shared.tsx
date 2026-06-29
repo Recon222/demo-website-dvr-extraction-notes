@@ -35,7 +35,7 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
   }, [onClose])
   const content = (
     <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
+      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
