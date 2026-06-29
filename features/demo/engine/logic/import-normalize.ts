@@ -183,6 +183,10 @@ function normMonitor(value: string, warnings: ImportWarning[]): string {
  * normalizeTimeFrames + applyYearDisambiguation.)
  */
 function normalizeFrameTime(raw: string, fieldLabel: string, currentTimeMs: number, sourceText: string, warnings: ImportWarning[]): string {
+  // A blank time is normal output (an open-ended scope), not a correction — don't surface a
+  // spurious "Empty datetime value" adjustment. (Same papercut in the phone source — see
+  // docs/code-reviews/phone-app-debug.md #3.)
+  if (!raw.trim()) return ''
   const dt = normalizeDateTime(raw, currentTimeMs)
   if (dt.warning) {
     warnings.push({ field: fieldLabel, originalValue: raw, normalizedValue: dt.normalized, reason: dt.warning, kind: 'datetime' })
