@@ -410,3 +410,31 @@ correctly post-portal. Low value to change in isolation.
 
 **Trigger:** Next time overlay dismissal is standardized (or PdfPreview is touched) — add an Escape
 listener + a backdrop-click close for parity.
+
+---
+
+## 22. WizardDrawer per-screen completion status dots (phone parity)
+
+**Source:** PR #19 review (simplifier L5) — removed the dead code, tracking the feature.
+
+**What:** the phone's nav drawer shows a status dot per screen (green = complete, amber = partial).
+The demo's `WizardDrawer` had a `DrawerItem.status` field + render branches for this, but nothing ever
+supplied it (`selectDrawerItems`/the call site never compute per-screen completion), so the branches
+were dead. Removed in `2da3e3d` to keep the component honest.
+
+**Why deferred:** it's a real future parity feature, not a quick fix — it needs a selector that derives
+each wizard screen's completion (complete / partial / empty) from the current location's form state.
+
+**Trigger:** when we wire drawer completion status — add a `selectDrawerStatus`-style selector, restore
+`DrawerItem.status` + the dot render, and pass it from the `selectDrawerItems` map in DemoExperience.
+
+---
+
+## Accepted as-is (PR #19, not deferred — recorded for the fix-delta)
+
+- **L1 — `ScreenStage.view: string`** (not the `ChapterId | LaunchableId` union). Kept per type-design:
+  the stage is a domain-agnostic animation shell that uses `view` only as a React `key`; importing the
+  domain union would couple it needlessly. (typescript lane preferred the union — landed LOW/disputed.)
+- **L3 — `SlideDirection` `'none'`** overloads "unchanged" and "launchable fade". Kept: `'none'` reads
+  accurately as "no directional slide"; renaming to `'fade'` would churn the variants + tests for a
+  cosmetic gain. The `prev===next` arm is a cheap guard, not dead weight.
