@@ -43,4 +43,11 @@ describe('WizardDrawer', () => {
     fireEvent.click(container.querySelector('[data-drawer-backdrop]')!)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('does not register the Escape handler when closed', () => {
+    const onClose = vi.fn()
+    render(<WizardDrawer open={false} items={items} {...cb} onClose={onClose} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })
