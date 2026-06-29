@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import {
   screenVariants,
   screenTransition,
@@ -10,13 +10,13 @@ import {
   type SlideDirection,
 } from '@/features/demo/ui/motion'
 
-const screenStyle = {
+const screenStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
   overflowY: 'auto',
   overflowX: 'hidden',
   overscrollBehavior: 'contain',
-} as const
+}
 
 /**
  * The screen stage: a push layer (shifts the whole stack left while the drawer is open) wrapping an
