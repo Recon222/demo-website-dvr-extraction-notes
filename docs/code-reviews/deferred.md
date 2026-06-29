@@ -315,3 +315,51 @@ Slice A), so neither fires today. Out of scope for the date-normalization PR.
 
 **Trigger:** Next time `selectors.ts` / `time.ts` are touched — add the dev-warn to the `selectAdjustedScopes`
 catch and make `roundTo5Min` fail loud (or document why it tolerates bad input).
+
+---
+
+## 16. `ImportedLocationView.locId: string | null` narrowing
+
+**Source:** PR #17 review (type-design L4).
+
+**What:** `locId` is typed `string | null`, but in the production path `addLocation` always returns an id,
+so it's never null today; the null arm + the `if (locId)` guard in `onOpenLocation` are dead.
+
+**Why deferred:** Kept deliberately — the reviewer endorsed retaining it for the documented future
+"preview before persist" path (build a view before a location row exists). Narrowing to `string` now is
+speculative churn that we'd revert when that path lands.
+
+**Trigger:** If the "preview before persist" path is dropped from the roadmap, narrow `locId` to `string`
+and remove the `if (locId)` guard.
+
+---
+
+## 17. `MONO_LABELS` string-coupling between ImportResultBody and the builder
+
+**Source:** PR #17 review (simplifier L5).
+
+**What:** `ImportResultBody` decides monospace rendering by matching row labels against a hardcoded
+`MONO_LABELS` set — a brittle string-coupling to the exact label text the builder emits. A label rename
+in `importResultData.ts` silently breaks the mono styling.
+
+**Why deferred:** Cosmetic-only (monospace vs not); judgment call. The clean fix is to move an
+`isMono?: boolean` onto `DetailRow` so the builder is the single source of truth — a small ripple
+(type + builder + component) not worth bundling into the fix pass.
+
+**Trigger:** Next time the section/row labels change, or `ImportResultBody` is otherwise touched — move
+`isMono` onto `DetailRow` and drop `MONO_LABELS`.
+
+---
+
+## 18. Async import handlers carry no top-level `.catch()`
+
+**Source:** PR #17 review (typescript L6).
+
+**What:** `onFilesPicked` / `runPasteImport` in `DemoExperience.tsx` are async event handlers with no
+top-level catch; an unexpected throw would surface as an unhandled rejection rather than the error result.
+
+**Why deferred:** Latent only — the orchestrator calls (`requestExtraction` / `runPdfImport` / store `set`)
+are fully guarded and can't throw today, so there's no live path to the rejection.
+
+**Trigger:** When live-model usage widens or any awaited call in those handlers becomes capable of throwing
+— wrap the body in try/catch and route failures to the `{ ok:false, error }` result.
