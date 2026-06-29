@@ -22,6 +22,8 @@ import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/New
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { ScreenStage } from '@/features/demo/ui/ScreenStage'
+import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
@@ -184,6 +186,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCaseId = useStore(store, (s) => s.currentCaseId)
   const drawerOpen = useStore(store, (s) => s.drawerOpen)
   const capture = useStore(store, (s) => s.capture)
+
+  // Screen-transition direction: computed once per `view` change and held stable through the
+  // animation (mutating refs during render = the "previous prop" pattern — no effect, no re-render,
+  // so an unrelated re-render mid-slide can't flip the exiting screen's direction).
+  const prevViewRef = useRef(view)
+  const dirRef = useRef<SlideDirection>('none')
+  if (prevViewRef.current !== view) {
+    dirRef.current = slideDirection(prevViewRef.current, view)
+    prevViewRef.current = view
+  }
 
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -731,23 +743,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           interactive={!guided}
           tabBar={showTabs ? <TabBar active={view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => t !== 'map' && store.getState().setView(t)} /> : undefined}
         >
-          {activeScreen()}
+          <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
+            {activeScreen()}
+          </ScreenStage>
           {activeModal()}
-          {drawerOpen && (
-            <WizardDrawer
-              open
-              items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
-              onClose={() => store.getState().setDrawerOpen(false)}
-              onNavigate={(id) => {
-                store.getState().setView(id)
-                store.getState().setDrawerOpen(false)
-              }}
-              onBackToCases={() => {
-                store.getState().setView('cases')
-                store.getState().setDrawerOpen(false)
-              }}
-            />
-          )}
+          <WizardDrawer
+            open={drawerOpen}
+            items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
+            onClose={() => store.getState().setDrawerOpen(false)}
+            onNavigate={(id) => {
+              store.getState().setView(id)
+              store.getState().setDrawerOpen(false)
+            }}
+            onBackToCases={() => {
+              store.getState().setView('cases')
+              store.getState().setDrawerOpen(false)
+            }}
+          />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
           <TouchIndicator pulses={pulses} />
         </PhoneFrame>
