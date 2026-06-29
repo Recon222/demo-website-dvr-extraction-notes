@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
+import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -25,6 +27,11 @@ const grid: CSSProperties = {
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals. */
 export function ModalShell({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
+  // Portal into the phone overlay root (pinned OUTSIDE the scrolling screen). Without this the modal
+  // lives in the screen scroller: bottoming-out its inner scroll chains to the page and drags the whole
+  // panel (header included) off-viewport, revealing the screen behind. Falls back inline when no overlay
+  // (isolated component tests). Mirrors PickerSheet.
+  const overlay = useContext(PhoneOverlayContext)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -32,9 +39,9 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
-  return (
+  const content = (
     <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)' }} />
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -53,6 +60,7 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
           display: 'flex',
           flexDirection: 'column',
           animation: 'screenIn 0.3s ease',
+          pointerEvents: 'auto',
         }}
       >
         <div style={grid} />
@@ -64,10 +72,11 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
             </svg>
           </button>
         </div>
-        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: 18 }}>{children}</div>
+        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }}>{children}</div>
       </div>
     </>
   )
+  return overlay ? createPortal(content, overlay) : content
 }
 
 /** A labelled text input row, lifted from the prototype's form styling. */
