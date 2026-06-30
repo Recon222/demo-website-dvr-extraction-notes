@@ -525,6 +525,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const fields: SubmissionFields = {
           requesterName: currentLocation?.requesterName ?? '',
           requesterBadge: currentLocation?.requesterBadge ?? '',
+          requesterUnit: currentLocation?.requesterUnit ?? '',
           requesterPhone: currentLocation?.requesterPhone ?? '',
           requesterEmail: currentLocation?.requesterEmail ?? '',
           businessName: currentLocation?.businessName ?? '',

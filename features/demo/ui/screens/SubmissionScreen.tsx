@@ -5,6 +5,7 @@ import { Field, SectionCard, WizardHeader, WizardNext } from '@/features/demo/ui
 export interface SubmissionFields {
   requesterName: string
   requesterBadge: string
+  requesterUnit: string
   requesterPhone: string
   requesterEmail: string
   businessName: string
@@ -35,6 +36,7 @@ export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, 
         <SectionCard title="Requester Information">
           <Field label="Requester Name" value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder="Who requested video" />
           <Field label="Requester Badge" value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder="Badge number" />
+          <Field label="Requester Unit" value={fields.requesterUnit} onChange={(v) => onChange('requesterUnit', v)} placeholder="Section / unit" hint="Defaults to the case unit if left blank." />
           <Field label="Requester Phone" value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder="e.g., 905-555-1234" />
           <Field label="Requester Email" value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder="e.g., det@dept.ca" />
         </SectionCard>

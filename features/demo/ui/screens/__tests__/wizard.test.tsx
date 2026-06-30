@@ -10,6 +10,7 @@ describe('SubmissionScreen', () => {
   const fields = {
     requesterName: '',
     requesterBadge: '',
+    requesterUnit: '',
     requesterPhone: '',
     requesterEmail: '',
     businessName: '',
