@@ -413,7 +413,11 @@ listener + a backdrop-click close for parity.
 
 ---
 
-## 22. WizardDrawer per-screen completion status dots (phone parity)
+## 22. WizardDrawer per-screen completion status dots (phone parity) — ✅ RESOLVED
+
+**RESOLVED** (`feat/demo-drawer-status-dots`): `selectDrawerStatus` selector added + `DrawerItem.status`
+and the dot render restored + wired from `DemoExperience`. Mirrors the phone's `checkFields`/`checkArray`
+with the `serialModelNumber` / `mediaPlayerIncluded` opt-outs. See `docs/planning/demo-drawer-status-dots`.
 
 **Source:** PR #19 review (simplifier L5) — removed the dead code, tracking the feature.
 
@@ -438,3 +442,22 @@ each wizard screen's completion (complete / partial / empty) from the current lo
 - **L3 — `SlideDirection` `'none'`** overloads "unchanged" and "launchable fade". Kept: `'none'` reads
   accurately as "no directional slide"; renaming to `'fade'` would churn the variants + tests for a
   cosmetic gain. The `prev===next` arm is a cheap guard, not dead weight.
+
+---
+
+## 23. Drawer completion dots distinguish complete/partial by colour only (visual)
+
+**Source:** PR #20 review (react M1) — partially addressed; visual half is a deliberate design choice.
+
+**What:** the SR half of M1 is done (status is in the item button's `aria-label`; dots are
+`aria-hidden`). The **visual** complete-vs-partial distinction is **colour only** (filled green vs
+filled amber) — a non-colour distinction (a ring) was implemented and then reverted at the owner's
+request (preferred the filled-dot look). So a colourblind *sighted* user can't distinguish the two
+by sight (WCAG 1.4.1).
+
+**Why deferred:** deliberate aesthetic choice on a non-production showcase; the SR path already
+conveys status, so the practical impact is limited.
+
+**Trigger:** if a strict-a11y bar applies or before any production use — reintroduce a non-colour
+distinction that keeps the filled look (e.g. a small check glyph inside the complete dot, or a size
+difference) rather than the ring.

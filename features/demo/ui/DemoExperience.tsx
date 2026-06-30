@@ -37,7 +37,7 @@ import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
-import { selectDrawerItems, selectCaseNotesData, selectAdjustedScopes } from '@/features/demo/engine/store/selectors'
+import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes } from '@/features/demo/engine/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
@@ -254,6 +254,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
+  const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
@@ -749,7 +750,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {activeModal()}
           <WizardDrawer
             open={drawerOpen}
-            items={selectDrawerItems(store.getState()).map((d) => ({ id: d.id, label: d.label, active: d.id === view }))}
+            items={selectDrawerItems(store.getState()).map((d) => {
+              const dot = drawerStatus[d.id]
+              return { id: d.id, label: d.label, active: d.id === view, status: dot === 'empty' ? undefined : dot }
+            })}
             onClose={() => store.getState().setDrawerOpen(false)}
             onNavigate={(id) => {
               store.getState().setView(id)

@@ -49,6 +49,22 @@ describe('WizardDrawer', () => {
     fireEvent.click(container.querySelector('[data-drawer-backdrop]')!)
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('renders completion dots from item status (complete/partial; none when absent)', () => {
+    const withDots: DrawerItem[] = [
+      { id: 'submission', label: 'Submission', active: true, status: 'complete' },
+      { id: 'timeOffset', label: 'Time Offset', active: false, status: 'partial' },
+      { id: 'dvrInfo', label: 'DVR', active: false },
+    ]
+    const { container } = render(<WizardDrawer open items={withDots} onClose={vi.fn()} onNavigate={vi.fn()} onBackToCases={vi.fn()} />)
+    expect(container.querySelector('[data-dot="complete"]')).toBeTruthy()
+    expect(container.querySelector('[data-dot="partial"]')).toBeTruthy()
+    expect(container.querySelectorAll('[data-dot]')).toHaveLength(2) // dvrInfo (no status) → no dot
+    // status is announced via aria-label, not colour alone (M1)
+    expect(screen.getByRole('button', { name: /Submission, complete/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Time Offset, partially complete/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'DVR' })).toBeInTheDocument() // no status → label only
+  })
 })
 
 describe('RailNav', () => {

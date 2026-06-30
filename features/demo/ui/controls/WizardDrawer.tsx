@@ -12,6 +12,8 @@ export interface DrawerItem {
   label: string
   icon?: ReactNode
   active: boolean
+  /** Completion dot — green when complete, amber when partial; absent = no dot. */
+  status?: 'complete' | 'partial'
 }
 
 export interface WizardDrawerProps {
@@ -35,6 +37,16 @@ const itemButton: CSSProperties = {
   cursor: 'pointer',
   width: 'calc(100% - 20px)',
   textAlign: 'left',
+}
+
+// Completion dot — filled green (complete) / filled amber (partial). Status is also exposed to
+// assistive tech via the item button's aria-label (dots are aria-hidden). NOTE: the visual
+// complete/partial distinction is colour-only by design choice (see deferred.md).
+const STATUS_LABEL: Record<'complete' | 'partial', string> = { complete: 'complete', partial: 'partially complete' }
+const dotBase: CSSProperties = { flex: '0 0 auto', width: 11, height: 11, borderRadius: 6 }
+const DOT: Record<'complete' | 'partial', CSSProperties> = {
+  complete: { background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' },
+  partial: { background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' },
 }
 
 /** The wizard navigation drawer — right-anchored, slides in from the right (the screen behind is
@@ -123,11 +135,18 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
 
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '10px 0 14px' }}>
               {items.map((it) => (
-                <button key={it.id} type="button" onClick={() => onNavigate(it.id)} style={itemButton}>
-                  {it.active && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, borderRadius: '0 2px 2px 0', background: '#2B8CC1' }} />}
-                  <span style={{ fontSize: 15, fontWeight: 500, color: it.active ? '#f0f4f8' : '#cdd9e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => onNavigate(it.id)}
+                  aria-label={it.status ? `${it.label}, ${STATUS_LABEL[it.status]}` : undefined}
+                  style={itemButton}
+                >
+                  {it.active && <div aria-hidden="true" style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, borderRadius: '0 2px 2px 0', background: '#2B8CC1' }} />}
+                  <span style={{ flex: '1 1 auto', minWidth: 0, fontSize: 15, fontWeight: 500, color: it.active ? '#f0f4f8' : '#cdd9e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {it.label}
                   </span>
+                  {it.status && <div data-dot={it.status} aria-hidden="true" style={{ ...dotBase, ...DOT[it.status] }} />}
                 </button>
               ))}
             </div>
