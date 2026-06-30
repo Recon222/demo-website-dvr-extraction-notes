@@ -284,3 +284,20 @@ describe('launch / closeLaunch', () => {
     expect(store.getState().view).toBe('timeOffset') // restored to currentChapter
   })
 })
+
+describe('setView — map tab view', () => {
+  it('setView("map") sets the view but leaves currentChapter unchanged (map is not a chapter)', () => {
+    const store = freshStore()
+    store.getState().setView('cases')
+    store.getState().setView('map')
+    expect(store.getState().view).toBe('map')
+    expect(store.getState().currentChapter).toBe('cases')
+  })
+
+  it('a chapter setView after the map still updates currentChapter', () => {
+    const store = freshStore()
+    store.getState().setView('map')
+    store.getState().setView('submission')
+    expect(store.getState().currentChapter).toBe('submission')
+  })
+})

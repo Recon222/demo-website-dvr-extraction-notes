@@ -227,3 +227,23 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     tip: 'Press "Use sample DVR clock" (works without a camera) — or capture a live frame.',
   },
 }
+
+/**
+ * Rail copy for the **Map** tab. The map is a sandbox tab destination, not a guided chapter, so this
+ * lives outside the `NARRATION` record (which is keyed by `ChapterId`) and is shown contextually
+ * whenever `view === 'map'`.
+ */
+export const MAP_NARRATION: ChapterNarration = {
+  eyebrow: 'Case map',
+  title: 'See the whole case on a map',
+  paras: [
+    'Every location you geocode drops a pin, colour-coded by how far its recovery has progressed; the occurrence scene is a red marker. One glance shows where the evidence is and what is still outstanding.',
+    'Tap a pin to fly there and open its card — address, the requesting investigator, and the on-site contact, with one-tap call and email.',
+  ],
+  bullets: [
+    'Status-coloured location pins + the red incident marker',
+    'Draggable sheet: browse the list, then drill into a location',
+    'Call / email the requester or contact straight from the card',
+  ],
+  tip: 'Pick a case, then tap a pin or a row to dive in.',
+}

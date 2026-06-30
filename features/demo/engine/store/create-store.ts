@@ -69,6 +69,10 @@ export interface CaptureState {
   dvrAppliesDST: boolean
 }
 
+/** Everything the phone can display: wizard chapters, launch-only screens, and tab-only views (Map).
+ *  'map' is a tab destination, NOT a guided chapter — it never becomes `currentChapter`. */
+export type AppView = ChapterId | LaunchableId | 'map'
+
 export interface DemoState {
   mode: DemoMode
   profile: Profile
@@ -76,7 +80,7 @@ export interface DemoState {
   locations: DemoLocation[]
   currentCaseId: string | null
   currentLocationId: string | null
-  view: ChapterId | LaunchableId
+  view: AppView
   modal: ModalId | null
   drawerOpen: boolean
   /** The chapter the tour is on — set by chapter navigation (setView) and store resets
@@ -94,7 +98,7 @@ export interface DemoActions {
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
-  setView(view: ChapterId | LaunchableId): void
+  setView(view: AppView): void
   setMode(mode: DemoMode): void
   openModal(modal: ModalId): void
   closeModal(): void
@@ -134,9 +138,10 @@ export function initialState(): DemoState {
 
 const clone = <T>(v: T): T => structuredClone(v)
 
-/** True when a view value is a chapter (not a launch-only screen like OCR/media). */
-const isChapterId = (v: ChapterId | LaunchableId): v is ChapterId =>
-  !(LAUNCHABLE as readonly string[]).includes(v)
+/** True when a view value is a chapter (not a launch-only screen like OCR/media, nor the Map tab).
+ *  Keeps `currentChapter` on the last real chapter so the rail/narration never break on the Map view. */
+const isChapterId = (v: AppView): v is ChapterId =>
+  v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
 export function createDemoStore(): DemoStore {
   let seq = 0

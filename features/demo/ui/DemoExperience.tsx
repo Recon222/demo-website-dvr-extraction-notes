@@ -6,7 +6,7 @@ import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { runBeat } from '@/features/demo/engine/director/runner'
 import { BEATS } from '@/features/demo/engine/director/beats'
-import { NARRATION } from '@/features/demo/engine/content/narration'
+import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
@@ -23,6 +23,7 @@ import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/scr
 import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
+import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
@@ -216,6 +217,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
+  // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId (the picker sets
+  // it in a later slice; null shows the pick-a-case prompt).
+  const [mapViewerCaseId] = useState<string | null>(null)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
@@ -264,7 +268,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }, [])
 
   const guided = currentMode === 'guided'
-  const narration = NARRATION[currentChapter]
+  // The Map tab is a sandbox tab view, not a guided chapter — show its contextual copy on the rail
+  // while currentChapter stays on the last real chapter.
+  const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
   const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title }))
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
@@ -516,7 +522,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     })
   }
 
-  const showTabs = view === 'dashboard' || view === 'cases'
+  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
   function activeScreen() {
     switch (view) {
@@ -701,6 +707,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'map':
+        return <MapScreen viewerCaseId={mapViewerCaseId} />
       default:
         return placeholder(view)
     }
@@ -773,7 +781,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
           interactive={!guided}
-          tabBar={showTabs ? <TabBar active={view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => t !== 'map' && store.getState().setView(t)} /> : undefined}
+          tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}

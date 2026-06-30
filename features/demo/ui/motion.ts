@@ -12,7 +12,8 @@ import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
 
 export type SlideDirection = 'forward' | 'back' | 'none'
 
-type ViewId = ChapterId | LaunchableId
+// Includes the tab-only 'map' view: it has no tour position, so it intentionally fades ('none').
+type ViewId = ChapterId | LaunchableId | 'map'
 
 /**
  * Direction of a screen change, from position in the tour order:
@@ -30,7 +31,7 @@ export function slideDirection(prev: ViewId, next: ViewId): SlideDirection {
   const a = order.indexOf(prev)
   const b = order.indexOf(next)
   if (process.env.NODE_ENV === 'development') {
-    const known = (id: string) => order.includes(id) || (LAUNCHABLE as readonly string[]).includes(id)
+    const known = (id: string) => id === 'map' || order.includes(id) || (LAUNCHABLE as readonly string[]).includes(id)
     for (const v of [prev, next]) {
       if (!known(v)) {
         console.warn(
