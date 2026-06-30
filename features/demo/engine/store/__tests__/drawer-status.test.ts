@@ -38,14 +38,39 @@ describe('selectDrawerStatus', () => {
     expect(selectDrawerStatus(loc({ requesterName: 'A' })).submission).toBe('partial')
   })
 
-  it('dvrInfo: serialModelNumber alone does not count → stays empty', () => {
-    const dvr = { ...blankLocationForm().dvr, serialModelNumber: 'SN-123' }
-    expect(selectDrawerStatus(loc({}, { dvr })).dvrInfo).toBe('empty')
+  it('dvrInfo: serialModelNumber is excluded; counted fields drive the status', () => {
+    const blank = blankLocationForm().dvr
+    // only the excluded field → still empty
+    expect(selectDrawerStatus(loc({}, { dvr: { ...blank, serialModelNumber: 'SN-123' } })).dvrInfo).toBe('empty')
+    // one COUNTED field → partial (fails if dvrLocation weren't counted)
+    expect(selectDrawerStatus(loc({}, { dvr: { ...blank, dvrLocation: 'Office' } })).dvrInfo).toBe('partial')
+    // all counted filled, serial still blank → complete (serial doesn't gate green)
+    const allCounted = { ...blank, dvrLocation: 'a', dvrTypeBrand: 'b', dvrUsername: 'c', dvrPassword: 'd', numberOfChannels: '8', activeCameras: '4', resolution: '1920x1080', recordingFps: '30fps', firstRecordedDate: '2025-01-01' }
+    expect(selectDrawerStatus(loc({}, { dvr: allCounted })).dvrInfo).toBe('complete')
   })
 
-  it('exportInfo: mediaPlayerIncluded alone does not count → stays empty', () => {
-    const exp = { ...blankLocationForm().export, mediaPlayerIncluded: true }
-    expect(selectDrawerStatus(loc({}, { export: exp })).exportInfo).toBe('empty')
+  it('exportInfo: mediaPlayerIncluded is excluded; counted fields drive the status', () => {
+    const blank = blankLocationForm().export
+    expect(selectDrawerStatus(loc({}, { export: { ...blank, mediaPlayerIncluded: true } })).exportInfo).toBe('empty')
+    expect(selectDrawerStatus(loc({}, { export: { ...blank, exportMedia: 'USB Drive' } })).exportInfo).toBe('partial')
+    const allCounted = { ...blank, exportMedia: 'USB Drive', fileType: 'MP4', sizeGb: '12', mediaProvidedVia: 'Hand Delivered' }
+    expect(selectDrawerStatus(loc({}, { export: allCounted })).exportInfo).toBe('complete')
+  })
+
+  it('arrivalDeparture array: full item → complete; mixed → partial; [] → empty', () => {
+    const full = [{ id: '1', arrival: '2025-03-08 10:00', departure: '2025-03-08 11:00' }]
+    const mixed = [...full, { id: '2', arrival: '', departure: '' }]
+    expect(selectDrawerStatus(loc({}, { arrivalDepartures: full })).arrivalDeparture).toBe('complete')
+    expect(selectDrawerStatus(loc({}, { arrivalDepartures: mixed })).arrivalDeparture).toBe('partial')
+    expect(selectDrawerStatus(loc()).arrivalDeparture).toBe('empty')
+  })
+
+  it('cameras array: full item → complete; mixed → partial; [] → empty', () => {
+    const full = [{ id: '1', cameraName: 'Rear', resolution: '1920x1080', recordingFps: '30fps' }]
+    const mixed = [...full, { id: '2', cameraName: '', resolution: '', recordingFps: '' }]
+    expect(selectDrawerStatus(loc({}, { cameras: full })).cameras).toBe('complete')
+    expect(selectDrawerStatus(loc({}, { cameras: mixed })).cameras).toBe('partial')
+    expect(selectDrawerStatus(loc()).cameras).toBe('empty')
   })
 
   it('requestedScope array: full item → complete; mixed → partial; [] → empty', () => {
@@ -56,10 +81,12 @@ describe('selectDrawerStatus', () => {
     expect(selectDrawerStatus(loc()).requestedScope).toBe('empty')
   })
 
-  it('extractedScope: a present-but-blank item is partial (not empty); [] is empty', () => {
+  it('extractedScope: [] empty; present-but-blank partial; all filled complete', () => {
     const blankItem = [{ id: '1', startDateTime: '', endDateTime: '', isActualTime: false, cameras: '' }]
-    expect(selectDrawerStatus(loc({}, { extractedScopes: blankItem })).extractedScope).toBe('partial')
+    const fullItem = [{ id: '1', startDateTime: '2025-03-08 23:45', endDateTime: '2025-03-09 01:30', isActualTime: false, cameras: '3' }]
     expect(selectDrawerStatus(loc()).extractedScope).toBe('empty')
+    expect(selectDrawerStatus(loc({}, { extractedScopes: blankItem })).extractedScope).toBe('partial')
+    expect(selectDrawerStatus(loc({}, { extractedScopes: fullItem })).extractedScope).toBe('complete')
   })
 
   it('timeOffset: committed offset → complete; null → empty', () => {
