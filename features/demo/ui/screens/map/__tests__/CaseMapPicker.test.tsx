@@ -3,34 +3,53 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 
 const cases = [
-  { id: 'c1', caseNumber: 'PR25-1', displayName: 'Case One', locationCountLabel: '2 locations' },
-  { id: 'c2', caseNumber: 'PR25-2', displayName: 'Case Two', locationCountLabel: '1 location' },
+  { id: 'c1', caseNumber: 'PR25-1', displayName: 'Case One', locationCountLabel: '2 locations', status: 'draft' as const },
+  { id: 'c2', caseNumber: 'PR25-2', displayName: 'Case Two', locationCountLabel: '1 location', status: 'complete' as const },
 ]
 
-describe('CaseMapPicker', () => {
-  it('renders a row per case and picks one', () => {
-    const onPick = vi.fn()
-    render(<CaseMapPicker cases={cases} dismissible onPick={onPick} onClose={vi.fn()} />)
+function renderPicker(over: Partial<Parameters<typeof CaseMapPicker>[0]> = {}) {
+  const props = { cases, dismissible: true, preselectedId: null, onPick: vi.fn(), onClose: vi.fn(), ...over }
+  render(<CaseMapPicker {...props} />)
+  return props
+}
+
+describe('CaseMapPicker (full-screen)', () => {
+  it('renders the "Pick a Case" header and a row per case, and picks one', () => {
+    const props = renderPicker()
+    expect(screen.getByText('Pick a Case')).toBeInTheDocument()
     expect(screen.getByText('PR25-1')).toBeInTheDocument()
-    expect(screen.getByText('PR25-2')).toBeInTheDocument()
+    expect(screen.getByText('Case Two')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Case One'))
-    expect(onPick).toHaveBeenCalledWith('c1')
+    expect(props.onPick).toHaveBeenCalledWith('c1')
   })
 
-  it('mandatory (non-dismissible): no close affordance, scrim click ignored', () => {
-    const onClose = vi.fn()
-    render(<CaseMapPicker cases={cases} dismissible={false} onPick={vi.fn()} onClose={onClose} />)
-    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('case-picker-scrim'))
-    expect(onClose).not.toHaveBeenCalled()
+  it('shows a disabled "All Cases — coming soon" row that does not pick', () => {
+    const props = renderPicker()
+    const allCases = screen.getByText('All Cases')
+    expect(allCases).toBeInTheDocument()
+    fireEvent.click(allCases)
+    expect(props.onPick).not.toHaveBeenCalled()
   })
 
-  it('dismissible: close button and scrim both close', () => {
-    const onClose = vi.fn()
-    render(<CaseMapPicker cases={cases} dismissible onPick={vi.fn()} onClose={onClose} />)
-    fireEvent.click(screen.getByLabelText('Close'))
-    expect(onClose).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByTestId('case-picker-scrim'))
-    expect(onClose).toHaveBeenCalledTimes(2)
+  it('mandatory (non-dismissible) renders no Cancel button', () => {
+    renderPicker({ dismissible: false })
+    expect(screen.queryByText('Cancel')).not.toBeInTheDocument()
+  })
+
+  it('dismissible renders a Cancel button that closes', () => {
+    const props = renderPicker({ dismissible: true })
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks the preselected case row as selected', () => {
+    renderPicker({ preselectedId: 'c2' })
+    expect(screen.getByTestId('case-row-c2')).toHaveAttribute('data-selected', 'true')
+    expect(screen.getByTestId('case-row-c1')).toHaveAttribute('data-selected', 'false')
+  })
+
+  it('shows an empty state when there are no cases', () => {
+    renderPicker({ cases: [] })
+    expect(screen.getByText(/No cases yet/)).toBeInTheDocument()
   })
 })

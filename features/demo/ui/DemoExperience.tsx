@@ -816,8 +816,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
                 caseNumber: c.caseNumber,
                 displayName: c.displayName,
                 locationCountLabel: c.locationCountLabel,
+                status: cases.find((sc) => sc.id === c.id)?.status ?? 'draft',
               }))}
               dismissible={mapViewerCaseId !== null}
+              // Highlight the viewed case (or the form's case as a courtesy on first open).
+              preselectedId={mapViewerCaseId ?? currentCaseId}
               onPick={(caseId) => {
                 setMapViewerCaseId(caseId)
                 setMapPickerOpen(false)

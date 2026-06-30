@@ -57,13 +57,13 @@ describe('DemoExperience — Map tab wiring', () => {
 })
 
 describe('DemoExperience — Map case picker', () => {
-  it('shows the mandatory picker (no Close) when no viewer case is chosen', () => {
+  it('shows the mandatory picker (no Cancel) when no viewer case is chosen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
     fireEvent.click(screen.getByLabelText('Map'))
-    expect(screen.getByText('Select a case')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument()
+    expect(screen.getByText('Pick a Case')).toBeInTheDocument()
+    expect(screen.queryByText('Cancel')).not.toBeInTheDocument()
   })
 
   it('picking a case shows it on the map without touching the form currentCaseId', () => {
@@ -74,7 +74,7 @@ describe('DemoExperience — Map case picker', () => {
     const cur = store.getState().currentCaseId // 'Bravo'
     fireEvent.click(screen.getByLabelText('Map'))
     // Scope to the picker — the exiting CasesScreen also shows case names during the transition.
-    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('Alpha'))
+    fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('Alpha'))
     expect(document.querySelector('[data-map-canvas]')).toBeInTheDocument()
     expect(store.getState().currentCaseId).toBe(cur) // viewer is tab-local — form case untouched
   })
@@ -88,7 +88,7 @@ describe('DemoExperience — Map case picker', () => {
       locId = store.getState().addLocation(c, { locationName: 'Front Counter', gps: { lat: 43.6, lng: -79.6, source: 'geocoded' } })
     })
     fireEvent.click(screen.getByLabelText('Map'))
-    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('GoCase'))
+    fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('GoCase'))
     fireEvent.click(screen.getByText('Front Counter')) // select the located location → detail
     fireEvent.click(screen.getByText('Go to Location'))
     expect(store.getState().currentLocationId).toBe(locId)
@@ -100,12 +100,12 @@ describe('DemoExperience — Map case picker', () => {
     render(<DemoExperience store={store} />)
     act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
     fireEvent.click(screen.getByLabelText('Map'))
-    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('Alpha'))
-    expect(screen.queryByText('Select a case')).not.toBeInTheDocument()
+    fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('Alpha'))
+    expect(screen.queryByText('Pick a Case')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Change Case'))
-    expect(screen.getByText('Select a case')).toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText('Close'))
-    expect(screen.queryByText('Select a case')).not.toBeInTheDocument()
+    expect(screen.getByText('Pick a Case')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(screen.queryByText('Pick a Case')).not.toBeInTheDocument()
     expect(document.querySelector('[data-map-canvas]')).toBeInTheDocument()
   })
 })
