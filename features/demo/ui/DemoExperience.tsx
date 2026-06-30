@@ -72,7 +72,7 @@ const blankCaseForm: NewCaseFields = {
   incidentCity: '',
   notes: '',
 }
-const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '' }
+const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
 const IMPORT_STAGE_ORDER: RunStageId[] = ['extracting_text', 'reading_model', 'normalizing', 'done']
 
@@ -669,7 +669,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             isComplete={caseCompleted}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
-            onChange={(f, v) => store.getState().updateField(f, v)}
+            onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
             onComplete={() => setCaseCompleted(true)}

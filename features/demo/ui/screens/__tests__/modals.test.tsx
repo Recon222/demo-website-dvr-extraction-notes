@@ -41,10 +41,17 @@ describe('NewCaseModal', () => {
 })
 
 describe('NewLocationModal', () => {
-  it('captures GPS and submits', () => {
+  const blankLoc = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
+
+  it('edits contact fields, captures GPS, and submits', () => {
     const onCaptureGps = vi.fn()
     const onSubmit = vi.fn()
-    render(<NewLocationModal form={{ locationName: '', businessName: '', streetAddress: '', city: '' }} onChange={vi.fn()} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} />)
+    const onChange = vi.fn()
+    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} />)
+    fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
+    expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
+    fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })
+    expect(onChange).toHaveBeenCalledWith('locationPhone', '905-555-0142')
     fireEvent.click(screen.getByText('Capture GPS coordinates'))
     expect(onCaptureGps).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByText('Create Location'))

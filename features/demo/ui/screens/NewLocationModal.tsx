@@ -7,6 +7,8 @@ export interface NewLocationFields {
   businessName: string
   streetAddress: string
   city: string
+  locationContact: string
+  locationPhone: string
 }
 
 export interface NewLocationModalProps {
@@ -24,6 +26,8 @@ export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCapture
       <Field label="Business Name" value={form.businessName} onChange={(v) => onChange('businessName', v)} placeholder="Business at this site" />
       <Field label="Street Address" value={form.streetAddress} onChange={(v) => onChange('streetAddress', v)} placeholder="Street address" />
       <Field label="City" value={form.city} onChange={(v) => onChange('city', v)} placeholder="City" />
+      <Field label="Contact Person" value={form.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder="On-site contact" />
+      <Field label="Contact Phone" value={form.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder="Contact phone" />
       <button
         type="button"
         onClick={onCaptureGps}
