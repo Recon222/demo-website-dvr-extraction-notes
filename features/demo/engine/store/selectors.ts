@@ -1,5 +1,5 @@
 import type { DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, WizardScreenId } from '@/features/demo/engine/types'
+import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
 import { getProfile } from '@/features/demo/engine/content/profiles'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
@@ -92,6 +92,16 @@ function checkArray<T>(items: T[], fields: (item: T) => Array<string | undefined
 }
 
 /**
+ * Extracted scopes diverge from checkArray on purpose: a present-but-blank GENERATED scope reads
+ * 'partial', not 'empty' (only generateExtractedScopes populates this list, and a blank cameras
+ * field legitimately → amber). 'empty' is reserved for 0 items.
+ */
+function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
+  if (items.length === 0) return 'empty'
+  return items.every((s) => checkFields([s.startDateTime, s.endDateTime, s.cameras]) === 'complete') ? 'complete' : 'partial'
+}
+
+/**
  * Per-screen completion dot for the wizard drawer — mirrors the phone's `useSectionCompletion`:
  * the dot tells the user what's not yet filled, but only counted fields move it. Excluded:
  * toggles (a boolean is never "empty"), derived/read-only fields, and the two explicit opt-outs —
@@ -116,13 +126,12 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
   }
   const f = loc.form
   const dvr = f.dvr
-  const ex = f.extractedScopes
   return {
     submission: checkFields([loc.requesterName, loc.requesterBadge, loc.requesterPhone, loc.requesterEmail, loc.businessName, loc.streetAddress, loc.city, loc.locationContact, loc.locationPhone]),
     requestedScope: checkArray(f.scopes, (s) => [s.startDateTime, s.endDateTime, s.cameras]),
     arrivalDeparture: checkArray(f.arrivalDepartures, (a) => [a.arrival, a.departure]),
     timeOffset: checkFields([f.timeOffset?.dvrDateTime, f.timeOffset?.actualDateTime]),
-    extractedScope: ex.length === 0 ? 'empty' : ex.every((s) => checkFields([s.startDateTime, s.endDateTime, s.cameras]) === 'complete') ? 'complete' : 'partial',
+    extractedScope: checkExtractedScopes(f.extractedScopes),
     dvrInfo: checkFields([dvr.dvrLocation, dvr.dvrTypeBrand, dvr.dvrUsername, dvr.dvrPassword, dvr.numberOfChannels, dvr.activeCameras, dvr.resolution, dvr.recordingFps, dvr.firstRecordedDate]),
     cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
     exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
