@@ -67,20 +67,22 @@ app/demo/page.tsx  (already next/dynamic ssr:false + Suspense)
         │
         ▼
 features/demo/ui/DemoExperience.tsx   (the ONLY store-touching component — the bridge)
-  · view === 'map'  → renders <MapScreen>
-  · derives mapData = toMapData(currentCase, locationsOfCurrentCase)   [pure, memoized]
-  · passes mapData + onGoToLocation (= existing openLocation) down
+  · holds tab-local mapViewerCaseId (NOT the form's currentCaseId)
+  · view === 'map'  → renders <MapScreen> (or the mandatory <CaseMapPicker> when no viewer case)
+  · derives mapData = toMapData(viewerCase, viewerCaseLocations)   [pure, memoized]
+  · passes mapData + onChangeCase + onGoToLocation (= existing openLocation) down
   · un-no-ops the TabBar: onSelect('map') → setView('map')
         │ props in / callbacks out (callback isolation preserved)
         ▼
 features/demo/ui/screens/map/
-  MapScreen.tsx        orchestrator (LOCAL ui state only: selectedId, sheetMode, snapIndex)
+  MapScreen.tsx        orchestrator (LOCAL ui state only: selectedId, sheetMode, snapIndex, pendingCall, notice)
+   ├── CaseMapPicker.tsx   case-list bottom sheet (mandatory | dismissible) — picks mapViewerCaseId
    ├── MapCanvas.tsx       mapbox-gl instance (init/flyTo/markers/cleanup); no store, no app data
    ├── MapBottomSheet.tsx  3-detent drag-snap sheet (peek/partial/full) · list ⇄ detail
    │     ├── SheetHandle.tsx       count + status badges
    │     ├── LocationList.tsx / LocationRow.tsx
-   │     └── LocationDetailCard.tsx  → ContactActionSheet (iOS confirm) → DemoNotification
-   ├── mapData.ts        toMapData(): store entities → pins/incident/sheet items (UI mapper, pure)
+   │     └── LocationDetailCard.tsx  → CallConfirmSheet (call only) / DemoNotification (call+email)
+   ├── mapData.ts        toMapData(): viewer case's entities → pins/incident/sheet items (UI mapper, pure)
    └── mapTokens.ts      MAP_PIN_COLORS + glass tokens (lifted from the phone constants)
 
 features/demo/engine/store/selectors.ts
@@ -119,19 +121,20 @@ visual parity.
 Real `tel:` / `mailto:` would navigate the visitor out of the demo. Instead:
 
 ```
-tap requester/contact phone  → ContactActionSheet (iOS action-sheet, mode 'call')
+tap requester/contact phone  → CallConfirmSheet (iOS action-sheet)
      "Call 905-555-0142?"  [ Call ] [ Cancel ]
         · Call   → DemoNotification: "Calling isn't available in the demo."
         · Cancel → dismiss
 
-tap requester email          → ContactActionSheet (mode 'email')
-     "Email det@dept.ca?"   [ Email ] [ Cancel ]
-        · Email  → DemoNotification: "Email isn't available in the demo."
+tap requester email          → DemoNotification: "Email isn't available in the demo."   (direct — no confirm)
 ```
 
-- **`ContactActionSheet`** — a bottom-anchored iOS-style action sheet rendered in the phone's overlay
-  root (`PhoneOverlayContext`), with the number/address, a primary action, and Cancel. Pure
-  presentational (value + callbacks).
+The **call** path gets the iOS confirm bubble (a phone call is a deliberate action worth confirming);
+**email** goes straight to the notification (per product direction — no confirm step).
+
+- **`CallConfirmSheet`** — a bottom-anchored iOS-style action sheet rendered in the phone's overlay
+  root (`PhoneOverlayContext`), with the number, a **Call** action, and Cancel. Pure presentational
+  (value + callbacks). (Call-only; email needs no sheet.)
 - **`DemoNotification`** — a small iOS-style banner pinned to the top of the phone screen, auto-dismissed
   via `setTimeout` (the demo already uses `setTimeout` for pulses/sync; no `Date.now`/`Math.random`).
   Keys come from a module-level counter (determinism convention).
@@ -140,19 +143,30 @@ Both are reusable and fully DOM-testable (no map needed).
 
 ---
 
-## 7. Which case the map shows, and the empty state
+## 7. Which case the map shows — the case picker (parity)
 
-Scope the map to the **current case** (`currentCaseId`) — the closest parity to the phone's single-case
-map without porting the phone's tab-local viewer + mandatory case picker (a later item, §10).
+The phone's map is **single-case**, chosen via a **tab-local viewer + a case picker** (mandatory when no
+case is chosen, a dismissible "Change Case" overlay otherwise — `app/(tabs)/map.tsx` +
+`CaseSelectionSheet`). The demo reproduces this for parity:
 
-- `mapData` = the current case's incident + its locations **that have coordinates**. Locations/incidents
-  without coordinates (typed-without-pick, imported) simply don't plot — the honest "no coordinate" case,
-  consistent with the incident-coordinates feature.
-- **Empty state** (no current case, or the case has nothing plottable): a centered card — *"Open or
-  create a case, then add an address to see it on the map."* The map tab never dead-ends.
+- **`mapViewerCaseId`** — a **tab-local** viewer case held by `DemoExperience`, **distinct from**
+  `currentCaseId` (the form's case). Viewing a case on the map must not clobber the wizard's current
+  location — exactly the phone's reasoning. (Note: **"Go to Location"** is the one deliberate cross-over —
+  it *does* switch the form's case/location and leave the map for the wizard.)
+- **`CaseMapPicker`** — a bottom-sheet list of the demo's cases (reuses the `toCaseCards` view-model),
+  rendered in the overlay root. **Mandatory** (non-dismissible) when `mapViewerCaseId == null`; opened as a
+  **dismissible** overlay by a **"Change Case"** control on the map when a case is already viewed.
+- `mapData` = the **viewer case's** incident + its locations **that have coordinates**. Coord-less
+  locations/incidents don't plot — the honest "no coordinate" case (consistent with the incident-coords
+  feature). If the viewed case has nothing plottable, the canvas shows a small *"add an address to plot
+  this case"* state (the picker is still the primary no-case surface).
 
-> The map still shows the bottom **TabBar** (so the visitor can leave), so the sheet's peek detent sits
-> **above** the tab bar.
+> The map still shows the bottom **TabBar** (so the visitor can switch tabs), so the sheet's peek detent
+> sits **above** the tab bar.
+
+**All-Cases (aggregate) is deliberately NOT built** — the phone app hasn't shipped it either. The door is
+kept open: `toMapData` is per-case now, and an aggregate `toMapDataAll(cases, locations)` + an "All Cases"
+entry in the picker is a purely additive follow-up **the demo will take as soon as the app does** (§10).
 
 ---
 
@@ -175,8 +189,8 @@ CSS + `setTimeout`.
 | Pins | **`mapboxgl.Marker` with styled DOM elements** built by a pure `buildMarkers(mapData)` helper | Easy to style to parity (status dot / red teardrop) and unit-test the build logic without WebGL. *Rejected (this slice):* GeoJSON source + circle layer — needed for clustering, which is a **later** slice. |
 | Bottom sheet | **Bespoke CSS/pointer-drag** with 3 detents | `@gorhom/bottom-sheet` is RN-only. The phone's snap/list/detail model maps cleanly to a height-animated div + pointer handlers. |
 | Location status | **Derived from `selectDrawerStatus`** | Reuses existing completion; one source of truth. *Rejected:* a new stored status field — duplicates state. |
-| Map scope | **current case** | Parity-lite; the picker/All-Cases is staged. |
-| call/email | **iOS confirm sheet → "not available" notification** | Per product direction; never navigates away. |
+| Map scope | **Tab-local `mapViewerCaseId` + a case picker** (single-case) | Parity with the phone's tab-local viewer + `CaseSelectionSheet`. **All-Cases is NOT built** (the app hasn't either) — kept additive so the demo follows the app. |
+| call vs email | **Call → iOS confirm bubble → notification; email → notification directly (no confirm)** | Per product direction. Neither ever navigates away. |
 | Determinism / SSR | lazy import; `'use client'`; `setTimeout` (not `Date.now`); counter keys | Matches the demo's conventions; `/demo` is already `ssr:false`. |
 | Testing the map | **mock `mapbox-gl`** | jsdom has no WebGL. Map-render tests assert constructor/flyTo/marker calls; the sheet/detail/call-mock are plain DOM. |
 
@@ -184,18 +198,19 @@ CSS + `setTimeout`.
 
 ## 10. Scope boundaries
 
-**In scope (flagship — this plan, 7 slices):** the `mapbox-gl` canvas, status-coloured location pins +
-red incident teardrop, fit-to-case camera, the 3-detent bottom sheet (list + detail), tap-to-fly + select,
-the location/incident detail cards, the **call/email mock**, "Go to Location", the Map-tab wiring +
-empty state + rail narration.
+**In scope (flagship — this plan, 8 slices):** the **case picker** (tab-local viewer, mandatory +
+dismissible), the `mapbox-gl` canvas, status-coloured location pins + red incident teardrop, fit-to-case
+camera, the 3-detent bottom sheet (list + detail), tap-to-fly + select, the location/incident detail cards,
+the **call/email mock**, "Go to Location", the Map-tab wiring + empty/picker state + rail narration.
 
 **Out of scope (later — each additive, its own plan):**
-1. **Clustering** (migrate location markers → GeoJSON source + cluster layer + tap-to-expand).
-2. **Floating controls** — status filter pills + location search.
-3. **Proximity** ring + radius presets (long-press).
-4. **Camera markers** (per-location, opt-in) — needs per-camera GPS (deferred #24).
-5. **Edit Incident Location** modal from the incident detail card (deferred #26).
-6. **Case picker / All-Cases** map (the phone's tab-local viewer + mandatory picker).
+1. **All-Cases (aggregate) map** — an "All Cases" picker entry + `toMapDataAll`. **Not in the app yet;**
+   the demo adopts it the moment the app does (door kept open by the per-case `toMapData` shape).
+2. **Clustering** (migrate location markers → GeoJSON source + cluster layer + tap-to-expand).
+3. **Floating controls** — status filter pills + location search.
+4. **Proximity** ring + radius presets (long-press).
+5. **Camera markers** (per-location, opt-in) — needs per-camera GPS (deferred #24).
+6. **Edit Incident Location** modal from the incident detail card (deferred #26).
 7. **Export Map** footer action.
 8. **Guided-tour** map chapter (the tour overhaul is its own deferred item).
 

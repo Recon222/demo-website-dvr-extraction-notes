@@ -35,7 +35,7 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 
 ---
 
-## Slice 2 — store + bridge
+## Slice 2 — store + bridge wiring
 
 **`create-store` (extend `store.test.ts`)**
 - `setView('map')` sets `view === 'map'` and leaves `currentChapter` unchanged (e.g. still `'cases'`).
@@ -45,12 +45,26 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 - clicking the **Map** tab (`aria-label="Map"`) calls `setView('map')` → the Map screen renders
   (`data-map-screen` present).
 - on the map view, the rail shows `MAP_NARRATION.title` (not a wizard chapter's).
-- **empty state**: a fresh sandbox store (no current case) shows the empty-state copy and **no** canvas.
 - `showTabs` is true on the map view (the TabBar is present).
 
 ---
 
-## Slice 3 — `selectors.test.ts` + `mapData.test.ts`
+## Slice 3 — case picker (`CaseMapPicker.test.tsx` + bridge)
+
+**`CaseMapPicker.test.tsx`**
+- renders a row per case (number + display name + location count); clicking a row calls `onPick(caseId)`.
+- `dismissible={false}` (mandatory) renders **no** close affordance and a scrim click does **not** call `onClose`.
+- `dismissible` renders a close affordance; scrim/close calls `onClose`.
+
+**`DemoExperience` (extend `DemoExperience.map.test.tsx`)**
+- on the map view with **no** `mapViewerCaseId`, the **mandatory** picker is shown (no map canvas yet).
+- picking a case sets the viewer (the map renders for that case) and **does not** change the store's
+  `currentCaseId` (assert it's untouched — the viewer is tab-local).
+- with a viewer case, a **Change Case** control opens the **dismissible** picker; Cancel returns to the map.
+
+---
+
+## Slice 4 — `selectors.test.ts` + `mapData.test.ts`
 
 **`selectLocationMapStatus`**
 - a location with every wizard screen blank → `'started'`.
@@ -66,7 +80,7 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 
 ---
 
-## Slice 4 — `buildMarkers.test.ts` + `MapCanvas` markers
+## Slice 5 — `buildMarkers.test.ts` + `MapCanvas` markers
 
 **`buildMarkers`**
 - N located locations + 1 incident → N+1 descriptors; location colours come from `MAP_PIN_COLORS[status]`,
@@ -82,7 +96,7 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 
 ---
 
-## Slice 5 — sheet shell
+## Slice 6 — sheet shell
 
 **`SheetHandle.test.tsx`**
 - list mode renders `"{n} Locations"` and a status badge per non-zero count (correct colour/label).
@@ -99,7 +113,7 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 
 ---
 
-## Slice 6 — select + fly
+## Slice 7 — select + fly
 
 **`MapScreen.test.tsx` (mock `mapbox-gl`)**
 - clicking a `LocationRow` calls the canvas `flyTo` with the item's `coord` and switches the sheet to
@@ -109,7 +123,7 @@ the plan's slices — write the slice's tests first (red), implement to green, c
 
 ---
 
-## Slice 7 — detail + call/email mock + Go to Location
+## Slice 8 — detail + call/email mock + Go to Location
 
 **`LocationDetailCard.test.tsx`**
 - location variant renders the requester card (name/badge, unit, phone, email) and the contact card
@@ -118,18 +132,18 @@ the plan's slices — write the slice's tests first (red), implement to green, c
   `onEmail('det@dept.ca')`; **Go to Location** calls `onGoToLocation(id)`.
 - incident variant renders the headline + "Incident" chip + coordinates; no requester/contact cards.
 
-**`ContactActionSheet.test.tsx`**
-- mode `'call'` renders `"Call 905-555-0142?"` + a Call button + Cancel; Call → `onConfirm`, Cancel → `onCancel`.
-- mode `'email'` renders `"Email det@dept.ca?"` + an Email button + Cancel.
+**`CallConfirmSheet.test.tsx`** (call only)
+- renders `"Call 905-555-0142?"` + a Call button + Cancel; Call → `onConfirm`, Cancel → `onCancel`.
 
 **`DemoNotification.test.tsx` (fake timers)**
 - renders the message; auto-dismisses (calls `onDismiss`) after the timeout; unmount clears the timer (no
   post-unmount callback).
 
 **`MapScreen` (integration, mock `mapbox-gl`)**
-- tap a phone row → the action sheet shows `"Call …?"`; **Call** → the action sheet closes and the
-  notification reads `"Calling isn't available in the demo."`; **Cancel** → no notification.
-- tap an email row → **Email** → notification `"Email isn't available in the demo."`.
+- tap a phone row → the confirm sheet shows `"Call …?"`; **Call** → the sheet closes and the notification
+  reads `"Calling isn't available in the demo."`; **Cancel** → no notification.
+- tap an email row → **directly** shows the notification `"Email isn't available in the demo."` — **no**
+  confirm sheet is rendered first.
 - **Go to Location** invokes the `onGoToLocation` prop with the selected id (the bridge wires it to
   `openLocation`, asserted at the `DemoExperience` level: the store's `currentLocationId` + `view` change).
 

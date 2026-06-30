@@ -19,16 +19,17 @@ features/demo/ui/screens/map/
 ├── MapCanvas.tsx               # NEW — mapbox-gl init/flyTo/markers/cleanup + no-token fallback
 ├── buildMarkers.ts             # NEW — pure: mapData → marker descriptors (element spec + lnglat + id)
 ├── MapScreen.tsx               # NEW — orchestrator (local ui state; props in / callbacks out)
+├── CaseMapPicker.tsx           # NEW — case-list bottom sheet (mandatory | dismissible)
 ├── MapBottomSheet.tsx          # NEW — 3-detent drag-snap sheet; list ⇄ detail
 ├── SheetHandle.tsx             # NEW — count + status badges
 ├── LocationList.tsx            # NEW — list of rows
 ├── LocationRow.tsx             # NEW — glass row (location + incident variants)
 ├── LocationDetailCard.tsx      # NEW — detail (location + incident); contact/requester cards
-├── ContactActionSheet.tsx      # NEW — iOS confirm bubble (mode 'call' | 'email')
+├── CallConfirmSheet.tsx        # NEW — iOS confirm bubble (call only)
 ├── DemoNotification.tsx        # NEW — top banner, setTimeout auto-dismiss
 └── __tests__/                  # NEW — co-located
 features/demo/ui/controls/TabBar.tsx                     # (unchanged — already renders 'map')
-features/demo/ui/DemoExperience.tsx                      # EDIT — un-no-op map tab; render MapScreen; mapData; showTabs
+features/demo/ui/DemoExperience.tsx                      # EDIT — un-no-op map tab; tab-local mapViewerCaseId; render MapScreen/picker; mapData; showTabs
 features/demo/engine/store/create-store.ts               # EDIT — setView('map') keeps currentChapter sane
 features/demo/engine/types/index.ts                      # EDIT — view union allows 'map'
 features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy for the map
@@ -60,30 +61,48 @@ features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy fo
 
 ---
 
-## Slice 2 — `MapScreen` shell + Map-tab wiring (reachable, empty)
+## Slice 2 — Map-tab wiring + `mapViewerCaseId` + rail narration
 
-**Goal:** The Map tab opens a Map screen (empty/placeholder content) in sandbox; the rail shows map copy.
+**Goal:** The Map tab opens the Map screen in sandbox; a tab-local viewer case exists; the rail shows map copy.
 
 - `types/index.ts`: allow `'map'` in the `view` union (a tab-only view, **not** a `ChapterId`).
 - `create-store.ts`: `setView('map')` sets `view='map'` but **does not** set `currentChapter` to `'map'`
   (extend `isChapterId` to exclude `'map'`). `currentChapter` stays on the prior chapter.
 - `DemoExperience.tsx`:
+  - **`mapViewerCaseId`** — new tab-local `useState<string | null>(null)`, **distinct** from `currentCaseId`.
   - TabBar: `onSelect={(t) => store.getState().setView(t)}` (drop the `t !== 'map'` guard).
   - `showTabs = view === 'dashboard' || view === 'cases' || view === 'map'`.
-  - `activeScreen()`: `case 'map': return <MapScreen mapData={mapData} onGoToLocation={openLocation} />`
-    (mapData is a stub/empty in this slice).
+  - `activeScreen()`: `case 'map': return <MapScreen viewerCaseId={mapViewerCaseId} … />`. With no viewer
+    case yet (the picker arrives in Slice 3), render a minimal *"Pick a case"* placeholder.
   - Rail narration: `const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]`.
 - `MAP_NARRATION` (a `ChapterNarration`-shaped const): eyebrow/title/paras/bullets about the map.
-- `MapScreen.tsx`: renders the empty-state card when `mapData` has no incident and no pins; else a
-  placeholder for the canvas (filled in Slice 4).
 
-**Gate:** store + bridge tests green (mock `mapbox-gl`); `tsc`. **Commit:** `feat(demo): Map tab opens the Map screen (sandbox) + rail narration`.
+**Gate:** store + bridge tests green (mock `mapbox-gl`); `tsc`. **Commit:** `feat(demo): Map tab opens the Map screen (sandbox) + tab-local viewer case + rail narration`.
 
 ---
 
-## Slice 3 — Data projection (status + pins + sheet items)
+## Slice 3 — `CaseMapPicker` (mandatory + dismissible "Change Case")
 
-**Goal:** Pure functions turning the current case + its locations into everything the map/sheet render.
+**Goal:** Parity with the phone's case picker — choose which case the map views, tab-local.
+
+- `CaseMapPicker.tsx`: a bottom-sheet list of the demo's cases (rows from the `toCaseCards` view-model:
+  case number, display name, location count), rendered in the phone overlay root. Props: `cases`,
+  `dismissible`, `onPick(caseId)`, `onClose`. Mandatory (no scrim-dismiss / no close button) when
+  `dismissible` is false.
+- `DemoExperience.tsx`:
+  - Show the picker when `view === 'map'` **and** (`mapViewerCaseId == null` *(mandatory)* **or** the user
+    invoked **Change Case** *(dismissible)*). `onPick` sets `mapViewerCaseId` (never writes `currentCaseId`).
+  - Pass `onChangeCase` to `MapScreen` → renders a **"Change Case"** control (pill) that opens the
+    dismissible picker.
+- `MapScreen.tsx`: renders the "Change Case" pill; the canvas/sheet now key off the chosen viewer case.
+
+**Gate:** picker + bridge tests green; `tsc`. **Commit:** `feat(demo): map case picker (mandatory + Change Case) — tab-local viewer`.
+
+---
+
+## Slice 4 — Data projection (status + pins + sheet items)
+
+**Goal:** Pure functions turning the viewer case + its locations into everything the map/sheet render.
 
 - `selectors.ts`: `selectLocationMapStatus(loc)` (architecture §5; reuses `selectDrawerStatus`).
 - `mapTokens.ts`: `MAP_PIN_COLORS = { started:'#FF9500', working:'#00BFFF', complete:'#34C759', incident:'#e53935' }`
@@ -98,19 +117,22 @@ features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy fo
         locationContact; locationPhone; coordinateSource: 'geocoded' | 'manual' }
     | { kind: 'incident'; id; caseNumber; displayName?; businessName; streetAddress; city; address; coord: [number, number] }
   export interface MapData { pins: MapPin[]; incident: MapIncident | null; items: SheetItem[]; statusCounts: { started: number; working: number; complete: number } }
-  export function toMapData(currentCase: DemoCase | null, locations: DemoLocation[]): MapData
+  export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]): MapData
   ```
   - Pins: each location **with `gps`** → `{ id, lng, lat, status: selectLocationMapStatus(loc) }`.
-  - Incident: `currentCase.incidentCoordinates` → `MapIncident` (else null).
+  - Incident: `viewerCase.incidentCoordinates` → `MapIncident` (else null).
   - `items`: incident first (if present) then each **located** location → `SheetItem` (all contact/requester
     fields trimmed → string). `statusCounts` tallies located locations by status.
-- `DemoExperience.tsx`: `const mapData = useMemo(() => toMapData(currentCase, locations.filter(l => l.caseId === currentCaseId)), [...])` and pass it down (replacing the Slice-2 stub).
+  - Per-case shape now; an aggregate `toMapDataAll(cases, locations)` is the additive All-Cases hook (§10.1).
+- `DemoExperience.tsx`: `const viewerCase = cases.find(c => c.id === mapViewerCaseId) ?? null`;
+  `const mapData = useMemo(() => toMapData(viewerCase, locations.filter(l => l.caseId === mapViewerCaseId)), [...])`
+  and pass it down to `MapScreen`.
 
 **Gate:** `selectors.test.ts` + `mapData.test.ts` green; `tsc`. **Commit:** `feat(demo): map data projection — derived location status, pins, incident, sheet items`.
 
 ---
 
-## Slice 4 — Render pins + incident on the map
+## Slice 5 — Render pins + incident on the map
 
 **Goal:** Status-coloured location markers + the red incident teardrop, fitted to the case.
 
@@ -127,7 +149,7 @@ features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy fo
 
 ---
 
-## Slice 5 — Bottom sheet shell (peek/partial/full + list)
+## Slice 6 — Bottom sheet shell (peek/partial/full + list)
 
 **Goal:** A draggable 3-detent sheet showing the location list and a live peek summary.
 
@@ -146,7 +168,7 @@ features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy fo
 
 ---
 
-## Slice 6 — Tap-to-fly + selection (list ⇄ detail)
+## Slice 7 — Tap-to-fly + selection (list ⇄ detail)
 
 **Goal:** Tapping a pin or a row flies the camera and opens the detail.
 
@@ -161,26 +183,28 @@ features/demo/ui/.../narration or a MAP_NARRATION const  # EDIT — rail copy fo
 
 ---
 
-## Slice 7 — Detail card + call/email mock + Go to Location (the marquee)
+## Slice 8 — Detail card + call/email mock + Go to Location (the marquee)
 
-**Goal:** The location/incident detail cards, with the iOS call/email mock and the form hand-off.
+**Goal:** The location/incident detail cards, with the iOS call mock + email notification and the form hand-off.
 
 - `LocationDetailCard.tsx`:
   - **Location variant:** back button, name + status badge, address + coordinates row (`formatCoordinate`
     + source chip), **Requester** card (name/badge, unit, phone, email), **Contact** card (person, phone),
     **"Go to Location"** CTA. Phone rows tappable → `onCall(number)`; email row → `onEmail(address)`.
   - **Incident variant:** headline + "Incident" chip, address/coords. (No edit CTA — the incident-edit
-    modal is deferred §10.5; show the info only.)
-- `ContactActionSheet.tsx`: iOS action sheet (`mode: 'call' | 'email'`, the value, primary + Cancel),
+    modal is deferred §10.6; show the info only.)
+- `CallConfirmSheet.tsx`: iOS action sheet for **calls only** — `"Call {number}?"` + **Call** + Cancel,
   rendered in the overlay root.
 - `DemoNotification.tsx`: top banner; `setTimeout` auto-dismiss; counter keys.
-- `MapScreen.tsx`: owns `pendingContact` + `notice` state. `onCall`/`onEmail` open the action sheet;
-  confirming shows the notification (`"Calling isn't available in the demo."` / `"Email isn't available in
-  the demo."`); Cancel dismisses. `onGoToLocation(id)` (prop from `DemoExperience` = `openLocation`) leaves
-  the map into the wizard.
+- `MapScreen.tsx`: owns `pendingCall` + `notice` state.
+  - `onCall(number)` → open `CallConfirmSheet`; **Call** → close sheet + notify `"Calling isn't available in
+    the demo."`; **Cancel** → dismiss.
+  - `onEmail(address)` → **directly** notify `"Email isn't available in the demo."` (no confirm — per
+    product direction).
+  - `onGoToLocation(id)` (prop from `DemoExperience` = `openLocation`) leaves the map into the wizard.
 
-**Gate:** detail/action-sheet/notification tests green; **full `pnpm test` + `pnpm test:coverage` (≥80%
-engine) + `tsc`**. **Commit:** `feat(demo): location detail card + iOS call/email mock + Go to Location`.
+**Gate:** detail/confirm-sheet/notification tests green; **full `pnpm test` + `pnpm test:coverage` (≥80%
+engine) + `tsc`**. **Commit:** `feat(demo): location detail card + iOS call mock + email notification + Go to Location`.
 
 ---
 
@@ -191,10 +215,12 @@ engine) + `tsc`**. **Commit:** `feat(demo): location detail card + iOS call/emai
 - `package.json`, `.env.example`
 - `features/demo/engine/store/create-store.ts` (`setView('map')`), `types/index.ts` (`view` union, `LocationMapStatus`)
 - `features/demo/engine/store/selectors.ts` (`selectLocationMapStatus`)
-- `features/demo/ui/DemoExperience.tsx` (tab wiring, `mapData`, `showTabs`, rail narration)
+- `features/demo/ui/DemoExperience.tsx` (tab wiring, tab-local `mapViewerCaseId`, case picker, `mapData`, `showTabs`, rail narration)
 
 ## Appendix C — manual verification (needs `NEXT_PUBLIC_MAPBOX_TOKEN`)
-`pnpm dev` → `/demo?mode=sandbox` → the seed/created case → **Map** tab: satellite map with status pins +
-red incident teardrop; tap a pin → camera flies + detail opens; tap a phone number → iOS "Call …?" →
-**Call** → "Calling isn't available in the demo"; **Go to Location** → the submission screen. No token →
-the styled placeholder (no crash). Build/CI cover the rest via the mocked `mapbox-gl`.
+`pnpm dev` → `/demo?mode=sandbox` → create a case (pick an address) → **Map** tab → the **mandatory case
+picker** appears → pick the case → satellite map with status pins + red incident teardrop; tap a pin →
+camera flies + detail opens; tap a phone number → iOS "Call …?" → **Call** → "Calling isn't available in
+the demo"; tap an email → "Email isn't available in the demo" (no confirm); **Change Case** → dismissible
+picker; **Go to Location** → the submission screen. No token → the styled placeholder (no crash). Build/CI
+cover the rest via the mocked `mapbox-gl`.
