@@ -85,7 +85,9 @@ export function AddressAutocomplete({
     }
     const mine = ++seq.current
     session
-      .suggest(value, { country: 'ca', types: 'address', limit: 5 })
+      // proximity:'ip' biases results to the user's location via Mapbox IP geolocation —
+      // closest-first results, no geolocation permission prompt or device API.
+      .suggest(value, { country: 'ca', types: 'address', limit: 5, proximity: 'ip' })
       .then((res) => {
         if (mine !== seq.current) return // a newer keystroke superseded this response
         const items: Suggestion[] = (res.suggestions ?? []).map((s) => ({
