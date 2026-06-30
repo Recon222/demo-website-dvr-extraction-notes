@@ -39,6 +39,15 @@ const itemButton: CSSProperties = {
   textAlign: 'left',
 }
 
+// Completion dot: distinguished by SHAPE (filled vs ring) as well as colour, so it's not
+// colour-only (WCAG 1.4.1); status is also announced via the button's aria-label.
+const STATUS_LABEL: Record<'complete' | 'partial', string> = { complete: 'complete', partial: 'partially complete' }
+const dotBase: CSSProperties = { flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, boxSizing: 'border-box' }
+const DOT: Record<'complete' | 'partial', CSSProperties> = {
+  complete: { background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' }, // filled
+  partial: { background: 'transparent', border: '2px solid #ffd93d', boxShadow: '0 0 6px rgba(255,217,61,0.45)' }, // ring
+}
+
 /** The wizard navigation drawer — right-anchored, slides in from the right (the screen behind is
  *  pushed left by ScreenStage) with a backdrop fade; reverses on close via AnimatePresence. The
  *  backdrop and panel are separate stably-keyed children so rapid open/close can't strand one. */
@@ -125,13 +134,18 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
 
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '10px 0 14px' }}>
               {items.map((it) => (
-                <button key={it.id} type="button" onClick={() => onNavigate(it.id)} style={itemButton}>
-                  {it.active && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, borderRadius: '0 2px 2px 0', background: '#2B8CC1' }} />}
-                  <span style={{ fontSize: 15, fontWeight: 500, color: it.active ? '#f0f4f8' : '#cdd9e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => onNavigate(it.id)}
+                  aria-label={it.status ? `${it.label}, ${STATUS_LABEL[it.status]}` : undefined}
+                  style={itemButton}
+                >
+                  {it.active && <div aria-hidden="true" style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, borderRadius: '0 2px 2px 0', background: '#2B8CC1' }} />}
+                  <span style={{ flex: '1 1 auto', minWidth: 0, fontSize: 15, fontWeight: 500, color: it.active ? '#f0f4f8' : '#cdd9e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {it.label}
                   </span>
-                  {it.status === 'complete' && <div data-dot="complete" style={{ flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' }} />}
-                  {it.status === 'partial' && <div data-dot="partial" style={{ flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' }} />}
+                  {it.status && <div data-dot={it.status} aria-hidden="true" style={{ ...dotBase, ...DOT[it.status] }} />}
                 </button>
               ))}
             </div>

@@ -60,6 +60,10 @@ describe('WizardDrawer', () => {
     expect(container.querySelector('[data-dot="complete"]')).toBeTruthy()
     expect(container.querySelector('[data-dot="partial"]')).toBeTruthy()
     expect(container.querySelectorAll('[data-dot]')).toHaveLength(2) // dvrInfo (no status) → no dot
+    // status is announced via aria-label, not colour alone (M1)
+    expect(screen.getByRole('button', { name: /Submission, complete/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Time Offset, partially complete/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'DVR' })).toBeInTheDocument() // no status → label only
   })
 })
 
