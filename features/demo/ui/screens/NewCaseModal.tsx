@@ -1,6 +1,7 @@
 'use client'
 
 import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 
 export interface NewCaseFields {
   caseNumber: string
@@ -51,7 +52,16 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
 
       <div style={sectionLabel}>Incident Location</div>
       <Field label="Business / Scene Name" value={form.incidentBusinessName} onChange={(v) => onChange('incidentBusinessName', v)} placeholder="Where the occurrence happened" />
-      <Field label="Street Address" value={form.incidentStreetAddress} onChange={(v) => onChange('incidentStreetAddress', v)} placeholder="Street address" />
+      <AddressAutocomplete
+        label="Street Address"
+        value={form.incidentStreetAddress}
+        onChange={(v) => onChange('incidentStreetAddress', v)}
+        onPick={(p) => {
+          onChange('incidentStreetAddress', p.streetAddress)
+          onChange('incidentCity', p.city)
+        }}
+        placeholder="Start typing an address…"
+      />
       <Field label="City" value={form.incidentCity} onChange={(v) => onChange('incidentCity', v)} placeholder="City" />
 
       <Field label="Notes" multiline value={form.notes} onChange={(v) => onChange('notes', v)} placeholder="Case notes…" />

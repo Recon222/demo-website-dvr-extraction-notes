@@ -1,6 +1,7 @@
 'use client'
 
 import { Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 
 export interface NewLocationFields {
   locationName: string
@@ -24,7 +25,16 @@ export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCapture
     <ModalShell title="New Location" onClose={onCancel}>
       <Field label="Location Name" required value={form.locationName} onChange={(v) => onChange('locationName', v)} placeholder="e.g., Front entrance" />
       <Field label="Business Name" value={form.businessName} onChange={(v) => onChange('businessName', v)} placeholder="Business at this site" />
-      <Field label="Street Address" value={form.streetAddress} onChange={(v) => onChange('streetAddress', v)} placeholder="Street address" />
+      <AddressAutocomplete
+        label="Street Address"
+        value={form.streetAddress}
+        onChange={(v) => onChange('streetAddress', v)}
+        onPick={(p) => {
+          onChange('streetAddress', p.streetAddress)
+          onChange('city', p.city)
+        }}
+        placeholder="Start typing an address…"
+      />
       <Field label="City" value={form.city} onChange={(v) => onChange('city', v)} placeholder="City" />
       <Field label="Contact Person" value={form.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder="On-site contact" />
       <Field label="Contact Phone" value={form.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder="Contact phone" />

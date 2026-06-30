@@ -480,7 +480,9 @@ fallback). Mind the demo's no-real-device-API convention (it's a deliberate exce
 
 ---
 
-## 25. Mapbox address autocomplete on the street fields
+## 25. Mapbox address autocomplete on the street fields — RESOLVED
+
+**RESOLVED** (feat/demo-field-parity): AddressAutocomplete (Mapbox SearchSession, @mapbox/search-js-core) on the New Case incident / New Location / Submission street fields; a pick fills street + city. Public pk token via NEXT_PUBLIC_MAPBOX_TOKEN; degrades to plain input without it.
 
 **Source:** field-parity work — owner will provide a Mapbox token.
 

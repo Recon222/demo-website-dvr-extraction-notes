@@ -1,6 +1,7 @@
 'use client'
 
 import { Field, SectionCard, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 
 export interface SubmissionFields {
   requesterName: string
@@ -42,7 +43,16 @@ export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, 
         </SectionCard>
         <SectionCard title="Location Information">
           <Field label="Business Name" value={fields.businessName} onChange={(v) => onChange('businessName', v)} placeholder="Business at this location" />
-          <Field label="Street Address" value={fields.streetAddress} onChange={(v) => onChange('streetAddress', v)} placeholder="Street address" />
+          <AddressAutocomplete
+            label="Street Address"
+            value={fields.streetAddress}
+            onChange={(v) => onChange('streetAddress', v)}
+            onPick={(p) => {
+              onChange('streetAddress', p.streetAddress)
+              onChange('city', p.city)
+            }}
+            placeholder="Start typing an address…"
+          />
           <Field label="City" value={fields.city} onChange={(v) => onChange('city', v)} placeholder="City" />
           <Field label="Contact Person" value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder="On-site coordinator" />
           <Field label="Contact Phone" value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder="Contact phone" />
