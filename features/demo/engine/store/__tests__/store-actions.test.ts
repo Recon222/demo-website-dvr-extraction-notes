@@ -22,12 +22,17 @@ function withLocation() {
 }
 
 describe('createCase / addLocation optional fields', () => {
-  it('carry through OIC/VC and per-location requester/contact when provided', () => {
+  it('carry through OIC/VC, incident location + notes, and per-location requester/contact when provided', () => {
     const store = freshStore()
     const c = store.getState().createCase(
-      newCaseInput({ oicName: 'A. Okafor', oicBadge: '3318', vcName: 'M. Reyes', vcBadge: '5102' }),
+      newCaseInput({ oicName: 'A. Okafor', oicBadge: '3318', vcName: 'M. Reyes', vcBadge: '5102', incidentBusinessName: 'Acme Mart', incidentStreetAddress: '5 King St', incidentCity: 'Brampton', notes: 'CCTV at rear' }),
     )
-    expect(store.getState().cases.find((x) => x.id === c)?.oicName).toBe('A. Okafor')
+    const caseObj = store.getState().cases.find((x) => x.id === c)
+    expect(caseObj?.oicName).toBe('A. Okafor')
+    expect(caseObj?.incidentBusinessName).toBe('Acme Mart')
+    expect(caseObj?.incidentStreetAddress).toBe('5 King St')
+    expect(caseObj?.incidentCity).toBe('Brampton')
+    expect(caseObj?.notes).toBe('CCTV at rear')
     const l = store.getState().addLocation(
       c,
       newLocationInput({ requesterName: 'Liam McHugh', requesterBadge: '4471', locationContact: 'Sandeep Gill' }),
@@ -35,6 +40,9 @@ describe('createCase / addLocation optional fields', () => {
     const loc = store.getState().locations.find((x) => x.id === l)
     expect(loc?.requesterName).toBe('Liam McHugh')
     expect(loc?.locationContact).toBe('Sandeep Gill')
+    expect(loc?.requesterUnit).toBe('') // defaulted; edited later on the Submission screen
+    expect(loc?.form.dateTimeCompleted).toBe('') // completion fields default blank
+    expect(loc?.form.completedBy).toBe('')
   })
 })
 

@@ -13,6 +13,7 @@ function loc(over: Partial<DemoLocation> = {}, formOver: Partial<LocationForm> =
     city: '',
     requesterName: '',
     requesterBadge: '',
+    requesterUnit: '',
     requesterPhone: '',
     requesterEmail: '',
     locationContact: '',

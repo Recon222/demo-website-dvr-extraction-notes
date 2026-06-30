@@ -154,6 +154,9 @@ export interface LocationForm {
   export: ExportInformation
   notesText: string
   notesEdited: boolean
+  /** Completion screen entry fields. */
+  dateTimeCompleted: string
+  completedBy: string
   media: { photos: MediaItem[]; videos: MediaItem[]; audios: MediaItem[] }
 }
 
@@ -167,6 +170,12 @@ export interface DemoCase {
   oicBadge: string
   vcName: string
   vcBadge: string
+  /** Incident location (the occurrence scene — distinct from the recovery locations). */
+  incidentBusinessName: string
+  incidentStreetAddress: string
+  incidentCity: string
+  /** Free-text case notes. */
+  notes: string
   status: 'draft' | 'complete' | 'archived'
   createdLabel: string
   /** true for scripted demo seed data; false for visitor-created (fixes the
@@ -184,6 +193,8 @@ export interface DemoLocation {
   city: string
   requesterName: string
   requesterBadge: string
+  /** Requester's unit/section (defaults to the case unit if left blank). */
+  requesterUnit: string
   requesterPhone: string
   requesterEmail: string
   locationContact: string
