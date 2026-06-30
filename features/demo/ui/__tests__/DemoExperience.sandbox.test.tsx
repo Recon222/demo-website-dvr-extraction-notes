@@ -12,6 +12,14 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
 // The import orchestrator (pdf.js + the model proxy) is mocked — no network, no real PDF.
 vi.mock('@/features/demo/ui/import/run-import', () => ({ runImport: vi.fn(), runPdfImport: vi.fn() }))
 
+// Mock only the IO forwardGeocode (keep the pure buildGeocodeQuery real) so import geocoding is
+// deterministic — returns undefined by default (no gps), set per-test when a coordinate is wanted.
+const { forwardGeocodeMock } = vi.hoisted(() => ({ forwardGeocodeMock: vi.fn() }))
+vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
+  ...(await orig<typeof import('@/features/demo/ui/import/geocode')>()),
+  forwardGeocode: forwardGeocodeMock,
+}))
+
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
 
@@ -90,6 +98,46 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBeGreaterThan(0)
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true, documentText: 'recover footage from Store X' }))
+  })
+
+  it('import: a resolvable address is geocoded so the imported location lands on the map', async () => {
+    forwardGeocodeMock.mockResolvedValue({ lng: -79.65, lat: 43.61 })
+    const basePatch = (okRun() as Extract<ImportRunResult, { ok: true }>).patch
+    runText.mockResolvedValue(
+      okRun({ patch: { ...basePatch, businessName: "Kim's Convenience", streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' } }),
+    )
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-GEO', displayName: 'Geo', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Extract & import'))
+
+    await screen.findByText('Import complete')
+    expect(forwardGeocodeMock).toHaveBeenCalledWith('1450 Eglinton Ave W, Mississauga')
+    expect(store.getState().locations[0]?.gps).toEqual({ lat: 43.61, lng: -79.65, accuracyM: 0, source: 'geocoded' })
+  })
+
+  it('import: an unresolvable address still creates the location (non-blocking, no pin)', async () => {
+    forwardGeocodeMock.mockResolvedValue(null) // no match / geocoder error → null
+    const basePatch = (okRun() as Extract<ImportRunResult, { ok: true }>).patch
+    runText.mockResolvedValue(okRun({ patch: { ...basePatch, streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' } }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-NOGEO', displayName: 'NoGeo', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Extract & import'))
+
+    await screen.findByText('Import complete')
+    expect(store.getState().locations.length).toBe(1)
+    expect(store.getState().locations[0]?.gps).toBeUndefined()
   })
 
   it('import (PDF): a file selection runs the pipeline and creates a location', async () => {

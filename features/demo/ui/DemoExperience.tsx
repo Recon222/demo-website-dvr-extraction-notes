@@ -9,6 +9,7 @@ import { BEATS } from '@/features/demo/engine/director/beats'
 import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
+import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { ChapterId, DemoMode } from '@/features/demo/engine/types'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -377,8 +378,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return undefined
   }
 
-  const applySuccess = (caseId: string, res: Extract<ImportRunResult, { ok: true }>): string => {
-    const id = store.getState().addLocation(caseId, { locationName: res.patch.businessName || res.filename || 'Imported location' })
+  // Forward-geocode the imported address BEFORE creating the location (mirrors the phone's
+  // persistMappedImport) so imported locations land on the map. Non-blocking: no token / no match
+  // → the location is still created, just without a pin.
+  const applySuccess = async (caseId: string, res: Extract<ImportRunResult, { ok: true }>): Promise<string> => {
+    const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
+    const coords = query ? await forwardGeocode(query) : null
+    const id = store.getState().addLocation(caseId, {
+      locationName: res.patch.businessName || res.filename || 'Imported location',
+      gps: coords ? { lat: coords.lat, lng: coords.lng, source: 'geocoded' } : undefined,
+    })
     store.getState().applyImport(res.patch)
     return id
   }
@@ -389,8 +398,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     locations: ImportedLocationView[]
     failures: ImportFailure[]
   }
-  const recordSuccess = (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
-    const locId = applySuccess(caseId, res)
+  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
+    const locId = await applySuccess(caseId, res)
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
     tally.locations.push(
@@ -439,7 +448,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live, onStage: onImportStage })
       if (importCancelled.current) return // cancelled while this file was processing
-      if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
     finishImport(tally)
@@ -461,7 +470,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
     if (importCancelled.current) return
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
     finishImport(tally)
   }
