@@ -25,6 +25,7 @@ import { buildImportedLocationView, type ImportedLocationView } from '@/features
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
@@ -277,6 +278,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+  // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
+  // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
+  const mapViewerCase = useMemo(() => cases.find((c) => c.id === mapViewerCaseId) ?? null, [cases, mapViewerCaseId])
+  const mapData = useMemo(
+    () => toMapData(mapViewerCase, locations.filter((l) => l.caseId === mapViewerCaseId)),
+    [mapViewerCase, locations, mapViewerCaseId],
+  )
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
   const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
@@ -710,7 +718,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} onChangeCase={() => setMapPickerOpen(true)} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} />
       default:
         return placeholder(view)
     }

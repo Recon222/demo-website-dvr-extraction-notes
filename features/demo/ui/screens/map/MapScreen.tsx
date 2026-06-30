@@ -1,11 +1,16 @@
 'use client'
 
+import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { MapCanvas } from '@/features/demo/ui/screens/map/MapCanvas'
+import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
+import type { MapData } from '@/features/demo/ui/screens/map/mapData'
 
 export interface MapScreenProps {
   /** The tab-local viewer case (distinct from the form's current case). `null` → pick-a-case prompt. */
   viewerCaseId: string | null
+  /** The viewer case's projected map data (pins, incident, sheet items). */
+  mapData: MapData
   /** Opens the (dismissible) case picker to view a different case. */
   onChangeCase?(): void
 }
@@ -44,7 +49,8 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId, onChangeCase }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProps) {
+  const markers = useMemo(() => buildMarkers(mapData), [mapData])
   return (
     <div data-map-screen style={{ position: 'absolute', inset: 0, background: '#0a1422' }}>
       {viewerCaseId === null ? (
@@ -54,7 +60,7 @@ export function MapScreen({ viewerCaseId, onChangeCase }: MapScreenProps) {
         </div>
       ) : (
         <>
-          <MapCanvas />
+          <MapCanvas markers={markers} />
           {onChangeCase && (
             <button type="button" onClick={onChangeCase} style={changeCasePill}>
               Change Case
