@@ -44,6 +44,18 @@ describe('seed', () => {
   it('carries the occurrence number in the sample request document', () => {
     expect(SAMPLE_REQUEST_DOC).toContain('PR25-0098213')
   })
+
+  it('seeds geocoded coordinates on the incident and the recovery location', () => {
+    expect(SEED_CASE.incidentCoordinates).toBeDefined()
+    expect(Number.isFinite(SEED_CASE.incidentCoordinates!.lat)).toBe(true)
+    expect(Number.isFinite(SEED_CASE.incidentCoordinates!.lng)).toBe(true)
+    expect(SEED_CASE.incidentCoordinates!.source).toBe('geocoded')
+
+    expect(SEED_LOCATION.gps).toBeDefined()
+    expect(Number.isFinite(SEED_LOCATION.gps!.lat)).toBe(true)
+    expect(Number.isFinite(SEED_LOCATION.gps!.lng)).toBe(true)
+    expect(SEED_LOCATION.gps!.source).toBe('geocoded')
+  })
 })
 
 describe('profiles', () => {

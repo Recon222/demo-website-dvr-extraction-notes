@@ -75,6 +75,8 @@ export const SEED_CASE: DemoCase = {
   incidentBusinessName: "Kim's Convenience",
   incidentStreetAddress: '1450 Eglinton Ave W',
   incidentCity: 'Mississauga',
+  // Approx. 1450 Eglinton Ave W, Mississauga — demo-illustrative so the seeded case plots on the map.
+  incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
   notes: '',
   status: 'draft',
   createdLabel: 'Mar 9, 2025',
@@ -96,6 +98,8 @@ export const SEED_LOCATION: DemoLocation = {
   requesterEmail: 'det.mchugh.4471@peelpolice.ca',
   locationContact: 'Sandeep Gill',
   locationPhone: '905-555-0142',
+  // Same site as the incident; geocoded so the recovery-location pin plots on the map.
+  gps: { lat: 43.6087, lng: -79.6505, accuracyM: 0, source: 'geocoded' },
   isSeed: true,
   form: blankLocationForm(),
 }

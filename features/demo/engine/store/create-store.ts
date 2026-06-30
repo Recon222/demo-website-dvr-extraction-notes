@@ -38,6 +38,7 @@ export interface NewCaseInput {
   incidentBusinessName?: string
   incidentStreetAddress?: string
   incidentCity?: string
+  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
   notes?: string
 }
 
@@ -52,6 +53,9 @@ export interface NewLocationInput {
   requesterEmail?: string
   locationContact?: string
   locationPhone?: string
+  /** Geocoded coordinates from the address pick. Recovery locations are geocode-only (no manual
+   *  entry — a DVR always has a street address). `accuracyM` is filled in by the store (0). */
+  gps?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
 }
 
 // ---- State ---------------------------------------------------------------
@@ -180,6 +184,7 @@ export function createDemoStore(): DemoStore {
         incidentBusinessName: input.incidentBusinessName ?? '',
         incidentStreetAddress: input.incidentStreetAddress ?? '',
         incidentCity: input.incidentCity ?? '',
+        incidentCoordinates: input.incidentCoordinates,
         notes: input.notes ?? '',
         status: 'draft',
         createdLabel: 'Just now',
@@ -206,6 +211,7 @@ export function createDemoStore(): DemoStore {
         requesterEmail: input.requesterEmail ?? '',
         locationContact: input.locationContact ?? '',
         locationPhone: input.locationPhone ?? '',
+        gps: input.gps ? { ...input.gps, accuracyM: 0 } : undefined,
         isSeed: false,
         form: blankLocationForm(),
       }

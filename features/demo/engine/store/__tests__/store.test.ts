@@ -86,6 +86,62 @@ describe('createCase / addLocation', () => {
   })
 })
 
+describe('coordinates', () => {
+  it('createCase persists incidentCoordinates when provided', () => {
+    const store = freshStore()
+    const id = store.getState().createCase({
+      ...newCaseInput(),
+      incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+    })
+    expect(store.getState().cases.find((c) => c.id === id)?.incidentCoordinates).toEqual({
+      lat: 43.6087,
+      lng: -79.6505,
+      source: 'geocoded',
+    })
+  })
+
+  it('createCase leaves incidentCoordinates undefined when omitted', () => {
+    const store = freshStore()
+    const id = store.getState().createCase(newCaseInput())
+    expect(store.getState().cases.find((c) => c.id === id)?.incidentCoordinates).toBeUndefined()
+  })
+
+  it('addLocation persists gps (accuracyM 0) when provided', () => {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    const locId = store.getState().addLocation(caseId, {
+      ...newLocationInput(),
+      gps: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+    })
+    expect(store.getState().locations.find((l) => l.id === locId)?.gps).toEqual({
+      lat: 43.6087,
+      lng: -79.6505,
+      accuracyM: 0,
+      source: 'geocoded',
+    })
+  })
+
+  it('addLocation leaves gps undefined when omitted', () => {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    const locId = store.getState().addLocation(caseId, newLocationInput())
+    expect(store.getState().locations.find((l) => l.id === locId)?.gps).toBeUndefined()
+  })
+
+  it('updateField("gps", …) persists coordinates on the current location', () => {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(caseId, newLocationInput())
+    store.getState().updateField('gps', { lat: 43.7, lng: -79.4, accuracyM: 0, source: 'geocoded' })
+    expect(selectCurrentLocation(store.getState())?.gps).toEqual({
+      lat: 43.7,
+      lng: -79.4,
+      accuracyM: 0,
+      source: 'geocoded',
+    })
+  })
+})
+
 describe('switchLocation', () => {
   it('sets currentLocationId and the matching caseId', () => {
     const store = freshStore()
