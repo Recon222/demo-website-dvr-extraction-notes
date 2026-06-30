@@ -79,6 +79,22 @@ describe('DemoExperience — Map case picker', () => {
     expect(store.getState().currentCaseId).toBe(cur) // viewer is tab-local — form case untouched
   })
 
+  it('Go to Location switches the form to that location and enters the wizard', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let locId = ''
+    act(() => {
+      const c = store.getState().createCase({ caseNumber: 'PR25-GO', displayName: 'GoCase', unit: 'R' })
+      locId = store.getState().addLocation(c, { locationName: 'Front Counter', gps: { lat: 43.6, lng: -79.6, source: 'geocoded' } })
+    })
+    fireEvent.click(screen.getByLabelText('Map'))
+    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('GoCase'))
+    fireEvent.click(screen.getByText('Front Counter')) // select the located location → detail
+    fireEvent.click(screen.getByText('Go to Location'))
+    expect(store.getState().currentLocationId).toBe(locId)
+    expect(store.getState().view).toBe('submission')
+  })
+
   it('Change Case opens a dismissible picker that cancels back to the map', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

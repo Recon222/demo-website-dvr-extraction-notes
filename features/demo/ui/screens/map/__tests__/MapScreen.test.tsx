@@ -29,7 +29,13 @@ import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
 function buildMapData(): MapData {
   const store = createDemoStore()
   const caseId = store.getState().createCase({ caseNumber: 'PR25-1', displayName: 'Kim B&E', unit: 'R', incidentCoordinates: { lat: 43.5, lng: -79.5, source: 'geocoded' } })
-  store.getState().addLocation(caseId, { locationName: 'Rear door', gps: { lat: 43.61, lng: -79.61, source: 'geocoded' } })
+  store.getState().addLocation(caseId, {
+    locationName: 'Rear door',
+    gps: { lat: 43.61, lng: -79.61, source: 'geocoded' },
+    requesterEmail: 'det@peel.ca',
+    locationContact: 'Sandeep Gill',
+    locationPhone: '905-555-0142',
+  })
   const s = store.getState()
   return toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
 }
@@ -67,5 +73,43 @@ describe('MapScreen — select + fly', () => {
     fireEvent.click(screen.getByText(/All Locations/))
     expect(screen.queryByText('Location Details')).not.toBeInTheDocument()
     expect(screen.getByText('1 Location')).toBeInTheDocument()
+  })
+})
+
+describe('MapScreen — call/email mock + Go to Location', () => {
+  async function openDetail() {
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onGoToLocation={onGoTo} />)
+    await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByText('Rear door'))
+  }
+  const onGoTo = vi.fn()
+  beforeEach(() => onGoTo.mockClear())
+
+  it('tapping a phone confirms, then notifies that calling is unavailable', async () => {
+    await openDetail()
+    fireEvent.click(screen.getByText('905-555-0142'))
+    expect(screen.getByText(/Call 905-555-0142/)).toBeInTheDocument() // the confirm sheet
+    fireEvent.click(screen.getByText('Call'))
+    expect(screen.getByText(/Calling isn't available in the demo/)).toBeInTheDocument()
+  })
+
+  it('cancelling the call shows no notification', async () => {
+    await openDetail()
+    fireEvent.click(screen.getByText('905-555-0142'))
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(screen.queryByText(/Calling isn't available/)).not.toBeInTheDocument()
+  })
+
+  it('tapping an email notifies directly (no confirm sheet)', async () => {
+    await openDetail()
+    fireEvent.click(screen.getByText('det@peel.ca'))
+    expect(screen.queryByText(/Email .* \?/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Email isn't available in the demo/)).toBeInTheDocument()
+  })
+
+  it('Go to Location invokes onGoToLocation with the id', async () => {
+    await openDetail()
+    fireEvent.click(screen.getByText('Go to Location'))
+    expect(onGoTo).toHaveBeenCalledTimes(1)
   })
 })

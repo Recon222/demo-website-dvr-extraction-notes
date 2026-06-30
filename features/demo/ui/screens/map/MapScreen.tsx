@@ -5,22 +5,14 @@ import type { CSSProperties } from 'react'
 import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
+import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
+import { CallConfirmSheet } from '@/features/demo/ui/screens/map/CallConfirmSheet'
+import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
 import type { MapData } from '@/features/demo/ui/screens/map/mapData'
 
 const FLY_ZOOM = 16
-const backBtn: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '6px 12px',
-  borderRadius: 16,
-  border: 'none',
-  background: 'rgba(43,140,193,0.14)',
-  color: '#4ba3d4',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
+const CALL_UNAVAILABLE = "Calling isn't available in the demo."
+const EMAIL_UNAVAILABLE = "Email isn't available in the demo."
 
 export interface MapScreenProps {
   /** The tab-local viewer case (distinct from the form's current case). `null` → pick-a-case prompt. */
@@ -29,6 +21,8 @@ export interface MapScreenProps {
   mapData: MapData
   /** Opens the (dismissible) case picker to view a different case. */
   onChangeCase?(): void
+  /** Hands off to the wizard for a location (switches the form's case/location). */
+  onGoToLocation?(id: string): void
 }
 
 const changeCasePill: CSSProperties = {
@@ -65,11 +59,13 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation }: MapScreenProps) {
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheetMode, setSheetMode] = useState<'list' | 'detail'>('list')
+  const [pendingCall, setPendingCall] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const mapRef = useRef<MapCanvasHandle>(null)
 
   // Tap a pin or a row → fly the camera to it and open its detail (at least the partial detent).
@@ -95,14 +91,13 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
   const selectedItem = mapData.items.find((i) => i.id === selectedId) ?? null
   const contentMode = sheetMode === 'detail' && selectedItem ? 'detail' : 'list'
   const detail = selectedItem ? (
-    <div data-map-detail style={{ padding: 16 }}>
-      <button type="button" onClick={back} style={backBtn}>
-        {'‹'} All Locations
-      </button>
-      <div style={{ fontSize: 18, fontWeight: 700, color: '#e7eef6', marginTop: 12 }}>
-        {selectedItem.kind === 'location' ? selectedItem.locationName : selectedItem.displayName || selectedItem.caseNumber}
-      </div>
-    </div>
+    <LocationDetailCard
+      item={selectedItem}
+      onBack={back}
+      onCall={(number) => setPendingCall(number)}
+      onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
+      onGoToLocation={(id) => onGoToLocation?.(id)}
+    />
   ) : null
 
   return (
@@ -130,6 +125,17 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
             onSelect={selectItem}
             detail={detail}
           />
+          {pendingCall && (
+            <CallConfirmSheet
+              number={pendingCall}
+              onConfirm={() => {
+                setNotice(CALL_UNAVAILABLE)
+                setPendingCall(null)
+              }}
+              onCancel={() => setPendingCall(null)}
+            />
+          )}
+          {notice && <DemoNotification message={notice} onDismiss={() => setNotice(null)} />}
         </>
       )}
     </div>
