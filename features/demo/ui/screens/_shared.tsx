@@ -73,7 +73,18 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
   return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
 
-/** A labelled text input row, lifted from the prototype's form styling. */
+const fieldInput: CSSProperties = {
+  width: '100%',
+  borderRadius: 8,
+  border: '1px solid #1e3a5f',
+  background: '#0d1b2a',
+  color: '#f0f4f8',
+  fontSize: 15,
+  padding: '11px 12px',
+  outline: 'none',
+}
+
+/** A labelled text input (or textarea when `multiline`), lifted from the prototype's form styling. */
 export function Field({
   label,
   required,
@@ -81,6 +92,7 @@ export function Field({
   onChange,
   placeholder,
   hint,
+  multiline,
 }: {
   label: string
   required?: boolean
@@ -88,6 +100,7 @@ export function Field({
   onChange(value: string): void
   placeholder?: string
   hint?: string
+  multiline?: boolean
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
@@ -95,15 +108,35 @@ export function Field({
         {label}
         {required && <span style={{ color: '#ff4757' }}> *</span>}
       </div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={label}
-        style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', outline: 'none' }}
-      />
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          rows={3}
+          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+        />
+      ) : (
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} style={fieldInput} />
+      )}
       {hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
     </div>
+  )
+}
+
+/** A collapsed-by-default disclosure for secondary modal fields (OIC, Video Coordinator). */
+export function Accordion({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="demo-accordion" style={{ marginBottom: 14, borderRadius: 10, border: '1px solid #1e3a5f', background: 'rgba(13,27,42,0.4)', overflow: 'hidden' }}>
+      <summary style={{ cursor: 'pointer', padding: '12px 14px', fontSize: 14, fontWeight: 600, color: '#cdd9e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>{title}</span>
+        <svg aria-hidden="true" className="demo-accordion-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a9fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </summary>
+      <div style={{ padding: '2px 14px 4px' }}>{children}</div>
+    </details>
   )
 }
 

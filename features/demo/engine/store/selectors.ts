@@ -106,8 +106,8 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * the dot tells the user what's not yet filled, but only counted fields move it. Excluded:
  * toggles (a boolean is never "empty"), derived/read-only fields, and the two explicit opt-outs —
  * DVR `serialModelNumber` and export `mediaPlayerIncluded` (a screen goes green without them).
- * Notes is two-state; extracted-scope is empty only at 0 items; completion has no editable fields.
- * `null` location → all empty. See docs/planning/demo-drawer-status-dots for the field mapping.
+ * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
+ * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
  */
 export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
@@ -136,7 +136,7 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
     cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
     exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
     notes: isFilled(f.notesText) ? 'complete' : 'empty',
-    completion: 'empty',
+    completion: checkFields([f.dateTimeCompleted, f.completedBy]),
   }
 }
 

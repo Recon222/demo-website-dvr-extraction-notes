@@ -20,22 +20,38 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
 }
 
 describe('NewCaseModal', () => {
-  it('edits a field and submits', () => {
+  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', notes: '' }
+
+  it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()
     const onSubmit = vi.fn()
-    render(<NewCaseModal form={{ caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    render(<NewCaseModal form={blankCase} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-1' } })
     expect(onChange).toHaveBeenCalledWith('caseNumber', 'PR25-1')
+    // accordion fields are in the DOM even while collapsed
+    fireEvent.change(screen.getByLabelText('Coordinator Name'), { target: { value: 'M. Reyes' } })
+    expect(onChange).toHaveBeenCalledWith('vcName', 'M. Reyes')
+    fireEvent.change(screen.getByLabelText('Business / Scene Name'), { target: { value: 'Acme' } })
+    expect(onChange).toHaveBeenCalledWith('incidentBusinessName', 'Acme')
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'rear cam' } })
+    expect(onChange).toHaveBeenCalledWith('notes', 'rear cam')
     fireEvent.click(screen.getByText('Create Case'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
 })
 
 describe('NewLocationModal', () => {
-  it('captures GPS and submits', () => {
+  const blankLoc = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
+
+  it('edits contact fields, captures GPS, and submits', () => {
     const onCaptureGps = vi.fn()
     const onSubmit = vi.fn()
-    render(<NewLocationModal form={{ locationName: '', businessName: '', streetAddress: '', city: '' }} onChange={vi.fn()} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} />)
+    const onChange = vi.fn()
+    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} />)
+    fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
+    expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
+    fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })
+    expect(onChange).toHaveBeenCalledWith('locationPhone', '905-555-0142')
     fireEvent.click(screen.getByText('Capture GPS coordinates'))
     expect(onCaptureGps).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByText('Create Location'))

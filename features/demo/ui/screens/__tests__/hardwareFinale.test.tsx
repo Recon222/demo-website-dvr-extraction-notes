@@ -62,12 +62,15 @@ describe('NotesScreen', () => {
 describe('CompletionScreen', () => {
   const summary = { occNumber: 'PR25-0098213', location: "Kim's Convenience", dvr: 'Hikvision DS-7608', offset: '00:05:30 AHEAD OF', scopes: 1, cameras: 0, export: 'USB Drive' }
 
-  it('shows the summary and fires preview/complete', () => {
+  it('shows the summary + completion fields and fires preview/complete', () => {
     const onPreviewPdf = vi.fn()
     const onComplete = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete={false} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    const onChange = vi.fn()
+    render(<CompletionScreen summary={summary} isComplete={false} dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText(/PR25-0098213/)).toBeInTheDocument()
     expect(screen.getByText('00:05:30 AHEAD OF')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. X' } })
+    expect(onChange).toHaveBeenCalledWith('completedBy', 'Det. X')
     fireEvent.click(screen.getByText('Preview / Export PDF'))
     expect(onPreviewPdf).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByText('Complete & Save'))
@@ -75,7 +78,7 @@ describe('CompletionScreen', () => {
   })
 
   it('shows the case-complete state', () => {
-    render(<CompletionScreen summary={summary} isComplete onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} isComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText('Case Complete')).toBeInTheDocument()
   })
 })

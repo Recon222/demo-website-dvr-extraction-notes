@@ -59,8 +59,20 @@ const GUIDED_NOW = () => new Date(2025, 3, 12)
 
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
-const blankCaseForm: NewCaseFields = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }
-const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '' }
+const blankCaseForm: NewCaseFields = {
+  caseNumber: '',
+  displayName: '',
+  unit: '',
+  oicName: '',
+  oicBadge: '',
+  vcName: '',
+  vcBadge: '',
+  incidentBusinessName: '',
+  incidentStreetAddress: '',
+  incidentCity: '',
+  notes: '',
+}
+const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
 const IMPORT_STAGE_ORDER: RunStageId[] = ['extracting_text', 'reading_model', 'normalizing', 'done']
 
@@ -513,6 +525,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const fields: SubmissionFields = {
           requesterName: currentLocation?.requesterName ?? '',
           requesterBadge: currentLocation?.requesterBadge ?? '',
+          requesterUnit: currentLocation?.requesterUnit ?? '',
           requesterPhone: currentLocation?.requesterPhone ?? '',
           requesterEmail: currentLocation?.requesterEmail ?? '',
           businessName: currentLocation?.businessName ?? '',
@@ -654,6 +667,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           <CompletionScreen
             summary={summary}
             isComplete={caseCompleted}
+            dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
+            completedBy={currentLocation?.form.completedBy ?? ''}
+            onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
             onComplete={() => setCaseCompleted(true)}

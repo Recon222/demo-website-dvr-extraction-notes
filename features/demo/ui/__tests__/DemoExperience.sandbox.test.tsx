@@ -66,6 +66,15 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(screen.getByText('00:05:30')).toBeInTheDocument()
   })
 
+  it('completion: editing Completed By persists to form (correct updateField path)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+    fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. McHugh' } })
+    expect(currentLoc(store)?.form.completedBy).toBe('Det. McHugh')
+  })
+
   it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {
     runText.mockResolvedValue(okRun({ filename: undefined }))
     const store = createDemoStore()

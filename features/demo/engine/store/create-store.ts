@@ -35,6 +35,10 @@ export interface NewCaseInput {
   oicBadge?: string
   vcName?: string
   vcBadge?: string
+  incidentBusinessName?: string
+  incidentStreetAddress?: string
+  incidentCity?: string
+  notes?: string
 }
 
 export interface NewLocationInput {
@@ -173,6 +177,10 @@ export function createDemoStore(): DemoStore {
         oicBadge: input.oicBadge ?? '',
         vcName: input.vcName ?? '',
         vcBadge: input.vcBadge ?? '',
+        incidentBusinessName: input.incidentBusinessName ?? '',
+        incidentStreetAddress: input.incidentStreetAddress ?? '',
+        incidentCity: input.incidentCity ?? '',
+        notes: input.notes ?? '',
         status: 'draft',
         createdLabel: 'Just now',
         isSeed: false,
@@ -193,6 +201,7 @@ export function createDemoStore(): DemoStore {
         city: input.city ?? '',
         requesterName: input.requesterName ?? '',
         requesterBadge: input.requesterBadge ?? '',
+        requesterUnit: '',
         requesterPhone: input.requesterPhone ?? '',
         requesterEmail: input.requesterEmail ?? '',
         locationContact: input.locationContact ?? '',

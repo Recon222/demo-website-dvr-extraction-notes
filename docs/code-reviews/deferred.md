@@ -461,3 +461,52 @@ conveys status, so the practical impact is limited.
 **Trigger:** if a strict-a11y bar applies or before any production use — reintroduce a non-colour
 distinction that keeps the filled look (e.g. a small check glyph inside the complete dot, or a size
 difference) rather than the ring.
+
+---
+
+## 24. GPS capture (incident coords, per-camera GPS, no-op Location button)
+
+**Source:** field-parity work (`docs/planning/demo-field-parity`) — owner deferred GPS this pass.
+
+**What:** the phone captures coordinates (incident location, per-camera GPS, recovery-location GPS).
+The demo has no GPS: incident lat/long aren't collected, Cameras has no GPS, and New Location's
+"Capture GPS coordinates" button is a no-op. The text address fields were added; coords were not.
+
+**Why deferred:** explicit owner call — fields prioritised over the GPS feature this round.
+
+**Trigger:** when GPS is scoped — owner chose **real browser geolocation** (`navigator.geolocation`)
+as the approach; add a capture control to incident/location/camera and store lat/long (+ a manual
+fallback). Mind the demo's no-real-device-API convention (it's a deliberate exception here).
+
+---
+
+## 25. Mapbox address autocomplete on the street fields — RESOLVED
+
+**RESOLVED** (feat/demo-field-parity): AddressAutocomplete (Mapbox SearchSession, @mapbox/search-js-core) on the New Case incident / New Location / Submission street fields; a pick fills street + city. Public pk token via NEXT_PUBLIC_MAPBOX_TOKEN; degrades to plain input without it.
+
+**Source:** field-parity work — owner will provide a Mapbox token.
+
+**What:** the phone's incident/location street fields use Mapbox forward-geocode autocomplete. The
+demo's `incidentStreetAddress` / `streetAddress` are plain text inputs for now.
+
+**Why deferred:** waiting on the Mapbox token.
+
+**Trigger:** when the token lands — wrap the street `Field`s with a Mapbox Search/autocomplete input
+(token via env, server-proxied like the Ollama key), filling street + city (and coords once GPS lands).
+
+---
+
+## 26. Field-parity DIFFERS reconciliation + not-yet-built screens
+
+**Source:** `docs/planning/field-parity/field-parity-gaps.md`.
+
+**What:** remaining non-additive parity items — Resolution/FPS/Export **option-set** divergence + a
+custom/"Other" free-text path (DVR + Cameras + Export); OCR confirm is read-only (phone allows manual
+DVR-time correction); Notes is a flat string vs the phone's structured per-section storage;
+required-field enforcement (demo enforces nothing). Plus the **not-yet-built screens**: User Profile
+(settings UI), Media/Audio Capture (placeholders), Duplicate Location, Edit Incident Location.
+
+**Why deferred:** option/behaviour reconciliation is lower-value than the missing fields; the screens
+are larger features the owner hasn't reached.
+
+**Trigger:** revisit per the gaps doc once the field additions land and the settings/media UIs are built.

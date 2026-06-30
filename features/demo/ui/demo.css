@@ -88,3 +88,9 @@
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* Collapsible <details> accordion (New Case OIC / Video Coordinator): hide the native marker
+   and rotate our own chevron when open. */
+[data-demo-root] .demo-accordion > summary { list-style: none; }
+[data-demo-root] .demo-accordion > summary::-webkit-details-marker { display: none; }
+[data-demo-root] .demo-accordion[open] > summary .demo-accordion-chevron { transform: rotate(180deg); }

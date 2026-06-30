@@ -57,6 +57,8 @@ export function blankLocationForm(): LocationForm {
     },
     notesText: '',
     notesEdited: false,
+    dateTimeCompleted: '',
+    completedBy: '',
     media: { photos: [], videos: [], audios: [] },
   }
 }
@@ -70,6 +72,10 @@ export const SEED_CASE: DemoCase = {
   oicBadge: '4471',
   vcName: '',
   vcBadge: '',
+  incidentBusinessName: "Kim's Convenience",
+  incidentStreetAddress: '1450 Eglinton Ave W',
+  incidentCity: 'Mississauga',
+  notes: '',
   status: 'draft',
   createdLabel: 'Mar 9, 2025',
   isSeed: true,
@@ -85,6 +91,7 @@ export const SEED_LOCATION: DemoLocation = {
   city: 'Mississauga',
   requesterName: 'Liam McHugh',
   requesterBadge: '4471',
+  requesterUnit: '',
   requesterPhone: '',
   requesterEmail: 'det.mchugh.4471@peelpolice.ca',
   locationContact: 'Sandeep Gill',
