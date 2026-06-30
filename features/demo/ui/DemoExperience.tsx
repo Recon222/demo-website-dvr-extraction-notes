@@ -667,6 +667,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           <CompletionScreen
             summary={summary}
             isComplete={caseCompleted}
+            dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
+            completedBy={currentLocation?.form.completedBy ?? ''}
+            onChange={(f, v) => store.getState().updateField(f, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
             onComplete={() => setCaseCompleted(true)}

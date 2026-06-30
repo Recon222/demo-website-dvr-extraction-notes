@@ -112,7 +112,9 @@ describe('selectDrawerStatus', () => {
     expect(selectDrawerStatus(loc()).notes).toBe('empty')
   })
 
-  it('completion is always empty (no editable fields in the demo)', () => {
-    expect(selectDrawerStatus(loc({ requesterName: 'A' }, { notesText: 'x' })).completion).toBe('empty')
+  it('completion: blank → empty; one field → partial; both → complete', () => {
+    expect(selectDrawerStatus(loc()).completion).toBe('empty')
+    expect(selectDrawerStatus(loc({}, { completedBy: 'Det. X' })).completion).toBe('partial')
+    expect(selectDrawerStatus(loc({}, { dateTimeCompleted: '2025-03-09 12:00', completedBy: 'Det. X' })).completion).toBe('complete')
   })
 })
