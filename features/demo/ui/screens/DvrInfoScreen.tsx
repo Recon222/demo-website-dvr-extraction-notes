@@ -3,7 +3,7 @@
 import type { DvrInformation } from '@/features/demo/engine/types'
 import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { RESOLUTION_OPTIONS, FPS_OPTIONS } from '@/features/demo/ui/screens/field-options'
+import { RESOLUTION_OPTIONS, FPS_OPTIONS, RECORDING_SCHEDULE_OPTIONS, parseRecordingSchedule, toggleRecordingSchedule } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 
 const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
@@ -42,6 +42,44 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
           <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />
           <SelectField label="Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} options={RESOLUTION_OPTIONS} />
           <SelectField label="Recording FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} options={FPS_OPTIONS} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Recording Schedule</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {RECORDING_SCHEDULE_OPTIONS.map((opt) => {
+                const on = parseRecordingSchedule(dvr.recordingSchedule).includes(opt.toLowerCase())
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={on}
+                    aria-label={opt}
+                    onClick={() => onChange('recordingSchedule', toggleRecordingSchedule(dvr.recordingSchedule, opt))}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '11px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${on ? '#2B8CC1' : '#1e3a5f'}`,
+                      background: on ? 'rgba(43,140,193,0.14)' : '#0d1b2a',
+                      color: on ? '#f0f4f8' : '#cdd9e6',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid ${on ? '#2B8CC1' : '#3a567a'}`, background: on ? '#2B8CC1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
+                    </span>
+                    {opt}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </SectionCard>
 
         <SectionCard title="Retention">

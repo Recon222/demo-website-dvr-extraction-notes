@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { SelectField, DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
@@ -60,6 +60,19 @@ describe('screen integration (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Recording FPS' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Set date' })).toBeInTheDocument() // First Recorded Date
     expect(screen.getByText(/calculate total retention/i)).toBeInTheDocument() // empty-state prompt
+  })
+
+  it('DvrInfoScreen recording-schedule checkboxes reflect state and toggle to a comma-joined value', () => {
+    const onChange = vi.fn()
+    const dvr: DvrInformation = {
+      dvrLocation: '', dvrTypeBrand: '', serialModelNumber: '', dvrUsername: '', dvrPassword: '',
+      numberOfChannels: '', activeCameras: '', recordingSchedule: 'continuous', resolution: '', recordingFps: '', firstRecordedDate: '', totalDvrRetention: '',
+    }
+    render(<DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />)
+    expect(screen.getByRole('checkbox', { name: 'Continuous' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Motion' })).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Motion' }))
+    expect(onChange).toHaveBeenCalledWith('recordingSchedule', 'continuous, motion')
   })
 
   it('DvrInfoScreen shows the derived total + per-scope retention when provided', () => {
