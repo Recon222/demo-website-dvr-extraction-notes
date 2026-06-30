@@ -39,13 +39,14 @@ const itemButton: CSSProperties = {
   textAlign: 'left',
 }
 
-// Completion dot: distinguished by SHAPE (filled vs ring) as well as colour, so it's not
-// colour-only (WCAG 1.4.1); status is also announced via the button's aria-label.
+// Completion dot — filled green (complete) / filled amber (partial). Status is also exposed to
+// assistive tech via the item button's aria-label (dots are aria-hidden). NOTE: the visual
+// complete/partial distinction is colour-only by design choice (see deferred.md).
 const STATUS_LABEL: Record<'complete' | 'partial', string> = { complete: 'complete', partial: 'partially complete' }
-const dotBase: CSSProperties = { flex: '0 0 auto', width: 11, height: 11, borderRadius: 6, boxSizing: 'border-box' }
+const dotBase: CSSProperties = { flex: '0 0 auto', width: 11, height: 11, borderRadius: 6 }
 const DOT: Record<'complete' | 'partial', CSSProperties> = {
-  complete: { background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' }, // filled
-  partial: { background: 'transparent', border: '2px solid #ffd93d', boxShadow: '0 0 6px rgba(255,217,61,0.45)' }, // ring
+  complete: { background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' },
+  partial: { background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' },
 }
 
 /** The wizard navigation drawer — right-anchored, slides in from the right (the screen behind is
