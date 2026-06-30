@@ -40,6 +40,7 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes } from '@/features/demo/engine/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
+import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
@@ -70,6 +71,9 @@ const blankCaseForm: NewCaseFields = {
   incidentBusinessName: '',
   incidentStreetAddress: '',
   incidentCity: '',
+  incidentLatitude: '',
+  incidentLongitude: '',
+  incidentCoordinateSource: '',
   notes: '',
 }
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
@@ -327,7 +331,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     store.getState().openModal('import')
   }
   const submitCase = () => {
-    const id = store.getState().createCase({ ...caseForm })
+    // Build incidentCoordinates only when BOTH lat & lng parse + range-validate. An invalid or
+    // partial entry yields no coordinates (the case is still created — no required-field gate).
+    const latR = parseCoordinate(caseForm.incidentLatitude, 'lat')
+    const lngR = parseCoordinate(caseForm.incidentLongitude, 'lng')
+    const incidentCoordinates =
+      latR.ok && lngR.ok
+        ? { lat: latR.value, lng: lngR.value, source: caseForm.incidentCoordinateSource === 'geocoded' ? ('geocoded' as const) : ('manual' as const) }
+        : undefined
+    const id = store.getState().createCase({ ...caseForm, incidentCoordinates })
     setExpandedCaseId(id)
     store.getState().closeModal()
   }

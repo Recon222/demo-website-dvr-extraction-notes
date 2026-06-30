@@ -20,7 +20,7 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
 }
 
 describe('NewCaseModal', () => {
-  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', notes: '' }
+  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '' }
 
   it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()

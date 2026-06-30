@@ -285,6 +285,37 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().modal).toBeNull()
   })
 
+  it('New Case modal: hand-typed coordinates persist as incidentCoordinates with source manual', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('newCase'))
+
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-COORD' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '43.6087' } })
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-79.6505' } })
+    fireEvent.click(screen.getByText('Create Case'))
+
+    const c = store.getState().cases.find((x) => x.caseNumber === 'PR25-COORD')
+    expect(c?.incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'manual' })
+  })
+
+  it('New Case modal: an invalid latitude yields no incidentCoordinates (case still created)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('newCase'))
+
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-BADCOORD' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '999' } })
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-79.6505' } })
+    fireEvent.click(screen.getByText('Create Case'))
+
+    const c = store.getState().cases.find((x) => x.caseNumber === 'PR25-BADCOORD')
+    expect(c).toBeDefined()
+    expect(c?.incidentCoordinates).toBeUndefined()
+  })
+
   it('New Location modal: fill + Create Location adds the location and closes the modal', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
