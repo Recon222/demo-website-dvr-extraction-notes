@@ -16,6 +16,8 @@ export interface MapCanvasHandle {
 export interface MapCanvasProps {
   /** Status-coloured location dots + the incident teardrop to plot. */
   markers?: MarkerDescriptor[]
+  /** Fires with the marker's id when a pin is tapped. */
+  onMarkerPress?(id: string): void
   /** Optional ready callback. */
   onReady?(): void
 }
@@ -92,7 +94,7 @@ function fitToPoints(map: MapboxMap, points: Array<[number, number]>): void {
  * and a missing token degrades to a styled placeholder (never throws).
  */
 export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(
-  { markers = [], onReady },
+  { markers = [], onMarkerPress, onReady },
   ref,
 ) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -100,6 +102,9 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   const mapRef = useRef<MapboxMap | null>(null)
   const gqlRef = useRef<MapboxGl | null>(null)
   const markerObjsRef = useRef<MapboxMarker[]>([])
+  // Live ref so a fresh onMarkerPress identity never forces the markers to rebuild.
+  const onMarkerPressRef = useRef(onMarkerPress)
+  onMarkerPressRef.current = onMarkerPress
   const [ready, setReady] = useState(false)
 
   useImperativeHandle(ref, () => ({
@@ -149,11 +154,13 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     const mod = gqlRef.current
     if (!ready || !map || !mod) return
     markerObjsRef.current.forEach((m) => m.remove())
-    markerObjsRef.current = markers.map((d) =>
-      new mod.default.Marker({ element: createMarkerEl(d), anchor: d.kind === 'incident' ? 'bottom' : 'center' })
+    markerObjsRef.current = markers.map((d) => {
+      const el = createMarkerEl(d)
+      el.addEventListener('click', () => onMarkerPressRef.current?.(d.id))
+      return new mod.default.Marker({ element: el, anchor: d.kind === 'incident' ? 'bottom' : 'center' })
         .setLngLat([d.lng, d.lat])
-        .addTo(map),
-    )
+        .addTo(map)
+    })
     fitToPoints(map, markers.map((d) => [d.lng, d.lat] as [number, number]))
   }, [ready, markers])
 

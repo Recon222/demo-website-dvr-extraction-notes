@@ -21,8 +21,10 @@ export function buildMarkers(data: MapData): MarkerDescriptor[] {
     color: MAP_PIN_COLORS[p.status],
   }))
   if (data.incident) {
+    // Use the incident item id (= caseId) directly so a marker tap maps straight to its sheet item.
+    // Case ids ('c*'/'seed-case') and location ids ('l*'/'seed-loc') are distinct, so no collision.
     markers.push({
-      id: `incident-${data.incident.id}`,
+      id: data.incident.id,
       lng: data.incident.lng,
       lat: data.incident.lat,
       kind: 'incident',

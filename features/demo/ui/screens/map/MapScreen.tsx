@@ -1,11 +1,26 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { MapCanvas } from '@/features/demo/ui/screens/map/MapCanvas'
+import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import type { MapData } from '@/features/demo/ui/screens/map/mapData'
+
+const FLY_ZOOM = 16
+const backBtn: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '6px 12px',
+  borderRadius: 16,
+  border: 'none',
+  background: 'rgba(43,140,193,0.14)',
+  color: '#4ba3d4',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
 
 export interface MapScreenProps {
   /** The tab-local viewer case (distinct from the form's current case). `null` → pick-a-case prompt. */
@@ -54,6 +69,42 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sheetMode, setSheetMode] = useState<'list' | 'detail'>('list')
+  const mapRef = useRef<MapCanvasHandle>(null)
+
+  // Tap a pin or a row → fly the camera to it and open its detail (at least the partial detent).
+  const selectItem = useCallback(
+    (id: string) => {
+      const item = mapData.items.find((i) => i.id === id)
+      if (!item) return
+      mapRef.current?.flyTo(item.coord[0], item.coord[1], FLY_ZOOM)
+      setSelectedId(id)
+      setSheetMode('detail')
+      setSnapIndex((i) => Math.max(i, 1))
+    },
+    [mapData.items],
+  )
+
+  const back = useCallback(() => {
+    setSheetMode('list')
+    setSelectedId(null)
+    setSnapIndex(1)
+  }, [])
+
+  // A stale selection (after a case switch) falls back to the list.
+  const selectedItem = mapData.items.find((i) => i.id === selectedId) ?? null
+  const contentMode = sheetMode === 'detail' && selectedItem ? 'detail' : 'list'
+  const detail = selectedItem ? (
+    <div data-map-detail style={{ padding: 16 }}>
+      <button type="button" onClick={back} style={backBtn}>
+        {'‹'} All Locations
+      </button>
+      <div style={{ fontSize: 18, fontWeight: 700, color: '#e7eef6', marginTop: 12 }}>
+        {selectedItem.kind === 'location' ? selectedItem.locationName : selectedItem.displayName || selectedItem.caseNumber}
+      </div>
+    </div>
+  ) : null
+
   return (
     <div data-map-screen style={{ position: 'absolute', inset: 0, background: '#0a1422' }}>
       {viewerCaseId === null ? (
@@ -63,7 +114,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
         </div>
       ) : (
         <>
-          <MapCanvas markers={markers} />
+          <MapCanvas ref={mapRef} markers={markers} onMarkerPress={selectItem} />
           {onChangeCase && (
             <button type="button" onClick={onChangeCase} style={changeCasePill}>
               Change Case
@@ -74,9 +125,10 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
             statusCounts={mapData.statusCounts}
             snapIndex={snapIndex}
             onSnapChange={setSnapIndex}
-            contentMode="list"
+            contentMode={contentMode}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={selectItem}
+            detail={detail}
           />
         </>
       )}
