@@ -51,7 +51,7 @@ describe('AddressAutocomplete — with token (mocked SDK)', () => {
     render(<AddressAutocomplete label="Street Address" value="1450 Eg" onChange={vi.fn()} onPick={onPick} />)
 
     const option = await screen.findByText('1450 Eglinton Ave W')
-    expect(suggestMock).toHaveBeenCalledWith('1450 Eg', { country: 'ca', types: 'address', limit: 5, proximity: 'ip' })
+    expect(suggestMock).toHaveBeenCalledWith('1450 Eg', { types: 'address', limit: 5, proximity: 'ip' })
     fireEvent.click(option)
     await waitFor(() => expect(onPick).toHaveBeenCalledWith({ streetAddress: '1450 Eglinton Avenue West', city: 'Mississauga' }))
   })
