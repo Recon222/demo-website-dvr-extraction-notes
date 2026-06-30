@@ -345,7 +345,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
-    if (caseId) store.getState().addLocation(caseId, { ...locForm })
+    if (caseId) {
+      const gps = locForm.coordinates ? { ...locForm.coordinates, source: 'geocoded' as const } : undefined
+      store.getState().addLocation(caseId, { ...locForm, gps })
+    }
     store.getState().closeModal()
   }
   // Live in sandbox (calls /api/extract → Ollama); deterministic SAMPLE in guided/tests.
@@ -547,7 +550,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: 0, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
@@ -708,7 +711,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'newCase':
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
       case 'newLocation':
-        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} />
+        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
       case 'import':
         return (
           <>
