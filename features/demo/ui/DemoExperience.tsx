@@ -59,7 +59,19 @@ const GUIDED_NOW = () => new Date(2025, 3, 12)
 
 const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
-const blankCaseForm: NewCaseFields = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '' }
+const blankCaseForm: NewCaseFields = {
+  caseNumber: '',
+  displayName: '',
+  unit: '',
+  oicName: '',
+  oicBadge: '',
+  vcName: '',
+  vcBadge: '',
+  incidentBusinessName: '',
+  incidentStreetAddress: '',
+  incidentCity: '',
+  notes: '',
+}
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '' }
 
 const IMPORT_STAGE_ORDER: RunStageId[] = ['extracting_text', 'reading_model', 'normalizing', 'done']
