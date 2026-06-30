@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 
 export interface CaseMapPickerCase {
   id: string
@@ -23,8 +24,6 @@ export interface CaseMapPickerProps {
 
 // The full-screen panel sits above the phone's tab bar so the tab bar stays the escape hatch for the
 // mandatory picker (matching the phone's "leave via the tab bar" behaviour).
-const TAB_BAR_H = 52
-
 const accent = '#4ba3d4'
 
 const header: CSSProperties = {
@@ -86,7 +85,7 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
     top: 0,
     left: 0,
     right: 0,
-    bottom: TAB_BAR_H,
+    bottom: TAB_BAR_HEIGHT,
     zIndex: 30,
     background: '#0a1422',
     display: 'flex',

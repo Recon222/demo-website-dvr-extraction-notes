@@ -36,7 +36,7 @@ describe('MapBottomSheet', () => {
     const props = renderSheet({ snapIndex: 0 })
     const handle = screen.getByTestId('sheet-handle')
     fireEvent.pointerDown(handle, { clientY: 500, pointerId: 1 })
-    fireEvent.pointerMove(handle, { clientY: 380, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 380, pointerId: 1, buttons: 1 })
     fireEvent.pointerUp(handle, { clientY: 380, pointerId: 1 })
     expect(props.onSnapChange).toHaveBeenCalledWith(1)
   })
@@ -45,8 +45,25 @@ describe('MapBottomSheet', () => {
     const props = renderSheet({ snapIndex: 2 })
     const handle = screen.getByTestId('sheet-handle')
     fireEvent.pointerDown(handle, { clientY: 200, pointerId: 1 })
-    fireEvent.pointerMove(handle, { clientY: 360, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 360, pointerId: 1, buttons: 1 })
     fireEvent.pointerUp(handle, { clientY: 360, pointerId: 1 })
+    expect(props.onSnapChange).toHaveBeenCalledWith(1)
+  })
+
+  it('does not drag on a hover move with no pointer-down', () => {
+    const props = renderSheet({ snapIndex: 0 })
+    const handle = screen.getByTestId('sheet-handle')
+    fireEvent.pointerMove(handle, { clientY: 380, pointerId: 1, buttons: 0 })
+    expect(props.onSnapChange).not.toHaveBeenCalled()
+  })
+
+  it('ends the drag on a released-button move and ignores further moves (no stuck sheet)', () => {
+    const props = renderSheet({ snapIndex: 0 })
+    const handle = screen.getByTestId('sheet-handle')
+    fireEvent.pointerDown(handle, { clientY: 500, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientY: 380, pointerId: 1, buttons: 0 }) // button released → end drag
+    fireEvent.pointerMove(handle, { clientY: 200, pointerId: 1, buttons: 0 }) // stray hover → ignored
+    expect(props.onSnapChange).toHaveBeenCalledTimes(1)
     expect(props.onSnapChange).toHaveBeenCalledWith(1)
   })
 

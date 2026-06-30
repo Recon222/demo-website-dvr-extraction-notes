@@ -4,6 +4,9 @@ import type { CSSProperties } from 'react'
 
 export type TabId = 'dashboard' | 'cases' | 'map'
 
+/** Single source of truth for the bottom tab bar's height — overlays sit flush above it (no seam). */
+export const TAB_BAR_HEIGHT = 50
+
 const tab: CSSProperties = {
   flex: 1,
   display: 'flex',
@@ -27,6 +30,8 @@ export function TabBar({ active, onSelect }: { active: TabId; onSelect(tab: TabI
         left: 0,
         right: 0,
         bottom: 0,
+        height: TAB_BAR_HEIGHT,
+        boxSizing: 'border-box',
         zIndex: 18,
         background: 'linear-gradient(180deg,#1e3450,#16283c)',
         borderTop: '1px solid #28456b',

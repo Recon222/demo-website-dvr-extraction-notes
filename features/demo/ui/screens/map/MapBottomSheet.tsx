@@ -1,11 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
 import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
 import { LocationList } from '@/features/demo/ui/screens/map/LocationList'
+import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
@@ -22,7 +23,6 @@ export interface MapBottomSheetProps {
 
 // Visible detent heights (px) within the 378×786 phone screen, above the tab bar.
 const SHEET_HEIGHTS = [116, 340, 560]
-const TAB_BAR_H = 52
 const DRAG_THRESHOLD = 40
 
 const clampIndex = (i: number) => Math.max(0, Math.min(i, SHEET_HEIGHTS.length - 1))
@@ -44,35 +44,57 @@ export function MapBottomSheet({
 }: MapBottomSheetProps) {
   const dragStart = useRef<number | null>(null)
   const [dragOffset, setDragOffset] = useState(0)
-  const dragging = dragStart.current !== null
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Single exit path for a drag: snap to the adjacent detent if the swipe crossed the threshold, then
+  // fully reset. Called on pointerup/pointercancel AND from a move that finds the button released —
+  // so a missed/off-element release can never strand the sheet stuck to the cursor.
+  const endDrag = useCallback(
+    (clientY: number) => {
+      const start = dragStart.current
+      dragStart.current = null
+      setDragOffset(0)
+      setIsDragging(false)
+      if (start === null) return
+      const delta = start - clientY
+      if (delta > DRAG_THRESHOLD) onSnapChange(clampIndex(snapIndex + 1))
+      else if (delta < -DRAG_THRESHOLD) onSnapChange(clampIndex(snapIndex - 1))
+    },
+    [snapIndex, onSnapChange],
+  )
 
   const onPointerDown = (e: PointerEvent) => {
     dragStart.current = e.clientY
     setDragOffset(0)
-    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+    setIsDragging(true)
+    // Capture so move/up fire on the handle even if the pointer leaves it (prevents missed releases).
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+    } catch {
+      /* jsdom / unsupported — the e.buttons guard below is the safety net */
+    }
   }
   const onPointerMove = (e: PointerEvent) => {
     if (dragStart.current === null) return
+    if (e.buttons === 0) {
+      // The primary button is no longer down — a release we didn't get a pointerup for. End the drag.
+      endDrag(e.clientY)
+      return
+    }
     setDragOffset(dragStart.current - e.clientY)
   }
-  const onPointerUp = (e: PointerEvent) => {
-    if (dragStart.current === null) return
-    const delta = dragStart.current - e.clientY
-    dragStart.current = null
-    setDragOffset(0)
-    if (delta > DRAG_THRESHOLD) onSnapChange(clampIndex(snapIndex + 1))
-    else if (delta < -DRAG_THRESHOLD) onSnapChange(clampIndex(snapIndex - 1))
-  }
+  const onPointerUp = (e: PointerEvent) => endDrag(e.clientY)
+  const onPointerCancel = (e: PointerEvent) => endDrag(e.clientY)
 
   const base = SHEET_HEIGHTS[clampIndex(snapIndex)]
-  const height = Math.max(SHEET_HEIGHTS[0], Math.min(SHEET_HEIGHTS[SHEET_HEIGHTS.length - 1], base + (dragging ? dragOffset : 0)))
+  const height = Math.max(SHEET_HEIGHTS[0], Math.min(SHEET_HEIGHTS[SHEET_HEIGHTS.length - 1], base + (isDragging ? dragOffset : 0)))
   const locationCount = items.filter((i) => i.kind === 'location').length
 
   const sheet: CSSProperties = {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: TAB_BAR_H,
+    bottom: TAB_BAR_HEIGHT, // flush with the tab bar — no seam
     height,
     zIndex: 20,
     background: SHEET_COLORS.background,
@@ -83,7 +105,7 @@ export function MapBottomSheet({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    transition: dragging ? 'none' : 'height 0.26s cubic-bezier(0.32,0.72,0,1)',
+    transition: isDragging ? 'none' : 'height 0.26s cubic-bezier(0.32,0.72,0,1)',
   }
 
   return (
@@ -93,7 +115,15 @@ export function MapBottomSheet({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        style={{ touchAction: 'none', cursor: 'grab' }}
+        onPointerCancel={onPointerCancel}
+        style={{
+          touchAction: 'none',
+          // Stop the browser from starting a text selection on the handle's text (count/badges) —
+          // that selection was both the visible "highlighting" and what stole the pointer mid-drag.
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          cursor: isDragging ? 'grabbing' : 'grab',
+        }}
       >
         <SheetHandle contentMode={contentMode} locationCount={locationCount} statusCounts={statusCounts} />
       </div>
