@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MapCanvas } from '@/features/demo/ui/screens/map/MapCanvas'
 import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
+import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import type { MapData } from '@/features/demo/ui/screens/map/mapData'
 
 export interface MapScreenProps {
@@ -51,6 +52,8 @@ const emptyStyle: CSSProperties = {
  */
 export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProps) {
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
+  const [snapIndex, setSnapIndex] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   return (
     <div data-map-screen style={{ position: 'absolute', inset: 0, background: '#0a1422' }}>
       {viewerCaseId === null ? (
@@ -66,6 +69,15 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase }: MapScreenProp
               Change Case
             </button>
           )}
+          <MapBottomSheet
+            items={mapData.items}
+            statusCounts={mapData.statusCounts}
+            snapIndex={snapIndex}
+            onSnapChange={setSnapIndex}
+            contentMode="list"
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
         </>
       )}
     </div>
