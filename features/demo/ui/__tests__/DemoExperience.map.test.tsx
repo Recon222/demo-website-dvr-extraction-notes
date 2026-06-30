@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
 const { searchParams } = vi.hoisted(() => ({
@@ -11,15 +11,29 @@ vi.mock('@/features/demo/engine/director/runner', () => ({
   realClock: {},
 }))
 
+// mapbox-gl is mocked (no WebGL); a constructable (non-arrow) Map so `new mapboxgl.Map(...)` works.
+const { mapInstance } = vi.hoisted(() => {
+  const mapInstance = {
+    on: vi.fn((evt: string, cb: () => void) => { if (evt === 'load') cb() }),
+    remove: vi.fn(), flyTo: vi.fn(), fitBounds: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn(),
+  }
+  return { mapInstance }
+})
+vi.mock('mapbox-gl', () => ({
+  default: { Map: vi.fn(function () { return mapInstance }), Marker: vi.fn(), accessToken: '' },
+}))
+
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { MAP_NARRATION } from '@/features/demo/engine/content/narration'
 
 beforeEach(() => {
   searchParams.get.mockReset()
   searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null)) // interactive sandbox
+  vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
+afterEach(() => vi.unstubAllEnvs())
 
-describe('DemoExperience — Map tab', () => {
+describe('DemoExperience — Map tab wiring', () => {
   it('clicking the Map tab opens the Map screen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -39,5 +53,43 @@ describe('DemoExperience — Map tab', () => {
     render(<DemoExperience store={store} />)
     fireEvent.click(screen.getByLabelText('Map'))
     expect(screen.getByLabelText('Map')).toBeInTheDocument()
+  })
+})
+
+describe('DemoExperience — Map case picker', () => {
+  it('shows the mandatory picker (no Close) when no viewer case is chosen', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
+    fireEvent.click(screen.getByLabelText('Map'))
+    expect(screen.getByText('Select a case')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument()
+  })
+
+  it('picking a case shows it on the map without touching the form currentCaseId', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
+    act(() => { store.getState().createCase({ caseNumber: 'PR25-B', displayName: 'Bravo', unit: 'R' }) })
+    const cur = store.getState().currentCaseId // 'Bravo'
+    fireEvent.click(screen.getByLabelText('Map'))
+    // Scope to the picker — the exiting CasesScreen also shows case names during the transition.
+    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('Alpha'))
+    expect(document.querySelector('[data-map-canvas]')).toBeInTheDocument()
+    expect(store.getState().currentCaseId).toBe(cur) // viewer is tab-local — form case untouched
+  })
+
+  it('Change Case opens a dismissible picker that cancels back to the map', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
+    fireEvent.click(screen.getByLabelText('Map'))
+    fireEvent.click(within(screen.getByTestId('case-picker-scrim')).getByText('Alpha'))
+    expect(screen.queryByText('Select a case')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Change Case'))
+    expect(screen.getByText('Select a case')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Close'))
+    expect(screen.queryByText('Select a case')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-map-canvas]')).toBeInTheDocument()
   })
 })

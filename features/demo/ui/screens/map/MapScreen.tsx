@@ -6,6 +6,23 @@ import { MapCanvas } from '@/features/demo/ui/screens/map/MapCanvas'
 export interface MapScreenProps {
   /** The tab-local viewer case (distinct from the form's current case). `null` → pick-a-case prompt. */
   viewerCaseId: string | null
+  /** Opens the (dismissible) case picker to view a different case. */
+  onChangeCase?(): void
+}
+
+const changeCasePill: CSSProperties = {
+  position: 'absolute',
+  top: 58,
+  right: 12,
+  zIndex: 16,
+  padding: '7px 12px',
+  borderRadius: 999,
+  border: '1px solid rgba(40,69,107,0.9)',
+  background: 'rgba(13,27,42,0.82)',
+  color: '#cdd9e6',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
 }
 
 const emptyStyle: CSSProperties = {
@@ -27,7 +44,7 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, onChangeCase }: MapScreenProps) {
   return (
     <div data-map-screen style={{ position: 'absolute', inset: 0, background: '#0a1422' }}>
       {viewerCaseId === null ? (
@@ -36,7 +53,14 @@ export function MapScreen({ viewerCaseId }: MapScreenProps) {
           <div>Pick a case to view its locations on the map.</div>
         </div>
       ) : (
-        <MapCanvas />
+        <>
+          <MapCanvas />
+          {onChangeCase && (
+            <button type="button" onClick={onChangeCase} style={changeCasePill}>
+              Change Case
+            </button>
+          )}
+        </>
       )}
     </div>
   )

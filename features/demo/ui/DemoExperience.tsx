@@ -24,6 +24,7 @@ import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } 
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
+import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
@@ -217,9 +218,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
-  // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId (the picker sets
-  // it in a later slice; null shows the pick-a-case prompt).
-  const [mapViewerCaseId] = useState<string | null>(null)
+  // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
+  // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
+  const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
+  const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
@@ -708,7 +710,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} onChangeCase={() => setMapPickerOpen(true)} />
       default:
         return placeholder(view)
     }
@@ -787,6 +789,25 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             {activeScreen()}
           </ScreenStage>
           {activeModal()}
+          {/* Map case picker — mandatory (non-dismissible) when no case is being viewed; opened as a
+              dismissible overlay by the map's "Change Case" pill. Sets the tab-local viewer case only;
+              never writes the form's currentCaseId. */}
+          {view === 'map' && (mapViewerCaseId === null || mapPickerOpen) && (
+            <CaseMapPicker
+              cases={caseCards.map((c) => ({
+                id: c.id,
+                caseNumber: c.caseNumber,
+                displayName: c.displayName,
+                locationCountLabel: c.locationCountLabel,
+              }))}
+              dismissible={mapViewerCaseId !== null}
+              onPick={(caseId) => {
+                setMapViewerCaseId(caseId)
+                setMapPickerOpen(false)
+              }}
+              onClose={() => setMapPickerOpen(false)}
+            />
+          )}
           <WizardDrawer
             open={drawerOpen}
             items={selectDrawerItems(store.getState()).map((d) => {
