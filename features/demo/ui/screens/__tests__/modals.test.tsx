@@ -20,7 +20,7 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
 }
 
 describe('NewCaseModal', () => {
-  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', notes: '' }
+  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '' }
 
   it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()
@@ -47,7 +47,7 @@ describe('NewLocationModal', () => {
     const onCaptureGps = vi.fn()
     const onSubmit = vi.fn()
     const onChange = vi.fn()
-    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} />)
+    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} onPickCoords={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
     expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
     fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })

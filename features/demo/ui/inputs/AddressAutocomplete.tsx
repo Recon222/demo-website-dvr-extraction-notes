@@ -16,6 +16,8 @@ type AddressSession = SearchSession<SearchBoxOptions, SearchBoxSuggestion, Searc
 export interface AddressPick {
   streetAddress: string
   city: string
+  /** [lng, lat] from the Mapbox retrieve feature — geocoded coordinates, when present. */
+  coordinates?: { lng: number; lat: number }
 }
 
 interface Suggestion {
@@ -35,14 +37,40 @@ const inputStyle: CSSProperties = {
   outline: 'none',
 }
 
-/** Extract street + city from a Mapbox Search Box retrieve feature (pure; unit-tested). */
-export function pickFromFeature(feature: { properties?: Record<string, unknown> } | undefined): AddressPick {
-  const p = (feature?.properties ?? {}) as Record<string, unknown>
+/** Extract street + city + [lng, lat] from a Mapbox Search Box retrieve feature (pure; unit-tested).
+ *  The retrieve feature carries the geocoded coordinates we plot on the map — `geometry.coordinates`
+ *  (`[lng, lat]`), with `properties.coordinates` (`{ longitude, latitude }`) as a fallback. We keep
+ *  `coordinates` only when a finite pair is present, so the no-token / property-only paths stay
+ *  coord-less (the honest "no coordinate" case). */
+// Accepts `unknown` (the Mapbox `SearchBoxFeatureSuggestion` properties type has no index signature,
+// so it isn't assignable to a `Record<string, unknown>` param); we narrow structurally inside.
+export function pickFromFeature(feature: unknown): AddressPick {
+  const f = (feature ?? {}) as RetrieveFeature
+  const p = (f.properties ?? {}) as Record<string, unknown>
   const ctx = (p.context ?? {}) as { address?: { name?: string }; place?: { name?: string } }
   return {
     streetAddress: ctx.address?.name ?? (typeof p.name === 'string' ? p.name : '') ?? '',
     city: ctx.place?.name ?? '',
+    coordinates: extractCoordinates(f),
   }
+}
+
+interface RetrieveFeature {
+  geometry?: { coordinates?: unknown }
+  properties?: Record<string, unknown>
+}
+
+/** Pull a finite `{ lng, lat }` from the feature geometry or `properties.coordinates`; else undefined. */
+function extractCoordinates(feature: RetrieveFeature): { lng: number; lat: number } | undefined {
+  const geo = feature?.geometry?.coordinates
+  if (Array.isArray(geo) && geo.length >= 2 && Number.isFinite(geo[0]) && Number.isFinite(geo[1])) {
+    return { lng: geo[0] as number, lat: geo[1] as number }
+  }
+  const pc = feature?.properties?.coordinates as { longitude?: unknown; latitude?: unknown } | undefined
+  if (pc && Number.isFinite(pc.longitude) && Number.isFinite(pc.latitude)) {
+    return { lng: pc.longitude as number, lat: pc.latitude as number }
+  }
+  return undefined
 }
 
 /**

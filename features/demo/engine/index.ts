@@ -28,6 +28,7 @@ export { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 export * from '@/features/demo/engine/logic/time'
 export * from '@/features/demo/engine/logic/ocr'
 export * from '@/features/demo/engine/logic/import'
+export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinateResult } from '@/features/demo/engine/logic/coordinates'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
