@@ -18,6 +18,7 @@ const feature: Feature = {
   eyebrow: 'Time calibration',
   title: 'The timestamp you can defend',
   painLine: 'DVR clocks are almost always wrong.',
+  classLabel: 'MARQUEE',
   rows: [
     { heading: 'Read the clock', body: 'On-device OCR reads it.', media: 'demos/tc/ocr.mp4' },
     { heading: 'Calibrate', body: 'Sync to an atomic clock.' },

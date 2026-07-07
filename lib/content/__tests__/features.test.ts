@@ -169,6 +169,11 @@ describe('Case-File content fields', () => {
         expect(f.rows.map((r) => r.accent)).toEqual(['cyan', 'gold'])
       } else {
         expect(f.layout, `"${f.slug}" must not set layout`).toBeUndefined()
+        // accent is only meaningful under the trust-cards layout — a stray accent
+        // on a normal feature row would silently style nothing (or worse, later).
+        for (const row of f.rows) {
+          expect(row.accent, `"${f.slug}" rows must not set accent`).toBeUndefined()
+        }
       }
     }
   })

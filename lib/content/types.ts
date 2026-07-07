@@ -72,8 +72,8 @@ export interface Feature {
    * hatched-block explainer copy.
    */
   intro?: string
-  /** Manifest class chip. */
-  classLabel?: FeatureClass
+  /** Manifest class chip. Required — every manifest row renders one. */
+  classLabel: FeatureClass
   /** The one tip card on the page (absent on Security & Privacy — trust cards instead). */
   tip?: FeatureTip
   /** Ordered pain→fix content rows. */
