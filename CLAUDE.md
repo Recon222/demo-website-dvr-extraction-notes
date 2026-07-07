@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Context
 
-This repo is the Cruip **"Open PRO"** landing page template (Next.js App Router + React 19 + Tailwind CSS v4), used as the starting point for a **CCTV/DVR extraction notes** app. The committed code is still the unmodified marketing template (hero, features, testimonials, CTA, auth pages) — expect to replace template content/sections rather than extend a built-out product.
+This repo is the marketing + beta-recruitment site for **DVR Extraction Notes** (a CCTV/DVR evidence-recovery iOS app by FVA Development), built on Next.js App Router + React 19 + Tailwind CSS v4 (originally the Cruip "Open PRO" template — long since replaced). It has two distinct halves:
+
+- **Marketing pages** (`app/(default)/`, `components/`, `lib/content/`) — content-driven server components rendering the feature catalog in `lib/content/features.ts`. Being restyled to the **"Case File"** design system (see `docs/features/case-file-redesign/`).
+- **The interactive demo** (`app/demo/`, `features/demo/`) — a self-contained client-only product demo with its own conventions; read `features/demo/CLAUDE.md` before touching it. **Marketing code must never import from `@/features/demo`** (it would pull mapbox-gl/pdfjs/motion into marketing bundles).
 
 ## Commands
 
@@ -17,7 +20,13 @@ pnpm start    # serve the production build
 pnpm lint     # next lint (ESLint)
 ```
 
-There is **no test runner configured** — no Jest/Vitest/Playwright setup exists yet.
+Tests run on **Vitest + jsdom + React Testing Library** (`vitest.config.mts`, setup `vitest.setup.ts`), co-located in `__tests__/` directories:
+
+```bash
+pnpm test           # vitest run (one-shot)
+pnpm test:watch     # vitest watch
+pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/**)
+```
 
 ## Architecture
 
