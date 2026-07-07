@@ -3,8 +3,6 @@ import "./css/style.css";
 import { Inter, JetBrains_Mono, Share_Tech_Mono } from "next/font/google";
 import localFont from "next/font/local";
 
-import Header from "@/components/ui/header";
-import { FeatureNav } from "@/components/ui/feature-nav";
 import { siteConfig } from "@/lib/site-config";
 
 const inter = Inter({
@@ -71,9 +69,11 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${nacelle.variable} ${shareTechMono.variable} ${jetbrainsMono.variable} bg-gray-950 font-inter text-base text-gray-200 antialiased`}
       >
+        {/* Marketing chrome intentionally does NOT live here: /demo (outside the
+            (default) route group) must render chrome-free. The header/tab-strip/
+            footer are mounted in app/(default)/layout.tsx — guarded by
+            app/(default)/__tests__/chrome-scope.test.tsx. */}
         <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
-          <Header />
-          <FeatureNav />
           {children}
         </div>
       </body>
