@@ -174,6 +174,10 @@ export interface DemoCase {
   incidentBusinessName: string
   incidentStreetAddress: string
   incidentCity: string
+  /** Incident scene coordinates — geocoded from the address pick or entered by hand. Unlike a
+   *  recovery location (which always has a real street address), the incident can be anywhere
+   *  (a scene in the woods), so coordinates may exist without/independent of the address. */
+  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
   /** Free-text case notes. */
   notes: string
   status: 'draft' | 'complete' | 'archived'

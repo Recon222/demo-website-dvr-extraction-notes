@@ -140,6 +140,22 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
   }
 }
 
+// ---- Map pin status (derived) --------------------------------------------------------------
+/** A location's map-pin status — the demo has no stored LocationStatus, so it's derived from the
+ *  same per-screen completion the wizard drawer shows. Mirrors the phone's started/working/complete. */
+export type LocationMapStatus = 'started' | 'working' | 'complete'
+
+/** all screens empty → started · all complete → complete · otherwise working. */
+export function aggregateMapStatus(statuses: DrawerStatus[]): LocationMapStatus {
+  if (statuses.every((s) => s === 'empty')) return 'started'
+  if (statuses.every((s) => s === 'complete')) return 'complete'
+  return 'working'
+}
+
+export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
+  return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
+}
+
 /** Assemble the current case + location into the Case Notes PDF input shape. */
 export function selectCaseNotesData(s: DemoState): CaseNotesData {
   const loc = selectCurrentLocation(s)

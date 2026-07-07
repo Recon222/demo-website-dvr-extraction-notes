@@ -22,7 +22,7 @@ describe('SubmissionScreen', () => {
   it('shows the occ number, edits a field, and advances', () => {
     const onChange = vi.fn()
     const onNext = vi.fn()
-    render(<SubmissionScreen occNumber="PR25-0098213" fields={fields} onChange={onChange} {...nav} onNext={onNext} />)
+    render(<SubmissionScreen occNumber="PR25-0098213" fields={fields} onChange={onChange} {...nav} onNext={onNext} onPickCoords={vi.fn()} />)
     expect(screen.getByText('PR25-0098213')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Requester Name'), { target: { value: 'Liam' } })
     expect(onChange).toHaveBeenCalledWith('requesterName', 'Liam')

@@ -10,6 +10,8 @@ export interface NewLocationFields {
   city: string
   locationContact: string
   locationPhone: string
+  /** Geocoded coordinates captured from an address pick (carried to submit; not rendered). */
+  coordinates?: { lat: number; lng: number }
 }
 
 export interface NewLocationModalProps {
@@ -18,9 +20,12 @@ export interface NewLocationModalProps {
   onSubmit(): void
   onCancel(): void
   onCaptureGps(): void
+  /** Fires when an address pick yields geocoded coordinates (recovery locations are geocode-only —
+   *  no manual lat/lng entry, since a DVR always has a real street address). */
+  onPickCoords(coords: { lat: number; lng: number }): void
 }
 
-export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCaptureGps }: NewLocationModalProps) {
+export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCaptureGps, onPickCoords }: NewLocationModalProps) {
   return (
     <ModalShell title="New Location" onClose={onCancel}>
       <Field label="Location Name" required value={form.locationName} onChange={(v) => onChange('locationName', v)} placeholder="e.g., Front entrance" />
@@ -32,6 +37,7 @@ export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCapture
         onPick={(p) => {
           onChange('streetAddress', p.streetAddress)
           onChange('city', p.city)
+          if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng })
         }}
         placeholder="Start typing an address…"
       />

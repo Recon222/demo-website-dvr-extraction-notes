@@ -6,9 +6,10 @@ import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { runBeat } from '@/features/demo/engine/director/runner'
 import { BEATS } from '@/features/demo/engine/director/beats'
-import { NARRATION } from '@/features/demo/engine/content/narration'
+import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
 import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
+import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { ChapterId, DemoMode } from '@/features/demo/engine/types'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -23,6 +24,9 @@ import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/scr
 import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
+import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
+import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
 import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
@@ -40,6 +44,7 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes } from '@/features/demo/engine/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
+import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
@@ -70,6 +75,9 @@ const blankCaseForm: NewCaseFields = {
   incidentBusinessName: '',
   incidentStreetAddress: '',
   incidentCity: '',
+  incidentLatitude: '',
+  incidentLongitude: '',
+  incidentCoordinateSource: '',
   notes: '',
 }
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
@@ -212,6 +220,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [pulses, setPulses] = useState<Pulse[]>([])
   const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
+  // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
+  // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
+  const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
+  const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
@@ -260,11 +272,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }, [])
 
   const guided = currentMode === 'guided'
-  const narration = NARRATION[currentChapter]
+  // The Map tab is a sandbox tab view, not a guided chapter — show its contextual copy on the rail
+  // while currentChapter stays on the last real chapter.
+  const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
   const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title }))
   const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
   const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+  // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
+  // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
+  const mapViewerCase = useMemo(() => cases.find((c) => c.id === mapViewerCaseId) ?? null, [cases, mapViewerCaseId])
+  const mapData = useMemo(
+    () => toMapData(mapViewerCase, locations.filter((l) => l.caseId === mapViewerCaseId)),
+    [mapViewerCase, locations, mapViewerCaseId],
+  )
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
   const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
@@ -327,13 +348,24 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     store.getState().openModal('import')
   }
   const submitCase = () => {
-    const id = store.getState().createCase({ ...caseForm })
+    // Build incidentCoordinates only when BOTH lat & lng parse + range-validate. An invalid or
+    // partial entry yields no coordinates (the case is still created — no required-field gate).
+    const latR = parseCoordinate(caseForm.incidentLatitude, 'lat')
+    const lngR = parseCoordinate(caseForm.incidentLongitude, 'lng')
+    const incidentCoordinates =
+      latR.ok && lngR.ok
+        ? { lat: latR.value, lng: lngR.value, source: caseForm.incidentCoordinateSource === 'geocoded' ? ('geocoded' as const) : ('manual' as const) }
+        : undefined
+    const id = store.getState().createCase({ ...caseForm, incidentCoordinates })
     setExpandedCaseId(id)
     store.getState().closeModal()
   }
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
-    if (caseId) store.getState().addLocation(caseId, { ...locForm })
+    if (caseId) {
+      const gps = locForm.coordinates ? { ...locForm.coordinates, source: 'geocoded' as const } : undefined
+      store.getState().addLocation(caseId, { ...locForm, gps })
+    }
     store.getState().closeModal()
   }
   // Live in sandbox (calls /api/extract → Ollama); deterministic SAMPLE in guided/tests.
@@ -346,8 +378,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return undefined
   }
 
-  const applySuccess = (caseId: string, res: Extract<ImportRunResult, { ok: true }>): string => {
-    const id = store.getState().addLocation(caseId, { locationName: res.patch.businessName || res.filename || 'Imported location' })
+  // Forward-geocode the imported address BEFORE creating the location (mirrors the phone's
+  // persistMappedImport) so imported locations land on the map. Non-blocking: no token / no match
+  // → the location is still created, just without a pin.
+  const applySuccess = async (caseId: string, res: Extract<ImportRunResult, { ok: true }>): Promise<string> => {
+    const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
+    const coords = query ? await forwardGeocode(query) : null
+    const id = store.getState().addLocation(caseId, {
+      locationName: res.patch.businessName || res.filename || 'Imported location',
+      gps: coords ? { lat: coords.lat, lng: coords.lng, source: 'geocoded' } : undefined,
+    })
     store.getState().applyImport(res.patch)
     return id
   }
@@ -358,8 +398,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     locations: ImportedLocationView[]
     failures: ImportFailure[]
   }
-  const recordSuccess = (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
-    const locId = applySuccess(caseId, res)
+  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
+    const locId = await applySuccess(caseId, res)
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
     tally.locations.push(
@@ -408,7 +448,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live, onStage: onImportStage })
       if (importCancelled.current) return // cancelled while this file was processing
-      if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
     finishImport(tally)
@@ -430,7 +470,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
     if (importCancelled.current) return
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) recordSuccess(caseId, caseNumber, res, tally)
+    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
     finishImport(tally)
   }
@@ -501,7 +541,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     })
   }
 
-  const showTabs = view === 'dashboard' || view === 'cases'
+  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
   function activeScreen() {
     switch (view) {
@@ -535,7 +575,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: 0, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
@@ -686,6 +726,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'map':
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} />
       default:
         return placeholder(view)
     }
@@ -696,7 +738,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'newCase':
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
       case 'newLocation':
-        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} />
+        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
       case 'import':
         return (
           <>
@@ -758,12 +800,34 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
           interactive={!guided}
-          tabBar={showTabs ? <TabBar active={view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => t !== 'map' && store.getState().setView(t)} /> : undefined}
+          tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>
           {activeModal()}
+          {/* Map case picker — mandatory (non-dismissible) when no case is being viewed; opened as a
+              dismissible overlay by the map's "Change Case" pill. Sets the tab-local viewer case only;
+              never writes the form's currentCaseId. */}
+          {view === 'map' && (mapViewerCaseId === null || mapPickerOpen) && (
+            <CaseMapPicker
+              cases={caseCards.map((c) => ({
+                id: c.id,
+                caseNumber: c.caseNumber,
+                displayName: c.displayName,
+                locationCountLabel: c.locationCountLabel,
+                status: cases.find((sc) => sc.id === c.id)?.status ?? 'draft',
+              }))}
+              dismissible={mapViewerCaseId !== null}
+              // Highlight the viewed case (or the form's case as a courtesy on first open).
+              preselectedId={mapViewerCaseId ?? currentCaseId}
+              onPick={(caseId) => {
+                setMapViewerCaseId(caseId)
+                setMapPickerOpen(false)
+              }}
+              onClose={() => setMapPickerOpen(false)}
+            />
+          )}
           <WizardDrawer
             open={drawerOpen}
             items={selectDrawerItems(store.getState()).map((d) => {

@@ -23,9 +23,11 @@ export interface SubmissionScreenProps {
   onNext(): void
   onBack(): void
   onMenu(): void
+  /** Fires when an address pick yields geocoded coordinates for this recovery location. */
+  onPickCoords(coords: { lat: number; lng: number }): void
 }
 
-export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, onMenu }: SubmissionScreenProps) {
+export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, onMenu, onPickCoords }: SubmissionScreenProps) {
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Submission Details" onBack={onBack} onMenu={onMenu} />
@@ -50,6 +52,7 @@ export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, 
             onPick={(p) => {
               onChange('streetAddress', p.streetAddress)
               onChange('city', p.city)
+              if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng })
             }}
             placeholder="Start typing an address…"
           />
