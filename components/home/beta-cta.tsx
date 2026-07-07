@@ -1,8 +1,11 @@
+import { BetaForm } from '@/components/beta/beta-form'
+
 /**
  * The gold beta-recruitment panel (canvas artboard 1a §beta CTA): exhibit tab,
- * pitch copy, and the email intake. The intake is a static visual placeholder
- * until Slice 12 swaps in the working <BetaForm/> (see the implementation plan —
- * the form + server action are Milestone F).
+ * pitch copy, and the working email intake (BetaForm — Slice 12). Deliberate
+ * canvas deviation: the compact consent checkbox rides along here too, because
+ * the schema requires consent and a form that always fails is worse than 16px
+ * of checkbox.
  */
 export function BetaCta() {
   return (
@@ -24,15 +27,7 @@ export function BetaCta() {
         </div>
 
         <div className="flex w-full flex-col gap-3 lg:w-[380px] lg:flex-none">
-          <div className="flex gap-[10px]">
-            {/* ponytail: static intake visual — Slice 12 replaces this with <BetaForm/> */}
-            <div className="flex-1 rounded-[10px] border border-input bg-[rgba(6,12,20,0.8)] px-4 py-[13px] font-jbmono text-[13px] text-faint">
-              name@agency.gov
-            </div>
-            <div className="whitespace-nowrap rounded-[10px] bg-[linear-gradient(180deg,#ffe06a,#f5c62e)] px-5 py-[13px] text-sm font-bold text-[#241d00] shadow-[0_1px_0_rgba(255,255,255,0.35)_inset]">
-              Request invite
-            </div>
-          </div>
+          <BetaForm />
           <div className="flex items-center gap-2 font-stmono text-[10px] tracking-[1.4px] text-faint">
             <svg
               aria-hidden="true"
