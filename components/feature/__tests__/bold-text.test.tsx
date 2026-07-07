@@ -32,4 +32,10 @@ describe('BoldText', () => {
     render(<BoldText text="never **stored** by us" boldClassName="text-cyan" />)
     expect(screen.getByText('stored')).toHaveClass('text-cyan')
   })
+
+  it('renders a malformed (unclosed) marker literally rather than eating copy', () => {
+    const { container } = render(<BoldText text="an **unclosed marker stays visible" />)
+    expect(container.querySelector('strong')).toBeNull()
+    expect(container.textContent).toBe('an **unclosed marker stays visible')
+  })
 })

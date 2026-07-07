@@ -42,6 +42,19 @@ export function FeatureRowView({
   draft?: boolean
 }) {
   if (!row.media) {
+    // Draft features hatch EVERY row shape — a media-less row on a draft would
+    // otherwise ship un-hatched scaffolding copy (drafts are exempt from the
+    // placeholder-copy guard, so nothing else catches it).
+    if (draft) {
+      return (
+        <div>
+          {row.kicker ? (
+            <div className="mb-[14px] font-stmono text-[11px] tracking-[2.4px] text-blue">{row.kicker}</div>
+          ) : null}
+          <div className={cn(HATCH, 'max-w-[560px]')}>{row.body}</div>
+        </div>
+      )
+    }
     return (
       <div className="flex items-center gap-10 rounded-2xl border border-[rgba(30,58,95,0.6)] bg-[linear-gradient(135deg,rgba(19,34,54,0.6),rgba(26,45,68,0.65))] px-9 py-[30px]">
         <div className="hidden h-[54px] w-[54px] flex-none items-center justify-center rounded-[14px] border border-blue/40 bg-blue/10 md:flex">

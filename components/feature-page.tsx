@@ -188,7 +188,9 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
             )
           ) : null}
         </div>
-        {feature.tip ? <TipCard tip={feature.tip} /> : null}
+        {/* Tip cards belong to the split-header layout only — a centered
+            (trust-cards) page has nowhere for one to sit. */}
+        {!centered && feature.tip ? <TipCard tip={feature.tip} /> : null}
       </div>
 
       {/* content rows */}
@@ -215,7 +217,9 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
 
       <div className={cn(PAD, 'flex flex-col gap-11 border-t border-[rgba(30,58,95,0.45)] pb-16 pt-12')}>
         <PrevNext prev={prev} next={next} index={index} />
-        {feature.betaStripLine ? <BetaStrip line={feature.betaStripLine} /> : null}
+        {/* Never recruit from a draft page — defense-in-depth over the catalog
+            guarantee that drafts carry no betaStripLine. */}
+        {!feature.draft && feature.betaStripLine ? <BetaStrip line={feature.betaStripLine} /> : null}
       </div>
     </article>
   )
