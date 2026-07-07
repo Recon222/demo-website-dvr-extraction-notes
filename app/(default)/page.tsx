@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 import { Hero } from '@/components/home/hero'
 import { ChainOfWork } from '@/components/home/chain-of-work'
-import { FeatureGrid } from '@/components/home/feature-grid'
+import { EvidenceManifest } from '@/components/home/evidence-manifest'
 import { getAllFeatures } from '@/lib/content/features'
 import { siteConfig } from '@/lib/site-config'
 
@@ -28,19 +28,7 @@ export default function Home() {
 
       <ChainOfWork />
 
-      <section id="features">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className={SECTION_BORDER}>
-            <div className="mx-auto max-w-3xl pb-12 text-center">
-              <h2 className={HEADING}>Everything the job needs</h2>
-              <p className="text-lg text-indigo-200/65">
-                Built from 1,500+ extractions — each feature kills a pain point.
-              </p>
-            </div>
-            <FeatureGrid features={features} />
-          </div>
-        </div>
-      </section>
+      <EvidenceManifest features={features} />
 
       <section>
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
