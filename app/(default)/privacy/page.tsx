@@ -1,196 +1,203 @@
 import type { Metadata } from 'next'
 
+import { BoldText } from '@/components/feature/bold-text'
 import { siteConfig } from '@/lib/site-config'
 
 export const metadata: Metadata = {
   title: `Privacy Policy — ${siteConfig.name}`,
-  description: `How ${siteConfig.name} handles your data: on-device by default, with a clear account of the little that ever leaves your phone.`,
+  description: `How ${siteConfig.name} handles your data: on-device by default, with a complete ledger of the little that ever touches a network.`,
 }
 
-// Adapted from the app's privacy policy (FVA Development). The contact address is a
-// placeholder pending confirmation — the app policy lists fvadd.dev@gmail.com while
-// the working site contact is kcfva.dev@gmail.com (doc 07 Q2).
-const COMPANY = 'FVA Development'
-const CONTACT_EMAIL = 'kcfva.dev@gmail.com' // TODO(doc 07 Q2): confirm canonical privacy contact
-const EFFECTIVE_DATE = 'April 1, 2026'
+// ── Copy transcribed from the design canvas (artboard 3a) — adapted from the app
+// policy; legal sign-off pending (the header chip says so on the page itself). ──
 
+const LEDGER_GRID = 'grid grid-cols-[250px_1fr_320px_130px] items-center gap-4 px-[26px]'
+
+const LEDGER_ROWS = [
+  {
+    what: 'Time packets (NTP)',
+    when: 'Only when you run a time calibration',
+    contains: 'A clock query. No identifiers.',
+  },
+  {
+    what: 'Map look-ups',
+    when: 'When you geocode an address or open the case map',
+    contains: 'The address string you typed. Nothing else.',
+  },
+  {
+    what: 'Crash reports',
+    when: 'If the app crashes',
+    contains: 'Anonymous stack trace. No case content.',
+  },
+] as const
+
+const PERMISSIONS = [
+  { key: 'CAMERA', use: 'reading DVR timestamps (OCR) and capturing scene photos/video' },
+  { key: 'MICROPHONE', use: 'recording audio notes at a location' },
+  { key: 'LOCATION', use: 'pinning sites and GPS-marking cameras, only while you use it' },
+  { key: 'FACE ID', use: 'unlocking the app and gating encrypted exports' },
+] as const
+
+const SECTIONS = [
+  {
+    id: 'what-stays',
+    title: 'What stays on the phone',
+    body: 'Everything you create — cases, locations, photos, video, audio, documents, notes, and reports — is stored in an encrypted database on your device, behind your device passcode and Face ID. We operate no server that receives, stores, or can access your case data.',
+  },
+  {
+    id: 'on-device-ai',
+    title: 'The on-device AI',
+    body: "Request import uses Apple's on-device intelligence (iOS 26+). The document is read on your phone's own hardware — its contents are not transmitted to Apple, to us, or to any third party. If your device doesn't support it, the feature is simply unavailable; nothing falls back to a cloud service.",
+  },
+  { id: 'permissions', title: 'Permissions we ask for', body: null }, // rendered specially
+  {
+    id: 'exports',
+    title: 'What you export',
+    body: 'Sharing is always your action: exports are password-protected encrypted archives, the password is set by you, and where they go is your call. The app never uploads a package anywhere on its own.',
+  },
+  {
+    id: 'beta-emails',
+    title: 'The beta email list',
+    body: "If you sign up for the beta on this site, we store the email address you give us and use it for exactly one thing: beta invites and beta updates. Unsubscribe ends it; we don't share or sell the list.",
+  },
+  { id: 'contact', title: 'Contact', body: null }, // rendered specially
+] as const
+
+/** The Case-File privacy page: trust-story header, the network ledger, sticky TOC + sections. */
 export default function PrivacyPage() {
   return (
-    <section className="mx-auto max-w-3xl px-4 py-12 sm:px-6 md:py-20">
-      <header className="mb-10">
-        <h1 className="mb-2 font-nacelle text-4xl font-semibold text-gray-100 md:text-5xl">
-          Privacy Policy
+    <div className="relative">
+      {/* page header */}
+      <div className="max-w-[900px] px-10 pb-12 pt-[72px] lg:px-20">
+        <div className="mb-[22px] flex flex-wrap items-center gap-[10px] font-stmono text-[11px] tracking-[2px] text-faint">
+          <span>FVA DEVELOPMENT</span>
+          <span>/</span>
+          <span className="text-cyan">PRIVACY POLICY</span>
+          <span className="rounded-[10px] border border-[rgba(122,159,196,0.35)] bg-[rgba(122,159,196,0.08)] px-[9px] py-[3px] text-[9px] tracking-[1.6px] text-muted">
+            ADAPTED FROM APP POLICY — LEGAL SIGN-OFF PENDING
+          </span>
+        </div>
+        <h1 className="mb-5 font-nacelle text-4xl font-semibold leading-[1.04] tracking-[-1.2px] text-heading lg:text-[52px]">
+          On your device, under your control.
         </h1>
-        <p className="text-sm text-indigo-200/50">
-          {siteConfig.name} · {COMPANY} · Effective {EFFECTIVE_DATE}
+        <p className="max-w-[640px] text-[17px] leading-[1.65] text-body">
+          <BoldText text="This app documents evidence. That only works if the tool itself is beyond question — so the architecture is blunt: **your case data lives in an encrypted database on your phone and stays there.** Below is the complete list of what ever touches a network." />
         </p>
-      </header>
-
-      <div className="space-y-10 text-indigo-200/75">
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">Overview</h2>
-          <p>
-            {siteConfig.name} is a documentation tool for CCTV/DVR evidence recovery, built for law
-            enforcement and forensic professionals. Privacy is fundamental to its design: all case
-            data stays on your device unless you explicitly choose to export or share it.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Data that stays on your device
-          </h2>
-          <p className="mb-3">
-            The following is created and stored only on your device. It is never transmitted to{' '}
-            {COMPANY} or any third party:
-          </p>
-          <ul className="list-disc space-y-1 pl-6">
-            <li>Case data — occurrence numbers, addresses, business names, timestamps, DVR details, and all form entries</li>
-            <li>Photos and videos captured through the app</li>
-            <li>Audio recordings captured through the app</li>
-            <li>GPS coordinates used to document sites and individual camera positions</li>
-            <li>Generated PDF documents (case notes and time-offset calibration reports)</li>
-            <li>The on-device SQLite database holding all records and metadata</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Device features the app uses
-          </h2>
-          <ul className="list-disc space-y-1 pl-6">
-            <li><strong className="text-gray-200">Camera</strong> — capture DVR timestamps and evidence photos/videos</li>
-            <li><strong className="text-gray-200">Microphone</strong> — record audio notes</li>
-            <li><strong className="text-gray-200">Location (GPS)</strong> — document site and camera positions</li>
-            <li><strong className="text-gray-200">Face ID / Touch ID</strong> — protect app access and exports</li>
-          </ul>
-          <p className="mt-3">
-            Biometric data is processed entirely by your device&apos;s operating system (e.g. the iOS
-            Secure Enclave). {siteConfig.name} never receives, stores, or transmits biometric data.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">On-device AI</h2>
-          <p>
-            The app uses Apple Intelligence (Apple Foundation Models) to extract structured details
-            from imported request documents. This runs entirely on your device. No document content
-            is sent to any server, cloud service, or third party. The feature requires a compatible
-            device and a recent iOS version.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">Network services</h2>
-          <p className="mb-3">
-            The app contacts a small number of external services for specific functions. No case
-            data, media, or personal information is sent to them:
-          </p>
-          <ul className="list-disc space-y-1 pl-6">
-            <li>
-              <strong className="text-gray-200">Atomic-clock time servers</strong> (e.g. NRC, NIST,
-              PTB, METAS, Cloudflare) — timestamp packets only, for forensic time calibration. No
-              user data.
-            </li>
-            <li>
-              <strong className="text-gray-200">Time API fallback</strong> — used only when the
-              primary time protocol is unavailable; involves your device&apos;s IP address inherent
-              to any network request. No user data.
-            </li>
-            <li>
-              <strong className="text-gray-200">Mapbox</strong> — address autocomplete and geocoding;
-              receives the search queries and coordinates you enter, subject to Mapbox&apos;s own
-              privacy policy.
-            </li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">Crash reporting</h2>
-          <p>
-            We collect anonymized crash reports to improve stability — device model and OS version,
-            error stack traces, and app version. Crash reports do not contain your case data, media,
-            GPS coordinates, or any content you create in the app.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Beta program and this website
-          </h2>
-          <p>
-            If you join the beta on this website, we collect the email address you submit. It is used
-            only to send your TestFlight invitation and occasional beta updates, is stored with our
-            hosting/database provider, and is never sold or shared. Ask us at any time and we will
-            remove it.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Storage and security
-          </h2>
-          <ul className="list-disc space-y-1 pl-6">
-            <li>Case data is stored in an encrypted database on your device.</li>
-            <li>Exported ZIP archives can be optionally protected with a password held in your device&apos;s secure keychain.</li>
-            <li>The app supports biometric authentication with device-passcode fallback.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">Data sharing</h2>
-          <p>
-            {siteConfig.name} does not sell, rent, or share your data. The only data that leaves your
-            device is described above, plus any PDF or ZIP you choose to export and share through your
-            device&apos;s share sheet — to recipients you select.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Retention and deletion
-          </h2>
-          <p>
-            All case data is stored on your device and under your control. You can delete individual
-            cases, locations, or media at any time in the app. Uninstalling the app removes all
-            locally stored data.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Children&apos;s privacy
-          </h2>
-          <p>
-            {siteConfig.name} is a professional tool and is not directed at children under 13. We do
-            not knowingly collect information from children.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">
-            Changes to this policy
-          </h2>
-          <p>
-            We may update this policy from time to time. Changes are reflected by updating the
-            effective date above.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-3 font-nacelle text-2xl font-semibold text-gray-100">Contact</h2>
-          <p>
-            Questions about this policy or your data? Contact {COMPANY} at{' '}
-            <a
-              className="text-indigo-300 underline transition hover:text-indigo-200"
-              href={`mailto:${CONTACT_EMAIL}`}
-            >
-              {CONTACT_EMAIL}
-            </a>
-            .
-          </p>
-        </section>
       </div>
-    </section>
+
+      {/* the network ledger */}
+      <div className="px-10 pb-14 lg:px-20">
+        <div className="mb-[18px] font-stmono text-[11px] tracking-[2.4px] text-blue">
+          THE COMPLETE NETWORK LEDGER
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[900px] overflow-hidden rounded-2xl border border-hairline bg-panel-800">
+            <div
+              className={`${LEDGER_GRID} border-b border-hairline bg-[rgba(10,20,34,0.8)] py-3 font-stmono text-[9.5px] tracking-[2px] text-faint`}
+            >
+              <div>WHAT</div>
+              <div>WHEN</div>
+              <div>WHAT IT CONTAINS</div>
+              <div>CASE DATA?</div>
+            </div>
+            {LEDGER_ROWS.map((row) => (
+              <div key={row.what} className={`${LEDGER_GRID} border-b border-row-divider py-[17px]`}>
+                <div className="flex items-center gap-[9px]">
+                  <span aria-hidden="true" className="h-[7px] w-[7px] rounded-full bg-cyan" />
+                  <span className="font-nacelle text-[15px] font-semibold text-heading">
+                    {row.what}
+                  </span>
+                </div>
+                <div className="text-[13.5px] text-body-2">{row.when}</div>
+                <div className="font-jbmono text-[11.5px] text-muted">{row.contains}</div>
+                <div className="font-stmono text-[11px] tracking-[1.5px] text-cyan">NEVER</div>
+              </div>
+            ))}
+            {/* the gold stays-home row */}
+            <div className={`${LEDGER_GRID} relative bg-gold/[0.04] py-[19px]`}>
+              <div
+                aria-hidden="true"
+                className="absolute bottom-0 left-0 top-0 w-[3px] bg-[linear-gradient(180deg,#ffd93d,rgba(255,217,61,0.2))]"
+              />
+              <div className="flex items-center gap-[9px]">
+                <span aria-hidden="true" className="h-[7px] w-[7px] rounded-full bg-gold" />
+                <span className="font-nacelle text-[15px] font-semibold text-[#ffe786]">
+                  Everything else
+                </span>
+              </div>
+              <div className="text-[13.5px] text-[#cdd9e6]">
+                Cases, locations, media, documents, reports, the AI&apos;s reading of your requests
+              </div>
+              <div className="font-jbmono text-[11.5px] text-[#e7cf6a]">
+                Encrypted on-device. Face ID gated.
+              </div>
+              <div className="font-stmono text-[11px] tracking-[1.5px] text-gold">STAYS HOME</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* policy body: sticky TOC + sections */}
+      <div className="flex flex-col gap-10 px-10 pb-[72px] pt-6 lg:flex-row lg:gap-[72px] lg:px-20">
+        <nav aria-label="On this page" className="lg:w-60 lg:flex-none">
+          <div className="flex flex-col gap-0.5 lg:sticky lg:top-6">
+            <div className="mb-[10px] font-stmono text-[10px] tracking-[2px] text-faint">
+              ON THIS PAGE
+            </div>
+            {SECTIONS.map((section, index) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className="rounded-lg border-l-2 border-transparent px-3 py-2 font-jbmono text-xs text-muted transition-colors hover:border-blue hover:bg-blue/[0.07] hover:text-tab-label"
+              >
+                {String(index + 1).padStart(2, '0')} {section.title}
+              </a>
+            ))}
+          </div>
+        </nav>
+
+        <div className="flex max-w-[760px] flex-1 flex-col gap-10">
+          {SECTIONS.map((section, index) => (
+            <section key={section.id} id={section.id}>
+              <div className="mb-[10px] font-stmono text-[10.5px] tracking-[2.4px] text-blue">
+                {String(index + 1).padStart(2, '0')}
+              </div>
+              <h2 className="mb-3 font-nacelle text-2xl font-semibold tracking-[-0.4px] text-heading">
+                {section.title}
+              </h2>
+              {section.id === 'permissions' ? (
+                <>
+                  <p className="mb-[14px] text-[15px] leading-[1.7] text-body">
+                    Each permission maps to one visible feature — nothing runs in the background:
+                  </p>
+                  <dl className="flex flex-col gap-[9px]">
+                    {PERMISSIONS.map((permission) => (
+                      <div key={permission.key} className="flex items-baseline gap-3">
+                        <dt className="w-[110px] flex-none font-jbmono text-xs text-cyan">
+                          {permission.key}
+                        </dt>
+                        <dd className="m-0 text-sm text-body-2">{permission.use}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              ) : section.id === 'contact' ? (
+                <p className="text-[15px] leading-[1.7] text-body">
+                  Questions about any of this:{' '}
+                  <a
+                    href={`mailto:${siteConfig.contactEmail}`}
+                    className="text-carolina underline transition-colors hover:text-[#cfe6f5]"
+                  >
+                    {siteConfig.contactEmail}
+                  </a>
+                </p>
+              ) : (
+                <p className="text-[15px] leading-[1.7] text-body">{section.body}</p>
+              )}
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

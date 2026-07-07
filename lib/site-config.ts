@@ -14,7 +14,9 @@ export const siteConfig = {
   description:
     'DVR Extraction Notes is a CCTV/DVR evidence recovery documentation app for iOS, built by a practitioner with 15 years and 1,500+ extractions to remove the busywork — from request to court-ready report.',
   url: 'https://example.com', // TODO(doc 07 Q3): real domain
-  contactEmail: '', // TODO(doc 07 Q2): confirm public contact address
+  // TODO(doc 07 Q2): confirm the canonical public address — the app policy lists
+  // fvadd.dev@gmail.com; the design canvas shows a contact@fva.dev placeholder.
+  contactEmail: 'kcfva.dev@gmail.com',
   /** The four header links (Case-File design). The beta link is `cta`, not nav. */
   nav: [
     { label: 'The job', href: '/#how-it-works' },
