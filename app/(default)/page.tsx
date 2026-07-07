@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import PageIllustration from '@/components/page-illustration'
-import HeroHome from '@/components/hero-home'
+import { Hero } from '@/components/home/hero'
 import { FeatureGrid } from '@/components/home/feature-grid'
 import { getAllFeatures } from '@/lib/content/features'
 import { siteConfig } from '@/lib/site-config'
@@ -38,8 +37,7 @@ export default function Home() {
 
   return (
     <>
-      <PageIllustration />
-      <HeroHome />
+      <Hero />
 
       <section id="how-it-works">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
