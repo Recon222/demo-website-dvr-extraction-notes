@@ -10,8 +10,9 @@ import { CornerBrackets } from "./corner-brackets";
  * into marketing bundles (bundle-barrel-imports, CRITICAL), and the demo's
  * frame is a client component with viewport-fit scaling we don't want.
  *
- * This one is a Server Component at a FIXED scale (hero 0.78 → 315×633 box;
- * feature rows 0.62 → 251×504), wrapped in the corner-bracket framing. The only
+ * This one is a Server Component at a FIXED scale (ceil'd footprint boxes:
+ * hero 0.78 → 316×634; feature rows 0.62 → 251×504), wrapped in the
+ * corner-bracket framing. The only
  * client leaf inside is whatever the caller renders in the screen slot
  * (typically <AppDemo/>, a looping muted video).
  */
