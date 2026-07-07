@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import { toPublicUrl } from '@/lib/to-public-url'
 import { cn } from '@/lib/cn'
@@ -22,14 +24,46 @@ const PLACEHOLDER_CLASS =
   'flex aspect-video w-full items-center justify-center rounded-2xl bg-gray-800/40 text-sm text-indigo-200/50'
 
 /**
- * A GIF-style looping demo: a silent, autoplaying, looping `<video>` (WebM + MP4)
- * that swaps to a static poster when the user prefers reduced motion, and renders
- * a labelled placeholder until the media asset exists. See
+ * A GIF-style looping demo: a silent, looping `<video>` (WebM + MP4) that swaps to
+ * a static poster when the user prefers reduced motion, and renders a labelled
+ * placeholder until the media asset exists. See
  * docs/planning/05-media-and-content-production.md.
+ *
+ * Playback is VIEWPORT-DRIVEN, not autoplay: the element mounts with the page
+ * (server markup, no layout shift) at `preload="metadata"` (~30 KB with our
+ * faststart files), then an IntersectionObserver starts it when ~25% visible and
+ * pauses it off-screen — with 2–3 loops per page, off-screen decoding is pure
+ * battery burn. Muted + playsInline keeps programmatic .play() inside every
+ * browser's autoplay policy.
  */
 export function AppDemo({ src, poster, label, width, height, className }: AppDemoProps) {
   const reducedMotion = useReducedMotion()
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const posterUrl = poster ? toPublicUrl(poster) : undefined
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) {
+      return // placeholder / reduced-motion poster branch — nothing to drive
+    }
+    if (typeof IntersectionObserver !== 'function') {
+      // Old WebViews: degrade to immediate playback rather than a frozen frame.
+      video.play().catch(() => {})
+      return
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.play().catch(() => {}) // rejected play (policy edge) → poster stays
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.25 },
+    )
+    observer.observe(video)
+    return () => observer.disconnect()
+  }, [src, reducedMotion])
 
   const placeholder = (
     <div role="img" aria-label={label} data-testid="app-demo-placeholder" className={cn(PLACEHOLDER_CLASS, className)}>
@@ -66,13 +100,13 @@ export function AppDemo({ src, poster, label, width, height, className }: AppDem
 
   return (
     <video
+      ref={videoRef}
       data-testid="app-demo-video"
       aria-label={label}
-      autoPlay
       loop
       muted
       playsInline
-      preload="none"
+      preload="metadata"
       poster={posterUrl}
       width={width}
       height={height}
