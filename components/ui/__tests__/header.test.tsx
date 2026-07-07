@@ -30,4 +30,17 @@ describe('Header', () => {
     expect(screen.queryByText('Sign In')).not.toBeInTheDocument()
     expect(screen.queryByText('Register')).not.toBeInTheDocument()
   })
+
+  it('renders the gold beta CTA separate from the nav links', () => {
+    render(<Header />)
+    expect(screen.getByRole('link', { name: siteConfig.cta.label })).toHaveAttribute(
+      'href',
+      siteConfig.cta.href,
+    )
+  })
+
+  it('exposes a labelled main navigation landmark', () => {
+    render(<Header />)
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
+  })
 })

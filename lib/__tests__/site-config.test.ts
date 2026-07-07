@@ -20,8 +20,16 @@ describe('siteConfig', () => {
     }
   })
 
-  it('links to the beta page from the nav', () => {
+  it('always keeps a beta CTA (the recruiting funnel cannot be dropped)', () => {
+    // Case-File design: the beta link is the gold CTA button, separate from the
+    // four nav links. Same guard intent as before — a regression can't drop it.
+    expect(siteConfig.cta.label.length).toBeGreaterThan(0)
+    expect(siteConfig.cta.href).toBe('/beta')
+  })
+
+  it('links the live demo and privacy pages from the nav', () => {
     const hrefs = siteConfig.nav.map((n) => n.href)
-    expect(hrefs).toContain('/beta')
+    expect(hrefs).toContain('/demo')
+    expect(hrefs).toContain('/privacy')
   })
 })
