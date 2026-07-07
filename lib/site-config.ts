@@ -24,4 +24,10 @@ export const siteConfig = {
   ],
   /** The gold recruiting CTA — rendered as a button, kept out of the link list. */
   cta: { label: 'Join the beta', href: '/beta' },
+  /**
+   * Beta phase switch (architecture doc §3): null → Phase A email intake;
+   * a TestFlight public join URL → Phase B (the big gold TestFlight button).
+   * Flipping A→B is setting one env var, not a rebuild of the page.
+   */
+  testflightUrl: process.env.NEXT_PUBLIC_TESTFLIGHT_URL ?? null,
 } as const
