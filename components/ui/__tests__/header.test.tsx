@@ -43,4 +43,10 @@ describe('Header', () => {
     render(<Header />)
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
   })
+
+  it('renders the wordmark with its technical subline', () => {
+    render(<Header />)
+    expect(screen.getByText(siteConfig.name)).toBeInTheDocument()
+    expect(screen.getByText('CCTV RECOVERY · DOCUMENTED')).toBeInTheDocument()
+  })
 })
