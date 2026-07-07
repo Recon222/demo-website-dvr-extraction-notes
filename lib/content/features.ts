@@ -434,6 +434,15 @@ export function getAllFeatures(): readonly Feature[] {
   return features
 }
 
+/**
+ * The feature page H1: the explicit display headline when the design's H1 differs
+ * from the short card title (04/07/09), else the title with terminal punctuation —
+ * every canvas H1 ends with a period that card/nav contexts drop.
+ */
+export function featureHeadline(feature: Feature): string {
+  return feature.headline ?? `${feature.title}.`
+}
+
 /** All feature slugs (definition order). */
 export function getFeatureSlugs(): readonly string[] {
   return features.map((feature) => feature.slug)

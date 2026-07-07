@@ -37,6 +37,10 @@ export default async function FeatureRoute({ params }: FeatureRouteProps) {
   }
 
   const adjacent = getAdjacentFeatures(slug)
+  // Manifest numbering (ITEM NN / FIG NN-A) derives from catalog position.
+  const index = getFeatureSlugs().indexOf(slug)
 
-  return <FeaturePage feature={feature} prev={adjacent?.prev} next={adjacent?.next} />
+  return (
+    <FeaturePage feature={feature} index={index} prev={adjacent?.prev} next={adjacent?.next} />
+  )
 }

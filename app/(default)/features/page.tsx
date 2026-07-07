@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { FeatureGrid } from '@/components/home/feature-grid'
+import { EvidenceManifest } from '@/components/home/evidence-manifest'
 import { getAllFeatures } from '@/lib/content/features'
 import { siteConfig } from '@/lib/site-config'
 
@@ -9,21 +9,16 @@ export const metadata: Metadata = {
   description: 'From request to court-ready report — every step the app takes off your plate.',
 }
 
+/**
+ * The /features index reuses the evidence manifest — it IS the feature list, and
+ * the Case-File design has exactly one canonical rendering of it. (The header nav
+ * links to /#features; this route stays for direct URLs and the footer.)
+ */
 export default function FeaturesIndexPage() {
-  const features = getAllFeatures()
-
   return (
-    <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-20">
-      <header className="mx-auto max-w-3xl text-center">
-        <h1 className="mb-4 font-nacelle text-4xl font-semibold text-gray-100 md:text-5xl">
-          Features
-        </h1>
-        <p className="text-lg text-indigo-200/65">
-          From request to court-ready report — every step the app takes off your plate.
-        </p>
-      </header>
-
-      <FeatureGrid features={features} className="mt-12" />
-    </section>
+    <div className="pb-8 pt-4">
+      <h1 className="sr-only">Features</h1>
+      <EvidenceManifest features={getAllFeatures()} />
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   features,
+  featureHeadline,
   getAllFeatures,
   getFeatureSlugs,
   getFeatureBySlug,
@@ -187,6 +188,19 @@ describe('Case-File content fields', () => {
     }
     // Security & Privacy intentionally has no tip card (trust cards carry the page).
     expect(getFeatureBySlug('on-device')?.tip).toBeUndefined()
+  })
+
+  it('derives the page H1 via featureHeadline (explicit headline, else title + period)', () => {
+    // 04/07/09 carry explicit display headlines; everything else falls back.
+    expect(featureHeadline(getFeatureBySlug('location')!)).toBe(
+      'Pin the site — and every camera on it.',
+    )
+    expect(featureHeadline(getFeatureBySlug('secure-export')!)).toBe(
+      'The whole case, sealed for handoff.',
+    )
+    expect(featureHeadline(getFeatureBySlug('cases-locations')!)).toBe(
+      'Every case, every location, in order.',
+    )
   })
 
   it('gives map no diagram and every other feature a headed diagram', () => {
