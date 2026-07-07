@@ -22,11 +22,16 @@ export default function Home() {
   const features = getAllFeatures()
 
   return (
-    <div className="relative">
-      {/* hero top glow (blue radial, per artboard 1a) */}
+    // `isolate` creates the stacking context the -z-10 glow needs: without it the
+    // negative-z child would paint BEHIND the layout wrapper's bg-ink-900 (painting
+    // order: negative-z before in-flow block backgrounds) and vanish entirely.
+    <div className="relative isolate">
+      {/* hero top glow (blue radial, artboard 1a): the visible lower half of the
+          design's 1100×520 ellipse, centered at the top edge so nothing pokes
+          above <main>'s overflow clip; -z-10 keeps it behind the hero content. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-[260px] left-1/2 h-[520px] w-[1100px] -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(43,140,193,0.16),transparent_70%)]"
+        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[260px] w-[1100px] -translate-x-1/2 bg-[radial-gradient(550px_260px_at_50%_0%,rgba(43,140,193,0.16),transparent_70%)]"
       />
       <Hero />
       <ChainOfWork />

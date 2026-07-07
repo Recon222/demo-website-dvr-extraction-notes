@@ -17,6 +17,10 @@ describe('BetaCta (Case-File)', () => {
     // in the working <BetaForm/> and this test evolves with it.
     expect(screen.getByText('name@agency.gov')).toBeInTheDocument()
     expect(screen.getByText('Request invite')).toBeInTheDocument()
+    // The placeholder must not masquerade as interactive: no real form controls
+    // until the working form exists (a11y — nothing focusable that does nothing).
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('renders the trust microcopy', () => {

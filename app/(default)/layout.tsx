@@ -21,7 +21,7 @@ export default function DefaultLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative flex grow flex-col bg-ink-900 before:pointer-events-none before:absolute before:inset-0 before:bg-[repeating-linear-gradient(0deg,rgba(153,186,221,0.022)_0_1px,transparent_1px_46px),repeating-linear-gradient(90deg,rgba(153,186,221,0.022)_0_1px,transparent_1px_46px)] before:content-['']">
+    <div className="relative isolate flex grow flex-col bg-ink-900 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[repeating-linear-gradient(0deg,rgba(153,186,221,0.022)_0_1px,transparent_1px_46px),repeating-linear-gradient(90deg,rgba(153,186,221,0.022)_0_1px,transparent_1px_46px)] before:content-['']">
       <UtilityStrip />
       <Header />
       <ManifestTabStrip items={tabItems} />

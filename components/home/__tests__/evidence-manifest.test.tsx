@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { EvidenceManifest } from '@/components/home/evidence-manifest'
 import { getAllFeatures } from '@/lib/content/features'
 
@@ -43,10 +43,18 @@ describe('EvidenceManifest (Case-File)', () => {
     expect(screen.getAllByText('MARQUEE')).toHaveLength(1)
   })
 
-  it('flags the marquee row (gold edge treatment)', () => {
+  it('flags the marquee row with the actual gold treatment (edge, tint, gold number)', () => {
     render(<EvidenceManifest features={features} />)
     const marqueeRow = screen.getByRole('link', { name: /The timestamp you can defend/ })
     expect(marqueeRow).toHaveAttribute('data-marquee', 'true')
+    // Assert the design invariant, not just the marker attribute.
+    expect(marqueeRow).toHaveClass('shadow-[inset_3px_0_0_#ffd93d]')
+    expect(marqueeRow).toHaveClass('bg-gold/[0.04]')
+    expect(within(marqueeRow).getByText('06')).toHaveClass('text-gold')
+    // …and a non-marquee row has none of it.
+    const normalRow = screen.getByRole('link', { name: /The case fills itself in/ })
+    expect(normalRow).not.toHaveClass('bg-gold/[0.04]')
+    expect(within(normalRow).getByText('02')).toHaveClass('text-cyan')
   })
 
   it('shows a DRAFT chip on the Notes row only', () => {

@@ -22,6 +22,8 @@ describe('RoadmapTease (Case-File)', () => {
 
   it('uses muted styling — no gold accents in the roadmap', () => {
     const { container } = render(<RoadmapTease />)
-    expect(container.innerHTML).not.toMatch(/gold|#ffd93d/i)
+    // Cover every form gold takes in this codebase: the token utilities, the raw
+    // hex, and the rgba(255,217,61,…) form (which beta-cta legitimately uses).
+    expect(container.innerHTML).not.toMatch(/gold|#ffd93d|255,\s*217,\s*61/i)
   })
 })

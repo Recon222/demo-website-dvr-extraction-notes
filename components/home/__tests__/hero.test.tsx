@@ -42,8 +42,11 @@ describe('Hero (Case-File)', () => {
     render(<Hero />)
     expect(screen.getByText('15 yrs')).toBeInTheDocument()
     expect(screen.getByText('1,500+')).toBeInTheDocument()
-    expect(screen.getByText('10 min → <5')).toBeInTheDocument()
     expect(screen.getByText('PER-SCENE PAPERWORK')).toBeInTheDocument()
+    // The design invariant this test is NAMED for: gold on the marquee stat only.
+    expect(screen.getByText('10 min → <5')).toHaveClass('text-gold')
+    expect(screen.getByText('15 yrs')).not.toHaveClass('text-gold')
+    expect(screen.getByText('1,500+')).not.toHaveClass('text-gold')
   })
 
   it('renders the hero phone with the live-capture label', () => {
