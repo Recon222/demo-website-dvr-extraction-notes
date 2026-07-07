@@ -47,9 +47,10 @@ Coverage counts `lib/**`; UI is validated behaviorally (per `features/demo/CLAUD
   each tab-strip test sets the return per case.
 - **`useReducedMotion`:** `vi.mock('@/lib/hooks/use-reduced-motion', () => ({ useReducedMotion: () => false }))`
   (phone-frame/hero); a reduced-motion variant flips it to `true`.
-- **`firebase-admin`:** `vi.mock('@/lib/beta/firebase')` exposing a `getDb()` whose
-  `collection().doc().set` is a `vi.fn()`; action tests assert the payload and simulate a
-  `set` rejection. **No real network, no real credentials.**
+- **Persistence:** nothing to mock in this PR — `submitBetaSignup` is a validated **stub**
+  (no `firebase-admin`). *(The Firestore-swap follow-up PR adds the `@/lib/beta/firebase` mock:
+  `getDb()` with a spyable `collection().doc().set`, payload + rejection paths. No real network,
+  no real credentials — then as now.)*
 - **Server Action invocation:** call `submitBetaSignup(null, formData)` directly with a `FormData`
   built in-test; assert the returned `BetaResult` union (no HTTP).
 - **CSS token test:** read `app/css/style.css` as text and assert token/keyframe substrings (no DOM).
@@ -120,11 +121,12 @@ Coverage counts `lib/**`; UI is validated behaviorally (per `features/demo/CLAUD
 ## Slice 11 Tests — Beta schema + action
 **File:** `lib/beta/__tests__/schema.test.ts` →
    - `it('accepts a valid email + consent:true + empty honeypot')`; `it('rejects a bad email')`; `it('rejects consent:false')`; `it('rejects a filled honeypot')`; `it('lowercases + trims the email')`.
-**File:** `lib/beta/__tests__/submit-signup.test.ts` · **Setup:** mock `@/lib/beta/firebase` (`set` spy); build `FormData`.
-   - `it('writes to waitlist keyed by the normalised email')` — asserts `.doc('a@b.com').set({email, createdAt, source, consent})`.
-   - `it('returns {ok:true} on success')`; `it('returns {ok:false,error:"invalid"} on bad input')` (no write).
-   - `it('returns {ok:false,error:"server"} and does not throw when set() rejects')` (data-safety path).
-   - `it('treats a re-submit of the same email as success (idempotent set, no enumeration)')`.
+**File:** `lib/beta/__tests__/submit-signup.test.ts` · **Setup:** build `FormData` in-test; no mocks (stub persist).
+   - `it('returns {ok:true} for a valid email + consent + empty honeypot')`.
+   - `it('returns {ok:false,error:"invalid"} on a bad email')`; `it('…when consent is unchecked')`; `it('…when the honeypot is filled')`.
+   - `it('normalises the email (lowercase/trim) before persisting')` — assert via the stub's recorded value.
+   - `it('treats a re-submit of the same email as success (no enumeration)')`.
+   - *Deferred to the Firestore-swap PR:* `waitlist` doc-keyed `.set()` payload assert + `{ok:false,error:"server"}` rejection path (does not throw).
 
 ## Slice 12 Tests — Beta form + page
 **File:** `components/beta/__tests__/beta-form.test.tsx` · **Setup:** RTL + `userEvent`; stub the action returning `{ok:true}`/`{ok:false}`.

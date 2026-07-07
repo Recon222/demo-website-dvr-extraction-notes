@@ -185,6 +185,11 @@ export async function submitBetaSignup(_prev: BetaResult | null, form: FormData)
 **Env (Vercel, server-only):** `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
 **Public:** `NEXT_PUBLIC_TESTFLIGHT_URL` (optional) → `siteConfig.testflightUrl`.
 
+**Phasing:** the redesign PR ships `submitBetaSignup` with the full contract above but a **stub
+persist** (validate → log → success). The Firestore `waitlist` write is a small follow-up PR once
+the Firebase project + service account are handed over (Q-BETA-3). No `firebase-admin` dependency
+until then — the `BetaResult` contract and the form are final now, so the swap touches one file.
+
 **Spam defences (per doc 04 — cheap, layered):**
 - v1, no new infra: honeypot `website` field + Zod email validation + `consent` literal + optional disposable-domain block.
 - Recommended fast-follow: basic per-IP rate limit — needs a KV store (Vercel KV / Upstash); deferred until a store is provisioned (see §13 Q-BETA-2). CAPTCHA skipped for v1 unless abused.
@@ -257,7 +262,7 @@ export async function submitBetaSignup(_prev: BetaResult | null, form: FormData)
 | Q-BETA-2 | Per-IP rate limiting at launch? Needs a KV store | Deferred fast-follow unless abuse (doc 04) |
 | Q-BETA-3 | Which Firebase project — existing or fresh? + service-account creds | Owner (doc 07 #17); Firebase MCP disabled this session — wire env when handed over |
 | Q-BETA-4 | Confirmation email in v1? | Default **no** (doc 07 #16) |
-| Q-CONTENT-1 | Per-feature `classLabel` values (CORE/FIELD/TRUST) — transcribe from canvas | Impl plan Slice 2 |
+| Q-CONTENT-1 | Per-feature `classLabel` values | **RESOLVED** — transcribed from the canvas: 01 FIELD · 02 CORE · 03 CORE · 04 FIELD · 05 FIELD · 06 **MARQUEE** · 07 FIELD · 08 CORE · 09 FIELD · 10 TRUST |
 | Q-COPY-1 | Sign-off on claimed stats (15 yrs / 1,500+ / 10→<5), Notes(03) draft, Reports(08) provisional | Pre-launch (owner) |
 | Q-CONTACT | Canonical public contact email (`siteConfig.contactEmail` empty; privacy hardcodes another) | Slice 13 |
 | Q-DOMAIN | Real `siteConfig.url` / custom domain | Pre-launch (doc 04, doc 07) |
@@ -269,7 +274,7 @@ export async function submitBetaSignup(_prev: BetaResult | null, form: FormData)
 | Package | Purpose | New? |
 |---------|---------|------|
 | `zod` | Server-boundary validation of the beta form | **New** |
-| `firebase-admin` | Server-side Firestore write for beta signups | **New** |
+| `firebase-admin` | Server-side Firestore write for beta signups | **Follow-up PR** — not installed by the redesign PR (action stubbed until the swap) |
 | `next/font/google` | Share Tech Mono + JetBrains Mono | Built-in |
 
 `motion`, `mapbox-gl`, `pdfjs-dist` remain **demo-only** — not added to marketing.
@@ -282,3 +287,4 @@ export async function submitBetaSignup(_prev: BetaResult | null, form: FormData)
 |---------|------|---------|
 | 1.0 | 2026-07-07 | Initial architecture |
 | 1.1 | 2026-07-07 | Beta stack confirmed (Vercel + Firestore `waitlist`, email-keyed dedupe, spam defences, confirmation email out of v1) per docs/planning/04 + 07 |
+| 1.2 | 2026-07-07 | Q-CONTENT-1 resolved (class labels transcribed from canvas); beta re-phased stub-first — `firebase-admin` deferred to the Firestore-swap follow-up PR |

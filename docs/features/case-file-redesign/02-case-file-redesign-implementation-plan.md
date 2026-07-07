@@ -20,7 +20,7 @@ slice-for-slice** with this plan.
 | Fonts | `next/font/google` (Share Tech Mono, JetBrains Mono) |
 | Tokens/keyframes | `@theme` in `app/css/style.css` (global) |
 | AOS | Removed |
-| Beta | Vercel host + Firestore `waitlist` via `firebase-admin` Server Action; Zod + honeypot; email-keyed docs; phase via `siteConfig.testflightUrl` |
+| Beta | Vercel host + Firestore `waitlist` via `firebase-admin` Server Action; Zod + honeypot; email-keyed docs; phase via `siteConfig.testflightUrl`. **This PR ships the action stubbed** (validate → log → success); the Firestore swap is a follow-up PR |
 
 ### Tooling
 
@@ -33,7 +33,7 @@ slice-for-slice** with this plan.
 | Zustand | 5.x (demo only) |
 | Vitest | 4.x + RTL + jsdom |
 | zod | ^3 (**new**) |
-| firebase-admin | ^12 (**new**) |
+| firebase-admin | ^12 (**follow-up PR** — not installed here) |
 
 ---
 
@@ -53,8 +53,8 @@ lib/content/features.ts                     # EDIT — enrich data (class/tip/ki
 lib/site-config.ts                          # EDIT — testflightUrl, real metadata fields
 lib/beta/
 ├── schema.ts                # NEW — zod betaSignupSchema
-├── firebase.ts              # NEW — firebase-admin singleton
-└── submit-signup.ts         # NEW — 'use server' Server Action (waitlist .set())
+└── submit-signup.ts         # NEW — 'use server' action (stub persist → Firestore in follow-up PR)
+                             # (lib/beta/firebase.ts + firebase-admin arrive in the swap PR, not here)
 components/ui/
 ├── utility-strip.tsx        # NEW — top status strip (server)
 ├── header.tsx               # EDIT — Case-File header (server)
@@ -113,8 +113,11 @@ Case-File fields; the site still renders (template look) and all tests are green
 
 - `lib/content/types.ts`: add `FeatureClass`, `FeatureTip`, optional `classLabel`, `tip`,
   `betaStripLine` on `Feature`; optional `kicker`, `chips`, `recLabel` on `FeatureRow`.
-- `lib/content/features.ts`: populate the new fields per artboards (transcribe `classLabel`
-  values [Q-CONTENT-1]; `time-calibration` = `'MARQUEE'`). Notes(03) stays `draft`.
+- `lib/content/features.ts`: populate the new fields per artboards. `classLabel` values
+  (transcribed from the canvas — Q-CONTENT-1 resolved): 01 `cases-locations` FIELD ·
+  02 `import` CORE · 03 `notes` CORE · 04 `location` FIELD · 05 `map` FIELD ·
+  06 `time-calibration` **MARQUEE** · 07 `evidence-capture` FIELD · 08 `reports` CORE ·
+  09 `secure-export` FIELD · 10 `on-device` TRUST. Notes(03) stays `draft`.
 - `lib/content/__tests__/features.test.ts`: extend guard — every **non-draft** feature has a
   `classLabel`; `classLabel` ∈ the union; exactly one `'MARQUEE'`.
 
@@ -235,28 +238,29 @@ export function MarketingPhoneFrame(props: MarketingPhoneFrameProps): JSX.Elemen
 
 ---
 
-## Milestone F — Beta Capture  *(only networked slice)*
+## Milestone F — Beta Capture  *(action stubbed — the Firestore write is a follow-up PR)*
 
-**Observable result:** Submitting the beta form writes a Firestore `waitlist` signup; the page swaps Phase A/B.
+**Observable result:** Submitting the beta form validates and returns success/error states end-to-end
+(stub persist); the page swaps Phase A/B. The Firestore `waitlist` write lands in a follow-up PR.
 
-### Slice 11 — Schema + Firebase + Server Action
-**Goal:** Validated server write path.
+### Slice 11 — Schema + Server Action (stubbed, frontend-only)
+**Goal:** The final action contract with a stub persist — no backend dependency in this PR.
 - `lib/beta/schema.ts` (zod `betaSignupSchema`).
-- `lib/beta/firebase.ts`: `firebase-admin` app + Firestore singleton (guard against re-init in dev;
-  creds from `FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY`, `\n`-unescape the private key).
 - `lib/beta/submit-signup.ts` (`'use server'`): parse → honeypot/consent check → normalise email →
-  `db.collection('waitlist').doc(email).set({ email, createdAt: FieldValue.serverTimestamp(),
-  source, consent: true, userAgent })` → typed `BetaResult`; catch → `{ ok:false, error:'server' }`.
+  **stub persist** (server-side `console.info('[beta] signup', email)` behind a
+  `// TODO(follow-up PR): Firestore waitlist .set() — see 01-architecture §7 Phasing` marker) →
+  typed `BetaResult`; invalid input → `{ ok:false, error:'invalid' }`.
 - `lib/site-config.ts`: add `testflightUrl: process.env.NEXT_PUBLIC_TESTFLIGHT_URL ?? null`.
-- `.env.example`: `FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY`, `NEXT_PUBLIC_TESTFLIGHT_URL`.
+- `.env.example`: add `NEXT_PUBLIC_TESTFLIGHT_URL`; document `FIREBASE_*` as reserved for the follow-up.
+- **NOT in this PR:** `lib/beta/firebase.ts`, the `firebase-admin` dep, credentials — they arrive in
+  the Firestore-swap PR (needs project + service account, Q-BETA-3). The `BetaResult` contract and
+  the form are final now, so the swap touches exactly one file.
 
 ```typescript
-// signatures
-export function getDb(): Firestore                       // lib/beta/firebase.ts (memoized)
 export async function submitBetaSignup(prev: BetaResult | null, form: FormData): Promise<BetaResult>
 ```
 
-**Gate:** schema + action tests green (mock `firebase-admin`; assert `.doc(email).set()` payload; server-error path returns, does not throw); `tsc`. **Commit:** `feat(beta): zod schema + firebase-admin + submitBetaSignup (waitlist) server action`.
+**Gate:** schema + action tests green (stub contract — no mocks needed); `tsc`. **Commit:** `feat(beta): zod schema + stubbed submitBetaSignup server action (Firestore swap = follow-up PR)`.
 
 ### Slice 12 — Beta form + two-phase page
 **Goal:** Working intake (Phase A) and TestFlight (Phase B) UI.
@@ -287,7 +291,8 @@ export async function submitBetaSignup(prev: BetaResult | null, form: FormData):
 - **Chrome (Slice 3)** is the only change to `/demo`'s ancestor — flagged, isolated, its own commit.
 - **`BetaForm`** is imported by both `beta/page.tsx` and `home/beta-cta.tsx` (single form component).
 - **`AppDemo`** is the only client leaf inside `MarketingPhoneFrame`.
-- **Env vars** are added to `.env.example` (Slice 11) and set in Vercel by the owner (creds are Q-BETA-3).
+- **Env vars:** `NEXT_PUBLIC_TESTFLIGHT_URL` documented in `.env.example` (Slice 11); `FIREBASE_*`
+  creds are only needed for the follow-up Firestore-swap PR (Q-BETA-3) — nothing external blocks this PR.
 
 ---
 
@@ -297,8 +302,8 @@ export async function submitBetaSignup(prev: BetaResult | null, form: FormData):
 |------|-------|---------|
 | `app/css` tokens (in `style.css`) | 1 | Token namespace + keyframes |
 | `lib/beta/schema.ts` | 11 | Zod validation |
-| `lib/beta/firebase.ts` | 11 | Admin/Firestore singleton |
-| `lib/beta/submit-signup.ts` | 11 | Server Action (`waitlist` set) |
+| `lib/beta/submit-signup.ts` | 11 | Server Action (stub persist; Firestore in follow-up PR) |
+| `lib/beta/firebase.ts` | *follow-up PR* | Admin/Firestore singleton (**not in this PR**) |
 | `components/ui/utility-strip.tsx` | 4 | Top status strip |
 | `components/ui/manifest-tab-strip.tsx` | 4 | Feature tab strip (client) |
 | `components/marketing/phone-frame.tsx` | 5 | Device shell (server) |
@@ -328,6 +333,6 @@ export async function submitBetaSignup(prev: BetaResult | null, form: FormData):
 | `components/ui/{header,logo,footer}.tsx` | 4 | Case-File rewrite |
 | `components/hero-home.tsx` | 6 | **DELETE** |
 | `components/ui/feature-nav.tsx` | 4 | **DELETE** (→ manifest-tab-strip) |
-| `package.json` | 3,11 | −aos/@types/aos; +zod, +firebase-admin |
+| `package.json` | 3,11 | −aos/@types/aos; +zod (`firebase-admin` in the follow-up swap PR) |
 | `.env.example` | 11 | FIREBASE_* + TESTFLIGHT_URL |
 | `CLAUDE.md` | 1 | De-stale template note |

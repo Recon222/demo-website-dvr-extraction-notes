@@ -41,3 +41,6 @@ next-env.d.ts
 
 # contentlayer
 .contentlayer
+
+# author↔reviewer coordination channel (ephemeral; durable reviews live in docs/code-reviews/)
+docs/coms/
