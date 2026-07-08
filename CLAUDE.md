@@ -32,13 +32,13 @@ pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/
 
 ### Routing — App Router with route groups
 - `app/layout.tsx` is the **root layout**: global CSS + fonts only (Google `Inter`, `Share Tech Mono`, `JetBrains Mono` + local `Nacelle` via `next/font`). It renders **no chrome** — `/demo` sits outside the `(default)` group and must stay chrome-free (guarded by `app/(default)/__tests__/chrome-scope.test.tsx`).
-- `app/(default)/` — marketing pages. Its layout is a **server component** owning all marketing chrome: `UtilityStrip`, `Header`, `ManifestTabStrip` (the one client island, for the active tab), `Footer`.
+- `app/(default)/` — marketing pages. Its layout is a **server component** owning all marketing chrome: `Header`, `ManifestTabStrip` (the one client island, for the active tab), `Footer`, plus the ambient background (fixed blueprint grid, scan sweep, chrome glow).
 - `app/demo/` — mounts the interactive demo (`@/features/demo`) with its own chrome; see `features/demo/CLAUDE.md` before touching it.
 - `app/api/*/route.ts` — Route Handlers (App Router, not `pages/api`).
 
 ### Components
 - `components/` + `components/home/` — marketing section components, content-driven from `lib/content/features.ts` (the catalog is the single source of truth; array order = manifest numbering).
-- `components/ui/` — shared chrome: `utility-strip`, `header`, `manifest-tab-strip`, `footer`, `logo` (inline-SVG crosshair mark).
+- `components/ui/` — shared chrome: `header`, `manifest-tab-strip`, `footer`, `logo` (inline-SVG crosshair mark).
 - Mark components `"use client"` only for hooks/interactivity (e.g. `manifest-tab-strip.tsx` for `usePathname`, `app-demo.tsx` for `useReducedMotion`). Section components are otherwise server components.
 
 ### Styling — Tailwind CSS v4 (CSS-first config)

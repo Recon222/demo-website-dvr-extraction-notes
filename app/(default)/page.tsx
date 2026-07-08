@@ -22,17 +22,10 @@ export default function Home() {
   const features = getAllFeatures()
 
   return (
-    // `isolate` creates the stacking context the -z-10 glow needs: without it the
-    // negative-z child would paint BEHIND the layout wrapper's bg-ink-900 (painting
-    // order: negative-z before in-flow block backgrounds) and vanish entirely.
-    <div className="relative isolate">
-      {/* hero top glow (blue radial, artboard 1a): the visible lower half of the
-          design's 1100×520 ellipse, centered at the top edge so nothing pokes
-          above <main>'s overflow clip; -z-10 keeps it behind the hero content. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[260px] w-[1100px] -translate-x-1/2 bg-[radial-gradient(550px_260px_at_50%_0%,rgba(43,140,193,0.16),transparent_70%)]"
-      />
+    // The blue top glow that used to live here moved to the (default) layout —
+    // it now shines from the tab strip's top edge over the whole chrome
+    // (seamless-background pass), which <main>'s overflow clip forbade from here.
+    <div>
       <Hero />
       <ChainOfWork />
       <EvidenceManifest features={features} />

@@ -21,14 +21,14 @@ describe('marketing chrome scope (guards /demo)', () => {
     expect(rootLayout).not.toMatch(/<Header\b/)
     expect(rootLayout).not.toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(rootLayout).not.toMatch(/<Footer\b/)
-    expect(rootLayout).not.toMatch(/<UtilityStrip\b/)
   })
 
+  // UtilityStrip was removed from the chrome entirely (owner decision — seamless
+  // background work): no assertions reference it anymore.
   it('renders the chrome from the (default) group layout', () => {
     expect(defaultLayout).toMatch(/<Header\b/)
     expect(defaultLayout).toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(defaultLayout).toMatch(/<Footer\b/)
-    expect(defaultLayout).toMatch(/<UtilityStrip\b/)
   })
 
   it('makes the (default) layout a server component with no AOS', () => {

@@ -75,8 +75,8 @@
   --animate-gradient: gradient 6s linear infinite;
   /* Case-File ambient animations (keyframes copied from the demo's prototype-lifted
      library — features/demo/ui/demo.css — which is scoped to [data-demo-root] and
-     must not be imported by marketing pages) */
-  --animate-scan-sweep: scanSweep 7s linear infinite;
+     must not be imported by marketing pages). scanSweep left this block with the
+     phone mockup (469557b) — it now sweeps the page background (see .case-scan). */
   --animate-blink-dot: blinkDot 2.4s ease-in-out infinite;
   --animate-glow-pulse: glowPulse 3s ease-in-out infinite;
   --animate-flicker: flicker 6s linear infinite;
@@ -104,14 +104,6 @@
   @keyframes gradient {
     to {
       background-position: 200% center;
-    }
-  }
-  @keyframes scanSweep {
-    0% {
-      transform: translateY(-60px);
-    }
-    100% {
-      transform: translateY(760px);
     }
   }
   @keyframes blinkDot {
@@ -156,6 +148,91 @@
   }
 }
 
+/* ── Case-File background scan (the phone's scan motif, relocated to the page — 469557b) ──
+   A radar scan line (the phone mock's cyan sweep, softened) travels down the viewport
+   with the blueprint grid illuminating in a halo around it. Mechanism: a masked
+   "window" band sweeps down while its lit-grid child counter-translates by the exact
+   negation, so the brighter grid stays pinned to the viewport and its lines land
+   exactly on the resting grid (`before:fixed` in (default)/layout.tsx); the visible
+   line rides at the band's center. Both animations are pure composited transforms:
+   nothing repaints during the sweep.
+
+   TUNING KNOBS (dial the whole effect from the custom properties below):
+     --scan-duration    sweep speed — one full cycle incl. the offscreen rest
+     --scan-band-h      halo height around the line — wider reads softer
+     --scan-lit-alpha   peak grid brightness in the halo (resting grid is 0.035)
+     --scan-line-alpha  the radar line's core brightness (glow scales with it)
+   Halo edge softness: the mask-image stops on .case-scan-band (38%/62% = plateau).
+   Rest between sweeps: the 82% offset in BOTH keyframes (they must stay identical). */
+.case-scan {
+  --scan-duration: 14s;
+  --scan-band-h: 34vh;
+  --scan-lit-alpha: 0.12;
+  --scan-line-alpha: 0.3;
+
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  overflow: clip;
+}
+.case-scan-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--scan-band-h);
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(0, 0, 0, 0.5) 18%,
+    black 38%,
+    black 62%,
+    rgba(0, 0, 0, 0.5) 82%,
+    transparent
+  );
+  animation: scanSweep var(--scan-duration) linear infinite;
+}
+.case-scan-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(100vh + var(--scan-band-h));
+  background:
+    repeating-linear-gradient(0deg, rgb(153 186 221 / var(--scan-lit-alpha)) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(90deg, rgb(153 186 221 / var(--scan-lit-alpha)) 0 1px, transparent 1px 46px);
+  animation: scanSweepHold var(--scan-duration) linear infinite;
+}
+/* The radar line itself — visual language relocated verbatim-ish from the phone
+   mock removed in 469557b (2px cyan core, horizontally faded, glow), softened for
+   the big surface. Rides the band's center = the mask plateau, so it travels with
+   the halo on the one shared animation. */
+.case-scan-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  margin-top: -1px;
+  background: linear-gradient(90deg, transparent, rgb(78 205 196 / var(--scan-line-alpha)), transparent);
+  box-shadow:
+    0 0 18px rgb(78 205 196 / calc(var(--scan-line-alpha) * 1.5)),
+    0 0 48px rgb(78 205 196 / calc(var(--scan-line-alpha) * 0.6));
+}
+/* The pair below must mirror exactly — same offsets, negated values. Their sum is what
+   holds the lit grid stationary while the window moves (background-scan.test.ts pins it).
+   82% → 100% is the offscreen rest between sweeps. */
+@keyframes scanSweep {
+  0% { transform: translateY(calc(-1 * var(--scan-band-h))); }
+  82%, 100% { transform: translateY(100vh); }
+}
+@keyframes scanSweepHold {
+  0% { transform: translateY(var(--scan-band-h)); }
+  82%, 100% { transform: translateY(-100vh); }
+}
+
 /* Pause the Case-File ambient animations for users who prefer reduced motion.
    Matches both the generated utilities (animate-scan-sweep) and Tailwind arbitrary
    classes (animate-[scanSweep_7s_linear_infinite]) — class-based only, so the demo's
@@ -170,6 +247,11 @@
   .animate-glow-pulse,
   .animate-flicker {
     animation: none !important;
+  }
+  /* Hidden, not paused: `animation: none` would freeze the band as a visible static
+     stripe. Reduced-motion users get the plain resting grid. */
+  .case-scan {
+    display: none;
   }
 }
 
