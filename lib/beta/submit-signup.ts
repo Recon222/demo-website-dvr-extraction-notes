@@ -13,6 +13,10 @@ export type BetaResult = { ok: true } | { ok: false; error: 'invalid' | 'rate_li
  * per docs/features/case-file-redesign/01-case-file-redesign-architecture.md §7
  * (email-keyed .set() = idempotent dedupe, no enumeration; creds are Q-BETA-3).
  * The BetaResult contract and the form are final now, so the swap touches one file.
+ *
+ * NON-NEGOTIABLE for that swap (M-F review): per-IP rate limiting (Q-BETA-2) lands
+ * IN THE SAME PR as the persist — a log-only stub tolerates abuse, a database does
+ * not. The 'rate_limited' BetaResult variant is already reserved for it.
  */
 export async function submitBetaSignup(
   _prev: BetaResult | null,

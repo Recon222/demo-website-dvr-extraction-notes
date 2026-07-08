@@ -39,9 +39,10 @@ export function BetaForm({
           type="email"
           name="email"
           required
+          disabled={pending}
           aria-label="Email"
           placeholder="name@agency.gov"
-          className="min-w-0 flex-1 rounded-[10px] border border-input bg-[rgba(6,12,20,0.8)] px-4 py-[13px] font-jbmono text-[13px] text-heading placeholder:text-faint focus:border-cyan focus:outline-none"
+          className="min-w-0 flex-1 rounded-[10px] border border-input bg-[rgba(6,12,20,0.8)] px-4 py-[13px] font-jbmono text-[13px] text-heading placeholder:text-faint focus:border-cyan focus:outline-none disabled:opacity-60"
         />
         <button
           type="submit"

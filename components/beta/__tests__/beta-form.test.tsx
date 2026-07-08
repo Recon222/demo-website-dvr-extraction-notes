@@ -62,4 +62,36 @@ describe('BetaForm', () => {
     await fillAndSubmit()
     expect(await screen.findByText(/try again/i)).toBeInTheDocument()
   })
+
+  it('END-TO-END: the real action receives the form fields by name (no mock)', async () => {
+    // The money path: field names (name="email"/"consent"/"website") and the
+    // action's form.get keys are string-coupled — every other test stubs the
+    // action, so ONLY this test would catch a rename silently breaking signups.
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    render(<BetaForm />)
+    await fillAndSubmit()
+
+    const success = await screen.findByText(/You're on the list/)
+    expect(success).toBeInTheDocument()
+    // The real action logged the normalised email — proof the wiring carried it.
+    expect(info).toHaveBeenCalledWith('[beta] signup', 'a@agency.gov')
+    // Success state replaces the controls and announces politely.
+    expect(success.closest('[aria-live="polite"]')).not.toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('disables the controls and shows "Sending…" while the action is in flight', async () => {
+    let release!: (value: BetaResult) => void
+    const slow = () => new Promise<BetaResult>((resolve) => (release = resolve))
+
+    render(<BetaForm action={slow} />)
+    await fillAndSubmit()
+
+    expect(await screen.findByRole('button', { name: 'Sending…' })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: /email/i })).toBeDisabled()
+
+    release({ ok: true })
+    expect(await screen.findByText(/You're on the list/)).toBeInTheDocument()
+  })
 })

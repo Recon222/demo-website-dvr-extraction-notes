@@ -9,7 +9,9 @@ export const betaSignupSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   consent: z.literal(true),
   // Honeypot: hidden field named to attract bots; humans never fill it.
-  website: z.literal('').optional(),
+  // Not optional — the action always supplies a string (form.get ?? ''), so
+  // an optional here would be dead permissiveness.
+  website: z.literal(''),
 })
 
 export type BetaSignupInput = z.infer<typeof betaSignupSchema>
