@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Context
 
-This repo is the Cruip **"Open PRO"** landing page template (Next.js App Router + React 19 + Tailwind CSS v4), used as the starting point for a **CCTV/DVR extraction notes** app. The committed code is still the unmodified marketing template (hero, features, testimonials, CTA, auth pages) — expect to replace template content/sections rather than extend a built-out product.
+This repo is the marketing + beta-recruitment site for **DVR Extraction Notes** (a CCTV/DVR evidence-recovery iOS app by FVA Development), built on Next.js App Router + React 19 + Tailwind CSS v4 (originally the Cruip "Open PRO" template — long since replaced). It has two distinct halves:
+
+- **Marketing pages** (`app/(default)/`, `components/`, `lib/content/`) — content-driven server components rendering the feature catalog in `lib/content/features.ts`. Being restyled to the **"Case File"** design system (see `docs/features/case-file-redesign/`).
+- **The interactive demo** (`app/demo/`, `features/demo/`) — a self-contained client-only product demo with its own conventions; read `features/demo/CLAUDE.md` before touching it. **Marketing code must never import from `@/features/demo`** (it would pull mapbox-gl/pdfjs/motion into marketing bundles).
 
 ## Commands
 
@@ -17,34 +20,38 @@ pnpm start    # serve the production build
 pnpm lint     # next lint (ESLint)
 ```
 
-There is **no test runner configured** — no Jest/Vitest/Playwright setup exists yet.
+Tests run on **Vitest + jsdom + React Testing Library** (`vitest.config.mts`, setup `vitest.setup.ts`), co-located in `__tests__/` directories:
+
+```bash
+pnpm test           # vitest run (one-shot)
+pnpm test:watch     # vitest watch
+pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/**)
+```
 
 ## Architecture
 
 ### Routing — App Router with route groups
-- `app/layout.tsx` is the **root layout**: imports global CSS, configures fonts (Google `Inter` + local `Nacelle` via `next/font`), and renders the global `<Header />` for every page.
-- Route groups split layouts without affecting URLs:
-  - `app/(default)/` — marketing pages. Its layout is a **client component** that initializes AOS scroll animations and renders `<Footer />`. Home page (`page.tsx`) composes section components.
-  - `app/(auth)/` — sign in / sign up / reset password. Its layout adds illustrations, no footer.
-- `app/api/*/route.ts` — Route Handlers (e.g. `app/api/hello/route.ts` exports `GET`). Note the README mentions `pages/api` but this project uses App Router route handlers, not the pages directory.
+- `app/layout.tsx` is the **root layout**: global CSS + fonts only (Google `Inter`, `Share Tech Mono`, `JetBrains Mono` + local `Nacelle` via `next/font`). It renders **no chrome** — `/demo` sits outside the `(default)` group and must stay chrome-free (guarded by `app/(default)/__tests__/chrome-scope.test.tsx`).
+- `app/(default)/` — marketing pages. Its layout is a **server component** owning all marketing chrome: `UtilityStrip`, `Header`, `ManifestTabStrip` (the one client island, for the active tab), `Footer`.
+- `app/demo/` — mounts the interactive demo (`@/features/demo`) with its own chrome; see `features/demo/CLAUDE.md` before touching it.
+- `app/api/*/route.ts` — Route Handlers (App Router, not `pages/api`).
 
 ### Components
-- `components/` — page section components (`hero-home`, `features`, `workflows`, `testimonials`, `cta`, etc.), mostly presentational.
-- `components/ui/` — shared chrome: `header`, `footer`, `logo`.
-- Mark components `"use client"` only when they use hooks/interactivity (e.g. `spotlight.tsx`, `modal-video.tsx`, `header.tsx`). Section components are otherwise server components.
-- Modals/dialogs use `@headlessui/react`.
+- `components/` + `components/home/` — marketing section components, content-driven from `lib/content/features.ts` (the catalog is the single source of truth; array order = manifest numbering).
+- `components/ui/` — shared chrome: `utility-strip`, `header`, `manifest-tab-strip`, `footer`, `logo` (inline-SVG crosshair mark).
+- Mark components `"use client"` only for hooks/interactivity (e.g. `manifest-tab-strip.tsx` for `usePathname`, `app-demo.tsx` for `useReducedMotion`). Section components are otherwise server components.
 
 ### Styling — Tailwind CSS v4 (CSS-first config)
-- **There is no `tailwind.config.js`.** Configuration lives in CSS via the `@theme` directive in `app/css/style.css` — this is where the custom typography scale (`--text-*`), fonts, and keyframe animations (`shine`, `gradient`) are defined.
+- **There is no `tailwind.config.js`.** Configuration lives in CSS via the `@theme` directive in `app/css/style.css` — the typography scale (`--text-*`), fonts, the **Case-File design tokens** (`--color-ink-*`, `--color-carolina/blue/cyan/gold`, hairlines, text scale), and keyframes (`shine`, `gradient`, `scanSweep`, `blinkDot`, `glowPulse`, `flicker`). Exact token values are design-owned — see the handoff README in `Homepage and feature redesign/design_handoff_case_file_site/`.
 - `app/css/additional-styles/utility-patterns.css` defines reusable component classes (`.btn`, `.btn-sm`, `.form-input`, etc.) via `@apply`, imported as a `components` layer.
-- `app/css/additional-styles/theme.css` holds further theme tokens.
 - PostCSS uses `@tailwindcss/postcss` (`postcss.config.js`); the `@tailwindcss/forms` plugin is loaded inline in `style.css` via `@plugin`.
 - v4 changed the default border color to `currentColor`; `style.css` has a `@layer base` compatibility shim restoring `--color-gray-200`. Keep this in mind when borders look off.
+- A `prefers-reduced-motion` block pauses the Case-File ambient animations (class-matched only — the demo gates its own inline-styled motion via `useReducedMotion`).
 
 ### Conventions & gotchas
-- **Path alias:** `@/*` maps to the project root (`tsconfig.json`). Import as `@/components/...`, `@/utils/...`, `@/public/images/...`.
-- Custom hooks live in `utils/` (`useMasonry`, `useMousePosition`) — DOM-measuring hooks that require client components.
-- Scroll animations use AOS: add `data-aos="..."` / `data-aos-delay` attributes to elements. AOS is initialized once in the default layout and **disabled on phones**.
+- **Path alias:** `@/*` maps to the project root (`tsconfig.json`). Import as `@/components/...`, `@/lib/...`, `@/public/images/...`.
+- Custom hooks live in `lib/hooks/` (e.g. `useReducedMotion`) — client-component hooks.
+- **No marketing file may import from `@/features/demo`** — that barrel pulls `mapbox-gl`/`pdfjs-dist`/`motion` into marketing bundles. The demo reuses nothing from marketing chrome and vice versa.
 - SVGs and images are imported as modules from `@/public/...` and passed to `next/image` (static imports give `StaticImageData`).
 - TypeScript is `strict`; `target` is `es5` with `jsx: preserve`.
-- Local fonts are exposed as CSS variables (`--font-inter`, `--font-nacelle`) applied on `<body>`; use the `font-inter` / `font-nacelle` utilities.
+- Fonts are exposed as CSS variables (`--font-inter`, `--font-nacelle`, `--font-stmono`, `--font-jbmono`) applied on `<body>`; use the `font-inter` / `font-nacelle` / `font-stmono` / `font-jbmono` utilities.

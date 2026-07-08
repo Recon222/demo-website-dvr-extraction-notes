@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   features,
+  featureHeadline,
   getAllFeatures,
   getFeatureSlugs,
   getFeatureBySlug,
@@ -106,5 +107,110 @@ describe('feature content model', () => {
 
   it('returns null for an unknown slug (distinct from a feature with no neighbour)', () => {
     expect(getAdjacentFeatures('nope')).toBeNull()
+  })
+})
+
+// Case-File redesign fields (docs/features/case-file-redesign/). These carry the
+// manifest class chips, page intros, tip cards, row kickers/chips/REC labels, and
+// per-page beta lines — all transcribed from the design canvas (final intent).
+describe('Case-File content fields', () => {
+  const CLASSES = ['CORE', 'FIELD', 'TRUST', 'MARQUEE'] as const
+
+  it('gives every feature a classLabel from the union', () => {
+    for (const f of features) {
+      expect(CLASSES, `feature "${f.slug}" classLabel`).toContain(f.classLabel)
+    }
+  })
+
+  it('marks exactly one feature MARQUEE — time-calibration', () => {
+    const marquee = features.filter((f) => f.classLabel === 'MARQUEE')
+    expect(marquee.map((f) => f.slug)).toEqual(['time-calibration'])
+  })
+
+  it('keeps Notes flagged draft with a draft banner note', () => {
+    const notes = getFeatureBySlug('notes')
+    expect(notes?.draft).toBe(true)
+    expect(notes?.draftNote?.length).toBeGreaterThan(0)
+  })
+
+  it('gives every non-draft feature an intro paragraph', () => {
+    for (const f of features.filter((feature) => !feature.draft)) {
+      expect(f.intro?.length, `feature "${f.slug}" intro`).toBeGreaterThan(0)
+    }
+  })
+
+  it('gives every non-draft feature a beta strip line (drafts have none)', () => {
+    for (const f of features) {
+      if (f.draft) {
+        expect(f.betaStripLine, `draft "${f.slug}" must not have a beta strip`).toBeUndefined()
+      } else {
+        expect(f.betaStripLine?.length, `feature "${f.slug}" betaStripLine`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('formats row kickers and REC labels per the design system', () => {
+    for (const f of features) {
+      for (const row of f.rows) {
+        if (row.kicker) {
+          expect(row.kicker, `"${f.slug}" kicker "${row.kicker}"`).toMatch(/^0\d — [A-Z]/)
+        }
+        if (row.recLabel) {
+          expect(row.recLabel, `"${f.slug}" recLabel "${row.recLabel}"`).toMatch(/^REC 0\d — [A-Z]/)
+          expect(row.media, `"${f.slug}" REC label requires media`).toBeTruthy()
+        }
+      }
+    }
+  })
+
+  it('uses the trust-cards layout only for Security & Privacy, with accented rows', () => {
+    for (const f of features) {
+      if (f.slug === 'on-device') {
+        expect(f.layout).toBe('trust-cards')
+        expect(f.rows.map((r) => r.accent)).toEqual(['cyan', 'gold'])
+      } else {
+        expect(f.layout, `"${f.slug}" must not set layout`).toBeUndefined()
+        // accent is only meaningful under the trust-cards layout — a stray accent
+        // on a normal feature row would silently style nothing (or worse, later).
+        for (const row of f.rows) {
+          expect(row.accent, `"${f.slug}" rows must not set accent`).toBeUndefined()
+        }
+      }
+    }
+  })
+
+  it('keeps the marquee tip variants: one tip max, gold or cyan', () => {
+    for (const f of features) {
+      if (f.tip) {
+        expect(['gold', 'cyan'], `"${f.slug}" tip variant`).toContain(f.tip.variant)
+        expect(f.tip.body.length).toBeGreaterThan(0)
+      }
+    }
+    // Security & Privacy intentionally has no tip card (trust cards carry the page).
+    expect(getFeatureBySlug('on-device')?.tip).toBeUndefined()
+  })
+
+  it('derives the page H1 via featureHeadline (explicit headline, else title + period)', () => {
+    // 04/07/09 carry explicit display headlines; everything else falls back.
+    expect(featureHeadline(getFeatureBySlug('location')!)).toBe(
+      'Pin the site — and every camera on it.',
+    )
+    expect(featureHeadline(getFeatureBySlug('secure-export')!)).toBe(
+      'The whole case, sealed for handoff.',
+    )
+    expect(featureHeadline(getFeatureBySlug('cases-locations')!)).toBe(
+      'Every case, every location, in order.',
+    )
+  })
+
+  it('gives map no diagram and every other feature a headed diagram', () => {
+    for (const f of features) {
+      if (f.slug === 'map') {
+        expect(f.diagram).toBeUndefined()
+      } else {
+        expect(f.diagram, `"${f.slug}" diagram`).toBeDefined()
+        expect(f.diagram!.heading?.length, `"${f.slug}" diagram heading`).toBeGreaterThan(0)
+      }
+    }
   })
 })

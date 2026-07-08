@@ -2,7 +2,6 @@
 
 /* Additional styles */
 @import './additional-styles/utility-patterns.css' layer(components);
-@import './additional-styles/theme.css';
 
 @plugin "@tailwindcss/forms" {
   strategy: base;
@@ -11,6 +10,34 @@
 @theme {
   --font-inter: var(--font-inter), sans-serif;
   --font-nacelle: var(--font-nacelle), sans-serif;
+  /* Case-File technical fonts (next/font/google vars set on <body> in app/layout.tsx) */
+  --font-stmono: var(--font-stmono), monospace;
+  --font-jbmono: var(--font-jbmono), monospace;
+
+  /* ── Case-File design tokens (design handoff README §Design Tokens is authoritative) ── */
+  /* Surfaces */
+  --color-ink-950: #03060b;
+  --color-ink-900: #04070d;
+  --color-panel-800: rgba(8, 16, 28, 0.55);
+  --color-chip: #1a2d44;
+  /* Borders */
+  --color-hairline: rgba(30, 58, 95, 0.55);
+  --color-row-divider: rgba(22, 40, 63, 0.6);
+  --color-tab: #16283f;
+  --color-input: #2a4a6f;
+  /* Text */
+  --color-heading: #f0f4f8;
+  --color-body: #bcccde;
+  --color-body-2: #a9bdd3;
+  --color-tab-label: #cfe0f2;
+  --color-muted: #7a9fc4;
+  --color-faint: #5d7a9a;
+  --color-ghost: #445e7d;
+  /* Accents */
+  --color-carolina: #99badd;
+  --color-blue: #2b8cc1;
+  --color-cyan: #4ecdc4;
+  --color-gold: #ffd93d;
 
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.5384;
@@ -46,6 +73,13 @@
 
   --animate-shine: shine 5s ease-in-out 500ms infinite;
   --animate-gradient: gradient 6s linear infinite;
+  /* Case-File ambient animations (keyframes copied from the demo's prototype-lifted
+     library — features/demo/ui/demo.css — which is scoped to [data-demo-root] and
+     must not be imported by marketing pages) */
+  --animate-scan-sweep: scanSweep 7s linear infinite;
+  --animate-blink-dot: blinkDot 2.4s ease-in-out infinite;
+  --animate-glow-pulse: glowPulse 3s ease-in-out infinite;
+  --animate-flicker: flicker 6s linear infinite;
 
   @keyframes shine {
     0% {
@@ -71,6 +105,71 @@
     to {
       background-position: 200% center;
     }
+  }
+  @keyframes scanSweep {
+    0% {
+      transform: translateY(-60px);
+    }
+    100% {
+      transform: translateY(760px);
+    }
+  }
+  @keyframes blinkDot {
+    0%,
+    20% {
+      opacity: 0.15;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.15;
+    }
+  }
+  @keyframes glowPulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+  @keyframes flicker {
+    0%,
+    92%,
+    100% {
+      opacity: 1;
+    }
+    93% {
+      opacity: 0.55;
+    }
+    95% {
+      opacity: 1;
+    }
+    96% {
+      opacity: 0.72;
+    }
+    97% {
+      opacity: 1;
+    }
+  }
+}
+
+/* Pause the Case-File ambient animations for users who prefer reduced motion.
+   Matches both the generated utilities (animate-scan-sweep) and Tailwind arbitrary
+   classes (animate-[scanSweep_7s_linear_infinite]) — class-based only, so the demo's
+   inline-styled animations (self-gated via useReducedMotion) are unaffected. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='scanSweep'],
+  [class*='blinkDot'],
+  [class*='glowPulse'],
+  [class*='flicker'],
+  .animate-scan-sweep,
+  .animate-blink-dot,
+  .animate-glow-pulse,
+  .animate-flicker {
+    animation: none !important;
   }
 }
 
