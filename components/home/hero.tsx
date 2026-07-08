@@ -75,9 +75,15 @@ export function Hero() {
         </div>
       </div>
 
-      {/* hero phone — walkthrough loop lands in this slot when the media is produced */}
+      {/* hero phone — the walkthrough loop (media file is local-pending the
+          pre-launch media strategy: committed assets vs LFS vs blob storage) */}
       <MarketingPhoneFrame scale={0.78} label="LIVE CAPTURE · 378×786">
-        <AppDemo label="Product walkthrough" className="absolute inset-0 h-full w-full rounded-none" />
+        <AppDemo
+          src="demos/home/walkthrough.mp4"
+          poster="demos/home/walkthrough.webp"
+          label="Product walkthrough"
+          className="absolute inset-0 h-full w-full rounded-none object-cover"
+        />
       </MarketingPhoneFrame>
     </section>
   )
