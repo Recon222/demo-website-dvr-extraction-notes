@@ -233,6 +233,40 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.length).toBe(0)
   })
 
+  it('a sample-substituted run always renders a notice (review M2: exhaustive fallback copy)', async () => {
+    runText.mockResolvedValue(okRun({ fallbackMode: 'sample' }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-S', displayName: 'Sample', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'request text' } })
+    fireEvent.click(screen.getByText('Extract & import'))
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
+  })
+
+  it('in a batch, only the fallback-derived card carries the Sample data badge (review M1)', async () => {
+    runPdf
+      .mockResolvedValueOnce(okRun({ filename: 'real.pdf' }))
+      .mockResolvedValueOnce(okRun({ fallbackMode: 'error', filename: 'fell-back.pdf' }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-B', displayName: 'Batch', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['a'], 'real.pdf', { type: 'application/pdf' }), new File(['b'], 'fell-back.pdf', { type: 'application/pdf' })] },
+    })
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(screen.getByText(/couldn.t reach the live model/i)).toBeInTheDocument() // aggregate notice
+    expect(screen.getAllByText('Sample data')).toHaveLength(1) // …and the specific card is badged
+  })
+
   it('a cancelled import cannot resurface after a newer run starts (H1: per-run token)', async () => {
     let resolveA: (r: ImportRunResult) => void = () => {}
     let resolveB: (r: ImportRunResult) => void = () => {}

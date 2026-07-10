@@ -12,6 +12,7 @@ const view: ImportedLocationView = {
   sections: [{ heading: 'Requesting Officer', rows: [{ label: 'Name', value: 'Det. McHugh' }] }],
   scopes: [],
   warnings: [],
+  isSample: false,
 }
 
 describe('ImportResultAccordion', () => {
@@ -34,6 +35,16 @@ describe('ImportResultAccordion', () => {
     expect(screen.getByText('Requesting Officer')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Open location'))
     expect(onOpenLocation).toHaveBeenCalledWith('loc-1')
+  })
+
+  it('badges a sample-derived card so it is attributable inside a batch (review M1)', () => {
+    render(<ImportResultAccordion view={{ ...view, isSample: true }} open={false} onToggle={vi.fn()} onOpenLocation={vi.fn()} />)
+    expect(screen.getByText('Sample data')).toBeInTheDocument()
+  })
+
+  it('renders no sample badge on a live-derived card', () => {
+    render(<ImportResultAccordion view={view} open={false} onToggle={vi.fn()} onOpenLocation={vi.fn()} />)
+    expect(screen.queryByText('Sample data')).not.toBeInTheDocument()
   })
 
   it('links the toggle to its panel via aria-controls/id when open (M2)', () => {

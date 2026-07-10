@@ -27,9 +27,16 @@ function patch(over: Partial<MappedImport> = {}, impOver: Partial<MappedImport['
   }
 }
 
-const base = { caseNumber: 'PR25-0098213', warnings: [], locId: 'loc1', fieldCount: 15, timeFrameCount: 1 }
+const base = { caseNumber: 'PR25-0098213', warnings: [], locId: 'loc1', fieldCount: 15, timeFrameCount: 1, fallbackMode: 'none' as const }
 
 describe('buildImportedLocationView', () => {
+  it('flags sample-derived views (any non-live fallback) so the card is attributable (review M1)', () => {
+    expect(buildImportedLocationView({ patch: patch(), ...base }).isSample).toBe(false)
+    for (const fallbackMode of ['sample', 'unavailable', 'error'] as const) {
+      expect(buildImportedLocationView({ patch: patch(), ...base, fallbackMode }).isSample).toBe(true)
+    }
+  })
+
   it('groups fields into the three sections in order', () => {
     const v = buildImportedLocationView({ patch: patch(), ...base })
     expect(v.sections.map((s) => s.heading)).toEqual(['Requesting Officer', 'Recovery Location', 'DVR Information'])
@@ -84,6 +91,7 @@ describe('buildImportedLocationView', () => {
       locId: 'L',
       fieldCount: 12,
       timeFrameCount: 1,
+      fallbackMode: 'none',
     })
     expect(v.caseNumber).toBe('PR25-X')
     expect(v.warnings).toHaveLength(1)

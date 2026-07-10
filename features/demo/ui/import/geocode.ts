@@ -36,7 +36,11 @@ export async function forwardGeocode(query: string): Promise<{ lng: number; lat:
       return { lng: coords[0] as number, lat: coords[1] as number }
     }
     return null
-  } catch {
+  } catch (e) {
+    // Deliberate soft-fail (the location is still created, just without a pin) — but an
+    // expired/rate-limited token would otherwise fail identically to "no match", forever,
+    // with no signal (review L2).
+    console.warn('[demo/geocode] forward geocode failed — location will have no map pin:', e)
     return null
   }
 }

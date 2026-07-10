@@ -4,8 +4,8 @@
  * Import orchestrator (client). Mirrors the phone app's pdf-import pipeline, minus persist:
  *   [PDF] extract text → [model] /api/extract (or SAMPLE fallback) → parse → normalize → map.
  * The pure transform lives in the engine (parseNormalizeMap); this layer only does IO and
- * fallback. `live=false` (guided mode, or no live model) skips the network and uses the
- * deterministic SAMPLE — so the guided tour and tests never hit the model.
+ * fallback. The demo always calls with `live: true`; `live=false` is a deterministic test
+ * seam that skips the network and uses the SAMPLE extraction.
  */
 
 import { SAMPLE_EXTRACTION, type MappedImport } from '@/features/demo/engine/logic/import'
@@ -17,13 +17,15 @@ import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pd
 export type ImportStageId = 'extracting_text' | 'reading_model' | 'normalizing' | 'done' | 'error'
 
 /**
- * How the result was produced:
- * - `none` — the live model was used.
- * - `guided` — deterministic SAMPLE (live disabled; guided tour / tests). No user notice.
+ * How the result was produced. Every mode other than `none` means the visitor's document
+ * was substituted with the fictional SAMPLE — the UI must say so (exhaustive notice switch
+ * in DemoExperience + per-card isSample badge; review M1/M2):
+ * - `none` — the live model read the visitor's document.
+ * - `sample` — live explicitly disabled (`live: false`, a test seam) → deterministic SAMPLE.
  * - `unavailable` — keyless / not-configured (503) → SAMPLE fallback. "Not configured" notice.
  * - `error` — a genuine live failure (401/429/502/network/timeout) → SAMPLE fallback. Distinct notice.
  */
-export type FallbackMode = 'none' | 'guided' | 'unavailable' | 'error'
+export type FallbackMode = 'none' | 'sample' | 'unavailable' | 'error'
 
 /** Discriminated on `ok` — a success always carries the patch + counts; a failure carries the error. */
 export type ImportRunResult =
@@ -44,7 +46,7 @@ export async function runImport(input: {
   let fallbackMode: FallbackMode
   if (!live) {
     rawText = SAMPLE_RAW
-    fallbackMode = 'guided'
+    fallbackMode = 'sample'
   } else {
     const result = await requestExtraction(documentText)
     if (result.ok) {

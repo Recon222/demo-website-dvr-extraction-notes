@@ -285,10 +285,24 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
   const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
 
+  // Exhaustive by construction (review M2): every FallbackMode must decide its notice
+  // here — a new variant is a compile error, not a silently-missing warning. Only
+  // 'none' (the visitor's own document was used) legitimately renders nothing.
   const fallbackNotice = (mode: FallbackMode): string | undefined => {
-    if (mode === 'unavailable') return 'Live model not configured — imported the sample request instead.'
-    if (mode === 'error') return 'Couldn’t reach the live model — imported the sample request instead.'
-    return undefined
+    switch (mode) {
+      case 'none':
+        return undefined
+      case 'sample':
+        return 'Live import was disabled — imported the sample request instead.'
+      case 'unavailable':
+        return 'Live model not configured — imported the sample request instead.'
+      case 'error':
+        return 'Couldn’t reach the live model — imported the sample request instead.'
+      default: {
+        const exhaustive: never = mode
+        return exhaustive
+      }
+    }
   }
 
   // Forward-geocode the imported address BEFORE creating the location (mirrors the phone's
@@ -324,6 +338,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         fieldCount: res.fieldCount,
         timeFrameCount: res.timeFrameCount,
         filename: res.filename,
+        fallbackMode: res.fallbackMode, // per-card sample attribution (review M1)
       }),
     )
   }

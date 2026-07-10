@@ -5,6 +5,7 @@
  */
 
 import type { MappedImport } from '@/features/demo/engine/logic/import'
+import type { FallbackMode } from '@/features/demo/ui/import/run-import'
 
 export interface DetailRow {
   label: string
@@ -33,6 +34,10 @@ export interface ImportedLocationView {
   sections: DetailSection[]
   scopes: ScopeRow[]
   warnings: WarningView[]
+  /** True when this card's data came from the SAMPLE substitute (any non-'none'
+   *  fallback) — badged in place so a batch's fabricated card is attributable
+   *  next to real ones (review M1). */
+  isSample: boolean
 }
 
 /** A section is included only if it has at least one non-empty row; empty rows are dropped. */
@@ -51,8 +56,9 @@ export function buildImportedLocationView(input: {
   fieldCount: number
   timeFrameCount: number
   filename?: string
+  fallbackMode: FallbackMode
 }): ImportedLocationView {
-  const { patch, caseNumber, warnings, locId, fieldCount, timeFrameCount, filename } = input
+  const { patch, caseNumber, warnings, locId, fieldCount, timeFrameCount, filename, fallbackMode } = input
   const imp = patch._import
 
   const sections = [
@@ -95,5 +101,6 @@ export function buildImportedLocationView(input: {
     sections,
     scopes,
     warnings,
+    isSample: fallbackMode !== 'none',
   }
 }

@@ -15,6 +15,7 @@ const view: ImportedLocationView = {
   ],
   scopes: [{ label: 'Scope 1', range: '2025-03-08 23:45 → 2025-03-09 01:30', isActualTime: false, cameras: 'cameras 3, 4 and 7' }],
   warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "4471"' }],
+  isSample: false,
 }
 
 describe('ImportResultBody', () => {
