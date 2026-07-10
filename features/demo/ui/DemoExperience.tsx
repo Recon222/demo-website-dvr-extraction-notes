@@ -307,10 +307,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // Forward-geocode the imported address BEFORE creating the location (mirrors the phone's
   // persistMappedImport) so imported locations land on the map. Non-blocking: no token / no match
-  // → the location is still created, just without a pin.
-  const applySuccess = async (caseId: string, res: Extract<ImportRunResult, { ok: true }>): Promise<string> => {
+  // → the location is still created, just without a pin. The generation token is re-checked
+  // AFTER the geocode await (review H2): a cancel landing during the round-trip must discard
+  // the run — returns null and writes nothing.
+  const applySuccess = async (
+    caseId: string,
+    res: Extract<ImportRunResult, { ok: true }>,
+    myGen: number,
+  ): Promise<string | null> => {
     const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
     const coords = query ? await forwardGeocode(query) : null
+    if (importGen.current !== myGen) return null // cancelled mid-geocode — do not touch the store
     const id = store.getState().addLocation(caseId, {
       locationName: res.patch.businessName || res.filename || 'Imported location',
       gps: coords ? { lat: coords.lat, lng: coords.lng, source: 'geocoded' } : undefined,
@@ -325,8 +332,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     locations: ImportedLocationView[]
     failures: ImportFailure[]
   }
-  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
-    const locId = await applySuccess(caseId, res)
+  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number) => {
+    const locId = await applySuccess(caseId, res, myGen)
+    if (locId === null) return // run invalidated mid-geocode — nothing was written, tally untouched
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
     tally.locations.push(
@@ -375,9 +383,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live: true, onStage: onImportStage })
       if (importGen.current !== myGen) return // cancelled while this file was processing
-      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
+    if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
     finishImport(tally)
   }
 
@@ -397,8 +406,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
+    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
+    if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
     finishImport(tally)
   }
 

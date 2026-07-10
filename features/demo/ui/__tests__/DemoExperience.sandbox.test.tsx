@@ -304,6 +304,31 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
   })
 
+  it('a cancel landing during the geocode round-trip still discards the run (review H2)', async () => {
+    // The patch must carry an address: buildGeocodeQuery is then non-null and applySuccess
+    // genuinely awaits forwardGeocode — the window the H1 loop checkpoints cannot see.
+    const ok = okRun({ filename: 'addr.pdf' }) as Extract<ImportRunResult, { ok: true }>
+    runPdf.mockResolvedValue({ ...ok, patch: { ...ok.patch, streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' } })
+    let resolveGeo: (v: { lng: number; lat: number } | null) => void = () => {}
+    forwardGeocodeMock.mockReturnValue(new Promise((res) => { resolveGeo = res }))
+
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-GEO', displayName: 'Geo', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'addr.pdf', { type: 'application/pdf' })] } })
+    await act(async () => {}) // flush to inside the geocode await
+    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel mid-geocode
+
+    await act(async () => {
+      resolveGeo({ lng: -79.6505, lat: 43.6087 })
+    })
+    expect(store.getState().locations.length).toBe(0) // the cancelled run must not write
+  })
+
   it('empty paste (sandbox) shows a guard message — no model call, no location (M2)', async () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
