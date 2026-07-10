@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { freshStore, newCaseInput, newLocationInput } from './test-utils'
+import { blankCapture } from '@/features/demo/engine/store/create-store'
 import { selectCurrentLocation } from '@/features/demo/engine/store/selectors'
 import type { ScopeEntry } from '@/features/demo/engine/types'
 
@@ -26,11 +27,17 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
   })
 
   it('reset() returns a dirtied store to the same empty boot state (start over)', () => {
+    // Dirty EVERY mutable key — capture especially: leaking in-progress OCR/time-sync
+    // data across a reset would resurrect the canned-data-persistence bug the deleted
+    // isSeed machinery existed to fix (review M4).
     const store = freshStore()
     const c = store.getState().createCase(newCaseInput())
     store.getState().addLocation(c, newLocationInput())
     store.getState().setView('timeOffset')
     store.getState().setDrawerOpen(true)
+    store.getState().openModal('newCase')
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.dvrAppliesDST', true)
     store.getState().reset()
     const s = store.getState()
     expect(s.view).toBe('cases')
@@ -40,6 +47,8 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
     expect(s.currentCaseId).toBeNull()
     expect(s.currentLocationId).toBeNull()
     expect(s.drawerOpen).toBe(false)
+    expect(s.modal).toBeNull()
+    expect(s.capture).toEqual(blankCapture())
   })
 
   it('the tour is gone: no seedGuided/setMode actions, no mode/auth state', () => {
