@@ -24,7 +24,7 @@ describe('runImport', () => {
     const stages: string[] = []
     const r = await runImport({ documentText: 'x', live: false, onStage: (s) => stages.push(s) })
     expect(r.ok).toBe(true)
-    expect(r.fallbackMode).toBe('guided')
+    expect(r.fallbackMode).toBe('sample')
     if (r.ok) expect(r.patch.requesterName).toBe('Liam McHugh') // from SAMPLE_EXTRACTION
     expect(reqMock).not.toHaveBeenCalled()
     expect(stages).toEqual(['reading_model', 'normalizing', 'done'])

@@ -2,13 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
-// Drive the *interactive sandbox* surface end-to-end (the bridge's most-grown, least-covered code):
+// Drive the interactive surface end-to-end (the bridge's most-grown, least-covered code):
 // the marquee OCR→offset path, the import pipeline, and the PDF-preview mount.
-const { searchParams } = vi.hoisted(() => ({
-  searchParams: { get: vi.fn<(k: string) => string | null>(() => null) },
-}))
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
-
 // The import orchestrator (pdf.js + the model proxy) is mocked — no network, no real PDF.
 vi.mock('@/features/demo/ui/import/run-import', () => ({ runImport: vi.fn(), runPdfImport: vi.fn() }))
 
@@ -40,8 +35,6 @@ const okRun = (over: Partial<Extract<ImportRunResult, { ok: true }>> = {}): Impo
 type Store = ReturnType<typeof createDemoStore>
 
 beforeEach(() => {
-  searchParams.get.mockReset()
-  searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
   runText.mockReset()
   runPdf.mockReset()
 })
@@ -205,20 +198,20 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.length).toBe(0)
   })
 
-  it('guided mode imports deterministically (live=false)', async () => {
-    searchParams.get.mockImplementation(() => null) // guided (no ?mode)
-    runText.mockResolvedValue(okRun({ fallbackMode: 'guided' }))
+  it('imports always run live — the model does the import step (sandbox-only demo)', async () => {
+    runText.mockResolvedValue(okRun())
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
-      store.getState().createCase({ caseNumber: 'PR25-G', displayName: 'Guided', unit: 'Robbery' })
+      store.getState().createCase({ caseNumber: 'PR25-L', displayName: 'Live', unit: 'Robbery' })
       store.getState().openModal('import')
     })
     fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'video request text' } })
     fireEvent.click(screen.getByText('Extract & import'))
 
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
-    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
+    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true }))
   })
 
   it('cancelling mid-import does not create a location (H2)', async () => {
@@ -238,6 +231,102 @@ describe('DemoExperience — sandbox bridge paths', () => {
       await Promise.resolve()
     })
     expect(store.getState().locations.length).toBe(0)
+  })
+
+  it('a sample-substituted run always renders a notice (review M2: exhaustive fallback copy)', async () => {
+    runText.mockResolvedValue(okRun({ fallbackMode: 'sample' }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-S', displayName: 'Sample', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'request text' } })
+    fireEvent.click(screen.getByText('Extract & import'))
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
+  })
+
+  it('in a batch, only the fallback-derived card carries the Sample data badge (review M1)', async () => {
+    runPdf
+      .mockResolvedValueOnce(okRun({ filename: 'real.pdf' }))
+      .mockResolvedValueOnce(okRun({ fallbackMode: 'error', filename: 'fell-back.pdf' }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-B', displayName: 'Batch', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['a'], 'real.pdf', { type: 'application/pdf' }), new File(['b'], 'fell-back.pdf', { type: 'application/pdf' })] },
+    })
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(screen.getByText(/couldn.t reach the live model/i)).toBeInTheDocument() // aggregate notice
+    expect(screen.getAllByText('Sample data')).toHaveLength(1) // …and the specific card is badged
+  })
+
+  it('a cancelled import cannot resurface after a newer run starts (H1: per-run token)', async () => {
+    let resolveA: (r: ImportRunResult) => void = () => {}
+    let resolveB: (r: ImportRunResult) => void = () => {}
+    runPdf
+      .mockReturnValueOnce(new Promise<ImportRunResult>((res) => { resolveA = res }))
+      .mockReturnValueOnce(new Promise<ImportRunResult>((res) => { resolveB = res }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-RACE', displayName: 'Race', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+    // Run A starts and is cancelled while its request is still in flight…
+    fireEvent.change(input(), { target: { files: [new File(['x'], 'stale.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    // …then run B starts. Starting B must NOT revive cancelled run A (a shared
+    // cancel boolean would be cleared here — the exact H1 race).
+    act(() => {
+      store.getState().openModal('import')
+    })
+    fireEvent.change(input(), { target: { files: [new File(['y'], 'live.pdf', { type: 'application/pdf' })] } })
+
+    // Stale run A resolves AFTER B began: it must be discarded, not written to the store.
+    await act(async () => {
+      resolveA(okRun({ filename: 'stale.pdf' }))
+    })
+    expect(store.getState().locations.length).toBe(0) // no phantom location from A
+
+    // Run B completes normally and is the only import that lands.
+    await act(async () => {
+      resolveB(okRun({ filename: 'live.pdf' }))
+    })
+    expect(store.getState().locations.length).toBe(1)
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+  })
+
+  it('a cancel landing during the geocode round-trip still discards the run (review H2)', async () => {
+    // The patch must carry an address: buildGeocodeQuery is then non-null and applySuccess
+    // genuinely awaits forwardGeocode — the window the H1 loop checkpoints cannot see.
+    const ok = okRun({ filename: 'addr.pdf' }) as Extract<ImportRunResult, { ok: true }>
+    runPdf.mockResolvedValue({ ...ok, patch: { ...ok.patch, streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' } })
+    let resolveGeo: (v: { lng: number; lat: number } | null) => void = () => {}
+    forwardGeocodeMock.mockReturnValue(new Promise((res) => { resolveGeo = res }))
+
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-GEO', displayName: 'Geo', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'addr.pdf', { type: 'application/pdf' })] } })
+    await act(async () => {}) // flush to inside the geocode await
+    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel mid-geocode
+
+    await act(async () => {
+      resolveGeo({ lng: -79.6505, lat: 43.6087 })
+    })
+    expect(store.getState().locations.length).toBe(0) // the cancelled run must not write
   })
 
   it('empty paste (sandbox) shows a guard message — no model call, no location (M2)', async () => {

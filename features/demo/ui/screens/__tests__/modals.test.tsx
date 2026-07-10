@@ -15,6 +15,7 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
     sections: [{ heading: 'Requesting Officer', rows: [{ label: 'Name', value: 'Det. Liam McHugh' }] }],
     scopes: [],
     warnings: [{ field: 'badgeNumber', reason: 'Extracted badge "2015"' }],
+    isSample: false,
     ...over,
   }
 }

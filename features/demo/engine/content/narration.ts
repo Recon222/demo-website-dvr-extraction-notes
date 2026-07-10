@@ -44,7 +44,7 @@ export const NARRATION: Record<ChapterId, ChapterNarration> = {
       'Create, duplicate, import a request (PDF or text), export ZIP archives',
       'SQLite-backed, transaction-safe, with four-layer auto-save',
     ],
-    tip: 'Tap "New Case" in the phone — or Next — to start one.',
+    tip: 'Tap "New Case" in the phone to start one.',
   },
   submission: {
     eyebrow: 'Submission details',

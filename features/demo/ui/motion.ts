@@ -1,5 +1,5 @@
 import type { Variants } from 'motion/react'
-import { TOUR_CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
 import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
 
 /**
@@ -23,11 +23,11 @@ type ViewId = ChapterId | LaunchableId | 'map'
  *
  * Params are typed to the view union so a typo'd literal is a compile error; a view that is in the
  * type but in NEITHER registry (e.g. a new screen wired into `view` but forgotten in
- * `WIZARD_SCREENS`/`TOUR_CHAPTERS`) silently fades, so we dev-warn about it.
+ * `WIZARD_SCREENS`/`CHAPTERS`) silently fades, so we dev-warn about it.
  */
 export function slideDirection(prev: ViewId, next: ViewId): SlideDirection {
   if (prev === next) return 'none'
-  const order = TOUR_CHAPTERS as readonly string[]
+  const order = CHAPTERS as readonly string[]
   const a = order.indexOf(prev)
   const b = order.indexOf(next)
   if (process.env.NODE_ENV === 'development') {
@@ -35,8 +35,8 @@ export function slideDirection(prev: ViewId, next: ViewId): SlideDirection {
     for (const v of [prev, next]) {
       if (!known(v)) {
         console.warn(
-          `[demo] slideDirection: "${v}" is in neither TOUR_CHAPTERS nor LAUNCHABLE — it will fade ` +
-            `instead of slide. Register it in WIZARD_SCREENS/TOUR_CHAPTERS.`,
+          `[demo] slideDirection: "${v}" is in neither CHAPTERS nor LAUNCHABLE — it will fade ` +
+            `instead of slide. Register it in WIZARD_SCREENS/CHAPTERS.`,
         )
       }
     }

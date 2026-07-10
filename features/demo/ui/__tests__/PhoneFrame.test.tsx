@@ -25,14 +25,14 @@ describe('PhoneFrame', () => {
     expect(frame.style.transformOrigin).toBe('top center')
   })
 
-  it('locks pointer-events on the screen subtree when not interactive (guided)', () => {
+  it('never locks pointer-events on the screen subtree (the phone is always interactive)', () => {
     render(
-      <PhoneFrame interactive={false}>
+      <PhoneFrame>
         <div>x</div>
       </PhoneFrame>,
     )
     const screenEl = document.querySelector('[data-phone-screen]') as HTMLElement
-    expect(screenEl.style.pointerEvents).toBe('none')
+    expect(screenEl.style.pointerEvents).not.toBe('none')
   })
 
   it('caps the scale at 1:1 on a tall viewport', () => {

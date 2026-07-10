@@ -1,15 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
-
-const { searchParams } = vi.hoisted(() => ({
-  searchParams: { get: vi.fn<(k: string) => string | null>(() => null) },
-}))
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
-vi.mock('@/features/demo/engine/director/runner', () => ({
-  runBeat: vi.fn(() => ({ cancel: vi.fn(), done: Promise.resolve(undefined), warnings: [], degraded: false })),
-  realClock: {},
-}))
 
 // Mock the autocomplete so a "pick" deterministically forwards coordinates through the bridge.
 vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
@@ -29,11 +20,6 @@ vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
 }))
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
-
-beforeEach(() => {
-  searchParams.get.mockReset()
-  searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
-})
 
 describe('DemoExperience — geocoded coordinates bridge', () => {
   it('a New Location address pick stores geocoded gps on the new location', () => {

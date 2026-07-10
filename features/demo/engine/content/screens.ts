@@ -23,8 +23,8 @@ export const WIZARD_SCREENS: readonly WizardScreenId[] = [
   'completion',
 ]
 
-/** The guided-tour narrative order: app chapters then the wizard screens. */
-export const TOUR_CHAPTERS: readonly ChapterId[] = ['splash', 'dashboard', 'cases', ...WIZARD_SCREENS]
+/** The app flow order: entry chapters then the wizard screens (array order = numbering). */
+export const CHAPTERS: readonly ChapterId[] = ['splash', 'dashboard', 'cases', ...WIZARD_SCREENS]
 
 /** Launch-only screens — reached by an action button, never Next/Back. */
 export const LAUNCHABLE: readonly LaunchableId[] = ['ocr', 'mediaCapture', 'audioRecording']
@@ -45,7 +45,7 @@ export const DRAWER_DEFS: readonly DrawerDef[] = [
 
 /** 1-based tour-chapter number, derived from position. 0 if unknown. */
 export function chapterNumber(id: ChapterId): number {
-  return TOUR_CHAPTERS.indexOf(id) + 1
+  return CHAPTERS.indexOf(id) + 1
 }
 
 /** 1-based wizard-screen number, derived from position. 0 if unknown. */
@@ -55,12 +55,12 @@ export function wizardNumber(id: WizardScreenId): number {
 
 /** The next chapter in tour order, or null at the end / for an unknown id. */
 export function nextChapter(id: ChapterId): ChapterId | null {
-  const i = TOUR_CHAPTERS.indexOf(id)
-  return i >= 0 && i < TOUR_CHAPTERS.length - 1 ? TOUR_CHAPTERS[i + 1] : null
+  const i = CHAPTERS.indexOf(id)
+  return i >= 0 && i < CHAPTERS.length - 1 ? CHAPTERS[i + 1] : null
 }
 
 /** The previous chapter in tour order, or null at the start / for an unknown id. */
 export function prevChapter(id: ChapterId): ChapterId | null {
-  const i = TOUR_CHAPTERS.indexOf(id)
-  return i > 0 ? TOUR_CHAPTERS[i - 1] : null
+  const i = CHAPTERS.indexOf(id)
+  return i > 0 ? CHAPTERS[i - 1] : null
 }

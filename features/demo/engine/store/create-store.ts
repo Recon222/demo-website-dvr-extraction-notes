@@ -4,7 +4,6 @@ import type {
   ChapterId,
   DemoCase,
   DemoLocation,
-  DemoMode,
   LaunchableId,
   MediaItem,
   MediaKind,
@@ -15,7 +14,7 @@ import type {
   SyncResult,
   TimeOffsetData,
 } from '@/features/demo/engine/types'
-import { SEED_CASE, SEED_LOCATION, blankLocationForm } from '@/features/demo/engine/content/seed'
+import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
 import {
   calculateCorrectedTimeRange,
@@ -74,7 +73,6 @@ export interface CaptureState {
 export type AppView = ChapterId | LaunchableId | 'map'
 
 export interface DemoState {
-  mode: DemoMode
   profile: Profile
   cases: DemoCase[]
   locations: DemoLocation[]
@@ -83,23 +81,20 @@ export interface DemoState {
   view: AppView
   modal: ModalId | null
   drawerOpen: boolean
-  /** The chapter the tour is on — set by chapter navigation (setView) and store resets
-   *  (seedGuided/reset), but never by launch/closeLaunch. The director keys beat-play on this
-   *  so a launch can't restart the beat. */
+  /** The chapter the app flow is on — set by chapter navigation (setView) and reset, but
+   *  never by launch/closeLaunch: a launch screen (OCR) returns to it on close, and the
+   *  rail narration stays anchored to it on non-chapter views (Map, launchables). */
   currentChapter: ChapterId
   capture: CaptureState
-  auth: 'idle' | 'authorized'
 }
 
 export interface DemoActions {
-  seedGuided(): void
   reset(): void
   createCase(input: NewCaseInput): string
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
   setView(view: AppView): void
-  setMode(mode: DemoMode): void
   openModal(modal: ModalId): void
   closeModal(): void
   setDrawerOpen(open: boolean): void
@@ -119,24 +114,21 @@ export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
 }
 
+/** The empty boot: the visitor creates everything (owner decision — no seed data). */
 export function initialState(): DemoState {
   return {
-    mode: 'guided',
     profile: 'forensic',
     cases: [],
     locations: [],
     currentCaseId: null,
     currentLocationId: null,
-    view: 'splash',
+    view: 'cases',
     modal: null,
     drawerOpen: false,
-    currentChapter: 'splash',
+    currentChapter: 'cases',
     capture: blankCapture(),
-    auth: 'idle',
   }
 }
-
-const clone = <T>(v: T): T => structuredClone(v)
 
 /** True when a view value is a chapter (not a launch-only screen like OCR/media, nor the Map tab).
  *  Keeps `currentChapter` on the last real chapter so the rail/narration never break on the Map view. */
@@ -150,30 +142,8 @@ export function createDemoStore(): DemoStore {
   return createStore<DemoState & DemoActions>((set, get) => ({
     ...initialState(),
 
-    seedGuided: () =>
-      set({
-        ...initialState(),
-        mode: 'guided',
-        cases: [clone(SEED_CASE)],
-        locations: [clone(SEED_LOCATION)],
-        currentCaseId: SEED_CASE.id,
-        currentLocationId: SEED_LOCATION.id,
-        view: 'splash',
-      }),
-
-    reset: () =>
-      set((s) => ({
-        mode: 'sandbox',
-        cases: s.cases.filter((c) => !c.isSeed),
-        locations: s.locations.filter((l) => !l.isSeed),
-        currentCaseId: null,
-        currentLocationId: null,
-        view: 'cases',
-        modal: null,
-        drawerOpen: false,
-        currentChapter: 'cases',
-        capture: blankCapture(),
-      })),
+    /** Start over: back to the empty boot. */
+    reset: () => set(initialState()),
 
     createCase: (input) => {
       const id = nextId('c')
@@ -193,7 +163,6 @@ export function createDemoStore(): DemoStore {
         notes: input.notes ?? '',
         status: 'draft',
         createdLabel: 'Just now',
-        isSeed: false,
         locationIds: [],
       }
       set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))
@@ -217,7 +186,6 @@ export function createDemoStore(): DemoStore {
         locationContact: input.locationContact ?? '',
         locationPhone: input.locationPhone ?? '',
         gps: input.gps ? { ...input.gps, accuracyM: 0 } : undefined,
-        isSeed: false,
         form: blankLocationForm(),
       }
       set((s) => ({
@@ -246,7 +214,6 @@ export function createDemoStore(): DemoStore {
     },
 
     setView: (view) => set(isChapterId(view) ? { view, currentChapter: view } : { view }),
-    setMode: (mode) => set({ mode }),
     openModal: (modal) => set({ modal }),
     closeModal: () => set({ modal: null }),
     setDrawerOpen: (open) => set({ drawerOpen: open }),

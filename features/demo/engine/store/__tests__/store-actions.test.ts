@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
+import { freshStore, storeWithLocation, newCaseInput, newLocationInput } from './test-utils'
 import { selectCaseNotesData, selectCurrentLocation } from '@/features/demo/engine/store/selectors'
 import { mapAiToForm, SAMPLE_EXTRACTION } from '@/features/demo/engine/logic/import'
 import type { MediaItem } from '@/features/demo/engine/types'
@@ -74,13 +74,11 @@ describe('media', () => {
   })
 })
 
-describe('view / mode / modal / drawer setters', () => {
+describe('view / modal / drawer setters', () => {
   it('update the corresponding state', () => {
     const store = freshStore()
-    store.getState().setMode('sandbox')
     store.getState().openModal('newCase')
     store.getState().setDrawerOpen(true)
-    expect(store.getState().mode).toBe('sandbox')
     expect(store.getState().modal).toBe('newCase')
     expect(store.getState().drawerOpen).toBe(true)
     store.getState().closeModal()
@@ -90,9 +88,10 @@ describe('view / mode / modal / drawer setters', () => {
 
 describe('guards', () => {
   it('switchLocation ignores an unknown id', () => {
-    const store = seededStore()
+    const store = storeWithLocation()
+    const selected = store.getState().currentLocationId
     store.getState().switchLocation('does-not-exist')
-    expect(store.getState().currentLocationId).toBe('seed-loc')
+    expect(store.getState().currentLocationId).toBe(selected)
   })
 
   it('location mutators are no-ops without a current location', () => {

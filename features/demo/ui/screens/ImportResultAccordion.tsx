@@ -37,6 +37,11 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
           <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#f0f4f8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{view.title}</span>
           <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
         </span>
+        {view.isSample && (
+          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '2px 7px' }}>
+            Sample data
+          </span>
+        )}
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7fa8cc" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
           <path d="M6 9l6 6 6-6" />
         </svg>

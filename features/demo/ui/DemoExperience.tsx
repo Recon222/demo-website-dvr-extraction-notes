@@ -1,20 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
-import { runBeat } from '@/features/demo/engine/director/runner'
-import { BEATS } from '@/features/demo/engine/director/beats'
 import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
-import { TOUR_CHAPTERS, chapterNumber, nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
+import { nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
-import { SAMPLE_REQUEST_DOC, blankLocationForm } from '@/features/demo/engine/content/seed'
-import type { ChapterId, DemoMode } from '@/features/demo/engine/types'
+import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
-import { StoryRail, type RailDot } from '@/features/demo/ui/StoryRail'
-import { TouchIndicator, type Pulse } from '@/features/demo/ui/TouchIndicator'
+import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
@@ -53,16 +48,9 @@ import { toCaseCards } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
-// Module-level monotonic id source for pulse keys (Date.now()/Math.random() are avoided).
-let pulseSeq = 0
-
-// Retention "today": guided mode reads a fixed scenario date so the showcased numbers stay
-// sensible against the demo's dated seed data (the guided flow itself is a deferred overhaul —
-// see deferred.md); sandbox uses the real clock. Explicit-arg Date is deterministic.
+// Retention "today": the real clock — the demo boots empty and every case is
+// visitor-created, so retention countdowns read against actual time.
 const realNow = () => new Date()
-const GUIDED_NOW = () => new Date(2025, 3, 12)
-
-const isChapter = (v: string): v is ChapterId => (TOUR_CHAPTERS as readonly string[]).includes(v)
 
 const blankCaseForm: NewCaseFields = {
   caseNumber: '',
@@ -130,28 +118,6 @@ interface PdfState {
 }
 const EMPTY_FORM = blankLocationForm()
 
-/** Map a kebab `?step` slug (e.g. `time-offset`) to its camelCase chapter id; warn (dev) on miss. */
-function slugToChapter(slug: string): ChapterId | null {
-  const camel = slug.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-  if (isChapter(camel)) return camel
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[demo] unknown ?step slug "${slug}" — staying on the opening chapter`)
-  }
-  return null
-}
-
-/** Seed (guided) / reset (sandbox) the store from the URL state. */
-function applyUrlState(store: DemoStore, mode: DemoMode, step: string | null) {
-  const st = store.getState()
-  if (mode === 'sandbox') {
-    st.reset()
-  } else {
-    st.seedGuided()
-    const target = step ? slugToChapter(step) : null
-    if (target) st.setView(target)
-  }
-}
-
 // Fallback for views without a screen yet — only the not-yet-built media views
 // (mediaCapture/audioRecording) reach this, and they're a deferred fast-follow (deferred.md §8).
 const placeholder = (view: string) => (
@@ -166,39 +132,20 @@ export interface DemoExperienceProps {
 }
 
 /**
- * The single store/director bridge. Creates the demo store once per mount (via ref), reads
- * ?mode/?step, subscribes selectively, plays the chapter's beat on enter in guided mode, gates
- * the phone's pointer-events, and renders the active screen + StoryRail. The ONLY component that
- * touches the store — every screen below it is presentational.
- *
- * Beat-play is keyed on the store's `currentChapter` (set only by chapter navigation), NOT raw
- * `view`, so a beat's own `launch('ocr')` (which moves `view`) can't re-trigger / restart it.
+ * The single store bridge. Creates the demo store once per mount (via ref) — it boots
+ * empty; the visitor creates everything — subscribes selectively, and renders the active
+ * screen + StoryRail. The ONLY component that touches the store — every screen below it
+ * is presentational.
  */
 export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
-  const params = useSearchParams()
-  const mode: DemoMode = params.get('mode') === 'sandbox' ? 'sandbox' : 'guided'
-  const step = params.get('step')
-
   const storeRef = useRef<DemoStore | null>(null)
   if (!storeRef.current) {
     storeRef.current = injectedStore ?? createDemoStore()
-    // Seed before first render so the director's guided/sandbox gate is correct immediately.
-    applyUrlState(storeRef.current, mode, step)
   }
   const store = storeRef.current
 
-  const lastUrl = useRef(`${mode}|${step ?? ''}`)
-  useEffect(() => {
-    const key = `${mode}|${step ?? ''}`
-    if (lastUrl.current === key) return
-    lastUrl.current = key
-    applyUrlState(store, mode, step)
-  }, [store, mode, step])
-
   const currentChapter = useStore(store, (s) => s.currentChapter)
-  const currentMode = useStore(store, (s) => s.mode)
   const view = useStore(store, (s) => s.view)
-  const auth = useStore(store, (s) => s.auth)
   const cases = useStore(store, (s) => s.cases)
   const locations = useStore(store, (s) => s.locations)
   const modal = useStore(store, (s) => s.modal)
@@ -217,8 +164,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     prevViewRef.current = view
   }
 
-  const [pulses, setPulses] = useState<Pulse[]>([])
-  const pulseTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
@@ -229,7 +174,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const importCancelled = useRef(false) // set when the modal is closed mid-import (H2)
+  // Import cancellation token (H1): each run captures its own generation; cancelling —
+  // or starting a newer run — bumps the counter, so a stale in-flight run fails its
+  // checkpoint even after another run begins. A shared boolean is NOT enough: the
+  // newer run's "reset" would un-cancel the stale one and let it mutate the store.
+  const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [caseCompleted, setCaseCompleted] = useState(false)
@@ -237,47 +186,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
 
-  // Play the chapter's beat on enter (guided only); cancel + clear its pulse timers on leave.
-  useEffect(() => {
-    if (currentMode !== 'guided') return
-    const beat = BEATS[currentChapter]
-    if (!beat) return
-    const timers = pulseTimers.current
-    const handle = runBeat(store, beat, {
-      onPulse: (e) => {
-        const id = `${e.target}-${pulseSeq++}`
-        setPulses((p) => [...p, { id, x: 189, y: 393 }])
-        const t = setTimeout(() => {
-          timers.delete(t)
-          setPulses((p) => p.filter((x) => x.id !== id))
-        }, 650)
-        timers.add(t)
-      },
-    })
-    handle.done.then(() => {
-      if (handle.degraded && process.env.NODE_ENV !== 'production') {
-        console.error(`[demo] chapter "${currentChapter}" beat degraded:`, handle.warnings)
-      }
-    })
-    return () => {
-      handle.cancel()
-      timers.forEach((t) => clearTimeout(t))
-      timers.clear()
-    }
-  }, [store, currentMode, currentChapter])
-
   // Clear a pending device-sync timer if the experience unmounts mid-sync.
   useEffect(() => () => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
   }, [])
 
-  const guided = currentMode === 'guided'
-  // The Map tab is a sandbox tab view, not a guided chapter — show its contextual copy on the rail
+  // The Map tab is a tab view, not a chapter — show its contextual copy on the rail
   // while currentChapter stays on the last real chapter.
   const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
-  const dots: RailDot[] = TOUR_CHAPTERS.map((id) => ({ id, label: NARRATION[id].title }))
-  const stepCaption = `Step ${chapterNumber(currentChapter)} of ${TOUR_CHAPTERS.length}`
-  const nextLabel = currentChapter === 'splash' ? 'Start the tour' : nextChapter(currentChapter) ? 'Next' : 'Replay tour'
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
@@ -291,15 +207,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
-  // recorded date + scopes. Clock is read here (never at render): fixed in guided mode,
-  // real in sandbox. The persisted totalDvrRetention (the PDF's source) is kept in sync —
-  // written only while firstRecordedDate drives it, and cleared on a set→empty transition,
-  // so an import-provided value (which leaves firstRecordedDate empty) is never clobbered.
+  // recorded date + scopes. Clock is read here (never at render). The persisted
+  // totalDvrRetention (the PDF's source) is kept in sync — written only while
+  // firstRecordedDate drives it, and cleared on a set→empty transition, so an
+  // import-provided value (which leaves firstRecordedDate empty) is never clobbered.
   const prevFirstRecorded = useRef('')
   useEffect(() => {
     const fr = currentLocation?.form.dvr.firstRecordedDate ?? ''
-    const now = currentMode === 'guided' ? GUIDED_NOW : realNow
-    const view = buildRetentionView(currentLocation?.form.scopes ?? [], fr, now)
+    const view = buildRetentionView(currentLocation?.form.scopes ?? [], fr, realNow)
     setRetentionView(view)
     if (currentLocation) {
       if (fr) {
@@ -312,7 +227,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
     }
     prevFirstRecorded.current = fr
-  }, [store, currentMode, currentLocation])
+  }, [store, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
   const formList = <T extends { id: string }>(list: T[], path: string) =>
@@ -368,22 +283,41 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     store.getState().closeModal()
   }
-  // Live in sandbox (calls /api/extract → Ollama); deterministic SAMPLE in guided/tests.
-  const importLive = () => currentMode === 'sandbox'
   const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
 
+  // Exhaustive by construction (review M2): every FallbackMode must decide its notice
+  // here — a new variant is a compile error, not a silently-missing warning. Only
+  // 'none' (the visitor's own document was used) legitimately renders nothing.
   const fallbackNotice = (mode: FallbackMode): string | undefined => {
-    if (mode === 'unavailable') return 'Live model not configured — imported the sample request instead.'
-    if (mode === 'error') return 'Couldn’t reach the live model — imported the sample request instead.'
-    return undefined
+    switch (mode) {
+      case 'none':
+        return undefined
+      case 'sample':
+        return 'Live import was disabled — imported the sample request instead.'
+      case 'unavailable':
+        return 'Live model not configured — imported the sample request instead.'
+      case 'error':
+        return 'Couldn’t reach the live model — imported the sample request instead.'
+      default: {
+        const exhaustive: never = mode
+        return exhaustive
+      }
+    }
   }
 
   // Forward-geocode the imported address BEFORE creating the location (mirrors the phone's
   // persistMappedImport) so imported locations land on the map. Non-blocking: no token / no match
-  // → the location is still created, just without a pin.
-  const applySuccess = async (caseId: string, res: Extract<ImportRunResult, { ok: true }>): Promise<string> => {
+  // → the location is still created, just without a pin. The generation token is re-checked
+  // AFTER the geocode await (review H2): a cancel landing during the round-trip must discard
+  // the run — returns null and writes nothing.
+  const applySuccess = async (
+    caseId: string,
+    res: Extract<ImportRunResult, { ok: true }>,
+    myGen: number,
+  ): Promise<string | null> => {
     const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
     const coords = query ? await forwardGeocode(query) : null
+    if (importGen.current !== myGen) return null // cancelled mid-geocode — do not touch the store
     const id = store.getState().addLocation(caseId, {
       locationName: res.patch.businessName || res.filename || 'Imported location',
       gps: coords ? { lat: coords.lat, lng: coords.lng, source: 'geocoded' } : undefined,
@@ -398,8 +332,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     locations: ImportedLocationView[]
     failures: ImportFailure[]
   }
-  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally) => {
-    const locId = await applySuccess(caseId, res)
+  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number) => {
+    const locId = await applySuccess(caseId, res, myGen)
+    if (locId === null) return // run invalidated mid-geocode — nothing was written, tally untouched
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
     tally.locations.push(
@@ -411,6 +346,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         fieldCount: res.fieldCount,
         timeFrameCount: res.timeFrameCount,
         filename: res.filename,
+        fallbackMode: res.fallbackMode, // per-card sample attribution (review M1)
       }),
     )
   }
@@ -439,18 +375,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
-    importCancelled.current = false
-    const live = importLive()
+    const myGen = ++importGen.current // this run's token — any bump invalidates it
     const total = files.length
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
-      if (importCancelled.current) return // user closed the modal mid-batch
+      if (importGen.current !== myGen) return // cancelled, or a newer run started
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
-      const res = await runPdfImport(files[i], { live, onStage: onImportStage })
-      if (importCancelled.current) return // cancelled while this file was processing
-      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
+      const res = await runPdfImport(files[i], { live: true, onStage: onImportStage })
+      if (importGen.current !== myGen) return // cancelled while this file was processing
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
+    if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
     finishImport(tally)
   }
 
@@ -460,18 +396,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
-    if (importLive() && !imp.text.trim()) {
+    if (!imp.text.trim()) {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Paste the request text first.' } }))
       return
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
-    importCancelled.current = false
+    const myGen = ++importGen.current // this run's token — any bump invalidates it
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
-    const res = await runTextImport({ documentText: imp.text, live: importLive(), onStage: onImportStage })
-    if (importCancelled.current) return
+    const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage })
+    if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
+    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
+    if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
     finishImport(tally)
   }
 
@@ -546,7 +483,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   function activeScreen() {
     switch (view) {
       case 'splash':
-        return <SplashScreen authState={auth === 'authorized' ? 'authorized' : 'idle'} onScan={() => store.getState().setView('dashboard')} />
+        return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
       case 'dashboard':
         return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} />
       case 'cases':
@@ -757,13 +694,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               result={imp.result}
               batch={imp.batch}
               onPickPdf={openFilePicker}
-              // Sandbox: blank textarea (paste your own). Guided: seed the sample request.
-              onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: currentMode === 'sandbox' ? '' : SAMPLE_REQUEST_DOC }))}
+              onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: '' }))}
               onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
               onRun={runPasteImport}
               onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
               onRetry={() => {
-                importCancelled.current = false
+                // No token reset here: a retry simply starts a new run, which takes
+                // its own generation. An untokened clear would revive stale runs (H1).
                 setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
               }}
               onOpenLocation={(locId) => {
@@ -771,7 +708,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
                 store.getState().closeModal()
               }}
               onCancel={() => {
-                importCancelled.current = true // stop any in-flight import loop (H2)
+                importGen.current++ // invalidate any in-flight run's token (H1/H2)
                 store.getState().closeModal()
               }}
             />
@@ -799,7 +736,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
-          interactive={!guided}
           tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
@@ -845,22 +781,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
-          <TouchIndicator pulses={pulses} />
         </PhoneFrame>
       </div>
-      <StoryRail
-        narration={narration}
-        mode={currentMode}
-        dots={dots}
-        activeDot={currentChapter}
-        stepCaption={stepCaption}
-        canPrev={prevChapter(currentChapter) !== null}
-        nextLabel={nextLabel}
-        onNext={onNext}
-        onPrev={onPrev}
-        onJump={(id) => store.getState().setView(id)}
-        onSetMode={(m) => (m === 'guided' ? store.getState().seedGuided() : store.getState().reset())}
-      />
+      <StoryRail narration={narration} />
     </div>
   )
 }

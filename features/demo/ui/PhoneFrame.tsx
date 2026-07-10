@@ -18,13 +18,12 @@ export interface PhoneFrameProps {
   children?: ReactNode
   /** Slot rendered above the home indicator (e.g. the bottom TabBar). */
   tabBar?: ReactNode
-  /** Guided mode locks the phone — the screen subtree gets pointer-events:none. */
-  interactive?: boolean
 }
 
 /** The device shell — lifted verbatim from the prototype (404 frame · 378×786 screen · status
- *  bar · dynamic island · scan sweep · home indicator). Children render in the screen slot. */
-export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameProps) {
+ *  bar · dynamic island · scan sweep · home indicator). Children render in the screen slot;
+ *  the screen is always interactive (the guided tour's pointer lock was removed with it). */
+export function PhoneFrame({ children, tabBar }: PhoneFrameProps) {
   const scale = usePhoneScale()
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null)
   return (
@@ -140,7 +139,7 @@ export function PhoneFrame({ children, tabBar, interactive = true }: PhoneFrameP
               bottom: 0,
               zIndex: 10,
               overflow: 'hidden',
-              pointerEvents: interactive ? 'auto' : 'none',
+              pointerEvents: 'auto',
             }}
           >
             {children}

@@ -18,7 +18,6 @@ function loc(over: Partial<DemoLocation> = {}, formOver: Partial<LocationForm> =
     requesterEmail: '',
     locationContact: '',
     locationPhone: '',
-    isSeed: false,
     form: { ...blankLocationForm(), ...formOver },
     ...over,
   }

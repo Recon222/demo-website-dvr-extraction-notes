@@ -1,15 +1,17 @@
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import type { NewCaseInput, NewLocationInput } from '@/features/demo/engine/store/create-store'
 
-/** A blank store (sandbox-style, no seed). */
+/** A blank store — the empty sandbox boot (there is no other kind of store anymore). */
 export function freshStore(): DemoStore {
   return createDemoStore()
 }
 
-/** A store with the guided seed case/location loaded. */
-export function seededStore(): DemoStore {
+/** A store with one visitor-created case + location selected (blank form) —
+ *  the common starting point for wizard/selector tests. */
+export function storeWithLocation(): DemoStore {
   const store = createDemoStore()
-  store.getState().seedGuided()
+  const c = store.getState().createCase(newCaseInput())
+  store.getState().addLocation(c, newLocationInput())
   return store
 }
 

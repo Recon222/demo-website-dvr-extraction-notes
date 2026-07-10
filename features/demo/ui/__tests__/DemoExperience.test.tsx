@@ -1,73 +1,42 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NARRATION } from '@/features/demo/engine/content/narration'
-
-const { searchParams } = vi.hoisted(() => ({
-  searchParams: { get: vi.fn<(k: string) => string | null>(() => null) },
-}))
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
-
-const { runBeat, cancelSpy } = vi.hoisted(() => {
-  const cancelSpy = vi.fn()
-  return {
-    cancelSpy,
-    runBeat: vi.fn(() => ({ cancel: cancelSpy, done: Promise.resolve(undefined), warnings: [], degraded: false })),
-  }
-})
-vi.mock('@/features/demo/engine/director/runner', () => ({ runBeat, realClock: {} }))
-
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
-beforeEach(() => {
-  searchParams.get.mockReset()
-  searchParams.get.mockReturnValue(null)
-  runBeat.mockClear()
-  cancelSpy.mockClear()
-})
-
-describe('DemoExperience', () => {
-  it('starts in guided mode by default and locks the phone', () => {
+// The sandbox-only boot: no URL modes, no director, no tour chrome. The visitor lands
+// on an empty, fully interactive phone with the rail narration following the screen.
+describe('DemoExperience (sandbox-only boot)', () => {
+  it('boots on the Cases screen with an empty library', () => {
     render(<DemoExperience />)
-    expect(screen.getByRole('button', { name: 'Start the tour' })).toBeInTheDocument()
-    expect((document.querySelector('[data-phone-screen]') as HTMLElement).style.pointerEvents).toBe('none')
+    expect(screen.getByText(/No cases yet/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: NARRATION.cases.title })).toBeInTheDocument()
   })
 
-  it('renders the active screen inside the phone (splash for the splash view)', () => {
+  it('the phone is interactive immediately (New case opens the modal)', () => {
     render(<DemoExperience />)
-    expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument() // the SplashScreen, in the phone
+    const screenEl = document.querySelector('[data-phone-screen]') as HTMLElement
+    expect(screenEl.style.pointerEvents).not.toBe('none')
+    fireEvent.click(screen.getByRole('button', { name: 'New case' }))
+    expect(screen.getByText('New Case')).toBeInTheDocument() // the modal shell title
   })
 
-  it('honors ?mode=sandbox (interactive phone + driving callout)', () => {
-    searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
+  it('renders no tour chrome: no mode toggle, no step caption, no rail nav', () => {
+    render(<DemoExperience />)
+    expect(screen.queryByText(/Guided tour/i)).toBeNull()
+    expect(screen.queryByText(/Free explore/i)).toBeNull()
+    expect(screen.queryByText(/Step \d+ of \d+/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start the tour' })).toBeNull()
+  })
+
+  it('narration follows the screen (Dashboard tab → dashboard narration)', () => {
+    render(<DemoExperience />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }))
+    expect(screen.getByRole('heading', { level: 2, name: NARRATION.dashboard.title })).toBeInTheDocument()
+  })
+
+  it('keeps the standing “You’re driving” card and shows the chapter tip', () => {
     render(<DemoExperience />)
     expect(screen.getByText(/You.re driving/)).toBeInTheDocument()
-    expect((document.querySelector('[data-phone-screen]') as HTMLElement).style.pointerEvents).toBe('auto')
-  })
-
-  it('does not run the director in sandbox mode', () => {
-    searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
-    render(<DemoExperience />)
-    expect(runBeat).not.toHaveBeenCalled()
-  })
-
-  it('honors ?step=time-offset by showing that chapter’s real narration title', () => {
-    searchParams.get.mockImplementation((k) => (k === 'step' ? 'time-offset' : null))
-    render(<DemoExperience />)
-    expect(screen.getByRole('heading', { level: 2, name: NARRATION.timeOffset.title })).toBeInTheDocument()
-    expect(screen.queryByText(NARRATION.splash.title)).toBeNull()
-  })
-
-  it('advances the chapter and triggers the director on Rail Next', () => {
-    render(<DemoExperience />)
-    runBeat.mockClear() // ignore the splash beat fired on mount
-    fireEvent.click(screen.getByRole('button', { name: 'Start the tour' }))
-    expect(runBeat).toHaveBeenCalled()
-  })
-
-  it('cancels the director on unmount', () => {
-    const { unmount } = render(<DemoExperience />)
-    cancelSpy.mockClear()
-    unmount()
-    expect(cancelSpy).toHaveBeenCalled()
+    expect(screen.getByText(NARRATION.cases.tip!)).toBeInTheDocument() // tips are always-on hints now
   })
 })

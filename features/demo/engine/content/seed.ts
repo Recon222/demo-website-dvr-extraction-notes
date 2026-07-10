@@ -1,11 +1,12 @@
-import type { DemoCase, DemoLocation, LocationForm } from '@/features/demo/engine/types'
+import type { LocationForm } from '@/features/demo/engine/types'
 
 /**
- * The canonical guided-tour content. Everything here is tagged `isSeed: true` so the
- * sandbox's `reset()` can drop it cleanly — seed and visitor-created data never mix.
+ * Demo content shared by the import pipeline and the store.
  *
- * `SAMPLE_REQUEST_DOC` is the detective email the AI-import chapter extracts from; it
- * exercises every field of the import mapper.
+ * `SAMPLE_REQUEST_DOC` is the detective email the AI import extracts from — it exercises
+ * every field of the import mapper and is the fallback document when the live model is
+ * unavailable (see ui/import/run-import.ts). The demo itself boots EMPTY (owner decision:
+ * the visitor creates everything; the guided tour and its seed case were removed with it).
  */
 
 export const SAMPLE_REQUEST_DOC = `From: det.mchugh.4471@peelpolice.ca
@@ -24,7 +25,7 @@ Thanks,
 Det. Liam McHugh #4471
 Central Robbery`
 
-/** A blank location form — empty arrays/strings; the guided tour types into it live.
+/** A blank location form — empty arrays/strings.
  *  Exported so the store reuses one definition when creating new locations. */
 export function blankLocationForm(): LocationForm {
   return {
@@ -63,43 +64,3 @@ export function blankLocationForm(): LocationForm {
   }
 }
 
-export const SEED_CASE: DemoCase = {
-  id: 'seed-case',
-  caseNumber: 'PR25-0098213',
-  displayName: "Kim's Convenience — B&E",
-  unit: 'Central Robbery',
-  oicName: 'L. McHugh',
-  oicBadge: '4471',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: "Kim's Convenience",
-  incidentStreetAddress: '1450 Eglinton Ave W',
-  incidentCity: 'Mississauga',
-  // Approx. 1450 Eglinton Ave W, Mississauga — demo-illustrative so the seeded case plots on the map.
-  incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
-  notes: '',
-  status: 'draft',
-  createdLabel: 'Mar 9, 2025',
-  isSeed: true,
-  locationIds: ['seed-loc'],
-}
-
-export const SEED_LOCATION: DemoLocation = {
-  id: 'seed-loc',
-  caseId: 'seed-case',
-  locationName: "Kim's Convenience",
-  businessName: "Kim's Convenience",
-  streetAddress: '1450 Eglinton Ave W',
-  city: 'Mississauga',
-  requesterName: 'Liam McHugh',
-  requesterBadge: '4471',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: 'det.mchugh.4471@peelpolice.ca',
-  locationContact: 'Sandeep Gill',
-  locationPhone: '905-555-0142',
-  // Same site as the incident; geocoded so the recovery-location pin plots on the map.
-  gps: { lat: 43.6087, lng: -79.6505, accuracyM: 0, source: 'geocoded' },
-  isSeed: true,
-  form: blankLocationForm(),
-}
