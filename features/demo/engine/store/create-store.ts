@@ -86,6 +86,11 @@ export interface DemoState {
    *  rail narration stays anchored to it on non-chapter views (Map, launchables). */
   currentChapter: ChapterId
   capture: CaptureState
+  /** Everything the visitor has seen this session — view ids, launchable ids, and modal
+   *  ids, recorded by setView/launch/openModal. The exploration manifest derives its lit
+   *  state from this (engine/content/explore.ts + selectExploreStatus). Session-only:
+   *  a reload (or reset) starts the record over. */
+  visited: Readonly<Record<string, true>>
 }
 
 export interface DemoActions {
@@ -127,8 +132,13 @@ export function initialState(): DemoState {
     drawerOpen: false,
     currentChapter: 'cases',
     capture: blankCapture(),
+    visited: { cases: true }, // you boot there — it counts
   }
 }
+
+/** Idempotent visit record — returns the same object when already visited (render economy). */
+const visit = (v: Readonly<Record<string, true>>, id: string): Readonly<Record<string, true>> =>
+  v[id] ? v : { ...v, [id]: true }
 
 /** True when a view value is a chapter (not a launch-only screen like OCR/media, nor the Map tab).
  *  Keeps `currentChapter` on the last real chapter so the rail/narration never break on the Map view. */
@@ -213,12 +223,17 @@ export function createDemoStore(): DemoStore {
       set((s) => ({ locations: s.locations.map((l) => (l.id === id ? setPath(l, path, value) : l)) }))
     },
 
-    setView: (view) => set(isChapterId(view) ? { view, currentChapter: view } : { view }),
-    openModal: (modal) => set({ modal }),
+    setView: (view) =>
+      set((s) =>
+        isChapterId(view)
+          ? { view, currentChapter: view, visited: visit(s.visited, view) }
+          : { view, visited: visit(s.visited, view) },
+      ),
+    openModal: (modal) => set((s) => ({ modal, visited: visit(s.visited, modal) })),
     closeModal: () => set({ modal: null }),
     setDrawerOpen: (open) => set({ drawerOpen: open }),
 
-    launch: (screen) => set({ view: screen }),
+    launch: (screen) => set((s) => ({ view: screen, visited: visit(s.visited, screen) })),
     closeLaunch: () => set((s) => ({ view: s.currentChapter })),
 
     calculateOffset: () => {
