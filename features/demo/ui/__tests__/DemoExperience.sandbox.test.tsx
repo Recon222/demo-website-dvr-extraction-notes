@@ -233,6 +233,43 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.length).toBe(0)
   })
 
+  it('a cancelled import cannot resurface after a newer run starts (H1: per-run token)', async () => {
+    let resolveA: (r: ImportRunResult) => void = () => {}
+    let resolveB: (r: ImportRunResult) => void = () => {}
+    runPdf
+      .mockReturnValueOnce(new Promise<ImportRunResult>((res) => { resolveA = res }))
+      .mockReturnValueOnce(new Promise<ImportRunResult>((res) => { resolveB = res }))
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-RACE', displayName: 'Race', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+    // Run A starts and is cancelled while its request is still in flight…
+    fireEvent.change(input(), { target: { files: [new File(['x'], 'stale.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    // …then run B starts. Starting B must NOT revive cancelled run A (a shared
+    // cancel boolean would be cleared here — the exact H1 race).
+    act(() => {
+      store.getState().openModal('import')
+    })
+    fireEvent.change(input(), { target: { files: [new File(['y'], 'live.pdf', { type: 'application/pdf' })] } })
+
+    // Stale run A resolves AFTER B began: it must be discarded, not written to the store.
+    await act(async () => {
+      resolveA(okRun({ filename: 'stale.pdf' }))
+    })
+    expect(store.getState().locations.length).toBe(0) // no phantom location from A
+
+    // Run B completes normally and is the only import that lands.
+    await act(async () => {
+      resolveB(okRun({ filename: 'live.pdf' }))
+    })
+    expect(store.getState().locations.length).toBe(1)
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+  })
+
   it('empty paste (sandbox) shows a guard message — no model call, no location (M2)', async () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

@@ -174,7 +174,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const importCancelled = useRef(false) // set when the modal is closed mid-import (H2)
+  // Import cancellation token (H1): each run captures its own generation; cancelling —
+  // or starting a newer run — bumps the counter, so a stale in-flight run fails its
+  // checkpoint even after another run begins. A shared boolean is NOT enough: the
+  // newer run's "reset" would un-cancel the stale one and let it mutate the store.
+  const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [caseCompleted, setCaseCompleted] = useState(false)
@@ -348,14 +352,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
-    importCancelled.current = false
+    const myGen = ++importGen.current // this run's token — any bump invalidates it
     const total = files.length
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
-      if (importCancelled.current) return // user closed the modal mid-batch
+      if (importGen.current !== myGen) return // cancelled, or a newer run started
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       const res = await runPdfImport(files[i], { live: true, onStage: onImportStage })
-      if (importCancelled.current) return // cancelled while this file was processing
+      if (importGen.current !== myGen) return // cancelled while this file was processing
       if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
@@ -373,10 +377,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
-    importCancelled.current = false
+    const myGen = ++importGen.current // this run's token — any bump invalidates it
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
     const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage })
-    if (importCancelled.current) return
+    if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     if (res.ok) await recordSuccess(caseId, caseNumber, res, tally)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
@@ -670,7 +674,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               onRun={runPasteImport}
               onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
               onRetry={() => {
-                importCancelled.current = false
+                // No token reset here: a retry simply starts a new run, which takes
+                // its own generation. An untokened clear would revive stale runs (H1).
                 setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
               }}
               onOpenLocation={(locId) => {
@@ -678,7 +683,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
                 store.getState().closeModal()
               }}
               onCancel={() => {
-                importCancelled.current = true // stop any in-flight import loop (H2)
+                importGen.current++ // invalidate any in-flight run's token (H1/H2)
                 store.getState().closeModal()
               }}
             />
