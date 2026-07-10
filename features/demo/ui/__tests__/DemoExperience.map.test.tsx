@@ -2,15 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
-const { searchParams } = vi.hoisted(() => ({
-  searchParams: { get: vi.fn<(k: string) => string | null>(() => null) },
-}))
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
-vi.mock('@/features/demo/engine/director/runner', () => ({
-  runBeat: vi.fn(() => ({ cancel: vi.fn(), done: Promise.resolve(undefined), warnings: [], degraded: false })),
-  realClock: {},
-}))
-
 // mapbox-gl is mocked (no WebGL); a constructable (non-arrow) Map so `new mapboxgl.Map(...)` works.
 const { mapInstance } = vi.hoisted(() => {
   const mapInstance = {
@@ -27,8 +18,6 @@ import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { MAP_NARRATION } from '@/features/demo/engine/content/narration'
 
 beforeEach(() => {
-  searchParams.get.mockReset()
-  searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null)) // interactive sandbox
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
 afterEach(() => vi.unstubAllEnvs())

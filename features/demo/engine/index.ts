@@ -1,7 +1,8 @@
 /**
  * Public API of the interactive-demo engine — the pure state/logic core: domain types,
- * content registries, the time/OCR/import/PDF logic, the Zustand store + selectors, and the
- * director. Consumed by the demo UI in features/demo/ui.
+ * content registries, the time/OCR/import/PDF logic, and the Zustand store + selectors.
+ * Consumed by the demo UI in features/demo/ui. (The guided-tour director was removed —
+ * the demo is sandbox-only; see docs/features/demo-explorer/.)
  *
  * External code imports from '@/features/demo/engine'; internal modules use their aliased paths.
  */
@@ -11,7 +12,7 @@ export type * from '@/features/demo/engine/types'
 
 // ---- Content registries ----
 export {
-  TOUR_CHAPTERS,
+  CHAPTERS,
   WIZARD_SCREENS,
   LAUNCHABLE,
   DRAWER_DEFS,
@@ -21,7 +22,7 @@ export {
   prevChapter,
 } from '@/features/demo/engine/content/screens'
 export { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-export { SEED_CASE, SEED_LOCATION, SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
+export { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 export { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 
 // ---- Logic: time / OCR / import / PDF ----
@@ -32,7 +33,7 @@ export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinate
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
-// ---- Store (Milestone 2) ----
+// ---- Store ----
 export {
   createDemoStore,
   type DemoStore,
@@ -50,8 +51,3 @@ export {
   selectDrawerItems,
   selectCaseNotesData,
 } from '@/features/demo/engine/store/selectors'
-
-// ---- Director (Milestone 2) ----
-export { runBeat, realClock, type Clock, type RunBeatOptions, type BeatHandle } from '@/features/demo/engine/director/runner'
-export { BEATS } from '@/features/demo/engine/director/beats'
-export type { Beat, BeatStep, PulseEvent } from '@/features/demo/engine/director/types'

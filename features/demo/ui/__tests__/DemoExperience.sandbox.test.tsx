@@ -2,13 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
-// Drive the *interactive sandbox* surface end-to-end (the bridge's most-grown, least-covered code):
+// Drive the interactive surface end-to-end (the bridge's most-grown, least-covered code):
 // the marquee OCR→offset path, the import pipeline, and the PDF-preview mount.
-const { searchParams } = vi.hoisted(() => ({
-  searchParams: { get: vi.fn<(k: string) => string | null>(() => null) },
-}))
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }))
-
 // The import orchestrator (pdf.js + the model proxy) is mocked — no network, no real PDF.
 vi.mock('@/features/demo/ui/import/run-import', () => ({ runImport: vi.fn(), runPdfImport: vi.fn() }))
 
@@ -40,8 +35,6 @@ const okRun = (over: Partial<Extract<ImportRunResult, { ok: true }>> = {}): Impo
 type Store = ReturnType<typeof createDemoStore>
 
 beforeEach(() => {
-  searchParams.get.mockReset()
-  searchParams.get.mockImplementation((k) => (k === 'mode' ? 'sandbox' : null))
   runText.mockReset()
   runPdf.mockReset()
 })
@@ -205,20 +198,20 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.length).toBe(0)
   })
 
-  it('guided mode imports deterministically (live=false)', async () => {
-    searchParams.get.mockImplementation(() => null) // guided (no ?mode)
-    runText.mockResolvedValue(okRun({ fallbackMode: 'guided' }))
+  it('imports always run live — the model does the import step (sandbox-only demo)', async () => {
+    runText.mockResolvedValue(okRun())
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
-      store.getState().createCase({ caseNumber: 'PR25-G', displayName: 'Guided', unit: 'Robbery' })
+      store.getState().createCase({ caseNumber: 'PR25-L', displayName: 'Live', unit: 'Robbery' })
       store.getState().openModal('import')
     })
     fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'video request text' } })
     fireEvent.click(screen.getByText('Extract & import'))
 
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
-    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: false }))
+    expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true }))
   })
 
   it('cancelling mid-import does not create a location (H2)', async () => {

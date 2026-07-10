@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
+import { freshStore, storeWithLocation, newCaseInput, newLocationInput } from './test-utils'
 import {
   selectCurrentCase,
   selectCurrentLocation,
@@ -15,9 +15,10 @@ describe('selectors', () => {
   it('select current case/location return the selected entities, else null', () => {
     expect(selectCurrentCase(freshStore().getState())).toBeNull()
     expect(selectCurrentLocation(freshStore().getState())).toBeNull()
-    const s = seededStore().getState()
-    expect(selectCurrentCase(s)?.id).toBe('seed-case')
-    expect(selectCurrentLocation(s)?.id).toBe('seed-loc')
+    const s = storeWithLocation().getState()
+    expect(selectCurrentCase(s)?.id).toBe(s.currentCaseId)
+    expect(selectCurrentCase(s)?.caseNumber).toBe('PR25-0098213')
+    expect(selectCurrentLocation(s)?.id).toBe(s.currentLocationId)
   })
 
   it('selectLocationsForCase returns only that case’s locations', () => {
@@ -50,7 +51,9 @@ describe('selectLocationMapStatus', () => {
     expect(selectLocationMapStatus(selectCurrentLocation(store.getState())!)).toBe('started')
   })
 
-  it('a partly-filled location (the seed) reads as working', () => {
-    expect(selectLocationMapStatus(selectCurrentLocation(seededStore().getState())!)).toBe('working')
+  it('a partly-filled location reads as working', () => {
+    const store = storeWithLocation()
+    store.getState().updateField('form.dvr.dvrTypeBrand', 'Hikvision DS-7608') // one screen partial
+    expect(selectLocationMapStatus(selectCurrentLocation(store.getState())!)).toBe('working')
   })
 })

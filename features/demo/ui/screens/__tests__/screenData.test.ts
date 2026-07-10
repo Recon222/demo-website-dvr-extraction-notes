@@ -18,7 +18,6 @@ const aCase = (over: Partial<DemoCase> = {}): DemoCase => ({
   notes: '',
   status: 'draft',
   createdLabel: 'Mar 9, 2025',
-  isSeed: false,
   locationIds: ['l1'],
   ...over,
 })
@@ -37,7 +36,6 @@ const aLoc = (over: Partial<DemoLocation> = {}): DemoLocation => ({
   requesterEmail: '',
   locationContact: '',
   locationPhone: '',
-  isSeed: false,
   form: blankLocationForm(),
   ...over,
 })

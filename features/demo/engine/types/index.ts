@@ -6,9 +6,8 @@
  * See docs/features/interactive-demo/01-interactive-demo-architecture.md §4.
  */
 
-// ---- Profiles & modes -------------------------------------------------------
+// ---- Profiles ---------------------------------------------------------------
 export type Profile = 'forensic' | 'canvas'
-export type DemoMode = 'guided' | 'sandbox'
 
 // ---- Screen identifiers -----------------------------------------------------
 /** The 10 in-drawer wizard screens, in Next/Back order. */
@@ -182,9 +181,6 @@ export interface DemoCase {
   notes: string
   status: 'draft' | 'complete' | 'archived'
   createdLabel: string
-  /** true for scripted demo seed data; false for visitor-created (fixes the
-   *  prototype's canned-data-persistence bug — seed and user data never mix). */
-  readonly isSeed: boolean
   locationIds: string[]
 }
 
@@ -204,7 +200,6 @@ export interface DemoLocation {
   locationContact: string
   locationPhone: string
   gps?: GpsCoordinates & { source: 'gps' | 'geocoded' | 'manual' }
-  readonly isSeed: boolean
   form: LocationForm
 }
 

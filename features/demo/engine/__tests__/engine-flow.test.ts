@@ -1,34 +1,29 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { seededStore, freshStore, newCaseInput, newLocationInput } from '@/features/demo/engine/store/__tests__/test-utils'
-import type { DemoStore } from '@/features/demo/engine/store/create-store'
-import { runBeat } from '@/features/demo/engine/director/runner'
-import { BEATS } from '@/features/demo/engine/director/beats'
-import { TOUR_CHAPTERS } from '@/features/demo/engine/content/screens'
+import { describe, it, expect } from 'vitest'
+import { freshStore, newCaseInput, newLocationInput } from '@/features/demo/engine/store/__tests__/test-utils'
 import { selectCaseNotesData, selectCurrentLocation } from '@/features/demo/engine/store/selectors'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
-import type { ChapterId } from '@/features/demo/engine/types'
 
-// The whole engine, headless: run the guided beats against a store (no UI) and a manual
-// sandbox flow, asserting the resulting state + the real court PDF.
-beforeEach(() => vi.useFakeTimers())
-afterEach(() => vi.useRealTimers())
+// The whole engine, headless: a visitor-style pass from the empty boot all the way to the
+// real court PDF — the sandbox flow IS the demo now (the guided director no longer exists).
+describe('sandbox pass (headless)', () => {
+  it('createCase → addLocation → scopes → offset → extracted scopes → notes → Case Notes PDF', () => {
+    const store = freshStore()
+    expect(store.getState().view).toBe('cases') // the empty boot
 
-async function play(store: DemoStore, chapter: ChapterId) {
-  const beat = BEATS[chapter]
-  if (!beat) return
-  const handle = runBeat(store, beat, { typeSpeedMs: 1 })
-  await vi.runAllTimersAsync()
-  await handle.done
-}
-
-describe('guided happy path (headless)', () => {
-  it('plays the tour beats into a populated location + notes + a real Case Notes PDF', async () => {
-    const store = seededStore()
-    for (const chapter of TOUR_CHAPTERS) await play(store, chapter)
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.scopes', [
+      { id: 's1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3, 4, 7' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+    store.getState().generateNotes()
 
     const loc = selectCurrentLocation(store.getState())
     expect(loc?.businessName).toBe("Kim's Convenience")
-    expect(loc?.form.timeOffset?.formattedDifference).toBe('00:05:30') // computed via OCR sub-beat + calculate
+    expect(loc?.form.timeOffset?.formattedDifference).toBe('00:05:30')
     expect(loc?.form.extractedScopes.length).toBeGreaterThan(0) // DVR-time scopes from the offset
     expect(loc?.form.notesText).toContain('PR25-0098213')
 
@@ -37,12 +32,9 @@ describe('guided happy path (headless)', () => {
     expect(html).toContain('PR25-0098213')
     expect(html).toContain('Extraction Scope')
   })
-})
 
-describe('sandbox path (headless)', () => {
-  it('creates a case + two locations and round-trips updateField with no seed data present', () => {
+  it('creates a case + two locations and round-trips updateField per location', () => {
     const store = freshStore()
-    store.getState().reset() // blank sandbox slate
     const c = store.getState().createCase(newCaseInput())
     const l1 = store.getState().addLocation(c, newLocationInput({ locationName: 'Front' }))
     const l2 = store.getState().addLocation(c, newLocationInput({ locationName: 'Rear' }))
@@ -50,9 +42,7 @@ describe('sandbox path (headless)', () => {
     expect(l1).not.toBe(l2)
     store.getState().switchLocation(l1)
     store.getState().updateField('businessName', 'Front Store')
-
-    expect(store.getState().cases.some((x) => x.isSeed)).toBe(false)
-    expect(store.getState().locations.some((x) => x.isSeed)).toBe(false)
     expect(selectCurrentLocation(store.getState())?.businessName).toBe('Front Store')
+    expect(store.getState().locations.find((l) => l.id === l2)?.businessName).toBe("Kim's Convenience")
   })
 })

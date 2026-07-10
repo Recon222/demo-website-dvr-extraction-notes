@@ -1,4 +1,3 @@
-import { vi } from 'vitest'
 import type { ChapterNarration } from '@/features/demo/engine/types'
 import type { StoryRailProps } from '@/features/demo/ui/StoryRail'
 
@@ -14,23 +13,11 @@ export function makeNarration(o: Partial<ChapterNarration> = {}): ChapterNarrati
   }
 }
 
-/** Default StoryRail props with vi.fn() callbacks, overridable. */
+/** Default StoryRail props, overridable. (The rail is single-mode: narration only —
+ *  the tour controls were removed with the guided tour.) */
 export function storyRailProps(o: Partial<StoryRailProps> = {}): StoryRailProps {
   return {
     narration: makeNarration(),
-    mode: 'guided',
-    dots: [
-      { id: 'splash', label: 'Splash' },
-      { id: 'dashboard', label: 'Dashboard' },
-    ],
-    activeDot: 'splash',
-    stepCaption: 'Step 1 of 13',
-    canPrev: false,
-    nextLabel: 'Start the tour',
-    onNext: vi.fn(),
-    onPrev: vi.fn(),
-    onJump: vi.fn(),
-    onSetMode: vi.fn(),
     ...o,
   }
 }

@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
-import { storyRailProps } from './test-utils'
+import { storyRailProps, makeNarration } from './test-utils'
 
+// Single-mode rail: eyebrow + narration + always-on tip + the standing driving card.
+// The tour chrome (mode toggle, dots, step caption, Next/Back) was removed with the tour.
 describe('StoryRail', () => {
   it('renders eyebrow/title/paras/bullets for the current chapter', () => {
     render(<StoryRail {...storyRailProps()} />)
@@ -12,35 +14,26 @@ describe('StoryRail', () => {
     expect(screen.getByText('Face ID gate')).toBeInTheDocument()
   })
 
-  it('shows Rail Next/Prev in guided mode', () => {
-    render(<StoryRail {...storyRailProps({ mode: 'guided', nextLabel: 'Next' })} />)
-    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
-    expect(screen.getByText('Back')).toBeInTheDocument()
+  it('renders the tip card whenever the narration has one', () => {
+    render(<StoryRail {...storyRailProps()} />)
+    expect(screen.getByText('Tap the scanner.')).toBeInTheDocument()
   })
 
-  it('hides the guided Next in sandbox mode (shows the driving callout instead)', () => {
-    render(<StoryRail {...storyRailProps({ mode: 'sandbox', nextLabel: 'Next' })} />)
-    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+  it('renders no tip card when the narration has none', () => {
+    render(<StoryRail {...storyRailProps({ narration: makeNarration({ tip: undefined }) })} />)
+    expect(screen.queryByText('Tap the scanner.')).toBeNull()
+  })
+
+  it('renders the standing “You’re driving” card', () => {
+    render(<StoryRail {...storyRailProps()} />)
     expect(screen.getByText(/You.re driving/)).toBeInTheDocument()
   })
 
-  it('calls onNext when Rail Next is clicked', () => {
-    const onNext = vi.fn()
-    render(<StoryRail {...storyRailProps({ nextLabel: 'Next', onNext })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(onNext).toHaveBeenCalledOnce()
-  })
-
-  it('calls onPrev / onJump / onSetMode from the rail controls', () => {
-    const onPrev = vi.fn()
-    const onJump = vi.fn()
-    const onSetMode = vi.fn()
-    render(<StoryRail {...storyRailProps({ canPrev: true, nextLabel: 'Next', onPrev, onJump, onSetMode })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    expect(onPrev).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' })) // the inactive progress dot
-    expect(onJump).toHaveBeenCalledWith('dashboard')
-    fireEvent.click(screen.getByRole('button', { name: 'Free explore' }))
-    expect(onSetMode).toHaveBeenCalledWith('sandbox')
+  it('renders no tour chrome (toggle, dots, step caption, Next/Back)', () => {
+    render(<StoryRail {...storyRailProps()} />)
+    expect(screen.queryByText(/Guided tour/i)).toBeNull()
+    expect(screen.queryByText(/Free explore/i)).toBeNull()
+    expect(screen.queryByText(/Step \d+ of \d+/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^(Next|Back|Start the tour)$/ })).toBeNull()
   })
 })

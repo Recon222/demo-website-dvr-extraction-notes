@@ -77,12 +77,6 @@
   100% { background-color: rgba(43, 140, 193, 0); }
 }
 
-/* Touch-pulse ripple — new primitive (the director's tap feedback) in the prototype's cyan. */
-@keyframes demoPulse {
-  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.55; }
-  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
-}
-
 /* Bottom-sheet slide-up for the picker sheets (calendar / time wheel). */
 @keyframes sheetUp {
   from { transform: translateY(100%); }

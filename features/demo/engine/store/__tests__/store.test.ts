@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { freshStore, seededStore, newCaseInput, newLocationInput } from './test-utils'
+import { freshStore, newCaseInput, newLocationInput } from './test-utils'
 import { selectCurrentLocation } from '@/features/demo/engine/store/selectors'
 import type { ScopeEntry } from '@/features/demo/engine/types'
 
@@ -12,49 +12,41 @@ const scope = (o: Partial<ScopeEntry> = {}): ScopeEntry => ({
   ...o,
 })
 
-describe('seedGuided / reset', () => {
-  it('seedGuided loads the seed case+location flagged isSeed and selects them', () => {
-    const s = seededStore().getState()
-    expect(s.cases.some((c) => c.id === 'seed-case' && c.isSeed)).toBe(true)
-    expect(s.locations.some((l) => l.id === 'seed-loc' && l.isSeed)).toBe(true)
-    expect(s.currentCaseId).toBe('seed-case')
-    expect(s.currentLocationId).toBe('seed-loc')
-  })
-
-  it('reset removes all isSeed records and clears the current ids', () => {
-    const store = seededStore()
-    store.getState().reset()
-    const s = store.getState()
-    expect(s.cases.filter((c) => c.isSeed)).toHaveLength(0)
-    expect(s.locations.filter((l) => l.isSeed)).toHaveLength(0)
+describe('boot state (the empty sandbox — there is no other mode)', () => {
+  it('boots on the cases view with no data, no modal, no drawer', () => {
+    const s = freshStore().getState()
+    expect(s.view).toBe('cases')
+    expect(s.currentChapter).toBe('cases')
+    expect(s.cases).toHaveLength(0)
+    expect(s.locations).toHaveLength(0)
     expect(s.currentCaseId).toBeNull()
     expect(s.currentLocationId).toBeNull()
+    expect(s.modal).toBeNull()
+    expect(s.drawerOpen).toBe(false)
   })
 
-  it('after reset, createCase yields a case with isSeed:false', () => {
-    const store = seededStore()
-    store.getState().reset()
-    const id = store.getState().createCase(newCaseInput())
-    expect(store.getState().cases.find((c) => c.id === id)?.isSeed).toBe(false)
-  })
-
-  it('reset keeps visitor-created (non-seed) records and only drops the seed', () => {
-    const store = seededStore() // seed-case + seed-loc loaded
-    const userCase = store.getState().createCase(newCaseInput({ caseNumber: 'USER-1' }))
-    const userLoc = store.getState().addLocation(userCase, newLocationInput())
+  it('reset() returns a dirtied store to the same empty boot state (start over)', () => {
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().setView('timeOffset')
+    store.getState().setDrawerOpen(true)
     store.getState().reset()
     const s = store.getState()
-    expect(s.cases.some((c) => c.id === userCase)).toBe(true) // visitor data survives
-    expect(s.locations.some((l) => l.id === userLoc)).toBe(true)
-    expect(s.cases.some((c) => c.isSeed)).toBe(false) // seed gone
-    expect(s.locations.some((l) => l.isSeed)).toBe(false)
+    expect(s.view).toBe('cases')
+    expect(s.currentChapter).toBe('cases')
+    expect(s.cases).toHaveLength(0)
+    expect(s.locations).toHaveLength(0)
+    expect(s.currentCaseId).toBeNull()
+    expect(s.currentLocationId).toBeNull()
+    expect(s.drawerOpen).toBe(false)
   })
 
-  it('reset switches to sandbox mode on the cases view', () => {
-    const store = seededStore()
-    store.getState().reset()
-    expect(store.getState().mode).toBe('sandbox')
-    expect(store.getState().view).toBe('cases')
+  it('the tour is gone: no seedGuided/setMode actions, no mode/auth state', () => {
+    const s = freshStore().getState() as unknown as Record<string, unknown>
+    for (const gone of ['seedGuided', 'setMode', 'mode', 'auth']) {
+      expect(gone in s, `"${gone}" should no longer exist on the store`).toBe(false)
+    }
   })
 })
 

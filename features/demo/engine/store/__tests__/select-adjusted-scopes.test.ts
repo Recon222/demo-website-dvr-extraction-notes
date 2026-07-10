@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { createDemoStore } from '@/features/demo/engine/store/create-store'
+import { storeWithLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 import { selectAdjustedScopes, selectCaseNotesData } from '@/features/demo/engine/store/selectors'
 
 describe('selectAdjustedScopes', () => {
   it('returns the EXACT corrected times — no 5-minute rounding (that belongs to the extracted scope)', () => {
-    const store = createDemoStore()
-    store.getState().seedGuided() // current location = seed-loc (blank form)
+    const store = storeWithLocation() // current location selected, blank form
     store.getState().updateField('form.scopes', [
       { id: 's1', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: true, cameras: '3, 4' },
     ])
@@ -34,8 +33,7 @@ describe('selectAdjustedScopes', () => {
   })
 
   it('returns [] before an offset is calculated', () => {
-    const store = createDemoStore()
-    store.getState().seedGuided()
+    const store = storeWithLocation()
     store.getState().updateField('form.scopes', [
       { id: 's1', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: true, cameras: '' },
     ])

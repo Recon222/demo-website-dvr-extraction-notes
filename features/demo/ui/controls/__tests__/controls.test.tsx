@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { WizardDrawer, type DrawerItem } from '@/features/demo/ui/controls/WizardDrawer'
-import { RailNav } from '@/features/demo/ui/controls/RailNav'
 
 describe('TabBar', () => {
   it('renders the three tabs and calls onSelect', () => {
@@ -67,20 +66,3 @@ describe('WizardDrawer', () => {
   })
 })
 
-describe('RailNav', () => {
-  it('renders Back as a real disabled button when there is no prior step', () => {
-    render(<RailNav canPrev={false} nextLabel="Next" onPrev={vi.fn()} onNext={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
-  })
-
-  it('enables Back and fires both callbacks', () => {
-    const onPrev = vi.fn()
-    const onNext = vi.fn()
-    render(<RailNav canPrev nextLabel="Next" onPrev={onPrev} onNext={onNext} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(onPrev).toHaveBeenCalledOnce()
-    expect(onNext).toHaveBeenCalledOnce()
-  })
-})
