@@ -26,7 +26,7 @@ describe('slideDirection', () => {
     expect(slideDirection('submission', 'mediaCapture')).toBe('none')
   })
 
-  it('warns in development for a view in neither TOUR_CHAPTERS nor LAUNCHABLE (missing registration)', () => {
+  it('warns in development for a view in neither CHAPTERS nor LAUNCHABLE (missing registration)', () => {
     vi.stubEnv('NODE_ENV', 'development')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     slideDirection('cases', 'unregisteredScreen' as ChapterId)

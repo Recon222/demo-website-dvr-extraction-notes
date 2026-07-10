@@ -1,9 +1,8 @@
-/* Demo phone styles — globals + keyframes. The font imports, resets, and keyframes (every one
-   except `demoPulse`, which is new for the M3 TouchIndicator) are lifted verbatim from the
-   prototype's <style> block (DVR Extraction Notes Tour.dc.html). The prototype is inline-styled,
-   so the phone/screen element styling lives inline on the components; this file holds the globals
-   + the animation library those inline styles reference (several keyframes here are used by the
-   M4 screens, not yet by M3). Imported once by DemoExperience. Do not restyle the lifted rules. */
+/* Demo phone styles — globals + keyframes, lifted verbatim from the prototype's <style>
+   block (DVR Extraction Notes Tour.dc.html). The prototype is inline-styled, so the
+   phone/screen element styling lives inline on the components; this file holds the globals
+   + the animation library those inline styles reference. Imported once by DemoExperience.
+   Do not restyle the lifted rules. */
 
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700');

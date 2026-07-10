@@ -25,7 +25,7 @@ Thanks,
 Det. Liam McHugh #4471
 Central Robbery`
 
-/** A blank location form — empty arrays/strings; the guided tour types into it live.
+/** A blank location form — empty arrays/strings.
  *  Exported so the store reuses one definition when creating new locations. */
 export function blankLocationForm(): LocationForm {
   return {
