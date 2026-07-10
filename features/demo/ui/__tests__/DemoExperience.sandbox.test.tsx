@@ -233,6 +233,17 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(store.getState().locations.length).toBe(0)
   })
 
+  it('the exploration manifest lights rows as screens are visited and jumps on click', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    // Boot: the Cases row is lit (you start there), Dashboard is not.
+    expect(screen.getByRole('button', { name: 'Cases & Locations, visited' })).toBeInTheDocument()
+    // Clicking an unlit row navigates the phone and lights it.
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard, not visited yet' }))
+    expect(store.getState().view).toBe('dashboard')
+    expect(screen.getByRole('button', { name: 'Dashboard, visited' })).toBeInTheDocument()
+  })
+
   it('a sample-substituted run always renders a notice (review M2: exhaustive fallback copy)', async () => {
     runText.mockResolvedValue(okRun({ fallbackMode: 'sample' }))
     const store = createDemoStore()

@@ -30,6 +30,19 @@ describe('DemoExperience — Map tab wiring', () => {
     expect(document.querySelector('[data-map-screen]')).toBeInTheDocument()
   })
 
+  it('the manifest Map row jumps to the zero-case map, which is escapable via the tab bar', () => {
+    // The checklist routes visitors here before any case exists — the empty picker
+    // must not be a trap (docs/features/demo-explorer/ arch §5).
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Case Map, not visited yet' }))
+    expect(store.getState().view).toBe('map')
+    expect(screen.getByText('No cases yet')).toBeInTheDocument() // picker's empty state
+    fireEvent.click(screen.getByLabelText('Cases')) // tab bar still reachable
+    expect(store.getState().view).toBe('cases')
+    expect(screen.getByRole('button', { name: 'Case Map, visited' })).toBeInTheDocument()
+  })
+
   it('shows the map narration on the rail (not a wizard chapter)', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

@@ -1,20 +1,27 @@
 'use client'
 
 import type { ChapterNarration } from '@/features/demo/engine/types'
+import type { AppView } from '@/features/demo/engine/store/create-store'
+import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
+import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 
 const mono = "'JetBrains Mono',monospace"
 
 export interface StoryRailProps {
   narration: ChapterNarration
+  /** The exploration manifest rows (registry × visited, from selectExploreStatus). */
+  explore: ExploreStatus[]
+  /** Row click → navigate the phone. */
+  onJump(view: AppView): void
 }
 
 /**
  * The narrative rail beside the phone: walkthrough eyebrow, the standing "you're driving"
- * callout, and the per-screen narration + tip. The copy follows whatever screen the visitor
- * lands on (the tour chrome — mode toggle, progress dots, Next/Back — was removed with the
- * guided tour; the demo is hands-on only). Presentational — all state arrives as props.
+ * callout, the exploration manifest (what you've seen, click to jump), and the per-screen
+ * narration + tip. The copy follows whatever screen the visitor lands on. Presentational —
+ * all state arrives as props.
  */
-export function StoryRail({ narration }: StoryRailProps) {
+export function StoryRail({ narration, explore, onJump }: StoryRailProps) {
   return (
     <div style={{ flex: '1 1 auto', minWidth: 420, maxWidth: 680, padding: '52px 56px 80px 36px', color: '#e7eef6' }}>
       <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
@@ -33,6 +40,9 @@ export function StoryRail({ narration }: StoryRailProps) {
           </div>
         </div>
       </div>
+
+      {/* exploration manifest — lights up as screens are visited; rows jump the phone */}
+      <ExploreChecklist items={explore} onJump={onJump} />
 
       {/* narration pane */}
       <div data-rail-pane>
