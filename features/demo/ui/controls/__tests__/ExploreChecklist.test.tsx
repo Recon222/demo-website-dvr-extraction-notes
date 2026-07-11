@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { StrictMode } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
@@ -73,6 +74,25 @@ describe('ExploreChecklist', () => {
       expect(scroll).toHaveBeenCalledTimes(1)
       // smooth in the default (no reduced-motion) test env; block:start reveals the copy below the row
       expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: 'start', behavior: 'smooth' }))
+    } finally {
+      Element.prototype.scrollIntoView = orig
+    }
+  })
+
+  it('does not scroll on the initial mount, even under StrictMode double-invoke', () => {
+    // The guard is a prev-id ref, not a mounted flag — so React's dev double-mount
+    // (StrictMode) re-runs the effect but sees the same active id and stays put. A
+    // mounted-flag regression would fire a spurious first-paint scroll here.
+    const scroll = vi.fn()
+    const orig = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    try {
+      render(
+        <StrictMode>
+          <ExploreChecklist items={items} onJump={vi.fn()} />
+        </StrictMode>,
+      )
+      expect(scroll).not.toHaveBeenCalled()
     } finally {
       Element.prototype.scrollIntoView = orig
     }
