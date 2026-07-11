@@ -269,7 +269,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     // Boot: the Cases row is lit (you start there), Dashboard is not.
-    expect(screen.getByRole('button', { name: 'Cases & Locations, visited' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cases, visited' })).toBeInTheDocument()
     // Clicking an unlit row navigates the phone and lights it.
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard, not visited yet' }))
     expect(store.getState().view).toBe('dashboard')
