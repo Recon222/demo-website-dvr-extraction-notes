@@ -1,6 +1,7 @@
 'use client'
 
-import { Fragment, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useReducedMotion } from 'motion/react'
 import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
 
@@ -25,6 +26,7 @@ const row: CSSProperties = {
   cursor: 'pointer',
   textAlign: 'left',
   width: '100%',
+  scrollMarginTop: 24, // gap above the row when it's scrolled to the top of the viewport
 }
 
 /**
@@ -37,6 +39,20 @@ const row: CSSProperties = {
 export function ExploreChecklist({ items, onJump, activeDetail }: ExploreChecklistProps) {
   const seen = items.filter((i) => i.visited).length
   const done = seen === items.length
+
+  // Keep the active step + its copy in view as the visitor advances (deep rows would
+  // otherwise sit low). Fires only when the active row *changes* — never on mount, and
+  // StrictMode-safe (prev-id guard, not a mounted flag). Instant when reduced motion.
+  const reduce = useReducedMotion()
+  const activeRowRef = useRef<HTMLButtonElement | null>(null)
+  const activeId = items.find((i) => i.active)?.id
+  const prevActiveId = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (prevActiveId.current !== undefined && prevActiveId.current !== activeId) {
+      activeRowRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    }
+    prevActiveId.current = activeId
+  }, [activeId, reduce])
   return (
     <div style={{ marginBottom: 34 }}>
       <div
@@ -52,6 +68,7 @@ export function ExploreChecklist({ items, onJump, activeDetail }: ExploreCheckli
           <Fragment key={it.id}>
             <button
               type="button"
+              ref={it.active ? activeRowRef : undefined}
               onClick={() => onJump(it.jumpTo)}
               aria-label={`${it.label}, ${it.visited ? 'visited' : 'not visited yet'}`}
               data-explore-active={it.active ? '' : undefined}

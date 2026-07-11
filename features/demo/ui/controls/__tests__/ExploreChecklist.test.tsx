@@ -58,4 +58,23 @@ describe('ExploreChecklist', () => {
     render(<ExploreChecklist items={items} onJump={vi.fn()} />)
     expect(screen.queryByTestId('detail')).toBeNull()
   })
+
+  it('scrolls the active row into view when the active row changes, never on mount', () => {
+    const scroll = vi.fn()
+    const orig = Element.prototype.scrollIntoView // jsdom leaves this unimplemented
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const { rerender } = render(<ExploreChecklist items={items} onJump={vi.fn()} />)
+      expect(scroll).not.toHaveBeenCalled() // no yank on first render
+
+      rerender(
+        <ExploreChecklist items={items.map((i) => ({ ...i, active: i.id === 'dashboard' }))} onJump={vi.fn()} />,
+      )
+      expect(scroll).toHaveBeenCalledTimes(1)
+      // smooth in the default (no reduced-motion) test env; block:start reveals the copy below the row
+      expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: 'start', behavior: 'smooth' }))
+    } finally {
+      Element.prototype.scrollIntoView = orig
+    }
+  })
 })
