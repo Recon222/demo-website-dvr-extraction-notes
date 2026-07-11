@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { storyRailProps, makeNarration } from './test-utils'
 
@@ -27,6 +27,15 @@ describe('StoryRail', () => {
   it('renders the standing “You’re driving” card', () => {
     render(<StoryRail {...storyRailProps()} />)
     expect(screen.getByText(/You.re driving/)).toBeInTheDocument()
+  })
+
+  it('renders the back-to-site link and routes its click through onBackToSite', () => {
+    const onBackToSite = vi.fn()
+    render(<StoryRail {...storyRailProps({ onBackToSite })} />)
+    const link = screen.getByRole('link', { name: /back to site/i })
+    expect(link).toHaveAttribute('href', '/')
+    fireEvent.click(link)
+    expect(onBackToSite).toHaveBeenCalledOnce()
   })
 
   it('renders the exploration manifest with its rows', () => {

@@ -16,6 +16,7 @@ vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
 }))
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
+import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
 
 const runText = vi.mocked(runTextImport)
@@ -231,6 +232,37 @@ describe('DemoExperience — sandbox bridge paths', () => {
       await Promise.resolve()
     })
     expect(store.getState().locations.length).toBe(0)
+  })
+
+  it('Back to site with unseen items opens the before-you-go dialog instead of navigating', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByRole('link', { name: /back to site/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/before you go/i)).toBeInTheDocument()
+    // “Keep exploring” closes it and the demo is untouched
+    fireEvent.click(screen.getByRole('button', { name: 'Keep exploring' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(store.getState().view).toBe('cases')
+  })
+
+  it('Back to site with everything visited navigates directly (no dialog)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      // Visit every covered id in the registry (only 'import' is a modal in v1).
+      for (const item of EXPLORE_ITEMS) {
+        for (const id of item.covers) {
+          if (id === 'import') store.getState().openModal(id)
+          else store.getState().setView(id as Exclude<typeof id, 'import' | 'newCase' | 'newLocation' | 'mediaLibrary'>)
+        }
+      }
+      store.getState().closeModal()
+    })
+    // Swallow jsdom's unimplemented navigation for the real link click.
+    document.addEventListener('click', (e) => e.preventDefault(), { capture: true, once: true })
+    fireEvent.click(screen.getByRole('link', { name: /back to site/i }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('the exploration manifest lights rows as screens are visited and jumps on click', () => {

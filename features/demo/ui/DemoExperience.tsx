@@ -11,6 +11,7 @@ import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
+import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -201,6 +202,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view ARE the selector's inputs, read through getState
     [store, visited, view],
   )
+  // Exit flow: leaving with unlit manifest rows opens the before-you-go dialog;
+  // all-explored lets the link navigate normally. Dialog state is UI-only.
+  const [exitOpen, setExitOpen] = useState(false)
+  const unseen = useMemo(() => explore.filter((i) => !i.visited).map((i) => ({ number: i.number, label: i.label })), [explore])
+  const onBackToSite = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (unseen.length > 0) {
+      e.preventDefault()
+      setExitOpen(true)
+    }
+  }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
@@ -790,7 +801,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
         </PhoneFrame>
       </div>
-      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} />
+      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />
+      <ExitDialog open={exitOpen} unseen={unseen} leaveHref="/" onStay={() => setExitOpen(false)} />
     </div>
   )
 }

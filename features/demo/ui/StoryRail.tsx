@@ -13,6 +13,8 @@ export interface StoryRailProps {
   explore: ExploreStatus[]
   /** Row click → navigate the phone. */
   onJump(view: AppView): void
+  /** Back-to-site click — the bridge decides: navigate, or preventDefault + dialog. */
+  onBackToSite(e: React.MouseEvent<HTMLAnchorElement>): void
 }
 
 /**
@@ -21,9 +23,18 @@ export interface StoryRailProps {
  * narration + tip. The copy follows whatever screen the visitor lands on. Presentational —
  * all state arrives as props.
  */
-export function StoryRail({ narration, explore, onJump }: StoryRailProps) {
+export function StoryRail({ narration, explore, onJump, onBackToSite }: StoryRailProps) {
   return (
     <div style={{ flex: '1 1 auto', minWidth: 420, maxWidth: 680, padding: '52px 56px 80px 36px', color: '#e7eef6' }}>
+      {/* the way back to the marketing site — the bridge gates it on unseen manifest rows */}
+      <a
+        href="/"
+        onClick={onBackToSite}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: 1.5, color: '#5d7a9a', textTransform: 'uppercase', textDecoration: 'none', marginBottom: 20 }}
+      >
+        <span aria-hidden="true">←</span> Back to site
+      </a>
+
       <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
         DVR Extraction Notes · Interactive Walkthrough
       </div>
