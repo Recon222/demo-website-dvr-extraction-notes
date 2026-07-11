@@ -21,6 +21,11 @@ describe('marketing chrome scope (guards /demo)', () => {
     expect(rootLayout).not.toMatch(/<Header\b/)
     expect(rootLayout).not.toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(rootLayout).not.toMatch(/<Footer\b/)
+    // The ambient background scan is marketing chrome too. /demo's ONLY layout ancestor is
+    // this root layout (there is no app/demo/layout.tsx), so hoisting the scan up here would
+    // leak it onto the demo — the exact regression the demo's own no-scan pin is named for,
+    // which backdrop.test.ts can't catch (it only reads the demo's own files). (review H3)
+    expect(rootLayout).not.toMatch(/case-scan/)
   })
 
   // UtilityStrip was removed from the chrome entirely (owner decision — seamless
