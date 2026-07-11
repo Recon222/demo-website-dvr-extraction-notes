@@ -6,6 +6,10 @@ import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
 import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 
 const mono = "'JetBrains Mono',monospace"
+// Marketing voice (7C garnish): eyebrows in Share Tech Mono, headings in Nacelle —
+// the root layout sets both vars on <body>, so /demo inherits them for free.
+const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
+const nacelle = 'var(--font-nacelle),sans-serif'
 
 export interface StoryRailProps {
   narration: ChapterNarration
@@ -35,7 +39,7 @@ export function StoryRail({ narration, explore, onJump, onBackToSite }: StoryRai
         <span aria-hidden="true">←</span> Back to site
       </a>
 
-      <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
+      <div style={{ fontFamily: stmono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
         DVR Extraction Notes · Interactive Walkthrough
       </div>
 
@@ -57,10 +61,10 @@ export function StoryRail({ narration, explore, onJump, onBackToSite }: StoryRai
 
       {/* narration pane */}
       <div data-rail-pane>
-        <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: 2, color: '#2B8CC1', textTransform: 'uppercase', marginBottom: 14 }}>
+        <div style={{ fontFamily: stmono, fontSize: 12, letterSpacing: 2, color: '#2B8CC1', textTransform: 'uppercase', marginBottom: 14 }}>
           {narration.eyebrow}
         </div>
-        <h2 style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.1, margin: '0 0 22px', color: '#f4f8fc', letterSpacing: '-0.5px' }}>
+        <h2 style={{ fontFamily: nacelle, fontSize: 38, fontWeight: 700, lineHeight: 1.1, margin: '0 0 22px', color: '#f4f8fc', letterSpacing: '-0.5px' }}>
           {narration.title}
         </h2>
         {narration.paras.map((p, i) => (

@@ -740,14 +740,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   return (
     <div
       data-demo-root
+      // The Case-File backdrop (ink base, blueprint grid, top glow) lives in demo.css
+      // under "Case-File backdrop" — with the tuning knobs. Only layout stays inline.
       style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'flex-start',
         gap: 8,
-        background: '#060c14',
-        backgroundImage:
-          'linear-gradient(135deg,#0a1422 0%,#060c14 55%,#0b1320 100%),repeating-linear-gradient(0deg,rgba(153,186,221,0.028) 0 1px,transparent 1px 46px),repeating-linear-gradient(90deg,rgba(153,186,221,0.028) 0 1px,transparent 1px 46px)',
         color: '#e7eef6',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
       }}
