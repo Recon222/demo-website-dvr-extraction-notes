@@ -1,4 +1,5 @@
 import type { AppView } from '@/features/demo/engine/store/create-store'
+import type { ModalId } from '@/features/demo/engine/types'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 
 /**
@@ -19,8 +20,10 @@ export interface ExploreItem {
   id: string
   /** Rail display name. */
   label: string
-  /** Visited when ANY of these recorded ids is visited. */
-  covers: readonly string[]
+  /** Visited when ANY of these recorded ids is visited. Typed to the recordable id
+   *  space (what setView/launch/openModal can write) so a typo'd entry is a compile
+   *  error, not a permanently-unlit row (review M1). */
+  covers: readonly (AppView | ModalId)[]
   /** Where a row click navigates the phone. */
   jumpTo: AppView
 }
@@ -32,6 +35,6 @@ export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   // row jumps to Cases (where the per-case Import button lives).
   { id: 'import', label: 'AI Import', covers: ['import'], jumpTo: 'cases' },
   // The 10 wizard screens, labels shared with the in-phone drawer — one source of truth.
-  ...DRAWER_DEFS.map((d) => ({ id: d.id, label: d.label, covers: [d.id] as const, jumpTo: d.id as AppView })),
+  ...DRAWER_DEFS.map((d) => ({ id: d.id, label: d.label, covers: [d.id], jumpTo: d.id })),
   { id: 'map', label: 'Case Map', covers: ['map'], jumpTo: 'map' },
 ]

@@ -26,6 +26,13 @@ describe('EXPLORE_ITEMS registry', () => {
     for (const item of EXPLORE_ITEMS) expect(item.label.length).toBeGreaterThan(0)
   })
 
+  it('covers sets are disjoint across items (keeps "exactly one active row" sound)', () => {
+    // Grouping means ONE item covering MANY ids — never two items sharing an id,
+    // which would light two active markers at once (review L3).
+    const all = EXPLORE_ITEMS.flatMap((i) => [...i.covers])
+    expect(new Set(all).size).toBe(all.length)
+  })
+
   it('lists every wizard screen (labels shared with the drawer) plus dashboard, cases, import, and map', () => {
     const ids = EXPLORE_ITEMS.map((i) => i.id)
     for (const w of WIZARD_SCREENS) expect(ids, `wizard screen "${w}" missing`).toContain(w)
