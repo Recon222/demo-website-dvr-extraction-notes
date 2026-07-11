@@ -45,6 +45,14 @@ describe('StoryRail', () => {
     expect(screen.getByRole('button', { name: 'Dashboard, not visited yet' })).toBeInTheDocument()
   })
 
+  it('renders the per-screen narration directly beneath the active manifest row', () => {
+    const { container } = render(<StoryRail {...storyRailProps()} />)
+    const pane = container.querySelector('[data-rail-pane]')
+    expect(pane?.previousElementSibling).toBe(
+      screen.getByRole('button', { name: 'Cases & Locations, visited' }),
+    )
+  })
+
   it('renders no tour chrome (toggle, dots, step caption, Next/Back)', () => {
     render(<StoryRail {...storyRailProps()} />)
     expect(screen.queryByText(/Guided tour/i)).toBeNull()

@@ -38,4 +38,24 @@ describe('ExploreChecklist', () => {
     expect(container.querySelectorAll('[data-led="on"]')).toHaveLength(1)
     expect(container.querySelectorAll('[data-explore-active]')).toHaveLength(1)
   })
+
+  it('renders activeDetail directly beneath the active row', () => {
+    render(
+      <ExploreChecklist
+        items={items}
+        onJump={vi.fn()}
+        activeDetail={<div data-testid="detail">DETAIL</div>}
+      />,
+    )
+    // the per-screen copy sits under the active row, not below the whole list
+    const detail = screen.getByTestId('detail')
+    expect(detail.previousElementSibling).toBe(
+      screen.getByRole('button', { name: 'Cases & Locations, visited' }),
+    )
+  })
+
+  it('renders no activeDetail node when none is passed', () => {
+    render(<ExploreChecklist items={items} onJump={vi.fn()} />)
+    expect(screen.queryByTestId('detail')).toBeNull()
+  })
 })
