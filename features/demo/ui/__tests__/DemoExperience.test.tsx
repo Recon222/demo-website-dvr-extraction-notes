@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { NARRATION } from '@/features/demo/engine/content/narration'
+import { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
 // The sandbox-only boot: no URL modes, no director, no tour chrome. The visitor lands
@@ -32,6 +32,14 @@ describe('DemoExperience (sandbox-only boot)', () => {
     render(<DemoExperience />)
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }))
     expect(screen.getByRole('heading', { level: 2, name: NARRATION.dashboard.title })).toBeInTheDocument()
+  })
+
+  it('narration follows the open modal (New case → Create a Case copy on the rail)', () => {
+    render(<DemoExperience />)
+    fireEvent.click(screen.getByRole('button', { name: 'New case' }))
+    // the rail shows the modal's own copy, not the underlying Cases screen copy
+    expect(screen.getByRole('heading', { level: 2, name: MODAL_NARRATION.newCase!.title })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: NARRATION.cases.title })).toBeNull()
   })
 
   it('keeps the standing “You’re driving” card and shows the chapter tip', () => {

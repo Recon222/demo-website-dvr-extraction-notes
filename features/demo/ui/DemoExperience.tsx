@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
-import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
+import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
@@ -193,9 +193,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (syncTimer.current) clearTimeout(syncTimer.current)
   }, [])
 
-  // The Map tab is a tab view, not a chapter — show its contextual copy on the rail
-  // while currentChapter stays on the last real chapter.
-  const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
+  // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
+  // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
+  // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
+  // modal with no narration entry — falls back to the chapter rather than blanking.
+  const narration =
+    (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
   // The manifest recomputes when the visit record or the active view changes.
   const explore = useMemo(
     () => selectExploreStatus(store.getState()),
