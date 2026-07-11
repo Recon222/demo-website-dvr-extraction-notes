@@ -276,6 +276,19 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(screen.getByRole('button', { name: 'Dashboard, visited' })).toBeInTheDocument()
   })
 
+  it('reverts the active manifest row when a modal closes (anchor↔narration parity, H1)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => { store.getState().openModal('import') })
+    // While the import modal is open, the Import Location row owns the active marker.
+    expect(screen.getByRole('button', { name: /Import Location/ })).toHaveAttribute('data-explore-active')
+    act(() => { store.getState().closeModal() })
+    // On close it must revert to the underlying Cases row — not stay stale on Import Location
+    // (the memo that feeds the manifest must recompute when `modal` changes).
+    expect(screen.getByRole('button', { name: /Import Location/ })).not.toHaveAttribute('data-explore-active')
+    expect(screen.getByRole('button', { name: 'Cases, visited' })).toHaveAttribute('data-explore-active')
+  })
+
   it('a sample-substituted run always renders a notice (review M2: exhaustive fallback copy)', async () => {
     runText.mockResolvedValue(okRun({ fallbackMode: 'sample' }))
     const store = createDemoStore()

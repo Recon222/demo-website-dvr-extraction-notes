@@ -199,11 +199,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // modal with no narration entry — falls back to the chapter rather than blanking.
   const narration =
     (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
-  // The manifest recomputes when the visit record or the active view changes.
+  // The manifest recomputes when the visit record, the active view, or the open modal
+  // changes — all three are selectExploreStatus inputs (read via store.getState()), and
+  // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
+  // stale on modal close (only `modal` flips then; visited/view are reference-unchanged).
   const explore = useMemo(
     () => selectExploreStatus(store.getState()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view ARE the selector's inputs, read through getState
-    [store, visited, view],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal ARE the selector's inputs, read through getState
+    [store, visited, view, modal],
   )
   // Exit flow: leaving with unlit manifest rows opens the before-you-go dialog;
   // all-explored lets the link navigate normally. Dialog state is UI-only.
