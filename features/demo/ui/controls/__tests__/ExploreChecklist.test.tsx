@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { StrictMode } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
@@ -37,5 +38,63 @@ describe('ExploreChecklist', () => {
     expect(screen.getByText(/1\/3 explored/i)).toBeInTheDocument()
     expect(container.querySelectorAll('[data-led="on"]')).toHaveLength(1)
     expect(container.querySelectorAll('[data-explore-active]')).toHaveLength(1)
+  })
+
+  it('renders activeDetail directly beneath the active row', () => {
+    render(
+      <ExploreChecklist
+        items={items}
+        onJump={vi.fn()}
+        activeDetail={<div data-testid="detail">DETAIL</div>}
+      />,
+    )
+    // the per-screen copy sits under the active row, not below the whole list
+    const detail = screen.getByTestId('detail')
+    expect(detail.previousElementSibling).toBe(
+      screen.getByRole('button', { name: 'Cases & Locations, visited' }),
+    )
+  })
+
+  it('renders no activeDetail node when none is passed', () => {
+    render(<ExploreChecklist items={items} onJump={vi.fn()} />)
+    expect(screen.queryByTestId('detail')).toBeNull()
+  })
+
+  it('scrolls the active row into view when the active row changes, never on mount', () => {
+    const scroll = vi.fn()
+    const orig = Element.prototype.scrollIntoView // jsdom leaves this unimplemented
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const { rerender } = render(<ExploreChecklist items={items} onJump={vi.fn()} />)
+      expect(scroll).not.toHaveBeenCalled() // no yank on first render
+
+      rerender(
+        <ExploreChecklist items={items.map((i) => ({ ...i, active: i.id === 'dashboard' }))} onJump={vi.fn()} />,
+      )
+      expect(scroll).toHaveBeenCalledTimes(1)
+      // smooth in the default (no reduced-motion) test env; block:start reveals the copy below the row
+      expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: 'start', behavior: 'smooth' }))
+    } finally {
+      Element.prototype.scrollIntoView = orig
+    }
+  })
+
+  it('does not scroll on the initial mount, even under StrictMode double-invoke', () => {
+    // The guard is a prev-id ref, not a mounted flag — so React's dev double-mount
+    // (StrictMode) re-runs the effect but sees the same active id and stays put. A
+    // mounted-flag regression would fire a spurious first-paint scroll here.
+    const scroll = vi.fn()
+    const orig = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    try {
+      render(
+        <StrictMode>
+          <ExploreChecklist items={items} onJump={vi.fn()} />
+        </StrictMode>,
+      )
+      expect(scroll).not.toHaveBeenCalled()
+    } finally {
+      Element.prototype.scrollIntoView = orig
+    }
   })
 })

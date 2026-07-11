@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
-import { NARRATION, MAP_NARRATION } from '@/features/demo/engine/content/narration'
+import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
@@ -11,6 +11,7 @@ import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
+import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -192,15 +193,31 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (syncTimer.current) clearTimeout(syncTimer.current)
   }, [])
 
-  // The Map tab is a tab view, not a chapter — show its contextual copy on the rail
-  // while currentChapter stays on the last real chapter.
-  const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
-  // The manifest recomputes when the visit record or the active view changes.
+  // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
+  // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
+  // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
+  // modal with no narration entry — falls back to the chapter rather than blanking.
+  const narration =
+    (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+  // The manifest recomputes when the visit record, the active view, or the open modal
+  // changes — all three are selectExploreStatus inputs (read via store.getState()), and
+  // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
+  // stale on modal close (only `modal` flips then; visited/view are reference-unchanged).
   const explore = useMemo(
     () => selectExploreStatus(store.getState()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view ARE the selector's inputs, read through getState
-    [store, visited, view],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal ARE the selector's inputs, read through getState
+    [store, visited, view, modal],
   )
+  // Exit flow: leaving with unlit manifest rows opens the before-you-go dialog;
+  // all-explored lets the link navigate normally. Dialog state is UI-only.
+  const [exitOpen, setExitOpen] = useState(false)
+  const unseen = useMemo(() => explore.filter((i) => !i.visited).map((i) => ({ number: i.number, label: i.label })), [explore])
+  const onBackToSite = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (unseen.length > 0) {
+      e.preventDefault()
+      setExitOpen(true)
+    }
+  }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
@@ -729,14 +746,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   return (
     <div
       data-demo-root
+      // The Case-File backdrop (ink base, blueprint grid, top glow) lives in demo.css
+      // under "Case-File backdrop" — with the tuning knobs. Only layout stays inline.
       style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'flex-start',
         gap: 8,
-        background: '#060c14',
-        backgroundImage:
-          'linear-gradient(135deg,#0a1422 0%,#060c14 55%,#0b1320 100%),repeating-linear-gradient(0deg,rgba(153,186,221,0.028) 0 1px,transparent 1px 46px),repeating-linear-gradient(90deg,rgba(153,186,221,0.028) 0 1px,transparent 1px 46px)',
         color: '#e7eef6',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
       }}
@@ -790,7 +806,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
         </PhoneFrame>
       </div>
-      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} />
+      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />
+      <ExitDialog open={exitOpen} unseen={unseen} leaveHref="/" onStay={() => setExitOpen(false)} />
     </div>
   )
 }

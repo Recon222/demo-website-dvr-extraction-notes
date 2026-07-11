@@ -30,10 +30,14 @@ export interface ExploreItem {
 
 export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   { id: 'dashboard', label: 'Dashboard', covers: ['dashboard'], jumpTo: 'dashboard' },
-  { id: 'cases', label: 'Cases & Locations', covers: ['cases'], jumpTo: 'cases' },
-  // The AI import is a modal, not a screen — it lights when the modal opens, and its
-  // row jumps to Cases (where the per-case Import button lives).
-  { id: 'import', label: 'AI Import', covers: ['import'], jumpTo: 'cases' },
+  // The Cases library/tab — kept as the boot-active row (the demo opens here).
+  { id: 'cases', label: 'Cases', covers: ['cases'], jumpTo: 'cases' },
+  // The three case-management actions are modals, not screens — each lights when its
+  // modal opens and is active while it's up (anchor prefers the open modal). They all
+  // route to Cases, where the New Case / Add Location / Import buttons live.
+  { id: 'newCase', label: 'Create a Case', covers: ['newCase'], jumpTo: 'cases' },
+  { id: 'newLocation', label: 'Add a Location', covers: ['newLocation'], jumpTo: 'cases' },
+  { id: 'import', label: 'Import Location', covers: ['import'], jumpTo: 'cases' },
   // The 10 wizard screens, labels shared with the in-phone drawer — one source of truth.
   ...DRAWER_DEFS.map((d) => ({ id: d.id, label: d.label, covers: [d.id], jumpTo: d.id })),
   { id: 'map', label: 'Case Map', covers: ['map'], jumpTo: 'map' },

@@ -48,5 +48,11 @@ if (!HTMLCanvasElement.prototype.getContext) {
     null) as unknown as typeof HTMLCanvasElement.prototype.getContext
 }
 
+// scrollIntoView (the manifest keeps the active step in view) is unimplemented in jsdom —
+// no-op it so components that call it don't throw. Tests that assert on it override this.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
+
 // navigator.mediaDevices is intentionally left undefined so camera/mic screens take the
 // sample-fallback path; individual tests opt into a getUserMedia mock for the live path.

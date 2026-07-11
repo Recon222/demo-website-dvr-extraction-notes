@@ -6,6 +6,10 @@ import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
 import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 
 const mono = "'JetBrains Mono',monospace"
+// Marketing voice (7C garnish): eyebrows in Share Tech Mono, headings in Nacelle —
+// the root layout sets both vars on <body>, so /demo inherits them for free.
+const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
+const nacelle = 'var(--font-nacelle),sans-serif'
 
 export interface StoryRailProps {
   narration: ChapterNarration
@@ -13,6 +17,8 @@ export interface StoryRailProps {
   explore: ExploreStatus[]
   /** Row click → navigate the phone. */
   onJump(view: AppView): void
+  /** Back-to-site click — the bridge decides: navigate, or preventDefault + dialog. */
+  onBackToSite(e: React.MouseEvent<HTMLAnchorElement>): void
 }
 
 /**
@@ -21,10 +27,19 @@ export interface StoryRailProps {
  * narration + tip. The copy follows whatever screen the visitor lands on. Presentational —
  * all state arrives as props.
  */
-export function StoryRail({ narration, explore, onJump }: StoryRailProps) {
+export function StoryRail({ narration, explore, onJump, onBackToSite }: StoryRailProps) {
   return (
     <div style={{ flex: '1 1 auto', minWidth: 420, maxWidth: 680, padding: '52px 56px 80px 36px', color: '#e7eef6' }}>
-      <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
+      {/* the way back to the marketing site — the bridge gates it on unseen manifest rows */}
+      <a
+        href="/"
+        onClick={onBackToSite}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: 1.5, color: '#5d7a9a', textTransform: 'uppercase', textDecoration: 'none', marginBottom: 20 }}
+      >
+        <span aria-hidden="true">←</span> Back to site
+      </a>
+
+      <div style={{ fontFamily: stmono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 30 }}>
         DVR Extraction Notes · Interactive Walkthrough
       </div>
 
@@ -41,28 +56,39 @@ export function StoryRail({ narration, explore, onJump }: StoryRailProps) {
         </div>
       </div>
 
-      {/* exploration manifest — lights up as screens are visited; rows jump the phone */}
-      <ExploreChecklist items={explore} onJump={onJump} />
+      {/* exploration manifest — lights up as screens are visited; rows jump the phone.
+          The per-screen narration renders under the ACTIVE row (activeDetail) so the copy
+          follows the manifest step the visitor is on instead of stranding below the list. */}
+      <ExploreChecklist items={explore} onJump={onJump} activeDetail={<RailNarration narration={narration} />} />
+    </div>
+  )
+}
 
+/** The per-screen copy shown under the active manifest row: eyebrow, title, paras,
+ *  "on this screen" bullets, and the always-on tip. Rendered as loose siblings (no
+ *  wrapper) so the pane sits directly beneath its row inside the manifest list. */
+function RailNarration({ narration }: { narration: ChapterNarration }) {
+  return (
+    <>
       {/* narration pane */}
-      <div data-rail-pane>
-        <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: 2, color: '#2B8CC1', textTransform: 'uppercase', marginBottom: 14 }}>
+      <div data-rail-pane style={{ padding: '16px 2px 4px' }}>
+        <div style={{ fontFamily: stmono, fontSize: 12, letterSpacing: 2, color: '#2B8CC1', textTransform: 'uppercase', marginBottom: 14 }}>
           {narration.eyebrow}
         </div>
-        <h2 style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.1, margin: '0 0 22px', color: '#f4f8fc', letterSpacing: '-0.5px' }}>
+        <h2 style={{ fontFamily: nacelle, fontSize: 30, fontWeight: 700, lineHeight: 1.12, margin: '0 0 18px', color: '#f4f8fc', letterSpacing: '-0.5px' }}>
           {narration.title}
         </h2>
         {narration.paras.map((p, i) => (
-          <p key={i} style={{ fontSize: 16.5, lineHeight: 1.65, color: '#bcccde', margin: '0 0 18px' }}>
+          <p key={i} style={{ fontSize: 15.5, lineHeight: 1.6, color: '#bcccde', margin: '0 0 16px' }}>
             {p}
           </p>
         ))}
         {narration.bullets.length > 0 && (
           <>
-            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 1.5, color: '#7a9fc4', textTransform: 'uppercase', margin: '30px 0 14px' }}>
+            <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 1.5, color: '#7a9fc4', textTransform: 'uppercase', margin: '24px 0 12px' }}>
               On this screen
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
               {narration.bullets.map((b, i) => (
                 <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <div style={{ flex: '0 0 auto', width: 6, height: 6, borderRadius: 3, background: '#4ecdc4', marginTop: 8 }} />
@@ -76,13 +102,13 @@ export function StoryRail({ narration, explore, onJump }: StoryRailProps) {
 
       {/* per-screen tip — the tour's nudges promoted to always-on hints */}
       {narration.tip && (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(255,217,61,0.3)', background: 'rgba(255,217,61,0.07)', marginBottom: 32 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', margin: '14px 0 8px', borderRadius: 12, border: '1px solid rgba(255,217,61,0.3)', background: 'rgba(255,217,61,0.07)' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffd93d" strokeWidth="2" style={{ flex: '0 0 auto', marginTop: 1 }}>
             <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.2 1 2v.5h6V15.5c0-.8.3-1.3 1-2A6 6 0 0 0 12 3z" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div style={{ fontSize: 14, lineHeight: 1.5, color: '#e7d9a6' }}>{narration.tip}</div>
         </div>
       )}
-    </div>
+    </>
   )
 }

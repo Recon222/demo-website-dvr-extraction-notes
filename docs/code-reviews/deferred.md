@@ -510,3 +510,47 @@ required-field enforcement (demo enforces nothing). Plus the **not-yet-built scr
 are larger features the owner hasn't reached.
 
 **Trigger:** revisit per the gaps doc once the field additions land and the settings/media UIs are built.
+
+---
+
+## 27. "Exactly one active manifest row" rests on a disjointness test, not the type or a runtime guard
+
+**Source:** PR #27 review (M1, type-design) + fixes-delta.
+
+**What:** `selectExploreStatus` guarantees at most one active manifest row only because
+`EXPLORE_ITEMS[].covers` are pairwise disjoint. That disjointness is checked solely by
+`explore.test.ts` (`new Set(all).size === all.length` over the flattened covers), not by the
+type (`covers: (AppView | ModalId)[]` permits overlap) nor a runtime guard. This PR tripled the
+modal-covered surface (`newCase` / `newLocation` / `import`), so a copy-paste typo like
+`{ id: 'newLocation', covers: ['newCase'] }` type-checks cleanly and only fails at `pnpm test` —
+two rows would then both render active and render `activeDetail` twice.
+
+**Why deferred:** The existing test is the codebase's accepted enforcement (the M1/L3
+test-over-type precedent). A dev-time runtime assertion is redundant with it, and a type-level
+fix (branded disjoint union) is disproportionate churn for a static, single-author literal. Not a
+bug — covers are disjoint today, test-verified.
+
+**Trigger:** If `covers` construction moves off the single static literal in `explore.ts` — the
+registry becomes generated, multi-author, or assembled at runtime — add the one-line dev-only
+overlap assertion at module load (`if (new Set(all).size !== all.length) throw`), or brand the type.
+
+---
+
+## 28. Rail narration renders only when some manifest row is active (empty-active coupling)
+
+**Source:** PR #27 review (L1, silent-failure) + fixes-delta.
+
+**What:** `ExploreChecklist` renders the per-screen narration via `{it.active ? activeDetail : null}`
+inside the row map, so the copy appears only if some row is active. `selectExploreStatus`'s anchor
+falls through to `state.currentChapter` with no "is this covered by a registry row?" check. If an
+anchor is ever uncovered, no row is active and the rail narration renders nowhere — with no console
+signal.
+
+**Why deferred:** Latent/unreachable today. The only uncovered `ChapterId` is `splash`, excluded
+from `EXPLORE_ITEMS` by design and with no navigable entry (no `setView('splash')` caller, no
+back-wiring on dashboard/cases; guarded by `explore.test.ts`). No live path reaches an empty active
+set, so a fallback now is speculative.
+
+**Trigger:** If `splash` navigation is reintroduced, or any new `ChapterId`/view becomes reachable
+without a covering `EXPLORE_ITEMS` row — either add a covering row, or lift `activeDetail` to the
+list level with a documented `?? NARRATION[currentChapter]` fallback so the rail copy can't vanish.

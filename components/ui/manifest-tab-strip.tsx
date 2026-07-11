@@ -24,7 +24,7 @@ export function ManifestTabStrip({ items }: { items: readonly ManifestTabItem[] 
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Features" className="border-b border-hairline px-10 pb-[14px] pt-[10px]">
+    <nav aria-label="Features" className="px-10 pb-[14px] pt-[10px]">
       <ul className="flex flex-wrap items-center gap-2">
         {items.map((item, index) => {
           const href = `/features/${item.slug}`

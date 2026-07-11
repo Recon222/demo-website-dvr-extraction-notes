@@ -21,14 +21,19 @@ describe('marketing chrome scope (guards /demo)', () => {
     expect(rootLayout).not.toMatch(/<Header\b/)
     expect(rootLayout).not.toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(rootLayout).not.toMatch(/<Footer\b/)
-    expect(rootLayout).not.toMatch(/<UtilityStrip\b/)
+    // The ambient background scan is marketing chrome too. /demo's ONLY layout ancestor is
+    // this root layout (there is no app/demo/layout.tsx), so hoisting the scan up here would
+    // leak it onto the demo — the exact regression the demo's own no-scan pin is named for,
+    // which backdrop.test.ts can't catch (it only reads the demo's own files). (review H3)
+    expect(rootLayout).not.toMatch(/case-scan/)
   })
 
+  // UtilityStrip was removed from the chrome entirely (owner decision — seamless
+  // background work): no assertions reference it anymore.
   it('renders the chrome from the (default) group layout', () => {
     expect(defaultLayout).toMatch(/<Header\b/)
     expect(defaultLayout).toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(defaultLayout).toMatch(/<Footer\b/)
-    expect(defaultLayout).toMatch(/<UtilityStrip\b/)
   })
 
   it('makes the (default) layout a server component with no AOS', () => {

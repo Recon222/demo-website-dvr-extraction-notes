@@ -29,6 +29,7 @@ export function storyRailProps(o: Partial<StoryRailProps> = {}): StoryRailProps 
     narration: makeNarration(),
     explore: makeExplore(),
     onJump: vi.fn(),
+    onBackToSite: vi.fn(),
     ...o,
   }
 }

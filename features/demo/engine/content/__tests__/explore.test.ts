@@ -47,4 +47,21 @@ describe('EXPLORE_ITEMS registry', () => {
   it('excludes splash (unreachable until the deferred video entry)', () => {
     expect(EXPLORE_ITEMS.some((i) => i.id === 'splash' || i.covers.includes('splash'))).toBe(false)
   })
+
+  it('splits case management into Create a Case / Add a Location / Import Location, each lit by its own modal', () => {
+    const byId = (id: string) => EXPLORE_ITEMS.find((i) => i.id === id)
+    expect(byId('newCase')?.label).toBe('Create a Case')
+    expect(byId('newLocation')?.label).toBe('Add a Location')
+    expect(byId('import')?.label).toBe('Import Location')
+    expect(byId('newCase')?.covers).toEqual(['newCase'])
+    expect(byId('newLocation')?.covers).toEqual(['newLocation'])
+    expect(byId('import')?.covers).toEqual(['import'])
+    // the case-management rows all route to the Cases screen where the actions live
+    for (const id of ['newCase', 'newLocation', 'import']) expect(byId(id)?.jumpTo).toBe('cases')
+  })
+
+  it('orders the case-management actions right after Cases, before the wizard', () => {
+    const ids = EXPLORE_ITEMS.map((i) => i.id)
+    expect(ids.slice(0, 5)).toEqual(['dashboard', 'cases', 'newCase', 'newLocation', 'import'])
+  })
 })
