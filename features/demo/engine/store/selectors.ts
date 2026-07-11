@@ -26,10 +26,17 @@ export interface ExploreStatus {
  * the built screens while the owner iterates.
  */
 export function selectExploreStatus(state: DemoState): ExploreStatus[] {
-  // Active anchor mirrors the rail narration: the raw view when an item covers it
-  // (e.g. Map), else the current chapter (e.g. on the OCR launch screen the
-  // Time Offset row stays active, exactly like the narration does).
-  const anchor = EXPLORE_ITEMS.some((it) => it.covers.includes(state.view)) ? state.view : state.currentChapter
+  // Active anchor mirrors the rail narration, most-specific first: the OPEN MODAL when an
+  // item covers it (Create a Case / Add a Location / Import Location light while their modal
+  // is up), else the raw view when an item covers it (e.g. Map), else the current chapter
+  // (e.g. on the OCR launch screen the Time Offset row stays active, like the narration does).
+  const openModal = state.modal
+  const anchor =
+    openModal && EXPLORE_ITEMS.some((it) => it.covers.includes(openModal))
+      ? openModal
+      : EXPLORE_ITEMS.some((it) => it.covers.includes(state.view))
+        ? state.view
+        : state.currentChapter
   return EXPLORE_ITEMS.map((item, i) => ({
     id: item.id,
     number: String(i + 1).padStart(2, '0'),

@@ -62,6 +62,14 @@ describe('selectExploreStatus', () => {
     expect(rows.filter((r) => r.active).map((r) => r.id)).toEqual(['timeOffset'])
     expect(rows.find((r) => r.id === 'timeOffset')?.visited).toBe(true)
   })
+
+  it('makes the modal row active while its modal is open (anchor prefers the open modal)', () => {
+    const store = freshStore() // boots on the cases view
+    store.getState().openModal('import') // modal open; view stays 'cases'
+    const rows = selectExploreStatus(store.getState())
+    // the open modal wins the active marker over the underlying view
+    expect(rows.filter((r) => r.active).map((r) => r.id)).toEqual(['import'])
+  })
 })
 
 describe('selectLocationMapStatus', () => {
