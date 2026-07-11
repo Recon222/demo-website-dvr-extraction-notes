@@ -59,6 +59,57 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
   })
 })
 
+describe('visited tracking (the exploration manifest source)', () => {
+  it('boot marks the cases view visited (you start there)', () => {
+    expect(freshStore().getState().visited).toEqual({ cases: true })
+  })
+
+  it('setView records each view, idempotently', () => {
+    const store = freshStore()
+    store.getState().setView('dashboard')
+    store.getState().setView('map')
+    store.getState().setView('dashboard') // re-visit — no-op
+    expect(store.getState().visited).toEqual({ cases: true, dashboard: true, map: true })
+  })
+
+  it('launch records the launch-only screen; openModal records the modal', () => {
+    const store = freshStore()
+    store.getState().launch('ocr')
+    store.getState().openModal('import')
+    expect(store.getState().visited.ocr).toBe(true)
+    expect(store.getState().visited.import).toBe(true)
+  })
+
+  it('a re-visit returns the SAME visited object — identity, not just value (render economy)', () => {
+    // Pins the visit() identity guard by reference (review M2): an "equivalent"
+    // rewrite that spreads unconditionally would pass toEqual but fail this.
+    const store = freshStore()
+    store.getState().setView('dashboard')
+    store.getState().openModal('import')
+    const before = store.getState().visited
+    store.getState().setView('dashboard') // re-visit via setView
+    store.getState().openModal('import') // re-visit via openModal
+    store.getState().setView('dashboard')
+    expect(store.getState().visited).toBe(before)
+  })
+
+  it('a first visit returns a NEW visited object (the guard works both ways)', () => {
+    const store = freshStore()
+    const before = store.getState().visited
+    store.getState().launch('ocr')
+    expect(store.getState().visited).not.toBe(before)
+    expect(store.getState().visited.ocr).toBe(true)
+  })
+
+  it('reset() clears visited back to the boot record', () => {
+    const store = freshStore()
+    store.getState().setView('dashboard')
+    store.getState().openModal('import')
+    store.getState().reset()
+    expect(store.getState().visited).toEqual({ cases: true })
+  })
+})
+
 describe('createCase / addLocation', () => {
   it('createCase appends a case and returns its id', () => {
     const store = freshStore()

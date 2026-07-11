@@ -29,6 +29,13 @@ describe('StoryRail', () => {
     expect(screen.getByText(/You.re driving/)).toBeInTheDocument()
   })
 
+  it('renders the exploration manifest with its rows', () => {
+    render(<StoryRail {...storyRailProps()} />)
+    expect(screen.getByText(/Exploration manifest/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cases & Locations, visited' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dashboard, not visited yet' })).toBeInTheDocument()
+  })
+
   it('renders no tour chrome (toggle, dots, step caption, Next/Back)', () => {
     render(<StoryRail {...storyRailProps()} />)
     expect(screen.queryByText(/Guided tour/i)).toBeNull()

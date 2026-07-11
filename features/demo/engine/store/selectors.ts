@@ -1,11 +1,44 @@
-import type { DemoState } from '@/features/demo/engine/store/create-store'
+import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
 import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
 import { getProfile } from '@/features/demo/engine/content/profiles'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
+import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
 import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
+
+export interface ExploreStatus {
+  id: string
+  /** Zero-padded position ('01'…) — derived from registry order, never hand-typed. */
+  number: string
+  label: string
+  visited: boolean
+  /** True for the item covering the current view (drives the rail's active marker). */
+  active: boolean
+  jumpTo: AppView
+}
+
+/**
+ * The exploration manifest, joined against the session's visited record. Tolerant both
+ * ways: a registry item covering nothing-yet-visited is simply unlit, and visited ids no
+ * registry item covers (e.g. launch-only OCR) are ignored — the registry may lead or lag
+ * the built screens while the owner iterates.
+ */
+export function selectExploreStatus(state: DemoState): ExploreStatus[] {
+  // Active anchor mirrors the rail narration: the raw view when an item covers it
+  // (e.g. Map), else the current chapter (e.g. on the OCR launch screen the
+  // Time Offset row stays active, exactly like the narration does).
+  const anchor = EXPLORE_ITEMS.some((it) => it.covers.includes(state.view)) ? state.view : state.currentChapter
+  return EXPLORE_ITEMS.map((item, i) => ({
+    id: item.id,
+    number: String(i + 1).padStart(2, '0'),
+    label: item.label,
+    visited: item.covers.some((c) => state.visited[c] === true),
+    active: item.covers.includes(anchor),
+    jumpTo: item.jumpTo,
+  }))
+}
 
 export interface AdjustedScopeRow {
   id: string

@@ -6,6 +6,7 @@ import {
   selectLocationsForCase,
   selectVisibleWizardScreens,
   selectDrawerItems,
+  selectExploreStatus,
   selectLocationMapStatus,
   aggregateMapStatus,
   type DrawerStatus,
@@ -33,6 +34,33 @@ describe('selectors', () => {
     const s = freshStore().getState()
     expect(selectVisibleWizardScreens(s)).toHaveLength(10)
     expect(selectDrawerItems(s)).toHaveLength(10)
+  })
+})
+
+describe('selectExploreStatus', () => {
+  it('returns items in registry order with zero-padded numbers derived from position', () => {
+    const rows = selectExploreStatus(freshStore().getState())
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows[0].number).toBe('01')
+    rows.forEach((r, i) => expect(r.number).toBe(String(i + 1).padStart(2, '0')))
+  })
+
+  it('marks an item visited when ANY covered id is visited (grouping)', () => {
+    const store = freshStore()
+    store.getState().openModal('import') // covers: ['import'] on the import item
+    const rows = selectExploreStatus(store.getState())
+    expect(rows.find((r) => r.id === 'import')?.visited).toBe(true)
+    expect(rows.find((r) => r.id === 'map')?.visited).toBe(false)
+    expect(rows.find((r) => r.id === 'cases')?.visited).toBe(true) // boot view
+  })
+
+  it('marks the active row from the current view and ignores unknown visited ids', () => {
+    const store = freshStore()
+    store.getState().setView('timeOffset')
+    store.getState().launch('ocr') // recorded, but no registry item covers it — ignored
+    const rows = selectExploreStatus(store.getState())
+    expect(rows.filter((r) => r.active).map((r) => r.id)).toEqual(['timeOffset'])
+    expect(rows.find((r) => r.id === 'timeOffset')?.visited).toBe(true)
   })
 })
 

@@ -36,7 +36,7 @@ import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
-import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes } from '@/features/demo/engine/store/selectors'
+import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
@@ -146,6 +146,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   const currentChapter = useStore(store, (s) => s.currentChapter)
   const view = useStore(store, (s) => s.view)
+  const visited = useStore(store, (s) => s.visited)
   const cases = useStore(store, (s) => s.cases)
   const locations = useStore(store, (s) => s.locations)
   const modal = useStore(store, (s) => s.modal)
@@ -194,6 +195,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // The Map tab is a tab view, not a chapter — show its contextual copy on the rail
   // while currentChapter stays on the last real chapter.
   const narration = view === 'map' ? MAP_NARRATION : NARRATION[currentChapter]
+  // The manifest recomputes when the visit record or the active view changes.
+  const explore = useMemo(
+    () => selectExploreStatus(store.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view ARE the selector's inputs, read through getState
+    [store, visited, view],
+  )
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
@@ -783,7 +790,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
         </PhoneFrame>
       </div>
-      <StoryRail narration={narration} />
+      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} />
     </div>
   )
 }
