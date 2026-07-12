@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DVR Extraction Notes — Rail Copy Editor</title>
+
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  RAIL COPY EDITOR  ·  local, single-file tool (open in a browser; needs internet
+  for the Tailwind + fonts CDNs).  Edits the story-rail narration copy for the
+  interactive demo (features/demo/engine/content/narration.ts).
+
+  ── FOR A FUTURE AI INSTANCE (round-trip) ───────────────────────────────────
+  The editor's baseline copy lives in ONE place: the `COPY` array between the
+  markers  /* COPY:START */ … /* COPY:END */  below.  Each entry maps 1:1 to a
+  narration record:
+      { key, num, name, group, eyebrow, title, paras:[…], bullets:[…], tip }
+      • key    = narration id (NARRATION[key] / MODAL_NARRATION[key] / 'map')
+      • paras  = string[]  (each element is one <p>)
+      • bullets= string[]  ("On this screen" list)
+      • tip    = string    ('' means no tip)
+  To refresh this editor from a rewritten-copy markdown export, regenerate the
+  `COPY` array from the markdown blocks (each "## NN · Name · [key]" section →
+  one entry) and replace everything between the two markers. Strings use
+  backticks, so no quote-escaping is needed. That keeps the HTML holding the
+  latest copy for the next pass — not this first one forever.
+  Then apply the same copy to narration.ts (that's the real source of truth).
+  ════════════════════════════════════════════════════════════════════════════
+-->
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink:  { 900: '#04070d', 850: '#070d18', 800: '#0a1422', 700: '#0f1f34' },
+          carolina: '#2B8CC1',
+          cyan: '#4ecdc4',
+          gold: '#ffd93d',
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
+          hud:  ['"Share Tech Mono"', 'monospace'],
+        },
+      },
+    },
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+<style>
+  /* Signature styling only — Tailwind carries the rest (per the "use a CDN" ask). */
+  :root { color-scheme: dark; }
+  body {
+    background-color: #04070d;
+    background-image:
+      linear-gradient(rgba(43,140,193,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(43,140,193,0.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+  }
+  /* Case-file corner brackets — the demo's crosshair/bracket motif. */
+  .card { position: relative; }
+  .card::before, .card::after {
+    content: ''; position: absolute; width: 12px; height: 12px; pointer-events: none;
+    border-color: rgba(78,205,196,0.55); border-style: solid;
+  }
+  .card::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .card::after  { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+  /* Scanline in the header — subtle, motion-gated. */
+  .scan { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .5; }
+  .scan::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 1px; top: 0;
+    background: linear-gradient(90deg, transparent, rgba(78,205,196,0.7), transparent);
+    animation: sweep 6s linear infinite;
+  }
+  @keyframes sweep { 0% { transform: translateY(0); } 100% { transform: translateY(72px); } }
+  textarea { resize: vertical; }
+  .field:focus { outline: none; border-color: #2B8CC1; box-shadow: 0 0 0 1px #2B8CC1, 0 0 14px rgba(43,140,193,0.25); }
+  ::selection { background: rgba(43,140,193,0.35); }
+  @media (prefers-reduced-motion: reduce) { .scan::after { animation: none; } * { transition: none !important; } }
+</style>
+</head>
+
+<body class="font-sans text-slate-200 antialiased">
+
+  <!-- ─── Top bar ─────────────────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-20 border-b border-white/10 bg-ink-900/85 backdrop-blur">
+    <div class="scan"></div>
+    <div class="relative mx-auto flex max-w-4xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+      <div class="mr-auto">
+        <h1 class="font-hud text-lg tracking-wide text-slate-100">DVR&nbsp;Extraction&nbsp;Notes<span class="text-cyan"> · rail copy</span></h1>
+        <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-carolina/80">Evidence manifest — narration editor</p>
+      </div>
+      <div class="font-mono text-[11px] text-slate-400"><span id="edited-count" class="text-cyan">0</span> / <span id="total-count">0</span> edited</div>
+      <button id="btn-reset-all" class="rounded border border-white/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-400 transition hover:border-white/25 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-carolina">Reset all</button>
+      <button id="btn-export" class="rounded bg-carolina px-4 py-1.5 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-900 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan">Export ↓ .md</button>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-4xl px-4 pb-40 pt-8 sm:px-6">
+
+    <!-- How-to -->
+    <details class="mb-8 rounded-lg border border-white/10 bg-ink-800/60 px-4 py-3">
+      <summary class="cursor-pointer select-none font-mono text-[12px] uppercase tracking-wider text-carolina">How this works</summary>
+      <div class="mt-3 space-y-2 text-sm leading-relaxed text-slate-300">
+        <p>Each card is one rail step. Under every segment, the grey block is <em class="text-slate-400">what it says now</em>; the field beneath is your rewrite (pre-filled — tweak or replace). <strong class="text-slate-100">Body:</strong> one paragraph per blank line. <strong class="text-slate-100">Bullets:</strong> one per line. <strong class="text-slate-100">Tip:</strong> optional — blank means none.</p>
+        <p>Hit <strong class="text-cyan">Export ↓ .md</strong> for a Markdown file (also copyable) to hand back — that's the rewritten copy applied to the app. <strong class="text-slate-100">Copy editor data</strong> gives a snapshot you can paste back into this file so it opens with your latest copy next time.</p>
+      </div>
+    </details>
+
+    <div id="cards" class="space-y-8"></div>
+  </main>
+
+  <!-- ─── Export tray ─────────────────────────────────────────────────────── -->
+  <section id="tray" class="fixed inset-x-0 bottom-0 z-20 hidden border-t border-white/10 bg-ink-850/95 backdrop-blur">
+    <div class="mx-auto max-w-4xl px-4 py-4 sm:px-6">
+      <div class="mb-2 flex flex-wrap items-center gap-3">
+        <span class="mr-auto font-mono text-[12px] uppercase tracking-wider text-cyan">Export preview</span>
+        <button id="btn-copy-md" class="rounded border border-white/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition hover:border-white/30 hover:text-white">Copy .md</button>
+        <button id="btn-copy-data" class="rounded border border-white/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition hover:border-white/30 hover:text-white" title="Paste this between the COPY:START / COPY:END markers in this file to make your edits the new baseline.">Copy editor data</button>
+        <button id="btn-download" class="rounded bg-carolina px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-900 transition hover:brightness-110">Download .md</button>
+        <button id="btn-close-tray" class="rounded px-2 py-1.5 font-mono text-[13px] text-slate-400 hover:text-white" aria-label="Close preview">✕</button>
+      </div>
+      <textarea id="preview" readonly class="h-40 w-full rounded border border-white/10 bg-ink-900 p-3 font-mono text-[12px] leading-relaxed text-slate-300"></textarea>
+      <p id="toast" class="mt-1 h-4 font-mono text-[11px] text-cyan"></p>
+    </div>
+  </section>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   COPY:START — the editor's baseline copy (see the header comment for the shape
+   and the round-trip procedure). Regenerate this whole array to update.
+   ════════════════════════════════════════════════════════════════════════════ */
+const COPY = [
+  // ── Manifest steps 01–16 (order = the exploration manifest) ──────────────
+  { key:'dashboard', num:'01', name:'Dashboard', group:'manifest',
+    eyebrow:`Command center`, title:`The dashboard`,
+    paras:[`After unlock you land on a timeline of recent cases. Active cases glow gold, completed ones green — an instant read on what is still open.`],
+    bullets:[`Most-recent cases on a glowing command-center timeline`,`Each card shows occurrence #, OIC / coordinator, unit and locations`,`Tap any location pill to jump straight into its recovery form`],
+    tip:`` },
+
+  { key:'cases', num:'02', name:'Cases', group:'manifest',
+    eyebrow:`Case management`, title:`Cases & locations`,
+    paras:[`The Cases tab is the full library. One case can hold many locations — every business or address you pulled video from gets its own record under a single occurrence number.`],
+    bullets:[`Cases → Locations → media: one occurrence, many sites`,`Create, duplicate, import a request (PDF or text), export ZIP archives`,`SQLite-backed, transaction-safe, with four-layer auto-save`],
+    tip:`Tap "New Case" in the phone to start one.` },
+
+  { key:'newCase', num:'03', name:'Create a Case', group:'manifest',
+    eyebrow:`Case management`, title:`Create a case`,
+    paras:[`A case captures the occurrence number plus the people who own it: officer in charge, video coordinator, and unit. The case number is locked once created — it names the evidence folder on disk.`],
+    bullets:[`Occurrence # and unit are required; OIC / VC optional`,`The incident location is captured here at the case level`,`Duplicate-number detection stops you clobbering an existing case`],
+    tip:`The form is pre-filled — just press Create Case.` },
+
+  { key:'newLocation', num:'04', name:'Add a Location', group:'manifest',
+    eyebrow:`Case management`, title:`Add a location`,
+    paras:[`Now add the site you recovered video from. Each location carries its own address, on-site contact, and GPS coordinates — captured live on scene or geocoded from the address.`],
+    bullets:[`Per-location address, contact and coordinates`,`GPS capture with accuracy, or Mapbox address lookup`,`Creating it drops you into the recovery form wizard`],
+    tip:`Pre-filled — press Create Location to continue.` },
+
+  { key:'import', num:'05', name:'Import Location', group:'manifest',
+    eyebrow:`AI import`, title:`Import a request`,
+    paras:[`This is where the model actually lives. On a case, tap Import, then drop a PDF or paste any request — email or form — and an on-device model reads it and builds a pre-filled location.`,`It runs as a staged pipeline: extract text → AI field extraction → normalize → validate → create. The occurrence number and unit come from the case, never the model.`],
+    bullets:[`Pick a PDF (parsed in your browser) or paste any text`,`Live extraction → normalize → validate, shown stage by stage`,`Creates a location and fills the whole wizard — not just one screen`],
+    tip:`Press "Paste text" then "Extract & import" — or drop your own PDF.` },
+
+  { key:'submission', num:'06', name:'Submission Details', group:'manifest',
+    eyebrow:`Submission details`, title:`Submission details`,
+    paras:[`The recovery wizard opens here, already populated from the import. Requester details and the location's address and contact are filled; the DVR specs and time ranges carry on to the later screens.`,`Requester fields are per-location — who asked for THIS site's video. The case owns the occurrence number, OIC and unit.`],
+    bullets:[`Pre-filled from the AI import — review and edit any field`,`Per-location requester, plus location address and contact`,`GPS captured on scene or geocoded from the address`],
+    tip:`` },
+
+  { key:'requestedScope', num:'07', name:'Requested Scope', group:'manifest',
+    eyebrow:`Requested footage`, title:`Requested scope`,
+    paras:[`The window(s) the detective asked for. Each scope is a start/end range flagged as real (wall-clock) or DVR time — that flag drives the offset math.`],
+    bullets:[`One or many time ranges per location`,`Real-time vs DVR-time toggle per scope`,`Per-scope camera list`],
+    tip:`` },
+
+  { key:'arrivalDeparture', num:'08', name:'Arrival / Departure', group:'manifest',
+    eyebrow:`On scene`, title:`Arrival / departure`,
+    paras:[`When the tech arrived and left the site — part of the chain-of-custody record.`],
+    bullets:[`One or more arrival/departure pairs`,`Timestamps for the site visit`,`Feeds the case-notes timeline`],
+    tip:`` },
+
+  { key:'timeOffset', num:'09', name:'Time Offset', group:'manifest',
+    eyebrow:`Forensic calibration`, title:`Time offset`,
+    paras:[`The heart of the app. A DVR clock is almost never right — so you record what it reads, capture the true time from an atomic clock, and the app computes the offset to the second.`,`Every requested window is then converted into DVR-clock time so the tech pulls exactly the right footage. Math is wall-clock (DST-agnostic), with a separate adjustment when the DVR observes daylight saving.`],
+    bullets:[`NTP atomic-clock sync — offset, RTT and uncertainty logged for court`,`Real bidirectional math (ported from the app): requested ↔ DVR time`,`DST-aware, with a forensic traceability readout`],
+    tip:`Press "Use Current Time", then "Calculate" — or capture the DVR clock by camera.` },
+
+  { key:'extractedScope', num:'10', name:'Extracted Video Scope', group:'manifest',
+    eyebrow:`Exported footage`, title:`Extracted video scope`,
+    paras:[`The windows actually exported off the DVR — in DVR-clock time, auto-generated from the calibrated offset and editable. This is what was physically pulled.`],
+    bullets:[`Auto-generated from the time-offset calculation`,`Always DVR time (what the recorder shows)`,`Editable if you rounded the boundaries`],
+    tip:`` },
+
+  { key:'dvrInfo', num:'11', name:'DVR Information', group:'manifest',
+    eyebrow:`Hardware`, title:`DVR information`,
+    paras:[`The recorder's make, model, login, channel count and recording config — plus retention, which the app derives from the earliest recorded date.`],
+    bullets:[`Make/model, serial, credentials`,`Channels, active cameras, schedule, resolution, FPS`,`Retention countdown per scope`],
+    tip:`` },
+
+  { key:'cameras', num:'12', name:'Cameras', group:'manifest',
+    eyebrow:`Camera inventory`, title:`Cameras`,
+    paras:[`Each camera that captured relevant footage, with its resolution and frame rate.`],
+    bullets:[`Up to 50 cameras per location`,`Per-camera resolution and FPS`,`Listed in the case notes and PDF`],
+    tip:`` },
+
+  { key:'exportInfo', num:'13', name:'Export Information', group:'manifest',
+    eyebrow:`Export media`, title:`Export information`,
+    paras:[`How the footage left the site — media type, file format, size, and how it was handed over (chain of custody).`],
+    bullets:[`Media type and file format`,`Size, and whether a player was included`,`Delivery method for chain of custody`],
+    tip:`` },
+
+  { key:'notes', num:'14', name:'Notes', group:'manifest',
+    eyebrow:`Auto notes`, title:`Case notes`,
+    paras:[`The app assembles bullet-point notes from everything you captured — occurrence, location, offset, scopes, export. Edit freely; regenerate to rebuild from the data.`],
+    bullets:[`Auto-generated from all form data`,`Editable, with a one-tap regenerate`,`Becomes the body of the court PDF`],
+    tip:`Press "Regenerate" to rebuild from the latest data.` },
+
+  { key:'completion', num:'15', name:'Completion', group:'manifest',
+    eyebrow:`Review + export`, title:`Completion`,
+    paras:[`The finish line. Review the case summary, then preview the court-admissible PDF — assembled from everything captured — and export. Any data leaving the device passes a Face ID gate first.`,`Two reports come out: the full Case Notes and a Time-Offset Calibration proof. The whole package exports as an encrypted ZIP with the PDFs, media and JSON metadata.`],
+    bullets:[`Biometric-gated PDF + ZIP export`,`Court-ready Case Notes and Time-Offset Calibration reports`,`Complete & Save marks the location done`],
+    tip:`Press "Preview / Export PDF" — Face ID gates it, then the report opens.` },
+
+  { key:'map', num:'16', name:'Case Map', group:'manifest',
+    eyebrow:`Case map`, title:`See the whole case on a map`,
+    paras:[`Every location you geocode drops a pin, colour-coded by how far its recovery has progressed; the occurrence scene is a red marker. One glance shows where the evidence is and what is still outstanding.`,`Tap a pin to fly there and open its card — address, the requesting investigator, and the on-site contact, with one-tap call and email.`],
+    bullets:[`Status-coloured location pins + the red incident marker`,`Draggable sheet: browse the list, then drill into a location`,`Call / email the requester or contact straight from the card`],
+    tip:`Pick a case, then tap a pin or a row to dive in.` },
+
+  // ── Not in the manifest, but still rail copy (edit if you like) ───────────
+  { key:'splash', num:'—', name:'Splash / secure entry', group:'other',
+    eyebrow:`Secure entry`, title:`Biometric lock`,
+    paras:[`Every session starts behind Face ID. Evidence work needs a hard gate, so the app opens to a surveillance-style scanner instead of a generic login screen.`],
+    bullets:[`Face ID / Touch ID gate before any case data loads`,`The same biometric check guards PDF export later in the flow`,`Animated scanner HUD — corner brackets, sweep line, status readout`],
+    tip:`Tap the scanner to authenticate.` },
+
+  { key:'ocr', num:'—', name:'OCR capture (launched from Time Offset)', group:'other',
+    eyebrow:`OCR capture`, title:`Read the DVR clock`,
+    paras:[`Rather than type the DVR's on-screen time, point the camera at it. The app captures a frame, OCRs the timestamp, cleans the text and parses it — then applies the atomic-clock offset at the instant of capture.`,`This runs real in-browser OCR. No camera? Use the sample DVR clock — same pipeline. The cleaning fixes typical OCR slips (O→0, l→1, missing colons) before parsing several timestamp formats.`],
+    bullets:[`Live webcam capture, or a generated sample DVR clock`,`Real OCR → ported text cleaning → multi-format timestamp parse`,`Confidence score; confirm to calculate the offset automatically`],
+    tip:`Press "Use sample DVR clock" (works without a camera) — or capture a live frame.` },
+];
+/* ════════════════════════════════════════════════════════════════════════════
+   COPY:END
+   ════════════════════════════════════════════════════════════════════════════ */
+
+// ── segment definitions (the "few sections" per step) ──────────────────────
+const FIELDS = [
+  { key: 'eyebrow', label: 'Eyebrow',           kind: 'line' },
+  { key: 'title',   label: 'Title',             kind: 'line' },
+  { key: 'body',    label: 'Body',              kind: 'para', hint: 'one paragraph per blank line' },
+  { key: 'bullets', label: 'On-screen bullets', kind: 'list', hint: 'one bullet per line' },
+  { key: 'tip',     label: 'Tip',               kind: 'line', optional: true, hint: 'optional — blank = none' },
+];
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const make = (tag, cls, props = {}) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, props);
+
+// Baseline (original) value of a field, as the string the editable control holds.
+function baseline(block, field) {
+  if (field.key === 'body') return block.paras.join('\n\n');
+  if (field.key === 'bullets') return block.bullets.join('\n');
+  return block[field.key] || '';
+}
+// Parse a field's current control value back into copy shape.
+function parseField(field, raw) {
+  const v = raw.replace(/\r/g, '');
+  if (field.key === 'body') return v.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (field.key === 'bullets') return v.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  return v.trim();
+}
+const ctrlId = (k, f) => `f__${k}__${f}`;
+const ctrlValue = (k, f) => $('#' + ctrlId(k, f)).value;
+
+// ── render one card ────────────────────────────────────────────────────────
+function renderCard(block) {
+  const card = make('section', 'card rounded-lg border border-white/10 bg-ink-800/70 p-5 sm:p-6');
+
+  const head = make('div', 'mb-5 flex items-center gap-3 border-b border-white/10 pb-3');
+  const num = make('span', 'font-mono text-[13px] ' + (block.group === 'manifest' ? 'text-cyan' : 'text-slate-600'), { textContent: block.num });
+  const name = make('h2', 'font-hud text-base tracking-wide text-slate-100', { textContent: block.name });
+  const key = make('span', 'ml-auto font-mono text-[11px] text-carolina/70', { textContent: '[' + block.key + ']' });
+  const reset = make('button', 'rounded border border-white/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition hover:border-white/25 hover:text-slate-300', { type: 'button', textContent: 'Reset' });
+  reset.addEventListener('click', () => { FIELDS.forEach((f) => { $('#' + ctrlId(block.key, f.key)).value = baseline(block, f); }); refresh(); });
+  head.append(num, name, key, reset);
+  card.append(head);
+
+  FIELDS.forEach((field) => {
+    const wrap = make('div', 'mb-5 last:mb-0');
+
+    const lbl = make('div', 'mb-1.5 flex items-baseline gap-2');
+    lbl.append(make('span', 'font-mono text-[11px] uppercase tracking-[0.15em] ' + (field.key === 'tip' ? 'text-gold/80' : 'text-carolina'), { textContent: field.label }));
+    if (field.hint) lbl.append(make('span', 'font-mono text-[10px] text-slate-600', { textContent: field.hint }));
+    wrap.append(lbl);
+
+    // "On file" reference (baseline, read-only)
+    const ref = make('div', 'mb-2 rounded border-l-2 border-white/10 bg-black/25 px-3 py-2 text-[13px] leading-relaxed text-slate-500');
+    const base = baseline(block, field);
+    if (!base) {
+      ref.append(make('span', 'italic text-slate-600', { textContent: '— nothing on file —' }));
+    } else if (field.key === 'bullets') {
+      const ul = make('ul', 'list-disc space-y-0.5 pl-4');
+      block.bullets.forEach((b) => ul.append(make('li', '', { textContent: b })));
+      ref.append(ul);
+    } else if (field.key === 'body') {
+      block.paras.forEach((p, i) => ref.append(make('p', i ? 'mt-2' : '', { textContent: p })));
+    } else {
+      ref.textContent = base;
+    }
+    wrap.append(ref);
+
+    // Editable control (pre-filled)
+    const isMulti = field.kind === 'para' || field.kind === 'list';
+    const rows = field.key === 'body' ? 4 : field.key === 'bullets' ? 3 : 1;
+    const control = make(isMulti ? 'textarea' : 'input', 'field w-full rounded border border-white/12 bg-ink-900 px-3 py-2 text-[14px] leading-relaxed text-slate-100 placeholder:text-slate-600', {
+      id: ctrlId(block.key, field.key),
+      value: base,
+    });
+    if (isMulti) control.rows = rows; else control.type = 'text';
+    control.setAttribute('aria-label', block.name + ' — ' + field.label);
+    control.addEventListener('input', refresh);
+    wrap.append(control);
+
+    card.append(wrap);
+  });
+
+  return card;
+}
+
+// ── edited counter ─────────────────────────────────────────────────────────
+function isEdited(block) {
+  return FIELDS.some((f) => ctrlValue(block.key, f.key).replace(/\r/g, '') !== baseline(block, f));
+}
+function refresh() {
+  $('#edited-count').textContent = String(COPY.filter(isEdited).length);
+}
+
+// ── exporters ──────────────────────────────────────────────────────────────
+function toMarkdown() {
+  const lines = [
+    '# DVR Extraction Notes — Rail copy',
+    '<!-- rail-copy-editor.html export. One block per narration entry; [key] = narration id. -->',
+    '',
+  ];
+  COPY.forEach((block) => {
+    const eyebrow = parseField(FIELDS[0], ctrlValue(block.key, 'eyebrow'));
+    const title = parseField(FIELDS[1], ctrlValue(block.key, 'title'));
+    const paras = parseField(FIELDS[2], ctrlValue(block.key, 'body'));
+    const bullets = parseField(FIELDS[3], ctrlValue(block.key, 'bullets'));
+    const tip = parseField(FIELDS[4], ctrlValue(block.key, 'tip'));
+    lines.push(`## ${block.num} · ${block.name} · [${block.key}]`, '');
+    lines.push(`**Eyebrow:** ${eyebrow || '_(empty)_'}`, '');
+    lines.push(`**Title:** ${title || '_(empty)_'}`, '');
+    lines.push('**Body:**', '', paras.length ? paras.join('\n\n') : '_(empty)_', '');
+    lines.push('**Bullets:**', '', bullets.length ? bullets.map((b) => `- ${b}`).join('\n') : '_(none)_', '');
+    lines.push(`**Tip:** ${tip || '_(none)_'}`, '');
+    lines.push('---', '');
+  });
+  return lines.join('\n');
+}
+
+// Emit the COPY array as a pasteable JS literal (backtick strings, escaped defensively).
+function toDataLiteral() {
+  const q = (s) => '`' + String(s).replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`';
+  const arr = (list) => list.map(q).join(',');
+  const rows = COPY.map((block) => {
+    const eyebrow = ctrlValue(block.key, 'eyebrow').trim();
+    const title = ctrlValue(block.key, 'title').trim();
+    const paras = parseField(FIELDS[2], ctrlValue(block.key, 'body'));
+    const bullets = parseField(FIELDS[3], ctrlValue(block.key, 'bullets'));
+    const tip = ctrlValue(block.key, 'tip').trim();
+    return `  { key:${q(block.key)}, num:${q(block.num)}, name:${q(block.name)}, group:${q(block.group)},\n` +
+           `    eyebrow:${q(eyebrow)}, title:${q(title)},\n` +
+           `    paras:[${arr(paras)}],\n` +
+           `    bullets:[${arr(bullets)}],\n` +
+           `    tip:${q(tip)} },`;
+  });
+  return 'const COPY = [\n' + rows.join('\n\n') + '\n];';
+}
+
+// ── clipboard + download helpers ───────────────────────────────────────────
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg;
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.textContent = ''; }, 2600);
+}
+async function copyText(str, label) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(str); toast(label + ' copied ✓'); return; }
+    throw new Error('no clipboard');
+  } catch {
+    const ta = $('#preview'); ta.value = str; ta.focus(); ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    toast(ok ? label + ' copied ✓' : 'Select the preview text and copy manually');
+  }
+}
+function download(str, filename) {
+  const blob = new Blob([str], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = make('a', null, { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── boot ───────────────────────────────────────────────────────────────────
+const cards = $('#cards');
+COPY.forEach((block) => cards.append(renderCard(block)));
+$('#total-count').textContent = String(COPY.length);
+refresh();
+
+const tray = $('#tray');
+function openTray() { $('#preview').value = toMarkdown(); tray.classList.remove('hidden'); }
+$('#btn-export').addEventListener('click', openTray);
+$('#btn-close-tray').addEventListener('click', () => tray.classList.add('hidden'));
+$('#btn-download').addEventListener('click', () => { download(toMarkdown(), 'dvr-rail-copy.md'); toast('Downloaded dvr-rail-copy.md ✓'); });
+$('#btn-copy-md').addEventListener('click', () => copyText(toMarkdown(), 'Markdown'));
+$('#btn-copy-data').addEventListener('click', () => copyText(toDataLiteral(), 'Editor data'));
+$('#btn-reset-all').addEventListener('click', () => {
+  if (!confirm('Reset every field back to the current app copy?')) return;
+  COPY.forEach((block) => FIELDS.forEach((f) => { $('#' + ctrlId(block.key, f.key)).value = baseline(block, f); }));
+  refresh();
+});
+</script>
+</body>
+</html>
