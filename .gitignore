@@ -44,3 +44,12 @@ next-env.d.ts
 
 # author↔reviewer coordination channel (ephemeral; durable reviews live in docs/code-reviews/)
 docs/coms/
+
+# video files (large binaries — kept out of git)
+*.mp4
+*.mov
+*.m4v
+*.avi
+*.mkv
+*.webm
+*.wmv
