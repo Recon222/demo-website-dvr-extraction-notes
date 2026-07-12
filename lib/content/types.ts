@@ -43,6 +43,15 @@ export interface FeatureDiagram {
   caption: string
   /** Nacelle H2 beside the `FIG. NN-A` label, e.g. "One tidy tree per job". */
   heading?: string
+  /**
+   * Intrinsic pixel size of the asset. Supply for RASTER diagrams: the page then
+   * reserves the aspect ratio (no layout shift) and renders the figure at its
+   * natural size — capped to the column, never upscaled — so a dense infographic
+   * stays legible instead of being crushed into the fixed placeholder band.
+   * Omit for vector (SVG) diagrams, which scale to the band on their own.
+   */
+  width?: number
+  height?: number
 }
 
 /** A single feature, rendered as a manifest row, a nav tab, and a /features/[slug] page. */

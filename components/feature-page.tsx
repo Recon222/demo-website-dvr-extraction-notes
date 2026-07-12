@@ -68,6 +68,10 @@ function TrustCard({ row }: { row: FeatureRow }) {
 function UnderTheHood({ feature, number }: { feature: Feature; number: string }) {
   const diagram = feature.diagram!
   const assetExists = existsSync(join(process.cwd(), 'public', diagram.src))
+  // Raster diagrams carry their intrinsic size: render at natural scale (capped to the
+  // column, never upscaled) so a dense infographic stays legible, and reserve the aspect
+  // ratio so it can't shift layout. Vector diagrams scale into the fixed figure band.
+  const raster = diagram.width != null && diagram.height != null
   return (
     <section className={cn(PAD, 'border-t border-[rgba(30,58,95,0.45)] pb-[68px] pt-[60px]')}>
       <div className="mb-[30px] flex items-baseline justify-between">
@@ -82,11 +86,21 @@ function UnderTheHood({ feature, number }: { feature: Feature; number: string })
       <figure className="m-0">
         <div className="rounded-2xl border border-[rgba(30,58,95,0.6)] bg-[rgba(8,16,28,0.6)] p-3.5">
           {assetExists ? (
-            // eslint-disable-next-line @next/next/no-img-element -- build-time SVG diagram
+            // eslint-disable-next-line @next/next/no-img-element -- static /public diagram. next/image
+            // is deliberately avoided: the catalog also ships SVG diagrams, which the image optimiser
+            // won't serve without dangerouslyAllowSVG. Rasters are pre-optimised (WebP) instead.
             <img
               src={toPublicUrl(diagram.src)}
               alt={`${feature.title} data-flow diagram`}
-              className="h-[430px] w-full rounded-lg object-contain"
+              width={diagram.width}
+              height={diagram.height}
+              loading="lazy"
+              decoding="async"
+              className={cn(
+                'rounded-lg',
+                raster ? 'mx-auto block h-auto w-full' : 'h-[430px] w-full object-contain',
+              )}
+              style={raster ? { maxWidth: diagram.width } : undefined}
             />
           ) : (
             <div

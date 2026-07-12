@@ -100,7 +100,9 @@ export const features: readonly Feature[] = [
       },
     ],
     diagram: {
-      src: 'diagrams/import.svg',
+      src: 'diagrams/import.webp',
+      width: 1672,
+      height: 941,
       heading: 'Where the document goes (nowhere)',
       caption:
         'Request (PDF or email) → on-device Apple Intelligence → structured case fields — entirely on your phone.',
