@@ -121,6 +121,89 @@ describe('round-trip (refresh survival — G1/D2)', () => {
   })
 })
 
+describe('maximal round-trip (R-4b runtime pin)', () => {
+  // Every optional in the persisted graph populated: DemoCase.incidentCoordinates,
+  // DemoLocation.gps, CameraEntry.gps, MediaItem.poster/durationSec/sample, SyncResult's
+  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr. The plain
+  // round-trip can't catch a silently-dropped optional (newCaseInput fills 3 of 16 fields);
+  // this one fails on ANY dropped key.
+  it('a state with every optional populated survives the round-trip in full', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const caseId = store.getState().createCase({
+      ...newCaseInput(),
+      oicName: 'A. Okafor',
+      oicBadge: '3318',
+      vcName: 'M. Reyes',
+      vcBadge: '5102',
+      incidentBusinessName: 'Acme Mart',
+      incidentStreetAddress: '5 King St',
+      incidentCity: 'Brampton',
+      incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+      notes: 'CCTV at rear',
+    })
+    store.getState().addLocation(caseId, {
+      ...newLocationInput(),
+      requesterName: 'L. McHugh',
+      requesterBadge: '4471',
+      requesterPhone: '905-555-0000',
+      requesterEmail: 'lm@peel.ca',
+      locationContact: 'S. Gill',
+      locationPhone: '905-555-0001',
+      gps: { lat: 43.61, lng: -79.65, source: 'manual' },
+    })
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().updateField('capture.method', 'ocr')
+    store.getState().updateField('capture.dvrAppliesDST', true)
+    store.getState().updateField('capture.sync', {
+      method: 'NTP',
+      server: 'time.nrc.ca',
+      offsetMs: 12,
+      uncertaintyMs: 4,
+      rttMs: 18,
+      traceability: 'NRC → stratum 2',
+      timestamp: 1741456800000,
+      stratum: 2,
+    })
+    store.getState().updateField('capture.ocr', {
+      rawText: '2O25-O3-O8 12:O5:3O',
+      cleanedText: '2025-03-08 12:05:30',
+      parsedDateTime: '2025-03-08 12:05:30',
+      confidence: 0.93,
+      imageDataUrl: 'data:image/png;base64,AA==',
+    })
+    store.getState().calculateOffset() // commits sync + ocr (incl. imageDataUrl) into timeOffset
+    store.getState().updateField('form.cameras', [
+      { id: 'cam1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15', gps: { lat: 43.6, lng: -79.6, accuracyM: 4 } },
+    ])
+    store.getState().addMedia('photo', {
+      id: 'm1',
+      kind: 'photo',
+      url: 'blob:photo',
+      poster: 'blob:poster',
+      filename: 'IMG_1.jpg',
+      caption: 'DVR rack',
+      capturedAt: '2025-03-09 10:00:00',
+      durationSec: 12,
+      sample: true,
+    })
+    store.getState().completeCase(caseId)
+    saveNow(store, storage)
+
+    const rehydrated = createDemoStore(loadSnapshot(storage) ?? undefined)
+    // The strongest pin: the FULL persisted subset must survive — any dropped key fails here.
+    expect(snapshotOf(rehydrated.getState())).toEqual(snapshotOf(store.getState()))
+    // Spot-check the deepest optionals (clearer failure messages than the whole-state diff).
+    const loc = rehydrated.getState().locations[0]
+    expect(loc.form.timeOffset?.ocr?.imageDataUrl).toBe('data:image/png;base64,AA==')
+    expect(loc.form.timeOffset?.sync?.stratum).toBe(2)
+    expect(loc.form.cameras[0].gps).toEqual({ lat: 43.6, lng: -79.6, accuracyM: 4 })
+    expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+  })
+})
+
 describe('shape guard (never crash boot)', () => {
   const seeded = () => {
     const storage = new FakeStorage()

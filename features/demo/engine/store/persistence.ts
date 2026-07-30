@@ -15,6 +15,7 @@ import type {
   DemoLocation,
   DvrInformation,
   ExportInformation,
+  LaunchableId,
   LocationForm,
   MediaItem,
   ModalId,
@@ -22,6 +23,16 @@ import type {
   ScopeEntry,
   SyncResult,
   TimeOffsetData,
+} from '@/features/demo/engine/types'
+import {
+  CAPTURE_METHODS,
+  CASE_STATUSES,
+  COORD_SOURCES,
+  GPS_SOURCES,
+  MEDIA_KINDS,
+  OFFSET_DIRECTIONS,
+  PROFILES,
+  SYNC_METHODS,
 } from '@/features/demo/engine/types'
 import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
 
@@ -65,9 +76,24 @@ export interface StorageLike {
 }
 
 // ---- Snapshot schema (the shape guard) ------------------------------------
-// Every schema is annotated `z.ZodType<DomainType>` so a drift between the domain types and
-// this guard is a COMPILE error, not a stale snapshot silently passing validation. z.object
-// strips unknown keys, so a forward snapshot with extra fields still parses (same version).
+// Three compile-time devices keep this guard honest (R-4), each closing one drift direction:
+//
+// 1. `z.ZodType<DomainType>` annotations — a schema whose OUTPUT no longer satisfies the
+//    domain type (e.g. a missing required field) is a compile error.
+// 2. `satisfies FullShape<DomainType>` on each shape literal — the shape must NAME every key
+//    of the domain type, required AND optional. Without this, a forgotten optional would
+//    compile ((a) is satisfied by a subset) and strip-mode `z.object` would silently drop
+//    the field on rehydrate.
+// 3. Closed unions come from the domain's own `as const` tuples (`z.enum(MEDIA_KINDS)` etc.,
+//    engine/types) — a schema enum can't drift narrower than its union because they are the
+//    same value. Likewise APP_VIEWS is exhaustive over AppView by construction (EXTRA_VIEWS).
+//
+// NOT enforced at compile time: cross-field invariants and referential integrity — the load
+// path handles selection integrity explicitly. `z.object` strips unknown keys, so a forward
+// snapshot with extra fields still parses (same version).
+
+/** Every key of T — required and optional alike — must appear in the shape (device 2). */
+type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
 
 const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   id: z.string(),
@@ -75,16 +101,16 @@ const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   endDateTime: z.string(),
   isActualTime: z.boolean(),
   cameras: z.string(),
-})
+} satisfies FullShape<ScopeEntry>)
 
 const arrivalDepartureSchema: z.ZodType<ArrivalDeparture> = z.object({
   id: z.string(),
   arrival: z.string(),
   departure: z.string(),
-})
+} satisfies FullShape<ArrivalDeparture>)
 
 const syncResultSchema: z.ZodType<SyncResult> = z.object({
-  method: z.enum(['NTP', 'HTTP']),
+  method: z.enum(SYNC_METHODS),
   server: z.string(),
   offsetMs: z.number(),
   uncertaintyMs: z.number(),
@@ -92,7 +118,7 @@ const syncResultSchema: z.ZodType<SyncResult> = z.object({
   traceability: z.string().optional(),
   timestamp: z.number().optional(),
   stratum: z.number().optional(),
-})
+} satisfies FullShape<SyncResult>)
 
 const ocrProofSchema: z.ZodType<OcrProof> = z.object({
   rawText: z.string(),
@@ -100,29 +126,33 @@ const ocrProofSchema: z.ZodType<OcrProof> = z.object({
   parsedDateTime: z.string(),
   confidence: z.number(),
   imageDataUrl: z.string().optional(),
-})
+} satisfies FullShape<OcrProof>)
 
 const timeOffsetSchema: z.ZodType<TimeOffsetData> = z.object({
   dvrDateTime: z.string(),
   actualDateTime: z.string(),
   differenceMs: z.number(),
   formattedDifference: z.string(),
-  direction: z.enum(['AHEAD OF', 'BEHIND']),
+  direction: z.enum(OFFSET_DIRECTIONS),
   isDvrAhead: z.boolean(),
   isCorrect: z.boolean(),
   dvrAppliesDST: z.boolean(),
   sync: syncResultSchema.nullable(),
-  captureMethod: z.enum(['manual', 'ocr']),
+  captureMethod: z.enum(CAPTURE_METHODS),
   ocr: ocrProofSchema.optional(),
-})
+} satisfies FullShape<TimeOffsetData>)
 
 const cameraEntrySchema: z.ZodType<CameraEntry> = z.object({
   id: z.string(),
   cameraName: z.string(),
   resolution: z.string(),
   recordingFps: z.string(),
-  gps: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number() }).optional(),
-})
+  gps: z
+    .object({ lat: z.number(), lng: z.number(), accuracyM: z.number() } satisfies FullShape<
+      NonNullable<CameraEntry['gps']>
+    >)
+    .optional(),
+} satisfies FullShape<CameraEntry>)
 
 const dvrInformationSchema: z.ZodType<DvrInformation> = z.object({
   dvrLocation: z.string(),
@@ -137,7 +167,7 @@ const dvrInformationSchema: z.ZodType<DvrInformation> = z.object({
   recordingFps: z.string(),
   firstRecordedDate: z.string(),
   totalDvrRetention: z.string(),
-})
+} satisfies FullShape<DvrInformation>)
 
 const exportInformationSchema: z.ZodType<ExportInformation> = z.object({
   exportMedia: z.string(),
@@ -145,11 +175,11 @@ const exportInformationSchema: z.ZodType<ExportInformation> = z.object({
   sizeGb: z.string(),
   mediaPlayerIncluded: z.boolean(),
   mediaProvidedVia: z.string(),
-})
+} satisfies FullShape<ExportInformation>)
 
 const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   id: z.string(),
-  kind: z.enum(['photo', 'video', 'audio']),
+  kind: z.enum(MEDIA_KINDS),
   url: z.string(),
   poster: z.string().optional(),
   filename: z.string(),
@@ -157,7 +187,7 @@ const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   capturedAt: z.string(),
   durationSec: z.number().optional(),
   sample: z.boolean().optional(),
-})
+} satisfies FullShape<MediaItem>)
 
 const locationFormSchema: z.ZodType<LocationForm> = z.object({
   scopes: z.array(scopeEntrySchema),
@@ -177,8 +207,8 @@ const locationFormSchema: z.ZodType<LocationForm> = z.object({
     photos: z.array(mediaItemSchema),
     videos: z.array(mediaItemSchema),
     audios: z.array(mediaItemSchema),
-  }),
-})
+  } satisfies FullShape<LocationForm['media']>),
+} satisfies FullShape<LocationForm>)
 
 const demoCaseSchema: z.ZodType<DemoCase> = z.object({
   id: z.string(),
@@ -193,13 +223,15 @@ const demoCaseSchema: z.ZodType<DemoCase> = z.object({
   incidentStreetAddress: z.string(),
   incidentCity: z.string(),
   incidentCoordinates: z
-    .object({ lat: z.number(), lng: z.number(), source: z.enum(['geocoded', 'manual']) })
+    .object({ lat: z.number(), lng: z.number(), source: z.enum(COORD_SOURCES) } satisfies FullShape<
+      NonNullable<DemoCase['incidentCoordinates']>
+    >)
     .optional(),
   notes: z.string(),
-  status: z.enum(['draft', 'complete', 'archived']),
+  status: z.enum(CASE_STATUSES),
   createdLabel: z.string(),
   locationIds: z.array(z.string()),
-})
+} satisfies FullShape<DemoCase>)
 
 const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
   id: z.string(),
@@ -220,32 +252,40 @@ const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
       lat: z.number(),
       lng: z.number(),
       accuracyM: z.number(),
-      source: z.enum(['gps', 'geocoded', 'manual']),
-    })
+      source: z.enum(GPS_SOURCES),
+    } satisfies FullShape<NonNullable<DemoLocation['gps']>>)
     .optional(),
   form: locationFormSchema,
-})
+} satisfies FullShape<DemoLocation>)
 
 const captureSchema: z.ZodType<CaptureState> = z.object({
   dvrDateTime: z.string(),
   actualDateTime: z.string(),
   sync: syncResultSchema.nullable(),
-  method: z.enum(['manual', 'ocr']),
+  method: z.enum(CAPTURE_METHODS),
   ocr: ocrProofSchema.nullable(),
   dvrAppliesDST: z.boolean(),
-})
+} satisfies FullShape<CaptureState>)
 
 // View / visited id spaces come from the runtime registries (CHAPTERS/LAUNCHABLE), never a
 // hand-typed list — an unknown value means the snapshot predates/postdates this build.
-const APP_VIEWS: readonly string[] = [...CHAPTERS, ...LAUNCHABLE, 'map']
-const isAppView = (v: string): v is AppView => APP_VIEWS.includes(v)
+// EXTRA_VIEWS is exhaustive by construction (device 3 / R-4c): an AppView variant that is
+// neither a chapter nor a launchable MUST be listed here or this line stops compiling —
+// without it, this build would write a view its own loader then rejects (a full wipe).
+const EXTRA_VIEWS: Record<Exclude<AppView, ChapterId | LaunchableId>, true> = { map: true }
+const APP_VIEWS: readonly AppView[] = [
+  ...CHAPTERS,
+  ...LAUNCHABLE,
+  ...(Object.keys(EXTRA_VIEWS) as Array<Exclude<AppView, ChapterId | LaunchableId>>),
+]
+const isAppView = (v: string): v is AppView => (APP_VIEWS as readonly string[]).includes(v)
 const isChapterId = (v: string): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 /** Exhaustive by construction: gains/losses on `ModalId` are compile errors here. */
 const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true }
 const isVisitId = (v: string): v is AppView | ModalId => isAppView(v) || v in MODAL_IDS
 
 const persistedStateSchema = z.object({
-  profile: z.enum(['forensic', 'canvas']),
+  profile: z.enum(PROFILES),
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
   currentCaseId: z.string().nullable(),

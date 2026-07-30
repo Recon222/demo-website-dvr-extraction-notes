@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
 import type {
+  CaptureMethod,
   ChapterId,
   DemoCase,
   DemoLocation,
@@ -63,7 +64,7 @@ export interface CaptureState {
   dvrDateTime: string
   actualDateTime: string
   sync: SyncResult | null
-  method: 'manual' | 'ocr'
+  method: CaptureMethod
   ocr: OcrProof | null
   dvrAppliesDST: boolean
 }
