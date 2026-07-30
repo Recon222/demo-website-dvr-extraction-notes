@@ -9,6 +9,16 @@ This repo is the marketing + beta-recruitment site for **DVR Extraction Notes** 
 - **Marketing pages** (`app/(default)/`, `components/`, `lib/content/`) — content-driven server components rendering the feature catalog in `lib/content/features.ts`. Being restyled to the **"Case File"** design system (see `docs/features/case-file-redesign/`).
 - **The interactive demo** (`app/demo/`, `features/demo/`) — a self-contained client-only product demo with its own conventions; read `features/demo/CLAUDE.md` before touching it. **Marketing code must never import from `@/features/demo`** (it would pull mapbox-gl/pdfjs/motion into marketing bundles).
 
+## ACTIVE INITIATIVE — Demo↔Phone Parity (2026-07-30, in progress)
+
+The demo is being brought to full parity with the phone app by an orchestrated agent fleet. **If you are picking this effort up (fresh instance, post-compaction, new session), read these IN ORDER before doing anything:**
+
+1. `docs/planning/demo-phone-parity/HANDOFF.md` — the live handoff runbook: current state, agent roster + continuity handles, standing rules, next-step queue. Continuously updated; trust its newest snapshot.
+2. `docs/planning/demo-phone-parity/01-master-parity-plan.md` — the phased plan (P0–P8), owner-ratified decisions D1–D9 (§3), binding agent conventions (§4), execution model (§6), progress tracker (§7).
+3. `docs/planning/demo-phone-parity/00-surface-parity-matrix.md` — the 94-surface gap matrix + owner rulings (§7).
+
+The phone repo (`../DVR-Extraction-Notes-ReactNative`) is **strictly read-only** for this effort — spec source (`docs/ui-mapping/`) and simulator runtime only.
+
 ## Commands
 
 `pnpm` is the configured package manager (see `packageManager` in `package.json`); the README recommends it. A stray `package-lock.json` may appear — prefer pnpm to keep `pnpm-lock.yaml` authoritative.
