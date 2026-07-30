@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 export interface ExitDialogProps {
   open: boolean

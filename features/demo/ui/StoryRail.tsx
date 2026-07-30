@@ -5,7 +5,7 @@ import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
 import { ExploreChecklist } from '@/features/demo/ui/controls/ExploreChecklist'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 // Marketing voice (7C garnish): eyebrows in Share Tech Mono, headings in Nacelle —
 // the root layout sets both vars on <body>, so /demo inherits them for free.
 const stmono = "var(--font-stmono),'Share Tech Mono',monospace"

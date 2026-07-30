@@ -3,7 +3,7 @@
 import type { SyncResult } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 function formatOffset(offsetMs: number): { text: string; direction: string } {
   const text = `${Math.abs(offsetMs / 1000).toFixed(3)}s`

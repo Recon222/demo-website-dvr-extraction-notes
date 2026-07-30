@@ -48,7 +48,7 @@ const detail: CSSProperties = {
   fontSize: 12,
   lineHeight: 1.5,
   color: '#cdd9e6',
-  fontFamily: "'JetBrains Mono',monospace",
+  fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace",
   overflowWrap: 'break-word',
   marginBottom: 16,
 }
