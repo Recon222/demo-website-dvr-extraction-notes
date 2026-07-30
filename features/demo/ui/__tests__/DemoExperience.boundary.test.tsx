@@ -11,13 +11,19 @@ vi.mock('@/features/demo/ui/screens/DashboardScreen', () => ({
 }))
 
 describe('DemoExperience — error boundary wiring', () => {
-  // React logs every caught render error via console.error (onCaughtError default).
-  // Silence it for these deliberately-throwing tests; restore after each.
+  // These renders use the REAL (non-injected) store, which persists to sessionStorage
+  // (P0.4): RTL cleanup() unmounts → dispose() flushes a snapshot the NEXT mount would
+  // rehydrate, silently changing the boot view. Clear storage around every test so each
+  // one genuinely boots on Cases and navigates for real (review R-3 — order-independence).
+  // React logs every caught render error via console.error (onCaughtError default) —
+  // silence it for these deliberately-throwing tests; restore after each.
   beforeEach(() => {
+    window.sessionStorage.clear()
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
   afterEach(() => {
     vi.restoreAllMocks()
+    window.sessionStorage.clear()
   })
 
   // Generous timeouts: the first full-experience render is heavy under jsdom and this
@@ -25,6 +31,9 @@ describe('DemoExperience — error boundary wiring', () => {
   // the later tests repeat the same interaction well inside the default timeout).
   it('a throwing screen shows the fallback inside the frame; the frame and rail survive', { timeout: 20000 }, () => {
     render(<DemoExperience />)
+    // Pin the boot premise: a leaked snapshot booting anywhere else (e.g. straight onto
+    // the throwing Dashboard) would make the assertions below pass for the wrong reason.
+    expect(screen.getByText(/No cases yet/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }))
 
     const alert = screen.getByRole('alert')
@@ -40,6 +49,7 @@ describe('DemoExperience — error boundary wiring', () => {
 
   it('Return to Cases recovers to the working Cases screen', { timeout: 20000 }, () => {
     render(<DemoExperience />)
+    expect(screen.getByText(/No cases yet/)).toBeInTheDocument() // boots on Cases — no leaked snapshot
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
@@ -50,6 +60,7 @@ describe('DemoExperience — error boundary wiring', () => {
 
   it('navigating to another view (tab bar survives the error) resets the boundary', { timeout: 20000 }, () => {
     render(<DemoExperience />)
+    expect(screen.getByText(/No cases yet/)).toBeInTheDocument() // boots on Cases — no leaked snapshot
     fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
