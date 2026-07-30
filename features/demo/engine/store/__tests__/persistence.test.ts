@@ -277,9 +277,62 @@ describe('shape guard (never crash boot)', () => {
     const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
       state: { visited: Record<string, true> }
     }
-    parsed.state.visited = { cases: true, toString: true, constructor: true, valueOf: true, hasOwnProperty: true }
+    parsed.state.visited = { cases: true, toString: true, constructor: true, valueOf: true, hasOwnProperty: true } as const
     storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true })
+  })
+
+  it('R-15: a dangling currentLocationId is dropped and a wizard view restores to cases, not a dead form', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore() // view/currentChapter: dvrInfo, with a real location
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentLocationId: string }
+    }
+    parsed.state.currentLocationId = 'ghost-location'
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBeNull()
+    expect(snap?.view).toBe('cases')
+    expect(snap?.currentChapter).toBe('cases')
+    expect(snap?.cases).toHaveLength(1) // the DATA survives — only the selection is repaired
+    expect(snap?.locations).toHaveLength(1)
+  })
+
+  it('R-15: a dangling currentCaseId is dropped; a non-wizard view is left as-is', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    store.getState().setView('cases')
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentCaseId: string }
+    }
+    parsed.state.currentCaseId = 'ghost-case'
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentCaseId).toBeNull()
+    expect(snap?.view).toBe('cases')
+  })
+
+  it('R-15: a wizard view persisted with NO location at all (rail-jump) restores to cases', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    store.getState().setView('completion') // reachable via rail-jump with nothing open
+    saveNow(store, storage)
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBeNull()
+    expect(snap?.view).toBe('cases')
+    expect(snap?.currentChapter).toBe('cases')
+  })
+
+  it('R-15: a valid selection passes through untouched', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    saveNow(store, storage)
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBe(store.getState().currentLocationId)
+    expect(snap?.currentCaseId).toBe(store.getState().currentCaseId)
+    expect(snap?.view).toBe('dvrInfo')
   })
 
   it('a launch-only view restores to currentChapter (launch screens depend on ephemeral UI state)', () => {

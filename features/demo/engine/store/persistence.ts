@@ -34,7 +34,7 @@ import {
   PROFILES,
   SYNC_METHODS,
 } from '@/features/demo/engine/types'
-import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 
 /**
  * sessionStorage persistence for the demo store (P0.4, owner decision D2).
@@ -327,11 +327,15 @@ export function snapshotOf(s: DemoState): PersistedState {
  * problem — missing, unparseable, wrong version, wrong shape, storage unavailable, kill
  * switch off. A discarded snapshot is also removed so it isn't re-parsed every boot.
  *
- * Two deliberate load-time adjustments:
+ * Three deliberate load-time adjustments:
  * - a launch-only view (OCR/media) restores to `currentChapter` instead — launch screens
  *   depend on ephemeral UI state a refresh cannot restore, and `closeLaunch` would land
  *   there anyway ('map' and chapters restore as-is);
- * - `visited` keys this build doesn't know are dropped (the registry may lead or lag).
+ * - `visited` keys this build doesn't know are dropped (the registry may lead or lag);
+ * - selection integrity (R-15): a `currentCaseId`/`currentLocationId` that resolves to no
+ *   entity is dropped, and a wizard view/chapter left without a resolvable location restores
+ *   to 'cases' — otherwise the visitor rehydrates into a wizard where `updateField` is a
+ *   silent no-op (typing stores nothing, warns nothing).
  */
 export function loadSnapshot(
   storage: StorageLike | null,
@@ -378,14 +382,31 @@ export function loadSnapshot(
   for (const key of Object.keys(d.visited)) {
     if (isVisitId(key)) visited[key] = true
   }
+
+  // Selection integrity (R-15): dangling ids pass the shape guard but rehydrate a wizard
+  // where updateField silently no-ops. Drop what doesn't resolve; if that leaves a wizard
+  // view/chapter with no location, restore to 'cases' instead of a dead form.
+  const caseIds = new Set(d.cases.map((c) => c.id))
+  const locationIds = new Set(d.locations.map((l) => l.id))
+  const currentCaseId = d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
+  const currentLocationId =
+    d.currentLocationId !== null && locationIds.has(d.currentLocationId) ? d.currentLocationId : null
+  const isWizardScreen = (v: string): boolean => (WIZARD_SCREENS as readonly string[]).includes(v)
+  let restoredChapter: ChapterId = currentChapter
+  let restoredView: AppView = (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view
+  if (currentLocationId === null) {
+    if (isWizardScreen(restoredChapter)) restoredChapter = 'cases'
+    if (isWizardScreen(restoredView)) restoredView = restoredChapter
+  }
+
   return {
     profile: d.profile,
     cases: d.cases,
     locations: d.locations,
-    currentCaseId: d.currentCaseId,
-    currentLocationId: d.currentLocationId,
-    view: (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view,
-    currentChapter,
+    currentCaseId,
+    currentLocationId,
+    view: restoredView,
+    currentChapter: restoredChapter,
     capture: d.capture,
     visited,
   }
