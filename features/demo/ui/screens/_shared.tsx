@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -207,8 +208,9 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
   return <DateTimeFieldImpl label={label} value={value} onChange={onChange} />
 }
 
-/** A labelled dropdown bound to a string value — the custom picker matching the phone app. */
-export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: string[] }) {
+/** A labelled dropdown bound to a string value — the custom picker matching the phone app.
+ *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`). */
+export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
   return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 

@@ -59,3 +59,39 @@ describe('Dropdown open/select', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+describe('Dropdown label/value options (phone-style annotated lists)', () => {
+  const PAIRS = [
+    { label: '1920x1080 (1080p)', value: '1920x1080' },
+    { label: 'Other (Custom)', value: 'custom' },
+  ]
+
+  it('shows the LABEL of the selected value in the pill', () => {
+    render(<Dropdown label="Resolution" value="1920x1080" onChange={vi.fn()} options={PAIRS} />)
+    expect(screen.getByText('1920x1080 (1080p)')).toBeInTheDocument()
+    expect(screen.queryByText(/^1920x1080$/)).not.toBeInTheDocument()
+  })
+
+  it('renders labels in the menu but reports the VALUE through onChange', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<Dropdown label="Resolution" value="" onChange={onChange} options={PAIRS} />)
+    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
+    expect(onChange).toHaveBeenCalledWith('custom')
+  })
+
+  it('marks the selected option by value, not label', async () => {
+    const user = userEvent.setup()
+    render(<Dropdown label="Resolution" value="custom" onChange={vi.fn()} options={PAIRS} />)
+    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Other (Custom)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: '1920x1080 (1080p)' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('degrades honestly for an unknown non-empty value: shows the raw value, not the placeholder', () => {
+    render(<Dropdown label="Resolution" value="1440x900" onChange={vi.fn()} options={PAIRS} placeholder="Select…" />)
+    expect(screen.getByText('1440x900')).toBeInTheDocument()
+    expect(screen.queryByText('Select…')).not.toBeInTheDocument()
+  })
+})
