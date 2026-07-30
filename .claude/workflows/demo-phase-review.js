@@ -18,7 +18,10 @@ export const meta = {
 //   priorReviewDoc: absolute path of the previous vetted review doc (required for fix-delta)
 //   context:  optional free-text context for reviewers (phase scope, deliberate choices not to re-flag)
 // }
-const a = args || {}
+let a = args || {}
+if (typeof a === 'string') {
+  try { a = JSON.parse(a) } catch (e) { throw new Error('args arrived as an unparseable string: ' + e.message) }
+}
 const { repoDir, baseRef, headRef, phaseId, reviewDir } = a
 const mode = a.mode || 'initial'
 const priorReviewDoc = a.priorReviewDoc || null
