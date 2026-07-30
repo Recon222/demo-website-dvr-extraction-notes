@@ -426,7 +426,18 @@ export function persistDemoStore(
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
     } catch {
-      // best-effort: a full/blocked storage must never break the demo
+      // Best-effort — a full/blocked storage must never break the demo — but not silent
+      // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
+      // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
+      // a dev breadcrumb per the repo convention.
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh')
+      }
+      try {
+        storage.removeItem(SNAPSHOT_KEY)
+      } catch {
+        // removal is best-effort too
+      }
     }
   }
   const flush = () => {

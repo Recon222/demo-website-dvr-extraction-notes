@@ -361,7 +361,8 @@ describe('debounced save', () => {
     expect(storage.setCalls).toBe(1)
   })
 
-  it('a throwing setItem is swallowed (quota) and later writes still try', () => {
+  it('a throwing setItem is swallowed (quota), breadcrumbed, and later writes still try', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const storage = new FakeStorage()
     let fail = true
     const realSet = storage.setItem.bind(storage)
@@ -374,11 +375,53 @@ describe('debounced save', () => {
     store.getState().setView('dashboard')
     expect(() => vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)).not.toThrow()
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('snapshot write failed'))
     fail = false
     store.getState().setView('cases')
     vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(true)
     handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('a failed write CLEARS the previous snapshot — a refresh boots empty, never restores stale work (R-14)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    saveNow(store, storage) // a valid snapshot is in place
+    expect(loadSnapshot(storage)).not.toBeNull()
+
+    // Re-seed (loadSnapshot's success path doesn't consume it) and break the NEXT write.
+    saveNow(store, storage)
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    const handle = persistDemoStore(store, storage)
+    store.getState().updateField('form.dvr.dvrLocation', 'newer work the write lost')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    handle.dispose()
+
+    // The stale (pre-edit) snapshot must NOT survive to be silently restored as current.
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
+    expect(loadSnapshot(storage)).toBeNull()
+    warn.mockRestore()
+  })
+
+  it('a throwing removeItem during the write-failure cleanup is still swallowed', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    storage.removeItem = () => {
+      throw new Error('SecurityError')
+    }
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    expect(() => vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)).not.toThrow()
+    handle.dispose()
+    warn.mockRestore()
   })
 })
 
