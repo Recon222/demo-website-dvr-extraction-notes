@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 
 import { useReducedMotion } from 'motion/react'
 import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 const mono = "'JetBrains Mono',monospace"
 
@@ -86,7 +87,7 @@ export function ExploreChecklist({ items, onJump, activeDetail }: ExploreCheckli
               <span
                 aria-hidden="true"
                 data-led={it.visited ? 'on' : 'off'}
-                style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: it.visited ? '#10d177' : 'transparent', border: it.visited ? 'none' : '1px solid #2a4a6f', boxShadow: it.visited ? '0 0 7px rgba(16,209,119,0.6)' : 'none' }}
+                style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: it.visited ? '#10d177' : 'transparent', border: it.visited ? 'none' : GLASS.borderBtn, boxShadow: it.visited ? '0 0 7px rgba(16,209,119,0.6)' : 'none' }}
               />
             </button>
             {it.active ? activeDetail : null}

@@ -15,6 +15,7 @@ import {
   toggleRecordingSchedule,
 } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
 const STATUS: Record<RetentionStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -131,7 +132,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
 
           {retention.totalRetention != null ? (
             <>
-              <div style={{ marginBottom: 14, borderRadius: 10, border: '1px solid rgba(43,140,193,0.3)', background: 'rgba(43,140,193,0.08)', padding: 14 }}>
+              <div style={{ marginBottom: 14, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#7a9fc4', letterSpacing: 0.3 }}>Total DVR Retention</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{retention.totalRetention} days</div>
                 <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>From the earliest recorded date to today.</div>
@@ -143,7 +144,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
                   {retention.scopes.map((s) => {
                     const st = STATUS[getRetentionStatus(s.daysUntilOverwritten)]
                     return (
-                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(30,58,95,0.5)', background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
+                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8' }}>{s.label}</div>
                           <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { AddRowButton, DateTimeField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface ArrivalRow {
   id: string
@@ -26,7 +27,7 @@ export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, onNe
       <div style={{ padding: 16 }}>
         {visits.length === 0 && <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '8px 0 14px' }}>No visits recorded — add one if you attended the site.</div>}
         {visits.map((a, i) => (
-          <div key={a.id} style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16, marginBottom: 14 }}>
+          <div key={a.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Visit {i + 1}</div>
               <button type="button" onClick={() => onRemove(i)} style={{ cursor: 'pointer', color: '#ff7a85', fontSize: 13, background: 'transparent', border: 'none' }}>Remove</button>

@@ -2,6 +2,7 @@
 
 import type { ScopeEntry } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface RequestedScopeScreenProps {
   scopes: ScopeEntry[]
@@ -18,7 +19,7 @@ function TimeTypeButton({ label, active, onClick }: { label: string; active: boo
     <button
       type="button"
       onClick={onClick}
-      style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 8, border: active ? 'none' : '1px solid #2a4a6f', background: active ? '#2B8CC1' : 'transparent', color: active ? '#fff' : '#99badd', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 8, border: active ? 'none' : GLASS.borderBtn, background: active ? '#2B8CC1' : 'transparent', color: active ? '#fff' : '#99badd', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
     >
       {label}
     </button>
@@ -32,7 +33,7 @@ export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, onNext
       <WizardHeader title="Requested Scope" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
         {scopes.map((sc, i) => (
-          <div key={sc.id} style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16, marginBottom: 14 }}>
+          <div key={sc.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Scope {i + 1}</div>
               {scopes.length > 1 && (

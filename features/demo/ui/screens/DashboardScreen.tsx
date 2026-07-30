@@ -1,6 +1,7 @@
 'use client'
 
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface DashboardScreenProps {
   cases: CaseCard[]
@@ -30,7 +31,7 @@ export function DashboardScreen({ cases, onOpenLocation }: DashboardScreenProps)
             {ci < cases.length - 1 && <div style={{ width: 2, flex: 1, background: '#1e3a5f', marginTop: 6, minHeight: 30 }} />}
           </div>
 
-          <div style={{ flex: 1, marginLeft: 8, borderRadius: 16, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16 }}>
+          <div style={{ flex: 1, marginLeft: 8, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
               <div style={{ padding: '4px 10px', borderRadius: 20, border: `1px solid ${c.status.border}`, background: c.status.bg }}>
@@ -53,7 +54,7 @@ export function DashboardScreen({ cases, onOpenLocation }: DashboardScreenProps)
             {c.locations.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                 {c.locations.map((loc) => (
-                  <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 20, border: '1px solid rgba(43,140,193,0.3)', background: 'rgba(43,140,193,0.10)', cursor: 'pointer' }}>
+                  <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 20, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.10)', cursor: 'pointer' }}>
                     <div style={{ width: 7, height: 7, borderRadius: 4, background: loc.status.color }} />
                     <span style={{ fontSize: 12, color: '#f0f4f8' }}>{loc.locationName}</span>
                   </button>

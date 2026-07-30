@@ -610,3 +610,30 @@ dropdown at once. Worth doing deliberately, not as a rider.
 **Trigger:** any pixel/copy-parity pass over the wizard screens (P2 wizard depth, or the
 side-by-side verification lane flagging it) — add a `placeholder` pass-through on `SelectField`
 and set the phone's per-field strings.
+
+## 31. P0.5 (parity/p0-tokens) — glass-token extraction: deliberate residuals
+
+**Source:** parity P0.5 (glass-token extraction, branch `parity/p0-tokens`), 2026-07-30.
+
+**What:** the G6 dedupe moved the repeated gradient/border clusters into
+`features/demo/ui/glass-tokens.ts` (guard test pins the values and bans re-inlining), but a few
+call sites deliberately keep raw literals:
+
+- `SyncStatusCard.tsx` — ``border: `1px solid ${ok ? 'rgba(16,209,119,0.3)' : '#2a4a6f'}` ``
+  keeps the bare `#2a4a6f` colour inside a template conditional; swapping it for a token means
+  restructuring the expression (two full-shorthand branches), which P0.5's "value substitution
+  only" rule forbids.
+- `CaseMapPicker.tsx:131` — `borderColor: selected ? accent : '#1e3a5f'` keeps the bare colour for
+  the same reason (the shorthand token can't slot into a `borderColor` value).
+- `1px solid rgba(43,140,193,0.25)` (ImportModal picker card + ExtractedScope info banner, 2×) and
+  every one-off gradient (WizardHeader/TabBar bars, PhoneFrame titanium + scan sweep, Splash HUD,
+  map canvas, OCR scrim, drawer fades, ImportResultBody 0.6/0.7 card, Completion 0.9/0.96 summary
+  panel) stay literal — a token used once or twice is noise, not dedupe.
+
+**Why deferred:** P0.5 is a mechanical, pixel-identical dedupe; these need either a structural
+rewrite of conditional styles or a judgment call about near-miss gradient variants (0.88/0.95 vs
+0.9/0.96 etc.), which is restyling territory.
+
+**Trigger:** any actual demo restyle (the tokens' whole purpose) — normalize the near-miss
+variants into the token set then, with a side-by-side check; or a review pass that decides the
+two bare-colour conditionals deserve dedicated colour tokens.

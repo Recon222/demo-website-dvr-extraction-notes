@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
   SearchBoxCore,
   SearchSession,
@@ -29,7 +30,7 @@ interface Suggestion {
 const inputStyle: CSSProperties = {
   width: '100%',
   borderRadius: 8,
-  border: '1px solid #1e3a5f',
+  border: GLASS.border,
   background: '#0d1b2a',
   color: '#f0f4f8',
   fontSize: 15,
@@ -174,7 +175,7 @@ export function AddressAutocomplete({
         <ul
           role="listbox"
           aria-label={`${label} suggestions`}
-          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: '#0b1626', border: '1px solid #2a4a6f', borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
+          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: '#0b1626', border: GLASS.borderBtn, borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
         >
           {suggestions.map((s, i) => (
             <li key={i} role="option" aria-selected={false}>

@@ -4,12 +4,12 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 const grid: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  backgroundImage:
-    'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
+  backgroundImage: GLASS.gridOverlay,
   pointerEvents: 'none',
   zIndex: 0,
 }

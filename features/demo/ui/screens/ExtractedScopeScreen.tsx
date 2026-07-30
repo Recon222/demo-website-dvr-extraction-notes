@@ -2,6 +2,7 @@
 
 import type { ScopeEntry } from '@/features/demo/engine/types'
 import { DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { glassCard, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ExtractedScopeScreenProps {
   scopes: ScopeEntry[]
@@ -26,7 +27,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
           <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '14px 0' }}>Calculate the time offset first, then regenerate.</div>
         )}
         {scopes.map((ex, i) => (
-          <div key={ex.id} style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16, marginBottom: 14 }}>
+          <div key={ex.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Extracted {i + 1}</div>
               {scopes.length > 1 && (
@@ -38,7 +39,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
             <Field label="Cameras" value={ex.cameras} onChange={(v) => onChange(i, { cameras: v })} placeholder="Cameras exported" />
           </div>
         ))}
-        <button type="button" onClick={onRegenerate} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>Regenerate from offset</button>
+        <button type="button" onClick={onRegenerate} style={{ width: '100%', textAlign: 'center', padding: 12, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>Regenerate from offset</button>
         <WizardNext label="Continue →" onClick={onNext} />
       </div>
     </div>
