@@ -2,15 +2,18 @@
 
 import { Component, type CSSProperties, type ReactNode } from 'react'
 import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import type { AppView } from '@/features/demo/engine/store/create-store'
 
 /**
  * Per-view fallback body copy. The launch flows mirror the phone's route-level
  * `ErrorFallback` copy verbatim (app/(form)/ocr-capture.tsx, media-capture.tsx,
  * audio-recording.tsx — see ui-mapping docs 06/09/10); every other view gets the
- * demo-voiced generic. Keyed by plain view id — no engine imports, so the boundary
- * stays presentational (an unknown id just falls back to the generic copy).
+ * demo-voiced generic. Keyed by the `AppView` union (type-only import — the
+ * store-bridge rule bans the store instance, not its types; StoryRail and
+ * ExploreChecklist import the same union) so a typo or a `LaunchableId` rename
+ * is a compile error, not a silent degrade to generic copy (review R-16).
  */
-const FALLBACK_COPY: Record<string, string> = {
+const FALLBACK_COPY: Partial<Record<AppView, string>> = {
   ocr: 'An unexpected error occurred during OCR capture',
   mediaCapture: 'An unexpected error occurred during media capture',
   audioRecording: 'An unexpected error occurred during audio recording. Please try again.',
@@ -53,7 +56,7 @@ const detail: CSSProperties = {
 export interface DemoErrorBoundaryProps {
   /** The active view id. Changing it clears a caught error (recovery-on-navigation)
    *  and selects the launch-specific fallback copy. */
-  view: string
+  view: AppView
   /** Bridge-supplied recovery: return the app to the Cases screen (and clear any
    *  transient overlays that could re-throw). The boundary also clears its own error. */
   onReturnToCases(): void
@@ -63,7 +66,7 @@ export interface DemoErrorBoundaryProps {
 interface DemoErrorBoundaryState {
   error: Error | null
   /** Last seen `view`, tracked so a view change resets the error (see below). */
-  lastView: string
+  lastView: AppView
 }
 
 /**
