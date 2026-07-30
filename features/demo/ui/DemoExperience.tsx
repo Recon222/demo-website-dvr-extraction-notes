@@ -727,11 +727,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // to the review form, so the court PDF is never a one-shot.
             isComplete={(currentLocation?.form.completed ?? false) && reviewAgainFor !== currentLocation?.id}
             // R-19: gate + action key on the OPEN LOCATION alone — never the selection pair.
-            // currentCaseId can lag the location (only switchLocation writes both), so trusting
-            // it greened an unrelated case while stamping nothing. Deriving the case from
-            // loc.caseId always stamps and always greens the case that owns the location; the
-            // only disabling condition left is "no location open", which is exactly what the
-            // button's disabled hint says.
+            // Before b86cd46 only switchLocation wrote both halves, so currentCaseId could lag
+            // the location and trusting it greened an unrelated case while stamping nothing.
+            // Every store writer AND the rehydration repair (R-32) keep the pair coherent NOW —
+            // this derivation stays as defense-in-depth (it is the R-19 law stated locally, and
+            // it keeps the CTA correct even if a future writer slips). The only disabling
+            // condition left is "no location open", which is exactly what the disabled hint says.
             canComplete={!!currentLocation}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
