@@ -186,7 +186,7 @@ logic is simulated/hardcoded · **Static** = pure visual · **Missing** = not bu
 | 12 | **Extracted video scope** | `ui/screens/ExtractedScopeScreen.tsx` (46) | `app/(form)/extracted-video-scope.tsx` | **Complete** | Real: renders the store's auto-generated DVR-time windows (`generateExtractedScopes` = corrected range + `roundTo5Min` down/up); each row editable; per-row remove; **"Regenerate from offset"**; empty-state prompt. Store-side, non-canonical scopes are skipped, counted, dev-warned, and flagged via `extractedScopesPartial` — which the PDF then annotates rather than silently omitting. |
 | 13 | **DVR information** | `ui/screens/DvrInfoScreen.tsx` (130) + `logic/retention.ts` | `app/(form)/dvr-information.tsx` | **Complete+** | Real: Basic DVR Details (5 fields), Recording Configuration (channels, active cameras, Resolution + FPS custom dropdowns, **multi-select Continuous/Motion schedule** serialized as `"continuous, motion"` to match the phone), and a **Retention** section: a `DateField` for First Recorded Date drives `buildRetentionView` → **Total DVR Retention in days** + a **per-scope overwrite countdown** with SAFE/WARNING/CRITICAL/OVERWRITTEN status chips. The derived total is written back into `form.dvr.totalDvrRetention` (the PDF's source) by an effect in the bridge, with a careful guard so an import-provided retention string is never clobbered. |
 | 14 | **Cameras** | `ui/screens/CamerasScreen.tsx` (45) | `app/(form)/cameras.tsx` | **Partial** | Real: add/remove/edit camera rows with name + Resolution/FPS dropdowns sharing `field-options.ts` with DVR Info. `CameraEntry.gps` is in the type but **there is no per-camera GPS capture UI** (the phone has it). |
-| 15 | **Export information** | `ui/screens/ExportInfoScreen.tsx` (38) | `app/(form)/export-information.tsx` | **Complete** | Real: 3 dropdowns (media / file type / provided-via), size text field, media-player `Toggle`. Small drift: the option lists here are hardcoded in the screen and differ from `FORM_OPTIONS` in `engine/logic/import.ts`. |
+| 15 | **Export information** | `ui/screens/ExportInfoScreen.tsx` (38) | `app/(form)/export-information.tsx` | **Complete** | Real: 3 dropdowns (media / file type / provided-via), size text field, media-player `Toggle`. **Option sets canonical since P0.3:** the screen renders the phone-lifted lists from `engine/content/form-options.ts` (via the `ui/screens/field-options.ts` re-export), guarded by `option-parity.test.tsx`; the former `FORM_OPTIONS` registry in `engine/logic/import.ts` was deleted (reviews R-11/R-17/R-20 — tombstone at `import.ts:199`). |
 | 16 | **Notes** | `ui/screens/NotesScreen.tsx` (34) | `app/(form)/notes.tsx` + `features/documentation/notes` | **Partial** | Real: editable textarea bound to `form.notesText`, edits set `notesEdited=true`, **Regenerate** calls the store's `generateNotes()`. But `generateNotes` is a **thin hand-rolled 6-line builder** (occurrence, address, requester, one offset line, one line per requested scope) — nowhere near the phone's bullet-point formatters with hash-based change detection. This is the weakest "real logic" screen. |
 | 17 | **Completion & review** | `ui/screens/CompletionScreen.tsx` (92) | `app/(form)/completion.tsx` | **Partial** | Real: a live summary card (OCC #, location, DVR, offset, scopes/cameras counts, export), Date/Time Completed + Completed By fields writing to the store, **Preview / Export PDF** → real `generateCaseNotesDoc`, **Preview Time-Offset Calibration** → real `generateTimeOffsetDoc`, and a "Complete & Save" that flips a **local `caseCompleted` boolean in the bridge** to a success state. Note: completing does **not** change the case's `status` in the store — the case card stays "Draft". No biometric export gate, no encryption/password, no ZIP. |
 | 18 | **PDF preview overlay** | `ui/chrome/PdfPreview.tsx` (35) | PDF export/share sheet | **Partial (real content)** | Renders the genuinely-generated court-document HTML in a `sandbox=""` iframe (maximally restrictive — no scripts/forms/popups). "Save as PDF" is a **stub** (just closes). |
@@ -650,11 +650,15 @@ have the user confirm the date`. No `FIXME`/`HACK` anywhere.
    `sessionStorage` snapshot would be cheap insurance and would not violate the "no seed data"
    decision.
 
-6. **`ExportInfoScreen`'s option lists are hardcoded in the screen** and diverge from `FORM_OPTIONS`
-   in `engine/logic/import.ts` (e.g. demo screen: `'Cloud Link'`, `'Mixed'`, `'Picked Up'`;
-   `FORM_OPTIONS`: `'Cloud Upload'`, `'Network Transfer'`, `'Left with Contact'`, `'Electronic
-   Transfer'`). Also `resolution`/`fps` exist in *both* `field-options.ts` and `FORM_OPTIONS` with
-   different values. Two sources of truth for the same enums.
+6. **Resolved by P0.3 (option-set consolidation).** The screens' option sets now have one source
+   of truth: `engine/content/form-options.ts` (lifted verbatim from the phone's
+   `src/constants/FormOptions.ts`), re-exported to the screens by `ui/screens/field-options.ts`
+   and guarded by `field-options.test.ts` (re-export identity) + `option-parity.test.tsx`
+   (rendered lists). The former `FORM_OPTIONS` registry in `engine/logic/import.ts` — the second
+   source of truth this item described — was deleted along with its `optionValues` helper
+   (reviews R-11/R-17/R-20; tombstone at `import.ts:199`, barrel gone-list pins). The remaining
+   import-side question for P1 is normalizing *imported free-text* values against the canonical
+   lists, not reconciling two registries.
 
 7. **`demo.css` `@import`s two Google Font families at runtime** — render-blocking, third-party,
    and inconsistent with the marketing half's `next/font` handling (which already loads Share Tech
