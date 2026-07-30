@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import type { CameraEntry } from '@/features/demo/engine/types'
 import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { RESOLUTION_OPTIONS, FPS_OPTIONS } from '@/features/demo/ui/screens/field-options'
+import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE } from '@/features/demo/ui/screens/field-options'
 
 export interface CamerasScreenProps {
   cameras: CameraEntry[]
@@ -15,6 +16,33 @@ export interface CamerasScreenProps {
 }
 
 export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBack, onMenu }: CamerasScreenProps) {
+  // Per-camera custom Resolution/FPS mode — mirrors the phone's cameras.tsx:36-61: maps
+  // keyed by row index, and (unlike DVR Information) selecting the `custom` sentinel
+  // immediately CLEARS that camera's stored value before the user types. This DVR-vs-Cameras
+  // asymmetry is the phone's verified behavior (ui-mapping 07 fact-check), replicated as-is.
+  const [customResolutions, setCustomResolutions] = useState<Record<number, boolean>>({})
+  const [customFps, setCustomFps] = useState<Record<number, boolean>>({})
+
+  const handleResolutionSelect = (index: number, value: string) => {
+    if (value === CUSTOM_VALUE) {
+      setCustomResolutions({ ...customResolutions, [index]: true })
+      onChange(index, { resolution: '' })
+    } else {
+      setCustomResolutions({ ...customResolutions, [index]: false })
+      onChange(index, { resolution: value })
+    }
+  }
+
+  const handleFpsSelect = (index: number, value: string) => {
+    if (value === CUSTOM_VALUE) {
+      setCustomFps({ ...customFps, [index]: true })
+      onChange(index, { recordingFps: '' })
+    } else {
+      setCustomFps({ ...customFps, [index]: false })
+      onChange(index, { recordingFps: value })
+    }
+  }
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Cameras" onBack={onBack} onMenu={onMenu} />
@@ -29,12 +57,18 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBa
             <Field label="Camera Name / Location" value={c.cameraName} onChange={(v) => onChange(i, { cameraName: v })} placeholder="e.g., Rear entrance" />
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <SelectField label="Resolution" value={c.resolution} onChange={(v) => onChange(i, { resolution: v })} options={RESOLUTION_OPTIONS} />
+                <SelectField label="Resolution" value={customResolutions[i] ? CUSTOM_VALUE : c.resolution} onChange={(v) => handleResolutionSelect(i, v)} options={RESOLUTION_OPTIONS} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <SelectField label="FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} options={FPS_OPTIONS} />
+                <SelectField label="FPS" value={customFps[i] ? CUSTOM_VALUE : c.recordingFps} onChange={(v) => handleFpsSelect(i, v)} options={FPS_OPTIONS} />
               </div>
             </div>
+            {customResolutions[i] && (
+              <Field label="Custom Resolution" value={c.resolution} onChange={(v) => onChange(i, { resolution: v })} placeholder="e.g., 1440x900" />
+            )}
+            {customFps[i] && (
+              <Field label="Custom FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} placeholder="e.g., 12" />
+            )}
           </div>
         ))}
         <AddRowButton label="+ Add Camera" onClick={onAdd} />
