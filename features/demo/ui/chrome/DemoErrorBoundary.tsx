@@ -117,6 +117,9 @@ export class DemoErrorBoundary extends Component<DemoErrorBoundaryProps, DemoErr
           {error.message && <div style={detail}>{error.message}</div>}
           <button
             type="button"
+            // The throwing subtree's unmount strands keyboard/SR focus on <body>; land it
+            // on the only recovery control (in-repo idiom: ExitDialog's autoFocus). R-8.
+            autoFocus
             onClick={this.handleReturn}
             style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
           >
