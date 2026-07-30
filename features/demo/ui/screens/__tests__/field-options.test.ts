@@ -4,7 +4,7 @@ import * as engineOptions from '@/features/demo/engine/content/form-options'
 
 // field-options.ts must stay a PURE re-export of the engine module — the same object
 // references, not copies. A locally-redefined list here is exactly the drift that produced
-// parity gap G5 (screens vs FORM_OPTIONS disagreeing on the same enums).
+// parity gap G5 (two hand-typed copies of the same enums disagreeing).
 describe('ui/screens/field-options is a pure re-export of engine/content/form-options', () => {
   it('re-exports every engine export by reference', () => {
     for (const key of Object.keys(engineOptions) as (keyof typeof engineOptions)[]) {

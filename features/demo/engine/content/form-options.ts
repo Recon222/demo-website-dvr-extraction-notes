@@ -14,10 +14,13 @@
  * lowercase string) mirrors the phone's DVR Information checkboxes
  * (`app/(form)/dvr-information.tsx:62-66,112-122`).
  *
- * Both the screens (via `ui/screens/field-options.ts`) and the import pipeline's
- * `FORM_OPTIONS` (`engine/logic/import.ts`) consume THIS module, so the lists cannot
- * drift apart again (they did — parity matrix G5) and an import can never write an
- * enum value no dropdown can display.
+ * The screens consume THIS module (via the `ui/screens/field-options.ts` re-export), so
+ * the rendered lists cannot drift from it again (they did — parity matrix G5). Enforced
+ * by `field-options.test.ts` (re-export by reference) and `option-parity.test.tsx` (the
+ * rendered option labels). The import pipeline writes NO dropdown-enum fields at all —
+ * pinned by `import-displayable.test.ts` — which is what keeps every import-written
+ * value displayable; import code that ever needs an option list must consume this
+ * module directly.
  */
 
 export interface PickerOption {
