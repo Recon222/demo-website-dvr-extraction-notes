@@ -7,31 +7,34 @@ import {
   RESOLUTION_OPTIONS,
   FPS_OPTIONS,
   RECORDING_SCHEDULE_OPTIONS,
-  optionValues,
   isCustomResolution,
   isCustomFps,
   parseRecordingSchedule,
   toggleRecordingSchedule,
 } from '@/features/demo/engine/content/form-options'
+import type { PickerOption } from '@/features/demo/engine/content/form-options'
+
+/** Test-local values projection (the exported optionValues helper was deleted — review R-20). */
+const valuesOf = (options: readonly PickerOption[]) => options.map((o) => o.value)
 
 // These lists are lifted verbatim from the phone app's src/constants/FormOptions.ts
 // (line citations in the module header). The literals below pin them: a demo-side edit
 // that drifts any list away from the phone fails here, on the exact value that moved.
 describe('canonical form options (phone parity)', () => {
   it('Export Media matches the phone exactly (FormOptions.ts:16-23)', () => {
-    expect(optionValues(EXPORT_MEDIA_OPTIONS)).toEqual([
+    expect(valuesOf(EXPORT_MEDIA_OPTIONS)).toEqual([
       'USB Drive', 'External Hard Drive', 'DVD', 'Cloud Upload', 'Network Transfer', 'Other',
     ])
   })
 
   it('File Type matches the phone exactly (FormOptions.ts:25-32)', () => {
-    expect(optionValues(FILE_TYPE_OPTIONS)).toEqual([
+    expect(valuesOf(FILE_TYPE_OPTIONS)).toEqual([
       'MP4', 'AVI', 'MOV', 'MKV', 'Proprietary', 'Other',
     ])
   })
 
   it('Media Provided Via matches the phone exactly (FormOptions.ts:34-40)', () => {
-    expect(optionValues(MEDIA_PROVIDED_OPTIONS)).toEqual([
+    expect(valuesOf(MEDIA_PROVIDED_OPTIONS)).toEqual([
       'Hand Delivered', 'Mailed', 'Left with Contact', 'Electronic Transfer', 'Other',
     ])
   })

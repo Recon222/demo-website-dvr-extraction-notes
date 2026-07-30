@@ -79,11 +79,6 @@ export const FPS_OPTIONS: readonly PickerOption[] = [
   { label: 'Other (Custom)', value: CUSTOM_VALUE },
 ]
 
-/** The values of an option list (what the store holds / an import may write). */
-export function optionValues(options: readonly PickerOption[]): string[] {
-  return options.map((o) => o.value)
-}
-
 const STANDARD_RESOLUTIONS = RESOLUTION_OPTIONS.filter((o) => o.value !== CUSTOM_VALUE).map((o) => o.value)
 const STANDARD_FPS = FPS_OPTIONS.filter((o) => o.value !== CUSTOM_VALUE).map((o) => o.value)
 

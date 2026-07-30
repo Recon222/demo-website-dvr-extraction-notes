@@ -9,7 +9,9 @@ describe('features/demo/engine barrel', () => {
     expect(typeof demo.createDemoStore).toBe('function')
     expect(typeof demo.selectCaseNotesData).toBe('function')
     const surface = demo as unknown as Record<string, unknown>
-    for (const gone of ['runBeat', 'BEATS', 'realClock']) {
+    // FORM_OPTIONS + optionValues: deleted dead registry/helper (reviews R-11/R-17, R-20) —
+    // the canonical option lists in engine/content/form-options are the only surface.
+    for (const gone of ['runBeat', 'BEATS', 'realClock', 'FORM_OPTIONS', 'optionValues']) {
       expect(gone in surface, `"${gone}" should no longer be exported`).toBe(false)
     }
   })
