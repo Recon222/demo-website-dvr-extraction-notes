@@ -10,8 +10,10 @@
 // session survives recovery unless the snapshot itself is what throws.
 //
 // Deliberately chrome-free and outside the phone frame: like /demo itself (no
-// marketing header/footer — see app/layout.tsx), and the demo feature barrel is
-// untouched (this imports nothing from @/features/demo).
+// marketing header/footer — see app/layout.tsx). No STATIC import from
+// @/features/demo: the barrel is reached only through the async import in the
+// "Start fresh" handler below, keeping the demo chunk out of this segment's
+// initial JS (the property the marketing↔demo wall actually needs here).
 
 export default function DemoError({
   error,
