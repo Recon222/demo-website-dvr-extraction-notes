@@ -807,9 +807,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         <PhoneFrame
           tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
-          {/* Catches any render throw in the screen subtree (screens, modals, drawer,
-              overlays — portal errors propagate through the React tree, so portaled
-              modals are covered too) and shows a glass fallback INSIDE the frame.
+          {/* Catches render throws in the mounted screen subtree — screen/modal/drawer/
+              overlay COMPONENT renders, incl. portaled modals (portal errors propagate
+              through the React tree) — and shows a glass fallback INSIDE the frame.
+              NOT covered (review R-5): the bridge's own frame — activeScreen()/
+              activeModal() view-model derivation (toCaseCards, toMapData,
+              selectDrawerItems, …) executes above this boundary; a throw there is
+              caught by the route-level net, app/demo/error.tsx.
               Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
           <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>

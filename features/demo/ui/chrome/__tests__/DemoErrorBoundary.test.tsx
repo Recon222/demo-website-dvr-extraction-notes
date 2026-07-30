@@ -48,6 +48,16 @@ describe('DemoErrorBoundary', () => {
     expect(screen.getByRole('button', { name: 'Return to Cases' })).toBeInTheDocument()
   })
 
+  it('moves focus to the recovery button when the fallback mounts (R-8)', () => {
+    render(
+      <DemoErrorBoundary view="cases" onReturnToCases={vi.fn()}>
+        <Bomb armed />
+      </DemoErrorBoundary>,
+    )
+    // The throwing subtree's unmount would otherwise strand keyboard/SR focus on <body>.
+    expect(screen.getByRole('button', { name: 'Return to Cases' })).toHaveFocus()
+  })
+
   it('launch flows get the phone route-fallback copy (OCR / media / audio)', () => {
     const { rerender } = render(
       <DemoErrorBoundary view="ocr" onReturnToCases={vi.fn()}>
