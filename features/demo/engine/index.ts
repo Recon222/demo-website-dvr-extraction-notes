@@ -24,6 +24,21 @@ export {
 export { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 export { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 export { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
+export {
+  CUSTOM_VALUE,
+  EXPORT_MEDIA_OPTIONS,
+  FILE_TYPE_OPTIONS,
+  MEDIA_PROVIDED_OPTIONS,
+  RESOLUTION_OPTIONS,
+  FPS_OPTIONS,
+  RECORDING_SCHEDULE_OPTIONS,
+  optionValues,
+  isCustomResolution,
+  isCustomFps,
+  parseRecordingSchedule,
+  toggleRecordingSchedule,
+  type PickerOption,
+} from '@/features/demo/engine/content/form-options'
 
 // ---- Logic: time / OCR / import / PDF ----
 export * from '@/features/demo/engine/logic/time'
