@@ -57,6 +57,51 @@ describe('applyImport', () => {
     expect(loc.form.scopes).toHaveLength(1)
     expect(loc.form.scopes[0].cameras).toBe('cameras 3, 4 and 7')
   })
+
+  // R-33 event-scoped breadcrumb: a post-offset import is the one path that creates
+  // non-canonical adjusted rows without passing through Calculate.
+  const bogusFramesPatch = () => {
+    const base = mapAiToForm(SAMPLE_EXTRACTION)
+    return {
+      ...base,
+      _import: {
+        ...base._import,
+        timeFrames: [{ startDateTime: 'sometime friday', endDateTime: 'later that night', isActualTime: true, cameras: '' }],
+      },
+    }
+  }
+  const withOffset = () => {
+    const store = withLocation()
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    return store
+  }
+
+  it('dev-warns ONCE per import when post-offset frames are non-canonical (§15 / R-27 / R-33)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withOffset()
+    store.getState().applyImport(bogusFramesPatch())
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("1 imported time frame(s) aren't canonical"))
+    warn.mockRestore()
+  })
+
+  it('does not warn without an offset (Calculate will warn later via generateExtractedScopes)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withLocation()
+    store.getState().applyImport(bogusFramesPatch())
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does not warn when post-offset imported frames are canonical', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withOffset()
+    store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION))
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
 })
 
 describe('media', () => {

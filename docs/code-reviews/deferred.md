@@ -307,10 +307,13 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 **What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
 - ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
   sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
-  **RESOLVED (P0 fix round 2, R-27):** the trigger fired when `5c319e4` touched `selectors.ts`;
-  the catch now counts drops and dev-warns after the map, mirroring `generateExtractedScopes`,
-  pinned by tests in `select-adjusted-scopes.test.ts`. This half is done — P2.4's G8 scope
-  shrinks accordingly.
+  **RESOLVED (P0 fix round 2, R-27; placement corrected by R-33 in the P1 rider):** the
+  trigger fired when `5c319e4` touched `selectors.ts`. The breadcrumb is EVENT-scoped, not
+  render-scoped: `generateExtractedScopes` (Calculate) and `applyImport` (post-offset import)
+  each dev-warn once per event with the drop count, while the render-body selector stays
+  deliberately silent (documented in its catch). Pinned by tests in
+  `select-adjusted-scopes.test.ts` + `store-actions.test.ts`. This half is done — P2.4's G8
+  scope shrinks accordingly.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
   `time.ts`'s own "fail loud" convention. **Still open.**
 

@@ -439,6 +439,27 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
           }
         }),
       }))
+      // Event-scoped breadcrumb (§15 / R-27 / R-33): a post-offset import is the one path
+      // that creates non-canonical adjusted rows without passing through Calculate (whose
+      // generateExtractedScopes already warns). Warned HERE — once per import event — so the
+      // render-scoped selector can stay silent instead of repeating per keystroke.
+      if (process.env.NODE_ENV !== 'production') {
+        const loc = get().locations.find((l) => l.id === id)
+        const off = loc?.form.timeOffset
+        if (off && patch._import.timeFrames.length) {
+          let dropped = 0
+          for (const sc of loc.form.scopes) {
+            try {
+              calculateCorrectedTimeRange({ startDateTime: sc.startDateTime, endDateTime: sc.endDateTime }, off, sc.isActualTime)
+            } catch {
+              dropped++
+            }
+          }
+          if (dropped > 0) {
+            console.warn(`[demo] applyImport: ${dropped} imported time frame(s) aren't canonical yet — adjusted times stay blank until corrected`)
+          }
+        }
+      }
     },
 
     addMedia: (kind, item) => {

@@ -67,8 +67,7 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
   const loc = selectCurrentLocation(s)
   const off = loc?.form.timeOffset
   if (!loc || !off) return []
-  let dropped = 0
-  const rows = loc.form.scopes.map((sc) => {
+  return loc.form.scopes.map((sc) => {
     let adjStart = ''
     let adjEnd = ''
     try {
@@ -76,9 +75,12 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       adjStart = cr.startDateTime
       adjEnd = cr.endDateTime
     } catch {
-      // non-canonical requested time — adjusted stays blank (the extracted screen surfaces it),
-      // but counted + dev-warned below, mirroring generateExtractedScopes (deferred §15 / R-27).
-      dropped++
+      // Non-canonical requested time — adjusted stays blank; the document surfaces it via
+      // adjustedScopesPartial. DELIBERATELY silent here (R-33): this selector runs in the
+      // bridge's render body (per keystroke, doubled under StrictMode), so the §15/R-27
+      // breadcrumb is emitted once per EVENT at the boundaries that create the condition —
+      // generateExtractedScopes (Calculate) and applyImport (post-offset import) — matching
+      // how the generateExtractedScopes sibling warns from its action, not from render.
     }
     return {
       id: sc.id,
@@ -90,10 +92,6 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       cameras: sc.cameras,
     }
   })
-  if (dropped > 0 && process.env.NODE_ENV !== 'production') {
-    console.warn(`[demo] selectAdjustedScopes left ${dropped} non-canonical scope(s) blank`)
-  }
-  return rows
 }
 
 export function selectCurrentCase(s: DemoState): DemoCase | null {
