@@ -605,6 +605,22 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
   })
 
+  it('completion: Escape dismisses the PDF preview and focus returns to the opener button (deferred §21)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    const opener = screen.getByText('Preview / Export PDF')
+    opener.focus() // jsdom does not focus on click — make the opener the focused element, as a real tap/tab would
+    fireEvent.click(opener)
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTitle('Case Notes — PDF')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

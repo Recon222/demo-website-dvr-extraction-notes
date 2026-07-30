@@ -402,7 +402,14 @@ picker's (or portal ordering) so an open picker stays on top.
 
 ---
 
-## 21. PdfPreview has no Escape / backdrop dismiss (buttons only)
+## 21. PdfPreview has no Escape / backdrop dismiss (buttons only) — ✅ RESOLVED
+
+**RESOLVED** (`parity/p1-pdfsave`, P1.6): Escape listener added (same document-level pattern as
+ModalShell/WizardDrawer), the grey document surround now closes on click (the panel is full-screen,
+so the surround is the closest analog to a scrim — clicks on the document iframe itself do not
+close), and focus is handed back to the opener element on unmount. Covered by component tests in
+`features/demo/ui/chrome/__tests__/PdfPreview.test.tsx` plus a store-driven integration test in
+`DemoExperience.sandbox.test.tsx`.
 
 **Source:** PR #18 review (silent-failure, informational).
 
