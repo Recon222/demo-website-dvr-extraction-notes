@@ -32,7 +32,6 @@ export {
   RESOLUTION_OPTIONS,
   FPS_OPTIONS,
   RECORDING_SCHEDULE_OPTIONS,
-  optionValues,
   isCustomResolution,
   isCustomFps,
   parseRecordingSchedule,
