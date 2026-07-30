@@ -8,7 +8,10 @@ import { SNAPSHOT_KEY } from '@/features/demo/engine/store/persistence'
 // (jsdom) sessionStorage and rehydrates from it on the next mount. pagehide flushes the
 // debounced write, so the loop needs no timer control. Storage is cleared around every test —
 // leakage between tests is exactly the bug this hygiene prevents.
-describe('DemoExperience — sessionStorage persistence wiring (P0.4)', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — sessionStorage persistence wiring (P0.4)', { timeout: 20000 }, () => {
   beforeEach(() => window.sessionStorage.clear())
   afterEach(() => window.sessionStorage.clear())
 

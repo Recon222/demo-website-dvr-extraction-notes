@@ -53,7 +53,10 @@ function currentLoc(store: Store) {
   return s.locations.find((l) => l.id === s.currentLocationId)
 }
 
-describe('DemoExperience — sandbox bridge paths', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
   it('marquee: Capture from DVR → Use sample → confirm yields the real 00:05:30 offset', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -612,7 +615,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
   })
 })
 
-describe('DemoExperience — Use Current Time (device sync)', () => {
+describe('DemoExperience — Use Current Time (device sync)', { timeout: 20000 }, () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 

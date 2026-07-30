@@ -21,7 +21,10 @@ vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
-describe('DemoExperience — geocoded coordinates bridge', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — geocoded coordinates bridge', { timeout: 20000 }, () => {
   it('a New Location address pick stores geocoded gps on the new location', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
