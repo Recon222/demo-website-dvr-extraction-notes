@@ -92,11 +92,16 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(store.getState().cases[0]?.status).toBe('complete')
     // … the confirmation view keys off the LOCATION's completed flag (R-1) …
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
-    // … and the Cases card badge now reads Complete (green), not Draft.
+    // … and the Cases card badge now reads Complete (green), not Draft — exactly one badge
+    // while collapsed (R-22: strict, so a row regression can't hide behind the badge) …
     fireEvent.click(screen.getByText('Return to Cases'))
     expect(store.getState().view).toBe('cases')
-    expect(screen.getAllByText('Complete').length).toBeGreaterThan(0)
+    expect(screen.getByText('Complete')).toBeInTheDocument()
     expect(screen.queryByText('Draft')).not.toBeInTheDocument()
+    // … and expanding the card shows BOTH halves of the payoff: the case badge AND the
+    // completed location's truthful row status (the G3/G4 pair this arc test is named for).
+    fireEvent.click(screen.getByText('Test Case'))
+    expect(screen.getAllByText('Complete')).toHaveLength(2)
   })
 
   it('R-1: completing location 1 leaves a sibling location on the REVIEW form, not a false confirmation', () => {
