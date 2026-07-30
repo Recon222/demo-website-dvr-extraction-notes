@@ -304,17 +304,21 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 
 **Source:** PR #16 review (silent-failure, out-of-scope).
 
-**What:** Two latent silent-failure paths in existing demo code (not introduced by PR #16):
-- `selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
-  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.
+**What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
+- ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
+  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
+  **RESOLVED (P0 fix round 2, R-27):** the trigger fired when `5c319e4` touched `selectors.ts`;
+  the catch now counts drops and dev-warns after the map, mirroring `generateExtractedScopes`,
+  pinned by tests in `select-adjusted-scopes.test.ts`. This half is done — P2.4's G8 scope
+  shrinks accordingly.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
-  `time.ts`'s own "fail loud" convention.
+  `time.ts`'s own "fail loud" convention. **Still open.**
 
-**Why deferred:** Both are latent — current callers guard upstream (canonical dates now reach them after
-Slice A), so neither fires today. Out of scope for the date-normalization PR.
+**Why deferred (remaining half):** Latent — current callers guard upstream (canonical dates reach
+`roundTo5Min` after Slice A), so it doesn't fire today.
 
-**Trigger:** Next time `selectors.ts` / `time.ts` are touched — add the dev-warn to the `selectAdjustedScopes`
-catch and make `roundTo5Min` fail loud (or document why it tolerates bad input).
+**Trigger (remaining half):** Next time `time.ts` is touched — make `roundTo5Min` fail loud (or
+document why it tolerates bad input).
 
 ---
 
