@@ -42,6 +42,28 @@ export default function DemoError({
         >
           Try again
         </button>
+        {/* Escape hatch for a STATE-driven throw (review R-24): the boundary's own
+            activation flushed the throwing state to storage as the newest snapshot, so
+            reset() alone rebuilds it forever. Clearing the snapshot first guarantees an
+            empty boot. Dynamic barrel import keeps the demo chunk out of this segment's
+            initial JS (the /demo page loads the same chunk lazily — see index.ts note);
+            if the chunk somehow can't load, fall back to a plain reset — no worse than
+            "Try again". */}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const { clearDemoSnapshot } = await import('@/features/demo')
+              clearDemoSnapshot()
+            } catch {
+              // chunk load failed — degrade to the Try-again behavior
+            }
+            reset()
+          }}
+          className="mt-3 w-full rounded-[10px] border border-input bg-transparent px-4 py-3 text-[14px] font-semibold text-muted hover:text-heading"
+        >
+          Start fresh (clears this tab&apos;s demo session)
+        </button>
       </div>
     </main>
   )
