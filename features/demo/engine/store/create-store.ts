@@ -23,7 +23,7 @@ import {
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
-import { mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
+import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {
@@ -88,8 +88,9 @@ export interface DemoState {
   capture: CaptureState
   /** Everything the visitor has seen this session — view ids, launchable ids, and modal
    *  ids, recorded by setView/launch/openModal. The exploration manifest derives its lit
-   *  state from this (engine/content/explore.ts + selectExploreStatus). Session-only:
-   *  a reload (or reset) starts the record over. Keyed by the recordable id space, not
+   *  state from this (engine/content/explore.ts + selectExploreStatus). Tab-scoped: it
+   *  persists across a refresh with the rest of the snapshot (P0.4) but dies with the
+   *  tab; reset() starts the record over. Keyed by the recordable id space, not
    *  bare string, so registry typos are compile errors (review M1). */
   visited: Readonly<Partial<Record<AppView | ModalId, true>>>
 }
@@ -97,6 +98,8 @@ export interface DemoState {
 export interface DemoActions {
   reset(): void
   createCase(input: NewCaseInput): string
+  /** Mark a case complete (the "Complete & Save" arc payoff): Cases/Dashboard cards turn green. */
+  completeCase(caseId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -115,6 +118,26 @@ export interface DemoActions {
 }
 
 export type DemoStore = StoreApi<DemoState & DemoActions>
+
+/**
+ * The refresh-surviving subset of DemoState (P0.4, owner decision D2): everything the visitor
+ * built (cases, locations, forms), their selection, their wizard position, the in-progress
+ * time-offset capture, and the exploration record. Deliberately EXCLUDED as ephemeral chrome:
+ * `modal` (its input fields live in DemoExperience-local useState and would rehydrate blank)
+ * and `drawerOpen` — both boot fresh. See engine/store/persistence.ts for the snapshot format.
+ */
+export type PersistedState = Pick<
+  DemoState,
+  | 'profile'
+  | 'cases'
+  | 'locations'
+  | 'currentCaseId'
+  | 'currentLocationId'
+  | 'view'
+  | 'currentChapter'
+  | 'capture'
+  | 'visited'
+>
 
 export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
@@ -149,12 +172,19 @@ const visit = (
 const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
-export function createDemoStore(): DemoStore {
-  let seq = 0
+/**
+ * Create the demo store — empty by default (the owner's empty-boot decision), or rehydrated
+ * from a validated sessionStorage snapshot (P0.4). `initial` must come from `loadSnapshot`
+ * (shape-guarded); the id counter is seeded past every rehydrated id so post-refresh ids
+ * never collide with restored ones.
+ */
+export function createDemoStore(initial?: PersistedState): DemoStore {
+  let seq = initial ? maxIdSeq(initial) : 0
   const nextId = (prefix: string) => `${prefix}${++seq}`
 
   return createStore<DemoState & DemoActions>((set, get) => ({
     ...initialState(),
+    ...initial,
 
     /** Start over: back to the empty boot. */
     reset: () => set(initialState()),
@@ -182,6 +212,11 @@ export function createDemoStore(): DemoStore {
       set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))
       return id
     },
+
+    completeCase: (caseId) =>
+      set((s) => ({
+        cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
+      })),
 
     addLocation: (caseId, input) => {
       const id = nextId('l')

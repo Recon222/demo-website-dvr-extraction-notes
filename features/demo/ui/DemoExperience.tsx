@@ -38,6 +38,8 @@ import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/scr
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
+import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
+import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
@@ -100,6 +102,15 @@ const blankImport: ImportState = { stage: 'picker', text: '', result: null, last
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
+
+/** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
+function sessionStorageOrNull(): StorageLike | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage
+  } catch {
+    return null
+  }
+}
 const blankScope = (): ScopeEntry => ({ id: `ui-s${uiSeq++}`, startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' })
 const blankVisit = () => ({ id: `ui-v${uiSeq++}`, arrival: '', departure: '' })
 const blankCamera = (): CameraEntry => ({ id: `ui-c${uiSeq++}`, cameraName: '', resolution: '', recordingFps: '' })
@@ -141,7 +152,16 @@ export interface DemoExperienceProps {
 export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
   const storeRef = useRef<DemoStore | null>(null)
   if (!storeRef.current) {
-    storeRef.current = injectedStore ?? createDemoStore()
+    if (injectedStore) {
+      storeRef.current = injectedStore
+    } else {
+      // P0.4 (D2): rehydrate this tab's snapshot — sessionStorage is per-tab, so a fresh
+      // visitor still boots empty. uiSeq must clear every rehydrated id so UI-minted row
+      // ids can't collide with restored ones after a refresh.
+      const snapshot = loadSnapshot(sessionStorageOrNull())
+      if (snapshot) uiSeq = Math.max(uiSeq, maxIdSeq(snapshot) + 1)
+      storeRef.current = createDemoStore(snapshot ?? undefined)
+    }
   }
   const store = storeRef.current
 
@@ -183,7 +203,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
-  const [caseCompleted, setCaseCompleted] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
@@ -192,6 +211,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => () => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
   }, [])
+
+  // P0.4: mirror the store into sessionStorage (debounced) so a mid-wizard refresh restores
+  // the tab's work. pagehide flushes a pending write — a refresh rarely waits out the
+  // debounce. Injected stores (the test seam) are deliberately not persisted.
+  useEffect(() => {
+    if (injectedStore) return
+    const handle = persistDemoStore(store, sessionStorageOrNull())
+    const onPageHide = () => handle.flush()
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      handle.dispose()
+    }
+  }, [injectedStore, store])
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
@@ -667,21 +700,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return (
           <CompletionScreen
             summary={summary}
-            isComplete={caseCompleted}
+            // Truthful status (G4): the confirmation view keys off the STORE's case status,
+            // so Cases/Dashboard cards turn green with it — no local shadow boolean.
+            isComplete={currentCase?.status === 'complete'}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
-            onComplete={() => setCaseCompleted(true)}
-            onBackToDashboard={() => {
-              setCaseCompleted(false)
-              store.getState().setView('dashboard')
+            onComplete={() => {
+              const id = store.getState().currentCaseId
+              if (id) store.getState().completeCase(id)
             }}
-            onBackToCases={() => {
-              setCaseCompleted(false)
-              store.getState().setView('cases')
-            }}
+            onBackToDashboard={() => store.getState().setView('dashboard')}
+            onBackToCases={() => store.getState().setView('cases')}
             onBack={onPrev}
             onMenu={openMenu}
           />

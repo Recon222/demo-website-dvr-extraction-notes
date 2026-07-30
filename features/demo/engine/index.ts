@@ -42,7 +42,19 @@ export {
   type CaptureState,
   type NewCaseInput,
   type NewLocationInput,
+  type PersistedState,
 } from '@/features/demo/engine/store/create-store'
+export {
+  PERSISTENCE_ENABLED,
+  SNAPSHOT_KEY,
+  SNAPSHOT_VERSION,
+  SAVE_DEBOUNCE_MS,
+  loadSnapshot,
+  persistDemoStore,
+  snapshotOf,
+  type PersistenceHandle,
+  type StorageLike,
+} from '@/features/demo/engine/store/persistence'
 export {
   selectCurrentCase,
   selectCurrentLocation,
