@@ -55,3 +55,25 @@ pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/
 - SVGs and images are imported as modules from `@/public/...` and passed to `next/image` (static imports give `StaticImageData`).
 - TypeScript is `strict`; `target` is `es5` with `jsx: preserve`.
 - Fonts are exposed as CSS variables (`--font-inter`, `--font-nacelle`, `--font-stmono`, `--font-jbmono`) applied on `<body>`; use the `font-inter` / `font-nacelle` / `font-stmono` / `font-jbmono` utilities.
+
+## Review workflow
+
+Implementation PRs are reviewed by a multi-agent pipeline: **`/demo-code-review`** (`.claude/skills/demo-code-review/SKILL.md`). It fans out five read-only lane specialists in parallel — `typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer` (`.claude/agents/`) — verifies each finding against the code, then issues a strict decision: any CRITICAL → BLOCK, any HIGH → REVISE, otherwise APPROVE.
+
+```bash
+/demo-code-review            # current branch's PR
+/demo-code-review 31         # a specific PR
+/demo-code-review 31 --fix-delta   # re-review the fixes with the SAME reviewers resumed
+```
+
+- **Two modes.** The initial run dispatches fresh agents and records their agent IDs in the review doc. `--fix-delta` reads those IDs back and resumes the original reviewers with their full context, so each one judges the fixes to *its own* findings.
+- **Every revision pass gets a fix-delta re-review before merge**, and the review artifacts are committed. Reviews live in `docs/code-reviews/` as `pr-<N>-review.md` and `pr-<N>-fixes-review.md`.
+- **Merges are merge commits** — `gh pr merge <N> --merge --delete-branch`. Never squash, never rebase.
+- **Commits are granular**, red and green together (the failing test and the code that passes it land in the same commit), and each fix commit maps to a review finding. Post the commit→finding table as a PR comment after each fix round.
+- **This is the gate for the demo↔phone parity effort** — see `docs/planning/demo-phone-parity/01-master-parity-plan.md` §6. Brief every reviewer with the phase's package scope so they don't flag surfaces that are scheduled for a later phase.
+
+### Deferral ledger
+
+`docs/code-reviews/deferred.md` is the living record of findings deliberately **not** fixed. Log every deferral there **before merging**, in the house format — a numbered `## N. <title>` section with **Source**, **What**, **Why deferred**, and **Trigger**.
+
+The ledger's bar is explicit and enforced by the fix-delta reviewers: *each entry needs a real reason to wait **and** a concrete un-defer trigger.* It is not a TODO dump — a vague deferral or a missing trigger is itself a review finding. Resolved entries are struck through and marked `✅ RESOLVED — PR #<N>` rather than deleted, so the history of the decision survives.
