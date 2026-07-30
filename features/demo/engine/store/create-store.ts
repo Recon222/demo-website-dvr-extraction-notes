@@ -88,8 +88,9 @@ export interface DemoState {
   capture: CaptureState
   /** Everything the visitor has seen this session — view ids, launchable ids, and modal
    *  ids, recorded by setView/launch/openModal. The exploration manifest derives its lit
-   *  state from this (engine/content/explore.ts + selectExploreStatus). Session-only:
-   *  a reload (or reset) starts the record over. Keyed by the recordable id space, not
+   *  state from this (engine/content/explore.ts + selectExploreStatus). Tab-scoped: it
+   *  persists across a refresh with the rest of the snapshot (P0.4) but dies with the
+   *  tab; reset() starts the record over. Keyed by the recordable id space, not
    *  bare string, so registry typos are compile errors (review M1). */
   visited: Readonly<Partial<Record<AppView | ModalId, true>>>
 }

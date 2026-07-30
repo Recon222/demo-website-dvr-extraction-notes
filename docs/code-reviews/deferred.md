@@ -554,3 +554,33 @@ set, so a fallback now is speculative.
 **Trigger:** If `splash` navigation is reintroduced, or any new `ChapterId`/view becomes reachable
 without a covering `EXPLORE_ITEMS` row — either add a covering row, or lift `activeDetail` to the
 list level with a documented `?? NARRATION[currentChapter]` fallback so the rail copy can't vanish.
+
+---
+
+## 29. P0.2/P0.4 (parity/p0-store) — deliberate non-changes
+
+**Source:** demo↔phone parity plan P0.2 (truthful statuses) + P0.4 (sessionStorage persistence, D2).
+
+**What was deliberately NOT done, and why:**
+
+- **Map tab's viewer case is not persisted.** `mapViewerCaseId`/`mapPickerOpen` are
+  DemoExperience-local UI state, not store state. A refresh on the Map tab restores
+  `view: 'map'` but re-shows the mandatory case picker — a coherent, honest empty state,
+  and cheaper than promoting tab-local state into the store. Promote it only if the owner
+  flags the picker reappearing as friction.
+- **Open modal + drawer are not persisted.** A rehydrated modal would reopen with blank
+  local fields (`caseForm`/`locForm`/`imp` live in component state) — worse than closed.
+  Documented on `PersistedState` in `engine/store/create-store.ts`.
+- **The `uiSeq` reseed has no behavioral UI test.** Module state survives remounts inside a
+  test file — it only resets on a REAL page load — so the collision the reseed prevents
+  cannot be reproduced under vitest. The store-side equivalent (`seq` reseed via
+  `maxIdSeq`) is pinned in `engine/store/__tests__/persistence.test.ts`; `maxIdSeq` itself
+  in `helpers.test.ts`. Playwright E2E (a real reload) is the natural home for a true
+  refresh-loop test when E2E lands.
+- **Pending debounce writes are flushed on `pagehide`, not written synchronously per
+  change.** Per-change writes would serialize the whole state on every keystroke;
+  `pagehide` covers refresh/close, and `dispose` covers SPA unmount. A hard crash inside
+  the 250ms window can lose that window's keystrokes — accepted for a demo.
+
+**Trigger:** owner feedback on the Map-picker refresh UX; Playwright E2E introduction
+(add the real-reload round-trip + duplicate-key regression test there).
