@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { CameraEntry } from '@/features/demo/engine/types'
 import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE } from '@/features/demo/ui/screens/field-options'
+import { glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface CamerasScreenProps {
   cameras: CameraEntry[]
@@ -49,7 +50,7 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBa
       <div style={{ padding: 16 }}>
         {cameras.length === 0 && <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '8px 0 14px' }}>No cameras yet — add the ones in the recovery.</div>}
         {cameras.map((c, i) => (
-          <div key={c.id} style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16, marginBottom: 14 }}>
+          <div key={c.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Camera {i + 1}</div>
               <button type="button" onClick={() => onRemove(i)} style={{ cursor: 'pointer', color: '#ff7a85', fontSize: 13, background: 'transparent', border: 'none' }}>Remove</button>

@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, type CSSProperties, type ReactNode } from 'react'
+import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 /**
  * Per-view fallback body copy. The launch flows mirror the phone's route-level
@@ -27,8 +28,8 @@ const wrap: CSSProperties = {
 const card: CSSProperties = {
   width: '100%',
   borderRadius: 16,
-  border: '1px solid rgba(255,71,87,0.3)',
-  background: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
+  border: GLASS.borderError,
+  background: GLASS.gradientCardDiag,
   padding: '26px 20px',
   display: 'flex',
   flexDirection: 'column',
@@ -38,7 +39,7 @@ const card: CSSProperties = {
 const detail: CSSProperties = {
   width: '100%',
   borderRadius: 10,
-  border: '1px solid rgba(255,71,87,0.3)',
+  border: GLASS.borderError,
   background: 'rgba(255,71,87,0.06)',
   padding: '10px 12px',
   fontSize: 12,
@@ -117,7 +118,7 @@ export class DemoErrorBoundary extends Component<DemoErrorBoundaryProps, DemoErr
           <button
             type="button"
             onClick={this.handleReturn}
-            style={{ width: '100%', textAlign: 'center', padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+            style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
           >
             Return to Cases
           </button>
