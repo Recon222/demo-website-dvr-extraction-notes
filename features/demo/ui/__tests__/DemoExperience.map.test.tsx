@@ -22,7 +22,10 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllEnvs())
 
-describe('DemoExperience — Map tab wiring', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — Map tab wiring', { timeout: 20000 }, () => {
   it('clicking the Map tab opens the Map screen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -58,7 +61,7 @@ describe('DemoExperience — Map tab wiring', () => {
   })
 })
 
-describe('DemoExperience — Map case picker', () => {
+describe('DemoExperience — Map case picker', { timeout: 20000 }, () => {
   it('shows the mandatory picker (no Cancel) when no viewer case is chosen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

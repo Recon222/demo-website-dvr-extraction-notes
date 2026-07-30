@@ -60,6 +60,7 @@ export function blankLocationForm(): LocationForm {
     notesEdited: false,
     dateTimeCompleted: '',
     completedBy: '',
+    completed: false,
     media: { photos: [], videos: [], audios: [] },
   }
 }

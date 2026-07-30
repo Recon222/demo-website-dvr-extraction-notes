@@ -3,11 +3,17 @@
  * the demo holds — there is no backend; everything is per-session. Simplified from the
  * real app's SQLite model, keeping only what the demo renders.
  *
+ * Closed string unions are declared as `as const` tuples with the TYPE derived from the
+ * tuple (R-4a): the persistence shape guard consumes the same tuples via `z.enum(...)`, so
+ * a schema narrower than its domain union is structurally impossible — adding a variant
+ * updates the type and the guard in one edit.
+ *
  * See docs/features/interactive-demo/01-interactive-demo-architecture.md §4.
  */
 
 // ---- Profiles ---------------------------------------------------------------
-export type Profile = 'forensic' | 'canvas'
+export const PROFILES = ['forensic', 'canvas'] as const
+export type Profile = (typeof PROFILES)[number]
 
 // ---- Screen identifiers -----------------------------------------------------
 /** The 10 in-drawer wizard screens, in Next/Back order. */
@@ -48,8 +54,10 @@ export interface ArrivalDeparture {
   departure: string
 }
 
+export const SYNC_METHODS = ['NTP', 'HTTP'] as const
+
 export interface SyncResult {
-  method: 'NTP' | 'HTTP'
+  method: (typeof SYNC_METHODS)[number]
   server: string
   offsetMs: number
   uncertaintyMs: number
@@ -69,18 +77,22 @@ export interface OcrProof {
   imageDataUrl?: string
 }
 
+export const OFFSET_DIRECTIONS = ['AHEAD OF', 'BEHIND'] as const
+export const CAPTURE_METHODS = ['manual', 'ocr'] as const
+export type CaptureMethod = (typeof CAPTURE_METHODS)[number]
+
 export interface TimeOffsetData {
   dvrDateTime: string
   actualDateTime: string
   differenceMs: number
   formattedDifference: string
-  direction: 'AHEAD OF' | 'BEHIND'
+  direction: (typeof OFFSET_DIRECTIONS)[number]
   isDvrAhead: boolean
   isCorrect: boolean
   dvrAppliesDST: boolean
   /** NTP calibration metadata (simulated in the demo); null = manual, unverified. */
   sync: SyncResult | null
-  captureMethod: 'manual' | 'ocr'
+  captureMethod: CaptureMethod
   ocr?: OcrProof
 }
 
@@ -124,7 +136,8 @@ export interface ExportInformation {
   mediaProvidedVia: string
 }
 
-export type MediaKind = 'photo' | 'video' | 'audio'
+export const MEDIA_KINDS = ['photo', 'video', 'audio'] as const
+export type MediaKind = (typeof MEDIA_KINDS)[number]
 
 export interface MediaItem {
   id: string
@@ -156,10 +169,20 @@ export interface LocationForm {
   /** Completion screen entry fields. */
   dateTimeCompleted: string
   completedBy: string
+  /** True once THIS location's "Complete & Save" was tapped (R-1): the Completion screen's
+   *  confirmation gate is location-scoped — the case-level status only colors the cards. */
+  completed: boolean
   media: { photos: MediaItem[]; videos: MediaItem[]; audios: MediaItem[] }
 }
 
 // ---- Entities ---------------------------------------------------------------
+export const CASE_STATUSES = ['draft', 'complete', 'archived'] as const
+export type CaseStatus = (typeof CASE_STATUSES)[number]
+/** Incident coordinates come from the address pick or hand entry — never a live GPS fix. */
+export const COORD_SOURCES = ['geocoded', 'manual'] as const
+/** Recovery-location fixes can additionally come from a real GPS capture. */
+export const GPS_SOURCES = ['gps', 'geocoded', 'manual'] as const
+
 export interface DemoCase {
   id: string
   caseNumber: string
@@ -176,10 +199,10 @@ export interface DemoCase {
   /** Incident scene coordinates — geocoded from the address pick or entered by hand. Unlike a
    *  recovery location (which always has a real street address), the incident can be anywhere
    *  (a scene in the woods), so coordinates may exist without/independent of the address. */
-  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  incidentCoordinates?: { lat: number; lng: number; source: (typeof COORD_SOURCES)[number] }
   /** Free-text case notes. */
   notes: string
-  status: 'draft' | 'complete' | 'archived'
+  status: CaseStatus
   createdLabel: string
   locationIds: string[]
 }
@@ -199,7 +222,7 @@ export interface DemoLocation {
   requesterEmail: string
   locationContact: string
   locationPhone: string
-  gps?: GpsCoordinates & { source: 'gps' | 'geocoded' | 'manual' }
+  gps?: GpsCoordinates & { source: (typeof GPS_SOURCES)[number] }
   form: LocationForm
 }
 

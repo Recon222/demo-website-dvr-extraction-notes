@@ -121,6 +121,89 @@ describe('round-trip (refresh survival — G1/D2)', () => {
   })
 })
 
+describe('maximal round-trip (R-4b runtime pin)', () => {
+  // Every optional in the persisted graph populated: DemoCase.incidentCoordinates,
+  // DemoLocation.gps, CameraEntry.gps, MediaItem.poster/durationSec/sample, SyncResult's
+  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr. The plain
+  // round-trip can't catch a silently-dropped optional (newCaseInput fills 3 of 16 fields);
+  // this one fails on ANY dropped key.
+  it('a state with every optional populated survives the round-trip in full', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const caseId = store.getState().createCase({
+      ...newCaseInput(),
+      oicName: 'A. Okafor',
+      oicBadge: '3318',
+      vcName: 'M. Reyes',
+      vcBadge: '5102',
+      incidentBusinessName: 'Acme Mart',
+      incidentStreetAddress: '5 King St',
+      incidentCity: 'Brampton',
+      incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+      notes: 'CCTV at rear',
+    })
+    store.getState().addLocation(caseId, {
+      ...newLocationInput(),
+      requesterName: 'L. McHugh',
+      requesterBadge: '4471',
+      requesterPhone: '905-555-0000',
+      requesterEmail: 'lm@peel.ca',
+      locationContact: 'S. Gill',
+      locationPhone: '905-555-0001',
+      gps: { lat: 43.61, lng: -79.65, source: 'manual' },
+    })
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().updateField('capture.method', 'ocr')
+    store.getState().updateField('capture.dvrAppliesDST', true)
+    store.getState().updateField('capture.sync', {
+      method: 'NTP',
+      server: 'time.nrc.ca',
+      offsetMs: 12,
+      uncertaintyMs: 4,
+      rttMs: 18,
+      traceability: 'NRC → stratum 2',
+      timestamp: 1741456800000,
+      stratum: 2,
+    })
+    store.getState().updateField('capture.ocr', {
+      rawText: '2O25-O3-O8 12:O5:3O',
+      cleanedText: '2025-03-08 12:05:30',
+      parsedDateTime: '2025-03-08 12:05:30',
+      confidence: 0.93,
+      imageDataUrl: 'data:image/png;base64,AA==',
+    })
+    store.getState().calculateOffset() // commits sync + ocr (incl. imageDataUrl) into timeOffset
+    store.getState().updateField('form.cameras', [
+      { id: 'cam1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15', gps: { lat: 43.6, lng: -79.6, accuracyM: 4 } },
+    ])
+    store.getState().addMedia('photo', {
+      id: 'm1',
+      kind: 'photo',
+      url: 'blob:photo',
+      poster: 'blob:poster',
+      filename: 'IMG_1.jpg',
+      caption: 'DVR rack',
+      capturedAt: '2025-03-09 10:00:00',
+      durationSec: 12,
+      sample: true,
+    })
+    store.getState().completeCase(caseId)
+    saveNow(store, storage)
+
+    const rehydrated = createDemoStore(loadSnapshot(storage) ?? undefined)
+    // The strongest pin: the FULL persisted subset must survive — any dropped key fails here.
+    expect(snapshotOf(rehydrated.getState())).toEqual(snapshotOf(store.getState()))
+    // Spot-check the deepest optionals (clearer failure messages than the whole-state diff).
+    const loc = rehydrated.getState().locations[0]
+    expect(loc.form.timeOffset?.ocr?.imageDataUrl).toBe('data:image/png;base64,AA==')
+    expect(loc.form.timeOffset?.sync?.stratum).toBe(2)
+    expect(loc.form.cameras[0].gps).toEqual({ lat: 43.6, lng: -79.6, accuracyM: 4 })
+    expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+  })
+})
+
 describe('shape guard (never crash boot)', () => {
   const seeded = () => {
     const storage = new FakeStorage()
@@ -187,6 +270,69 @@ describe('shape guard (never crash boot)', () => {
     parsed.state.visited = { cases: true, newCase: true, holodeck: true }
     storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true, newCase: true })
+  })
+
+  it('Object.prototype key names in visited are dropped too — own-property guard, not `in` (R-7)', () => {
+    const storage = seeded()
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { visited: Record<string, true> }
+    }
+    parsed.state.visited = { cases: true, toString: true, constructor: true, valueOf: true, hasOwnProperty: true } as const
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.visited).toEqual({ cases: true })
+  })
+
+  it('R-15: a dangling currentLocationId is dropped and a wizard view restores to cases, not a dead form', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore() // view/currentChapter: dvrInfo, with a real location
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentLocationId: string }
+    }
+    parsed.state.currentLocationId = 'ghost-location'
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBeNull()
+    expect(snap?.view).toBe('cases')
+    expect(snap?.currentChapter).toBe('cases')
+    expect(snap?.cases).toHaveLength(1) // the DATA survives — only the selection is repaired
+    expect(snap?.locations).toHaveLength(1)
+  })
+
+  it('R-15: a dangling currentCaseId is dropped; a non-wizard view is left as-is', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    store.getState().setView('cases')
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentCaseId: string }
+    }
+    parsed.state.currentCaseId = 'ghost-case'
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentCaseId).toBeNull()
+    expect(snap?.view).toBe('cases')
+  })
+
+  it('R-15: a wizard view persisted with NO location at all (rail-jump) restores to cases', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    store.getState().setView('completion') // reachable via rail-jump with nothing open
+    saveNow(store, storage)
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBeNull()
+    expect(snap?.view).toBe('cases')
+    expect(snap?.currentChapter).toBe('cases')
+  })
+
+  it('R-15: a valid selection passes through untouched', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    saveNow(store, storage)
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBe(store.getState().currentLocationId)
+    expect(snap?.currentCaseId).toBe(store.getState().currentCaseId)
+    expect(snap?.view).toBe('dvrInfo')
   })
 
   it('a launch-only view restores to currentChapter (launch screens depend on ephemeral UI state)', () => {
@@ -268,7 +414,8 @@ describe('debounced save', () => {
     expect(storage.setCalls).toBe(1)
   })
 
-  it('a throwing setItem is swallowed (quota) and later writes still try', () => {
+  it('a throwing setItem is swallowed (quota), breadcrumbed, and later writes still try', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const storage = new FakeStorage()
     let fail = true
     const realSet = storage.setItem.bind(storage)
@@ -281,11 +428,53 @@ describe('debounced save', () => {
     store.getState().setView('dashboard')
     expect(() => vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)).not.toThrow()
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('snapshot write failed'))
     fail = false
     store.getState().setView('cases')
     vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(true)
     handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('a failed write CLEARS the previous snapshot — a refresh boots empty, never restores stale work (R-14)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    saveNow(store, storage) // a valid snapshot is in place
+    expect(loadSnapshot(storage)).not.toBeNull()
+
+    // Re-seed (loadSnapshot's success path doesn't consume it) and break the NEXT write.
+    saveNow(store, storage)
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    const handle = persistDemoStore(store, storage)
+    store.getState().updateField('form.dvr.dvrLocation', 'newer work the write lost')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    handle.dispose()
+
+    // The stale (pre-edit) snapshot must NOT survive to be silently restored as current.
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
+    expect(loadSnapshot(storage)).toBeNull()
+    warn.mockRestore()
+  })
+
+  it('a throwing removeItem during the write-failure cleanup is still swallowed', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    storage.removeItem = () => {
+      throw new Error('SecurityError')
+    }
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    expect(() => vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)).not.toThrow()
+    handle.dispose()
+    warn.mockRestore()
   })
 })
 

@@ -92,4 +92,12 @@ describe('selectLocationMapStatus', () => {
     store.getState().updateField('form.dvr.dvrTypeBrand', 'Hikvision DS-7608') // one screen partial
     expect(selectLocationMapStatus(selectCurrentLocation(store.getState())!)).toBe('working')
   })
+
+  it('an explicitly completed location reads as complete regardless of field aggregation (R-1)', () => {
+    const store = storeWithLocation()
+    // Partly filled — aggregation alone would say 'working' — then Complete & Save.
+    store.getState().updateField('form.dvr.dvrTypeBrand', 'Hikvision DS-7608')
+    store.getState().completeCase(store.getState().currentCaseId!)
+    expect(selectLocationMapStatus(selectCurrentLocation(store.getState())!)).toBe('complete')
+  })
 })

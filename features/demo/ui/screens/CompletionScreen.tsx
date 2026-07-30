@@ -15,13 +15,19 @@ export interface CompletionSummary {
 
 export interface CompletionScreenProps {
   summary: CompletionSummary
+  /** Location-scoped (R-1): true only when THIS location was completed — never the case. */
   isComplete: boolean
+  /** False when no location is open (rail-jump with nothing selected): Complete & Save disables
+   *  instead of silently no-opping. */
+  canComplete: boolean
   dateTimeCompleted: string
   completedBy: string
   onChange(field: 'dateTimeCompleted' | 'completedBy', value: string): void
   onPreviewPdf(): void
   onPreviewTimeOffsetPdf(): void
   onComplete(): void
+  /** Back from the confirmation to the review form — the court PDF is never a one-shot. */
+  onReviewAgain(): void
   onBackToDashboard(): void
   onBackToCases(): void
   onBack(): void
@@ -47,10 +53,11 @@ export function CompletionScreen(p: CompletionScreenProps) {
           <div style={{ width: 84, height: 84, borderRadius: 42, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }}>
             <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Case Complete</div>
-          <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5, maxWidth: 280, marginBottom: 30 }}>Saved and marked complete. The location is locked, with its PDFs and media archived.</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Location Complete</div>
+          <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5, maxWidth: 280, marginBottom: 30 }}>Saved and marked complete. This location is locked, with its PDFs and media archived.</div>
           <button type="button" onClick={p.onBackToDashboard} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Back to Dashboard</button>
-          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Return to Cases</button>
+          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Return to Cases</button>
+          <button type="button" onClick={p.onReviewAgain} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Review / Export again</button>
         </div>
       </div>
     )
@@ -86,7 +93,15 @@ export function CompletionScreen(p: CompletionScreenProps) {
         {p.summary.offset && (
           <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Preview Time-Offset Calibration</button>
         )}
-        <button type="button" onClick={p.onComplete} style={{ width: '100%', textAlign: 'center', padding: 15, ...glassBtnPrimary, fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 18px rgba(37,128,173,0.35)' }}>Complete &amp; Save</button>
+        <button
+          type="button"
+          onClick={p.onComplete}
+          disabled={!p.canComplete}
+          title={p.canComplete ? undefined : 'Open a location first'}
+          style={{ width: '100%', textAlign: 'center', padding: 15, ...glassBtnPrimary, fontSize: 15, fontWeight: 700, cursor: p.canComplete ? 'pointer' : 'not-allowed', opacity: p.canComplete ? 1 : 0.45, boxShadow: p.canComplete ? '0 6px 18px rgba(37,128,173,0.35)' : 'none' }}
+        >
+          Complete &amp; Save
+        </button>
       </div>
     </div>
   )

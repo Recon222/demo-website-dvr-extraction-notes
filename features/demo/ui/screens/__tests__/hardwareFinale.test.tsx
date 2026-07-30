@@ -66,7 +66,7 @@ describe('CompletionScreen', () => {
     const onPreviewPdf = vi.fn()
     const onComplete = vi.fn()
     const onChange = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete={false} dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText(/PR25-0098213/)).toBeInTheDocument()
     expect(screen.getByText('00:05:30 AHEAD OF')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. X' } })
@@ -77,9 +77,21 @@ describe('CompletionScreen', () => {
     expect(onComplete).toHaveBeenCalledOnce()
   })
 
-  it('shows the case-complete state', () => {
-    render(<CompletionScreen summary={summary} isComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
-    expect(screen.getByText('Case Complete')).toBeInTheDocument()
+  it('shows the location-complete state with a way back to the review form (R-1)', () => {
+    const onReviewAgain = vi.fn()
+    render(<CompletionScreen summary={summary} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onReviewAgain={onReviewAgain} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Review / Export again'))
+    expect(onReviewAgain).toHaveBeenCalledOnce()
+  })
+
+  it('disables Complete & Save when no location is open (R-1: no silent no-op)', () => {
+    const onComplete = vi.fn()
+    render(<CompletionScreen summary={summary} isComplete={false} canComplete={false} dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    const btn = screen.getByRole('button', { name: 'Complete & Save' })
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    expect(onComplete).not.toHaveBeenCalled()
   })
 })
 

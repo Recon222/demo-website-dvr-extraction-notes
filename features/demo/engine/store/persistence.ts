@@ -15,6 +15,7 @@ import type {
   DemoLocation,
   DvrInformation,
   ExportInformation,
+  LaunchableId,
   LocationForm,
   MediaItem,
   ModalId,
@@ -23,7 +24,17 @@ import type {
   SyncResult,
   TimeOffsetData,
 } from '@/features/demo/engine/types'
-import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import {
+  CAPTURE_METHODS,
+  CASE_STATUSES,
+  COORD_SOURCES,
+  GPS_SOURCES,
+  MEDIA_KINDS,
+  OFFSET_DIRECTIONS,
+  PROFILES,
+  SYNC_METHODS,
+} from '@/features/demo/engine/types'
+import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 
 /**
  * sessionStorage persistence for the demo store (P0.4, owner decision D2).
@@ -46,9 +57,10 @@ import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
 export const PERSISTENCE_ENABLED = true
 
 /** Bump `SNAPSHOT_VERSION` (and the key's suffix with it) on any incompatible
- *  `PersistedState` shape change: older snapshots are then discarded silently at boot. */
-export const SNAPSHOT_VERSION = 1
-export const SNAPSHOT_KEY = 'dvr-demo-state-v1'
+ *  `PersistedState` shape change: older snapshots are then discarded silently at boot.
+ *  v2: `LocationForm.completed` (R-1 — location-scoped completion gate). */
+export const SNAPSHOT_VERSION = 2
+export const SNAPSHOT_KEY = 'dvr-demo-state-v2'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -64,9 +76,24 @@ export interface StorageLike {
 }
 
 // ---- Snapshot schema (the shape guard) ------------------------------------
-// Every schema is annotated `z.ZodType<DomainType>` so a drift between the domain types and
-// this guard is a COMPILE error, not a stale snapshot silently passing validation. z.object
-// strips unknown keys, so a forward snapshot with extra fields still parses (same version).
+// Three compile-time devices keep this guard honest (R-4), each closing one drift direction:
+//
+// 1. `z.ZodType<DomainType>` annotations — a schema whose OUTPUT no longer satisfies the
+//    domain type (e.g. a missing required field) is a compile error.
+// 2. `satisfies FullShape<DomainType>` on each shape literal — the shape must NAME every key
+//    of the domain type, required AND optional. Without this, a forgotten optional would
+//    compile ((a) is satisfied by a subset) and strip-mode `z.object` would silently drop
+//    the field on rehydrate.
+// 3. Closed unions come from the domain's own `as const` tuples (`z.enum(MEDIA_KINDS)` etc.,
+//    engine/types) — a schema enum can't drift narrower than its union because they are the
+//    same value. Likewise APP_VIEWS is exhaustive over AppView by construction (EXTRA_VIEWS).
+//
+// NOT enforced at compile time: cross-field invariants and referential integrity — the load
+// path handles selection integrity explicitly. `z.object` strips unknown keys, so a forward
+// snapshot with extra fields still parses (same version).
+
+/** Every key of T — required and optional alike — must appear in the shape (device 2). */
+type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
 
 const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   id: z.string(),
@@ -74,16 +101,16 @@ const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   endDateTime: z.string(),
   isActualTime: z.boolean(),
   cameras: z.string(),
-})
+} satisfies FullShape<ScopeEntry>)
 
 const arrivalDepartureSchema: z.ZodType<ArrivalDeparture> = z.object({
   id: z.string(),
   arrival: z.string(),
   departure: z.string(),
-})
+} satisfies FullShape<ArrivalDeparture>)
 
 const syncResultSchema: z.ZodType<SyncResult> = z.object({
-  method: z.enum(['NTP', 'HTTP']),
+  method: z.enum(SYNC_METHODS),
   server: z.string(),
   offsetMs: z.number(),
   uncertaintyMs: z.number(),
@@ -91,7 +118,7 @@ const syncResultSchema: z.ZodType<SyncResult> = z.object({
   traceability: z.string().optional(),
   timestamp: z.number().optional(),
   stratum: z.number().optional(),
-})
+} satisfies FullShape<SyncResult>)
 
 const ocrProofSchema: z.ZodType<OcrProof> = z.object({
   rawText: z.string(),
@@ -99,29 +126,33 @@ const ocrProofSchema: z.ZodType<OcrProof> = z.object({
   parsedDateTime: z.string(),
   confidence: z.number(),
   imageDataUrl: z.string().optional(),
-})
+} satisfies FullShape<OcrProof>)
 
 const timeOffsetSchema: z.ZodType<TimeOffsetData> = z.object({
   dvrDateTime: z.string(),
   actualDateTime: z.string(),
   differenceMs: z.number(),
   formattedDifference: z.string(),
-  direction: z.enum(['AHEAD OF', 'BEHIND']),
+  direction: z.enum(OFFSET_DIRECTIONS),
   isDvrAhead: z.boolean(),
   isCorrect: z.boolean(),
   dvrAppliesDST: z.boolean(),
   sync: syncResultSchema.nullable(),
-  captureMethod: z.enum(['manual', 'ocr']),
+  captureMethod: z.enum(CAPTURE_METHODS),
   ocr: ocrProofSchema.optional(),
-})
+} satisfies FullShape<TimeOffsetData>)
 
 const cameraEntrySchema: z.ZodType<CameraEntry> = z.object({
   id: z.string(),
   cameraName: z.string(),
   resolution: z.string(),
   recordingFps: z.string(),
-  gps: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number() }).optional(),
-})
+  gps: z
+    .object({ lat: z.number(), lng: z.number(), accuracyM: z.number() } satisfies FullShape<
+      NonNullable<CameraEntry['gps']>
+    >)
+    .optional(),
+} satisfies FullShape<CameraEntry>)
 
 const dvrInformationSchema: z.ZodType<DvrInformation> = z.object({
   dvrLocation: z.string(),
@@ -136,7 +167,7 @@ const dvrInformationSchema: z.ZodType<DvrInformation> = z.object({
   recordingFps: z.string(),
   firstRecordedDate: z.string(),
   totalDvrRetention: z.string(),
-})
+} satisfies FullShape<DvrInformation>)
 
 const exportInformationSchema: z.ZodType<ExportInformation> = z.object({
   exportMedia: z.string(),
@@ -144,11 +175,11 @@ const exportInformationSchema: z.ZodType<ExportInformation> = z.object({
   sizeGb: z.string(),
   mediaPlayerIncluded: z.boolean(),
   mediaProvidedVia: z.string(),
-})
+} satisfies FullShape<ExportInformation>)
 
 const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   id: z.string(),
-  kind: z.enum(['photo', 'video', 'audio']),
+  kind: z.enum(MEDIA_KINDS),
   url: z.string(),
   poster: z.string().optional(),
   filename: z.string(),
@@ -156,7 +187,7 @@ const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   capturedAt: z.string(),
   durationSec: z.number().optional(),
   sample: z.boolean().optional(),
-})
+} satisfies FullShape<MediaItem>)
 
 const locationFormSchema: z.ZodType<LocationForm> = z.object({
   scopes: z.array(scopeEntrySchema),
@@ -171,12 +202,13 @@ const locationFormSchema: z.ZodType<LocationForm> = z.object({
   notesEdited: z.boolean(),
   dateTimeCompleted: z.string(),
   completedBy: z.string(),
+  completed: z.boolean(),
   media: z.object({
     photos: z.array(mediaItemSchema),
     videos: z.array(mediaItemSchema),
     audios: z.array(mediaItemSchema),
-  }),
-})
+  } satisfies FullShape<LocationForm['media']>),
+} satisfies FullShape<LocationForm>)
 
 const demoCaseSchema: z.ZodType<DemoCase> = z.object({
   id: z.string(),
@@ -191,13 +223,15 @@ const demoCaseSchema: z.ZodType<DemoCase> = z.object({
   incidentStreetAddress: z.string(),
   incidentCity: z.string(),
   incidentCoordinates: z
-    .object({ lat: z.number(), lng: z.number(), source: z.enum(['geocoded', 'manual']) })
+    .object({ lat: z.number(), lng: z.number(), source: z.enum(COORD_SOURCES) } satisfies FullShape<
+      NonNullable<DemoCase['incidentCoordinates']>
+    >)
     .optional(),
   notes: z.string(),
-  status: z.enum(['draft', 'complete', 'archived']),
+  status: z.enum(CASE_STATUSES),
   createdLabel: z.string(),
   locationIds: z.array(z.string()),
-})
+} satisfies FullShape<DemoCase>)
 
 const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
   id: z.string(),
@@ -218,32 +252,44 @@ const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
       lat: z.number(),
       lng: z.number(),
       accuracyM: z.number(),
-      source: z.enum(['gps', 'geocoded', 'manual']),
-    })
+      source: z.enum(GPS_SOURCES),
+    } satisfies FullShape<NonNullable<DemoLocation['gps']>>)
     .optional(),
   form: locationFormSchema,
-})
+} satisfies FullShape<DemoLocation>)
 
 const captureSchema: z.ZodType<CaptureState> = z.object({
   dvrDateTime: z.string(),
   actualDateTime: z.string(),
   sync: syncResultSchema.nullable(),
-  method: z.enum(['manual', 'ocr']),
+  method: z.enum(CAPTURE_METHODS),
   ocr: ocrProofSchema.nullable(),
   dvrAppliesDST: z.boolean(),
-})
+} satisfies FullShape<CaptureState>)
 
 // View / visited id spaces come from the runtime registries (CHAPTERS/LAUNCHABLE), never a
 // hand-typed list — an unknown value means the snapshot predates/postdates this build.
-const APP_VIEWS: readonly string[] = [...CHAPTERS, ...LAUNCHABLE, 'map']
-const isAppView = (v: string): v is AppView => APP_VIEWS.includes(v)
+// EXTRA_VIEWS is exhaustive by construction (device 3 / R-4c): an AppView variant that is
+// neither a chapter nor a launchable MUST be listed here or this line stops compiling —
+// without it, this build would write a view its own loader then rejects (a full wipe).
+const EXTRA_VIEWS: Record<Exclude<AppView, ChapterId | LaunchableId>, true> = { map: true }
+const APP_VIEWS: readonly AppView[] = [
+  ...CHAPTERS,
+  ...LAUNCHABLE,
+  ...(Object.keys(EXTRA_VIEWS) as Array<Exclude<AppView, ChapterId | LaunchableId>>),
+]
+const isAppView = (v: string): v is AppView => (APP_VIEWS as readonly string[]).includes(v)
 const isChapterId = (v: string): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 /** Exhaustive by construction: gains/losses on `ModalId` are compile errors here. */
 const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true }
-const isVisitId = (v: string): v is AppView | ModalId => isAppView(v) || v in MODAL_IDS
+/** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
+ *  snapshot with `"toString": true` would pass the guard and defeat the documented
+ *  "unknown visited keys are dropped" contract. */
+const isVisitId = (v: string): v is AppView | ModalId =>
+  isAppView(v) || Object.prototype.hasOwnProperty.call(MODAL_IDS, v)
 
 const persistedStateSchema = z.object({
-  profile: z.enum(['forensic', 'canvas']),
+  profile: z.enum(PROFILES),
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
   currentCaseId: z.string().nullable(),
@@ -281,11 +327,15 @@ export function snapshotOf(s: DemoState): PersistedState {
  * problem — missing, unparseable, wrong version, wrong shape, storage unavailable, kill
  * switch off. A discarded snapshot is also removed so it isn't re-parsed every boot.
  *
- * Two deliberate load-time adjustments:
+ * Three deliberate load-time adjustments:
  * - a launch-only view (OCR/media) restores to `currentChapter` instead — launch screens
  *   depend on ephemeral UI state a refresh cannot restore, and `closeLaunch` would land
  *   there anyway ('map' and chapters restore as-is);
- * - `visited` keys this build doesn't know are dropped (the registry may lead or lag).
+ * - `visited` keys this build doesn't know are dropped (the registry may lead or lag);
+ * - selection integrity (R-15): a `currentCaseId`/`currentLocationId` that resolves to no
+ *   entity is dropped, and a wizard view/chapter left without a resolvable location restores
+ *   to 'cases' — otherwise the visitor rehydrates into a wizard where `updateField` is a
+ *   silent no-op (typing stores nothing, warns nothing).
  */
 export function loadSnapshot(
   storage: StorageLike | null,
@@ -323,21 +373,40 @@ export function loadSnapshot(
   if (!result.success) return discard()
 
   const d = result.data
-  // The refinements above guarantee these narrowings.
-  const currentChapter = d.currentChapter as ChapterId
-  const view = d.view as AppView
+  // The type-guard refinements in the schema already narrow these — no casts (R-18): if
+  // isAppView/isChapterId ever degrade to plain boolean predicates, these lines stop
+  // compiling instead of silently asserting an unvalidated string.
+  const currentChapter: ChapterId = d.currentChapter
+  const view: AppView = d.view
   const visited: Partial<Record<AppView | ModalId, true>> = {}
   for (const key of Object.keys(d.visited)) {
     if (isVisitId(key)) visited[key] = true
   }
+
+  // Selection integrity (R-15): dangling ids pass the shape guard but rehydrate a wizard
+  // where updateField silently no-ops. Drop what doesn't resolve; if that leaves a wizard
+  // view/chapter with no location, restore to 'cases' instead of a dead form.
+  const caseIds = new Set(d.cases.map((c) => c.id))
+  const locationIds = new Set(d.locations.map((l) => l.id))
+  const currentCaseId = d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
+  const currentLocationId =
+    d.currentLocationId !== null && locationIds.has(d.currentLocationId) ? d.currentLocationId : null
+  const isWizardScreen = (v: string): boolean => (WIZARD_SCREENS as readonly string[]).includes(v)
+  let restoredChapter: ChapterId = currentChapter
+  let restoredView: AppView = (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view
+  if (currentLocationId === null) {
+    if (isWizardScreen(restoredChapter)) restoredChapter = 'cases'
+    if (isWizardScreen(restoredView)) restoredView = restoredChapter
+  }
+
   return {
     profile: d.profile,
     cases: d.cases,
     locations: d.locations,
-    currentCaseId: d.currentCaseId,
-    currentLocationId: d.currentLocationId,
-    view: (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view,
-    currentChapter,
+    currentCaseId,
+    currentLocationId,
+    view: restoredView,
+    currentChapter: restoredChapter,
     capture: d.capture,
     visited,
   }
@@ -378,7 +447,18 @@ export function persistDemoStore(
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
     } catch {
-      // best-effort: a full/blocked storage must never break the demo
+      // Best-effort — a full/blocked storage must never break the demo — but not silent
+      // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
+      // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
+      // a dev breadcrumb per the repo convention.
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh')
+      }
+      try {
+        storage.removeItem(SNAPSHOT_KEY)
+      } catch {
+        // removal is best-effort too
+      }
     }
   }
   const flush = () => {

@@ -193,6 +193,10 @@ export function aggregateMapStatus(statuses: DrawerStatus[]): LocationMapStatus 
 }
 
 export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
+  // An explicitly completed location (Complete & Save, R-1) IS complete — the visitor said so.
+  // Field-derived aggregation only grades locations still in progress. This keeps the Cases
+  // row/map pin consistent with the card the same action turned green.
+  if (loc.form.completed) return 'complete'
   return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
 }
 

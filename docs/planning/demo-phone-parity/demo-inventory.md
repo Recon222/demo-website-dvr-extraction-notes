@@ -24,7 +24,7 @@ Out of scope, no action.
 | Styling (marketing) | **Tailwind CSS v4, CSS-first config** — no `tailwind.config.js`; `@theme` block in `app/css/style.css`; `@tailwindcss/postcss`; `@tailwindcss/forms` via `@plugin` |
 | Styling (demo) | **Inline `CSSProperties` objects, NOT Tailwind** — deliberate. `features/demo/ui/demo.css` holds only globals + a keyframe library, scoped under `[data-demo-root]`. |
 | State (demo) | **Zustand vanilla store** (`zustand/vanilla` `createStore`), one store instance created per `DemoExperience` mount via `useRef`, consumed with `useStore(store, selector)`. No React context, no URL state, **no persistence at all** (no localStorage/sessionStorage/`persist` middleware — verified by grep). |
-| Validation | `zod` ^3.25 — used only by the **marketing beta form** (`lib/beta/schema.ts`). The demo does **no Zod validation**; its only field validation is `parseCoordinate` (lat/lng). |
+| Validation | `zod` ^3.25 — the **marketing beta form** (`lib/beta/schema.ts`) and, since P0.4, the **demo's snapshot shape guard** (`engine/store/persistence.ts` — first client-shipped zod, ~13 kB gz in the demo chunk; trade recorded in deferred.md §32). Demo *field* validation remains `parseCoordinate` (lat/lng) only. |
 | Animation | `motion` (Framer Motion v12 successor) — `AnimatePresence` + variants for screen cross-slide and drawer push. Honors `prefers-reduced-motion`. |
 | Maps | `mapbox-gl` ^3.25 + `@mapbox/search-js-core` ^1.5 (SearchBox autocomplete + GeocodingCore forward geocode) |
 | PDF parsing | `pdfjs-dist` ^6.1 — browser-side text extraction, dynamically imported |
