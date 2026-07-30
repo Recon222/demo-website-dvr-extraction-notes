@@ -105,10 +105,12 @@ export interface StorageLike {
 /** Every key of T — required and optional alike — must appear in the shape (device 2). */
 type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
 
-/** Input-agnostic `FullShape` (R-28) for the one shape whose fields REFINE from a wider input:
- *  `view`/`currentChapter` are `z.string().refine(<type guard>)`, so their `_input` is `string`
- *  and `FullShape`'s default (`Input = Output`) rejects them. Same key-exhaustiveness
- *  guarantee — an omitted `PersistedState` key (even a future optional) is a compile error. */
+/** Input-agnostic `FullShape` (R-28): same key-exhaustiveness guarantee — an omitted key
+ *  (even a future optional) is a compile error — with the schema's INPUT type left `unknown`,
+ *  so it also fits shapes whose fields refine from a wider input (`view`/`currentChapter` are
+ *  `z.string().refine(<type guard>)`: their `_input` is `string`, which `FullShape`'s default
+ *  `Input = Output` rejects). With `unknown` Input, devices 1 and 2 compose on every shape in
+ *  this file (R-39). */
 type FullShapeIn<T> = {
   [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown>
 }
@@ -306,7 +308,10 @@ const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, imp
 const isVisitId = (v: string): v is AppView | ModalId =>
   isAppView(v) || Object.prototype.hasOwnProperty.call(MODAL_IDS, v)
 
-const persistedStateSchema = z.object({
+// Device 1 (R-39): the Input-agnostic annotation — FullShapeIn alone enforces key presence,
+// not required-ness, so a required future field declared `.optional()` would pass device 2
+// silently; the output annotation catches exactly that (probe-verified TS2322).
+const persistedStateSchema: z.ZodType<PersistedState, z.ZodTypeDef, unknown> = z.object({
   profile: z.enum(PROFILES),
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
