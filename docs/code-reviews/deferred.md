@@ -619,7 +619,7 @@ and set the phone's per-field strings.
 `features/demo/ui/glass-tokens.ts` (guard test pins the values and bans re-inlining), but a few
 call sites deliberately keep raw literals:
 
-- `SyncStatusCard.tsx` — `border: `` `1px solid ${ok ? 'rgba(16,209,119,0.3)' : '#2a4a6f'}` `` ``
+- `SyncStatusCard.tsx` — ``border: `1px solid ${ok ? 'rgba(16,209,119,0.3)' : '#2a4a6f'}` ``
   keeps the bare `#2a4a6f` colour inside a template conditional; swapping it for a token means
   restructuring the expression (two full-shorthand branches), which P0.5's "value substitution
   only" rule forbids.
