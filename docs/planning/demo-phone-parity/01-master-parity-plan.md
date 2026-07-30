@@ -209,12 +209,12 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 
 | Phase | Package | Status | PR | Notes |
 |---|---|---|---|---|
-| P0 | P0.1 error boundary | ☐ | | |
-| P0 | P0.2 truthful statuses | ☐ | | |
-| P0 | P0.3 option consolidation | ☐ | | |
-| P0 | P0.4 persistence (D2) | ☐ | | |
-| P0 | P0.5 glass tokens | ☐ | | |
-| P1 | P1.1 fonts | ☐ | | |
+| P0 | P0.1 error boundary | ✅ | #29 | + route-segment outer net (`app/demo/error.tsx`) with Start-fresh escape hatch |
+| P0 | P0.2 truthful statuses | ✅ | #29 | completion location-scoped after R-1/R-19; honest "Location Complete" copy |
+| P0 | P0.3 option consolidation | ✅ | #29 | canonical `engine/content/form-options.ts`; custom path live; FORM_OPTIONS deleted |
+| P0 | P0.4 persistence (D2) | ✅ | #29 | sessionStorage v2 snapshot, compile-time drift guards (FullShape/FullShapeIn) |
+| P0 | P0.5 glass tokens | ✅ | #29 | + @theme mirrors for the route error page |
+| P1 | P1.1 fonts | ✅ built | — | banked on `parity/p1-fonts`; merges with the P1 phase branch |
 | P1 | P1.2 picker upgrade | ☐ | | |
 | P1 | P1.3 log bus | ☐ | | |
 | P1 | P1.4 live terminal | ☐ | | |

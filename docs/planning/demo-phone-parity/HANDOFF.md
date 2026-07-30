@@ -2,7 +2,7 @@
 
 **Purpose:** everything a fresh orchestrator instance (post-compaction or new session) needs to pick up EXACTLY where the previous one left off. Updated by the orchestrator at every milestone — trust the newest "Current state" snapshot over anything in a conversation summary.
 
-**Last updated:** 2026-07-30 — milestone: *P0 fix round merged; fix-delta re-review running; PR #29 open.*
+**Last updated:** 2026-07-30 — milestone: *PR #29 MERGED (all of P0, verdict APPROVE after 2 fix rounds); P1 wave + riders launching.*
 
 ---
 
@@ -40,31 +40,24 @@ You are the ORCHESTRATOR of the demo↔phone parity effort: bring the `/demo` ex
 - No `.env.local` exists in the demo repo — map/AI degrade gracefully by design; never fabricate tokens.
 - Agents do NOT edit the plan/matrix/HANDOFF — orchestrator updates them at merge time. Agents DO append to `deferred.md` (next free § — check first).
 - Worktree setup: `pnpm install --prefer-offline` (shared store, ~2s). Full gates: `pnpm test --silent` + `pnpm exec tsc --noEmit`.
-- **Agent context rotation (owner directive):** the `subagent_tokens` figure in each task notification's usage block is CUMULATIVE for that agent. When an implementing Fable agent approaches **~700k**, do NOT resume it again — retire it and brief a FRESH Fable agent seeded with: the retiree's final reports (its task output file), its commit list, the package specs, and the §4 standing rules. Track each agent's running total in the §7 roster on every notification. (Loads as of the P0 fix round: store ~363k, options ~303k, tokens ~242k, boundary ~211k, fonts ~91k.)
+- **Agent context rotation (owner directive):** the `subagent_tokens` figure in each task notification's usage block is CUMULATIVE for that agent. When an implementing Fable agent approaches **~700k**, do NOT resume it again — retire it and brief a FRESH Fable agent seeded with: the retiree's final reports (its task output file), its commit list, the package specs, and the §4 standing rules. Track each agent's running total on every notification. (Loads after P0 round 2: store ~430k — rotation candidate after its P1 rider round; options ~305k; boundary ~256k; tokens ~242k; fonts ~91k. P1 implementation packages went to FRESH agents for this reason.)
 
 ## 5. Current state snapshot
 
-**Merged to demo `master`** (at `db9de9d`):
-- Planning bundle (matrix, plan, both inventories) — `bd5d178`
-- `demo-phase-review` workflow (`.claude/workflows/demo-phase-review.js`) — `c0cedbb` + args fix `a9a5565`
-- Review system port — PR #28 (`b939f13`): 5 Opus lane agents in `.claude/agents/` (typescript-reviewer, web-reviewer, test-analyzer, silent-failure-hunter, type-design-analyzer) + `.claude/skills/demo-code-review/SKILL.md` + CLAUDE.md review section
-- P4.7 landscape directive — `db9de9d`
+**Merged to demo `master`** (at `2bc4867` = PR #29 merge commit):
+- Planning bundle (`bd5d178`), `demo-phase-review` workflow (`c0cedbb` + args fix `a9a5565`), review-system port (PR #28, `b939f13`), P4.7 landscape directive (`db9de9d`), handoff/runbook + CLAUDE.md pointers (`1f92568`, `108216d`; phone repo pointer `d9606460` on phone main).
+- **ALL OF P0** (PR #29): P0.1 error boundary (+ `app/demo/error.tsx` outer net with Start-fresh escape hatch), P0.2 truthful statuses + location-scoped completion, P0.3 canonical form options + custom path, P0.4 sessionStorage persistence v2 with compile-time drift guards, P0.5 glass tokens + @theme mirrors. Review history: initial 1B/3M/14m → round 1 fixed all 18 → fix-delta found R-19 (coherence MAJOR) + 11m → round 2 fixed all 12 → fix-delta r2 **APPROVE** (0B/0M). 120 files / 904 tests green at merge. Full trail: `docs/code-reviews/parity/p0/`; commit→finding tables on PR #29.
+- **10 non-gating minors** from `p0-r2-review-fixdelta.md` carry as RIDER packages into P1 (owners: P0.1 ×3, P0.2 ×3, P0.3 ×1, P0.4 ×3, one shared with P0.5).
 
-**PR #29 open** (`feat/parity-p0` → master): ALL of P0 —
-- P0.1 error boundary, P0.2 truthful statuses + completeCase, P0.3 canonical form options + custom path, P0.4 sessionStorage persistence (D2), P0.5 glass tokens.
-- Initial review verdict: **approve-with-fixes** (1 blocker R-1, 3 majors, 14 minors) — vetted doc + 5 lane files committed at `docs/code-reviews/parity/p0/` (commit `165de2b`).
-- Fix round COMPLETE: 3 fix branches merged (`parity/p0-fix-boundary` → `parity/p0-fix-options` → `parity/p0-fix-store`), all 18 findings fixed, zero refutations. Combined tree: **119 files / 890 tests green, tsc clean**, head `a25396b` pushed. Mapping table posted as PR #29 comment.
-- **IN FLIGHT: fix-delta re-review** (workflow run `wf_034c6d18-55f`). On clean verdict: commit the fix-delta review doc, merge PR #29 (--merge --delete-branch has failed before when a worktree holds the branch — remove worktrees first or expect the local-delete error, it's benign), `git checkout master && git pull && git fetch --prune`, update plan §7 tracker + matrix statuses + this file, then launch the P1 wave.
+**P1 wave (IN FLIGHT as of this update):** phase branch `feat/parity-p1` off master with `parity/p1-fonts` merged in. Fresh Fable agents: P1.2 picker (`parity/p1-picker`), P1.3 log bus (`parity/p1-logbus`), P1.6 PDF saves (`parity/p1-pdfsave`). Riders by the original P0 authors: `parity/p1-rider-store` (6 minors), `parity/p1-rider-boundary` (3), `parity/p1-rider-options` (1). **P1.4 terminal + P1.5 flow-modes launch AFTER P1.3 lands** (P1.4 consumes the log bus); specs phone-inventory §5.7.1–§5.7.3.
 
-**Also in flight:** the verification-harness Opus agent (Playwright setup + demo baselines + simulator build/baselines) — launched in wave 1, still running, NO report yet. Its deliverables land in `<scratchpad>/drive-harness/` + `<scratchpad>/baselines/`; if it comes back blocked, resolve before P1 needs phone-side import-terminal screenshots.
-
-**Banked for P1:** branch `parity/p1-fonts` (pushed, `f01f85d`) — next/font migration; merge into the P1 phase branch when it exists.
+**Still out:** the verification-harness Opus agent (Playwright + demo baselines + simulator build/baselines) — launched in wave 1, no report yet, status ping sent. Deliverables expected in `<scratchpad>/drive-harness/` + `<scratchpad>/baselines/`. If blocked, resolve before the P1 review needs phone-side terminal comparisons (the text spec in phone-inventory §5.7 suffices for building).
 
 ## 6. Git topology
 
 - Demo repo: `/Users/fvadev/Developer/extraction-notes/demo-website-dvr-extraction-notes` (github Recon222/demo-website-dvr-extraction-notes; main checkout stays on `master`).
 - Phone repo (READ-ONLY): `/Users/fvadev/Developer/extraction-notes/DVR-Extraction-Notes-ReactNative`.
-- Worktree base: `/private/tmp/claude-501/-Users-fvadev-Developer-extraction-notes-DVR-Extraction-Notes-ReactNative/7423d8f5-e7f4-4135-a726-296308b62d4d/scratchpad/worktrees/` — currently: `p0-store`, `p0-boundary`, `p0-options`, `p1-fonts`, `p0-tokens`, `parity-p0` (the phase-assembly worktree; fix-delta runs against it). `review-system` already removed.
+- Worktree base: `/private/tmp/claude-501/-Users-fvadev-Developer-extraction-notes-DVR-Extraction-Notes-ReactNative/7423d8f5-e7f4-4135-a726-296308b62d4d/scratchpad/worktrees/` — P0-era worktrees all removed after the PR #29 merge. Current set (P1): `parity-p1` (phase assembly, `feat/parity-p1`), `p1-picker`, `p1-logbus`, `p1-pdfsave`, `rider-store`, `rider-boundary`, `rider-options`.
 - Scratchpad is session-scoped and may vanish on reboot — branches/PRs on origin are the durable record; recreate worktrees freely (`git worktree add <path> <branch>`).
 - Phase pattern: agent branches `parity/<pkg>` → phase branch `feat/parity-p<N>` (merge --no-ff each) → PR → review → fix branches `parity/p<N>-fix-<pkg>` off the phase branch → merge → fix-delta → PR merge with bubble.
 
@@ -85,12 +78,13 @@ Resume agents with SendMessage using the basename (without `.output`) of their t
 
 Review workflow runs are NOT resumable as agents — each phase runs fresh via the Workflow tool with `scriptPath: <demo>/.claude/workflows/demo-phase-review.js` (see plan §6 for arg shapes; fix-delta needs `mode` + `priorReviewDoc`).
 
-## 8. Next-step queue (after PR #29 merges)
+## 8. Next-step queue (P1 in flight)
 
-1. Update plan §7 tracker (P0.1–P0.5 ✅ with PR link) + matrix row statuses + this file; prune P0 worktrees/branches.
-2. **Launch P1 wave** (phase branch `feat/parity-p1` off fresh master; merge `parity/p1-fonts` into it first): P1.2 picker upgrade, P1.3 log bus (engine), P1.4 live terminal (the owner-flagged centerpiece — spec: phone-inventory §5.7), P1.5 flow modes + dwell, P1.6 real PDF saves (D4: window.print primary + html2pdf one-click spike). Sequence: (P1.2 ∥ P1.3) → P1.4 → P1.5 → P1.6. Reuse the SAME agent-brief skeleton (worktree, standing rules §4 above, trailers, push, report).
-3. P1 review milestone → fix round → fix-delta → merge → P2 ∥ P3 waves (see plan §5 for package specs and the shared-geolocation coordination note).
-4. Keep the phone-repo follow-up ledger growing (plan §8): NEW this session — the phone's own `app/(form)/cameras.tsx:36-61` has the same index-keyed custom-flag desync bug fixed in the demo (file as BUG-NNN when the owner returns).
+1. **When P1.3 (log bus) lands:** launch P1.4 live terminal (fresh Fable; the owner-flagged centerpiece — spec phone-inventory §5.7.1–§5.7.3, exact copy/colors/sizes; terminal dark in both themes; morphing badge slot; pin-aware auto-follow), then P1.5 flow modes + dwell after P1.4. Same worktree pattern off `feat/parity-p1`.
+2. **Assemble `feat/parity-p1`** as branches land (fonts already in; riders + picker + logbus + pdfsave in arrival order; terminal + flow-modes last), full gates each merge, then PR → `demo-phase-review` initial → fix rounds by authors → fix-delta(s) → merge with bubble. Post commit→finding tables per round.
+3. **Then P2 ∥ P3 waves** per plan §5 (note the shared geolocation capability: build once — first lane to need it — consume twice; blocking-dialog primitive wanted by P3.1/P4.5/P5.3).
+4. **Phone-repo follow-up ledger** (plan §8 + accumulating): cameras.tsx:36-61 index-keyed custom-flag desync (same bug fixed in demo R-2); MediaLibrarySheet missing onDismiss (B6); the 3 import-date bugs (B1); `completeCase(locationId)` reshape follow-up (deferred §29 addendum). File as BUG-NNNs when the owner returns.
+5. **Verification lane:** get the harness agent's report (pinged); then schedule side-by-side parity checks as a standing phase-boundary step, starting with the P1 import terminal vs the phone's.
 
 ## 9. Update protocol (for the orchestrator)
 
