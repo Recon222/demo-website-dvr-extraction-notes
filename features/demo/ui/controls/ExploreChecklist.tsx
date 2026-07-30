@@ -5,7 +5,7 @@ import { useReducedMotion } from 'motion/react'
 import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ExploreStatus } from '@/features/demo/engine/store/selectors'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 export interface ExploreChecklistProps {
   items: ExploreStatus[]

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 export interface ExitDialogProps {
   open: boolean

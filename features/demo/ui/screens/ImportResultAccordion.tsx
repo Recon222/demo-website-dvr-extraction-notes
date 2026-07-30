@@ -35,7 +35,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
         <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 5, background: '#10d177', flexShrink: 0, boxShadow: '0 0 6px rgba(16,209,119,0.6)' }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#f0f4f8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{view.title}</span>
-          <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
+          <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
         </span>
         {view.isSample && (
           <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '2px 7px' }}>

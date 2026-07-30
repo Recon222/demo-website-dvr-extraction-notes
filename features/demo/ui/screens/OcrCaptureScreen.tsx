@@ -30,13 +30,13 @@ export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onR
           <>
             <div style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.6)', background: '#0a1320', padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: '#7a9fc4', marginBottom: 4 }}>Parsed DVR time</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8', fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}>{result.dvrTime}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 14 }}>{result.dvrTime}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <span style={{ fontSize: 12, color: '#7a9fc4' }}>OCR confidence</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence.color }}>{result.confidence.label}</span>
               </div>
               <div style={{ fontSize: 12, color: '#7a9fc4' }}>
-                Actual (atomic): <span style={{ color: '#cfe6f5', fontFamily: "'JetBrains Mono',monospace" }}>{result.actual}</span>
+                Actual (atomic): <span style={{ color: '#cfe6f5', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" }}>{result.actual}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
@@ -48,7 +48,7 @@ export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onR
           <>
             <div style={{ borderRadius: 12, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>Couldn&apos;t read a timestamp</div>
-              <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5 }}>OCR text: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: '#cdd9e6' }}>{result.rawText}</span></div>
+              <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5 }}>OCR text: <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", color: '#cdd9e6' }}>{result.rawText}</span></div>
             </div>
             <button type="button" onClick={onRetake} style={{ textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 'auto' }}>Try again</button>
           </>
@@ -61,7 +61,7 @@ export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onR
     <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center,#0d1b2a,#05080d)' }} />
       <div style={{ position: 'absolute', top: 54, left: 0, right: 0, textAlign: 'center', zIndex: 2 }}>
-        <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 13, letterSpacing: 2, color: '#9fd4ee' }}>AIM AT THE DVR CLOCK</div>
+        <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 13, letterSpacing: 2, color: '#9fd4ee' }}>AIM AT THE DVR CLOCK</div>
       </div>
       <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 300, height: 96, zIndex: 2 }}>
         <div style={corner({ top: 0, left: 0, borderTop: '3px solid #4BA3D4', borderLeft: '3px solid #4BA3D4' })} />

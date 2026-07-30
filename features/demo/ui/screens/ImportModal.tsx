@@ -112,7 +112,7 @@ export function ImportModal(props: ImportModalProps) {
             onChange={(e) => props.onTextChange(e.target.value)}
             aria-label="Request text"
             placeholder="Paste any request text here…"
-            style={{ width: '100%', height: 300, resize: 'none', borderRadius: 10, border: '1px solid #2a4a6f', background: '#0a1320', color: '#dfe9f3', fontSize: 12.5, lineHeight: 1.5, padding: 12, fontFamily: "'JetBrains Mono',monospace", outline: 'none', marginBottom: 12 }}
+            style={{ width: '100%', height: 300, resize: 'none', borderRadius: 10, border: '1px solid #2a4a6f', background: '#0a1320', color: '#dfe9f3', fontSize: 12.5, lineHeight: 1.5, padding: 12, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", outline: 'none', marginBottom: 12 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={props.onBack} style={{ padding: '13px 18px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Back</button>

@@ -33,7 +33,7 @@ export interface TimeOffsetScreenProps {
   onMenu(): void
 }
 
-const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, fontFamily: "'JetBrains Mono',monospace" })
+const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" })
 
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
@@ -62,7 +62,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <>
             <div style={{ borderRadius: 12, border: '1px solid rgba(43,140,193,0.3)', background: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))', padding: 20, marginBottom: 18, textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: '#7a9fc4', marginBottom: 6 }}>Time Difference</div>
-              <div style={{ fontSize: 34, fontWeight: 700, color: '#f0f4f8', fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>{p.result.diff}</div>
+              <div style={{ fontSize: 34, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 6 }}>{p.result.diff}</div>
               <div style={{ fontSize: 14, fontWeight: 500, color: '#4BA3D4' }}>{p.result.isCorrect ? 'DVR time is correct' : `DVR is ${p.result.direction} real time`}</div>
             </div>
 

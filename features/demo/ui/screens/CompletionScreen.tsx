@@ -59,7 +59,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
       <WizardHeader title="Completion & Review" onBack={p.onBack} onMenu={p.onMenu} />
       <div style={{ padding: 16 }}>
         <div style={{ borderRadius: 14, border: '1px solid rgba(43,140,193,0.3)', background: 'linear-gradient(180deg,rgba(26,45,68,0.9),rgba(19,34,54,0.96))', padding: 18, marginBottom: 18, boxShadow: '0 0 22px rgba(43,140,193,0.12)' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}>OCC #{p.summary.occNumber}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 14 }}>OCC #{p.summary.occNumber}</div>
           <Row label="Location" value={p.summary.location} />
           <Row label="DVR" value={p.summary.dvr} />
           {p.summary.offset && (

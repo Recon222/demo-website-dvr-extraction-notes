@@ -25,7 +25,7 @@ export function NotesScreen({ notes, onChange, onRegenerate, onNext, onBack, onM
           value={notes}
           onChange={(e) => onChange(e.target.value)}
           aria-label="Case notes"
-          style={{ width: '100%', height: 420, resize: 'none', borderRadius: 12, border: '1px solid #2a4a6f', background: '#0a1320', color: '#dfe9f3', fontSize: 13, lineHeight: 1.6, padding: 14, fontFamily: "'JetBrains Mono',monospace", outline: 'none', marginBottom: 14 }}
+          style={{ width: '100%', height: 420, resize: 'none', borderRadius: 12, border: '1px solid #2a4a6f', background: '#0a1320', color: '#dfe9f3', fontSize: 13, lineHeight: 1.6, padding: 14, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", outline: 'none', marginBottom: 14 }}
         />
         <WizardNext label="Continue →" onClick={onNext} />
       </div>
