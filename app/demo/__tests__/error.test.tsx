@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import DemoError from '@/app/demo/error'
 import { clearDemoSnapshot } from '@/features/demo'
 
@@ -36,5 +38,21 @@ describe('app/demo/error (route-segment outer net)', () => {
     expect(clearMock).toHaveBeenCalledTimes(1)
     // Order matters: clearing after reset would rehydrate the throwing snapshot first.
     expect(clearMock.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0])
+  })
+
+  // R-25: this file sits outside the demo token guard's scan root
+  // (features/demo/ui/__tests__/glass-tokens.test.ts scans features/demo/ui/** only) and
+  // Tailwind arbitrary-value syntax is invisible to that guard's BANNED strings anyway.
+  // Pin here, source-scan style (the chrome-scope.test.tsx precedent): the glass accent
+  // and error colours must come from the @theme mirrors in app/css/style.css
+  // (--color-demo-accent-from/-to, --color-demo-error), never re-hardcoded literals.
+  it('uses the @theme demo-token mirrors, not re-hardcoded glass colour literals (R-25)', () => {
+    const src = readFileSync(join(process.cwd(), 'app', 'demo', 'error.tsx'), 'utf8')
+    for (const banned of ['#35A0D6', '#35a0d6', '#2580AD', '#2580ad', 'rgba(255,71,87', 'rgba(255, 71, 87']) {
+      expect(src.includes(banned), `hardcoded glass literal "${banned}" — use the --color-demo-* @theme tokens`).toBe(false)
+    }
+    for (const token of ['demo-accent-from', 'demo-accent-to', 'demo-error']) {
+      expect(src.includes(token), `expected the ${token} @theme token utility to be in use`).toBe(true)
+    }
   })
 })

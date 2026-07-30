@@ -14,6 +14,10 @@ import type { CSSProperties } from 'react'
  *   the exact repeated clusters; call sites override/extend around them.
  * - Sibling token modules stay scoped: `inputs/input-theme.ts` (`T`, the picker theme — its
  *   accent stops are sourced from here) and `screens/map/mapTokens.ts` (map sheet colours).
+ * - MIRROR (review R-25): `app/css/style.css` `@theme` re-declares `accentFrom`/`accentTo`
+ *   and the `borderError` red as `--color-demo-accent-from/-to` / `--color-demo-error` for
+ *   the `/demo` route error page (`app/demo/error.tsx`), which styles with Tailwind and
+ *   sits outside this module's guard-test scan root. Restyle both together.
  */
 
 const ACCENT_FROM = '#35A0D6'

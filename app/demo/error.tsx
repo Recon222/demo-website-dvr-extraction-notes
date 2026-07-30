@@ -22,7 +22,9 @@ export default function DemoError({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-md rounded-2xl border border-[rgba(255,71,87,0.3)] bg-[rgba(19,34,54,0.6)] p-8 text-center">
+      {/* Colours: the demo-* utilities are @theme mirrors of the demo's inline glass
+          tokens — see app/css/style.css and features/demo/ui/glass-tokens.ts (R-25). */}
+      <div className="w-full max-w-md rounded-2xl border border-demo-error/30 bg-[rgba(19,34,54,0.6)] p-8 text-center">
         <div className="mb-3 font-stmono text-[11px] tracking-[2px] text-faint">INTERACTIVE DEMO</div>
         <h1 className="mb-3 font-nacelle text-2xl font-semibold text-heading">Something went wrong</h1>
         <p className="mb-4 text-[14px] leading-relaxed text-body">
@@ -30,7 +32,7 @@ export default function DemoError({
           restored if it&apos;s intact.
         </p>
         {error.message && (
-          <div className="mb-6 break-words rounded-[10px] border border-[rgba(255,71,87,0.3)] bg-[rgba(255,71,87,0.06)] px-3 py-2 font-jbmono text-xs text-muted">
+          <div className="mb-6 break-words rounded-[10px] border border-demo-error/30 bg-demo-error/6 px-3 py-2 font-jbmono text-xs text-muted">
             {error.message}
           </div>
         )}
@@ -38,7 +40,7 @@ export default function DemoError({
           type="button"
           autoFocus
           onClick={reset}
-          className="w-full rounded-[10px] bg-gradient-to-b from-[#35A0D6] to-[#2580AD] px-4 py-3 text-[15px] font-semibold text-white hover:brightness-110"
+          className="w-full rounded-[10px] bg-gradient-to-b from-demo-accent-from to-demo-accent-to px-4 py-3 text-[15px] font-semibold text-white hover:brightness-110"
         >
           Try again
         </button>
