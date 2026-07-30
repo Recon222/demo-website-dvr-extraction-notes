@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export type OcrResult =
   | { ok: true; dvrTime: string; confidence: { label: string; color: string }; actual: string }
@@ -40,17 +41,17 @@ export function OcrCaptureScreen({ result, onUseSample, onCapture, onCancel, onR
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
-              <button type="button" onClick={onRetake} style={{ padding: '14px 20px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
-              <button type="button" onClick={onConfirm} style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Use this &amp; calculate</button>
+              <button type="button" onClick={onRetake} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
+              <button type="button" onClick={onConfirm} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Use this &amp; calculate</button>
             </div>
           </>
         ) : (
           <>
-            <div style={{ borderRadius: 12, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
+            <div style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>Couldn&apos;t read a timestamp</div>
               <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5 }}>OCR text: <span style={{ fontFamily: "'JetBrains Mono',monospace", color: '#cdd9e6' }}>{result.rawText}</span></div>
             </div>
-            <button type="button" onClick={onRetake} style={{ textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 'auto' }}>Try again</button>
+            <button type="button" onClick={onRetake} style={{ textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 'auto' }}>Try again</button>
           </>
         )}
       </div>

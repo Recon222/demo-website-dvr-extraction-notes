@@ -2,6 +2,7 @@
 
 import { Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
+import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface NewLocationFields {
   locationName: string
@@ -47,7 +48,7 @@ export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCapture
       <button
         type="button"
         onClick={onCaptureGps}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 18, width: '100%' }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 11, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 18, width: '100%' }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 21s-7-6.4-7-11a7 7 0 1 1 14 0c0 4.6-7 11-7 11z" />

@@ -6,6 +6,7 @@ import { T } from '@/features/demo/ui/inputs/input-theme'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { Calendar } from '@/features/demo/ui/inputs/Calendar'
+import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface DateFieldProps {
   value: string
@@ -71,7 +72,7 @@ export function DateField({ value, onChange }: DateFieldProps) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none', background: `linear-gradient(180deg,${T.accentFrom},${T.accentTo})`, color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ width: '100%', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
             >
               Done
             </button>

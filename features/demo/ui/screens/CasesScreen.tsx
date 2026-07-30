@@ -1,6 +1,7 @@
 'use client'
 
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
+import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -30,7 +31,7 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
         {cases.map((c) => {
           const expanded = expandedId === c.id
           return (
-            <div key={c.id} style={{ marginBottom: 14, borderRadius: 16, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', overflow: 'hidden' }}>
+            <div key={c.id} style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
               <button type="button" onClick={() => onToggle(c.id)} style={{ width: '100%', textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   <div style={{ flex: 1 }}>
@@ -51,7 +52,7 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
                   <div style={{ height: 1, background: '#1e3a5f', marginBottom: 12 }} />
                   {c.locations.length > 0 ? (
                     c.locations.map((loc) => (
-                      <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', cursor: 'pointer', textAlign: 'left' }}>
+                      <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}>
                         <div style={{ flex: 1, marginRight: 8 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
                           {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
@@ -65,8 +66,8 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
                     <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
                   )}
                   <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                    <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>
-                    <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add Location</button>
+                    <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>
+                    <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add Location</button>
                   </div>
                 </div>
               )}

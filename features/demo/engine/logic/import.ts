@@ -194,15 +194,12 @@ export function mapAiToForm(ai: Partial<ExtractedFields>): MappedImport {
 }
 
 // ============================================================================
-// FORM OPTIONS + SAMPLE — for the later wizard screens / the demo's import chapter
+// SAMPLE — the demo's import chapter fallback
 // ============================================================================
-export const FORM_OPTIONS = {
-  exportMedia: ['USB Drive', 'External Hard Drive', 'DVD', 'Cloud Upload', 'Network Transfer', 'Other'],
-  fileType: ['MP4', 'AVI', 'MOV', 'MKV', 'Proprietary', 'Other'],
-  mediaProvided: ['Hand Delivered', 'Mailed', 'Left with Contact', 'Electronic Transfer', 'Other'],
-  resolution: ['352x240', '704x480', '960x480', '1280x720', '1920x1080', '2560x1440', '3840x2160', 'custom'],
-  fps: ['1', '5', '10', '15', '20', '25', '30', 'custom'],
-} as const
+// NOTE: the former FORM_OPTIONS registry was deleted (review R-11/R-17): it had zero
+// consumers and duplicated `engine/content/form-options` — the single source of truth
+// the screens render from. Import code that ever needs an option list must consume
+// that module directly.
 
 /**
  * Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo's stand-in for a model reply

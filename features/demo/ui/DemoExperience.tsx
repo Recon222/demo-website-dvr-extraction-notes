@@ -36,8 +36,11 @@ import { ExportInfoScreen } from '@/features/demo/ui/screens/ExportInfoScreen'
 import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
+import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
+import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
+import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
@@ -100,6 +103,15 @@ const blankImport: ImportState = { stage: 'picker', text: '', result: null, last
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
+
+/** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
+function sessionStorageOrNull(): StorageLike | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage
+  } catch {
+    return null
+  }
+}
 const blankScope = (): ScopeEntry => ({ id: `ui-s${uiSeq++}`, startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' })
 const blankVisit = () => ({ id: `ui-v${uiSeq++}`, arrival: '', departure: '' })
 const blankCamera = (): CameraEntry => ({ id: `ui-c${uiSeq++}`, cameraName: '', resolution: '', recordingFps: '' })
@@ -141,7 +153,16 @@ export interface DemoExperienceProps {
 export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
   const storeRef = useRef<DemoStore | null>(null)
   if (!storeRef.current) {
-    storeRef.current = injectedStore ?? createDemoStore()
+    if (injectedStore) {
+      storeRef.current = injectedStore
+    } else {
+      // P0.4 (D2): rehydrate this tab's snapshot — sessionStorage is per-tab, so a fresh
+      // visitor still boots empty. uiSeq must clear every rehydrated id so UI-minted row
+      // ids can't collide with restored ones after a refresh.
+      const snapshot = loadSnapshot(sessionStorageOrNull())
+      if (snapshot) uiSeq = Math.max(uiSeq, maxIdSeq(snapshot) + 1)
+      storeRef.current = createDemoStore(snapshot ?? undefined)
+    }
   }
   const store = storeRef.current
 
@@ -183,7 +204,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
-  const [caseCompleted, setCaseCompleted] = useState(false)
+  // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
+  // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
+  // store (location-scoped) and is never unset. Keyed by LOCATION ID (R-21): an un-keyed
+  // boolean let a "Review / Export again" on location A suppress location B's confirmation
+  // after any switch that bypassed openLocation's reset (e.g. switchLocation directly).
+  const [reviewAgainFor, setReviewAgainFor] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
@@ -192,6 +218,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => () => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
   }, [])
+
+  // P0.4: mirror the store into sessionStorage (debounced) so a mid-wizard refresh restores
+  // the tab's work. pagehide flushes a pending write — a refresh rarely waits out the
+  // debounce. Injected stores (the test seam) are deliberately not persisted.
+  useEffect(() => {
+    if (injectedStore) return
+    const handle = persistDemoStore(store, sessionStorageOrNull())
+    const onPageHide = () => handle.flush()
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      handle.dispose()
+    }
+  }, [injectedStore, store])
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
@@ -254,6 +294,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }, [store, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
+
+  // Error-boundary recovery: land back on Cases with every transient overlay cleared
+  // (store AND local), so the re-rendered subtree can't immediately re-throw from a
+  // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
+  const returnToCases = () => {
+    setPdf(null)
+    setOcrResult(null)
+    setMapPickerOpen(false)
+    const st = store.getState()
+    st.setDrawerOpen(false)
+    st.closeModal()
+    st.setView('cases')
+  }
   const formList = <T extends { id: string }>(list: T[], path: string) =>
     listEditHandlers(list, (next) => store.getState().updateField(path, next))
 
@@ -269,6 +322,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // ---- screen interactions (sandbox) ----
   const openLocation = (locationId: string) => {
+    setReviewAgainFor(null) // a fresh location visit starts from its own truthful gate (R-1)
     store.getState().switchLocation(locationId)
     store.getState().setView('submission')
   }
@@ -667,21 +721,32 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return (
           <CompletionScreen
             summary={summary}
-            isComplete={caseCompleted}
+            // Truthful, LOCATION-scoped gate (R-1): the confirmation shows only for the
+            // location that was actually completed — the case-level status only colors the
+            // Cases/Dashboard cards green (G4). reviewAgain is the confirmation's way back
+            // to the review form, so the court PDF is never a one-shot.
+            isComplete={(currentLocation?.form.completed ?? false) && reviewAgainFor !== currentLocation?.id}
+            // R-19: gate + action key on the OPEN LOCATION alone — never the selection pair.
+            // currentCaseId can lag the location (only switchLocation writes both), so trusting
+            // it greened an unrelated case while stamping nothing. Deriving the case from
+            // loc.caseId always stamps and always greens the case that owns the location; the
+            // only disabling condition left is "no location open", which is exactly what the
+            // button's disabled hint says.
+            canComplete={!!currentLocation}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
-            onComplete={() => setCaseCompleted(true)}
-            onBackToDashboard={() => {
-              setCaseCompleted(false)
-              store.getState().setView('dashboard')
+            onComplete={() => {
+              const st = store.getState()
+              const loc = st.locations.find((l) => l.id === st.currentLocationId)
+              if (loc) st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
+              setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
             }}
-            onBackToCases={() => {
-              setCaseCompleted(false)
-              store.getState().setView('cases')
-            }}
+            onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
+            onBackToDashboard={() => store.getState().setView('dashboard')}
+            onBackToCases={() => store.getState().setView('cases')}
             onBack={onPrev}
             onMenu={openMenu}
           />
@@ -761,6 +826,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         <PhoneFrame
           tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
+          {/* Catches render throws in the mounted screen subtree — screen/modal/drawer/
+              overlay COMPONENT renders, incl. portaled modals (portal errors propagate
+              through the React tree) — and shows a glass fallback INSIDE the frame.
+              NOT covered (review R-5): the bridge's own frame — activeScreen()/
+              activeModal() view-model derivation (toCaseCards, toMapData,
+              selectDrawerItems, …) executes above this boundary; a throw there is
+              caught by the route-level net, app/demo/error.tsx.
+              Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
+          <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>
@@ -804,6 +878,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
+          </DemoErrorBoundary>
         </PhoneFrame>
       </div>
       <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />

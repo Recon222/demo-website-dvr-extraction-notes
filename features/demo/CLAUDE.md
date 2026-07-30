@@ -34,14 +34,16 @@ The store's **`currentChapter`** (set only by chapter navigation, never by launc
 two things: `closeLaunch()` returns the OCR/media launch screens to it, and the rail narration stays on
 it while non-chapter views (Map, launchables) are active.
 
-The public surface is intentionally tiny: `features/demo/index.ts` re-exports **only** `DemoExperience`
-(from `@/features/demo/ui/DemoExperience`). Everything else stays internal.
+The public surface is intentionally tiny: `features/demo/index.ts` re-exports `DemoExperience`
+(from `@/features/demo/ui/DemoExperience`) plus `clearDemoSnapshot` (the session-wipe control
+consumed — via dynamic import — by the `/demo` route error net, `app/demo/error.tsx`).
+Everything else stays internal.
 
 ## Layout of the feature
 
 ```
 features/demo/
-  index.ts        # the SINGLE public barrel — exports only DemoExperience
+  index.ts        # the SINGLE public barrel — DemoExperience + clearDemoSnapshot
   CLAUDE.md       # this file
   ui/             # presentational layer (all 'use client')
   engine/         # pure state/logic core (no React)

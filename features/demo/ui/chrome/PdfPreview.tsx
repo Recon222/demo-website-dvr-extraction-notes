@@ -1,6 +1,7 @@
 'use client'
 
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface PdfPreviewProps {
   title: string
@@ -26,8 +27,8 @@ export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
         <iframe title={title} srcDoc={html} sandbox="" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 3, background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />
       </div>
       <div style={{ padding: '14px 18px 24px', borderTop: '1px solid #2a3340', display: 'flex', gap: 10 }}>
-        <button type="button" onClick={onClose} style={{ padding: '14px 20px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
-        <button type="button" onClick={onSave} style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
+        <button type="button" onClick={onClose} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+        <button type="button" onClick={onSave} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
       </div>
     </div>
   )

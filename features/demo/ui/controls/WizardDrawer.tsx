@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { WizardScreenId } from '@/features/demo/engine/types'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -32,8 +33,8 @@ const itemButton: CSSProperties = {
   margin: '0 10px 8px',
   padding: '13px 15px',
   borderRadius: 10,
-  border: '1px solid rgba(30,58,95,0.5)',
-  background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
+  border: GLASS.borderSoft,
+  background: GLASS.gradientCard,
   cursor: 'pointer',
   width: 'calc(100% - 20px)',
   textAlign: 'left',
@@ -108,7 +109,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '54px 18px 14px',
-                borderBottom: '1px solid #1e3a5f',
+                borderBottom: GLASS.border,
                 background: 'linear-gradient(180deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))',
               }}
             >
@@ -120,7 +121,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
               </button>
             </div>
 
-            <div style={{ padding: '12px 12px 14px', borderBottom: '1px solid #1e3a5f' }}>
+            <div style={{ padding: '12px 12px 14px', borderBottom: GLASS.border }}>
               <button
                 type="button"
                 onClick={onBackToCases}
@@ -151,7 +152,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
               ))}
             </div>
 
-            <div style={{ padding: '14px 18px', borderTop: '1px solid #1e3a5f', textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
+            <div style={{ padding: '14px 18px', borderTop: GLASS.border, textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>DVR Extraction Notes</div>
               <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>v1.0.0</div>
             </div>

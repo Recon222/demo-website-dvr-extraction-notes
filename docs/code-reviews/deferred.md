@@ -304,17 +304,21 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 
 **Source:** PR #16 review (silent-failure, out-of-scope).
 
-**What:** Two latent silent-failure paths in existing demo code (not introduced by PR #16):
-- `selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
-  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.
+**What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
+- ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
+  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
+  **RESOLVED (P0 fix round 2, R-27):** the trigger fired when `5c319e4` touched `selectors.ts`;
+  the catch now counts drops and dev-warns after the map, mirroring `generateExtractedScopes`,
+  pinned by tests in `select-adjusted-scopes.test.ts`. This half is done — P2.4's G8 scope
+  shrinks accordingly.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
-  `time.ts`'s own "fail loud" convention.
+  `time.ts`'s own "fail loud" convention. **Still open.**
 
-**Why deferred:** Both are latent — current callers guard upstream (canonical dates now reach them after
-Slice A), so neither fires today. Out of scope for the date-normalization PR.
+**Why deferred (remaining half):** Latent — current callers guard upstream (canonical dates reach
+`roundTo5Min` after Slice A), so it doesn't fire today.
 
-**Trigger:** Next time `selectors.ts` / `time.ts` are touched — add the dev-warn to the `selectAdjustedScopes`
-catch and make `roundTo5Min` fail loud (or document why it tolerates bad input).
+**Trigger (remaining half):** Next time `time.ts` is touched — make `roundTo5Min` fail loud (or
+document why it tolerates bad input).
 
 ---
 
@@ -500,11 +504,20 @@ demo's `incidentStreetAddress` / `streetAddress` are plain text inputs for now.
 
 **Source:** `docs/planning/field-parity/field-parity-gaps.md`.
 
-**What:** remaining non-additive parity items — Resolution/FPS/Export **option-set** divergence + a
-custom/"Other" free-text path (DVR + Cameras + Export); OCR confirm is read-only (phone allows manual
+**What:** remaining non-additive parity items — ~~Resolution/FPS/Export **option-set** divergence + a
+custom/"Other" free-text path (DVR + Cameras + Export)~~; OCR confirm is read-only (phone allows manual
 DVR-time correction); Notes is a flat string vs the phone's structured per-section storage;
 required-field enforcement (demo enforces nothing). Plus the **not-yet-built screens**: User Profile
 (settings UI), Media/Audio Capture (placeholders), Duplicate Location, Edit Incident Location.
+
+**Resolved 2026-07-30 (parity P0.3, branch `parity/p0-options`):** the option-set divergence and the
+custom/"Other" free-text path are done — one canonical source (`engine/content/form-options.ts`,
+lifted verbatim from phone `src/constants/FormOptions.ts:16-93`), screens + `FORM_OPTIONS` both
+consume it, custom free-text on Resolution/FPS (DVR + Cameras) with the phone's exact semantics.
+Note: this entry's "(+ Export)" was **wrong** — the phone's Export Info selects have NO free-text
+path ("Other" is a stored literal; verified `app/(form)/export-information.tsx:52-103`, ui-mapping
+08:33-37). The demo now matches the phone: no Export free-text input. The other items above
+(OCR confirm, Notes structure, required fields — P2.x) and the missing screens remain deferred.
 
 **Why deferred:** option/behaviour reconciliation is lower-value than the missing fields; the screens
 are larger features the owner hasn't reached.
@@ -554,3 +567,109 @@ set, so a fallback now is speculative.
 **Trigger:** If `splash` navigation is reintroduced, or any new `ChapterId`/view becomes reachable
 without a covering `EXPLORE_ITEMS` row — either add a covering row, or lift `activeDetail` to the
 list level with a documented `?? NARRATION[currentChapter]` fallback so the rail copy can't vanish.
+
+---
+
+## 29. P0.2/P0.4 (parity/p0-store) — deliberate non-changes
+
+**Source:** demo↔phone parity plan P0.2 (truthful statuses) + P0.4 (sessionStorage persistence, D2).
+
+**What was deliberately NOT done, and why:**
+
+- **Map tab's viewer case is not persisted.** `mapViewerCaseId`/`mapPickerOpen` are
+  DemoExperience-local UI state, not store state. A refresh on the Map tab restores
+  `view: 'map'` but re-shows the mandatory case picker — a coherent, honest empty state,
+  and cheaper than promoting tab-local state into the store. Promote it only if the owner
+  flags the picker reappearing as friction.
+- **Open modal + drawer are not persisted.** A rehydrated modal would reopen with blank
+  local fields (`caseForm`/`locForm`/`imp` live in component state) — worse than closed.
+  Documented on `PersistedState` in `engine/store/create-store.ts`.
+- **The `uiSeq` reseed has no behavioral UI test.** Module state survives remounts inside a
+  test file — it only resets on a REAL page load — so the collision the reseed prevents
+  cannot be reproduced under vitest. The store-side equivalent (`seq` reseed via
+  `maxIdSeq`) is pinned in `engine/store/__tests__/persistence.test.ts`; `maxIdSeq` itself
+  in `helpers.test.ts`. Playwright E2E (a real reload) is the natural home for a true
+  refresh-loop test when E2E lands.
+- **Pending debounce writes are flushed on `pagehide`, not written synchronously per
+  change.** Per-change writes would serialize the whole state on every keystroke;
+  `pagehide` covers refresh/close, and `dispose` covers SPA unmount. A hard crash inside
+  the 250ms window can lose that window's keystrokes — accepted for a demo.
+
+**Trigger:** owner feedback on the Map-picker refresh UX; Playwright E2E introduction
+(add the real-reload round-trip + duplicate-key regression test there).
+
+**Addendum (fix round 2, R-19):** the type-design reshape of the completion action —
+`completeLocation(locationId)` deriving + greening the owning case inside the store, making the
+correlated selection pair unrepresentable in the signature — is endorsed by the fix-delta
+review as the better long-term shape but deliberately not taken in-round: an in-place
+`completeCase(caseId → locationId)` swap keeps the same `string` parameter type, so stale
+caseId call sites would still compile while silently changing meaning; the safe form is a
+rename, which touches the plan-ratified G4 action name. **Trigger:** the next time
+`completeCase` grows a caller or the completion flow is reworked (P2+), do the rename then.
+## 30. Select placeholder copy diverges from the phone
+
+**Source:** parity P0.3 (option-set consolidation, branch `parity/p0-options`), 2026-07-30.
+
+**What:** the demo's `SelectField` hardcodes the placeholder `Select…` for every dropdown; the
+phone's `Picker` defaults to `Select an option` and the Export Info screen overrides per field
+(`Select export media type` / `Select file type` / `Select delivery method`,
+`app/(form)/export-information.tsx:58,69,100`). Copy-only divergence — the option lists themselves
+are now canonical and phone-exact.
+
+**Why deferred:** P0.3's scope was the enum drift + custom path; the placeholder is lifted
+prototype copy ("do not restyle the lifted rules"), and changing the global default touches every
+dropdown at once. Worth doing deliberately, not as a rider.
+
+**Trigger:** any pixel/copy-parity pass over the wizard screens (P2 wizard depth, or the
+side-by-side verification lane flagging it) — add a `placeholder` pass-through on `SelectField`
+and set the phone's per-field strings.
+
+## 31. P0.5 (parity/p0-tokens) — glass-token extraction: deliberate residuals
+
+**Source:** parity P0.5 (glass-token extraction, branch `parity/p0-tokens`), 2026-07-30.
+
+**What:** the G6 dedupe moved the repeated gradient/border clusters into
+`features/demo/ui/glass-tokens.ts` (guard test pins the values and bans re-inlining), but a few
+call sites deliberately keep raw literals:
+
+- `SyncStatusCard.tsx` — ``border: `1px solid ${ok ? 'rgba(16,209,119,0.3)' : '#2a4a6f'}` ``
+  keeps the bare `#2a4a6f` colour inside a template conditional; swapping it for a token means
+  restructuring the expression (two full-shorthand branches), which P0.5's "value substitution
+  only" rule forbids.
+- `CaseMapPicker.tsx:131` — `borderColor: selected ? accent : '#1e3a5f'` keeps the bare colour for
+  the same reason (the shorthand token can't slot into a `borderColor` value).
+- `1px solid rgba(43,140,193,0.25)` (ImportModal picker card + ExtractedScope info banner, 2×) and
+  every one-off gradient (WizardHeader/TabBar bars, PhoneFrame titanium + scan sweep, Splash HUD,
+  map canvas, OCR scrim, drawer fades, ImportResultBody 0.6/0.7 card, Completion 0.9/0.96 summary
+  panel) stay literal — a token used once or twice is noise, not dedupe.
+
+**Why deferred:** P0.5 is a mechanical, pixel-identical dedupe; these need either a structural
+rewrite of conditional styles or a judgment call about near-miss gradient variants (0.88/0.95 vs
+0.9/0.96 etc.), which is restyling territory.
+
+**Trigger:** any actual demo restyle (the tokens' whole purpose) — normalize the near-miss
+variants into the token set then, with a side-by-side check; or a review pass that decides the
+two bare-colour conditionals deserve dedicated colour tokens.
+
+---
+
+## 32. First client-shipped zod — the persistence shape guard's bundle trade (R-9)
+
+**Source:** P0 phase review R-9 (web + type-design, documentation-only).
+
+**What:** `engine/store/persistence.ts` is the first demo/client code to ship zod (~13 kB gz,
+eager on demo mount — `loadSnapshot` runs synchronously at store creation, so it cannot be
+lazy). Measured impact: `/demo` First Load JS unchanged at 107 kB (the review's own gate).
+
+**Why accepted:** the schema doubles as the compile-time drift guard (R-4): every shape is
+`z.ZodType<DomainType>`-annotated + `FullShape`-checked against the domain types, and the
+closed unions are the domain's own `as const` tuples — hand-rolling the runtime predicate
+would forfeit exactly the guarantees R-4 was raised about. Type-design lane endorsed the
+direction as correct boundary hygiene.
+
+**If it ever needs to go:** the replacement is a hand-rolled structural predicate over
+`PersistedState` (the snapshot is trusted-origin, same-tab data) — NOT a lazy zod import
+(boot-blocking) and NOT dropping the guard.
+
+**Trigger to revisit:** bundle budget pressure on `/demo`, or zod usage spreading beyond the
+two existing sites (beta form, snapshot guard) without a deliberate decision.

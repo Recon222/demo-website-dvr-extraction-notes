@@ -1,10 +1,13 @@
+import { GLASS } from '@/features/demo/ui/glass-tokens'
+
 /**
  * Shared inline-style tokens for the demo's custom pickers.
  *
  * The demo styles inline (no Tailwind — see features/demo/CLAUDE.md). This object keeps
  * the palette + key dimensions DRY across Dropdown, Calendar, DateField, TimeWheel, and
  * TimeField. Values match the demo's existing screen styling and the phone app's glass
- * aesthetic (deep navy + primary cyan).
+ * aesthetic (deep navy + primary cyan). Accent gradient stops are sourced from the
+ * UI-wide `glass-tokens` module so a restyle stays a one-file change.
  */
 export const T = {
   // surfaces
@@ -19,8 +22,8 @@ export const T = {
   textFaint: '#7a9fc4',
   // accents
   primary: '#2B8CC1',
-  accentFrom: '#35A0D6',
-  accentTo: '#2580AD',
+  accentFrom: GLASS.accentFrom,
+  accentTo: GLASS.accentTo,
   primarySoft: 'rgba(43,140,193,0.08)',
   primaryEdge: 'rgba(43,140,193,0.25)',
   // glass

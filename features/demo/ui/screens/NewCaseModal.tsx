@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface NewCaseFields {
   caseNumber: string
@@ -44,7 +45,7 @@ const sectionLabel = {
 const coordInput = {
   width: '100%',
   borderRadius: 8,
-  border: '1px solid #1e3a5f',
+  border: GLASS.border,
   background: '#0d1b2a',
   color: '#f0f4f8',
   fontSize: 15,

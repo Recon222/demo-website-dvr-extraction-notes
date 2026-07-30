@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 const mono = "'JetBrains Mono',monospace"
 
@@ -58,7 +59,7 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
             >
               <span style={{ fontFamily: mono, fontSize: 10, color: '#46607e' }}>{u.number}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#7a9fc4' }}>{u.label}</span>
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, border: '1px solid #2a4a6f', flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, border: GLASS.borderBtn, flexShrink: 0 }} />
             </div>
           ))}
         </div>
@@ -68,13 +69,13 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
             type="button"
             autoFocus
             onClick={onStay}
-            style={{ flex: 1, padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
           >
             Keep exploring
           </button>
           <a
             href={leaveHref}
-            style={{ display: 'flex', alignItems: 'center', padding: '0 18px', borderRadius: 10, border: '1px solid #2a4a6f', color: '#99badd', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 18px', borderRadius: 10, border: GLASS.borderBtn, color: '#99badd', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
           >
             Leave anyway
           </a>

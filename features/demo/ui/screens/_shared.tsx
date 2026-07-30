@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -19,8 +21,7 @@ export function switchKeyDown(activate: () => void) {
 const grid: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  backgroundImage:
-    'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
+  backgroundImage: GLASS.gridOverlay,
   pointerEvents: 'none',
 }
 
@@ -58,7 +59,7 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
         }}
       >
         <div style={grid} />
-        <div style={{ position: 'relative', padding: 18, borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ position: 'relative', padding: 18, borderBottom: GLASS.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
@@ -76,7 +77,7 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
 const fieldInput: CSSProperties = {
   width: '100%',
   borderRadius: 8,
-  border: '1px solid #1e3a5f',
+  border: GLASS.border,
   background: '#0d1b2a',
   color: '#f0f4f8',
   fontSize: 15,
@@ -128,7 +129,7 @@ export function Field({
 /** A collapsed-by-default disclosure for secondary modal fields (OIC, Video Coordinator). */
 export function Accordion({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className="demo-accordion" style={{ marginBottom: 14, borderRadius: 10, border: '1px solid #1e3a5f', background: 'rgba(13,27,42,0.4)', overflow: 'hidden' }}>
+    <details className="demo-accordion" style={{ marginBottom: 14, borderRadius: 10, border: GLASS.border, background: 'rgba(13,27,42,0.4)', overflow: 'hidden' }}>
       <summary style={{ cursor: 'pointer', padding: '12px 14px', fontSize: 14, fontWeight: 600, color: '#cdd9e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>{title}</span>
         <svg aria-hidden="true" className="demo-accordion-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a9fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }}>
@@ -154,10 +155,10 @@ export function ModalActions({
 }) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
-      <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {cancelLabel}
       </button>
-      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {submitLabel}
       </button>
     </div>
@@ -168,7 +169,7 @@ export function ModalActions({
 export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(): void; onMenu(): void }) {
   const iconBtn: CSSProperties = { cursor: 'pointer', display: 'flex', padding: 4, background: 'transparent', border: 'none' }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 16, background: 'linear-gradient(180deg,#1b2e48,#15273b)', padding: '56px 12px 11px', borderBottom: '1px solid #1e3a5f' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 16, background: 'linear-gradient(180deg,#1b2e48,#15273b)', padding: '56px 12px 11px', borderBottom: GLASS.border }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button type="button" aria-label="Back" onClick={onBack} style={iconBtn}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
@@ -185,7 +186,7 @@ export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(
 /** Primary "Continue" button at the foot of a wizard screen. */
 export function WizardNext({ label, onClick }: { label: string; onClick(): void }) {
   return (
-    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 14, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 6px 18px rgba(37,128,173,0.35)' }}>
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 6px 18px rgba(37,128,173,0.35)' }}>
       {label}
     </button>
   )
@@ -194,8 +195,8 @@ export function WizardNext({ label, onClick }: { label: string; onClick(): void 
 /** A titled form section card. */
 export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 18, borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 16 }}>
-      <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8', paddingBottom: 10, marginBottom: 14, borderBottom: '1px solid #1e3a5f' }}>{title}</div>
+    <div style={{ marginBottom: 18, ...glassCard, padding: 16 }}>
+      <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8', paddingBottom: 10, marginBottom: 14, borderBottom: GLASS.border }}>{title}</div>
       {children}
     </div>
   )
@@ -207,8 +208,9 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
   return <DateTimeFieldImpl label={label} value={value} onChange={onChange} />
 }
 
-/** A labelled dropdown bound to a string value — the custom picker matching the phone app. */
-export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: string[] }) {
+/** A labelled dropdown bound to a string value — the custom picker matching the phone app.
+ *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`). */
+export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
   return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 

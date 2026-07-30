@@ -2,6 +2,7 @@
 
 import { Field, SectionCard, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface SubmissionFields {
   requesterName: string
@@ -34,7 +35,7 @@ export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, 
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
           <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Case Number</div>
-          <div style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
+          <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
         <SectionCard title="Requester Information">
           <Field label="Requester Name" value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder="Who requested video" />

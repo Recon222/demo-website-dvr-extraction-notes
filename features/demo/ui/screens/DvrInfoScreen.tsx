@@ -1,10 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import type { DvrInformation } from '@/features/demo/engine/types'
 import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { RESOLUTION_OPTIONS, FPS_OPTIONS, RECORDING_SCHEDULE_OPTIONS, parseRecordingSchedule, toggleRecordingSchedule } from '@/features/demo/ui/screens/field-options'
+import {
+  RESOLUTION_OPTIONS,
+  FPS_OPTIONS,
+  RECORDING_SCHEDULE_OPTIONS,
+  CUSTOM_VALUE,
+  isCustomResolution,
+  isCustomFps,
+  parseRecordingSchedule,
+  toggleRecordingSchedule,
+} from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
 const STATUS: Record<RetentionStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -25,6 +36,31 @@ export interface DvrInfoScreenProps {
 }
 
 export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu }: DvrInfoScreenProps) {
+  // Custom Resolution/FPS mode — mirrors the phone's dvr-information.tsx:69-74,124-142:
+  // local state seeded from the stored value (a saved free-text value reopens in custom
+  // mode); selecting the `custom` sentinel reveals the free-text input and leaves the
+  // stored value untouched; selecting a standard value clears the flag and writes through.
+  const [customResolution, setCustomResolution] = useState(isCustomResolution(dvr.resolution))
+  const [customFps, setCustomFps] = useState(isCustomFps(dvr.recordingFps))
+
+  const handleResolutionSelect = (value: string) => {
+    if (value === CUSTOM_VALUE) {
+      setCustomResolution(true)
+    } else {
+      setCustomResolution(false)
+      onChange('resolution', value)
+    }
+  }
+
+  const handleFpsSelect = (value: string) => {
+    if (value === CUSTOM_VALUE) {
+      setCustomFps(true)
+    } else {
+      setCustomFps(false)
+      onChange('recordingFps', value)
+    }
+  }
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="DVR Information" onBack={onBack} onMenu={onMenu} />
@@ -40,8 +76,14 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
         <SectionCard title="Recording Configuration">
           <Field label="Channels" value={dvr.numberOfChannels} onChange={(v) => onChange('numberOfChannels', v)} placeholder="e.g., 16" />
           <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />
-          <SelectField label="Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} options={RESOLUTION_OPTIONS} />
-          <SelectField label="Recording FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} options={FPS_OPTIONS} />
+          <SelectField label="Resolution" value={customResolution ? CUSTOM_VALUE : dvr.resolution} onChange={handleResolutionSelect} options={RESOLUTION_OPTIONS} />
+          {customResolution && (
+            <Field label="Custom Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} placeholder="e.g., 1440x900" />
+          )}
+          <SelectField label="Recording FPS" value={customFps ? CUSTOM_VALUE : dvr.recordingFps} onChange={handleFpsSelect} options={FPS_OPTIONS} />
+          {customFps && (
+            <Field label="Custom FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} placeholder="e.g., 12" />
+          )}
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Recording Schedule</div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -90,7 +132,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
 
           {retention.totalRetention != null ? (
             <>
-              <div style={{ marginBottom: 14, borderRadius: 10, border: '1px solid rgba(43,140,193,0.3)', background: 'rgba(43,140,193,0.08)', padding: 14 }}>
+              <div style={{ marginBottom: 14, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#7a9fc4', letterSpacing: 0.3 }}>Total DVR Retention</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{retention.totalRetention} days</div>
                 <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>From the earliest recorded date to today.</div>
@@ -102,7 +144,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
                   {retention.scopes.map((s) => {
                     const st = STATUS[getRetentionStatus(s.daysUntilOverwritten)]
                     return (
-                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(30,58,95,0.5)', background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
+                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8' }}>{s.label}</div>
                           <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>

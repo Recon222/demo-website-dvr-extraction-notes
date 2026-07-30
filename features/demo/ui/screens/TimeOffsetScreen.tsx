@@ -3,6 +3,7 @@
 import { DateTimeField, SectionCard, switchKeyDown, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
+import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface CorrectedScope {
   id: string
@@ -48,7 +49,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <DateTimeField label="Actual Date / Time" value={p.actualDateTime} onChange={p.onChangeActual} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Use Current Time</button>
-            <button type="button" onClick={p.onCalculate} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
+            <button type="button" onClick={p.onCalculate} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
           </div>
           <button type="button" onClick={p.onCaptureOcr} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 12, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', cursor: 'pointer', width: '100%' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
@@ -60,7 +61,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
 
         {p.result && (
           <>
-            <div style={{ borderRadius: 12, border: '1px solid rgba(43,140,193,0.3)', background: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))', padding: 20, marginBottom: 18, textAlign: 'center' }}>
+            <div style={{ borderRadius: 12, border: GLASS.borderAccent, background: GLASS.gradientPanel, padding: 20, marginBottom: 18, textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: '#7a9fc4', marginBottom: 6 }}>Time Difference</div>
               <div style={{ fontSize: 34, fontWeight: 700, color: '#f0f4f8', fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>{p.result.diff}</div>
               <div style={{ fontSize: 14, fontWeight: 500, color: '#4BA3D4' }}>{p.result.isCorrect ? 'DVR time is correct' : `DVR is ${p.result.direction} real time`}</div>
@@ -70,7 +71,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
               <>
                 <div style={{ fontSize: 16, fontWeight: 600, color: '#f0f4f8', marginBottom: 12 }}>Adjusted Time Ranges</div>
                 {p.correctedScopes.map((sc, i) => (
-                  <div key={sc.id} style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.5)', background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))', padding: 14, marginBottom: 12 }}>
+                  <div key={sc.id} style={{ ...glassCard, padding: 14, marginBottom: 12 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Scope {i + 1}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#7a9fc4', marginBottom: 5 }}>Requested ({sc.reqLabel})</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={cell('#f0f4f8')}>{sc.reqStart}</span></div>

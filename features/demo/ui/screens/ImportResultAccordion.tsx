@@ -4,6 +4,7 @@ import { useId } from 'react'
 import type { CSSProperties } from 'react'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportResultAccordionProps {
   view: ImportedLocationView
@@ -52,7 +53,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
           <button
             type="button"
             onClick={() => onOpenLocation(view.locId)}
-            style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
+            style={{ width: '100%', padding: 12, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
           >
             Open location
           </button>

@@ -53,7 +53,10 @@ function currentLoc(store: Store) {
   return s.locations.find((l) => l.id === s.currentLocationId)
 }
 
-describe('DemoExperience — sandbox bridge paths', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
   it('marquee: Capture from DVR → Use sample → confirm yields the real 00:05:30 offset', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -75,6 +78,160 @@ describe('DemoExperience — sandbox bridge paths', () => {
     act(() => store.getState().setView('completion'))
     fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. McHugh' } })
     expect(currentLoc(store)?.form.completedBy).toBe('Det. McHugh')
+  })
+
+  it('completion: Complete & Save marks the case complete in the STORE (G4) and the arc pays off green', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    fireEvent.click(screen.getByText('Complete & Save'))
+
+    // The status write is real (store, not a local boolean) …
+    expect(store.getState().cases[0]?.status).toBe('complete')
+    // … the confirmation view keys off the LOCATION's completed flag (R-1) …
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+    // … and the Cases card badge now reads Complete (green), not Draft — exactly one badge
+    // while collapsed (R-22: strict, so a row regression can't hide behind the badge) …
+    fireEvent.click(screen.getByText('Return to Cases'))
+    expect(store.getState().view).toBe('cases')
+    expect(screen.getByText('Complete')).toBeInTheDocument()
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument()
+    // … and expanding the card shows BOTH halves of the payoff: the case badge AND the
+    // completed location's truthful row status (the G3/G4 pair this arc test is named for).
+    fireEvent.click(screen.getByText('Test Case'))
+    expect(screen.getAllByText('Complete')).toHaveLength(2)
+  })
+
+  it('R-1: completing location 1 leaves a sibling location on the REVIEW form, not a false confirmation', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    let loc2 = ''
+    act(() => {
+      loc2 = store.getState().addLocation(store.getState().currentCaseId!, { locationName: 'Second Site' })
+      const first = store.getState().locations[0].id
+      store.getState().switchLocation(first)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+
+    // Open the untouched sibling: its Completion must show the review form + PDF button,
+    // never "locked and archived" (nothing about it was saved).
+    act(() => store.getState().switchLocation(loc2))
+    act(() => store.getState().setView('completion'))
+    expect(screen.queryByText('Location Complete')).not.toBeInTheDocument()
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument()
+    expect(screen.getByText('Preview / Export PDF')).toBeInTheDocument()
+    expect(store.getState().locations.find((l) => l.id === loc2)?.form.completed).toBe(false)
+  })
+
+  it('R-1: the court PDF is never a one-shot — Review / Export again reopens the preview on a completed location', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Review / Export again'))
+    fireEvent.click(screen.getByText('Preview / Export PDF'))
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument() // the PdfPreview iframe
+
+    // Re-completing returns to the confirmation; the flag never flipped off in between.
+    fireEvent.click(screen.getByLabelText('Close preview'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
+  it('R-21: Review / Export again is scoped to ITS location — a direct switch cannot suppress a sibling confirmation', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let l1 = ''
+    let l2 = ''
+    act(() => {
+      const caseId = store.getState().createCase({ caseNumber: 'PR25-TWO', displayName: 'Two Sites', unit: 'Robbery' })
+      l1 = store.getState().addLocation(caseId, { locationName: 'Site One' })
+      l2 = store.getState().addLocation(caseId, { locationName: 'Site Two' })
+      store.getState().switchLocation(l1)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save')) // L1 completed
+    act(() => {
+      store.getState().switchLocation(l2)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save')) // L2 completed
+    fireEvent.click(screen.getByText('Review / Export again')) // L2 into review mode
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument()
+    // Switch to L1 BYPASSING openLocation's reset (raw store action): the review-again flag
+    // is keyed to L2, so L1's truthful confirmation must still show.
+    act(() => store.getState().switchLocation(l1))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
+  it('R-21: re-opening a completed location through the Cases row restores its confirmation (reset pinned)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    fireEvent.click(screen.getByText('Review / Export again'))
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument() // review mode on
+    act(() => store.getState().setView('cases'))
+    fireEvent.click(screen.getByText('Test Case')) // expand the card
+    // Role-scoped: the exiting completion screen still shows "Test Location" in its summary
+    // during the slide transition — the Cases ROW is the only button carrying the name.
+    fireEvent.click(screen.getByRole('button', { name: /Test Location/ })) // openLocation — the UI path with the reset
+    act(() => store.getState().setView('completion'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
+  it('R-19 (mandated regression): create A + L1, create B, rail-jump to Completion — the tap can never green the unrelated case', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'CASE-A', displayName: 'A', unit: 'Robbery' })
+      store.getState().addLocation(caseA, { locationName: 'L1' })
+      caseB = store.getState().createCase({ caseNumber: 'CASE-B', displayName: 'B', unit: 'Robbery' })
+      store.getState().setView('completion') // rail-jump: no switchLocation on the way
+    })
+    // createCase(B) cleared the location half of the pair, so Complete & Save is DISABLED —
+    // it neither greens B (the old wrong-case bug) nor dead-taps.
+    const btn = screen.getByRole('button', { name: 'Complete & Save' })
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('draft')
+    expect(store.getState().cases.find((c) => c.id === caseA)?.status).toBe('draft')
+    expect(store.getState().locations[0].form.completed).toBe(false)
+  })
+
+  it('R-19: onComplete derives the case from the OPEN LOCATION even if the pair is incoherent', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    let loc1 = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'CASE-A', displayName: 'A', unit: 'Robbery' })
+      loc1 = store.getState().addLocation(caseA, { locationName: 'L1' })
+      caseB = store.getState().createCase({ caseNumber: 'CASE-B', displayName: 'B', unit: 'Robbery' })
+      // Force the incoherent pair the store actions no longer produce (defense in depth for
+      // the bridge derivation): location L1 (case A) open while currentCaseId says B.
+      store.setState({ currentLocationId: loc1, currentCaseId: caseB })
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save'))
+    // The location's OWN case greens and the location stamps; B is untouched; the
+    // confirmation appears (no dead tap, no fake success on an unrelated case).
+    expect(store.getState().cases.find((c) => c.id === caseA)?.status).toBe('complete')
+    expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('draft')
+    expect(store.getState().locations.find((l) => l.id === loc1)?.form.completed).toBe(true)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
 
   it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {
@@ -551,7 +708,7 @@ describe('DemoExperience — sandbox bridge paths', () => {
   })
 })
 
-describe('DemoExperience — Use Current Time (device sync)', () => {
+describe('DemoExperience — Use Current Time (device sync)', { timeout: 20000 }, () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 

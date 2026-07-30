@@ -1,11 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
 // The sandbox-only boot: no URL modes, no director, no tour chrome. The visitor lands
 // on an empty, fully interactive phone with the rail narration following the screen.
-describe('DemoExperience (sandbox-only boot)', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience (sandbox-only boot)', { timeout: 20000 }, () => {
+  // These renders use the REAL (non-injected) store, which persists to sessionStorage (P0.4).
+  // jsdom shares one window per file, so clear between tests or state leaks across mounts.
+  beforeEach(() => window.sessionStorage.clear())
   it('boots on the Cases screen with an empty library', () => {
     render(<DemoExperience />)
     expect(screen.getByText(/No cases yet/)).toBeInTheDocument()

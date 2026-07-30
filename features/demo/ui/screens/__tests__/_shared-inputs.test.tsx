@@ -13,7 +13,7 @@ describe('_shared.SelectField', () => {
   it('renders the custom Dropdown, not a native <select>', () => {
     const { container } = render(<SelectField label="Resolution" value="" onChange={vi.fn()} options={['1080p', '4K']} />)
     expect(container.querySelector('select')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Resolution' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Resolution/ })).toBeInTheDocument()
   })
 })
 
@@ -56,8 +56,8 @@ describe('screen integration (smoke)', () => {
       <DvrInfoScreen dvr={dvr} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} />,
     )
     expect(container.querySelector('select')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Resolution' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Recording FPS' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Resolution/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Recording FPS/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Set date' })).toBeInTheDocument() // First Recorded Date
     expect(screen.getByText(/calculate total retention/i)).toBeInTheDocument() // empty-state prompt
   })

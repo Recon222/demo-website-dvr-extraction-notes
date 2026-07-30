@@ -67,7 +67,8 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
   const loc = selectCurrentLocation(s)
   const off = loc?.form.timeOffset
   if (!loc || !off) return []
-  return loc.form.scopes.map((sc) => {
+  let dropped = 0
+  const rows = loc.form.scopes.map((sc) => {
     let adjStart = ''
     let adjEnd = ''
     try {
@@ -75,7 +76,9 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       adjStart = cr.startDateTime
       adjEnd = cr.endDateTime
     } catch {
-      // non-canonical requested time — adjusted stays blank (the extracted screen surfaces it)
+      // non-canonical requested time — adjusted stays blank (the extracted screen surfaces it),
+      // but counted + dev-warned below, mirroring generateExtractedScopes (deferred §15 / R-27).
+      dropped++
     }
     return {
       id: sc.id,
@@ -87,6 +90,10 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       cameras: sc.cameras,
     }
   })
+  if (dropped > 0 && process.env.NODE_ENV !== 'production') {
+    console.warn(`[demo] selectAdjustedScopes left ${dropped} non-canonical scope(s) blank`)
+  }
+  return rows
 }
 
 export function selectCurrentCase(s: DemoState): DemoCase | null {
@@ -193,6 +200,10 @@ export function aggregateMapStatus(statuses: DrawerStatus[]): LocationMapStatus 
 }
 
 export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
+  // An explicitly completed location (Complete & Save, R-1) IS complete — the visitor said so.
+  // Field-derived aggregation only grades locations still in progress. This keeps the Cases
+  // row/map pin consistent with the card the same action turned green.
+  if (loc.form.completed) return 'complete'
   return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
 }
 

@@ -1,6 +1,8 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
+import { COORD_SOURCES, GPS_SOURCES } from '@/features/demo/engine/types'
 import type {
+  CaptureMethod,
   ChapterId,
   DemoCase,
   DemoLocation,
@@ -23,7 +25,7 @@ import {
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
-import { mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
+import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {
@@ -37,7 +39,7 @@ export interface NewCaseInput {
   incidentBusinessName?: string
   incidentStreetAddress?: string
   incidentCity?: string
-  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  incidentCoordinates?: { lat: number; lng: number; source: (typeof COORD_SOURCES)[number] }
   notes?: string
 }
 
@@ -54,7 +56,7 @@ export interface NewLocationInput {
   locationPhone?: string
   /** Geocoded coordinates from the address pick. Recovery locations are geocode-only (no manual
    *  entry — a DVR always has a street address). `accuracyM` is filled in by the store (0). */
-  gps?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  gps?: { lat: number; lng: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
 }
 
 // ---- State ---------------------------------------------------------------
@@ -63,7 +65,7 @@ export interface CaptureState {
   dvrDateTime: string
   actualDateTime: string
   sync: SyncResult | null
-  method: 'manual' | 'ocr'
+  method: CaptureMethod
   ocr: OcrProof | null
   dvrAppliesDST: boolean
 }
@@ -88,8 +90,9 @@ export interface DemoState {
   capture: CaptureState
   /** Everything the visitor has seen this session — view ids, launchable ids, and modal
    *  ids, recorded by setView/launch/openModal. The exploration manifest derives its lit
-   *  state from this (engine/content/explore.ts + selectExploreStatus). Session-only:
-   *  a reload (or reset) starts the record over. Keyed by the recordable id space, not
+   *  state from this (engine/content/explore.ts + selectExploreStatus). Tab-scoped: it
+   *  persists across a refresh with the rest of the snapshot (P0.4) but dies with the
+   *  tab; reset() starts the record over. Keyed by the recordable id space, not
    *  bare string, so registry typos are compile errors (review M1). */
   visited: Readonly<Partial<Record<AppView | ModalId, true>>>
 }
@@ -97,6 +100,10 @@ export interface DemoState {
 export interface DemoActions {
   reset(): void
   createCase(input: NewCaseInput): string
+  /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
+   *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
+   *  The Completion screen's confirmation gate reads the location flag, never the case status. */
+  completeCase(caseId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -115,6 +122,26 @@ export interface DemoActions {
 }
 
 export type DemoStore = StoreApi<DemoState & DemoActions>
+
+/**
+ * The refresh-surviving subset of DemoState (P0.4, owner decision D2): everything the visitor
+ * built (cases, locations, forms), their selection, their wizard position, the in-progress
+ * time-offset capture, and the exploration record. Deliberately EXCLUDED as ephemeral chrome:
+ * `modal` (its input fields live in DemoExperience-local useState and would rehydrate blank)
+ * and `drawerOpen` — both boot fresh. See engine/store/persistence.ts for the snapshot format.
+ */
+export type PersistedState = Pick<
+  DemoState,
+  | 'profile'
+  | 'cases'
+  | 'locations'
+  | 'currentCaseId'
+  | 'currentLocationId'
+  | 'view'
+  | 'currentChapter'
+  | 'capture'
+  | 'visited'
+>
 
 export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
@@ -149,12 +176,19 @@ const visit = (
 const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
-export function createDemoStore(): DemoStore {
-  let seq = 0
+/**
+ * Create the demo store — empty by default (the owner's empty-boot decision), or rehydrated
+ * from a validated sessionStorage snapshot (P0.4). `initial` must come from `loadSnapshot`
+ * (shape-guarded); the id counter is seeded past every rehydrated id so post-refresh ids
+ * never collide with restored ones.
+ */
+export function createDemoStore(initial?: PersistedState): DemoStore {
+  let seq = initial ? maxIdSeq(initial) : 0
   const nextId = (prefix: string) => `${prefix}${++seq}`
 
   return createStore<DemoState & DemoActions>((set, get) => ({
     ...initialState(),
+    ...initial,
 
     /** Start over: back to the empty boot. */
     reset: () => set(initialState()),
@@ -179,9 +213,24 @@ export function createDemoStore(): DemoStore {
         createdLabel: 'Just now',
         locationIds: [],
       }
-      set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))
+      // Selection-pair invariant (R-19): a new case has no locations yet, so the previous
+      // case's location must not stay "current" — createCase clears it; addLocation and
+      // switchLocation set both halves. No action leaves the pair pointing across cases.
+      set((s) => ({ cases: [c, ...s.cases], currentCaseId: id, currentLocationId: null }))
       return id
     },
+
+    completeCase: (caseId) =>
+      set((s) => ({
+        cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
+        // Stamp ONLY the location whose Completion screen was submitted — sibling locations
+        // of the same case stay un-completed (their gate must keep showing the review form).
+        locations: s.locations.map((l) =>
+          l.id === s.currentLocationId && l.caseId === caseId
+            ? { ...l, form: { ...l.form, completed: true } }
+            : l,
+        ),
+      })),
 
     addLocation: (caseId, input) => {
       const id = nextId('l')
@@ -205,7 +254,10 @@ export function createDemoStore(): DemoStore {
       set((s) => ({
         locations: [...s.locations, loc],
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, locationIds: [...c.locationIds, id] } : c)),
+        // Both halves together (R-19): "Add Location" targets ANY expanded case (targetCaseId),
+        // so the case selection must follow the location or the pair goes incoherent.
         currentLocationId: id,
+        currentCaseId: caseId,
       }))
       return id
     },

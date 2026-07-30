@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { CSSProperties } from 'react'
+import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 
@@ -9,8 +10,10 @@ export interface DropdownProps {
   label?: string
   value: string
   onChange(value: string): void
-  /** Option list. The demo passes `string[]` (label === value). */
-  options: string[]
+  /** Option list: plain strings (label === value) or `{ label, value }` pairs
+   *  (e.g. the phone-lifted Resolution/FPS lists, where '1920x1080' displays as
+   *  '1920x1080 (1080p)'). */
+  options: ReadonlyArray<string | PickerOption>
   placeholder?: string
 }
 
@@ -28,13 +31,25 @@ export function Dropdown({
   placeholder = 'Select an option',
 }: DropdownProps) {
   const [open, setOpen] = useState(false)
+  // Accessible name = label + current selection (review R-10): an aria-label would
+  // override the trigger's text content and hide the selection — including the
+  // load-bearing "Other (Custom)" state — from assistive tech (WCAG 4.1.2).
+  const uid = useId()
+  const labelId = `${uid}-label`
+  const valueId = `${uid}-value`
+
+  const opts: PickerOption[] = options.map((o) => (typeof o === 'string' ? { label: o, value: o } : o))
+  // Selected display mirrors the phone's Picker (label lookup). An unknown non-empty value
+  // (unreachable via the screens, which route non-standard values through custom mode)
+  // degrades to showing the raw value rather than pretending nothing is selected.
+  const selectedLabel = opts.find((o) => o.value === value)?.label ?? value
 
   const select = (v: string) => {
     onChange(v)
     setOpen(false)
   }
 
-  const optionRow = (o: string): CSSProperties => ({
+  const optionRow = (o: PickerOption): CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -42,7 +57,7 @@ export function Dropdown({
     padding: '11px 12px',
     borderRadius: 10,
     border: '1px solid transparent',
-    background: o === value ? 'rgba(43,140,193,0.08)' : 'transparent',
+    background: o.value === value ? 'rgba(43,140,193,0.08)' : 'transparent',
     cursor: 'pointer',
     marginBottom: 2,
   })
@@ -50,14 +65,14 @@ export function Dropdown({
   return (
     <div style={{ marginBottom: 14 }}>
       {label && (
-        <div style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
+        <div id={labelId} style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
       )}
 
       {/* Selector */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={label || placeholder}
+        aria-labelledby={label ? `${labelId} ${valueId}` : valueId}
         aria-haspopup="menu"
         aria-expanded={open}
         style={{
@@ -73,8 +88,8 @@ export function Dropdown({
           padding: 0,
         }}
       >
-        <span style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {value || placeholder}
+        <span id={valueId} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {selectedLabel || placeholder}
         </span>
         <span
           style={{
@@ -96,10 +111,10 @@ export function Dropdown({
       {open && (
         <PickerSheet title={label || 'Select an option'} onClose={() => setOpen(false)}>
           <div role="menu" aria-label={label || 'Select an option'}>
-            {options.map((o) => {
-              const selected = o === value
+            {opts.map((o) => {
+              const selected = o.value === value
               return (
-                <button key={o} type="button" role="menuitemradio" aria-checked={selected} onClick={() => select(o)} style={optionRow(o)}>
+                <button key={o.value} type="button" role="menuitemradio" aria-checked={selected} onClick={() => select(o.value)} style={optionRow(o)}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span
                       style={{
@@ -112,7 +127,7 @@ export function Dropdown({
                       }}
                     />
                     <span style={{ fontSize: 13, color: selected ? T.text : 'rgba(153,186,221,0.7)', fontWeight: selected ? 600 : 400 }}>
-                      {o}
+                      {o.label}
                     </span>
                   </span>
                   {selected && (

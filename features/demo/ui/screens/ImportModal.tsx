@@ -6,6 +6,7 @@ import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import { ImportResultAccordion } from '@/features/demo/ui/screens/ImportResultAccordion'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportStage {
   label: string
@@ -47,7 +48,7 @@ export interface ImportModalProps {
 const card: CSSProperties = {
   borderRadius: 14,
   border: '1px solid rgba(43,140,193,0.25)',
-  background: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))',
+  background: GLASS.gradientPanel,
   padding: 22,
   marginBottom: 14,
   cursor: 'pointer',
@@ -60,13 +61,13 @@ const card: CSSProperties = {
 }
 
 // Shared result-action button styles (override padding/width per use).
-const secondaryBtn: CSSProperties = { borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }
-const primaryBtn: CSSProperties = { borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+const secondaryBtn: CSSProperties = { ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+const primaryBtn: CSSProperties = { ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
 
 /** Per-file failures, shown identically in the all-failed view and a partial batch. */
 function FailuresCard({ failures }: { failures: ImportFailure[] }) {
   return (
-    <div style={{ borderRadius: 10, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10, textAlign: 'left' }}>
+    <div style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10, textAlign: 'left' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{failures.length} failed</div>
       {failures.map((f, i) => (
         <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
@@ -98,7 +99,7 @@ export function ImportModal(props: ImportModalProps) {
             <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>Paste text</div>
             <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.45 }}>Paste any request text — email or form — and the model extracts the fields.</div>
           </button>
-          <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
             Cancel
           </button>
         </>
@@ -112,11 +113,11 @@ export function ImportModal(props: ImportModalProps) {
             onChange={(e) => props.onTextChange(e.target.value)}
             aria-label="Request text"
             placeholder="Paste any request text here…"
-            style={{ width: '100%', height: 300, resize: 'none', borderRadius: 10, border: '1px solid #2a4a6f', background: '#0a1320', color: '#dfe9f3', fontSize: 12.5, lineHeight: 1.5, padding: 12, fontFamily: "'JetBrains Mono',monospace", outline: 'none', marginBottom: 12 }}
+            style={{ width: '100%', height: 300, resize: 'none', borderRadius: 10, border: GLASS.borderBtn, background: '#0a1320', color: '#dfe9f3', fontSize: 12.5, lineHeight: 1.5, padding: 12, fontFamily: "'JetBrains Mono',monospace", outline: 'none', marginBottom: 12 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={props.onBack} style={{ padding: '13px 18px', borderRadius: 10, border: '1px solid #2a4a6f', background: '#132236', color: '#99badd', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Back</button>
-            <button type="button" onClick={props.onRun} style={{ flex: 1, padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Extract &amp; import</button>
+            <button type="button" onClick={props.onBack} style={{ padding: '13px 18px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Back</button>
+            <button type="button" onClick={props.onRun} style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Extract &amp; import</button>
           </div>
         </>
       )}
