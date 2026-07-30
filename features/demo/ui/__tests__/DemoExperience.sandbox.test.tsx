@@ -621,6 +621,23 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(document.activeElement).toBe(opener)
   })
 
+  it('completion: Save as PDF prints the framed court document (real print path, store-driven)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    fireEvent.click(screen.getByText('Preview / Export PDF'))
+    const frame = screen.getByTitle('Case Notes — PDF') as HTMLIFrameElement
+    const print = vi.fn()
+    ;(frame.contentWindow as Window & { print: () => void }).print = print
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+    expect(print).toHaveBeenCalledTimes(1)
+    // The preview stays up — printing is not a dismissal.
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+  })
+
   it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

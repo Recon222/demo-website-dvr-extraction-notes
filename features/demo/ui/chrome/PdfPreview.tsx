@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
@@ -9,11 +9,37 @@ export interface PdfPreviewProps {
   /** The real generated court-document HTML (generateCaseNotesDoc / generateTimeOffsetDoc). */
   html: string
   onClose(): void
-  onSave(): void
 }
 
-/** Renders the real generated PDF HTML into an iframe preview (the demo's "export"). */
-export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
+/** Honest treatment when the browser refuses to open the print dialog — never a fake success. */
+const PRINT_BLOCKED_NOTICE =
+  'Your browser blocked the print dialog for this preview — no PDF was saved. Try again, or use a different browser.'
+
+/**
+ * Renders the real generated PDF HTML into an iframe preview (the demo's "export").
+ * "Save as PDF" prints the framed document itself via its contentWindow — the native print
+ * dialog's Save-as-PDF destination produces the vector-perfect court document (@page letter
+ * rules live in the generated HTML), named after the document's own deterministic <title>.
+ */
+export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
+  const frameRef = useRef<HTMLIFrameElement | null>(null)
+  const [printNotice, setPrintNotice] = useState<string | null>(null)
+
+  const printDocument = () => {
+    const win = frameRef.current?.contentWindow
+    if (!win || typeof win.print !== 'function') {
+      setPrintNotice(PRINT_BLOCKED_NOTICE)
+      return
+    }
+    try {
+      win.focus() // some browsers print the focused frame's parent otherwise
+      win.print()
+      setPrintNotice(null)
+    } catch {
+      setPrintNotice(PRINT_BLOCKED_NOTICE)
+    }
+  }
+
   // Escape closes, like every other overlay (ModalShell, WizardDrawer, PickerSheet) — deferred §21.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,13 +76,25 @@ export function PdfPreview({ title, html, onClose, onSave }: PdfPreviewProps) {
         }}
         style={{ flex: 1, overflow: 'hidden', padding: 14, background: '#3a3f47' }}
       >
-        {/* sandbox="" = maximally restrictive (no scripts/forms/popups); the generated PDF HTML is
-            static and the Save button is a stub, so no iframe capability is needed. */}
-        <iframe title={title} srcDoc={html} sandbox="" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 3, background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />
+        {/* Sandbox: exactly `allow-modals allow-same-origin` — the minimum that lets the parent
+            print the framed court document; the value is PINNED by a test so it cannot silently
+            widen. Why each token: (1) allow-same-origin — a fully-sandboxed srcDoc frame is an
+            opaque origin, so the parent touching contentWindow.print throws a cross-origin
+            SecurityError; the frame must share our origin for the parent to invoke printing on
+            it. Safe because allow-scripts stays OFF: the framed document is inert, fully-escaped
+            static markup, and without scripts it cannot exercise the origin grant (the dangerous
+            sandbox-escape combo is allow-scripts + allow-same-origin). (2) allow-modals — the
+            print dialog is a modal; a sandboxed document without it silently ignores print()
+            ("Ignored call to 'print()'" in Chromium). Scripts, forms, popups, top-navigation,
+            downloads and pointer-lock all remain blocked. */}
+        <iframe ref={frameRef} title={title} srcDoc={html} sandbox="allow-modals allow-same-origin" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 3, background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />
       </div>
+      {printNotice && (
+        <div role="status" style={{ margin: '10px 18px 0', fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px' }}>{printNotice}</div>
+      )}
       <div style={{ padding: '14px 18px 24px', borderTop: '1px solid #2a3340', display: 'flex', gap: 10 }}>
         <button type="button" onClick={onClose} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
-        <button type="button" onClick={onSave} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
+        <button type="button" onClick={printDocument} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
       </div>
     </div>
   )
