@@ -95,6 +95,14 @@ export interface StorageLike {
 /** Every key of T — required and optional alike — must appear in the shape (device 2). */
 type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
 
+/** Input-agnostic `FullShape` (R-28) for the one shape whose fields REFINE from a wider input:
+ *  `view`/`currentChapter` are `z.string().refine(<type guard>)`, so their `_input` is `string`
+ *  and `FullShape`'s default (`Input = Output`) rejects them. Same key-exhaustiveness
+ *  guarantee — an omitted `PersistedState` key (even a future optional) is a compile error. */
+type FullShapeIn<T> = {
+  [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown>
+}
+
 const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   id: z.string(),
   startDateTime: z.string(),
@@ -298,7 +306,7 @@ const persistedStateSchema = z.object({
   currentChapter: z.string().refine(isChapterId),
   capture: captureSchema,
   visited: z.record(z.string(), z.literal(true)),
-})
+} satisfies FullShapeIn<PersistedState>)
 
 const envelopeSchema = z.object({ version: z.number(), state: z.unknown() })
 
