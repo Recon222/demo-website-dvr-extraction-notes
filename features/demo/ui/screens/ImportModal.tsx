@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
+import { PickerStage } from '@/features/demo/ui/screens/import/PickerStage'
+import { PasteStage, PASTE_COPY } from '@/features/demo/ui/screens/import/PasteStage'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import { ImportResultAccordion } from '@/features/demo/ui/screens/ImportResultAccordion'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -35,7 +37,10 @@ export interface ImportModalProps {
   result: ImportResult | null
   /** Current file index for a batch import (shown as "Importing 2 of 3…"). */
   batch: { current: number; total: number } | null
-  onPickPdf(): void
+  /** A validated all-PDF selection from the picker stage (1..n files). */
+  onPdfFilesSelected(files: File[]): void | Promise<void>
+  /** Non-empty clipboard text — routed to the same AI pipeline as the paste stage (D5). */
+  onClipboardText(text: string): void | Promise<void>
   onChoosePaste(): void
   onTextChange(value: string): void
   onRun(): void
@@ -43,21 +48,8 @@ export interface ImportModalProps {
   onRetry(): void
   onOpenLocation(locId: string | null): void
   onCancel(): void
-}
-
-const card: CSSProperties = {
-  borderRadius: 14,
-  border: '1px solid rgba(43,140,193,0.25)',
-  background: GLASS.gradientPanel,
-  padding: 22,
-  marginBottom: 14,
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  textAlign: 'center',
-  gap: 9,
-  width: '100%',
+  /** Test seam forwarded to PickerStage — defaults to navigator.clipboard.readText. */
+  readClipboardText?(): Promise<string>
 }
 
 // Shared result-action button styles (override padding/width per use).
@@ -82,45 +74,25 @@ export function ImportModal(props: ImportModalProps) {
   // Reset on a new result so a stale index can't pre-expand the wrong accordion after Retry (H1).
   useEffect(() => setOpenIndex(-1), [result])
   return (
-    <ModalShell title="Import Recovery Request" onClose={props.onCancel}>
+    <ModalShell
+      // Paste step gets the phone's own header: chevron-back · "Paste Request Text" · close
+      // (ImportPickerModal.tsx:641-662); every other stage keeps the picker title.
+      title={stage === 'paste' ? PASTE_COPY.title : 'Import Recovery Request'}
+      onBack={stage === 'paste' ? props.onBack : undefined}
+      backLabel={PASTE_COPY.backLabel}
+      onClose={props.onCancel}
+    >
       {stage === 'picker' && (
-        <>
-          <button type="button" onClick={props.onPickPdf} style={{ ...card, border: card.border }}>
-            <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#5AB4E6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" />
-            </svg>
-            <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>Pick a PDF</div>
-            <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.45 }}>Choose one or more PDF requests — parsed in your browser, then read by the model.</div>
-          </button>
-          <button type="button" onClick={props.onChoosePaste} style={card}>
-            <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#5AB4E6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="8" y="3" width="8" height="4" rx="1" /><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" /><path d="M9 12h6M9 16h4" />
-            </svg>
-            <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>Paste text</div>
-            <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.45 }}>Paste any request text — email or form — and the model extracts the fields.</div>
-          </button>
-          <button type="button" onClick={props.onCancel} style={{ width: '100%', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-            Cancel
-          </button>
-        </>
+        <PickerStage
+          onPdfFilesSelected={props.onPdfFilesSelected}
+          onClipboardText={props.onClipboardText}
+          onChoosePaste={props.onChoosePaste}
+          onCancel={props.onCancel}
+          readClipboardText={props.readClipboardText}
+        />
       )}
 
-      {stage === 'paste' && (
-        <>
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 8 }}>Paste the recovery request (email or form)</div>
-          <textarea
-            value={text}
-            onChange={(e) => props.onTextChange(e.target.value)}
-            aria-label="Request text"
-            placeholder="Paste any request text here…"
-            style={{ width: '100%', height: 300, resize: 'none', borderRadius: 10, border: GLASS.borderBtn, background: '#0a1320', color: '#dfe9f3', fontSize: 12.5, lineHeight: 1.5, padding: 12, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", outline: 'none', marginBottom: 12 }}
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={props.onBack} style={{ padding: '13px 18px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Back</button>
-            <button type="button" onClick={props.onRun} style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Extract &amp; import</button>
-          </div>
-        </>
-      )}
+      {stage === 'paste' && <PasteStage text={text} onTextChange={props.onTextChange} onRun={props.onRun} />}
 
       {stage === 'progress' && (
         <div role="status" aria-live="polite">

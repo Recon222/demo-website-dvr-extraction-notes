@@ -62,7 +62,8 @@ describe('NewLocationModal', () => {
 
 describe('ImportModal', () => {
   const cb = {
-    onPickPdf: vi.fn(),
+    onPdfFilesSelected: vi.fn(),
+    onClipboardText: vi.fn(),
     onChoosePaste: vi.fn(),
     onTextChange: vi.fn(),
     onRun: vi.fn(),
@@ -72,18 +73,31 @@ describe('ImportModal', () => {
     onCancel: vi.fn(),
   }
 
-  it('triggers the PDF picker and moves paste → run', () => {
-    const onPickPdf = vi.fn()
+  it('routes picker → paste: three cards, then the phone paste header (title + back chevron) and run', () => {
     const onChoosePaste = vi.fn()
+    const onBack = vi.fn()
     const onRun = vi.fn()
-    const { rerender } = render(<ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...cb} onPickPdf={onPickPdf} onChoosePaste={onChoosePaste} onRun={onRun} />)
-    fireEvent.click(screen.getByText('Pick a PDF'))
-    expect(onPickPdf).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByText('Paste text'))
+    const { rerender } = render(<ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
+    expect(screen.getByRole('dialog', { name: 'Import Recovery Request' })).toBeInTheDocument()
+    expect(screen.getByText('Pick File')).toBeInTheDocument() // PickerStage mounted
+    fireEvent.click(screen.getByText('Paste Text'))
     expect(onChoosePaste).toHaveBeenCalledOnce()
-    rerender(<ImportModal stage="paste" text="hi" stages={[]} result={null} batch={null} {...cb} onPickPdf={onPickPdf} onChoosePaste={onChoosePaste} onRun={onRun} />)
-    fireEvent.click(screen.getByText('Extract & import'))
+    rerender(<ImportModal stage="paste" text="hi" stages={[]} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
+    // The paste step takes the phone's own header title + back chevron (row 72).
+    expect(screen.getByRole('dialog', { name: 'Paste Request Text' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to import options' }))
+    expect(onBack).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByText('Import with AI'))
     expect(onRun).toHaveBeenCalledOnce()
+  })
+
+  it('picker: a PDF selection reaches onPdfFilesSelected through the stage seam', async () => {
+    const onPdfFilesSelected = vi.fn()
+    const { container } = render(<ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...cb} onPdfFilesSelected={onPdfFilesSelected} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })
+    fireEvent.change(input, { target: { files: [file] } })
+    await vi.waitFor(() => expect(onPdfFilesSelected).toHaveBeenCalledWith([file]))
   })
 
   it('shows a per-file batch counter in the progress stage', () => {
