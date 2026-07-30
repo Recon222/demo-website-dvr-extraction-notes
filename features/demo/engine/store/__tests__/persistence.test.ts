@@ -272,6 +272,16 @@ describe('shape guard (never crash boot)', () => {
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true, newCase: true })
   })
 
+  it('Object.prototype key names in visited are dropped too — own-property guard, not `in` (R-7)', () => {
+    const storage = seeded()
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { visited: Record<string, true> }
+    }
+    parsed.state.visited = { cases: true, toString: true, constructor: true, valueOf: true, hasOwnProperty: true }
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.visited).toEqual({ cases: true })
+  })
+
   it('a launch-only view restores to currentChapter (launch screens depend on ephemeral UI state)', () => {
     const storage = new FakeStorage()
     const { store } = workedStore()

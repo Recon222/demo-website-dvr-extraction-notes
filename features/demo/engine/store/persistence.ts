@@ -282,7 +282,11 @@ const isAppView = (v: string): v is AppView => (APP_VIEWS as readonly string[]).
 const isChapterId = (v: string): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 /** Exhaustive by construction: gains/losses on `ModalId` are compile errors here. */
 const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true }
-const isVisitId = (v: string): v is AppView | ModalId => isAppView(v) || v in MODAL_IDS
+/** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
+ *  snapshot with `"toString": true` would pass the guard and defeat the documented
+ *  "unknown visited keys are dropped" contract. */
+const isVisitId = (v: string): v is AppView | ModalId =>
+  isAppView(v) || Object.prototype.hasOwnProperty.call(MODAL_IDS, v)
 
 const persistedStateSchema = z.object({
   profile: z.enum(PROFILES),
