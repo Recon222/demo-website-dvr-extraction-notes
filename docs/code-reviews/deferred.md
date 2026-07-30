@@ -500,11 +500,20 @@ demo's `incidentStreetAddress` / `streetAddress` are plain text inputs for now.
 
 **Source:** `docs/planning/field-parity/field-parity-gaps.md`.
 
-**What:** remaining non-additive parity items — Resolution/FPS/Export **option-set** divergence + a
-custom/"Other" free-text path (DVR + Cameras + Export); OCR confirm is read-only (phone allows manual
+**What:** remaining non-additive parity items — ~~Resolution/FPS/Export **option-set** divergence + a
+custom/"Other" free-text path (DVR + Cameras + Export)~~; OCR confirm is read-only (phone allows manual
 DVR-time correction); Notes is a flat string vs the phone's structured per-section storage;
 required-field enforcement (demo enforces nothing). Plus the **not-yet-built screens**: User Profile
 (settings UI), Media/Audio Capture (placeholders), Duplicate Location, Edit Incident Location.
+
+**Resolved 2026-07-30 (parity P0.3, branch `parity/p0-options`):** the option-set divergence and the
+custom/"Other" free-text path are done — one canonical source (`engine/content/form-options.ts`,
+lifted verbatim from phone `src/constants/FormOptions.ts:16-93`), screens + `FORM_OPTIONS` both
+consume it, custom free-text on Resolution/FPS (DVR + Cameras) with the phone's exact semantics.
+Note: this entry's "(+ Export)" was **wrong** — the phone's Export Info selects have NO free-text
+path ("Other" is a stored literal; verified `app/(form)/export-information.tsx:52-103`, ui-mapping
+08:33-37). The demo now matches the phone: no Export free-text input. The other items above
+(OCR confirm, Notes structure, required fields — P2.x) and the missing screens remain deferred.
 
 **Why deferred:** option/behaviour reconciliation is lower-value than the missing fields; the screens
 are larger features the owner hasn't reached.
@@ -554,3 +563,23 @@ set, so a fallback now is speculative.
 **Trigger:** If `splash` navigation is reintroduced, or any new `ChapterId`/view becomes reachable
 without a covering `EXPLORE_ITEMS` row — either add a covering row, or lift `activeDetail` to the
 list level with a documented `?? NARRATION[currentChapter]` fallback so the rail copy can't vanish.
+
+---
+
+## 29. Select placeholder copy diverges from the phone
+
+**Source:** parity P0.3 (option-set consolidation, branch `parity/p0-options`), 2026-07-30.
+
+**What:** the demo's `SelectField` hardcodes the placeholder `Select…` for every dropdown; the
+phone's `Picker` defaults to `Select an option` and the Export Info screen overrides per field
+(`Select export media type` / `Select file type` / `Select delivery method`,
+`app/(form)/export-information.tsx:58,69,100`). Copy-only divergence — the option lists themselves
+are now canonical and phone-exact.
+
+**Why deferred:** P0.3's scope was the enum drift + custom path; the placeholder is lifted
+prototype copy ("do not restyle the lifted rules"), and changing the global default touches every
+dropdown at once. Worth doing deliberately, not as a rider.
+
+**Trigger:** any pixel/copy-parity pass over the wizard screens (P2 wizard depth, or the
+side-by-side verification lane flagging it) — add a `placeholder` pass-through on `SelectField`
+and set the phone's per-field strings.
