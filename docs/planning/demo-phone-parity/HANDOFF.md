@@ -40,6 +40,7 @@ You are the ORCHESTRATOR of the demo↔phone parity effort: bring the `/demo` ex
 - No `.env.local` exists in the demo repo — map/AI degrade gracefully by design; never fabricate tokens.
 - Agents do NOT edit the plan/matrix/HANDOFF — orchestrator updates them at merge time. Agents DO append to `deferred.md` (next free § — check first).
 - Worktree setup: `pnpm install --prefer-offline` (shared store, ~2s). Full gates: `pnpm test --silent` + `pnpm exec tsc --noEmit`.
+- **Agent context rotation (owner directive):** the `subagent_tokens` figure in each task notification's usage block is CUMULATIVE for that agent. When an implementing Fable agent approaches **~700k**, do NOT resume it again — retire it and brief a FRESH Fable agent seeded with: the retiree's final reports (its task output file), its commit list, the package specs, and the §4 standing rules. Track each agent's running total in the §7 roster on every notification. (Loads as of the P0 fix round: store ~363k, options ~303k, tokens ~242k, boundary ~211k, fonts ~91k.)
 
 ## 5. Current state snapshot
 
