@@ -673,3 +673,43 @@ direction as correct boundary hygiene.
 
 **Trigger to revisit:** bundle budget pressure on `/demo`, or zod usage spreading beyond the
 two existing sites (beta form, snapshot guard) without a deliberate decision.
+
+---
+
+## 33. P1.2 (parity/p1-picker) — import picker/paste parity: deliberate adaptations & residuals
+
+**Source:** parity P1.2 (picker + paste stage upgrade, branch `parity/p1-picker`), 2026-07-30.
+Matrix rows 71/72; phone spec `phone-inventory.md` §5.2/§5.3, phone
+`src/features/import/json-import/components/ImportPickerModal.tsx`.
+
+**What (deliberate, don't re-flag):**
+
+- **Paste-stage error banner omitted.** The phone renders its shared error banner on the paste
+  step for the submit-throw backstop (`Failed to start text import…`, ImportPickerModal.tsx:695-702).
+  The demo's paste-submit failures already surface on the *result* stage's failure card — P1.5
+  owns that error surface (row 79); adding a second, picker-local error path for an unreachable
+  backstop would duplicate it.
+- **No `field-sizing: content` grow (240→320).** The phone's multiline input grows with content
+  from minHeight 240 to the 320 cap, then scrolls internally. csstype 3.1.3 (via @types/react 19)
+  doesn't type `fieldSizing`, so the demo textarea is a bounded 240px box with the same 320 cap
+  and internal scroll — the load-bearing contract (submit never pushed off-screen) holds; the
+  growth animation is cosmetic. Revisit when csstype learns the property.
+- **Paste-submit loading state not surfaced.** The phone's `isSubmittingText` spinner covers the
+  async window before the flow modal takes over; the demo flips to the progress stage
+  synchronously on run, so there is no visible window. Disabled-on-blank is the meaningful parity
+  and is implemented + pinned.
+- **Phone `accessibilityLabel`s not mirrored as `aria-label`s** on the cards/submit. On the web an
+  aria-label *overrides* the visible text as the accessible name; the phone's labels ("Select JSON
+  file from device" — itself stale on the phone) don't start with the visible text, which is the
+  WCAG label-in-name anti-pattern. The cards' visible copy is the accessible name; the textarea
+  (no visible label) keeps the phone's "Pasted request text".
+- **Mixed-selection error collapsed into unsupported-type.** With PDF the only valid file type
+  (D5: no JSON import), the phone's "Please select only one file type (all JSON or all PDF)."
+  branch has no demo meaning; any selection containing a non-PDF gets the D5-adapted
+  "Unsupported file type. Please select PDF files." A JSON-only revisit would restore the split.
+- **No-PDF-handler branch not ported** ("PDF import not available. Please select a JSON file.",
+  :268/:295) — the demo's PDF handler is unconditionally wired; the branch is unreachable.
+
+**Trigger:** P1.4/P1.5 (progress/result restructure) for the error-surface item; a D5 reversal
+(JSON import lands) for the mixed-selection and clipboard-JSON semantics; csstype support for the
+field-sizing item.
