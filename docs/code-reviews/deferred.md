@@ -637,3 +637,26 @@ rewrite of conditional styles or a judgment call about near-miss gradient varian
 **Trigger:** any actual demo restyle (the tokens' whole purpose) — normalize the near-miss
 variants into the token set then, with a side-by-side check; or a review pass that decides the
 two bare-colour conditionals deserve dedicated colour tokens.
+
+---
+
+## 32. First client-shipped zod — the persistence shape guard's bundle trade (R-9)
+
+**Source:** P0 phase review R-9 (web + type-design, documentation-only).
+
+**What:** `engine/store/persistence.ts` is the first demo/client code to ship zod (~13 kB gz,
+eager on demo mount — `loadSnapshot` runs synchronously at store creation, so it cannot be
+lazy). Measured impact: `/demo` First Load JS unchanged at 107 kB (the review's own gate).
+
+**Why accepted:** the schema doubles as the compile-time drift guard (R-4): every shape is
+`z.ZodType<DomainType>`-annotated + `FullShape`-checked against the domain types, and the
+closed unions are the domain's own `as const` tuples — hand-rolling the runtime predicate
+would forfeit exactly the guarantees R-4 was raised about. Type-design lane endorsed the
+direction as correct boundary hygiene.
+
+**If it ever needs to go:** the replacement is a hand-rolled structural predicate over
+`PersistedState` (the snapshot is trusted-origin, same-tab data) — NOT a lazy zod import
+(boot-blocking) and NOT dropping the guard.
+
+**Trigger to revisit:** bundle budget pressure on `/demo`, or zod usage spreading beyond the
+two existing sites (beta form, snapshot guard) without a deliberate decision.
