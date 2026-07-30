@@ -25,8 +25,22 @@ const grid: CSSProperties = {
   pointerEvents: 'none',
 }
 
-/** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals. */
-export function ModalShell({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
+/** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals.
+ *  `onBack` (optional) renders a chevron before the title for in-modal sub-steps — the
+ *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661). */
+export function ModalShell({
+  title,
+  onClose,
+  onBack,
+  backLabel = 'Back',
+  children,
+}: {
+  title: string
+  onClose(): void
+  onBack?(): void
+  backLabel?: string
+  children: ReactNode
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -60,7 +74,16 @@ export function ModalShell({ title, onClose, children }: { title: string; onClos
       >
         <div style={grid} />
         <div style={{ position: 'relative', padding: 18, borderBottom: GLASS.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onBack && (
+              <button type="button" aria-label={backLabel} onClick={onBack} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            )}
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+          </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />
