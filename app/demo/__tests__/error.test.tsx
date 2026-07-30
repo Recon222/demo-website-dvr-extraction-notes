@@ -40,6 +40,27 @@ describe('app/demo/error (route-segment outer net)', () => {
     expect(clearMock.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0])
   })
 
+  // R-31: the escape hatch's failure arm. A throwing clearDemoSnapshot exercises the same
+  // catch as a rejected dynamic import() (the post-redeploy ChunkLoadError case) without
+  // module-loader trickery. Pins BOTH halves: the degrade-to-reset contract (moving reset()
+  // inside the try would break this) and the breadcrumb (the catch must not be silent).
+  it('degrades to a plain reset — with a breadcrumb — when the session-clear module fails (R-31)', async () => {
+    const reset = vi.fn()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      vi.mocked(clearDemoSnapshot).mockImplementationOnce(() => {
+        throw new Error('chunk load failed')
+      })
+      render(<DemoError error={new Error('boom')} reset={reset} />)
+      fireEvent.click(screen.getByRole('button', { name: /Start fresh/ }))
+      await waitFor(() => expect(reset).toHaveBeenCalledTimes(1))
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0][0])).toContain('NOT cleared')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   // R-25: this file sits outside the demo token guard's scan root
   // (features/demo/ui/__tests__/glass-tokens.test.ts scans features/demo/ui/** only) and
   // Tailwind arbitrary-value syntax is invisible to that guard's BANNED strings anyway.

@@ -57,8 +57,15 @@ export default function DemoError({
             try {
               const { clearDemoSnapshot } = await import('@/features/demo')
               clearDemoSnapshot()
-            } catch {
-              // chunk load failed — degrade to the Try-again behavior
+            } catch (e) {
+              // Degrade to the Try-again behavior, but never silently (R-31): the likely
+              // cause is a post-redeploy ChunkLoadError — the same chunk this control
+              // depends on — so reset() may loop back here. Ungated warn (the geocode.ts
+              // convention: production fails identically forever with no other signal).
+              console.warn(
+                '[demo] "Start fresh" could not load the session-clear module — the snapshot was NOT cleared; falling back to a plain reset',
+                e,
+              )
             }
             reset()
           }}
