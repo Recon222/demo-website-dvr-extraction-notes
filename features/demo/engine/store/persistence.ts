@@ -473,8 +473,10 @@ const NOOP_HANDLE: PersistenceHandle = { flush: () => undefined, dispose: () => 
 
 /**
  * Subscribe to the store and mirror it into `storage` (debounced). Returns a handle whose
- * `dispose` unsubscribes (flushing first). Write failures (quota, security) are swallowed —
- * persistence must never surface in the demo.
+ * `dispose` unsubscribes (flushing first). Write failures (quota, security) never surface to
+ * the VISITOR — but they are not silent (R-14/R-26): a dev-gated `console.warn` carries the
+ * cause, and the stale snapshot is cleared so a later refresh boots honestly empty instead of
+ * silently restoring pre-failure work. Do not delete that breadcrumb as noise.
  */
 export function persistDemoStore(
   store: DemoStore,
