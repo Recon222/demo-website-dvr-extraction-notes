@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import DemoError from '@/app/demo/error'
 import { clearDemoSnapshot } from '@/features/demo'
+// Deep type/token import is fine in a TEST (the barrel rule guards marketing runtime code);
+// the barrel itself is mocked below, so GLASS must come from the real module path.
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 // "Start fresh" loads clearDemoSnapshot through the feature barrel (dynamic import) —
 // mock the barrel so these tests never pull the full demo module graph.
@@ -40,6 +43,27 @@ describe('app/demo/error (route-segment outer net)', () => {
     expect(clearMock.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0])
   })
 
+  // R-31: the escape hatch's failure arm. A throwing clearDemoSnapshot exercises the same
+  // catch as a rejected dynamic import() (the post-redeploy ChunkLoadError case) without
+  // module-loader trickery. Pins BOTH halves: the degrade-to-reset contract (moving reset()
+  // inside the try would break this) and the breadcrumb (the catch must not be silent).
+  it('degrades to a plain reset — with a breadcrumb — when the session-clear module fails (R-31)', async () => {
+    const reset = vi.fn()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      vi.mocked(clearDemoSnapshot).mockImplementationOnce(() => {
+        throw new Error('chunk load failed')
+      })
+      render(<DemoError error={new Error('boom')} reset={reset} />)
+      fireEvent.click(screen.getByRole('button', { name: /Start fresh/ }))
+      await waitFor(() => expect(reset).toHaveBeenCalledTimes(1))
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0][0])).toContain('NOT cleared')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   // R-25: this file sits outside the demo token guard's scan root
   // (features/demo/ui/__tests__/glass-tokens.test.ts scans features/demo/ui/** only) and
   // Tailwind arbitrary-value syntax is invisible to that guard's BANNED strings anyway.
@@ -51,8 +75,30 @@ describe('app/demo/error (route-segment outer net)', () => {
     for (const banned of ['#35A0D6', '#35a0d6', '#2580AD', '#2580ad', 'rgba(255,71,87', 'rgba(255, 71, 87']) {
       expect(src.includes(banned), `hardcoded glass literal "${banned}" — use the --color-demo-* @theme tokens`).toBe(false)
     }
-    for (const token of ['demo-accent-from', 'demo-accent-to', 'demo-error']) {
-      expect(src.includes(token), `expected the ${token} @theme token utility to be in use`).toBe(true)
+    // Utility-CLASS strings, not bare token names (R-34): a whole-file includes() of
+    // "demo-error" was satisfiable by this file's own cross-reference comment.
+    for (const util of ['from-demo-accent-from', 'to-demo-accent-to', 'border-demo-error/']) {
+      expect(src.includes(util), `expected the ${util} utility class to be in use`).toBe(true)
     }
+  })
+
+  // R-34: R-25's guard pinned error.tsx's SYNTAX only — the @theme mirror's VALUES were
+  // unguarded (probe: drifting --color-demo-accent-from AND renaming --color-demo-error
+  // left the suite green; Tailwind generates nothing for an orphaned utility, so there is
+  // no build error either). Guard the file that drifts: the mirrors must equal the GLASS
+  // source of truth in features/demo/ui/glass-tokens.ts.
+  it('the @theme demo-token mirrors still equal the GLASS values they twin (R-34)', () => {
+    const css = readFileSync(join(process.cwd(), 'app', 'css', 'style.css'), 'utf8')
+    const mirror = (name: string): string => {
+      const m = css.match(new RegExp(`--color-demo-${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))
+      expect(m, `--color-demo-${name} missing from the @theme block in app/css/style.css`).not.toBeNull()
+      return (m as RegExpMatchArray)[1].toLowerCase()
+    }
+    expect(mirror('accent-from')).toBe(GLASS.accentFrom.toLowerCase())
+    expect(mirror('accent-to')).toBe(GLASS.accentTo.toLowerCase())
+    // #ff4757 IS the rgb inside GLASS.borderError — the second assertion ties the two
+    // representations, so retuning the in-frame error red breaks this pin too.
+    expect(mirror('error')).toBe('#ff4757')
+    expect(GLASS.borderError).toContain('rgba(255,71,87')
   })
 })
