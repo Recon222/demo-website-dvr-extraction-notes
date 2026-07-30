@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { T } from '@/features/demo/ui/inputs/input-theme'
@@ -31,6 +31,12 @@ export function Dropdown({
   placeholder = 'Select an option',
 }: DropdownProps) {
   const [open, setOpen] = useState(false)
+  // Accessible name = label + current selection (review R-10): an aria-label would
+  // override the trigger's text content and hide the selection — including the
+  // load-bearing "Other (Custom)" state — from assistive tech (WCAG 4.1.2).
+  const uid = useId()
+  const labelId = `${uid}-label`
+  const valueId = `${uid}-value`
 
   const opts: PickerOption[] = options.map((o) => (typeof o === 'string' ? { label: o, value: o } : o))
   // Selected display mirrors the phone's Picker (label lookup). An unknown non-empty value
@@ -59,14 +65,14 @@ export function Dropdown({
   return (
     <div style={{ marginBottom: 14 }}>
       {label && (
-        <div style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
+        <div id={labelId} style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
       )}
 
       {/* Selector */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={label || placeholder}
+        aria-labelledby={label ? `${labelId} ${valueId}` : valueId}
         aria-haspopup="menu"
         aria-expanded={open}
         style={{
@@ -82,7 +88,7 @@ export function Dropdown({
           padding: 0,
         }}
       >
-        <span style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span id={valueId} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {selectedLabel || placeholder}
         </span>
         <span

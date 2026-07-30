@@ -28,8 +28,9 @@ const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
 const blankDvr = (): DvrInformation => blankLocationForm().dvr
 const camera = (patch: Partial<CameraEntry> = {}): CameraEntry => ({ id: 'c1', cameraName: 'A', resolution: '', recordingFps: '', ...patch })
 
-/** Open the dropdown named `trigger`, read the rendered option labels, close it again. */
-async function renderedOptions(trigger: string): Promise<string[]> {
+/** Open the dropdown whose accessible name starts with `trigger` (the name also carries the
+ *  current selection since R-10), read the rendered option labels, close it again. */
+async function renderedOptions(trigger: RegExp): Promise<string[]> {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: trigger }))
   const labels = screen.getAllByRole('menuitemradio').map((el) => el.textContent ?? '')
@@ -44,23 +45,23 @@ const labelsOf = (options: readonly { label: string }[]) => options.map((o) => o
 describe('rendered option lists === engine/content/form-options', () => {
   it('DvrInfoScreen renders the canonical Resolution + FPS lists and schedule checkboxes', async () => {
     render(<DvrInfoScreen dvr={blankDvr()} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} {...nav} />)
-    expect(await renderedOptions('Resolution')).toEqual(labelsOf(RESOLUTION_OPTIONS))
-    expect(await renderedOptions('Recording FPS')).toEqual(labelsOf(FPS_OPTIONS))
+    expect(await renderedOptions(/^Resolution/)).toEqual(labelsOf(RESOLUTION_OPTIONS))
+    expect(await renderedOptions(/^Recording FPS/)).toEqual(labelsOf(FPS_OPTIONS))
     const checkboxes = screen.getAllByRole('checkbox').map((el) => el.textContent ?? '')
     expect(checkboxes).toEqual([...RECORDING_SCHEDULE_OPTIONS])
   })
 
   it('CamerasScreen renders the canonical Resolution + FPS lists', async () => {
     render(<CamerasScreen cameras={[camera()]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
-    expect(await renderedOptions('Resolution')).toEqual(labelsOf(RESOLUTION_OPTIONS))
-    expect(await renderedOptions('FPS')).toEqual(labelsOf(FPS_OPTIONS))
+    expect(await renderedOptions(/^Resolution/)).toEqual(labelsOf(RESOLUTION_OPTIONS))
+    expect(await renderedOptions(/^FPS/)).toEqual(labelsOf(FPS_OPTIONS))
   })
 
   it('ExportInfoScreen renders the canonical Export Media / File Type / Provided Via lists', async () => {
     render(<ExportInfoScreen data={blankLocationForm().export} onChange={vi.fn()} onToggleMediaPlayer={vi.fn()} {...nav} />)
-    expect(await renderedOptions('Export Media')).toEqual(labelsOf(EXPORT_MEDIA_OPTIONS))
-    expect(await renderedOptions('File Type')).toEqual(labelsOf(FILE_TYPE_OPTIONS))
-    expect(await renderedOptions('Provided Via')).toEqual(labelsOf(MEDIA_PROVIDED_OPTIONS))
+    expect(await renderedOptions(/^Export Media/)).toEqual(labelsOf(EXPORT_MEDIA_OPTIONS))
+    expect(await renderedOptions(/^File Type/)).toEqual(labelsOf(FILE_TYPE_OPTIONS))
+    expect(await renderedOptions(/^Provided Via/)).toEqual(labelsOf(MEDIA_PROVIDED_OPTIONS))
   })
 })
 
@@ -70,7 +71,7 @@ describe('DVR Information custom Resolution/FPS path (phone dvr-information.tsx:
     const user = userEvent.setup()
     render(<DvrInfoScreen dvr={blankDvr()} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} {...nav} />)
     expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled() // phone parity: stored value left untouched
@@ -80,7 +81,7 @@ describe('DVR Information custom Resolution/FPS path (phone dvr-information.tsx:
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<DvrInfoScreen dvr={blankDvr()} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} {...nav} />)
-    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     fireEvent.change(screen.getByLabelText('Custom Resolution'), { target: { value: '1440x900' } })
     expect(onChange).toHaveBeenCalledWith('resolution', '1440x900')
@@ -98,7 +99,7 @@ describe('DVR Information custom Resolution/FPS path (phone dvr-information.tsx:
     const user = userEvent.setup()
     render(<DvrInfoScreen dvr={{ ...blankDvr(), recordingFps: '12' }} retention={{ totalRetention: null, scopes: [] }} onChange={onChange} {...nav} />)
     expect(screen.getByLabelText('Custom FPS')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Recording FPS' }))
+    await user.click(screen.getByRole('button', { name: /^Recording FPS/ }))
     await user.click(screen.getByRole('menuitemradio', { name: '30 FPS' }))
     expect(onChange).toHaveBeenCalledWith('recordingFps', '30')
     expect(screen.queryByLabelText('Custom FPS')).not.toBeInTheDocument()
@@ -116,7 +117,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<CamerasScreen cameras={[camera({ resolution: '1920x1080' })]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
-    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(onChange).toHaveBeenCalledWith(0, { resolution: '' }) // phone parity: cameras clear on switch
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
@@ -135,7 +136,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
         {...nav}
       />,
     )
-    await user.click(screen.getAllByRole('button', { name: 'FPS' })[1])
+    await user.click(screen.getAllByRole('button', { name: /^FPS/ })[1])
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getAllByLabelText('Custom FPS')).toHaveLength(1)
     expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
@@ -145,10 +146,10 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<CamerasScreen cameras={[camera()]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
-    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Resolution' }))
+    await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: '704x480 (4CIF)' }))
     expect(onChange).toHaveBeenCalledWith(0, { resolution: '704x480' })
     expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
@@ -163,7 +164,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const b = camera({ id: 'cB', cameraName: 'B' })
     const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
     // put camera B (row index 1) into custom mode…
-    await user.click(screen.getAllByRole('button', { name: 'Resolution' })[1])
+    await user.click(screen.getAllByRole('button', { name: /^Resolution/ })[1])
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
     // …the visitor types a value and removes camera A → B re-indexes from 1 to 0
@@ -178,7 +179,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const b = camera({ id: 'cB', cameraName: 'B', resolution: '1920x1080' })
     const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
     // camera A (row index 0) goes custom, then A is removed → B re-indexes from 1 to 0
-    await user.click(screen.getAllByRole('button', { name: 'Resolution' })[0])
+    await user.click(screen.getAllByRole('button', { name: /^Resolution/ })[0])
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     rerender(<CamerasScreen cameras={[b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
     // B stays a standard row (index-keyed flags rendered it spuriously custom here)
@@ -209,7 +210,7 @@ describe('Export Information "Other" (phone export-information.tsx:52-103 — NO
       <ExportInfoScreen data={blankLocationForm().export} onChange={onChange} onToggleMediaPlayer={vi.fn()} {...nav} />,
     )
     const inputsBefore = container.querySelectorAll('input').length
-    await user.click(screen.getByRole('button', { name: 'Export Media' }))
+    await user.click(screen.getByRole('button', { name: /^Export Media/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other' }))
     expect(onChange).toHaveBeenCalledWith('exportMedia', 'Other')
     expect(container.querySelectorAll('input')).toHaveLength(inputsBefore)
