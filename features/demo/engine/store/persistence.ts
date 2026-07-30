@@ -88,9 +88,19 @@ export interface StorageLike {
 //    engine/types) — a schema enum can't drift narrower than its union because they are the
 //    same value. Likewise APP_VIEWS is exhaustive over AppView by construction (EXTRA_VIEWS).
 //
-// NOT enforced at compile time: cross-field invariants and referential integrity — the load
-// path handles selection integrity explicitly. `z.object` strips unknown keys, so a forward
-// snapshot with extra fields still parses (same version).
+// NOT enforced at compile time (R-30):
+// - cross-field invariants and referential integrity — the load path handles selection
+//   integrity explicitly;
+// - field WIDENING: `z.ZodType` output is covariant, so a schema NARROWER than a widened
+//   domain field still assigns (adding `| null`, growing a non-tuple union, `string | number`
+//   — all compile silently). Runtime consequence is the wipe path: this build writes the
+//   widened value, its own schema rejects it next boot, `discard()`. Only device 3's shared
+//   tuples close widening, and only for tuple-backed unions — which is why NEW closed unions
+//   MUST be declared as `as const` tuples in `engine/types` and consumed here via
+//   `z.enum(TUPLE)`, never re-typed by hand. (The maximal round-trip fixture is the runtime
+//   net for a populated widening.)
+// `z.object` strips unknown keys, so a forward snapshot with extra fields still parses
+// (same version).
 
 /** Every key of T — required and optional alike — must appear in the shape (device 2). */
 type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
