@@ -206,8 +206,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [pdf, setPdf] = useState<PdfState | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
   // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
-  // store (location-scoped) and is never unset.
-  const [reviewAgain, setReviewAgain] = useState(false)
+  // store (location-scoped) and is never unset. Keyed by LOCATION ID (R-21): an un-keyed
+  // boolean let a "Review / Export again" on location A suppress location B's confirmation
+  // after any switch that bypassed openLocation's reset (e.g. switchLocation directly).
+  const [reviewAgainFor, setReviewAgainFor] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
@@ -320,7 +322,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // ---- screen interactions (sandbox) ----
   const openLocation = (locationId: string) => {
-    setReviewAgain(false) // a fresh location visit starts from its own truthful gate (R-1)
+    setReviewAgainFor(null) // a fresh location visit starts from its own truthful gate (R-1)
     store.getState().switchLocation(locationId)
     store.getState().setView('submission')
   }
@@ -723,7 +725,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // location that was actually completed — the case-level status only colors the
             // Cases/Dashboard cards green (G4). reviewAgain is the confirmation's way back
             // to the review form, so the court PDF is never a one-shot.
-            isComplete={(currentLocation?.form.completed ?? false) && !reviewAgain}
+            isComplete={(currentLocation?.form.completed ?? false) && reviewAgainFor !== currentLocation?.id}
             // R-19: gate + action key on the OPEN LOCATION alone — never the selection pair.
             // currentCaseId can lag the location (only switchLocation writes both), so trusting
             // it greened an unrelated case while stamping nothing. Deriving the case from
@@ -740,9 +742,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               const st = store.getState()
               const loc = st.locations.find((l) => l.id === st.currentLocationId)
               if (loc) st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
-              setReviewAgain(false) // re-completing from review-again returns to the confirmation
+              setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
             }}
-            onReviewAgain={() => setReviewAgain(true)}
+            onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
             onBackToCases={() => store.getState().setView('cases')}
             onBack={onPrev}

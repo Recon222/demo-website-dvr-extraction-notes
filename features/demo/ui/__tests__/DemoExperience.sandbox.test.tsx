@@ -141,6 +141,49 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
 
+  it('R-21: Review / Export again is scoped to ITS location — a direct switch cannot suppress a sibling confirmation', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let l1 = ''
+    let l2 = ''
+    act(() => {
+      const caseId = store.getState().createCase({ caseNumber: 'PR25-TWO', displayName: 'Two Sites', unit: 'Robbery' })
+      l1 = store.getState().addLocation(caseId, { locationName: 'Site One' })
+      l2 = store.getState().addLocation(caseId, { locationName: 'Site Two' })
+      store.getState().switchLocation(l1)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save')) // L1 completed
+    act(() => {
+      store.getState().switchLocation(l2)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save')) // L2 completed
+    fireEvent.click(screen.getByText('Review / Export again')) // L2 into review mode
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument()
+    // Switch to L1 BYPASSING openLocation's reset (raw store action): the review-again flag
+    // is keyed to L2, so L1's truthful confirmation must still show.
+    act(() => store.getState().switchLocation(l1))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
+  it('R-21: re-opening a completed location through the Cases row restores its confirmation (reset pinned)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    fireEvent.click(screen.getByText('Review / Export again'))
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument() // review mode on
+    act(() => store.getState().setView('cases'))
+    fireEvent.click(screen.getByText('Test Case')) // expand the card
+    // Role-scoped: the exiting completion screen still shows "Test Location" in its summary
+    // during the slide transition — the Cases ROW is the only button carrying the name.
+    fireEvent.click(screen.getByRole('button', { name: /Test Location/ })) // openLocation — the UI path with the reset
+    act(() => store.getState().setView('completion'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
   it('R-19 (mandated regression): create A + L1, create B, rail-jump to Completion — the tap can never green the unrelated case', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
