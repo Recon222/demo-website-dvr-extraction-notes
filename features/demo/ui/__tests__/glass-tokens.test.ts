@@ -44,6 +44,26 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
+  // R-34: the /demo error page's colours live as @theme MIRRORS in app/css/style.css —
+  // outside this suite's scan root and in Tailwind arbitrary-value syntax the error-page
+  // guard can't value-check. Pin the mirror VALUES here, against the tokens that will
+  // drift: a GLASS accent/error restyle must fail this line until the mirror follows
+  // (probe: drifting --color-demo-accent-from AND renaming --color-demo-error previously
+  // left the whole suite green while the error page silently lost its palette).
+  it('the @theme demo-token mirrors in app/css/style.css equal the GLASS values (R-25/R-34)', () => {
+    const css = readFileSync(join(process.cwd(), 'app', 'css', 'style.css'), 'utf8')
+    const mirror = (name: string): string => {
+      const m = new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(css)
+      expect(m, `@theme token --color-${name} missing from app/css/style.css`).not.toBeNull()
+      return (m as RegExpExecArray)[1].toLowerCase()
+    }
+    expect(mirror('demo-accent-from')).toBe(GLASS.accentFrom.toLowerCase())
+    expect(mirror('demo-accent-to')).toBe(GLASS.accentTo.toLowerCase())
+    // borderError is '1px solid rgba(255,71,87,0.3)' — the mirror carries its rgb as hex.
+    expect(mirror('demo-error')).toBe('#ff4757')
+    expect(GLASS.borderError).toContain('rgba(255,71,87')
+  })
+
   it('keeps the raw glass literals out of UI source (use GLASS / the fragments instead)', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
