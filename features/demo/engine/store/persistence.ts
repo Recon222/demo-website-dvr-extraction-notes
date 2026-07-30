@@ -46,9 +46,10 @@ import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
 export const PERSISTENCE_ENABLED = true
 
 /** Bump `SNAPSHOT_VERSION` (and the key's suffix with it) on any incompatible
- *  `PersistedState` shape change: older snapshots are then discarded silently at boot. */
-export const SNAPSHOT_VERSION = 1
-export const SNAPSHOT_KEY = 'dvr-demo-state-v1'
+ *  `PersistedState` shape change: older snapshots are then discarded silently at boot.
+ *  v2: `LocationForm.completed` (R-1 — location-scoped completion gate). */
+export const SNAPSHOT_VERSION = 2
+export const SNAPSHOT_KEY = 'dvr-demo-state-v2'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -171,6 +172,7 @@ const locationFormSchema: z.ZodType<LocationForm> = z.object({
   notesEdited: z.boolean(),
   dateTimeCompleted: z.string(),
   completedBy: z.string(),
+  completed: z.boolean(),
   media: z.object({
     photos: z.array(mediaItemSchema),
     videos: z.array(mediaItemSchema),

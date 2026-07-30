@@ -194,7 +194,7 @@ describe('coordinates', () => {
   })
 })
 
-describe('completeCase (the arc payoff — G4)', () => {
+describe('completeCase (the arc payoff — G4, location-scoped gate — R-1)', () => {
   it('flips the case status draft → complete, leaving other cases untouched', () => {
     const store = freshStore()
     const a = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
@@ -205,19 +205,46 @@ describe('completeCase (the arc payoff — G4)', () => {
     expect(store.getState().cases.find((c) => c.id === b)?.status).toBe('draft')
   })
 
-  it('an unknown id changes no case', () => {
+  it('stamps form.completed on the CURRENT location only — siblings stay un-completed (R-1)', () => {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    const l1 = store.getState().addLocation(caseId, newLocationInput({ locationName: 'First' }))
+    const l2 = store.getState().addLocation(caseId, newLocationInput({ locationName: 'Second' }))
+    store.getState().switchLocation(l1)
+    store.getState().completeCase(caseId)
+    expect(store.getState().locations.find((l) => l.id === l1)?.form.completed).toBe(true)
+    expect(store.getState().locations.find((l) => l.id === l2)?.form.completed).toBe(false)
+    expect(store.getState().cases.find((c) => c.id === caseId)?.status).toBe('complete')
+  })
+
+  it('never stamps a location belonging to a different case', () => {
+    const store = freshStore()
+    const caseA = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    store.getState().addLocation(caseA, newLocationInput())
+    const caseB = store.getState().createCase(newCaseInput({ caseNumber: 'B' }))
+    // current location still belongs to caseA; completing caseB must not stamp it
+    store.getState().completeCase(caseB)
+    expect(store.getState().locations[0].form.completed).toBe(false)
+    expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('complete')
+  })
+
+  it('an unknown id changes no case and stamps no location', () => {
     const store = freshStore()
     const a = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(a, newLocationInput())
     store.getState().completeCase('nope')
     expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('draft')
+    expect(store.getState().locations[0].form.completed).toBe(false)
   })
 
   it('is idempotent — completing twice stays complete', () => {
     const store = freshStore()
     const a = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(a, newLocationInput())
     store.getState().completeCase(a)
     store.getState().completeCase(a)
     expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('complete')
+    expect(store.getState().locations[0].form.completed).toBe(true)
   })
 })
 

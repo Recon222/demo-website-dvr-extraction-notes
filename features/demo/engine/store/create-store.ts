@@ -98,7 +98,9 @@ export interface DemoState {
 export interface DemoActions {
   reset(): void
   createCase(input: NewCaseInput): string
-  /** Mark a case complete (the "Complete & Save" arc payoff): Cases/Dashboard cards turn green. */
+  /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
+   *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
+   *  The Completion screen's confirmation gate reads the location flag, never the case status. */
   completeCase(caseId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
@@ -216,6 +218,13 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     completeCase: (caseId) =>
       set((s) => ({
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
+        // Stamp ONLY the location whose Completion screen was submitted — sibling locations
+        // of the same case stay un-completed (their gate must keep showing the review form).
+        locations: s.locations.map((l) =>
+          l.id === s.currentLocationId && l.caseId === caseId
+            ? { ...l, form: { ...l.form, completed: true } }
+            : l,
+        ),
       })),
 
     addLocation: (caseId, input) => {

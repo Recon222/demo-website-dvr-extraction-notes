@@ -204,6 +204,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
+  // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
+  // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
+  // store (location-scoped) and is never unset.
+  const [reviewAgain, setReviewAgain] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
@@ -316,6 +320,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // ---- screen interactions (sandbox) ----
   const openLocation = (locationId: string) => {
+    setReviewAgain(false) // a fresh location visit starts from its own truthful gate (R-1)
     store.getState().switchLocation(locationId)
     store.getState().setView('submission')
   }
@@ -714,9 +719,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return (
           <CompletionScreen
             summary={summary}
-            // Truthful status (G4): the confirmation view keys off the STORE's case status,
-            // so Cases/Dashboard cards turn green with it — no local shadow boolean.
-            isComplete={currentCase?.status === 'complete'}
+            // Truthful, LOCATION-scoped gate (R-1): the confirmation shows only for the
+            // location that was actually completed — the case-level status only colors the
+            // Cases/Dashboard cards green (G4). reviewAgain is the confirmation's way back
+            // to the review form, so the court PDF is never a one-shot.
+            isComplete={(currentLocation?.form.completed ?? false) && !reviewAgain}
+            canComplete={!!currentLocation && !!currentCase}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
@@ -725,7 +733,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onComplete={() => {
               const id = store.getState().currentCaseId
               if (id) store.getState().completeCase(id)
+              setReviewAgain(false) // re-completing from review-again returns to the confirmation
             }}
+            onReviewAgain={() => setReviewAgain(true)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
             onBackToCases={() => store.getState().setView('cases')}
             onBack={onPrev}

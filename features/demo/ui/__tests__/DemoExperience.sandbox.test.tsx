@@ -87,13 +87,55 @@ describe('DemoExperience — sandbox bridge paths', () => {
 
     // The status write is real (store, not a local boolean) …
     expect(store.getState().cases[0]?.status).toBe('complete')
-    // … the confirmation view keys off it …
-    expect(screen.getByText('Case Complete')).toBeInTheDocument()
+    // … the confirmation view keys off the LOCATION's completed flag (R-1) …
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
     // … and the Cases card badge now reads Complete (green), not Draft.
     fireEvent.click(screen.getByText('Return to Cases'))
     expect(store.getState().view).toBe('cases')
-    expect(screen.getByText('Complete')).toBeInTheDocument()
+    expect(screen.getAllByText('Complete').length).toBeGreaterThan(0)
     expect(screen.queryByText('Draft')).not.toBeInTheDocument()
+  })
+
+  it('R-1: completing location 1 leaves a sibling location on the REVIEW form, not a false confirmation', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    let loc2 = ''
+    act(() => {
+      loc2 = store.getState().addLocation(store.getState().currentCaseId!, { locationName: 'Second Site' })
+      const first = store.getState().locations[0].id
+      store.getState().switchLocation(first)
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+
+    // Open the untouched sibling: its Completion must show the review form + PDF button,
+    // never "locked and archived" (nothing about it was saved).
+    act(() => store.getState().switchLocation(loc2))
+    act(() => store.getState().setView('completion'))
+    expect(screen.queryByText('Location Complete')).not.toBeInTheDocument()
+    expect(screen.getByText('Complete & Save')).toBeInTheDocument()
+    expect(screen.getByText('Preview / Export PDF')).toBeInTheDocument()
+    expect(store.getState().locations.find((l) => l.id === loc2)?.form.completed).toBe(false)
+  })
+
+  it('R-1: the court PDF is never a one-shot — Review / Export again reopens the preview on a completed location', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Review / Export again'))
+    fireEvent.click(screen.getByText('Preview / Export PDF'))
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument() // the PdfPreview iframe
+
+    // Re-completing returns to the confirmation; the flag never flipped off in between.
+    fireEvent.click(screen.getByLabelText('Close preview'))
+    fireEvent.click(screen.getByText('Complete & Save'))
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
 
   it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {

@@ -156,6 +156,9 @@ export interface LocationForm {
   /** Completion screen entry fields. */
   dateTimeCompleted: string
   completedBy: string
+  /** True once THIS location's "Complete & Save" was tapped (R-1): the Completion screen's
+   *  confirmation gate is location-scoped — the case-level status only colors the cards. */
+  completed: boolean
   media: { photos: MediaItem[]; videos: MediaItem[]; audios: MediaItem[] }
 }
 
