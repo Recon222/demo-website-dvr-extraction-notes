@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { storeWithLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 import { selectAdjustedScopes, selectCaseNotesData } from '@/features/demo/engine/store/selectors'
 
@@ -38,5 +38,37 @@ describe('selectAdjustedScopes', () => {
       { id: 's1', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: true, cameras: '' },
     ])
     expect(selectAdjustedScopes(store.getState())).toEqual([])
+  })
+
+  it('dev-warns when a non-canonical scope is left blank — mirroring generateExtractedScopes (§15 / R-27)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = storeWithLocation()
+    store.getState().updateField('form.scopes', [
+      { id: 's1', startDateTime: 'next tuesday-ish', endDateTime: 'later', isActualTime: true, cameras: '' },
+      { id: 's2', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: true, cameras: '' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+
+    const rows = selectAdjustedScopes(store.getState())
+    expect(rows[0].adjStart).toBe('') // blank, not thrown — the row survives
+    expect(rows[1].adjStart).not.toBe('') // the canonical sibling still computes
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('1 non-canonical scope'))
+    warn.mockRestore()
+  })
+
+  it('does not warn when every scope is canonical', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = storeWithLocation()
+    store.getState().updateField('form.scopes', [
+      { id: 's1', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: true, cameras: '' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    selectAdjustedScopes(store.getState())
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

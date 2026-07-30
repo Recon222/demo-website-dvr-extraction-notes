@@ -304,17 +304,21 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 
 **Source:** PR #16 review (silent-failure, out-of-scope).
 
-**What:** Two latent silent-failure paths in existing demo code (not introduced by PR #16):
-- `selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
-  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.
+**What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
+- ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
+  sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
+  **RESOLVED (P0 fix round 2, R-27):** the trigger fired when `5c319e4` touched `selectors.ts`;
+  the catch now counts drops and dev-warns after the map, mirroring `generateExtractedScopes`,
+  pinned by tests in `select-adjusted-scopes.test.ts`. This half is done — P2.4's G8 scope
+  shrinks accordingly.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
-  `time.ts`'s own "fail loud" convention.
+  `time.ts`'s own "fail loud" convention. **Still open.**
 
-**Why deferred:** Both are latent — current callers guard upstream (canonical dates now reach them after
-Slice A), so neither fires today. Out of scope for the date-normalization PR.
+**Why deferred (remaining half):** Latent — current callers guard upstream (canonical dates reach
+`roundTo5Min` after Slice A), so it doesn't fire today.
 
-**Trigger:** Next time `selectors.ts` / `time.ts` are touched — add the dev-warn to the `selectAdjustedScopes`
-catch and make `roundTo5Min` fail loud (or document why it tolerates bad input).
+**Trigger (remaining half):** Next time `time.ts` is touched — make `roundTo5Min` fail loud (or
+document why it tolerates bad input).
 
 ---
 
@@ -593,6 +597,15 @@ list level with a documented `?? NARRATION[currentChapter]` fallback so the rail
 
 **Trigger:** owner feedback on the Map-picker refresh UX; Playwright E2E introduction
 (add the real-reload round-trip + duplicate-key regression test there).
+
+**Addendum (fix round 2, R-19):** the type-design reshape of the completion action —
+`completeLocation(locationId)` deriving + greening the owning case inside the store, making the
+correlated selection pair unrepresentable in the signature — is endorsed by the fix-delta
+review as the better long-term shape but deliberately not taken in-round: an in-place
+`completeCase(caseId → locationId)` swap keeps the same `string` parameter type, so stale
+caseId call sites would still compile while silently changing meaning; the safe form is a
+rename, which touches the plan-ratified G4 action name. **Trigger:** the next time
+`completeCase` grows a caller or the completion flow is reworked (P2+), do the rename then.
 ## 30. Select placeholder copy diverges from the phone
 
 **Source:** parity P0.3 (option-set consolidation, branch `parity/p0-options`), 2026-07-30.

@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
+import { COORD_SOURCES, GPS_SOURCES } from '@/features/demo/engine/types'
 import type {
   CaptureMethod,
   ChapterId,
@@ -38,7 +39,7 @@ export interface NewCaseInput {
   incidentBusinessName?: string
   incidentStreetAddress?: string
   incidentCity?: string
-  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  incidentCoordinates?: { lat: number; lng: number; source: (typeof COORD_SOURCES)[number] }
   notes?: string
 }
 
@@ -55,7 +56,7 @@ export interface NewLocationInput {
   locationPhone?: string
   /** Geocoded coordinates from the address pick. Recovery locations are geocode-only (no manual
    *  entry — a DVR always has a street address). `accuracyM` is filled in by the store (0). */
-  gps?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  gps?: { lat: number; lng: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
 }
 
 // ---- State ---------------------------------------------------------------
@@ -212,7 +213,10 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         createdLabel: 'Just now',
         locationIds: [],
       }
-      set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))
+      // Selection-pair invariant (R-19): a new case has no locations yet, so the previous
+      // case's location must not stay "current" — createCase clears it; addLocation and
+      // switchLocation set both halves. No action leaves the pair pointing across cases.
+      set((s) => ({ cases: [c, ...s.cases], currentCaseId: id, currentLocationId: null }))
       return id
     },
 
@@ -250,7 +254,10 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       set((s) => ({
         locations: [...s.locations, loc],
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, locationIds: [...c.locationIds, id] } : c)),
+        // Both halves together (R-19): "Add Location" targets ANY expanded case (targetCaseId),
+        // so the case selection must follow the location or the pair goes incoherent.
         currentLocationId: id,
+        currentCaseId: caseId,
       }))
       return id
     },

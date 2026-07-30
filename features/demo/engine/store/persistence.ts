@@ -88,12 +88,30 @@ export interface StorageLike {
 //    engine/types) — a schema enum can't drift narrower than its union because they are the
 //    same value. Likewise APP_VIEWS is exhaustive over AppView by construction (EXTRA_VIEWS).
 //
-// NOT enforced at compile time: cross-field invariants and referential integrity — the load
-// path handles selection integrity explicitly. `z.object` strips unknown keys, so a forward
-// snapshot with extra fields still parses (same version).
+// NOT enforced at compile time (R-30):
+// - cross-field invariants and referential integrity — the load path handles selection
+//   integrity explicitly;
+// - field WIDENING: `z.ZodType` output is covariant, so a schema NARROWER than a widened
+//   domain field still assigns (adding `| null`, growing a non-tuple union, `string | number`
+//   — all compile silently). Runtime consequence is the wipe path: this build writes the
+//   widened value, its own schema rejects it next boot, `discard()`. Only device 3's shared
+//   tuples close widening, and only for tuple-backed unions — which is why NEW closed unions
+//   MUST be declared as `as const` tuples in `engine/types` and consumed here via
+//   `z.enum(TUPLE)`, never re-typed by hand. (The maximal round-trip fixture is the runtime
+//   net for a populated widening.)
+// `z.object` strips unknown keys, so a forward snapshot with extra fields still parses
+// (same version).
 
 /** Every key of T — required and optional alike — must appear in the shape (device 2). */
 type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
+
+/** Input-agnostic `FullShape` (R-28) for the one shape whose fields REFINE from a wider input:
+ *  `view`/`currentChapter` are `z.string().refine(<type guard>)`, so their `_input` is `string`
+ *  and `FullShape`'s default (`Input = Output`) rejects them. Same key-exhaustiveness
+ *  guarantee — an omitted `PersistedState` key (even a future optional) is a compile error. */
+type FullShapeIn<T> = {
+  [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown>
+}
 
 const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({
   id: z.string(),
@@ -298,7 +316,7 @@ const persistedStateSchema = z.object({
   currentChapter: z.string().refine(isChapterId),
   capture: captureSchema,
   visited: z.record(z.string(), z.literal(true)),
-})
+} satisfies FullShapeIn<PersistedState>)
 
 const envelopeSchema = z.object({ version: z.number(), state: z.unknown() })
 
@@ -465,13 +483,15 @@ export function persistDemoStore(
         SNAPSHOT_KEY,
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
-    } catch {
+    } catch (e) {
       // Best-effort — a full/blocked storage must never break the demo — but not silent
       // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
       // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
-      // a dev breadcrumb per the repo convention.
+      // a dev breadcrumb per the repo convention — WITH the cause (R-26): quota-exceeded vs
+      // storage-blocked need different responses, and the per-keystroke re-warn loop is only
+      // diagnosable when the line says why.
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh')
+        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh', e)
       }
       try {
         storage.removeItem(SNAPSHOT_KEY)
