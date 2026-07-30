@@ -446,13 +446,15 @@ export function persistDemoStore(
         SNAPSHOT_KEY,
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
-    } catch {
+    } catch (e) {
       // Best-effort — a full/blocked storage must never break the demo — but not silent
       // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
       // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
-      // a dev breadcrumb per the repo convention.
+      // a dev breadcrumb per the repo convention — WITH the cause (R-26): quota-exceeded vs
+      // storage-blocked need different responses, and the per-keystroke re-warn loop is only
+      // diagnosable when the line says why.
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh')
+        console.warn('[demo] snapshot write failed — clearing the stale snapshot; this tab will boot empty on refresh', e)
       }
       try {
         storage.removeItem(SNAPSHOT_KEY)

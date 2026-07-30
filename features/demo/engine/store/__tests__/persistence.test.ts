@@ -428,7 +428,11 @@ describe('debounced save', () => {
     store.getState().setView('dashboard')
     expect(() => vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)).not.toThrow()
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('snapshot write failed'))
+    // R-26: the breadcrumb carries the CAUSE — quota vs blocked must be distinguishable.
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('snapshot write failed'),
+      expect.objectContaining({ message: 'QuotaExceededError' }),
+    )
     fail = false
     store.getState().setView('cases')
     vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
