@@ -36,6 +36,7 @@ import { ExportInfoScreen } from '@/features/demo/ui/screens/ExportInfoScreen'
 import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
+import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
 import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
@@ -287,6 +288,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }, [store, currentLocation])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
+
+  // Error-boundary recovery: land back on Cases with every transient overlay cleared
+  // (store AND local), so the re-rendered subtree can't immediately re-throw from a
+  // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
+  const returnToCases = () => {
+    setPdf(null)
+    setOcrResult(null)
+    setMapPickerOpen(false)
+    const st = store.getState()
+    st.setDrawerOpen(false)
+    st.closeModal()
+    st.setView('cases')
+  }
   const formList = <T extends { id: string }>(list: T[], path: string) =>
     listEditHandlers(list, (next) => store.getState().updateField(path, next))
 
@@ -793,6 +807,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         <PhoneFrame
           tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
+          {/* Catches any render throw in the screen subtree (screens, modals, drawer,
+              overlays — portal errors propagate through the React tree, so portaled
+              modals are covered too) and shows a glass fallback INSIDE the frame.
+              Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
+          <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>
@@ -836,6 +855,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
+          </DemoErrorBoundary>
         </PhoneFrame>
       </div>
       <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />
