@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
+import { COORD_SOURCES, GPS_SOURCES } from '@/features/demo/engine/types'
 import type {
   CaptureMethod,
   ChapterId,
@@ -38,7 +39,7 @@ export interface NewCaseInput {
   incidentBusinessName?: string
   incidentStreetAddress?: string
   incidentCity?: string
-  incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  incidentCoordinates?: { lat: number; lng: number; source: (typeof COORD_SOURCES)[number] }
   notes?: string
 }
 
@@ -55,7 +56,7 @@ export interface NewLocationInput {
   locationPhone?: string
   /** Geocoded coordinates from the address pick. Recovery locations are geocode-only (no manual
    *  entry — a DVR always has a street address). `accuracyM` is filled in by the store (0). */
-  gps?: { lat: number; lng: number; source: 'geocoded' | 'manual' }
+  gps?: { lat: number; lng: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
 }
 
 // ---- State ---------------------------------------------------------------
