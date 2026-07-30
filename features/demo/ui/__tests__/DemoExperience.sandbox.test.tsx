@@ -141,6 +141,51 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
 
+  it('R-19 (mandated regression): create A + L1, create B, rail-jump to Completion — the tap can never green the unrelated case', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'CASE-A', displayName: 'A', unit: 'Robbery' })
+      store.getState().addLocation(caseA, { locationName: 'L1' })
+      caseB = store.getState().createCase({ caseNumber: 'CASE-B', displayName: 'B', unit: 'Robbery' })
+      store.getState().setView('completion') // rail-jump: no switchLocation on the way
+    })
+    // createCase(B) cleared the location half of the pair, so Complete & Save is DISABLED —
+    // it neither greens B (the old wrong-case bug) nor dead-taps.
+    const btn = screen.getByRole('button', { name: 'Complete & Save' })
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('draft')
+    expect(store.getState().cases.find((c) => c.id === caseA)?.status).toBe('draft')
+    expect(store.getState().locations[0].form.completed).toBe(false)
+  })
+
+  it('R-19: onComplete derives the case from the OPEN LOCATION even if the pair is incoherent', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    let loc1 = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'CASE-A', displayName: 'A', unit: 'Robbery' })
+      loc1 = store.getState().addLocation(caseA, { locationName: 'L1' })
+      caseB = store.getState().createCase({ caseNumber: 'CASE-B', displayName: 'B', unit: 'Robbery' })
+      // Force the incoherent pair the store actions no longer produce (defense in depth for
+      // the bridge derivation): location L1 (case A) open while currentCaseId says B.
+      store.setState({ currentLocationId: loc1, currentCaseId: caseB })
+      store.getState().setView('completion')
+    })
+    fireEvent.click(screen.getByText('Complete & Save'))
+    // The location's OWN case greens and the location stamps; B is untouched; the
+    // confirmation appears (no dead tap, no fake success on an unrelated case).
+    expect(store.getState().cases.find((c) => c.id === caseA)?.status).toBe('complete')
+    expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('draft')
+    expect(store.getState().locations.find((l) => l.id === loc1)?.form.completed).toBe(true)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+  })
+
   it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {
     runText.mockResolvedValue(okRun({ filename: undefined }))
     const store = createDemoStore()

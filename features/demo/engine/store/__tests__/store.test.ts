@@ -248,6 +248,27 @@ describe('completeCase (the arc payoff — G4, location-scoped gate — R-1)', (
   })
 })
 
+describe('selection-pair coherence (R-19)', () => {
+  it('createCase clears currentLocationId — a new case never keeps another case\'s location current', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    store.getState().addLocation(a, newLocationInput())
+    expect(store.getState().currentLocationId).not.toBeNull()
+    store.getState().createCase(newCaseInput({ caseNumber: 'B' }))
+    expect(store.getState().currentLocationId).toBeNull()
+  })
+
+  it('addLocation sets BOTH halves — adding to a non-current case moves the case selection with it', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    const b = store.getState().createCase(newCaseInput({ caseNumber: 'B' })) // current case: B
+    const locA = store.getState().addLocation(a, newLocationInput()) // "Add Location" on expanded A
+    expect(store.getState().currentLocationId).toBe(locA)
+    expect(store.getState().currentCaseId).toBe(a) // follows the location, not stale B
+    expect(b).not.toBe(a)
+  })
+})
+
 describe('switchLocation', () => {
   it('sets currentLocationId and the matching caseId', () => {
     const store = freshStore()

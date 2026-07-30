@@ -593,6 +593,15 @@ list level with a documented `?? NARRATION[currentChapter]` fallback so the rail
 
 **Trigger:** owner feedback on the Map-picker refresh UX; Playwright E2E introduction
 (add the real-reload round-trip + duplicate-key regression test there).
+
+**Addendum (fix round 2, R-19):** the type-design reshape of the completion action —
+`completeLocation(locationId)` deriving + greening the owning case inside the store, making the
+correlated selection pair unrepresentable in the signature — is endorsed by the fix-delta
+review as the better long-term shape but deliberately not taken in-round: an in-place
+`completeCase(caseId → locationId)` swap keeps the same `string` parameter type, so stale
+caseId call sites would still compile while silently changing meaning; the safe form is a
+rename, which touches the plan-ratified G4 action name. **Trigger:** the next time
+`completeCase` grows a caller or the completion flow is reworked (P2+), do the rename then.
 ## 30. Select placeholder copy diverges from the phone
 
 **Source:** parity P0.3 (option-set consolidation, branch `parity/p0-options`), 2026-07-30.

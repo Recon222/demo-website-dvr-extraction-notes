@@ -724,15 +724,22 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // Cases/Dashboard cards green (G4). reviewAgain is the confirmation's way back
             // to the review form, so the court PDF is never a one-shot.
             isComplete={(currentLocation?.form.completed ?? false) && !reviewAgain}
-            canComplete={!!currentLocation && !!currentCase}
+            // R-19: gate + action key on the OPEN LOCATION alone — never the selection pair.
+            // currentCaseId can lag the location (only switchLocation writes both), so trusting
+            // it greened an unrelated case while stamping nothing. Deriving the case from
+            // loc.caseId always stamps and always greens the case that owns the location; the
+            // only disabling condition left is "no location open", which is exactly what the
+            // button's disabled hint says.
+            canComplete={!!currentLocation}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
             onComplete={() => {
-              const id = store.getState().currentCaseId
-              if (id) store.getState().completeCase(id)
+              const st = store.getState()
+              const loc = st.locations.find((l) => l.id === st.currentLocationId)
+              if (loc) st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
               setReviewAgain(false) // re-completing from review-again returns to the confirmation
             }}
             onReviewAgain={() => setReviewAgain(true)}
