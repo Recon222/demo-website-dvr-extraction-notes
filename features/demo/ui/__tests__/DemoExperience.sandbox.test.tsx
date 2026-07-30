@@ -189,6 +189,31 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
 
+  it('R-35: a wizard screen with no open location shows the honest notice — never a dead form', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-NOLOC', displayName: 'No Loc', unit: 'Robbery' })
+      store.getState().setView('submission') // rail-jump after New Case: location half is cleared
+    })
+    // No interactive form whose keystrokes would be silently discarded — the notice instead.
+    expect(screen.getByText(/No location open/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Requester Name')).toBeNull()
+    fireEvent.click(screen.getByText('Open one from Cases'))
+    expect(store.getState().view).toBe('cases')
+  })
+
+  it('R-35: Completion is exempt — it keeps its reviewed no-location treatment (disabled CTA + hint)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-NOLOC2', displayName: 'No Loc 2', unit: 'Robbery' })
+      store.getState().setView('completion')
+    })
+    expect(screen.queryByText(/No location open/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Complete & Save' })).toBeDisabled()
+  })
+
   it('R-19 (mandated regression): create A + L1, create B, rail-jump to Completion — the tap can never green the unrelated case', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

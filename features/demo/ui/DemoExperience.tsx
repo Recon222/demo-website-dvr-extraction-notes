@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { nextChapter, prevChapter } from '@/features/demo/engine/content/screens'
+import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
@@ -48,6 +48,7 @@ import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
+import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -136,6 +137,19 @@ const EMPTY_FORM = blankLocationForm()
 const placeholder = (view: string) => (
   <div style={{ minHeight: 786, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
     The “{view}” screen is a fast-follow.
+  </div>
+)
+
+/** R-35: the honest empty state for a wizard screen reached with no location open — the same
+ *  judgment loadSnapshot encodes at boot ("route to cases instead of a dead form"), applied
+ *  in-session. Without it, 10 of the 11 wizard screens rendered fully interactive forms whose
+ *  every keystroke was silently discarded (updateField early-returns with no location). */
+const noLocationNotice = (onGoToCases: () => void) => (
+  <div style={{ minHeight: 786, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
+    <div style={{ marginBottom: 18 }}>No location open — the wizard documents one recovery location at a time.</div>
+    <button type="button" onClick={onGoToCases} style={{ padding: '12px 22px', ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+      Open one from Cases
+    </button>
   </div>
 )
 
@@ -559,6 +573,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
   function activeScreen() {
+    // R-35: a wizard screen with no open location is a dead form (every keystroke silently
+    // discarded) — show the honest notice instead. Completion is exempt: it has its own
+    // reviewed no-location treatment (disabled CTA + truthful hint, R-19).
+    if (!currentLocation && view !== 'completion' && (WIZARD_SCREENS as readonly string[]).includes(view)) {
+      return noLocationNotice(() => store.getState().setView('cases'))
+    }
     switch (view) {
       case 'splash':
         return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
