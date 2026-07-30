@@ -48,6 +48,8 @@ import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
+import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { clock } from '@/features/demo/ui/inputs/clock'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -55,6 +57,10 @@ import '@/features/demo/ui/demo.css'
 // Retention "today": the real clock — the demo boots empty and every case is
 // visitor-created, so retention countdowns read against actual time.
 const realNow = () => new Date()
+
+// Import-log run clock, read through the UI's wall-clock seam (spy-able in tests). The
+// bus itself never touches Date.now() — elapsedMs comes from this injection (P1.3).
+const logClock = () => clock.now().getTime()
 
 const blankCaseForm: NewCaseFields = {
   caseNumber: '',
@@ -392,10 +398,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     caseId: string,
     res: Extract<ImportRunResult, { ok: true }>,
     myGen: number,
+    emitter: ImportLogEmitter,
   ): Promise<string | null> => {
     const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
+    if (query) emitter.log('CASE', 'forward geocode → Mapbox', `query: '${query}'`)
+    else emitter.log('CASE', 'geocode skipped — no usable address in the import')
     const coords = query ? await forwardGeocode(query) : null
     if (importGen.current !== myGen) return null // cancelled mid-geocode — do not touch the store
+    if (query) {
+      if (coords) emitter.log('CASE', 'geocode ✓', `lng ${coords.lng.toFixed(5)} · lat ${coords.lat.toFixed(5)}`)
+      else emitter.log('CASE', 'geocode — no match; creating the location without a map pin')
+    }
     const id = store.getState().addLocation(caseId, {
       locationName: res.patch.businessName || res.filename || 'Imported location',
       gps: coords ? { lat: coords.lat, lng: coords.lng, source: 'geocoded' } : undefined,
@@ -410,9 +423,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     locations: ImportedLocationView[]
     failures: ImportFailure[]
   }
-  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number) => {
-    const locId = await applySuccess(caseId, res, myGen)
+  const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number, emitter: ImportLogEmitter) => {
+    const locId = await applySuccess(caseId, res, myGen, emitter)
     if (locId === null) return // run invalidated mid-geocode — nothing was written, tally untouched
+    // The demo's applyImport never writes the OCC# — mapAiToForm drops it and the case
+    // record keeps its own number (same rule as the phone's case injection).
+    emitter.log('CASE', 'inject case data ← case record', `occurrenceNumber: '${caseNumber}' — from the selected case, never the model`)
+    emitter.log('OK', 'import ✓ · location created', `locationId: ${locId}`)
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
     tally.locations.push(
@@ -428,9 +445,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }),
     )
   }
-  const finishImport = (t: ImportTally) => {
+  const finishImport = (t: ImportTally, emitter: ImportLogEmitter, totalFiles: number) => {
     // No successful locations → honest failure result (ok=false); the failure view shows the
     // per-file failures card. A success always carries at least one location.
+    // The log's last word matches: DONE only when something imported (an all-failed run
+    // already ended in ERR lines); a partial batch truthfully reports its failed count.
+    if (t.locations.length > 0) {
+      if (totalFiles > 1) emitter.log('DONE', 'batch complete', `success: ${t.locations.length} · failed: ${t.failures.length} · ${emitter.elapsed()}ms`)
+      else emitter.log('DONE', 'import complete', `${emitter.elapsed()}ms`)
+    }
     const result: ImportResult =
       t.locations.length === 0
         ? { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
@@ -454,18 +477,24 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    // One log run per import (a batch is ONE run, like the phone). beginRun clears the
+    // previous run's retained lines; the emitter self-invalidates when superseded/reset.
+    const emitter = importLogBus.beginRun(logClock)
     const total = files.length
+    if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
+    else emitter.log('INIT', 'reading document…')
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
       if (importGen.current !== myGen) return // cancelled, or a newer run started
       setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
-      const res = await runPdfImport(files[i], { live: true, onStage: onImportStage })
+      emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
+      const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
       if (importGen.current !== myGen) return // cancelled while this file was processing
-      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
     }
     if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
-    finishImport(tally)
+    finishImport(tally, emitter, total)
   }
 
   const runPasteImport = async () => {
@@ -480,14 +509,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    const emitter = importLogBus.beginRun(logClock)
+    emitter.log('INIT', 'reading pasted text…')
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
-    const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage })
+    const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage, emitter })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen)
+    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
     else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
     if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
-    finishImport(tally)
+    finishImport(tally, emitter, 1)
   }
 
   // ---- time offset + OCR (the marquee) ----
@@ -798,6 +829,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               }}
               onCancel={() => {
                 importGen.current++ // invalidate any in-flight run's token (H1/H2)
+                importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
                 store.getState().closeModal()
               }}
             />
