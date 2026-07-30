@@ -680,3 +680,46 @@ direction as correct boundary hygiene.
 
 **Trigger to revisit:** bundle budget pressure on `/demo`, or zod usage spreading beyond the
 two existing sites (beta form, snapshot guard) without a deliberate decision.
+
+---
+
+## 33. One-click PDF download (html2pdf.js) — spiked, NOT shipped (P1.6/D4 spike verdict)
+
+**Source:** P1.6 (`parity/p1-pdfsave`) — the D4-mandated bounded spike on an html2canvas + jsPDF
+one-click `.pdf` download alongside the shipped `window.print()` save path.
+
+**What was evaluated:** html2pdf.js 0.14.0 (`pagebreak: { mode: ['css', 'legacy'] }`, scale-2
+html2canvas, letter/0.75in jsPDF) against headless-Chromium native print-to-PDF (`page.pdf` —
+byte-for-byte what the shipped Save-as-PDF path produces) on rich multi-page fixtures of BOTH
+court documents (all sections: scope tables, adjusted-scope callout + partial warning, DST
+advisory box, OCR tech-specs, NTP calibration + accuracy table + traceability chain).
+
+**Result — layout survived, the artifact degraded.** Pagination, headers, tables, and the DST
+advisory box all rendered faithfully (no sliced lines with the css+legacy pagebreak mode). But
+the produced PDF is a stack of JPEG page images:
+
+| Metric | Native print (shipped) | html2pdf.js |
+|---|---|---|
+| Case Notes size | 195 KB | 1,725 KB (8.8x) |
+| Time Offset size | 146 KB | 815 KB (5.6x) |
+| Extractable text, Case Notes (pdfjs) | 5,076 chars | **0** |
+| Extractable text, Time Offset (pdfjs) | 2,043 chars | **0** |
+| Text | vector (searchable/selectable/AT-accessible) | ~192 dpi effective raster |
+| Click cost | none | ~946 KB bundle (dynamic import) + rasterization |
+
+**Why not shipped:** a court document with zero text layer — unsearchable, unselectable,
+screen-reader-inaccessible, soft in print — is a materially degraded artifact, and it would
+misrepresent the phone app's real (vector, expo-print) export quality, contra the demo's
+honesty rule. D4's own criterion ("if it degrades the document, DON'T ship it") controls.
+No pdfmake either, per D4 — it would fork the document source of truth from the phone's HTML
+templates. Print-dialog Save-as-PDF remains the only save path.
+
+**Method (reproducible):** tsc-compile `engine/logic/pdf/*` to CJS, build maxed-out fixture
+data for both generators, render in headless Chromium (Playwright): `page.pdf()` for the
+native baseline vs `html2pdf().outputPdf('arraybuffer')` in-page; compare visually + via
+pdfjs `getTextContent` char counts + file sizes.
+
+**Trigger to revisit:** (a) real visitor/owner feedback that the print dialog loses users
+(one-click demand), AND (b) a client-side renderer that emits a REAL text layer from the same
+generator HTML (not rasterized pages) — re-run the method above and re-compare. Also revisit
+if the browsers ship a programmatic dialog-less print-to-PDF API.
