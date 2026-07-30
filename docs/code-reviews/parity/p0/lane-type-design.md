@@ -1,484 +1,358 @@
-# Lane review — type design (parity P0, PR #29) — FIX-DELTA
+# Lane review — type design (parity P0, PR #29) — FIX-DELTA **ROUND 2**
 
 - **Lane:** `type-design` (`.claude/agents/type-design-analyzer.md`)
-- **Mode:** FIX-DELTA — re-review of the fix round for the vetted P0 phase review
-- **Fix range:** `git diff 165de2b..feat/parity-p0` (32 files, +851 / −187), i.e. everything after the
-  review commit: three fix branches merged into `feat/parity-p0`
-  (`parity/p0-fix-boundary` → `0501023`, `parity/p0-fix-options` → `e74be8c`,
-  `parity/p0-fix-store` → `a25396b`).
-- **Refs read:** prior vetted review `docs/code-reviews/parity/p0/p0-review.md` (R-1…R-18);
-  my prior lane file (TYPE-DESIGN-1…5); `.claude/agents/type-design-analyzer.md`;
-  `features/demo/CLAUDE.md`; root `CLAUDE.md`; `docs/code-reviews/deferred.md` (§4, §5, §16, §27,
-  §29–§32); `docs/planning/demo-phone-parity/01-master-parity-plan.md`.
-- **Full files read behind the hunks:** `engine/store/persistence.ts`, `engine/store/create-store.ts`,
-  `engine/types/index.ts`, `engine/store/selectors.ts`, `engine/content/form-options.ts`,
-  `engine/content/screens.ts`, `engine/content/explore.ts`, `engine/logic/import.ts`,
-  `engine/index.ts`, `ui/DemoExperience.tsx`, `ui/screens/CamerasScreen.tsx`,
-  `ui/screens/CompletionScreen.tsx`, `ui/screens/screenData.ts`, `ui/chrome/DemoErrorBoundary.tsx`,
-  `ui/inputs/Dropdown.tsx`, `app/demo/error.tsx`, plus every changed test file.
+- **Mode:** FIX-DELTA round 2 — re-review of the **round-2 fix commits only**, i.e. everything after
+  the fix-delta review merge `f69aa92` (`docs(review): P0 fix-delta`).
+- **Fix range:** `git diff f69aa92..feat/parity-p0` — 23 files, +438 / −56. Branches
+  `parity/p0-fix2-options` (`e182186` → merge `5ce0202`), `parity/p0-fix2-boundary`
+  (`480321a`, `b86cd46`, `e8621bd`, `4abad16`, `207963f`, `8a4dd55` → merge `db16e5a`),
+  `parity/p0-fix2-store` (`c41c5ae`, `6566531`, `ac4cb5e`, `7ef5608`, `c4cf8b4` → merge `51a3da7`).
+- **Refs read:** prior vetted review `docs/code-reviews/parity/p0/p0-review-fixdelta.md`
+  (R-19 … R-30; R-1…R-18 CLOSED, not re-litigated); my own round-1 fix-delta lane file
+  (TYPE-DESIGN-A…E, overwritten by this file); `.claude/agents/type-design-analyzer.md`;
+  `features/demo/CLAUDE.md`; root `CLAUDE.md`; `docs/code-reviews/deferred.md` (§4, §5, §15, §16,
+  §27, §29–§32, incl. the new §29 addendum); `docs/planning/demo-phone-parity/01-master-parity-plan.md`.
+- **Full files read behind the hunks:** `engine/store/create-store.ts`, `engine/store/persistence.ts`,
+  `engine/store/selectors.ts`, `engine/types/index.ts`, `engine/content/form-options.ts`,
+  `engine/index.ts`, `features/demo/index.ts`, `ui/DemoExperience.tsx`, `ui/clear-demo-snapshot.ts`,
+  `ui/screens/CompletionScreen.tsx`, `app/demo/error.tsx`, plus every changed test file.
 - **Gates run for this pass:** `npx tsc --noEmit` → clean (exit 0);
-  `vitest run features/demo/engine/store features/demo/engine/content` → 11 files / 143 tests green.
-- **Type probes run to ground this pass** (scratchpad, outside the repo; the repo's own
-  zod 3.25.76, `strict: true`, `target: es5`). Results quoted inline; the probe is the basis for
-  every claim below about what `FullShape` / `z.ZodType<T>` do and don't catch.
+  `npx vitest run features/demo/engine features/demo/ui/__tests__ app/demo` → **43 files / 436 tests
+  green**.
+- **Type probes re-run on this head** (scratchpad, outside the repo, against the repo's own
+  zod 3.25.76 + `strict: true` + `target: es5`). Results quoted inline; every claim below about what
+  `FullShape` / `FullShapeIn` / `z.ZodType<T>` do and don't catch rests on them, not on reasoning.
 
 **Severity mapping:** BLOCKER = lane-CRITICAL, MAJOR = lane-HIGH/upper-MEDIUM,
 MINOR = lane-lower-MEDIUM/LOW.
 
-**Counts (new findings this pass):** 0 BLOCKER · 1 MAJOR · 4 MINOR.
+**Counts (new findings this pass):** 0 BLOCKER · 0 MAJOR · 2 MINOR.
+New findings continue the round-1 letter sequence (A–E) as **F** and **G** so references stay
+unambiguous across rounds.
 
 ---
 
-# Part 1 — Fix-delta on prior lane findings
+# Part 1 — Fix-delta on prior findings attributed to this lane
 
-| Prior | Aggregated as | Verdict | Fix commit |
-|---|---|---|---|
-| TYPE-DESIGN-1 | R-4 (MAJOR) | **FIXED** (2 MINOR residuals filed below) | `cf96bb5` |
-| TYPE-DESIGN-2 | R-2 (MAJOR) | **FIXED** | `c78ee30` |
-| TYPE-DESIGN-3 | R-16 (MINOR) | **FIXED** | `4b4f06c` |
-| TYPE-DESIGN-4 | R-17 (MINOR) | **FIXED** (by deletion; 1 MINOR residual) | `a0ec7f6` |
-| TYPE-DESIGN-5 | R-18 (MINOR) | **FIXED** | `65faab0` |
-| lane non-finding on zod | R-9 (MINOR) | **FIXED** (doc-only) | `3967198` |
+| Prior | Lane origin | Verdict | Fix commit | Evidence |
+|---|---|---|---|---|
+| R-19 (MAJOR) | TYPE-DESIGN-A (+ typescript, silent-failures) | **FIXED** (1 MINOR residual → **TYPE-DESIGN-F**) | `b86cd46` | bridge + both store invariants + copy, 4 regression tests |
+| R-20 (MINOR) | TYPE-DESIGN-E (+ typescript) | **FIXED** (by deletion) | `e182186` | zero references left in `features/`/`app/`/`lib/` |
+| R-28 (MINOR) | TYPE-DESIGN-B (+ typescript) | **FIXED** (1 MINOR residual → **TYPE-DESIGN-G**) | `6566531` | `FullShapeIn` applied; omitted-key probe re-verified red |
+| R-29 (MINOR) | TYPE-DESIGN-C | **FIXED** | `ac4cb5e` | both unions now derive from the canonical tuples |
+| R-30 (MINOR) | TYPE-DESIGN-D | **FIXED** | `7ef5608` | widening direction + the as-const-tuple rule now in the header |
 
-## TYPE-DESIGN-1 → R-4 — snapshot drift guard: **FIXED** (with two MINOR residuals)
+## R-19 → **FIXED** (all three converged items landed; one MINOR residual)
 
-All three claimed drift directions are genuinely closed, and the over-claiming header was
-rewritten. Verified device by device, then probe-verified.
+Verified item by item against the current worktree:
 
-**(a) Narrowed `z.enum` — FIXED.** Every closed union in the persisted graph is now an
-`as const` tuple in its canonical home and the schema consumes *the same value*:
-`PROFILES` (`engine/types/index.ts:15`), `SYNC_METHODS` (`:57`), `OFFSET_DIRECTIONS` (`:80`),
-`CAPTURE_METHODS` (`:81`), `MEDIA_KINDS` (`:139`), `CASE_STATUSES` (`:179`),
-`COORD_SOURCES` (`:182`), `GPS_SOURCES` (`:184`) — consumed at `persistence.ts:113, 136, 141,
-182, 226, 231, 255, 292`. I re-checked all 14 mirrored shapes field-by-field: there is no
-hand-typed `z.enum` literal left in the file. The exact fix this lane asked for (precedent 9,
-derive-from-the-source), applied to all eight unions rather than the six I named.
-`CaptureState.method` was additionally re-pointed at the shared `CaptureMethod`
-(`create-store.ts:68`), which also retires half of deferred §5's "`method`/`captureMethod`
-rename trap".
+1. **Bridge keys on the open location.** `DemoExperience.tsx:735` is now `canComplete={!!currentLocation}`
+   and `:741-746` derives the case from the location:
+   `const loc = st.locations.find(l => l.id === st.currentLocationId); if (loc) st.completeCase(loc.caseId)`.
+   The wrong-case-green arm and the dead-tap arm are both gone: the action's own cross-case guard
+   (`create-store.ts:229`) can no longer fail, because the caller now passes the owning case by
+   construction.
+2. **Pair invariant restored at the source.** `createCase` clears the location half
+   (`create-store.ts:219`, comment `:216-218`); `addLocation` writes both halves (`:257-260`);
+   `switchLocation` already did (`:268`); `reset` nulls both (`:156`). I re-grepped every write to
+   `currentCaseId` / `currentLocationId` in `features/` + `app/` — those four actions and
+   `loadSnapshot` are the complete set, so the commit's claim ("no store **action** leaves the pair
+   pointing across cases") holds exactly as stated. `loadSnapshot` is the construction site the claim
+   does not cover — **TYPE-DESIGN-F**.
+3. **Disabled-hint copy is now truthful by construction.** `CompletionScreen.tsx:100`
+   (`'Open a location first'`) matches the one remaining disabling condition, and the prop docstring
+   was rewritten to say so (`:20-22`).
+4. **Regression tests present and meaningful.** `sandbox.test.tsx` — the mandated rail-jump case
+   (button **disabled**, neither case greens, nothing stamps) and a forced-incoherent-pair case
+   (`store.setState`) asserting the owner greens / the sibling stays `'draft'` / the confirmation
+   renders; `store.test.ts:251-269` pins both new invariant writes. All green here.
 
-**(b) Forgotten optional — FIXED.** New device 2: `FullShape<T>` (`persistence.ts:96`) applied
-via `satisfies` to every nested shape literal (`:104, 110, 121, 129, 143, 151, 155, 170, 178,
-190, 210, 211, 226, 234, 256, 259, 268`). Probe-verified against the repo's zod:
+**The reshape I preferred (`completeCase(locationId)`) was deliberately not taken** — reason in the
+commit body (an in-place swap keeps the same `string` parameter, so stale call sites compile with
+changed meaning; the safe form is a rename), logged as a triggered follow-up in
+`docs/code-reviews/deferred.md` §29 addendum with the trigger "the next time `completeCase` grows a
+caller or the completion flow is reworked". I read the addendum; it records the shape faithfully.
+**Not re-litigated.** One cheap guard rail the deferral implies is folded into TYPE-DESIGN-F's fix list.
+
+## R-20 → **FIXED** (by deletion)
+
+`optionValues` is gone from `engine/content/form-options.ts` and from the engine barrel
+(`engine/index.ts:27-40`). Grep across `features/`, `app/`, `lib/`: three hits remain, all comments or
+the gone-list in `barrel.test.ts:14` — zero code references. The mutable-`string[]` half of R-17 is
+moot with the function. The barrel test now pins both `FORM_OPTIONS` and `optionValues` off the public
+surface, so a re-introduction is a red test rather than a review catch. The decision rationale
+(P1's `normalize-enums.ts` needs no values-only projection) is recorded in the commit body — I did not
+re-derive the phone-side claim (out of this repo), but the conclusion "delete it" is the option this
+lane asked for first.
+
+## R-28 → **FIXED** (with one MINOR residual)
+
+`persistence.ts:112-114` adds `FullShapeIn<T>` with the exact Input-agnostic signature the probe
+validated, and `:319` applies it to the last unguarded literal. Probe re-run on this head against the
+repo's zod:
 
 ```
-CASE 1  forgotten optional  → TS1360 "Property 'b' is missing … but required in FullShape<D1>"   ✅ caught
-CASE 2  extra unknown key   → TS2353 "'zzz' does not exist in type 'FullShape<D2>'"              ✅ caught
-CASE 3  required given .optional() → TS2322 (device 1, the outer z.ZodType<T> annotation)        ✅ caught
+CASE A  full shape (enum + refine()'d string + z.record + optional)   → compiles        ✅
+CASE B  a future OPTIONAL key omitted    → TS1360 "Property 'opt' is missing …"          ✅ caught
+CASE C  a REQUIRED key omitted           → TS1360 "Property 'n' is missing …"            ✅ caught
+CASE D  wrong-typed schema for a key     → TS2322 "'ZodString' is not assignable …"      ✅ caught
 ```
 
-So the P3.7 per-camera-coordinate scenario I named is now a compile error. The runtime pin I
-asked for landed too — `persistence.test.ts` "maximal round-trip (R-4b runtime pin)" populates
-every optional in the graph and asserts `snapshotOf(rehydrated) === snapshotOf(original)`.
-*Residual:* device 2 is applied to 17 of 18 shape literals — the top-level `persistedStateSchema`
-(`:291`) is the exception. Filed as **TYPE-DESIGN-B**.
+So the R-28 claim ("an optional `PersistedState` addition is silent in all three guard spots") is
+genuinely closed — the device-2 guarantee now holds for **all 18** shape literals in the file.
+*Residual:* the top-level literal is still the only one carrying device 2 **without** device 1
+(`z.ZodType<…>`), which leaves one narrower hole open — **TYPE-DESIGN-G**.
 
-**(c) `APP_VIEWS` non-exhaustive — FIXED.** `persistence.ts:275` is now
-`const EXTRA_VIEWS: Record<Exclude<AppView, ChapterId | LaunchableId>, true> = { map: true }`,
-with `APP_VIEWS: readonly AppView[]` built from `CHAPTERS`, `LAUNCHABLE` and
-`Object.keys(EXTRA_VIEWS)` (`:276-280`). Exactly the `MODAL_IDS` pattern I pointed at; a new
-tab-only `AppView` is now a compile error at that line.
+## R-29 → **FIXED**
 
-**(4) Softened header — FIXED.** `persistence.ts:79-93` replaces the "drift … is a COMPILE
-error" blanket with a three-device enumeration plus an explicit "NOT enforced at compile time"
-list. *Residual:* that list omits the field-*widening* direction, which the probe shows is still
-silent. Filed as **TYPE-DESIGN-D**.
+`create-store.ts:42` — `incidentCoordinates?: { …; source: (typeof COORD_SOURCES)[number] }`, and
+`:59` — `gps?: { …; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }`, exactly the two
+expressions asked for, with `COORD_SOURCES`/`GPS_SOURCES` imported as values (`:3`) alongside the
+existing type-only import. The documented "recovery locations are geocode-only" narrowing (`:57-58`)
+is now a compiler-checked fact rather than a re-typed union. Cross-checked against the canonical
+tuples (`types/index.ts:182, 184`) and both construction sites (`DemoExperience.tsx:350` `'geocoded'`/
+`'manual'` literals; `:359` and `:401` `'geocoded' as const`) — `tsc` clean, no runtime delta.
 
-## TYPE-DESIGN-2 → R-2 — Cameras custom-mode flags: **FIXED**
+## R-30 → **FIXED**
 
-`CamerasScreen.tsx:29-34` — both maps are now `Record<string, boolean>` keyed by
-`CameraEntry.id`, seeded from the stored values via the canonical `isCustomResolution` /
-`isCustomFps` (`engine/content/form-options.ts:96, 102`), with functional updaters
-(`:38, 41, 48, 51`) and id-based reads (`:70, 73, 76, 79`). The removal scenario I described is
-no longer constructible: `remove` still re-indexes the array (`DemoExperience.tsx:124`) but the
-flags no longer live in index space. Both directions are now pinned by tests
-(`option-parity.test.tsx`, "custom mode survives another camera's removal"). The secondary
-rehydrate gap (a stored `1440x900` reopening in custom mode) is closed by the seeding, which the
-orchestrator recorded as review-authorized. Camera ids come from a module-level monotonic counter
-(`DemoExperience.tsx:105, 117` — `ui-c${uiSeq++}`, re-seeded past rehydrated ids at `:163`), so
-stale map entries for removed rows can never be re-matched by a recycled id — checked explicitly.
+`persistence.ts:91-101` now lists the widening direction with its mechanism (`z.ZodType` output is
+covariant), its runtime consequence (the R-4 wipe path), the limit of device 3 ("only for tuple-backed
+unions"), and — the load-bearing sentence I asked for — "NEW closed unions MUST be declared as
+`as const` tuples in `engine/types` and consumed here via `z.enum(TUPLE)`, never re-typed by hand."
+I re-verified the premise the doc rests on rather than taking it on trust:
 
-## TYPE-DESIGN-3 → R-16 — `FALLBACK_COPY` bare-string registry: **FIXED**
+```
+CASE F  domain field widened to `number | null`, schema left `z.number()`
+        → compiles with NO error against both device 1 and device 2                      ✅ still silent
+```
 
-`DemoErrorBoundary.tsx:16` is `Partial<Record<AppView, string>>`; `view: AppView` (`:59`),
-`lastView: AppView` (`:70`), via a type-only import (`:5`). The lookup at `:118` keeps
-`?? GENERIC_COPY` as the runtime default. The stale "no engine imports" rationale was replaced
-with the correct one (`:12-14`).
+Comment-only change; nothing else in the file moved.
 
-## TYPE-DESIGN-4 → R-17 — `FORM_OPTIONS` lost `as const`: **FIXED by deletion**
+## Round-2 fixes owned by other lanes — checked for type-surface regressions only
 
-`engine/logic/import.ts:199-202` — the registry is gone, replaced by a NOTE explaining why
-(R-11/R-17 taken together, as the review suggested). Grep confirms zero remaining references
-outside docs. The mutability regression is moot because the object no longer exists.
-*Residual:* its only production consumer was the deleted registry, so `optionValues`
-(`form-options.ts:83`) is now an orphaned export on the engine barrel. Filed as
-**TYPE-DESIGN-E**.
-
-## TYPE-DESIGN-5 → R-18 — redundant `as` casts: **FIXED**
-
-`persistence.ts:376-380` — both casts are gone; the fields are now assigned to explicitly-typed
-locals (`const currentChapter: ChapterId = d.currentChapter`, `const view: AppView = d.view`) so
-a loosened `isAppView`/`isChapterId` becomes a compile error, with the rationale recorded in the
-comment. This is stronger than what I suggested (the annotated locals make the dependency
-explicit rather than implicit).
-
-## R-9 — unrecorded first client-shipped zod: **FIXED** (documentation)
-
-`docs/code-reviews/deferred.md` §32 (`3967198`) records the cost, the reason, the replacement
-path, and the un-defer trigger, and correctly captures this lane's endorsement of the direction
-so a later round doesn't "fix" the zod usage itself. `docs/planning/demo-phone-parity/demo-inventory.md`
-was corrected in the same commit.
-
-## Also re-checked (fix-round changes outside my prior findings)
-
-- **R-1 (BLOCKER) type surface** — `LocationForm.completed: boolean` (`types/index.ts:174`) lives
-  in the canonical home, is initialized in `blankLocationForm()` (`content/seed.ts:63`), is in the
-  snapshot schema (`persistence.ts:205`) *and* forced there by `FullShape<LocationForm>`, and the
-  snapshot version was correctly bumped v1→v2 with the key suffix (`persistence.ts:62-63`).
-  `completed: boolean` rather than `?: true` is right here: `false` is a meaningful, always-present
-  state on a fully-constructed form (same shape as its siblings `notesEdited`,
-  `extractedScopesPartial`), so the `Feature.draft?: true` precedent does not apply. Storing it
-  rather than deriving it is also right by the lane's derived-vs-stored test — it is a captured
-  user action, not a render-time convenience, and `selectLocationMapStatus` now reads it as the
-  authority (`selectors.ts:196`) instead of re-deriving a contradicting answer. **But** the
-  action's precondition is under-typed — see **TYPE-DESIGN-A**.
-- **R-15 load-time repair** (`persistence.ts:386-400`) — ordering is correct: `restoredChapter` is
-  repaired before `restoredView` falls back to it, so a launchable view + dangling location can't
-  restore into a wizard screen. No new type introduced.
-- **R-5** `app/demo/error.tsx` — props typed to Next's segment-boundary convention
-  (`error: Error & { digest?: string }`, `reset: () => void`); imports nothing from the demo
-  barrel, so the feature's public surface is untouched. No finding.
-- **R-10** `Dropdown` `aria-labelledby` + `useId` — no type surface changed
-  (`DropdownProps.options: ReadonlyArray<string | PickerOption>` untouched). No finding.
-- **R-3 / R-6 / R-12 / R-13 / R-14 / R-7 / R-8** — test-hygiene, timeout, focus and runtime-guard
-  fixes with no type surface; the `isVisitId` change (`persistence.ts:288-289`) keeps the type
-  predicate and only swaps `in` for `hasOwnProperty.call`, which is the right shape.
-- **No parallel entity declarations introduced.** Every new/changed test imports the canonical
-  types and uses `engine/store/__tests__/test-utils.ts`; the maximal-round-trip fixture builds
-  entities through the store's own actions rather than re-declaring them.
+- **R-21** (`e8621bd`) — `reviewAgain: boolean` → `reviewAgainFor: string | null`
+  (`DemoExperience.tsx:212`), compared against the open location's id (`:728`), set from
+  `currentLocationId` (`:747`), reset retained in `openLocation` (`:325`). This is the *structural*
+  option my round-1 note preferred, and it matches the repo's own `currentLocationId: string | null`
+  id convention (no brand, per the lane brief). The one meaningless combination is unreachable:
+  `onReviewAgain` only renders when `isComplete`, which requires a `currentLocation`, so
+  `reviewAgainFor` can never be set to `null`-as-a-location. No finding.
+- **R-24** (`480321a`) — new engine entry point `clearSnapshot(storage: StorageLike | null): void`
+  (`persistence.ts:441`) and its UI wrapper `clearDemoSnapshot()` (`ui/clear-demo-snapshot.ts:14`),
+  re-exported from the public barrel (`features/demo/index.ts:6`) and consumed via dynamic import
+  in `app/demo/error.tsx:58`. Injected-storage signature matches every other entry point in the file;
+  the wrapper guards the *property access* the way `sessionStorageOrNull` does. `features/demo/CLAUDE.md`
+  was updated so the barrel description stays truthful. No type surface widened. No finding.
+- **R-22 / R-23 / R-25 / R-26 / R-27** — test assertion, docs, `@theme` token mirrors, `catch (e)`
+  binding, and the `selectAdjustedScopes` dev-warn. No type declarations added or changed;
+  `AdjustedScopeRow` and the selector's return type are untouched (`selectors.ts:50-58, 66`).
+  No findings.
 
 ---
 
-# Part 2 — New findings (fix-introduced / fix-round blast radius)
+# Part 2 — New findings (fix-introduced / round-2 blast radius)
 
-## TYPE-DESIGN-A [MAJOR] features/demo/engine/store/create-store.ts:219
+## TYPE-DESIGN-F [MINOR] features/demo/engine/store/persistence.ts:409
 
-**Claim.** The R-1 fix gave `completeCase(caseId)` a second, *conditional* write whose
-correctness depends on an invariant the signature doesn't express — `caseId` must be the case of
-the **current location**. Nothing types or checks that. The call site's new `canComplete` guard
-asserts a different, weaker proposition (`a location exists AND a case exists`), so in the
-reachable state where the two disagree the action half-applies: an unrelated case is marked
-`'complete'` (green card, "0 locations") while **no** location is stamped, `isComplete` stays
-false, and "Complete & Save" does nothing visible. That is precisely the silent no-op R-1's fix
-list set out to eliminate ("disable the button or surface why"), plus a fake success on the
-Cases screen — the plan §4 honesty rule the aggregator used to justify R-1's BLOCKER.
+**Claim.** R-19's fix chose "restore the pair invariant **at the source**" as its enforcement
+mechanism, and that is now the only thing holding the `currentCaseId` ⇄ `currentLocationId`
+correlation together — the type still permits an incoherent pair, and the store's *second*
+construction site, `loadSnapshot`, does not maintain the invariant. Its selection-integrity pass
+(the R-15 fix) validates the two ids **independently for existence** and never checks **ownership**,
+so a rehydrated state can hold a location whose `caseId` differs from `currentCaseId` (or a live
+location with `currentCaseId: null` — that one is *test-pinned* as intended behaviour). Everything
+that still reads the case through `currentCaseId` then reports a different case than the open
+location — including the court-PDF payload.
 
 **Evidence.**
 
-- `create-store.ts:219-229`
+- `persistence.ts:409-411` — the whole repair:
   ```ts
-  completeCase: (caseId) =>
-    set((s) => ({
-      cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
-      locations: s.locations.map((l) =>
-        l.id === s.currentLocationId && l.caseId === caseId ? … : l,
-      ),
-    })),
+  const currentCaseId = d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
+  const currentLocationId =
+    d.currentLocationId !== null && locationIds.has(d.currentLocationId) ? d.currentLocationId : null
   ```
-  The case write is unconditional; the location write is guarded by a **two-field** predicate.
-  `caseId: string` gives the caller no way to know the second write will match, and no return
-  value reports that it didn't.
-- `DemoExperience.tsx:727` — `canComplete={!!currentLocation && !!currentCase}`. `currentLocation`
-  is `locations.find(l => l.id === currentLocationId)` (`:267`) and `currentCase` is
-  `cases.find(c => c.id === currentCaseId)` (`:269`) — two independent lookups. Neither the prop
-  nor `CompletionScreenProps.canComplete: boolean` (`CompletionScreen.tsx:22`) says anything about
-  the two agreeing.
-- **The divergent state is created by the store itself.** `createCase` (`create-store.ts:215`)
-  sets `currentCaseId` and **leaves `currentLocationId` pointing at the previous case's location**:
-  `set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))`. `addLocation` (`:250-254`) is the
-  mirror image — it sets `currentLocationId` but not `currentCaseId`. Only `switchLocation`
-  (`:258-262`) writes both.
-- **Reachable in five ordinary interactions**, no unusual input:
-  1. Cases → New Case → case **A** created (`currentCaseId = A`).
-  2. Cases → Add Location on A → `currentLocationId = L1` (`L1.caseId = A`). Aligned.
-  3. Cases → New Case again → case **B** created. `currentCaseId = B`, `currentLocationId = L1`.
-     **Diverged.**
-  4. Rail → "Completion". `EXPLORE_ITEMS` lists all ten wizard screens with
-     `jumpTo: d.id` (`engine/content/explore.ts:41`), wired to `setView` at
-     `DemoExperience.tsx:875` — the rail is rendered on every view, so this is a one-click
-     affordance, and `setView` touches neither selection id.
-  5. `canComplete` is `true` (L1 exists, B exists) → tap "Complete & Save" →
-     `completeCase('B')` → B goes `'complete'`; L1 is untouched (`L1.caseId = A ≠ B`);
-     `isComplete` (`DemoExperience.tsx:726`) stays `false`. The screen does not change. On the
-     Cases list, case B renders the green **"Complete"** chip (`screenData.ts:16-17`, via
-     `toCaseCards` `:91`) beside `"0 locations"` (`:95`).
-- **The fix round enshrined the store half of this as intended**:
-  `store.test.ts:220` — *"never stamps a location belonging to a different case"* asserts
-  `cases.find(caseB).status === 'complete'` while `locations[0].form.completed === false`. So the
-  partially-applied state is a tested, deliberate store behaviour; what is missing is any type or
-  guard stopping the **UI** from invoking it.
-- **What changed vs. pre-fix:** before `5c319e4`, `isComplete` read `currentCase?.status ===
-  'complete'`, so the same sequence at least produced (wrong) feedback. After the fix the tap is
-  a no-op on screen while still falsely greening case B. The new `canComplete` prop was added
-  specifically to kill the silent-no-op class (`CompletionScreen.tsx:20-22`) and encodes the wrong
-  predicate.
+  Two independent `Set.has` existence checks. There is no
+  `locations.find(l => l.id === currentLocationId)?.caseId === currentCaseId` comparison anywhere in
+  the function (`:404-431` read in full), and `createDemoStore` spreads `...initial` verbatim over
+  `initialState()` (`create-store.ts:190-191`) — no repair there either.
+- **The invariant is asserted, in the fix, as a property of actions only.** `create-store.ts:216-218`:
+  *"No action leaves the pair pointing across cases."* True and verified (I re-grepped every write:
+  `:156, 219, 260, 268` plus `loadSnapshot`). Rehydration is not an action, and the comment's reader
+  has no reason to check it.
+- **The test suite pins the weaker of the two states as correct.**
+  `persistence.test.ts:302-313` — *"R-15: a dangling `currentCaseId` is dropped; a non-wizard view is
+  left as-is"* — asserts `snap?.currentCaseId` is `null` **while `currentLocationId` still resolves**.
+  So "live location + no case" is a supported rehydrate today.
+- **Downstream consequence, document-facing.** `selectors.ts:212-213` takes the location from
+  `selectCurrentLocation` and the case from `selectCurrentCase`, then mixes them into the Case Notes
+  PDF payload: `occNumber: caseObj?.caseNumber` (`:220`) and `requesterUnit: caseObj?.unit` (`:224`)
+  beside `address`/`requester*` derived from `loc` (`:221-227`). After either incoherent rehydrate the
+  generated court document carries the **wrong occurrence number** (cross-case snapshot) or **none at
+  all** (dropped-case snapshot) over the right location's data. Same split at
+  `DemoExperience.tsx:713` (`CompletionSummary.occNumber`), `:593` (Submission header) and `:545`
+  (time-offset doc).
+- **The codebase already disagrees with itself about which id owns the case.** The store's own
+  `generateNotes` derives it from the location — `create-store.ts:371`:
+  `const caseObj = s.cases.find(c => c.id === loc.caseId)` — which is precisely the rule R-19
+  established for `onComplete` (`DemoExperience.tsx:743-744`). `selectCaseNotesData` and the bridge's
+  `currentCase` (`DemoExperience.tsx:271`) still use the other rule.
+- **Why MINOR and not a re-open of R-19.** The five-tap in-app repro is genuinely dead: with
+  `createCase` clearing the location half and `addLocation` writing both, no reachable UI sequence
+  produces a crossing pair, and cases are never deleted. The remaining construction paths are a
+  hand-edited / foreign `sessionStorage` snapshot (the same threat model the R-7 own-property fix and
+  the R-15 repair exist for — shape-valid but semantically broken input **is** in scope for this load
+  path) and any future action that writes one half. Nothing is lost and the visitor can repair it by
+  opening any location row.
 
-**Suggested fix.** Make the correlated pair unrepresentable at the boundary rather than
-re-checking it at every call site — the `RetentionView` precedent applied to an action signature:
+**Suggested fix** (smallest first — this is a defense-in-depth ask, not a re-architecture):
 
-1. Preferred: change the action to `completeCase(locationId: string)` (or no argument, deriving
-   both from the current selection) and let it resolve the case from
-   `locations.find(l => l.id === locationId).caseId`. The "which case" and "which location"
-   choices then cannot disagree, and the existing `store.test.ts:220` case becomes
-   "an unknown location id changes nothing".
-2. Minimum: tighten the call-site proposition to the real precondition —
-   `canComplete={!!currentLocation && currentLocation.caseId === currentCaseId}` — and rename
-   the prop to what it now means (`canComplete` reads as "this action will take effect").
-3. Either way, add the missing regression test: create A + L1, create B, jump to Completion,
-   tap Complete & Save, assert case B is **not** `'complete'` (or that the button is disabled).
+1. Extend the R-15 pass at `persistence.ts:409` to realign rather than only existence-check — two
+   lines, and it closes the cross-case *and* the dropped-case variants together:
+   ```ts
+   const openLoc = d.currentLocationId !== null ? d.locations.find((l) => l.id === d.currentLocationId) : undefined
+   const currentLocationId = openLoc?.id ?? null
+   // the open location OWNS the case (R-19's rule, applied to the second construction site)
+   const currentCaseId = openLoc ? openLoc.caseId
+     : d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
+   ```
+   Update the `persistence.test.ts:302` expectation with it (that test currently pins the pre-fix
+   answer for the dropped-case variant).
+2. Read side, optional but it is the same R-19 rule: derive `currentCase` from
+   `currentLocation.caseId` in the bridge (`DemoExperience.tsx:271`) and in `selectCaseNotesData`
+   (`selectors.ts:213`), matching `generateNotes` (`create-store.ts:371`). Then no consumer can print
+   one case's number over another case's location, whatever the selection ids say.
+3. One line of guard rail for the deferred reshape (accepting §29's deferral, not reopening it): say
+   the precondition in `completeCase`'s docstring (`create-store.ts:103-106`) — *"`caseId` MUST be the
+   case that owns the current location; the case write is unconditional, the location write is guarded.
+   See deferred §29 — the `completeLocation(locationId)` rename makes this unrepresentable."* The
+   ledger has the trap; the file the next caller reads does not.
 
-**Confidence.** High on the mechanism, the reachability sequence and every cited line (each
-re-read in the current worktree; `createCase`'s untouched `currentLocationId` and the rail's
-`jumpTo: 'completion'` were both verified directly). Filed here rather than in silent-failures
-because the defect is created by the *shape* of the contract — an action parameter that carries
-a hidden correlated precondition, plus a `boolean` prop that claims a guarantee it doesn't
-establish. Overlaps the silent-failures and typescript lenses; expect a merge.
+**Confidence.** High on every cited line (each re-read on this head) and on the absence of an
+ownership check. High that the in-app repro is closed. Medium on materiality — the remaining
+construction sites are a hand-edited snapshot or future code, which is why this is MINOR and not a
+re-opened R-19.
 
 ---
 
-## TYPE-DESIGN-B [MINOR] features/demo/engine/store/persistence.ts:291
+## TYPE-DESIGN-G [MINOR] features/demo/engine/store/persistence.ts:309
 
-**Claim.** Device 2 (`satisfies FullShape<T>`) is applied to all 17 nested shape literals but
-**not** to the top-level `persistedStateSchema` — the one literal that also has no
-`z.ZodType<PersistedState>` annotation. Today required-field additions are still caught
-indirectly (by `loadSnapshot`'s declared return type), but an *optional* addition to the
-persisted subset is silent in all three places at once.
+**Claim.** R-28 gave the top-level `persistedStateSchema` device 2 (`satisfies FullShapeIn<…>`) but it
+remains the **only** schema in the file without device 1 (the `z.ZodType<DomainType>` annotation).
+Device 2 enforces *key exhaustiveness*; it does not enforce *required-ness* — `FullShapeIn`'s per-key
+target is `z.ZodType<Required<T>[K] | undefined, …>`, so a **required** persisted field declared
+`.optional()` satisfies it silently. The header at `:81-83` presents device 1 as the file's general
+guarantee, so a maintainer reading it would believe the top level carries both.
 
 **Evidence.**
 
-- `persistence.ts:291-301` — `const persistedStateSchema = z.object({ … })`. No annotation, no
-  `satisfies`. Every other shape in the file has both (e.g. `:213`/`:234`, `:236`/`:259`).
-- The indirect guard that *does* exist: `snapshotOf(s): PersistedState` (`:309`) and
-  `loadSnapshot(): PersistedState | null` (`:340`, return literal `:402-412`) — a new **required**
-  field on `PersistedState` breaks both literals. Verified: this is why the top-level omission is
-  MINOR, not a repeat of R-4b.
-- The silent case: `PersistedState = Pick<DemoState, …>` (`create-store.ts:132-143`) preserves
-  optionality. Add `foo?: string` to `DemoState` and pick it, and (i) `snapshotOf`'s literal may
-  omit it, (ii) the schema strips it, (iii) `loadSnapshot`'s literal may omit it — all three
-  compile, and the field simply never persists. `DemoState` has no optional members today, which
-  is why this is low-reachability.
-- **The suggested fix needs the Input-agnostic variant** — probe-verified, because the naive
-  version does *not* compile here:
+- `persistence.ts:309-319` — `const persistedStateSchema = z.object({ … } satisfies FullShapeIn<PersistedState>)`.
+  No annotation. Every other schema has both, e.g. `:116` (`const scopeEntrySchema: z.ZodType<ScopeEntry> = z.object({…} satisfies FullShape<ScopeEntry>)`)
+  and `:279` / `:286`.
+- Probe on this head, repo's zod (same run as the R-28 verification above):
   ```
-  CASE 8  `satisfies FullShape<P>` with a refine()'d field
-          → TS2322 "_input: Type 'string' is not assignable to type 'View | undefined'"   ❌
-  CASE 9  `satisfies FullShapeIn<P>` where
-          FullShapeIn<T> = { [K in keyof Required<T>]-?:
-                             z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown> }
-          → compiles ✅ (accepts z.string().refine(isView) and z.record(z.string(), z.literal(true)))
-  CASE 10 same variant, one key omitted → TS1360 "Property 'n' is missing"                 ✅ still catches
+  CASE E  a REQUIRED key given `.optional()`, device 2 only
+          → NO error — FullShapeIn accepts it (its per-key target already admits undefined)   ❌ hole
+  CASE G  device 1 in the Input-agnostic form:
+          `const s: z.ZodType<P, z.ZodTypeDef, unknown> = z.object({…} satisfies FullShapeIn<P>)`
+          → compiles ✅ (so the annotation IS available here despite the refine()'d fields)
+  CASE H  same annotation + a REQUIRED key given `.optional()`
+          → TS2322 "The types of '_type.n' are incompatible … 'number | undefined' is not
+             assignable to type 'number'"                                                      ✅ caught
   ```
-  `view` / `currentChapter` use `z.string().refine(…)` (`persistence.ts:297-298`), whose `_input`
-  is `string` — that is almost certainly why the top level was skipped.
+  So the fix is one annotation, and it is probe-verified to compile against exactly the shape this
+  file has (enum + `z.string().refine(guard)` + `z.record` + nullable object schemas).
+- **Why MINOR:** all nine current fields are still caught *indirectly*, one hop later, because
+  `loadSnapshot` consumes each of them in a position that stops compiling if it goes
+  `| undefined` — `const currentChapter: ChapterId = d.currentChapter` / `const view: AppView = d.view`
+  (`:397-398`), `Object.keys(d.visited)` (`:400`), `d.cases.map` / `d.locations.map` (`:407-408`),
+  `caseIds.has(d.currentCaseId)` (`:409`), and the `PersistedState`-typed return literal (`:420-430`)
+  for `profile` and `capture`. The hole is therefore latent, not live: it opens for a *future* field
+  whose only consumer is the pass-through return literal.
 
-**Suggested fix.** Add the input-agnostic sibling next to `FullShape` and apply it to the one
-remaining literal:
+**Suggested fix.** One line at `:309`:
 ```ts
-/** Like FullShape, but Input-agnostic — for shapes with refine()'d (string-input) fields. */
-type FullShapeIn<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown> }
-const persistedStateSchema = z.object({ … } satisfies FullShapeIn<PersistedState>)
+const persistedStateSchema: z.ZodType<PersistedState, z.ZodTypeDef, unknown> = z.object({
+  …
+} satisfies FullShapeIn<PersistedState>)
 ```
-Then the device-2 comment at `:83-87` is true of every shape in the file without exception.
+and, if it lands, drop the "the one shape whose fields REFINE from a wider input" hedge from
+`FullShapeIn`'s docstring (`:108-111`) — with the `unknown` Input parameter, device 1 and device 2 now
+compose on every shape in the file, which is exactly what the header claims.
 
-**Confidence.** High on the gap and on the fix compiling (both probe-verified against the repo's
-zod). Medium on materiality — no optional persisted field exists or is scheduled.
-
----
-
-## TYPE-DESIGN-C [MINOR] features/demo/engine/store/create-store.ts:41
-
-**Claim.** The R-4a single-sourcing (closed unions declared once as `as const` tuples and
-consumed everywhere) was applied to `CaptureState.method` in this very file — but the two
-coordinate-`source` unions two dozen lines above were left hand-typed. They are hand-written
-copies of `COORD_SOURCES` / a subset of `GPS_SOURCES`, i.e. the exact drift class the fix was
-raised to eliminate, in the fix commit's own blast radius.
-
-**Evidence.**
-
-- `create-store.ts:41` — `incidentCoordinates?: { lat: number; lng: number; source: 'geocoded' | 'manual' }`
-  versus `COORD_SOURCES = ['geocoded', 'manual'] as const` (`engine/types/index.ts:182`), used
-  properly by `DemoCase.incidentCoordinates` (`:202`) and by the schema (`persistence.ts:226`).
-- `create-store.ts:58` — `gps?: { lat: number; lng: number; source: 'geocoded' | 'manual' }`
-  versus `GPS_SOURCES = ['gps', 'geocoded', 'manual'] as const` (`types/index.ts:184`) on
-  `DemoLocation.gps` (`:225`). The narrowing here is *deliberate* and documented at `:56-58`
-  ("recovery locations are geocode-only"), but it is expressed by re-typing the union rather than
-  by `Exclude<(typeof GPS_SOURCES)[number], 'gps'>`, so the relationship is invisible to the
-  compiler.
-- Same commit, same file, the *right* treatment applied one field over: `method: CaptureMethod`
-  (`:68`, changed from `'manual' | 'ocr'` in `cf96bb5`).
-- Consequence (drift direction the type can't catch): add a variant to `COORD_SOURCES` — the
-  domain type, the PDF and the snapshot guard all pick it up automatically, but `NewCaseInput`
-  silently cannot carry it. `createCase` passes the value straight through
-  (`create-store.ts:209`), so the only construction path for an incident coordinate can never
-  produce the new variant, with no compile signal anywhere. The reverse (a variant *removed*)
-  does error, so this is one-directional.
-
-**Suggested fix.** `source: (typeof COORD_SOURCES)[number]` at `:41`, and
-`source: Exclude<(typeof GPS_SOURCES)[number], 'gps'>` at `:58` — which turns the documented
-"geocode-only" narrowing into a compiler-checked fact instead of a comment. (Not deferred §5's
-`FieldUpdate` item and not a new brand — these are ordinary domain unions with an existing
-canonical tuple.)
-
-**Confidence.** High on the mismatch and the one-directional consequence; the "same file, same
-commit, one field over" comparison makes it a fix-round consistency gap rather than an old
-pre-existing nit.
-
----
-
-## TYPE-DESIGN-D [MINOR] features/demo/engine/store/persistence.ts:91
-
-**Claim.** The rewritten header now honestly enumerates what the guard enforces *and* a
-"NOT enforced at compile time" list — but that list is incomplete in one direction the probe
-confirms is silent: a domain field whose type is **widened** (a `| null`, a `| undefined`, or a
-new member on any union that isn't tuple-backed) still compiles against both device 1 and device
-2, and lands on the same total-wipe path R-4 was raised about. Reading `:79-93` as written, a
-maintainer would reasonably conclude widening is covered.
-
-**Evidence.**
-
-- The list at `:91-93`: *"NOT enforced at compile time: cross-field invariants and referential
-  integrity"* — widening is not mentioned, and `:79` frames the three devices as "each closing one
-  drift direction".
-- Probe (repo's zod 3.25.76, `strict: true`), all three compiled with **no** error:
-  ```
-  CASE 5  domain `a: string | null`,  schema `z.string()`                  → compiles ✅ (hole)
-  CASE 6  domain `'draft'|'complete'|'reopened'`, schema z.enum(['draft','complete']) → compiles ✅
-  CASE 7  domain `a: string | number`, schema `z.string()`                 → compiles ✅
-  ```
-  Cause: `ZodType`'s `_output`/`_input` are ordinary properties, so assignability is covariant —
-  a *narrower* schema output is always assignable to a wider domain type. `FullShape<T>`'s
-  per-key `z.ZodType<Required<T>[K] | undefined>` is covariant for the same reason. Device 3
-  (shared `as const` tuples) is what actually closes CASE 6 in this repo — and only for the eight
-  unions that have a tuple.
-- Runtime consequence is unchanged from R-4: this build writes `null` (or the new member), its own
-  `persistedStateSchema.safeParse` rejects it on the next boot, `discard()` (`:355-362`) removes
-  the key, and the visitor's whole session is gone.
-- Mitigations that make this MINOR rather than a repeat of R-4: no such widening exists today (I
-  re-checked all 14 mirrored shapes field-by-field), none is scheduled in
-  `01-master-parity-plan.md`, and the maximal round-trip test would fail loudly on a widening that
-  the fixture happens to populate.
-
-**Suggested fix.** Documentation, not machinery — the repo's own §27 "test-over-type" bar applies.
-Extend `:91-93` to: *"NOT enforced at compile time: cross-field invariants, referential integrity,
-and a domain field whose type is **widened** (nullable/optional added, or a non-tuple union
-gaining a member) — `z.ZodType` is covariant, so a narrower schema still assigns. New closed
-unions MUST be declared as `as const` tuples in `engine/types` (device 3) for that reason."*
-The last sentence is the load-bearing one: it converts the residual into a rule a future author
-can follow.
-
-**Confidence.** High on the type behaviour (probe-verified, three shapes). Deliberately MINOR:
-this is a completeness gap in a comment plus a rule that isn't written down, not a live defect.
-
----
-
-## TYPE-DESIGN-E [MINOR] features/demo/engine/content/form-options.ts:83
-
-**Claim.** Deleting `FORM_OPTIONS` removed `optionValues`' only production consumer, leaving an
-exported-from-the-public-barrel helper with zero call sites in `features/` or `app/` — a
-speculative abstraction created by the fix round. It also still carries the mutable
-`string[]` return type that was half of R-17's original claim.
-
-**Evidence.**
-
-- `form-options.ts:83` — `export function optionValues(options: readonly PickerOption[]): string[]`.
-- Grep across `features/`, `app/`, `lib/`: the only references are the declaration, the engine
-  barrel re-export (`engine/index.ts:35`) and its own unit test
-  (`engine/content/__tests__/form-options.test.ts:22, 28, 34`). Before `a0ec7f6` it had exactly
-  one production consumer — the deleted `FORM_OPTIONS` (`import.ts:214-220` on the pre-fix tree,
-  `git show 165de2b:features/demo/engine/logic/import.ts`).
-- `engine/index.ts` is the engine's declared public API (`features/demo/CLAUDE.md`, "Layout of the
-  feature"), so this is a barrel export with no consumer, not a private helper.
-- The mutability half survives: `optionValues(RESOLUTION_OPTIONS).push('nope')` compiles. Harmless
-  today (a fresh array per call, no shared registry to corrupt) — which is why this is MINOR — but
-  it is the same `readonly`-discipline precedent (PR #8 shared catalog) that R-17 invoked.
-
-**Suggested fix.** Either delete `optionValues` and inline `OPTIONS.map(o => o.value)` in
-`form-options.test.ts` (the smallest surface — and the R-11 rationale for deleting `FORM_OPTIONS`
-applies verbatim), or, if it is being kept as the intended helper for P1's import work, narrow it
-to `readonly string[]` and say so in the docstring so the next reader doesn't delete it as dead.
-
-**Confidence.** High on the facts (grep + the before/after commit). MINOR because nothing
-misbehaves; it is dead surface on a public barrel.
+**Confidence.** High on the gap and on the fix (both probe-verified, three cases). Deliberately MINOR:
+no `PersistedState` field is unguarded today, and the repo's §27 "test-over-type" bar says not to
+demand machinery for a hole with no reachable instance — this is one annotation restoring a
+consistency the header already promises.
 
 ---
 
 ## Checked and deliberately NOT filed
 
-- **`CHAPTERS` / `LAUNCHABLE` are not exhaustive over `ChapterId` / `LaunchableId`.**
-  `content/screens.ts:13, 27, 30` declare `readonly WizardScreenId[]` / `readonly ChapterId[]` /
-  `readonly LaunchableId[]` — a union member missing from its array compiles. The R-4c fix
-  (`EXTRA_VIEWS`) closes only the "neither chapter nor launchable" residual and *depends* on those
-  two registries being complete for its wipe-severity guarantee (`persistence.ts:270-274` asserts
-  the id spaces "come from the runtime registries … never a hand-typed list", which is true of the
-  *derivation* but not of the arrays' own completeness). This is **deferred §4** verbatim (its
-  stated direction is `satisfies Record<Union, …>` in `content/screens.ts`), and the fix diff does
-  **not** touch `content/screens.ts`, so its trigger has not fired — not re-filed per the lane
-  brief. Recording it here because §4 now carries a consequence it didn't have before P0.4
-  (total session wipe, not just a mis-numbered step), which is worth noting when §4 is next
-  triaged. Practical mitigation: `features/demo/CLAUDE.md`'s "Adding or changing a screen"
-  procedure requires registering in `screens.ts` at step 3, and `CHAPTERS` splices
-  `WIZARD_SCREENS` (`:27`) so the ten wizard ids can't drift.
-- **`reviewAgain` (UI-local) vs. `form.completed` (store).** `DemoExperience.tsx:210, 726` —
-  the pair `(completed, reviewAgain)` has one meaningless combination (`completed:false,
-  reviewAgain:true`), but it is unreachable-by-effect (`isComplete` is false either way) and
-  `reviewAgain` is correctly reset on `openLocation` (`:323`, the only `switchLocation` call site,
-  verified by grep) and correctly *not* persisted (so a refresh honestly returns to the
-  confirmation). Two booleans here is the right weight; a union would be ceremony.
-- **`CompletionScreenProps` growth** (`isComplete`, `canComplete`, `onReviewAgain`) — data +
-  callbacks only, no store, no `Record<string, unknown>` bag. The store-bridge rule holds. Only
-  `canComplete`'s *predicate* is wrong, which is TYPE-DESIGN-A, not a props-shape finding.
-- **`selectLocationMapStatus`'s new short-circuit** (`selectors.ts:196`) — `LocationMapStatus`
-  stays a three-member union with an exhaustive, `default`-less switch at
-  `screenData.ts:32-39` (TS2366 on a new variant). Precedent 2 still satisfied by construction.
-- **`app/demo/error.tsx`** — Next segment-boundary props; no demo-barrel import, so
-  `features/demo/index.ts`'s "only `DemoExperience`" surface is intact.
-- **`Dropdown` `useId` ids** — template-string ids, not an id space; no union exists for them.
-- **Deferred-ledger items §4, §5, §16, §27** — triggers checked individually. §5's
-  `updateField(path: string)` is unchanged; §5's `method`/`captureMethod` rename trap is now half
-  retired by `CaptureMethod` (worth updating the ledger entry, not a finding). §16
-  (`ImportedLocationView.locId`) and §27 (`ExploreItem.covers` still a single static literal) are
-  untouched.
-- **Orchestrator's ruled-on deliberate choices** — the "Location Complete" copy change, the
-  Cameras seeding divergence, the `FORM_OPTIONS` deletion, the class-based boundary,
-  sessionStorage per D2, deferred §29–§32, the phone-verified asymmetries — respected, not
-  re-flagged.
+- **`completeCase(caseId: string)` keeps its hidden correlated precondition.** Ruled deliberate by the
+  orchestrator, rationale in `b86cd46`'s body, logged with a trigger in deferred §29 addendum (read —
+  it records the shape and the reason accurately). Not re-flagged; only the one-line docstring guard
+  rail is carried, inside TYPE-DESIGN-F's fix list.
+- **`addLocation(caseId, …)` does not validate that the case exists, while `switchLocation` does**
+  (`create-store.ts:235` vs `:265-267`). Post-R-19 a bogus `caseId` now also propagates into
+  `currentCaseId` (`:260`), where before it only orphaned the location. No reachable construction
+  site: both callers pass an id taken from a rendered case (`DemoExperience.tsx:357`, `:450`), and the
+  effect is a null `currentCase`, not a crash. Fails gate #2 (no reachable invalid state) → dropped,
+  recorded here because TYPE-DESIGN-F's fix (1) would close it as a side effect.
+- **`reviewAgainFor: string | null` holds one location at a time** — putting L2 into review mode
+  silently returns L1 to its confirmation. The type says exactly that, the behaviour is a UI escape
+  hatch, and a `Set<string>` here would be ceremony (§27 bar). No finding.
+- **`clearSnapshot` is not re-exported from `engine/index.ts`** while every other persistence export
+  is (`:61-71`). Checked the convention before filing: **no** file in `features/demo/ui` or `app/`
+  imports `@/features/demo/engine` — the whole UI layer deep-imports aliased module paths, and
+  `ui/clear-demo-snapshot.ts:3` follows that convention exactly. The engine barrel's only consumer is
+  `barrel.test.ts`, so the omission has no consumer to mislead. Not a finding.
+- **`z.record(z.string(), z.literal(true))` for `visited`** — the schema's key space is bare `string`
+  while the domain type is `Readonly<Partial<Record<AppView | ModalId, true>>>`. Deliberate and
+  correct at a boundary (untrusted input may carry unknown keys); the narrowing happens in the
+  `isVisitId` loop (`:400-402`), which is the honest boundary form the lane brief endorses. Unchanged
+  this round anyway.
+- **Deferred-ledger triggers re-checked individually.** §4 (`CHAPTERS`/`LAUNCHABLE` non-exhaustive over
+  their unions) — `content/screens.ts` untouched in round 2, trigger still not fired; my round-1 note
+  that §4 now carries wipe-severity stands for its next triage. §5 (`updateField(path: string)`,
+  `NavState` correlation) unchanged. §15 correctly re-scoped by `c41c5ae` (the `selectors.ts` half
+  struck with a resolution note, the `roundTo5Min`/`time.ts` half left open with its own trigger) —
+  read and verified against the code. §16, §27 untouched.
+- **Out of lane, passed to the aggregator as observations, not findings:** (a) the R-27 dev-warn now
+  fires from `selectAdjustedScopes`, which the bridge calls **in the render body**
+  (`DemoExperience.tsx:642`) and again per PDF preview via `selectCaseNotesData` — in dev a
+  non-canonical scope warns once per render, a louder version of the per-keystroke loop R-26 called
+  out (silent-failures' call, not mine); (b) `demo-inventory.md:189` and `:653-656` still describe
+  `FORM_OPTIONS` as a live second source of truth for the export/resolution option sets, which
+  `a0ec7f6` deleted — the same doc-staleness class R-23 fixed one row up, but a docs/web item.
 
 ## Type Design Summary
 
 | Severity | Count (new this pass) |
 |---|---|
 | BLOCKER (CRITICAL) | 0 |
-| MAJOR (HIGH / upper-MEDIUM) | 1 |
-| MINOR (MEDIUM / LOW) | 4 |
+| MAJOR (HIGH / upper-MEDIUM) | 0 |
+| MINOR (MEDIUM / LOW) | 2 |
 
-Prior lane findings: **5 of 5 FIXED** (TYPE-DESIGN-1…5), plus the R-9 documentation item.
-Two of the fixes left MINOR residuals (TYPE-DESIGN-B/D from R-4; TYPE-DESIGN-E from R-17).
+Prior lane findings: **5 of 5 FIXED** (R-19, R-20, R-28, R-29, R-30) — no PARTIAL, no UNFIXED.
+Two fixes leave MINOR residuals (TYPE-DESIGN-F from R-19's action-layer-only enforcement;
+TYPE-DESIGN-G from R-28's device-2-only closure).
 
 Canonical homes preserved (no parallel entity declarations): **yes**
 Discriminated unions well-formed: **yes**
 Exhaustiveness enforced (never-checked / no-default switches): **yes** (`fallbackNotice`,
-`locationStatusTheme`; `EXTRA_VIEWS`/`MODAL_IDS` as `Record<Union, true>` devices)
-Correlated state modelled as a union: **flat shape found** — TYPE-DESIGN-A
-(`completeCase(caseId)` + `canComplete` express a correlated precondition as two independent values)
-Id spaces typed (no bare-string registries/keys): **yes** — both prior regressions fixed
-(`FALLBACK_COPY: Partial<Record<AppView, string>>`, Cameras flags keyed by `CameraEntry.id`)
-readonly discipline on shared data: **yes** — the mutable registry was deleted outright
-Boundary types honest about untrusted input: **yes, with a documented residual** — the snapshot
-guard's three devices are real and probe-verified; TYPE-DESIGN-B/D are completeness gaps, not
-false guarantees
+`locationStatusTheme`; `EXTRA_VIEWS` / `MODAL_IDS` as `Record<Union, true>`)
+Correlated state modelled as a union: **n/a this round** — the one flat correlated pair
+(`currentCaseId`/`currentLocationId`) is now maintained by every store action; the reshape is
+ruled-deliberate (§29) and the remaining gap is the load path (TYPE-DESIGN-F)
+Id spaces typed (no bare-string registries/keys): **yes** — `reviewAgainFor` is an entity id, not a
+registry key, and matches the repo's plain-`string` id convention
+readonly discipline on shared data: **yes** — the last mutable-return helper was deleted (R-20)
+Boundary types honest about untrusted input: **yes** — device 2 now covers all 18 shape literals
+(probe-verified); TYPE-DESIGN-G is a device-1 consistency residual, not a false guarantee
 
-**Verdict: REVISE** — no BLOCKER, and the fix round is genuinely good work (every prior lane
-finding closed, two of them more thoroughly than asked). TYPE-DESIGN-A holds it back: the R-1 fix
-introduces a reachable path where "Complete & Save" silently does nothing while falsely greening
-an unrelated case, which re-opens the exact honesty-rule failure R-1 was raised to close. The four
-MINORs are opportunistic.
+**Verdict: APPROVE with comments** — every finding this lane raised in round 1 is genuinely fixed, two
+of them (R-19's store-side invariants, R-21's structural re-keying) more thoroughly than asked, and
+`tsc` + the 436-test subset are green. The two MINORs are opportunistic: one closes the second
+construction site of the invariant R-19's fix established, the other is a one-line annotation that
+makes the guard header true without exception.

@@ -1,297 +1,293 @@
-# Parity P0 — Lane: tests (FIX-DELTA)
+# Parity P0 — Lane: tests (FIX-DELTA, round 2)
 
 **Lane:** tests (`.claude/agents/test-analyzer.md`)
-**Mode:** FIX-DELTA — re-review of the fix round on `feat/parity-p0` (PR #29)
-**Fix commits under review:** everything after the review merge `165de2b`, i.e. the three fix
-branches merged into `feat/parity-p0`:
-`parity/p0-fix-boundary` (`e950de6`, `c78ee30`, `c0b3607`, `4b4f06c`, `5ee1672`, `02b6a6c`),
-`parity/p0-fix-options` (`a0ec7f6`, `5c319e4`),
-`parity/p0-fix-store` (`cf96bb5`, `65faab0`, `2f08830`, `cd6b539`, `c03b92b`, `a07470e`, `bb0f4a4`, `3967198`).
-**Refs read:** `docs/code-reviews/parity/p0/p0-review.md` (full), my prior
-`docs/code-reviews/parity/p0/lane-tests.md`, `.claude/agents/test-analyzer.md`,
-`features/demo/CLAUDE.md`, `vitest.config.mts`, `vitest.setup.ts`, every test file touched by the
-fix round in full plus the production modules they pair with (`engine/store/persistence.ts`,
-`engine/store/create-store.ts`, `engine/store/selectors.ts`, `engine/types/index.ts`,
-`engine/content/form-options.ts`, `engine/content/seed.ts`, `engine/logic/import.ts`,
-`ui/DemoExperience.tsx`, `ui/chrome/DemoErrorBoundary.tsx`, `ui/inputs/Dropdown.tsx`,
-`ui/screens/CamerasScreen.tsx`, `ui/screens/CompletionScreen.tsx`, `ui/screens/CasesScreen.tsx`,
-`ui/screens/screenData.ts`, `ui/controls/WizardDrawer.tsx`, `ui/StoryRail.tsx`,
-`ui/controls/ExploreChecklist.tsx`, `app/demo/error.tsx`).
+**Mode:** FIX-DELTA round 2 — re-review of the **round-2 fix commits only** on `feat/parity-p0` (PR #29)
+**Fix commits under review:** everything after the review merge `f69aa92`:
+`parity/p0-fix2-options` (`e182186`),
+`parity/p0-fix2-boundary` (`b86cd46`, `480321a`, `e8621bd`, `4abad16`, `207963f`, `8a4dd55`),
+`parity/p0-fix2-store` (`c41c5ae`, `6566531`, `ac4cb5e`, `7ef5608`, `c4cf8b4`).
+**Refs read:** `docs/code-reviews/parity/p0/p0-review-fixdelta.md` (full, R-19…R-30), my prior
+`docs/code-reviews/parity/p0/lane-tests.md` (round-1 fix-delta content, now overwritten),
+`.claude/agents/test-analyzer.md`, `features/demo/CLAUDE.md`, `vitest.config.mts`,
+`vitest.setup.ts`, every test file touched in round 2 in full plus the production modules they
+pair with (`ui/DemoExperience.tsx`, `engine/store/create-store.ts`, `engine/store/selectors.ts`,
+`engine/store/persistence.ts`, `engine/content/form-options.ts`, `engine/index.ts`,
+`features/demo/index.ts`, `features/demo/ui/clear-demo-snapshot.ts`, `app/demo/error.tsx`,
+`app/css/style.css`, `features/demo/ui/glass-tokens.ts`, `ui/screens/CompletionScreen.tsx`).
+**Scope note:** R-1…R-18 are CLOSED (verified FIXED in round 1) and are not re-litigated here.
+Deliberate choices standing from both prior rounds (deferred §29–§32, the class-based boundary,
+sessionStorage per D2, the phone-verified asymmetries, the "Location Complete" copy) are not
+re-flagged.
 
 ## Gates run in this lane
 
 | Gate | Result |
 |---|---|
-| `npx vitest run --silent` | **119 files / 890 tests, all green**, 48.4 s |
-| `npx vitest run --coverage --silent` | **890/890 green** + thresholds met (97.11 S / 88.85 B / 98.85 F / 98.41 L). Note: the previous pass' coverage run had **3 timeouts** at the default 5 s; this one has none — R-6 is materially fixed |
-| `npx tsc --noEmit` | clean (exit 0) |
-| Engine 80 % gate on the new/changed modules | `engine/store/persistence.ts` 100 S / 98 B / 100 F / 100 L (only the `NODE_ENV!=='production'` false arm at `:454` uncovered); `engine/store/create-store.ts` 98.51 S / 90.84 B; `engine/store/selectors.ts` 96.25 S / 96.15 B; `engine/logic/import.ts` 100 L / 87.71 B (unchanged by the FORM_OPTIONS deletion) |
+| `npx vitest run --silent` (worktree) | **120 files / 904 tests, all green**, 46.7 s (was 119 / 890) |
+| `npx vitest run --coverage --silent` (probe copy of HEAD) | **904/904 green**, zero timeouts, thresholds met: **97.14 S / 88.84 B / 98.85 F / 98.42 L** |
+| Engine gate on the round-2 modules | `engine/store/persistence.ts` 100 S / 96.29 B (uncovered: the two `NODE_ENV !== 'production'` false arms, `:446`, `:493`); `engine/store/selectors.ts` 96.47 S / 96.42 B (up from 96.25 / 96.15); `engine/store/create-store.ts` 98.51 S / 90.84 B (unchanged) |
+| `npx tsc --noEmit` (probe copy) | clean |
 
-**Verification method.** Every fix-delta verdict below that says "probe-verified red" was checked by
-copying the worktree to an out-of-repo scratch dir (`scratchpad/probe-p0`, `node_modules` symlinked),
-reverting the production fix *there*, and re-running the suite. **Nothing in the repo under review
-was modified.** The probe dir has been deleted.
-
----
-
-# Fix-delta — prior findings
-
-| Prior lane ID | Aggregated ID | Verdict | Evidence |
-|---|---|---|---|
-| TESTS-1 (MAJOR) | R-3 | **FIXED** | `e950de6` — clears + boot-premise assertions; probe-verified red |
-| TESTS-2 (MINOR) | R-11 | **FIXED** | `a0ec7f6` — constant + self-comparison describe deleted; docstring softened |
-| TESTS-3 (MINOR) | R-12 | **FIXED** | `a07470e` — both guards pinned; persist guard probe-verified red |
-| TESTS-4 (MINOR) | R-13 | **FIXED** | `a07470e` — throwing-accessor test; probe-verified red |
-| TESTS-5 (MINOR) | folded into R-2 | **FIXED** | `c78ee30` — id-keying + seeding + 3 new tests, all probe-verified red |
-| (shared) tests-lane coverage-run observation | R-6 | **FIXED** | `bb0f4a4` + `c78ee30` — suite timeouts on all 6 heavy files; coverage run now 890/890 with zero timeouts |
-
-## TESTS-1 → R-3 — **FIXED** (verified red/green)
-
-`features/demo/ui/__tests__/DemoExperience.boundary.test.tsx:20-27` now clears
-`window.sessionStorage` in **both** `beforeEach` and `afterEach`, matching the two sibling suites,
-and each test opens with an explicit boot-premise assertion (`:36`, `:52`, `:63` —
-`expect(screen.getByText(/No cases yet/)).toBeInTheDocument()`).
-
-The fix is load-bearing, not decorative — I re-ran the suite in the probe copy with both clears
-commented out:
-
-```
- × Return to Cases recovers to the working Cases screen
- × navigating to another view (tab bar survives the error) resets the boundary
-   → DemoExperience.boundary.test.tsx:63  getByText(/No cases yet/)  (booted on the leaked dashboard)
- Tests  2 failed | 1 passed (3)
-```
-
-So the leak is still real and the new assertions catch it; with the clears in place all three tests
-genuinely boot on Cases and navigate. The premise assertions are the better half of this fix — they
-convert a silent wrong-path pass into a loud failure, which is exactly what the finding asked for.
-
-## TESTS-2 → R-11 — **FIXED**
-
-`a0ec7f6` took option (a): `FORM_OPTIONS` is gone from `features/demo/engine/logic/import.ts`
-(tombstone at `:196-200` pointing future import work at `engine/content/form-options`), the
-self-comparison `describe` is gone from
-`features/demo/engine/logic/__tests__/import-displayable.test.ts`, and the overstated docstring at
-`engine/content/form-options.ts:17-24` now names the tests that actually enforce each claim
-(`field-options.test.ts` for the by-reference re-export, `option-parity.test.tsx` for the rendered
-labels, `import-displayable.test.ts` for "the import patch writes no dropdown-enum fields").
-`grep -rn FORM_OPTIONS features app lib components` returns only the tombstone comment (plus
-historical planning docs, correctly left alone). The two real guarantees the finding endorsed are
-untouched: the 35-string junk corpus against the enum normalizers with an injected clock, and the
-patch-shape pin. `import.ts` branch coverage is unchanged at 87.71 %, so nothing was lost. R-17 is
-mooted by the same commit.
-
-## TESTS-3 → R-12 — **FIXED**
-
-`features/demo/ui/__tests__/DemoExperience.persistence.test.tsx:57` and `:68` pin both guards.
-
-- The **persist** guard (`DemoExperience.tsx:224`, `if (injectedStore) return`) is genuinely pinned:
-  removing it in the probe makes `:57` fail with
-  `AssertionError: expected '{"version":2,"state":{"profile":"fore…' to be null`.
-- The **rehydrate** guard (`DemoExperience.tsx:156-158`) is pinned at the observable level — a valid
-  `PR25-SEEDED` snapshot on disk plus an injected store must render "No cases yet". That catches the
-  realistic regression (the `if (injectedStore)` branch dropped so the snapshot store wins). It would
-  *not* catch the narrower edit "call `loadSnapshot` anyway but still prefer the injected store" —
-  correctly so: that variant has no observable effect (its only side effects are the `uiSeq` reseed
-  and a `removeItem` on an already-invalid snapshot). No further test needed.
-
-## TESTS-4 → R-13 — **FIXED**
-
-`DemoExperience.persistence.test.tsx:81` shadows `window.sessionStorage` with a throwing accessor and
-restores the original descriptor in `finally` (with a `Reflect.deleteProperty` fallback if the
-property turns out to live on the prototype). Traced through production: the throwing access happens
-inside `sessionStorageOrNull()` at `DemoExperience.tsx:110`, called during `DemoExperience`'s **own
-render** (`:162`) — above `DemoErrorBoundary` — so with the `try/catch` removed the throw propagates
-out of `render()` and fails the test rather than being swallowed by a boundary. Probe-verified:
-deleting the `try/catch` makes `:81` fail. The descriptor swap is `finally`-restored even on that
-failure path, so it cannot leak into sibling tests.
-
-## TESTS-5 → R-2 — **FIXED** (behavior fixed *and* the uncovered edge covered)
-
-`features/demo/ui/screens/CamerasScreen.tsx:28-33` now keys both maps by the stable
-`CameraEntry.id`, uses functional updaters, and seeds from `isCustomResolution`/`isCustomFps`.
-Three new tests at `option-parity.test.tsx:161`, `:176`, `:190` cover both desync directions plus the
-seeding. Probe-verified: reverting `CamerasScreen` to the index-keyed `Record<number, boolean>`
-implementation makes **all three** fail —
-
-```
- × R-2: custom mode survives another camera's removal (the data-destroying direction)
- × R-2: removing the custom camera does not transfer custom mode to the survivor
- × R-2: stored free-text values seed custom mode on mount (matches DvrInfoScreen)
-```
-
-Also checked the seeding for the obvious own-goal: `isCustomResolution('')` returns `false`
-(`engine/content/form-options.ts:96`, the PF-14 empty-string guard), so a blank camera does **not**
-boot into custom mode. The `useState` lazy initializer runs once per mount, and cameras added later
-correctly get no entry (falsy → standard mode). No regression found.
-
-## R-6 (shared lane) — **FIXED**
-
-`bb0f4a4` puts `{ timeout: 20000 }` on the describes of `DemoExperience.persistence.test.tsx:14`,
-`DemoExperience.test.tsx:8`, `.map.test.tsx` (both describes), `.sandbox.test.tsx` (both describes)
-and `.coordinates.test.tsx:24`; `c78ee30` covers `option-parity.test.tsx:21` via
-`vi.setConfig({ testTimeout: 20_000 })`. I verified the mechanism rather than assuming it:
-`@vitest/runner` merges suite options into each test
-(`chunk-artifact.js:1805-1806`, `options = Object.assign({}, suiteOptions, options)`) and
-`SuiteOptions extends TestOptions`, so a describe-level `timeout` really does propagate. The
-practical evidence is stronger: the previous pass' `--coverage` run had 3 timeouts, this one is
-890/890 clean.
+**Verification method.** Every "probe-verified red" verdict below was checked by rsync-copying the
+worktree to an out-of-repo scratch dir (`scratchpad/probe-p0-r2`, `node_modules` symlinked),
+reverting the round-2 production fix *there*, and re-running the affected suites. **Nothing in the
+repo under review was modified** (this file excepted). The probe dir has been deleted.
 
 ---
 
-# New findings (fix-introduced)
+# Fix-delta — prior findings (R-19 … R-30)
 
-Three MINORs, all inside the fix commits' blast radius, all probe-verified. No BLOCKER, no MAJOR.
+Lane-owned findings first (R-21, R-22, and TESTS-7 which was folded into R-19 as its regression-test
+requirement), then the test-surface verdict on every other round-2 finding.
 
-## TESTS-6 [MINOR] features/demo/ui/DemoExperience.tsx:323
+| Prior | Sev | Lane | Verdict | Evidence |
+|---|---|---|---|---|
+| R-19 | MAJOR | ts / sf / type-design (+ TESTS-7 fold) | **FIXED** | `b86cd46` — all three converged items; **both halves probe-verified red** (below) |
+| R-20 | MINOR | ts / type-design | **FIXED** | `e182186` — declaration + barrel line deleted; `barrel.test.ts:12` gone-list now pins `FORM_OPTIONS` **and** `optionValues` off the public surface; test-local `valuesOf` at `form-options.test.ts:16` |
+| R-21 | MINOR | **tests** | **FIXED** | `e8621bd` — structural `reviewAgainFor: string \| null`; two new tests, **both probe-verified red** (below) |
+| R-22 | MINOR | **tests** | **FIXED** | `4abad16` — strict `getByText` while collapsed + `toHaveLength(2)` expanded; **probe-verified to now catch the G3/G4 row regression** (below) |
+| R-23 | MINOR | web | **FIXED** (docs) | `c4cf8b4` — no test surface |
+| R-24 | MINOR | web / sf | **FIXED, with a test gap** | `480321a` — "Start fresh" + `clearDemoSnapshot` barrel export + `clearSnapshot(storage)`; happy path and ordering pinned, the documented chunk-failure degradation is not → **TESTS-10** |
+| R-25 | MINOR | web | **FIXED in code, PARTIAL in guard** | `207963f` — literals moved to `@theme`; the new guard pins error.tsx's *syntax* only, the mirror's *values* remain untested → **TESTS-9** |
+| R-26 | MINOR | sf | **FIXED** | `8a4dd55` — `catch (e)` + cause; `persistence.test.ts:431-434` now asserts `expect.objectContaining({ message: 'QuotaExceededError' })` alongside the message — the assertion was strengthened, not just moved |
+| R-27 | MINOR | sf | **FIXED** | `c41c5ae` — option (a) taken; `selectors.ts:93-95` dev-warns with a drop count, both arms tested (`select-adjusted-scopes.test.ts:43`, `:61`); §15 re-scoped in `deferred.md` |
+| R-28 | MINOR | type-design | **FIXED** | `6566531` — `FullShapeIn` at `persistence.ts:99-105` applied to `persistedStateSchema` (`:309`). Compile-time device; this repo has no negative-compile test convention, so no runtime pin is expected |
+| R-29 | MINOR | type-design | **FIXED** | `ac4cb5e` — no test surface |
+| R-30 | MINOR | type-design | **FIXED** | `7ef5608` — docs only |
 
-**Claim.** The R-1 fix introduced `reviewAgain` — a bridge-local UI flag that suppresses a completed
-location's confirmation card. It is location-scoped **only** by the one-line reset at `:323`
-(`setReviewAgain(false)` inside `openLocation`). That reset has no test: deleting it leaves the
-entire demo suite green.
+## R-19 → **FIXED** (both halves probe-verified red; TESTS-7's gap closed)
 
-**Evidence.**
+`b86cd46` landed all three converged items and the mandated regression test:
 
-- `DemoExperience.tsx:210` `const [reviewAgain, setReviewAgain] = useState(false)`; `:726`
-  `isComplete={(currentLocation?.form.completed ?? false) && !reviewAgain}`; `:738`
-  `onReviewAgain={() => setReviewAgain(true)}`. The flag is **not** keyed by location id.
-- The only reset on a location change is `:323`, inside `openLocation` — the sole entry point for
-  every location switch (`:564` Dashboard, `:572` Cases, `:747` Map, `:787` import result).
-- Probe: with `:323` removed, `npx vitest run features/demo` → **90 files / 705 tests, all green.**
-  Nothing pins it.
-- Reachable repro (all ordinary demo flows): complete locations A and B → open A → Completion shows
-  "Location Complete" → **Review / Export again** (`reviewAgain = true`) → open the wizard drawer →
-  **Back to Cases** (`WizardDrawer.onBackToCases`) → tap location B → walk to Completion. B renders
-  the *review form* with "Complete & Save" instead of its confirmation, i.e. the completed sibling
-  under-reports its own state. It is the mild direction of the R-1 defect (under-claims rather than
-  falsely claims complete), which is why this is MINOR — but it is the same class of bug
-  (per-location truth carried in un-keyed bridge state) that R-1 exists to close.
+- **Bridge** (`DemoExperience.tsx:735`, `:741-746`): `canComplete={!!currentLocation}`; `onComplete`
+  looks up the open location and calls `completeCase(loc.caseId)`.
+- **Pair invariant at the source** (`create-store.ts:215`, `:256-259`): `createCase` clears
+  `currentLocationId`; `addLocation` sets `currentCaseId` alongside it.
+- **Disabled-hint copy** (`CompletionScreen.tsx:99`): with the gate now location-only,
+  `title="Open a location first"` is the one disabling condition — truthful by construction.
+- The `completeCase(locationId)` reshape was deliberately **not** taken; the rationale (an in-place
+  `string → string` swap silently changes meaning at every call site; the safe form is a rename) is
+  in the commit body and logged as a triggered follow-up in `deferred.md` §29's addendum. Per the
+  orchestrator brief this is a deliberate choice — not re-flagged.
 
-**Suggested fix.** One case in `DemoExperience.sandbox.test.tsx`, beside the two existing R-1 tests:
-complete two locations, click **Review / Export again** on the first, then open the second *through
-the UI* (`fireEvent.click` on its Cases row — the `switchLocation` store action bypasses the reset)
-and assert it still shows `Location Complete`. Alternatively make the state structural
-(`reviewAgainFor: string | null` compared against `currentLocationId`), which removes the reset — and
-the test gap — entirely.
+Probes (each reverting exactly one half, everything else at HEAD):
 
-**Confidence.** High — probe-verified green with the guard removed; every `switchLocation` call site
-read.
+| Probe | Result |
+|---|---|
+| Bridge reverted to `!!currentLocation && !!currentCase` + `completeCase(currentCaseId)` (store invariants kept) | `× R-19: onComplete derives the case from the OPEN LOCATION even if the pair is incoherent` — `AssertionError: expected 'draft' to be 'complete'` (1 failed / 39 passed) |
+| Store invariants reverted (bridge kept) | `× createCase clears currentLocationId` · `× addLocation sets BOTH halves` · `× R-19 (mandated regression) …` (3 failed / 75 passed) |
+| **TESTS-7's original probe** — `canComplete` hardcoded `true` (`npx vitest run features/demo app`) | `× R-19 (mandated regression) …` — **1 failed / 782 passed**. In round 1 this same edit left the whole suite green (769/769); the `expect(btn).toBeDisabled()` at `sandbox.test.tsx:206` is what closes it |
 
-## TESTS-7 [MINOR] features/demo/ui/DemoExperience.tsx:727
+So the two tests are complementary rather than redundant: `:192` pins the store half plus the
+disabled gate, `:213` pins the bridge derivation (it forces the incoherent pair with `setState`,
+which the store actions can no longer produce — correctly labelled "defense in depth" in the test).
+`store.test.ts:251-269` pins both invariant writes at the engine level, inside the 80 % gate.
 
-**Claim.** R-1's secondary fix — "`onComplete` silently no-ops when `currentCaseId` is null; disable
-the button or surface why" — landed as `canComplete={!!currentLocation && !!currentCase}`. The
-*presentational* half is pinned (`hardwareFinale.test.tsx:88-95`: `canComplete={false}` → disabled +
-no callback), but the **bridge computation** has no test: hardcoding it to `true` leaves the whole
-suite green, restoring exactly the silent no-op the finding asked to remove.
+## R-21 → **FIXED** (both directions probe-verified red)
 
-**Evidence.**
+`e8621bd` replaced the un-keyed boolean with `reviewAgainFor: string | null`
+(`DemoExperience.tsx:212`), compared against the open location at `:728`
+(`reviewAgainFor !== currentLocation?.id`) and set from `currentLocationId` at `:747`. The
+`openLocation` reset (`:325`) is kept so re-opening a completed location still lands on its
+confirmation.
 
-- `DemoExperience.tsx:727` `canComplete={!!currentLocation && !!currentCase}`; `:734-737`
-  `onComplete` still guards with `if (id) …`, so a wrong `canComplete` degrades to the original
-  silent no-op rather than a crash — no other signal.
-- Probe: replacing `:727` with a bare `canComplete` (always true) → `npx vitest run features/demo app`
-  → **99 files / 769 tests, all green.**
-- The no-location Completion state is genuinely reachable in-session, not just via a tampered
-  snapshot: the rail manifest rows are buttons wired straight to `setView`
-  (`ExploreChecklist.tsx:70-73` → `StoryRail.tsx:62` → `DemoExperience.tsx:875`
-  `onJump={(v) => store.getState().setView(v)}`), so a visitor with no location open can land on
-  Completion. (R-15 only repairs this shape *on rehydrate*, not in-session.)
+| Probe | Result |
+|---|---|
+| Reverted to the pre-R-21 un-keyed `reviewAgain` boolean | `× R-21: Review / Export again is scoped to ITS location — a direct switch cannot suppress a sibling confirmation` (`sandbox.test.tsx:149`) |
+| `setReviewAgainFor(null)` deleted from `openLocation` (round-1's exact probe, which then left 705/705 green) | `× R-21: re-opening a completed location through the Cases row restores its confirmation (reset pinned)` (`sandbox.test.tsx:175`) |
 
-**Suggested fix.** One case in `DemoExperience.sandbox.test.tsx`: fresh store, no location,
-`act(() => store.getState().setView('completion'))`, then
-`expect(screen.getByRole('button', { name: 'Complete & Save' })).toBeDisabled()` and
-`expect(store.getState().cases).toHaveLength(0)` after a click. Cheap, and it pins the reachable half
-of R-1's secondary fix.
+This is the stronger of the two options the finding offered (structural state, not just a test), and
+both the structure and the surviving reset are now pinned. The first test deliberately drives
+`switchLocation` directly — a path no current UI control takes — which is the right way to pin a
+structural invariant against future map/deep-link entry points.
 
-**Confidence.** High — probe-verified; the rail-jump path traced end to end.
+## R-22 → **FIXED** (verified to catch the regression it was filed about)
 
-## TESTS-8 [MINOR] features/demo/ui/__tests__/DemoExperience.sandbox.test.tsx:98
+`4abad16` restored `expect(screen.getByText('Complete')).toBeInTheDocument()` while the card is
+collapsed (`sandbox.test.tsx:99`) and added the expanded assertion
+`expect(screen.getAllByText('Complete')).toHaveLength(2)` (`:104`).
 
-**Claim.** The R-1 commit loosened the G4 arc assertion from `getByText('Complete')` to
-`getAllByText('Complete').length).toBeGreaterThan(0)`. The loosening was **not** required — the
-strict form still passes on the current code — and the loose form is weak enough to survive the very
-G3/G4 contradiction the same commit set out to resolve.
+Probe — I reverted the R-1 short-circuit at `selectors.ts:204` (`if (loc.form.completed) return
+'complete'`), i.e. reproduced the exact G3/G4 row regression the loose assertion would have
+survived:
 
-**Evidence.**
+```
+× completion: Complete & Save marks the case complete in the STORE (G4) and the arc pays off green
+  AssertionError: expected [ <span …(1)></span> ] to have a length of 2 but got 1
+```
 
-- `DemoExperience.sandbox.test.tsx:98`, inside the test named *"Complete & Save marks the case
-  complete in the STORE (G4) and the arc pays off green"*.
-- Probe: restoring `expect(screen.getByText('Complete')).toBeInTheDocument()` and running
-  `-t "the arc pays off green"` → **1 passed**. There is exactly one exact-match "Complete" on
-  screen: `setupLocation` drives the store directly, so `expandedCaseId` stays `null` and
-  `CasesScreen.tsx:52-66` never renders the location rows — only the case badge
-  (`screenData.ts:17`) matches.
-- Why it matters: `.length > 0` cannot distinguish the case badge from the location row. If the
-  location-row status regressed to "Working" — the exact G3/G4 contradiction R-1's
-  `selectLocationMapStatus` change fixed (`selectors.ts:196`) — this assertion and the neighbouring
-  `queryByText('Draft')` check would both still pass.
-
-**Suggested fix.** Either restore `getByText('Complete')` (verified to pass), or — better, since the
-location row is the *other* half of the payoff — expand the card first
-(`fireEvent.click(screen.getByText('PR25-TEST'))`) and assert both:
-`expect(screen.getAllByText('Complete')).toHaveLength(2)`. The engine-level short-circuit is already
-pinned at `selectors.test.ts:96-103`; this is about the rendered arc.
-
-**Confidence.** High — the "still passes" claim is probe-verified, not reasoned.
+The collapsed strict assertion at `:99` still passed under that probe — it is `:104` that does the
+work, which is exactly the "pin both halves" form the finding asked for.
 
 ---
 
-## Checked and cleared (fix-round regression sweep)
+# New findings (fix-introduced, round 2)
+
+Two MINORs, both inside the round-2 fix commits' blast radius, both probe-verified. No BLOCKER, no
+MAJOR.
+
+## TESTS-9 [MINOR] app/demo/__tests__/error.test.tsx:49
+
+**Claim.** R-25's fix moved the four glass colour literals out of `app/demo/error.tsx` and into
+`@theme` vars in `app/css/style.css`, and added a source-scan guard for the *consumer syntax*. But
+nothing tests the **mirror itself**: no test asserts that `--color-demo-accent-from/-to` /
+`--color-demo-error` exist, and no test asserts that their values equal
+`GLASS.accentFrom`/`accentTo`/`borderError`. The silent drift R-25 was filed about did not go away —
+it moved one file over, from `error.tsx` ↔ `glass-tokens.ts` to `style.css` ↔ `glass-tokens.ts`.
+
+**Evidence.**
+
+- The new guard (`app/demo/__tests__/error.test.tsx:49-57`) reads only `app/demo/error.tsx` and
+  checks (a) six banned hex/rgba substrings are absent, (b) the three substrings
+  `demo-accent-from` / `demo-accent-to` / `demo-error` are present. It never opens `style.css` and
+  never compares a value to anything.
+- The demo-side guard cannot see `app/` either: `glass-tokens.test.ts:16`
+  `const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')`.
+- `app/css/__tests__/tokens.test.ts:18-28` pins the marketing token namespace; `--color-demo-*` is
+  not in that list, and the accent-value assertions (`:32-35`) cover only carolina/blue/cyan/gold.
+- **Probe (full suite, HEAD otherwise unmodified):** I changed `app/css/style.css:46` to
+  `--color-demo-accent-from: #00ff00` (drifted away from `glass-tokens.ts:23`
+  `ACCENT_FROM = '#35A0D6'`) **and** renamed `:48` to `--color-demo-err` (orphaning
+  `border-demo-error/30` at `error.tsx:27`, `:35` and `bg-demo-error/6` at `:35`):
+  `Test Files 120 passed (120) · Tests 904 passed (904)`. Neither the value drift nor the orphaned
+  utility fails anything — and an unknown Tailwind utility is simply not generated, so the error
+  page silently loses its red border/tint with no build error either.
+- Secondary weakness in the same test: the "token is in use" check is a whole-file `includes()`, so
+  a comment mentioning `demo-error` satisfies it even if the class is gone — plausible here, since
+  the fix's own house style is to leave cross-reference comments (`error.tsx:25-26`,
+  `glass-tokens.ts:17-20`, `style.css:41-45`).
+
+**Why it matters.** The concrete regression R-25 described — "a future `GLASS` accent/error edit
+silently strands the `/demo` error page on the old palette, visibly diverging from the in-frame
+fallback it twins" — is still reachable: `glass-tokens.test.ts:66-81` forces a restyler to update the
+GLASS value pin, but nothing points them at `style.css`, and nothing fails if they miss it.
+
+**Suggested fix.** Extend the R-25 test (or `app/css/__tests__/tokens.test.ts`) by ~5 lines — same
+source-scan idiom, now on the file that will actually drift:
+
+```ts
+import { GLASS } from '@/features/demo/ui/glass-tokens'
+const css = readFileSync(join(process.cwd(), 'app', 'css', 'style.css'), 'utf8')
+const hex = (name: string) => css.match(new RegExp(`--color-${name}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1]?.toLowerCase()
+expect(hex('demo-accent-from')).toBe(GLASS.accentFrom.toLowerCase())   // #35a0d6
+expect(hex('demo-accent-to')).toBe(GLASS.accentTo.toLowerCase())       // #2580ad
+expect(GLASS.borderError).toContain('255,71,87')                       // === #ff4757
+expect(hex('demo-error')).toBe('#ff4757')
+```
+
+Optionally tighten the presence check to the className strings (`from-demo-accent-from`,
+`border-demo-error/`) so a comment mention can't satisfy it.
+
+**Confidence.** High — the drift probe is empirical (904/904 green with both mutations applied), and
+every cited line was read.
+
+## TESTS-10 [MINOR] app/demo/error.tsx:56
+
+**Claim.** The R-24 escape hatch's documented failure behaviour — "if the chunk somehow can't load,
+fall back to a plain reset" (`error.tsx:52-53`, restated in the commit body) — has no test. The
+`catch` at `:60-62` swallows the failure and `reset()` at `:63` sits *outside* the `try`; move it
+inside (a one-line refactor a future reader would call a tidy-up) and "Start fresh" becomes a dead
+button in exactly the scenario the dynamic import exists for, with the whole suite still green.
+
+**Evidence.**
+
+- `app/demo/error.tsx:56-64` — `try { await import('@/features/demo'); clearDemoSnapshot() } catch {}`
+  followed by `reset()`.
+- The only tests are the happy paths: `error.test.tsx:32-41` (clear called once, **before** reset)
+  and `:21-30` ("Try again" does not clear). Neither exercises a throwing/failing import.
+- **Probe:** moved `reset()` inside the `try` (so a chunk-load failure leaves the button dead) →
+  `npx vitest run app/demo` → `Test Files 1 passed (1) · Tests 4 passed (4)`. Nothing catches it.
+  (Only `error.test.tsx` imports this module — grep-verified.)
+- Realistic trigger: a lazily-imported chunk 404s after a redeploy while an old tab is open — the
+  same staleness class that produces the throw the boundary caught in the first place. The visitor
+  then taps the one control that could rescue them and nothing happens; the `catch` guarantees no
+  console signal either.
+- Not covered by the type gate: I probe-verified that `tsc --noEmit` *does* catch removal of the
+  barrel export (`TS2339` on the dynamic-import destructure at `error.tsx:58`), but it cannot see the
+  ordering of `reset()`.
+
+**Suggested fix.** One case beside the existing two, reusing the barrel mock already in the file:
+
+```ts
+it('degrades to a plain reset when the demo chunk cannot load (R-24)', async () => {
+  const reset = vi.fn()
+  vi.mocked(clearDemoSnapshot).mockImplementationOnce(() => { throw new Error('chunk load failed') })
+  render(<DemoError error={new Error('boom')} reset={reset} />)
+  fireEvent.click(screen.getByRole('button', { name: /Start fresh/ }))
+  await waitFor(() => expect(reset).toHaveBeenCalledTimes(1))
+})
+```
+
+(A throwing `clearDemoSnapshot` exercises the same `catch` arm as a rejected `import()` and needs no
+module-loader trickery. `beforeEach`/`mockReset` hygiene: the file has no reset today, so prefer
+`mockImplementationOnce`.)
+
+**Confidence.** High — probe-verified green under the regression; the contract is stated in the
+file's own comment.
+
+---
+
+## Checked and cleared (round-2 regression sweep)
 
 Recorded so the next pass doesn't re-litigate them.
 
-- **New runtime pins are genuinely red.** Probe-reverted each production fix and confirmed the paired
-  test fails: R-4b maximal round-trip (dropped `mediaItemSchema.poster` → `persistence.test.ts:130`
-  fails), R-7 own-property guard (`in` restored → `:275` fails), R-14 stale-snapshot clear
-  (`removeItem` removed from the catch → `:440` fails), R-15 selection integrity (repair block
-  removed → `:285`, `:302`, `:317` all fail). None passes for the wrong reason.
-- **The maximal round-trip really is maximal.** Walked every optional in `PersistedState`:
-  `DemoCase.incidentCoordinates`, `DemoLocation.gps`, `CameraEntry.gps`,
-  `MediaItem.poster/durationSec/sample`, `SyncResult.{traceability,timestamp,stratum}`,
-  `OcrProof.imageDataUrl`, `TimeOffsetData.ocr`, `capture.sync`/`capture.ocr` — all populated at
-  `persistence.test.ts:130-204`. `toEqual` ignoring `undefined` keys is not a trap here because every
-  optional carries a defined value, and the five explicit spot-checks at `:199-203` back it up.
-- **`LocationForm.completed` is wired through every layer** — type (`types/index.ts:174`), seed
-  (`seed.ts:63`), schema (`persistence.ts:205`, inside `satisfies FullShape<LocationForm>` so a
-  forgotten key would not compile), store write (`create-store.ts:221-227`), selector
-  (`selectors.ts:196`), gate (`DemoExperience.tsx:726`). `tsc --noEmit` clean.
-- **No hardcoded snapshot-key literal in any test** — the `SNAPSHOT_VERSION` 1→2 / key
-  `dvr-demo-state-v2` bump is picked up by import in both suites
-  (`grep -rn dvr-demo-state features app` hits only `persistence.ts:63`).
-- **`screenData.test.ts`'s "fully-complete form reads Complete"** still exercises the *aggregation*
-  path, not the new short-circuit: its fixture spreads `blankLocationForm()` (`completed: false`), so
-  the pre-existing G3 coverage is intact and the short-circuit is separately pinned at
-  `selectors.test.ts:96-103`.
-- **R-10's query fallout is safe.** Every `getByRole('button', { name: '<label>' })` became a prefix
-  regex; checked each screen for cross-matching — `/^FPS/` cannot hit "Recording FPS", and
-  `/^Resolution/`, `/^Export Media/`, `/^File Type/`, `/^Provided Via/` are unique per screen. The
-  three new accessible-name tests (`Dropdown.test.tsx:99-118`) assert the full computed name
-  including the selection and the no-label case — the contract R-10 asked for.
-- **No new order-dependence.** The R-13 descriptor swap is `finally`-restored; `vi.setConfig` in
-  `option-parity.test.tsx:21` is file-scoped; the boundary suite's `afterEach` ordering versus RTL's
-  `cleanup()` is irrelevant because the `beforeEach` clear is the one that matters; jsdom windows are
-  per-file, so nothing crosses files.
-- **Setup-shim traps** — nothing new in this round claims a live camera/canvas path;
-  `navigator.mediaDevices` stays undefined, `getContext` stays `null`, no reduced-motion branch is
-  asserted without an override.
-- **Determinism** — no `Date.now()`/`Math.random()` introduced. `persistence.test.ts` keeps fake
-  timers with a matching restore; `Dropdown`'s new ids come from `useId`, not entropy.
-- **Factory usage** — the new engine tests use `freshStore()`/`newCaseInput()`/`newLocationInput()`.
-  The one inline `createCase({ caseNumber, displayName, unit })` at
-  `DemoExperience.persistence.test.tsx:61` matches the established idiom in the sibling UI suites
-  (`DemoExperience.sandbox.test.tsx:45`) and names only required fields — not worth a finding.
-- **Coverage-boundary discipline** — the fix round added no logic to `ui/**` that belongs in
-  `engine/**`. The selection-integrity repair went into `engine/store/persistence.ts` (gated, 100 %
-  statements); `reviewAgain` and `canComplete` are genuine bridge UI state, correctly in `ui/**`
-  (which is why TESTS-6/7 are behavioral gaps, not gate gaps).
-- **`app/demo/error.tsx`** — the new outer net's two tests (`app/demo/__tests__/error.test.tsx`) pin
-  the branded copy, `reset()` firing, and focus-on-mount. That Next actually mounts it as the segment
-  boundary is a framework-convention invariant no vitest test can assert; `next build` is the gate
-  for it. Not a finding.
-- **Deliberate choices from the phase brief** not re-flagged: the "Location Complete" copy change,
-  the Cameras seeding divergence, the class-based `DemoErrorBoundary`, sessionStorage-over-
-  localStorage, the phone-verified asymmetries, and deferred §29–§32.
+- **No assertion was silently weakened in round 2.** `git diff f69aa92 HEAD -- '*__tests__*' | grep
+  '^-'` shows only upgrades: the loose `getAllByText('Complete').length > 0` (replaced by R-22's
+  strict + `toHaveLength(2)`), the message-only quota assertion (replaced by R-26's message+cause),
+  the `optionValues` imports (deleted with the helper), and renamed test titles.
+- **R-27's negative test can't rot silently.** `select-adjusted-scopes.test.ts:61` ("does not warn
+  when every scope is canonical") has no premise assertion, so on its own it would pass vacuously if
+  `selectAdjustedScopes` early-returned `[]`. Not filed: the two sibling tests in the same file
+  (`:6` asserts `rows` length 1 with exact values, `:43` asserts `rows[1].adjStart` computes) use the
+  same `storeWithLocation()` + `calculateOffset()` setup and would fail loudly first. Cheap
+  hardening if the file is touched: assert `rows[0].adjStart` is non-empty in the negative case too.
+- **The `clearDemoSnapshot` barrel export is unpinned by tests but covered by the type gate.**
+  `error.test.tsx:10` mocks the whole barrel and `clear-demo-snapshot.test.ts:2` deep-imports, so no
+  test would fail if `features/demo/index.ts:6` were deleted — but I probe-verified `tsc --noEmit`
+  reports `TS2339` at `error.tsx:58` (dynamic-import destructure) and `TS2305` in the test. Adequate;
+  no finding. (Relevant because R-20's own rationale was "delete exports whose only consumer is a
+  test" — this one's production consumer is a dynamic `import()` that a naive grep for
+  `import { clearDemoSnapshot }` misses.)
+- **`clearSnapshot` engine coverage is real, not incidental** — null-storage arm
+  (`clear-demo-snapshot.test.ts:36`), throwing-`removeItem` + breadcrumb arm (`:41`), and the success
+  arm through the real jsdom `sessionStorage` (`:12`, asserting the unrelated key survives). The only
+  uncovered line in the module is the `NODE_ENV === 'production'` false arm (`persistence.ts:446`),
+  consistent with the file's pre-existing shape.
+- **No hardcoded snapshot key in the new tests** — `clear-demo-snapshot.test.ts:3` imports
+  `SNAPSHOT_KEY` from the engine.
+- **Descriptor hygiene on the new throwing-storage test.** `clear-demo-snapshot.test.ts:24-34` swaps
+  `window.sessionStorage` for a throwing accessor and restores in `finally`. It lacks the
+  `Reflect.deleteProperty` fallback its round-1 sibling has, but the describe-level
+  `afterEach(() => window.sessionStorage.clear())` would throw if the restore ever failed — the suite
+  being green proves the descriptor is own-property in jsdom. No leak, no finding.
+- **No act() warnings** from the new async path — ran `app/demo/__tests__/error.test.tsx` and
+  `features/demo/ui/__tests__/clear-demo-snapshot.test.ts` without `--silent`: clean output, 8/8.
+- **The R-19 mandated regression's post-click assertions are belt-and-braces**
+  (`sandbox.test.tsx:207-210` clicks an already-`disabled` button). They cannot fail independently of
+  `expect(btn).toBeDisabled()` at `:206`, which is the load-bearing assertion — harmless, not a
+  finding.
+- **Setup-shim traps** — nothing in round 2 claims a live camera/canvas/reduced-motion path;
+  `navigator.mediaDevices` stays undefined, `getContext` stays `null`, `matchMedia` is untouched.
+- **Determinism** — no `Date.now()` / `Math.random()` introduced; no new fake-timer usage beyond the
+  existing `persistence.test.ts` block; ids still come from the store's monotonic counter.
+- **Factory usage** — `store.test.ts:251-269` uses `freshStore()` / `newCaseInput()` /
+  `newLocationInput()`; the inline `createCase({ caseNumber, displayName, unit })` literals in the new
+  sandbox tests match the established UI-suite idiom (`sandbox.test.tsx:45`) and name only required
+  fields.
+- **No new order-dependence** — `vi.mock('@/features/demo', …)` is file-scoped; the console spies in
+  `select-adjusted-scopes.test.ts` are restored at the end of each test (house style, same as
+  `persistence.test.ts`); `clear-demo-snapshot.test.ts` clears storage in both hooks.
+- **Coverage-boundary discipline** — round 2 added no logic to `ui/**` that belongs in `engine/**`:
+  `clearSnapshot` (the storage write) landed in `engine/store/persistence.ts` (gated), while
+  `ui/clear-demo-snapshot.ts` holds only the `window.sessionStorage` property-access guard, which is
+  browser-boundary code and mirrors `sessionStorageOrNull` in the bridge.
+- **R-28's `FullShapeIn`** is a compile-time device with no runtime surface; this repo has no
+  negative-compile test convention (the established practice is a probe recorded in the review), so
+  the absence of a runtime test is correct, not a gap.
+- **Deliberate choices from the phase brief** not re-flagged: the deferred `completeCase(locationId)`
+  reshape (§29 addendum), the `sessionStorage`-over-`localStorage` decision (D2), the class-based
+  `DemoErrorBoundary`, the "Location Complete" copy, the phone-verified asymmetries, and deferred
+  §29–§32.
 
 ---
 
@@ -301,20 +297,25 @@ Recorded so the next pass doesn't re-litigate them.
 |---|---|
 | BLOCKER | 0 |
 | MAJOR | 0 |
-| MINOR | 3 |
+| MINOR | 2 |
 
-Prior lane findings: **5 of 5 FIXED** (TESTS-1/R-3, TESTS-2/R-11, TESTS-3/R-12, TESTS-4/R-13,
-TESTS-5/R-2), plus the shared R-6 timeout flake.
+Prior findings with a test surface: **R-19 FIXED** (incl. TESTS-7's folded gap — its round-1 probe is
+now red), **R-21 FIXED**, **R-22 FIXED**, **R-20/R-26/R-27 FIXED with genuine pins**, **R-24 FIXED**
+(one untested degradation arm → TESTS-10), **R-25 FIXED in code / PARTIAL in guard** (→ TESTS-9).
+No prior finding is UNFIXED.
 
-- **Behaviorally meaningful coverage:** strong — materially stronger than the initial pass. Every fix
-  that could be pinned at runtime was pinned, and each new pin fails against the pre-fix code.
-- **Engine coverage gate (80 % on `lib/**` + `engine/**`):** met (97.11 S / 88.85 B / 98.85 F / 98.41 L).
-- **Mock strategy:** at the IO edge; the store is injected, never mocked.
+- **Behaviorally meaningful coverage:** strong. Every round-2 behavioural fix is pinned by a test
+  that I verified fails against the pre-fix code — including the two that round 1 flagged as
+  unpinned-by-probe (`canComplete`, the `reviewAgain` reset).
+- **Engine coverage gate (80 % on `lib/**` + `engine/**`):** met — 97.14 S / 88.84 B / 98.85 F /
+  98.42 L, zero timeouts under `--coverage`.
+- **Mock strategy:** at the IO edge. The one new module mock (`@/features/demo` in `error.test.tsx`)
+  is a deliberate module-graph cut for a dynamic import, and the deep-import test covers the real
+  implementation.
 - **Factory usage:** canonical.
 - **Setup-shim traps:** none.
 - **Determinism (clock/entropy injected):** yes.
-- **New order-dependence:** none — the one that existed (R-3) is fixed and now carries premise
-  assertions that fail loudly if it returns.
+- **New order-dependence:** none.
 
-**Lane verdict: APPROVE** — the three MINORs (two untested bridge guards introduced by the R-1 fix,
-one gratuitously loosened assertion) are opportunistic and do not gate merge.
+**Lane verdict: APPROVE** — the two MINORs are opportunistic hardening of guards the fixes
+themselves introduced; neither gates merge.
