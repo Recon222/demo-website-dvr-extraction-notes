@@ -404,11 +404,21 @@ export function loadSnapshot(
   // Selection integrity (R-15): dangling ids pass the shape guard but rehydrate a wizard
   // where updateField silently no-ops. Drop what doesn't resolve; if that leaves a wizard
   // view/chapter with no location, restore to 'cases' instead of a dead form.
+  //
+  // Pair coherence (R-32): rehydration is the one construction path that ingests state the
+  // engine didn't produce, so it must obey the same law as every store action (R-19: "no
+  // writer leaves the pair pointing across cases"). When a location is open, IT owns the
+  // case — currentCaseId is derived from it, never trusted independently, so a snapshot
+  // pairing case B with case A's location can't misattribute an OCC number in the PDF header.
   const caseIds = new Set(d.cases.map((c) => c.id))
-  const locationIds = new Set(d.locations.map((l) => l.id))
-  const currentCaseId = d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
-  const currentLocationId =
-    d.currentLocationId !== null && locationIds.has(d.currentLocationId) ? d.currentLocationId : null
+  const openLocation =
+    d.currentLocationId !== null ? d.locations.find((l) => l.id === d.currentLocationId) : undefined
+  const currentLocationId = openLocation ? openLocation.id : null
+  const currentCaseId = openLocation
+    ? openLocation.caseId
+    : d.currentCaseId !== null && caseIds.has(d.currentCaseId)
+      ? d.currentCaseId
+      : null
   const isWizardScreen = (v: string): boolean => (WIZARD_SCREENS as readonly string[]).includes(v)
   let restoredChapter: ChapterId = currentChapter
   let restoredView: AppView = (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view

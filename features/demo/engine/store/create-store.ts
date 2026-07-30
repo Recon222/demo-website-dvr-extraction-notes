@@ -102,7 +102,11 @@ export interface DemoActions {
   createCase(input: NewCaseInput): string
   /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
    *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
-   *  The Completion screen's confirmation gate reads the location flag, never the case status. */
+   *  The Completion screen's confirmation gate reads the location flag, never the case status.
+   *  PRECONDITION (R-32 guard rail): `caseId` must be the case OWNING the current location —
+   *  callers derive it from `location.caseId` (the bridge does), never from a separately
+   *  tracked case selection. The correlated-pair signature (`completeLocation(locationId)`)
+   *  is the deferred stronger shape — see deferred.md §29 addendum. */
   completeCase(caseId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
