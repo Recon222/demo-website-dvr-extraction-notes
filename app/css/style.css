@@ -38,6 +38,14 @@
   --color-blue: #2b8cc1;
   --color-cyan: #4ecdc4;
   --color-gold: #ffd93d;
+  /* /demo error page (app/demo/error.tsx) — MIRRORS of the demo's inline glass tokens
+     (features/demo/ui/glass-tokens.ts: accentFrom/accentTo and the borderError red).
+     Keep both files in sync when restyling: the demo's own token guard test scans only
+     features/demo/ui/** and cannot see these (review R-25). Note --color-blue above is a
+     DIFFERENT blue — do not consolidate. */
+  --color-demo-accent-from: #35a0d6;
+  --color-demo-accent-to: #2580ad;
+  --color-demo-error: #ff4757;
 
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.5384;

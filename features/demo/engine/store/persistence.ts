@@ -412,6 +412,25 @@ export function loadSnapshot(
   }
 }
 
+/**
+ * Remove this tab's snapshot. The escape hatch for a state-driven render throw (review
+ * R-24): the route error net's unmount flushes the throwing state as the NEWEST snapshot,
+ * so a plain reset() rebuilds it forever — "Start fresh" clears the snapshot first.
+ * Pure/injected like every storage entry point here; null storage is a no-op; a throwing
+ * removeItem is swallowed with the R-14 dev breadcrumb (best-effort — worst case the
+ * visitor is no worse off than before the clear).
+ */
+export function clearSnapshot(storage: StorageLike | null): void {
+  if (!storage) return
+  try {
+    storage.removeItem(SNAPSHOT_KEY)
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[demo] snapshot clear failed — a refresh may restore the state you tried to discard', e)
+    }
+  }
+}
+
 // ---- Save side ------------------------------------------------------------
 
 export interface PersistenceHandle {
