@@ -34,3 +34,32 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
 export function mediaBucket(kind: MediaKind): 'photos' | 'videos' | 'audios' {
   return kind === 'photo' ? 'photos' : kind === 'video' ? 'videos' : 'audios'
 }
+
+/**
+ * The highest numeric suffix of any `id` string anywhere in a state snapshot ('c12' → 12,
+ * 'ui-s7' → 7). Rehydration (P0.4) seeds both monotonic id counters — the store's `seq` and
+ * the UI's `uiSeq` — ABOVE this, so ids minted after a refresh can never collide with
+ * rehydrated ones (duplicate React keys, broken lookups). Walks every object/array; only
+ * string props literally named `id` count. Returns 0 when none found (the empty boot).
+ */
+export function maxIdSeq(value: unknown): number {
+  let max = 0
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) {
+      v.forEach(walk)
+      return
+    }
+    if (v !== null && typeof v === 'object') {
+      for (const [key, val] of Object.entries(v)) {
+        if (key === 'id' && typeof val === 'string') {
+          const m = /(\d+)$/.exec(val)
+          if (m) max = Math.max(max, Number(m[1]))
+        } else {
+          walk(val)
+        }
+      }
+    }
+  }
+  walk(value)
+  return max
+}

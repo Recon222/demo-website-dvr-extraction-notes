@@ -23,7 +23,7 @@ import {
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
-import { mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
+import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {
@@ -118,6 +118,26 @@ export interface DemoActions {
 
 export type DemoStore = StoreApi<DemoState & DemoActions>
 
+/**
+ * The refresh-surviving subset of DemoState (P0.4, owner decision D2): everything the visitor
+ * built (cases, locations, forms), their selection, their wizard position, the in-progress
+ * time-offset capture, and the exploration record. Deliberately EXCLUDED as ephemeral chrome:
+ * `modal` (its input fields live in DemoExperience-local useState and would rehydrate blank)
+ * and `drawerOpen` — both boot fresh. See engine/store/persistence.ts for the snapshot format.
+ */
+export type PersistedState = Pick<
+  DemoState,
+  | 'profile'
+  | 'cases'
+  | 'locations'
+  | 'currentCaseId'
+  | 'currentLocationId'
+  | 'view'
+  | 'currentChapter'
+  | 'capture'
+  | 'visited'
+>
+
 export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
 }
@@ -151,12 +171,19 @@ const visit = (
 const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
-export function createDemoStore(): DemoStore {
-  let seq = 0
+/**
+ * Create the demo store — empty by default (the owner's empty-boot decision), or rehydrated
+ * from a validated sessionStorage snapshot (P0.4). `initial` must come from `loadSnapshot`
+ * (shape-guarded); the id counter is seeded past every rehydrated id so post-refresh ids
+ * never collide with restored ones.
+ */
+export function createDemoStore(initial?: PersistedState): DemoStore {
+  let seq = initial ? maxIdSeq(initial) : 0
   const nextId = (prefix: string) => `${prefix}${++seq}`
 
   return createStore<DemoState & DemoActions>((set, get) => ({
     ...initialState(),
+    ...initial,
 
     /** Start over: back to the empty boot. */
     reset: () => set(initialState()),
