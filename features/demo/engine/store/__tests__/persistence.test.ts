@@ -299,9 +299,9 @@ describe('shape guard (never crash boot)', () => {
     expect(snap?.locations).toHaveLength(1)
   })
 
-  it('R-15: a dangling currentCaseId is dropped; a non-wizard view is left as-is', () => {
+  it('R-32: with a live location, a dangling currentCaseId is REPAIRED to the location\'s owner (not just dropped)', () => {
     const storage = new FakeStorage()
-    const { store } = workedStore()
+    const { store, caseId } = workedStore()
     store.getState().setView('cases')
     saveNow(store, storage)
     const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
@@ -310,8 +310,41 @@ describe('shape guard (never crash boot)', () => {
     parsed.state.currentCaseId = 'ghost-case'
     storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
     const snap = loadSnapshot(storage)
-    expect(snap?.currentCaseId).toBeNull()
+    // R-19's law at the rehydration boundary: the open location owns the case. The old
+    // pin here (null) blessed an OCC-less Completion header for a perfectly live location.
+    expect(snap?.currentCaseId).toBe(caseId)
     expect(snap?.view).toBe('cases')
+  })
+
+  it('R-32: a snapshot pairing case B with case A\'s location rehydrates with A owning the selection', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const caseA = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    const locA = store.getState().addLocation(caseA, newLocationInput())
+    const caseB = store.getState().createCase(newCaseInput({ caseNumber: 'B' }))
+    store.getState().switchLocation(locA) // coherent at save time
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentCaseId: string }
+    }
+    parsed.state.currentCaseId = caseB // hand-tampered cross-case pair
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    expect(snap?.currentLocationId).toBe(locA)
+    expect(snap?.currentCaseId).toBe(caseA) // derived from the location — B never gets A's data under its OCC number
+  })
+
+  it('R-32: with NO live location, a dangling currentCaseId still drops to null', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    store.getState().createCase(newCaseInput())
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { currentCaseId: string }
+    }
+    parsed.state.currentCaseId = 'ghost-case'
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.currentCaseId).toBeNull()
   })
 
   it('R-15: a wizard view persisted with NO location at all (rail-jump) restores to cases', () => {
