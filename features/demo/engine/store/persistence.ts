@@ -365,9 +365,11 @@ export function loadSnapshot(
   if (!result.success) return discard()
 
   const d = result.data
-  // The refinements above guarantee these narrowings.
-  const currentChapter = d.currentChapter as ChapterId
-  const view = d.view as AppView
+  // The type-guard refinements in the schema already narrow these — no casts (R-18): if
+  // isAppView/isChapterId ever degrade to plain boolean predicates, these lines stop
+  // compiling instead of silently asserting an unvalidated string.
+  const currentChapter: ChapterId = d.currentChapter
+  const view: AppView = d.view
   const visited: Partial<Record<AppView | ModalId, true>> = {}
   for (const key of Object.keys(d.visited)) {
     if (isVisitId(key)) visited[key] = true
