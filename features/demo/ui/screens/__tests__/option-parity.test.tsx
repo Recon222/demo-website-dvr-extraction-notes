@@ -16,6 +16,10 @@ import {
 } from '@/features/demo/engine/content/form-options'
 import type { CameraEntry, DvrInformation } from '@/features/demo/engine/types'
 
+// Heavy dropdown-driving suite: under full-suite CPU contention the default 5 s per-test
+// budget flakes (review R-6) — same guard as DemoExperience.boundary.test.tsx.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeEach(() => stubClock())
 afterEach(() => vi.restoreAllMocks())
 
@@ -148,6 +152,52 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     await user.click(screen.getByRole('menuitemradio', { name: '704x480 (4CIF)' }))
     expect(onChange).toHaveBeenCalledWith(0, { resolution: '704x480' })
     expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
+  })
+
+  // R-2: the custom-mode flags key on CameraEntry.id, so a removal that re-indexes the
+  // list can neither strip custom mode off the surviving camera (destroying its typed
+  // value on the next custom tap) nor transfer it to an innocent neighbour.
+  it('R-2: custom mode survives another camera\'s removal (the data-destroying direction)', async () => {
+    const user = userEvent.setup()
+    const a = camera({ id: 'cA', cameraName: 'A', resolution: '1920x1080' })
+    const b = camera({ id: 'cB', cameraName: 'B' })
+    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    // put camera B (row index 1) into custom mode…
+    await user.click(screen.getAllByRole('button', { name: 'Resolution' })[1])
+    await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
+    expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
+    // …the visitor types a value and removes camera A → B re-indexes from 1 to 0
+    rerender(<CamerasScreen cameras={[{ ...b, resolution: '1440x900' }]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    // B keeps its editable custom field and typed value (index-keyed flags lost it here)
+    expect(screen.getByLabelText('Custom Resolution')).toHaveValue('1440x900')
+  })
+
+  it('R-2: removing the custom camera does not transfer custom mode to the survivor', async () => {
+    const user = userEvent.setup()
+    const a = camera({ id: 'cA', cameraName: 'A' })
+    const b = camera({ id: 'cB', cameraName: 'B', resolution: '1920x1080' })
+    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    // camera A (row index 0) goes custom, then A is removed → B re-indexes from 1 to 0
+    await user.click(screen.getAllByRole('button', { name: 'Resolution' })[0])
+    await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
+    rerender(<CamerasScreen cameras={[b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    // B stays a standard row (index-keyed flags rendered it spuriously custom here)
+    expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
+    expect(screen.getByText('1920x1080 (1080p)')).toBeInTheDocument()
+  })
+
+  it('R-2: stored free-text values seed custom mode on mount (matches DvrInfoScreen)', () => {
+    render(
+      <CamerasScreen
+        cameras={[camera({ resolution: '1440x900', recordingFps: '12' })]}
+        onChange={vi.fn()}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        {...nav}
+      />,
+    )
+    expect(screen.getByLabelText('Custom Resolution')).toHaveValue('1440x900')
+    expect(screen.getByLabelText('Custom FPS')).toHaveValue('12')
   })
 })
 
