@@ -5,15 +5,6 @@
  * so the mapping the visitor sees is the genuine one.
  */
 
-import {
-  EXPORT_MEDIA_OPTIONS,
-  FILE_TYPE_OPTIONS,
-  MEDIA_PROVIDED_OPTIONS,
-  RESOLUTION_OPTIONS,
-  FPS_OPTIONS,
-  optionValues,
-} from '@/features/demo/engine/content/form-options'
-
 // ============================================================================
 // AI FIELD EXTRACTION — adapted from extract-fields-prompt.ts
 // ============================================================================
@@ -203,21 +194,12 @@ export function mapAiToForm(ai: Partial<ExtractedFields>): MappedImport {
 }
 
 // ============================================================================
-// FORM OPTIONS + SAMPLE — for the later wizard screens / the demo's import chapter
+// SAMPLE — the demo's import chapter fallback
 // ============================================================================
-/**
- * Import-side view of the canonical option lists (values only — what the store holds and
- * an import may write). Derived from `engine/content/form-options`, the single source of
- * truth shared with the screens' dropdowns, so an import can never emit an enum value the
- * UI can't display (parity matrix G5).
- */
-export const FORM_OPTIONS = {
-  exportMedia: optionValues(EXPORT_MEDIA_OPTIONS),
-  fileType: optionValues(FILE_TYPE_OPTIONS),
-  mediaProvided: optionValues(MEDIA_PROVIDED_OPTIONS),
-  resolution: optionValues(RESOLUTION_OPTIONS),
-  fps: optionValues(FPS_OPTIONS),
-}
+// NOTE: the former FORM_OPTIONS registry was deleted (review R-11/R-17): it had zero
+// consumers and duplicated `engine/content/form-options` — the single source of truth
+// the screens render from. Import code that ever needs an option list must consume
+// that module directly.
 
 /**
  * Deterministic extraction of `SAMPLE_REQUEST_DOC` — the demo's stand-in for a model reply

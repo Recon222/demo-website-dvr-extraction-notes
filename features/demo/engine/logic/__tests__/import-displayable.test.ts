@@ -1,18 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { FORM_OPTIONS, mapAiToForm } from '@/features/demo/engine/logic/import'
+import { mapAiToForm } from '@/features/demo/engine/logic/import'
 import {
   normalizeTimePeriodType,
   normalizeYesNo,
   normalizeExtractedFields,
 } from '@/features/demo/engine/logic/import-normalize'
-import {
-  EXPORT_MEDIA_OPTIONS,
-  FILE_TYPE_OPTIONS,
-  MEDIA_PROVIDED_OPTIONS,
-  RESOLUTION_OPTIONS,
-  FPS_OPTIONS,
-  optionValues,
-} from '@/features/demo/engine/content/form-options'
 
 /** Fixed reference clock for the date pipeline (the engine bans ambient Date.now in tests). */
 const NOW = new Date(2025, 2, 10, 12, 0, 0).getTime()
@@ -32,16 +24,6 @@ const JUNK = [
   'a'.repeat(500), '💾 usb', '"; DROP TABLE cases; --', '<script>alert(1)</script>',
   '---BEGIN DOCUMENT---',
 ]
-
-describe('FORM_OPTIONS is a values-only view of the canonical lists', () => {
-  it('every key mirrors engine/content/form-options exactly', () => {
-    expect(FORM_OPTIONS.exportMedia).toEqual(optionValues(EXPORT_MEDIA_OPTIONS))
-    expect(FORM_OPTIONS.fileType).toEqual(optionValues(FILE_TYPE_OPTIONS))
-    expect(FORM_OPTIONS.mediaProvided).toEqual(optionValues(MEDIA_PROVIDED_OPTIONS))
-    expect(FORM_OPTIONS.resolution).toEqual(optionValues(RESOLUTION_OPTIONS))
-    expect(FORM_OPTIONS.fps).toEqual(optionValues(FPS_OPTIONS))
-  })
-})
 
 describe('import normalization only emits displayable enum values', () => {
   it('normalizeTimePeriodType maps EVERY input into the two displayable values', () => {
