@@ -77,6 +77,25 @@ describe('DemoExperience — sandbox bridge paths', () => {
     expect(currentLoc(store)?.form.completedBy).toBe('Det. McHugh')
   })
 
+  it('completion: Complete & Save marks the case complete in the STORE (G4) and the arc pays off green', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    fireEvent.click(screen.getByText('Complete & Save'))
+
+    // The status write is real (store, not a local boolean) …
+    expect(store.getState().cases[0]?.status).toBe('complete')
+    // … the confirmation view keys off it …
+    expect(screen.getByText('Case Complete')).toBeInTheDocument()
+    // … and the Cases card badge now reads Complete (green), not Draft.
+    fireEvent.click(screen.getByText('Return to Cases'))
+    expect(store.getState().view).toBe('cases')
+    expect(screen.getByText('Complete')).toBeInTheDocument()
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument()
+  })
+
   it('import (paste): runs the orchestrator live, applies the patch, reports success', async () => {
     runText.mockResolvedValue(okRun({ filename: undefined }))
     const store = createDemoStore()

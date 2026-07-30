@@ -194,6 +194,33 @@ describe('coordinates', () => {
   })
 })
 
+describe('completeCase (the arc payoff — G4)', () => {
+  it('flips the case status draft → complete, leaving other cases untouched', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    const b = store.getState().createCase(newCaseInput({ caseNumber: 'B' }))
+    expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('draft')
+    store.getState().completeCase(a)
+    expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('complete')
+    expect(store.getState().cases.find((c) => c.id === b)?.status).toBe('draft')
+  })
+
+  it('an unknown id changes no case', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    store.getState().completeCase('nope')
+    expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('draft')
+  })
+
+  it('is idempotent — completing twice stays complete', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    store.getState().completeCase(a)
+    store.getState().completeCase(a)
+    expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('complete')
+  })
+})
+
 describe('switchLocation', () => {
   it('sets currentLocationId and the matching caseId', () => {
     const store = freshStore()

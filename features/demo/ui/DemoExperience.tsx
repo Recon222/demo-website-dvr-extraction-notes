@@ -183,7 +183,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
-  const [caseCompleted, setCaseCompleted] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retentionView, setRetentionView] = useState<RetentionView>({ totalRetention: null, scopes: [] })
@@ -667,21 +666,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return (
           <CompletionScreen
             summary={summary}
-            isComplete={caseCompleted}
+            // Truthful status (G4): the confirmation view keys off the STORE's case status,
+            // so Cases/Dashboard cards turn green with it — no local shadow boolean.
+            isComplete={currentCase?.status === 'complete'}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
-            onComplete={() => setCaseCompleted(true)}
-            onBackToDashboard={() => {
-              setCaseCompleted(false)
-              store.getState().setView('dashboard')
+            onComplete={() => {
+              const id = store.getState().currentCaseId
+              if (id) store.getState().completeCase(id)
             }}
-            onBackToCases={() => {
-              setCaseCompleted(false)
-              store.getState().setView('cases')
-            }}
+            onBackToDashboard={() => store.getState().setView('dashboard')}
+            onBackToCases={() => store.getState().setView('cases')}
             onBack={onPrev}
             onMenu={openMenu}
           />

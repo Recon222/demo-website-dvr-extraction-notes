@@ -97,6 +97,8 @@ export interface DemoState {
 export interface DemoActions {
   reset(): void
   createCase(input: NewCaseInput): string
+  /** Mark a case complete (the "Complete & Save" arc payoff): Cases/Dashboard cards turn green. */
+  completeCase(caseId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -182,6 +184,11 @@ export function createDemoStore(): DemoStore {
       set((s) => ({ cases: [c, ...s.cases], currentCaseId: id }))
       return id
     },
+
+    completeCase: (caseId) =>
+      set((s) => ({
+        cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
+      })),
 
     addLocation: (caseId, input) => {
       const id = nextId('l')
