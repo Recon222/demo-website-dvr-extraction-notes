@@ -43,6 +43,18 @@ export {
 export * from '@/features/demo/engine/logic/time'
 export * from '@/features/demo/engine/logic/ocr'
 export * from '@/features/demo/engine/logic/import'
+export {
+  createImportLogBus,
+  importLogBus,
+  clipDetail,
+  IMPORT_LOG_MAX_LINES,
+  type ImportLogBus,
+  type ImportLogEmitter,
+  type ImportLogEvent,
+  type ImportLogLevel,
+  type ImportLogLine,
+  type ImportLogListener,
+} from '@/features/demo/engine/logic/import-log'
 export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinateResult } from '@/features/demo/engine/logic/coordinates'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
