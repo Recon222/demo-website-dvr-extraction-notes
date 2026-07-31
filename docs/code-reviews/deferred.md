@@ -3463,9 +3463,36 @@ async, so between Retake and the new stream arriving `permission` is still `gran
 `stream` is `null`. A shutter press inside that window grabs a frame from a zero-dimension
 `<video>` and lands on `FRAME_GRAB_FAILED` — an honest notice, not a lie, and the window is one
 acquisition long.
-**Trigger:** if device testing shows the window is long enough to be pressed in practice, the fix
-is to fold `isOpening` into the shutter's `blocked` derivation (now a one-line change, since R-9
-gave that derivation a home) rather than to suppress the notice.
+~~**Trigger:** if device testing shows the window is long enough to be pressed in practice, the
+fix is to fold `isOpening` into the shutter's `blocked` derivation (now a one-line change, since
+R-9 gave that derivation a home) rather than to suppress the notice.~~
+
+**RESOLVED — FD-4 (fix-delta round), fixed exactly as the trigger described.** The silent-failures
+lane found the window was worse than this entry claimed: photo mode's frame-grab sentence is
+merely the *wrong cause*, but VIDEO mode reaches `startRecording` with no stream and prints
+"This browser doesn't expose a camera to this page" — R-3's exact sentence, re-entering through
+a door R-7 opened. `reopening = isOpening && !modeIsSample` now heads R-9's blocked-reason ladder
+("Reopening the camera…") with the matching guard in `onShutter`.
+
+The `!modeIsSample` half is deliberate: a bundled-sample attach needs no stream, so refusing it
+in the window would be a refusal with no cause behind it. Pinned both ways — a live press mid-
+reopen states its reason and produces no failure copy; a sample clip attaches normally on a
+no-`MediaRecorder` browser during the same window.
+
+**RESOLVED — FD-3 (same round): the reopen was unpinned.** `close()` preserves `selectedDeviceId`,
+so the bare `open()` re-acquired the browser DEFAULT: Switch camera → capture → Retake came back
+on the built-in lens with the caption silently following. Both reopen sites now pass
+`selectedDeviceId ?? undefined`. Trade-off taken knowingly: `captureConstraints` pins with
+`exact`, so a camera unplugged during review fails loudly as `NO_DEVICE` into the honest
+unavailable panel instead of quietly opening a different lens.
+
+CROSSING, disclosed: the twin site is `OcrCaptureScreen.tsx:246` — P4.7's file. The same one line
+plus its comment and dep-array entry was changed there and nothing else, on the orchestrator's
+instruction, because splitting one mechanical fix across two agents is how the two halves drift.
+The device-identity pin lives on the capture screen only; the OCR screen's reopen arm remains
+unpinned for device identity.
+**Trigger:** P4.7's next pass — add the twin pin, or fold both screens' reopen effects onto a
+shared hook (they are now byte-identical apart from their latch names).
 
 ### 66b. R-9 (native `disabled`) — fixed at both named sites; the two unnamed ones deliberately keep `disabled`
 
