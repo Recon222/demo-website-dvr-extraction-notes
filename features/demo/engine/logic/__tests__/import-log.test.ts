@@ -142,8 +142,10 @@ describe('createImportLogBus', () => {
     // Runtime isolation: every call is a fresh copy, never the live ring array.
     expect(bus.getLines()).not.toBe(snapshot)
     expect(bus.getLines()).toEqual(snapshot)
-    // Compile-time immutability (tsc --noEmit type-checks tests; never executed at runtime —
-    // a runtime push/assign WOULD land, which is exactly why the type must forbid it):
+    // Compile-time immutability — enforced by `pnpm typecheck` (tsc --noEmit includes test
+    // files; vitest itself does NOT type-check — review R-44). Never executed at runtime:
+    // a runtime push/assign WOULD land, which is exactly why the type must forbid it.
+    // If ImportLogLine loses readonly, these become unused-'@ts-expect-error' failures.
     const compileTimePins = () => {
       // @ts-expect-error — the snapshot array is readonly (no push)
       snapshot.push({ seq: 99, elapsedMs: 0, level: 'ERR', text: 'injected' })
