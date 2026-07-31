@@ -191,7 +191,7 @@ describe('no capture capability — the honest sample path', () => {
     expect(shutter('Attach sample photo')).toBeInTheDocument()
   })
 
-  it('hands the bridge the capture plus the interim filename base, not a finished filename', () => {
+  it('hands the bridge the form’s BASE name, never a finished filename', () => {
     const h = harness()
     mount(h)
     fireEvent.click(shutter('Attach sample photo'))
@@ -199,13 +199,64 @@ describe('no capture capability — the honest sample path', () => {
 
     expect(h.saved).toHaveLength(1)
     // The BASE — `buildMediaItem`/`mediaFilename` own the extension, so the container the
-    // browser really produced is what names the file (§58c).
-    expect(h.saved[0].filename).toBe('photo-20260730-140506')
+    // browser really produced is what names the file (§58c). A sample pre-fills with the
+    // bundled asset's own name so a library row cannot read like something the visitor shot.
+    expect(h.saved[0].filename).toBe(SAMPLE_MEDIA.photo.suggestedFilename)
     expect(h.saved[0].caption).toBe('')
     expect(h.saved[0].captured.sample).toBe(true)
     expect(h.saved[0].captured.kind).toBe('photo')
-    // The screen also shows the visitor the name it is about to save under.
     expect(h.onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves what the visitor typed, both halves of it', () => {
+    const h = harness()
+    mount(h)
+    fireEvent.click(shutter('Attach sample photo'))
+
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'rack front' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'north wall, 3rd shelf' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save image' }))
+
+    expect(h.saved[0].filename).toBe('rack front')
+    expect(h.saved[0].caption).toBe('north wall, 3rd shelf')
+  })
+
+  it('shows the real filename the base will become, and follows the typing', () => {
+    mount(harness())
+    fireEvent.click(shutter('Attach sample photo'))
+
+    expect(screen.getByText('sample-photo.jpg')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'rack front' } })
+    expect(screen.getByText('rack front.jpg')).toBeInTheDocument()
+  })
+
+  it('refuses to save an unnamed file, and says why instead of just greying out', () => {
+    // The phone's gate (`PhotoPreview.tsx:63-70,114`), restored. Mutation probe for the
+    // `if (!canSave) return` guard: drop it and `onSave` fires with an empty base, which
+    // `mediaFilename` would turn into a file called `.jpg`.
+    const h = harness()
+    mount(h)
+    fireEvent.click(shutter('Attach sample photo'))
+
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: '   ' } })
+    const save = screen.getByRole('button', { name: 'Save image' })
+    expect(save).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(save)
+
+    expect(h.onSave).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a file name')
+    // Still in review — a refused save is not a save, and not an exit either.
+    expect(screen.getByText('Review Image')).toBeInTheDocument()
+  })
+
+  it('starts each take from its own name — a discarded one never leaks onto the next', () => {
+    mount(harness())
+    fireEvent.click(shutter('Attach sample photo'))
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'wrong shot' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+
+    fireEvent.click(shutter('Attach sample photo'))
+    expect(screen.getByLabelText('Filename')).toHaveValue(SAMPLE_MEDIA.photo.suggestedFilename)
   })
 
   it('leaves the review stage once the store has taken the capture', () => {

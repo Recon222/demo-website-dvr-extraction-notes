@@ -9,13 +9,16 @@ import {
   captureFailureMessage,
   defaultCaptureBasename,
   formatDuration,
+  isValidFilename,
   mediaFilename,
   selectCaptureDevice,
+  suggestedFilenameBase,
   type CapturedMedia,
   type CapturePermission,
 } from '@/features/demo/engine/logic/media'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import type { FrameGrabOptions } from '@/features/demo/ui/inputs/capture-media'
+import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui/inputs/useMediaCapture'
 
 /**
@@ -48,13 +51,20 @@ import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui
  * A capture's `blob:` URL belongs to the hook's registry and is revoked when this screen
  * unmounts. `handOff()` is called ONLY after `onSave` reports the store took the item —
  * a save that could not happen must still have its bytes released.
+ *
+ * ── The review stage names the file ─────────────────────────────────────────────────────────
+ * `ReviewStage` embeds the shared `MetadataForm` (P4.4) between the preview and the action row
+ * and owns its value, so `onSave` carries the VISITOR's filename base and caption rather than a
+ * default. Save is gated on the phone's rule (trimmed 1–100), derived here from the engine
+ * predicate instead of the phone's `onValidChange` push.
  */
 
 export type CaptureMode = 'photo' | 'video'
 
 export interface SaveMediaRequest {
   captured: CapturedMedia
-  /** Filename WITHOUT an extension — `buildMediaItem`/`mediaFilename` add the real container's. */
+  /** The visitor's filename WITHOUT an extension — `buildMediaItem`/`mediaFilename` add the
+   *  real container's. */
   filename: string
   caption: string
 }
@@ -162,7 +172,6 @@ const panelBody: CSSProperties = {
 }
 const noticeLine: CSSProperties = { fontSize: 12, lineHeight: 1.45, marginBottom: 10 }
 const label12: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
-const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 // ---- Screen -----------------------------------------------------------------
 
@@ -281,15 +290,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     discard()
   }, [discard])
 
-  const onAccept = useCallback(() => {
-    if (!captured) return
-    // SEAM(P4.4): MetadataForm inserts between review-accept and addMedia — it will own the
-    // filename and caption handed over here, which are the interim defaults until then.
-    const accepted = onSave({ captured, filename: defaultCaptureBasename(captured), caption: '' })
-    // Ownership passes to the store ONLY on a real save. A refused save leaves the URL owned
-    // here so the unmount sweep frees it, instead of pinning bytes nothing can reach.
-    if (accepted) handOff()
-  }, [captured, handOff, onSave])
+  const onAccept = useCallback(
+    (meta: MetadataFormValue) => {
+      if (!captured) return
+      const accepted = onSave({ captured, filename: meta.filename, caption: meta.caption })
+      // Ownership passes to the store ONLY on a real save. A refused save leaves the URL owned
+      // here so the unmount sweep frees it, instead of pinning bytes nothing can reach.
+      if (accepted) handOff()
+    },
+    [captured, handOff, onSave],
+  )
 
   const onSwitchDevice = useCallback(() => {
     if (devices.length < 2) return
@@ -646,8 +656,15 @@ function PermissionStage({
 
 // ---- Review stage -----------------------------------------------------------
 
-/** Phone `PhotoPreview` / `VideoPreview` (ui-mapping 09) — titles, button labels and a11y
- *  names verbatim. P4.4 inserts `MetadataForm` where the filename line sits today. */
+/**
+ * Phone `PhotoPreview` / `VideoPreview` (ui-mapping 09) — titles, button labels and a11y names
+ * verbatim, with `MetadataForm` between the preview and the action row, which is the phone's
+ * content order (`PhotoPreview.tsx:83-122`).
+ *
+ * It owns the metadata state, as the phone's preview components do (`PhotoPreview.tsx:57-61`),
+ * for the same reason: this component mounts once per capture and unmounts on Retake, so the
+ * initialiser re-runs and a discarded take can never leave its name on the next one.
+ */
 function ReviewStage({
   captured,
   maxDurationHit,
@@ -658,11 +675,20 @@ function ReviewStage({
   captured: CapturedMedia
   maxDurationHit: boolean
   onRetake(): void
-  onAccept(): void
+  onAccept(meta: MetadataFormValue): void
   onExit(): void
 }) {
   const isPhoto = captured.kind === 'photo'
-  const filename = mediaFilename(defaultCaptureBasename(captured), captured)
+  // Pre-filled, unlike the phone's empty field. The phone's user is a trained analyst working a
+  // scene; the demo's is a stranger, and a grey Save button over an empty required field with
+  // no starting point is a dead end rather than a discipline. The value is honest either way —
+  // a live capture's own timestamp, or the bundled asset's real name — and clearing it disables
+  // Save exactly as the phone does, so the gate is ported, not softened.
+  const [meta, setMeta] = useState<MetadataFormValue>(() => ({
+    filename: suggestedFilenameBase(captured, defaultCaptureBasename(captured)),
+    caption: '',
+  }))
+  const canSave = isValidFilename(meta.filename)
 
   return (
     <div
@@ -750,17 +776,13 @@ function ReviewStage({
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: 14,
-          borderRadius: 10,
-          border: GLASS.borderSoft,
-          background: GLASS.gradientCard,
-          padding: 12,
-        }}
-      >
-        <div style={{ ...label12, marginBottom: 4 }}>Saving as</div>
-        <div style={{ fontFamily: mono, fontSize: 13, color: '#cdd9e6', wordBreak: 'break-all' }}>{filename}</div>
+      <div style={{ marginTop: 14 }}>
+        <MetadataForm
+          value={meta}
+          onChange={setMeta}
+          mediaType={captured.kind}
+          savingAs={mediaFilename(meta.filename, captured)}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginTop: 'auto', paddingTop: 18 }}>
@@ -772,11 +794,27 @@ function ReviewStage({
         >
           {isPhoto ? 'Retake' : 'Record Again'}
         </button>
+        {/* `aria-disabled` + a guarded handler, not `disabled` — the established idiom for a
+            refused control here (§44b / R-15 / §61b). The phone's button is genuinely disabled
+            and silent about why; keeping this one focusable is what lets a keyboard visitor
+            reach it, and the reason is already on screen as the field's `role="alert"`. */}
         <button
           type="button"
           aria-label={isPhoto ? 'Save image' : 'Save video'}
-          onClick={onAccept}
-          style={{ flex: 1, padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+          aria-disabled={canSave ? undefined : true}
+          onClick={() => {
+            if (!canSave) return
+            onAccept(meta)
+          }}
+          style={{
+            flex: 1,
+            padding: 14,
+            ...glassBtnPrimary,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: canSave ? 'pointer' : 'default',
+            opacity: canSave ? 1 : 0.5,
+          }}
         >
           {isPhoto ? 'Save Image' : 'Save Video'}
         </button>
