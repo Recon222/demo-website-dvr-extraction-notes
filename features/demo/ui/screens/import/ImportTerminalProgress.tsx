@@ -263,6 +263,15 @@ const badgeSubStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
+/** Visually hidden but AT-readable (the CTA's supplementary description, R-3). */
+const visuallyHidden: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+}
 
 // ==================== ICONS (Ionicons equivalents, house inline-SVG pattern) ====================
 
@@ -550,28 +559,38 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
         )}
       </div>
 
-      {/* Morphing status badge → CTA. Fixed-height slot: zero reflow on morph. */}
+      {/* Morphing status badge → CTA. Fixed-height slot: zero reflow on morph.
+          Accessible name = the VISIBLE title + sub (R-3): the batch counts are the
+          load-bearing fact and must be announced; an aria-label would replace them
+          (accname override) and break Label-in-Name for voice control. cta.a11y
+          SUPPLEMENTS as the description via aria-describedby. */}
       {cta ? (
-        <button
-          type="button"
-          data-testid="terminal-review-cta"
-          aria-label={cta.a11y}
-          onClick={onReview}
-          style={{
-            ...badgeBase,
-            border: `1px solid ${cta.border}`,
-            background: cta.bg,
-            cursor: 'pointer',
-            animation: reduce ? undefined : 'termFadeIn 350ms ease both',
-          }}
-        >
-          {cta.icon}
-          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
-            <span style={badgeSubStyle}>{cta.sub}</span>
+        <>
+          <button
+            type="button"
+            data-testid="terminal-review-cta"
+            aria-describedby="terminal-cta-desc"
+            onClick={onReview}
+            style={{
+              ...badgeBase,
+              border: `1px solid ${cta.border}`,
+              background: cta.bg,
+              cursor: 'pointer',
+              animation: reduce ? undefined : 'termFadeIn 350ms ease both',
+            }}
+          >
+            {cta.icon}
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
+              <span style={badgeSubStyle}>{cta.sub}</span>
+            </span>
+            <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
+          </button>
+          {/* Sibling, NOT a child: inside the button it would join the accname. */}
+          <span id="terminal-cta-desc" style={visuallyHidden}>
+            {cta.a11y}
           </span>
-          <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
-        </button>
+        </>
       ) : (
         <div
           data-testid="terminal-processing-badge"

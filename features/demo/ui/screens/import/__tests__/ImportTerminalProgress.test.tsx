@@ -402,7 +402,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const { rerenderWith, onReview } = setup()
     rerenderWith({ outcome: SUCCESS })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Import ready for review')
-    const cta = screen.getByRole('button', { name: 'Review the import before it saves' })
+    // R-3: the accessible NAME is the visible text (Label in Name); a11y framing is the description.
+    const cta = screen.getByRole('button', { name: /Import ready for review/ })
+    expect(cta).toHaveAccessibleDescription('Review the import before it saves')
     expect(cta).toHaveTextContent('Import ready for review')
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(16, 209, 119, 0.32)')
@@ -423,7 +425,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const { rerenderWith } = setup({ batch: { current: 3, total: 3 } })
     rerenderWith({ outcome: { status: 'partial', successCount: 2, totalFiles: 3 } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Batch partially failed')
-    const cta = screen.getByRole('button', { name: 'Review the import — some files failed' })
+    // R-3's load-bearing fact: the COUNTS are in the accessible name, not suppressed by a label.
+    const cta = screen.getByRole('button', { name: /Batch partially failed — 2 of 3, 1 needs attention/ })
+    expect(cta).toHaveAccessibleDescription('Review the import — some files failed')
     expect(cta).toHaveTextContent('Batch partially failed — 2 of 3, 1 needs attention')
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not green
@@ -442,7 +446,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     nextFrame()
     rerenderWith({ stage: 'error', outcome: { status: 'failure' } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Import failed')
-    const cta = screen.getByRole('button', { name: 'See error details' })
+    const cta = screen.getByRole('button', { name: /See error details/ }) // visible text IS the name (R-3)
     expect(cta).toHaveTextContent('Import failed')
     expect(cta).toHaveTextContent('See error details →')
     expect(cta.style.border).toContain('rgba(255, 71, 87, 0.32)')

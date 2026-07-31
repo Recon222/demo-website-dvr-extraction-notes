@@ -688,7 +688,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.click(screen.getByText('Import with AI'))
 
     // "The log is most valuable when something broke" — terminal held, red CTA.
-    const cta = await screen.findByRole('button', { name: 'See error details' })
+    const cta = await screen.findByRole('button', { name: /See error details/ }) // visible text IS the name (R-3)
     expect(cta).toHaveTextContent('Import failed')
     expect(cta).toHaveTextContent('See error details →')
     expect(screen.queryByText('Try again')).not.toBeInTheDocument() // failure card not shown yet
