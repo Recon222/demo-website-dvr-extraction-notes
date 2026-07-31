@@ -1,3 +1,4 @@
+import { MEDIA_BUCKET, type MediaBuckets } from '@/features/demo/engine/logic/media/library'
 import type { MediaKind, ScopeEntry } from '@/features/demo/engine/types'
 
 /**
@@ -55,9 +56,14 @@ export function cloneScopesWithNewIds(
   }))
 }
 
-/** Map a singular media kind to its bucket on `LocationForm.media`. */
-export function mediaBucket(kind: MediaKind): 'photos' | 'videos' | 'audios' {
-  return kind === 'photo' ? 'photos' : kind === 'video' ? 'videos' : 'audios'
+/** Map a singular media kind to its bucket on `LocationForm.media`.
+ *
+ *  Delegates to the ONE mapping (R-26). This used to be an independent ternary, and the media
+ *  library's tab registry carried a second spelling of the same pairing — so the two could
+ *  disagree, and the shape that let them disagree (`kind` and `bucket` side by side, unlinked)
+ *  compiled `kind: 'audio', bucket: 'videos'` without complaint. */
+export function mediaBucket(kind: MediaKind): keyof MediaBuckets {
+  return MEDIA_BUCKET[kind]
 }
 
 /**

@@ -20,12 +20,27 @@ import { formatDuration } from '@/features/demo/engine/logic/media/recording'
  *  than re-declared, so a bucket rename cannot leave this module describing the old one. */
 export type MediaBuckets = LocationForm['media']
 
+/**
+ * Which bucket on `LocationForm.media` holds each media kind — THE mapping, consumed by both
+ * the store's `mediaBucket` helper and this module's `mediaForTab` (R-26).
+ *
+ * It exists because the pairing used to be written twice: once here as a `kind`/`bucket` pair
+ * on every tab entry, once in `store/helpers.ts`. Two independent spellings of one fact meant
+ * `kind: 'audio', bucket: 'videos'` compiled — a tab that lists the wrong bucket's rows, whose
+ * delete then writes to the kind the ROW carries, leaving an undeletable row on screen.
+ */
+export const MEDIA_BUCKET: Readonly<Record<MediaKind, keyof MediaBuckets>> = Object.freeze({
+  photo: 'photos',
+  video: 'videos',
+  audio: 'audios',
+})
+
 export interface MediaLibraryTab {
   id: string
   /** Phone `TAB_CONFIG.tabs[].label` (`media-library/constants.ts:31-33`). */
   label: string
+  /** The bucket is DERIVED from this via `MEDIA_BUCKET` — never stored beside it (R-26). */
   kind: MediaKind
-  bucket: keyof MediaBuckets
   /** Phone `EMPTY_STATE_CONFIG` (`media-library/constants.ts:57-59`), verbatim. Both hints name
    *  a real row of the demo's own drawer Media accordion (`WizardDrawer.tsx:331-332`), so the
    *  instruction is followable here and not just copied. */
@@ -43,21 +58,18 @@ export const MEDIA_LIBRARY_TABS = [
     id: 'photos',
     label: 'Photos',
     kind: 'photo',
-    bucket: 'photos',
     empty: { message: 'No photos', hint: 'Use Capture Media to take photos' },
   },
   {
     id: 'video',
     label: 'Video',
     kind: 'video',
-    bucket: 'videos',
     empty: { message: 'No videos', hint: 'Use Capture Media to record video' },
   },
   {
     id: 'audio',
     label: 'Audio',
     kind: 'audio',
-    bucket: 'audios',
     empty: { message: 'No audio', hint: 'Use Record Audio to capture audio' },
   },
 ] as const satisfies readonly MediaLibraryTab[]
@@ -69,7 +81,10 @@ export type MediaLibraryTabId = (typeof MEDIA_LIBRARY_TABS)[number]['id']
  *  empty state rather than hunting for a populated tab, and so does this. */
 export const DEFAULT_MEDIA_TAB: MediaLibraryTabId = 'photos'
 
-export function mediaLibraryTab(id: MediaLibraryTabId): MediaLibraryTab {
+/** Returns the REGISTRY ENTRY, not the widened interface (R-33): callers keep the literal
+ *  `label`/`kind` of the tab they asked for, so a `switch` over `mediaLibraryTab(id).kind` stays
+ *  exhaustive and the entry's own copy is readable at the call site. */
+export function mediaLibraryTab(id: MediaLibraryTabId): (typeof MEDIA_LIBRARY_TABS)[number] {
   // Total by construction — `MediaLibraryTabId` is derived FROM this array — but a lookup that
   // can return undefined would push a non-null assertion into every call site.
   const tab = MEDIA_LIBRARY_TABS.find((t) => t.id === id)
@@ -103,7 +118,7 @@ export function mediaLibraryCounts(media: MediaBuckets): MediaLibraryCounts {
  * tie-blind sort would leave.
  */
 export function mediaForTab(media: MediaBuckets, id: MediaLibraryTabId): MediaItem[] {
-  const items = media[mediaLibraryTab(id).bucket]
+  const items = media[MEDIA_BUCKET[mediaLibraryTab(id).kind]]
   return [...items].reverse().sort((a, b) => (a.capturedAt < b.capturedAt ? 1 : a.capturedAt > b.capturedAt ? -1 : 0))
 }
 
