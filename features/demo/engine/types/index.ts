@@ -36,7 +36,27 @@ export type ChapterId = 'splash' | 'dashboard' | 'cases' | WizardScreenId
 export type LaunchableId = 'ocr' | 'mediaCapture' | 'audioRecording'
 
 /** Overlay modals. */
-export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary' | 'editIncident'
+export type ModalId =
+  | 'newCase'
+  | 'newLocation'
+  | 'import'
+  | 'mediaLibrary'
+  /** The map's incident-location editor (P3.6 — phone `EditIncidentLocationModal`). */
+  | 'editIncident'
+  /** The location action chooser (P3.5 — phone `DuplicateLocationModal`). */
+  | 'duplicateLocation'
+  /** The chooser's "New Location w/ Sub Info [+ Scopes]" card: the create-location modal in
+   *  its require-address variant, pre-filled from the source location. A second modal id
+   *  rather than a flag on `newLocation` — the two mounts have different narration, different
+   *  submit semantics, and the phone likewise mounts a second instance. */
+  | 'newAddressLocation'
+
+/** The two flavours every duplicate action carries (phone `DuplicateMode`,
+ *  `duplicate-location-service.ts:23`): submission info alone, or submission info plus a
+ *  clone of the requested scopes. A plain union like the other id unions above — it is
+ *  transient UI intent, never persisted, so the `as const` tuple device (which exists to
+ *  share a closed union with the snapshot shape guard) would buy nothing. */
+export type DuplicateMode = 'submission-only' | 'with-scopes'
 
 // ---- Content / form value types --------------------------------------------
 export interface ScopeEntry {

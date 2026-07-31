@@ -1865,6 +1865,117 @@ was the point. It remains open and still cheap.
 (phone `NewLocationModal.tsx:212-219`, for P3.5's caller). P3.3 (NewCaseModal's required-field
 gate + duplicate-case-number banner) needs the first two for the same reasons; if both lanes add
 them, the merge should keep one copy rather than two spellings of the same prop.
+
+---
+
+## 52. P3.5 (parity/p3-duplicate) — the location action chooser: web adaptations, cross-package seams, residuals
+
+**Source:** P3.5 implementation (matrix row 14 — `DuplicateLocationModal`, the six-action
+chooser; phone `src/features/case-management/components/DuplicateLocationModal.tsx` +
+`services/duplicate-location-service.ts` + `utils/location-name.ts`).
+
+### 52.1 The long press is an accelerator; the "⋯" button is the affordance
+
+**What:** the phone opens this chooser with a long press on a location row and nothing else.
+The demo ships both: `useLongPress` (500ms hold — React Native's own `delayLongPress` — plus a
+context-menu gesture) AND a visible per-row "⋯" button.
+
+**Why not gesture-only:** a hold is undiscoverable on a web page, unreachable from a keyboard,
+and unannounced to a screen reader; the plan's own instruction for this class of surface is
+"match intent, not gesture" (§5, P3.1). Shipping only the button would have lost the phone's
+muscle memory for anyone driving the demo after using the app, so both are wired to one
+handler.
+
+**Trigger / harmonization:** **P3.1 owns the row-affordance conventions** (delete + swipe
+equivalents) and was unmerged when this landed — its branch had no commits past `ac1a0a9`.
+When P3.1 lands, reconcile in one pass: `features/demo/ui/useLongPress.ts` is reusable as-is
+(it is generic, per-element, and unit-tested), and the location row is now its own
+`LocationItem` component inside `CasesScreen.tsx` — the natural home for a delete affordance.
+If P3.1 introduced a different row shape (e.g. a swipe-reveal), keep ONE and re-point the
+chooser at it.
+
+### 52.2 The two export actions render live and answer with an honest notice
+
+**What:** "Export ZIP" and "Export GeoJSON" render exactly as the phone's do (same section
+caption, same labels, never name-gated) and, when pressed, close the chooser and raise the
+banner "Export ZIP isn't available yet — it lands with the Export tab." (likewise GeoJSON).
+
+**Why render rather than hide** (the plan left this to the agent's judgment, P3.5 row): the
+chooser IS the phone's location-level export entry point — hiding the section would
+misrepresent the surface as a four-action chooser, and the matrix counts the export actions as
+part of row 14. The DemoNotification idiom (the map's "Calling isn't available in the demo.")
+tells the truth on press instead of faking a download, per the honesty rule.
+
+**Trigger:** P5.2/P5.3. When the Export tab and `ExportModal` exist, re-point these two
+buttons at the real flows — ZIP still terminating in its own honest download notice per D4,
+GeoJSON at whatever P5 lands — and delete the two notice constants in `DemoExperience.tsx`.
+
+### 52.3 `duplicated_from` is not modelled
+
+**What:** the phone stamps `duplicated_from` on a duplicate (`duplicate-location-service.ts`
+step 5) and deliberately does NOT stamp it on a new-address copy — that one is an independent
+location. The demo carries the same behavioural distinction (address/requester sourcing,
+scopes) but stores no provenance column.
+
+**Why deferred:** nothing in the demo reads it. The phone uses it for sibling grouping; the
+demo's Cases list, map and PDFs all order by creation. Adding an unread field to `DemoLocation`
+would also widen the persisted snapshot shape for no rendered difference.
+
+**Trigger:** the first demo surface that groups or sorts duplicates as siblings (a case-map
+export cluster, a "duplicates of" affordance) — add `duplicatedFrom?: string`, the matching
+optional in the `demoLocationSchema` shape (device 2 makes that a compile error, not a silent
+drop), and set it in `duplicateLocation` only.
+
+### 52.4 Shared-chrome and `NewLocationModal` props added from this package — P3.4 must reconcile
+
+**What:** this package added, in files P3.4 owns or shares: `Field`'s optional `error`
+(hairline + message + `aria-invalid`), `ModalActions`' `submitDisabled`, and three optional
+`NewLocationModal` props — `subtitle`, `requireAddress`, `existingNames` — plus the live
+duplicate-name check and a blank-name gate on Create that now applies to the **plain Add
+Location caller too** (phone parity: ui-mapping 02:260 disables Create on a blank or duplicate
+name for both callers).
+
+**Why here:** P3.5's new-address flow needs the require-address variant to exist, and P3.4
+(row 13: "live duplicate-name check … `requireAddress` variant for the copy flow") was
+unmerged with no commits when this landed. The brief's instruction was to wire against its
+prop signature and flag.
+
+**Trigger:** at P3.4 merge. Expect a conflict in `NewLocationModal.tsx`: keep ONE
+implementation of the name check/gate (they are the same phone behaviour), and make sure the
+GPS capture P3.4 builds replaces the `onCaptureGps={() => undefined}` no-op in **both**
+callers — the new-address card inherited the §24 no-op deliberately rather than inventing a
+second capture path.
+
+### 52.5 The two new modal ids are not in the rail's exploration manifest
+
+**What:** `duplicateLocation` and `newAddressLocation` are real `ModalId`s (narration written,
+`visited` recorded, persistence's `MODAL_IDS` updated) but no `EXPLORE_ITEMS` row covers them,
+so the rail keeps "Cases" active while the chooser is open — the same anchor fallback the OCR
+launch screen uses.
+
+**Why deferred:** the manifest is a curated 15-row checklist gating the before-you-go dialog;
+several P3 packages add modals, and growing it one row per package per branch would both churn
+the checklist and conflict across branches. `selectExploreStatus` handles unlisted ids by
+design ("the registry may lead or lag").
+
+**Trigger:** an owner call on whether case/location management deserves its own manifest row
+after P3 merges — one entry in `engine/content/explore.ts` if so.
+
+### 52.6 The phone's Toasts become one-line banners
+
+**What:** each phone Toast in this flow (`Location Duplicated` / `{name} created with
+scopes.`, `Location Created` / `{name} created with copied submission info…`, `Error` /
+`Location not found.`) is rendered as `title — body` in a single `DemoNotification`, portalled
+into the phone overlay root so it is visible over an open modal (the new-address card
+deliberately stays up after a failed create, phone parity — a notice hidden behind it would be
+a silent failure).
+
+**Why deferred:** the demo has no two-line toast surface, and inventing one for three strings
+would pre-empt whatever P4/P5 need. The strings themselves are verbatim.
+
+**Trigger:** if a package builds a real toast component (title + body + type colour), migrate
+these three call sites and drop the em-dash joining.
+
 ## 53. P3.6 (parity/p3-incident) — incident editing: deliberate non-ports & one un-forked duplicate
 
 **Source:** parity package P3.6 (matrix rows 22, 23; plan §5 P3.6). Phone spec:

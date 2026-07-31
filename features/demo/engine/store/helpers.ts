@@ -1,4 +1,4 @@
-import type { MediaKind } from '@/features/demo/engine/types'
+import type { MediaKind, ScopeEntry } from '@/features/demo/engine/types'
 
 /**
  * Immutably set a dot-path on a (possibly nested) object, cloning every node along the path
@@ -28,6 +28,31 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   }
   cur[leaf] = value
   return root as T
+}
+
+/**
+ * Clone requested scopes for a duplicated location, minting fresh ids (P3.5 — port of the
+ * phone's `cloneScopesWithNewIds`, `utils/duplicate-location.ts:21-29`).
+ *
+ * Copies exactly `startDateTime` / `endDateTime` / `isActualTime`. `cameras` is deliberately
+ * blanked, not copied: channel labels are DVR-specific and the duplicate is a different DVR.
+ * Nothing derived travels either — no corrected/adjusted times, no extracted scopes — because
+ * those come from a time offset the new location has not measured yet.
+ *
+ * `nextId` is injected (the store's monotonic counter) — the engine mints no ids of its own,
+ * and there is no `Math.random()`/`crypto.randomUUID()` anywhere in the demo.
+ */
+export function cloneScopesWithNewIds(
+  scopes: readonly ScopeEntry[],
+  nextId: () => string,
+): ScopeEntry[] {
+  return scopes.map((scope) => ({
+    id: nextId(),
+    startDateTime: scope.startDateTime,
+    endDateTime: scope.endDateTime,
+    isActualTime: scope.isActualTime,
+    cameras: '',
+  }))
 }
 
 /** Map a singular media kind to its bucket on `LocationForm.media`. */

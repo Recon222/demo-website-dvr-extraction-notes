@@ -17,6 +17,8 @@ export interface CasesScreenProps {
   /** Opens the delete confirmation for a case (the bridge owns the dialog + the store write). */
   onDeleteCase(caseId: string): void
   onDeleteLocation(locationId: string): void
+  /** Opens the per-location action chooser — the phone's `DuplicateLocationModal` (P3.5). */
+  onLocationActions(locationId: string): void
 }
 
 /** Row-actions keys, mirroring the phone's single-open swipeable key space
@@ -36,6 +38,7 @@ export function CasesScreen({
   onImport,
   onDeleteCase,
   onDeleteLocation,
+  onLocationActions,
 }: CasesScreenProps) {
   /**
    * SINGLE-OPEN (phone parity, `CaseList.tsx:64-75`: opening one swipeable closes the previous).
@@ -84,6 +87,7 @@ export function CasesScreen({
             onImport={onImport}
             onDeleteCase={onDeleteCase}
             onDeleteLocation={onDeleteLocation}
+            onLocationActions={onLocationActions}
           />
         ))}
       </div>
@@ -105,13 +109,17 @@ function CaseRow({
   onImport,
   onDeleteCase,
   onDeleteLocation,
+  onLocationActions,
 }: {
   card: CaseCard
   expanded: boolean
   openActionsKey: string | null
   onToggleActions(key: string): void
   onCloseActions(): void
-} & Pick<CasesScreenProps, 'onToggle' | 'onOpenLocation' | 'onAddLocation' | 'onImport' | 'onDeleteCase' | 'onDeleteLocation'>) {
+} & Pick<
+  CasesScreenProps,
+  'onToggle' | 'onOpenLocation' | 'onAddLocation' | 'onImport' | 'onDeleteCase' | 'onDeleteLocation' | 'onLocationActions'
+>) {
   const key = caseKey(c.id)
   const actionsOpen = openActionsKey === key
   // Phone parity (`SwipeableCaseCard.tsx:99-100,162`: `enabled={!isExpanded}` and
@@ -164,6 +172,7 @@ function CaseRow({
                 onCloseActions={onCloseActions}
                 onOpenLocation={onOpenLocation}
                 onDeleteLocation={onDeleteLocation}
+                onLocationActions={onLocationActions}
               />
             ))
           ) : (
@@ -189,12 +198,13 @@ function LocationRow({
   onCloseActions,
   onOpenLocation,
   onDeleteLocation,
+  onLocationActions,
 }: {
   row: CaseLocationRow
   openActionsKey: string | null
   onToggleActions(key: string): void
   onCloseActions(): void
-} & Pick<CasesScreenProps, 'onOpenLocation' | 'onDeleteLocation'>) {
+} & Pick<CasesScreenProps, 'onOpenLocation' | 'onDeleteLocation' | 'onLocationActions'>) {
   const key = locationKey(loc.id)
   const actionsOpen = openActionsKey === key
   const longPress = useLongPress(() => onToggleActions(key))
@@ -214,12 +224,17 @@ function LocationRow({
         <RowActionsTrigger label={`Actions for location ${loc.locationName}`} open={actionsOpen} onToggle={() => onToggleActions(key)} />
       </div>
       {actionsOpen && (
-        // P3.5 lands "Duplicate…" (the phone's long-press → DuplicateLocationModal) alongside
-        // Delete here: on the phone the two live on separate gestures, which the web collapses
-        // onto this one tray.
+        // Both of the phone's location gestures land here (§48g's marked seam, closed at the
+        // P3 assembly): swipe-to-delete and long-press-to-duplicate are separate gestures on
+        // the phone, and the web collapses them onto this one tray. Non-destructive first.
+        // "Duplicate…" is elided because it opens a CHOOSER (duplicate ×2, new-address ×2,
+        // export ×2), not because the tray is short of room.
         <RowActionsTray
           label={`Actions for location ${loc.locationName}`}
-          actions={[{ label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteLocation(loc.id) } }]}
+          actions={[
+            { label: 'Duplicate…', onSelect: () => { onCloseActions(); onLocationActions(loc.id) } },
+            { label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteLocation(loc.id) } },
+          ]}
         />
       )}
     </div>

@@ -65,6 +65,12 @@ describe('NewLocationModal', () => {
     fireEvent.click(screen.getByText('Create Location'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
+
+  // The gate itself (blank name, duplicate name, `requireAddress`, the reason region and the
+  // focusable-while-blocked rule) is P3.4's `new-location-validation.test.tsx` — 17 arms against
+  // the live modal. P3.5 shipped four narrower copies here against the pre-P3.4 prop shape
+  // (`onCaptureGps`/`onPickCoords`, a hard-`disabled` submit); they were dropped at the P3
+  // assembly rather than rewritten, because every assertion in them is already made there.
 })
 
 describe('ImportModal', () => {

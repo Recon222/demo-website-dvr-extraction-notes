@@ -33,6 +33,7 @@ function renderScreen(over: Partial<CasesScreenProps> = {}) {
     onOpenLocation: vi.fn(),
     onAddLocation: vi.fn(),
     onImport: vi.fn(),
+    onLocationActions: vi.fn(),
     onDeleteCase: vi.fn(),
     onDeleteLocation: vi.fn(),
     ...over,
@@ -108,19 +109,23 @@ describe('CasesScreen row actions — reveal', () => {
   it('swallows the click that ends the hold, so the row’s own action never fires', () => {
     // THE trap the phone doesn't have: its swipe and its tap are different gestures, but on the
     // web the hold ends in a click on an already-interactive row.
+    // `detail: 1` is not decoration: a pointer-originated click always carries a click count,
+    // and the hook keys its keyboard exemption on `detail === 0` (a click synthesised by
+    // Enter/Space, which must never be swallowed). `fireEvent.click` defaults to 0, so an
+    // unqualified click here would be simulating the keyboard and pass for the wrong reason.
     const { onToggle, onOpenLocation } = renderScreen({ expandedId: 'c1' })
     const header = caseHeader('PR25-B') // collapsed — an expanded card's actions are gated off
     longPress(header)
-    fireEvent.click(header)
+    fireEvent.click(header, { detail: 1 })
     expect(onToggle).not.toHaveBeenCalled()
 
     const row = locationRow("Kim's Convenience")
     longPress(row)
-    fireEvent.click(row)
+    fireEvent.click(row, { detail: 1 })
     expect(onOpenLocation).not.toHaveBeenCalled()
 
     // …and only the ONE click is swallowed — the row still works afterwards.
-    fireEvent.click(row)
+    fireEvent.click(row, { detail: 1 })
     expect(onOpenLocation).toHaveBeenCalledWith('l1')
   })
 

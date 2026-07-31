@@ -229,6 +229,34 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Try typing a latitude and longitude, then tab out of the field.',
   },
+  duplicateLocation: {
+    eyebrow: 'Case management',
+    title: 'Location actions',
+    paras: [
+      'Hold a location row — or tap its ⋯ button — for everything you can do with that site. Canvassing a plaza means the same request against six DVRs, so duplicating the submission info beats retyping it six times.',
+      'The suggested name is already de-duplicated the way Windows does it: "Main Store - Copy", then "- Copy (2)", "- Copy (3)". Duplicating a copy never yields "Copy - Copy".',
+    ],
+    bullets: [
+      'Duplicate carries address, contact and the requesting officer — never the DVR data',
+      '"with Scopes" also clones the requested time ranges',
+      '"New Location w/ Sub Info" keeps the request but asks for a new address',
+    ],
+    tip: 'Try "Duplicate Location with Scopes", then re-open the chooser — the suggested name has moved on.',
+  },
+  newAddressLocation: {
+    eyebrow: 'Case management',
+    title: 'Copy the request to a new address',
+    paras: [
+      'Same request, different site. The requesting officer, badge, unit, phone and email come across from the location you pressed — you only enter the address you are standing at.',
+      'The new location is independent, not a copy: it gets its own DVR data, its own time offset, its own scopes.',
+    ],
+    bullets: [
+      'Street address is required here — that is the whole point of the flow',
+      'The name is pre-filled with the first free "New Location"',
+      'Creating it drops you straight into the recovery form',
+    ],
+    tip: 'Type an address (Mapbox suggests as you go), then press Create Location.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',

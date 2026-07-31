@@ -48,6 +48,10 @@ import {
   type IncidentLocationValues,
 } from '@/features/demo/engine/logic/incident-location'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
+import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { ensureUniqueLocationName, generateCopyName } from '@/features/demo/engine/logic/location-name'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -88,7 +92,7 @@ import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -172,6 +176,30 @@ const PROGRESS_SAVED_BODY =
 const PROGRESS_NOT_STORED_BODY =
   PROGRESS_SAVED_SHARED +
   "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
+
+/**
+ * The location action chooser's toasts (P3.5), lifted from the phone's `cases.tsx` Toast calls
+ * — `text1 — text2`, joined because the demo's banner is one line where the phone's Toast has
+ * a title row and a body row.
+ */
+const LOCATION_NOT_FOUND_NOTICE = 'Error — Location not found.'
+const duplicatedNotice = (name: string, mode: DuplicateMode) =>
+  `Location Duplicated — ${name} ${mode === 'with-scopes' ? 'created with scopes.' : 'created.'}`
+/** No phone counterpart: its service throws, this one returns null. Honest, not silent. */
+const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location couldn't be read."
+const NEW_ADDRESS_SUBTITLE = 'Submission info copied — enter the new address.'
+const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
+  `Location Created — ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
+/** Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry. */
+const NEW_ADDRESS_FAILED_NOTICE = 'Failed to Create Location — a name and street address are required.'
+/**
+ * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
+ * location-level export entry point, and hiding the section would misrepresent the surface —
+ * but they resolve to an honest notice instead of a fabricated download, the same treatment the
+ * map gives Call/Email. Re-point them at the real flows when the Export tab lands (P5).
+ */
+const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
+const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -310,6 +338,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // seed came from; the save writes to THAT id, never to a separately-tracked selection.
   const [incidentCaseId, setIncidentCaseId] = useState<string | null>(null)
   const [incidentForm, setIncidentForm] = useState<IncidentLocationValues>(blankIncidentForm)
+  /**
+   * The open location action chooser (P3.5) — the phone's `duplicateState`. Resolved ONCE when
+   * the chooser opens (source + sibling names + the pre-deduped suggestion), like the phone,
+   * so the six actions all act on the row that was actually pressed.
+   */
+  const [dupState, setDupState] = useState<{ sourceId: string; existingNames: string[] } | null>(null)
+  const [dupName, setDupName] = useState('')
+  /**
+   * The chooser's "New Location w/ Sub Info [+ Scopes]" hand-off (the phone's `newAddressState`):
+   * the create-location card, mounted in its require-address variant against this source and
+   * mode. Its form values live in `locForm` like the plain Add-Location caller's.
+   */
+  const [newAddrState, setNewAddrState] = useState<{ sourceId: string; mode: DuplicateMode; existingNames: string[] } | null>(null)
+  /** The demo's Toast analog — an auto-dismissing in-phone banner (the map's idiom). */
+  const [notice, setNotice] = useState<string | null>(null)
   const [imp, setImp] = useState<ImportState>(blankImport)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
@@ -540,6 +583,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     resetOcr()
     setMapPickerOpen(false)
     setActionSheetCaseId(null)
+    setDupState(null) // the chooser's source, cleared with every other transient overlay state
+    setNewAddrState(null)
+    setNotice(null)
     const st = store.getState()
     st.setDrawerOpen(false)
     st.closeModal()
@@ -635,6 +681,113 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp(blankImport)
     store.getState().openModal('import')
   }
+  /**
+   * Long-press (or the row's ⋯ button) on a location — the phone's `handleLocationLongPress`.
+   * Resolves the source and its siblings from LIVE state, pre-dedupes the suggested name, and
+   * opens the chooser. A source that no longer resolves gets the phone's "Location not found."
+   * notice rather than an empty modal.
+   */
+  const openLocationActions = (locationId: string) => {
+    const st = store.getState()
+    const source = st.locations.find((l) => l.id === locationId)
+    if (!source) {
+      setNotice(LOCATION_NOT_FOUND_NOTICE)
+      return
+    }
+    // Sibling names include the source's own — a duplicate may never reuse it.
+    const existingNames = st.locations.filter((l) => l.caseId === source.caseId).map((l) => l.locationName)
+    setDupState({ sourceId: locationId, existingNames })
+    setDupName(generateCopyName(source.locationName, existingNames))
+    st.openModal('duplicateLocation')
+  }
+  const closeLocationActions = () => {
+    setDupState(null)
+    store.getState().closeModal()
+  }
+  /** "Duplicate Location [with Scopes]" — creates the sibling and stays on the list, like the phone. */
+  const submitDuplicate = (name: string, mode: DuplicateMode) => {
+    if (!dupState) return
+    const id = store.getState().duplicateLocation(dupState.sourceId, name, mode)
+    closeLocationActions()
+    if (id === null) {
+      setNotice(DUPLICATION_FAILED_NOTICE)
+      return
+    }
+    // Report the STORED name (trimmed by the action), not the raw field value.
+    const created = store.getState().locations.find((l) => l.id === id)
+    setNotice(duplicatedNotice(created?.locationName ?? name, mode))
+  }
+
+  /**
+   * "New Location w/ Sub Info [+ Scopes]" — the phone's `handleNewAddress`: close the chooser,
+   * open the create-location card pre-filled from the source (name pre-deduped from
+   * "New Location", on-site contact carried) with the address left blank and REQUIRED. The
+   * requester block is not seeded here at all: `duplicateToNewAddress` reads it from the source
+   * (same mechanism as the phone, whose `NewAddressOverrides` also has no requester fields).
+   */
+  const openNewAddressCard = (mode: DuplicateMode) => {
+    if (!dupState) return
+    const st = store.getState()
+    const source = st.locations.find((l) => l.id === dupState.sourceId)
+    if (!source) {
+      closeLocationActions()
+      setNotice(LOCATION_NOT_FOUND_NOTICE)
+      return
+    }
+    setNewAddrState({ sourceId: dupState.sourceId, mode, existingNames: dupState.existingNames })
+    setLocDraftId(`draft-l${uiSeq++}`)
+    setLocForm({
+      ...blankLocForm,
+      locationName: ensureUniqueLocationName('New Location', dupState.existingNames),
+      locationContact: source.locationContact,
+      locationPhone: source.locationPhone,
+    })
+    setDupState(null)
+    st.openModal('newAddressLocation') // replaces the chooser
+  }
+  /** "Export ZIP" / "Export GeoJSON": close the chooser (phone does), then tell the truth. */
+  const exportFromChooser = (message: string) => {
+    closeLocationActions()
+    setNotice(message)
+  }
+  const closeNewAddressCard = () => {
+    setNewAddrState(null)
+    store.getState().closeModal()
+  }
+  /** Creates the independent location and opens it — the phone navigates to the wizard here. */
+  const submitNewAddressLocation = () => {
+    if (!newAddrState) return
+    const id = store.getState().duplicateToNewAddress(
+      newAddrState.sourceId,
+      {
+        locationName: locForm.locationName,
+        businessName: locForm.businessName,
+        streetAddress: locForm.streetAddress,
+        city: locForm.city,
+        locationContact: locForm.locationContact,
+        locationPhone: locForm.locationPhone,
+        // The provenance stamp travels WITH the coordinates (P3.4, §52.4's seam): this card
+        // mounts the SAME `NewLocationModal`, so its GPS button is the real multi-sample
+        // capture and stamps `'gps'`, while an address pick stamps `'geocoded'`. Flattening
+        // both to `'geocoded'` here — the shape P3.5 inherited from the no-op era — would
+        // have relabelled every real fix as a geocode. `submitLocation` does the same.
+        gps: locForm.coordinates,
+      },
+      newAddrState.mode,
+    )
+    if (id === null) {
+      // Phone parity (`cases.tsx`: "Don't clear newAddressState on error — let the user retry"):
+      // the card stays open. Only reachable if something bypasses the card's own gate.
+      setNotice(NEW_ADDRESS_FAILED_NOTICE)
+      return
+    }
+    const created = store.getState().locations.find((l) => l.id === id)
+    const mode = newAddrState.mode
+    closeNewAddressCard()
+    openLocation(id)
+    setNotice(newAddressCreatedNotice(created?.locationName ?? locForm.locationName, mode))
+  }
+
   /** Create, or save an edit. Throws (`DuplicateCaseNumberError`) straight into the modal's
    *  catch — the banner is the modal's job, and swallowing it here would lose the case
    *  silently. Field trimming + the strict coordinate parse live in `caseFormToInput`. */
@@ -1217,6 +1370,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onImport={openImport}
             onDeleteCase={(id) => setPendingDelete({ kind: 'case', id })}
             onDeleteLocation={(id) => setPendingDelete({ kind: 'location', id })}
+            onLocationActions={openLocationActions}
           />
         )
       case 'submission': {
@@ -1473,6 +1627,43 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={() => store.getState().closeModal()} />
+      case 'duplicateLocation':
+        // Rendered only with an open dupState — the chooser's six actions all need the source
+        // it was opened for, so a state-less mount would be a modal with nothing behind it.
+        return dupState ? (
+          <DuplicateLocationModal
+            name={dupName}
+            onChangeName={setDupName}
+            existingNames={dupState.existingNames}
+            onClose={closeLocationActions}
+            onDuplicate={submitDuplicate}
+            onNewAddress={openNewAddressCard}
+            onExportZip={() => exportFromChooser(EXPORT_ZIP_NOTICE)}
+            onExportGeoJSON={() => exportFromChooser(EXPORT_GEOJSON_NOTICE)}
+          />
+        ) : null
+      case 'newAddressLocation':
+        // The create-location card in its require-address variant (phone: a second
+        // NewLocationModal instance). Same `locForm` state as the plain Add-Location caller —
+        // the two are never mounted at once, exactly like the phone's pair.
+        return newAddrState ? (
+          <NewLocationModal
+            form={locForm}
+            // Its OWN write-guard identity (§45f), minted per open like the plain caller's —
+            // the two share `locForm`, so a lookup left over from one must never land in the
+            // other. §52.4's "the new-address card must use P3.4's REAL GPS capture, not the
+            // inherited no-op" is discharged by mounting the same component with no
+            // `onCaptureGps` override: the capture, the geocode toggle and the coordinate card
+            // come with it.
+            draftId={locDraftId ?? undefined}
+            onChange={(patch) => setLocForm((s) => ({ ...s, ...patch }))}
+            onSubmit={submitNewAddressLocation}
+            onCancel={closeNewAddressCard}
+            subtitle={NEW_ADDRESS_SUBTITLE}
+            requireAddress
+            existingNames={newAddrState.existingNames}
+          />
+        ) : null
       case 'import':
         return (
           <ImportModal
@@ -1611,6 +1802,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               for any path that removes the entity out from under an armed dialog. */}
           {deleteTarget && (
             <DeleteConfirmationModal target={deleteTarget} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
+          )}
+          {/* The demo's Toast. Portaled into the phone overlay root so it is visible over an
+              OPEN modal too — the new-address card deliberately stays up after a failed create
+              (phone parity), and a notice hidden behind it would be a silent failure. The root
+              is pointer-events:none and the banner is non-interactive, so nothing underneath
+              becomes unclickable. */}
+          {notice && (
+            <PhoneOverlayPortal>
+              <DemoNotification message={notice} onDismiss={() => setNotice(null)} />
+            </PhoneOverlayPortal>
           )}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}

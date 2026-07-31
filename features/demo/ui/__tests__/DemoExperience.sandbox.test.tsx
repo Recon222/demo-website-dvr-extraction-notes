@@ -17,6 +17,9 @@ vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
+import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import type { AppView } from '@/features/demo/engine/store/create-store'
+import type { ModalId } from '@/features/demo/engine/types'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
 import { importLogBus, type ImportLogLevel } from '@/features/demo/engine/logic/import-log'
 
@@ -35,6 +38,12 @@ const okRun = (over: Partial<Extract<ImportRunResult, { ok: true }>> = {}): Impo
 })
 
 type Store = ReturnType<typeof createDemoStore>
+
+/** Is this manifest cover a VIEW (chapter, launchable or the Map tab) rather than a modal? */
+const isViewCover = (id: AppView | ModalId): id is AppView =>
+  id === 'map' ||
+  (CHAPTERS as readonly string[]).includes(id) ||
+  (LAUNCHABLE as readonly string[]).includes(id)
 
 beforeEach(() => {
   runText.mockReset()
@@ -213,8 +222,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     act(() => store.getState().setView('cases'))
     fireEvent.click(screen.getByText('Test Case')) // expand the card
     // Role-scoped: the exiting completion screen still shows "Test Location" in its summary
-    // during the slide transition. Anchored at the START of the accessible name (P3.1): the row
-    // now sits beside a "Actions for location Test Location" trigger that also carries the name.
+    // during the slide transition, and the row now sits beside an "Actions for location Test
+    // Location" trigger that also carries the name (P3.1's ⋯; P3.5 arrived at the same fix for
+    // its own). Anchored at the START of the accessible name: the ROW is the button whose name
+    // BEGINS with the location name (its text content: name · address · status).
     fireEvent.click(screen.getByRole('button', { name: /^Test Location/ })) // openLocation — the UI path with the reset
     act(() => store.getState().setView('completion'))
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
@@ -472,11 +483,14 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
-      // Visit every covered id in the registry (only 'import' is a modal in v1).
+      // Visit every covered id in the registry. Covers are `AppView | ModalId`, so each one is
+      // recorded through whichever action owns it — discriminated against the runtime
+      // registries rather than a hand-listed `Exclude<>` of modal ids, which silently rotted
+      // as ModalId grew (P3.5 added two) and pushed modal ids through setView.
       for (const item of EXPLORE_ITEMS) {
         for (const id of item.covers) {
-          if (id === 'import') store.getState().openModal(id)
-          else store.getState().setView(id as Exclude<typeof id, 'import' | 'newCase' | 'newLocation' | 'mediaLibrary' | 'editIncident'>)
+          if (isViewCover(id)) store.getState().setView(id)
+          else store.getState().openModal(id)
         }
       }
       store.getState().closeModal()

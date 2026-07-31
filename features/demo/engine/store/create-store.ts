@@ -5,12 +5,14 @@ import type {
   CameraGpsFix,
   CaptureMethod,
   CaseStatus,
+  DuplicateMode,
   GpsCoordinates,
   GpsSource,
   ChapterId,
   DemoCase,
   DemoLocation,
   LaunchableId,
+  LocationForm,
   MediaItem,
   MediaKind,
   ModalId,
@@ -39,7 +41,7 @@ import {
   freshSectionContent,
   reconcileSections,
 } from '@/features/demo/engine/logic/notes'
-import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
+import { cloneScopesWithNewIds, maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {
@@ -106,6 +108,29 @@ export interface NewLocationInput {
    *  (`'gps'`) alongside the address pick (`'geocoded'`), so a fix no longer has to wait for the
    *  Submission screen to be reachable. `accuracyM` is carried through as given — absent unless
    *  the source measured one (Mapbox rooftop, phone mapbox-service.ts:246-247; or a real fix). */
+  gps?: GpsCoordinates & { source: GpsSource }
+}
+
+/**
+ * Address/contact payload for `duplicateToNewAddress` — the fields the visitor enters (or
+ * edits) on the create-location card. Requester fields are intentionally absent: they ALWAYS
+ * come from the source location (phone `NewAddressOverrides`,
+ * `duplicate-location-service.ts:31-40`, same rule and the same reason — the card never
+ * shows them, so a card-sourced value could only ever be a stale copy).
+ */
+export interface NewAddressOverrides {
+  locationName: string
+  businessName?: string
+  streetAddress?: string
+  city?: string
+  locationContact?: string
+  locationPhone?: string
+  /** The full `GpsSource`, same as `NewLocationInput.gps` above. P3.5 narrowed this to
+   *  `Exclude<GpsSource, 'gps'>` because the card it was written against inherited deferred
+   *  §24's `onCaptureGps={() => undefined}` no-op, so an address pick was the only way a
+   *  coordinate could arrive. P3.4 replaced that no-op with the real multi-sample capture and
+   *  the card mounts the same `NewLocationModal`, so `'gps'` is now reachable here — see
+   *  §52.4. Widened at the P3 assembly; narrowing it again would silently drop real fixes. */
   gps?: GpsCoordinates & { source: GpsSource }
 }
 
@@ -204,6 +229,40 @@ export interface DemoActions {
   /** Delete one location. Repairs the selection pair — see the R-19 note at the impl. */
   deleteLocation(locationId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
+  /**
+   * P3.5 — "Duplicate Location [with Scopes]": a sibling of `sourceLocationId` in the SAME
+   * case, carrying every submission-level field (address, contact, coordinates, all five
+   * requester fields) and, in `'with-scopes'` mode, a clone of the requested scopes with
+   * fresh ids. Everything DVR-specific starts blank — time offset, extracted scopes, DVR
+   * info, cameras, export, notes, media, completion (phone `duplicateLocation`,
+   * `duplicate-location-service.ts:59-122`).
+   *
+   * Returns the new location's id, or `null` when the source no longer exists or the name is
+   * blank — the two `ValidationError`s the phone service throws for the same inputs. The
+   * caller surfaces them (the demo bridge shows the phone's "Location not found." notice);
+   * they are backstops, since the chooser resolves the source at open time and disables both
+   * duplicate buttons on a blank/taken name.
+   *
+   * Deliberately does NOT move the selection pair: the phone stays on the Cases list after a
+   * duplicate (no `router.navigate`), so nothing here may reassign the open location.
+   */
+  duplicateLocation(sourceLocationId: string, locationName: string, mode: DuplicateMode): string | null
+  /**
+   * P3.5 — "New Location w/ Sub Info [+ Scopes]": an INDEPENDENT location at a new address
+   * in the same case. Address/contact/name/coordinates come from `overrides` (the card); the
+   * five requester fields ALWAYS come from the source (phone `duplicateToNewAddress`,
+   * `duplicate-location-service.ts:150-208`, incl. its mandatory street address — the whole
+   * point of the flow is a new address).
+   *
+   * Returns `null` for the phone's three `ValidationError` cases: source gone, blank name,
+   * blank street address. Like `duplicateLocation`, leaves the selection pair alone — the
+   * bridge opens the result explicitly (the phone navigates to the wizard afterwards).
+   */
+  duplicateToNewAddress(
+    sourceLocationId: string,
+    overrides: NewAddressOverrides,
+    mode: DuplicateMode,
+  ): string | null
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
   /** Commit a per-camera GPS fix (P3.7). Addressed BY CAMERA ID, never by row index —
@@ -321,6 +380,26 @@ function requireCanonicalTime(value: string): string {
 
 const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
+
+/**
+ * The form a duplicated location starts life with (P3.5): blank everywhere, except that
+ * `'with-scopes'` carries a clone of the source's REQUESTED scopes with fresh ids.
+ *
+ * Everything else is deliberately left blank, matching the phone service: the extracted
+ * scopes, time offset, DVR info, cameras, export block, notes, media and completion state all
+ * describe a device the duplicate has not been to yet. Carrying any of it forward would put
+ * another DVR's measurements into a court document.
+ */
+function duplicatedForm(
+  source: DemoLocation,
+  mode: DuplicateMode,
+  nextScopeId: () => string,
+): LocationForm {
+  return {
+    ...blankLocationForm(),
+    scopes: mode === 'with-scopes' ? cloneScopesWithNewIds(source.form.scopes, nextScopeId) : [],
+  }
+}
 
 /**
  * Create the demo store — empty by default (the owner's empty-boot decision), or rehydrated
@@ -517,6 +596,68 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         // so the case selection must follow the location or the pair goes incoherent.
         currentLocationId: id,
         currentCaseId: caseId,
+      }))
+      return id
+    },
+
+    duplicateLocation: (sourceLocationId, locationName, mode) => {
+      const source = get().locations.find((l) => l.id === sourceLocationId)
+      if (!source) return null // phone: ValidationError('Source location not found: …')
+      const trimmed = locationName.trim()
+      if (!trimmed) return null // phone: ValidationError('Location name is required')
+      const id = nextId('l')
+      // Spread, not a field list: every submission-level field travels (address, contact,
+      // coordinates, ALL FIVE requester fields — the phone's BUG-010 was exactly a hand-written
+      // list that dropped requesterPhone/requesterEmail). Only identity, name and form differ.
+      const loc: DemoLocation = {
+        ...source,
+        id,
+        locationName: trimmed,
+        gps: source.gps ? { ...source.gps } : undefined,
+        form: duplicatedForm(source, mode, () => nextId('sc')),
+      }
+      set((s) => ({
+        locations: [...s.locations, loc],
+        cases: s.cases.map((c) =>
+          c.id === source.caseId ? { ...c, locationIds: [...c.locationIds, id] } : c,
+        ),
+        // No selection write (R-19 stays satisfied by not touching the pair): the phone
+        // returns to the Cases list after a duplicate, so the open location must not move.
+      }))
+      return id
+    },
+
+    duplicateToNewAddress: (sourceLocationId, overrides, mode) => {
+      const source = get().locations.find((l) => l.id === sourceLocationId)
+      if (!source) return null // phone: ValidationError('Source location not found: …')
+      const trimmed = overrides.locationName.trim()
+      if (!trimmed) return null // phone: ValidationError('Location name is required')
+      if (!overrides.streetAddress?.trim()) return null // phone: ValidationError('Street address is required')
+      const id = nextId('l')
+      const loc: DemoLocation = {
+        id,
+        caseId: source.caseId,
+        locationName: trimmed,
+        // Address + contact: the card's values, never the source's — this is a different scene.
+        businessName: overrides.businessName ?? '',
+        streetAddress: overrides.streetAddress,
+        city: overrides.city ?? '',
+        locationContact: overrides.locationContact ?? '',
+        locationPhone: overrides.locationPhone ?? '',
+        gps: overrides.gps ? { ...overrides.gps } : undefined,
+        // Requester block: ALWAYS the source's (the card never shows these fields).
+        requesterName: source.requesterName,
+        requesterBadge: source.requesterBadge,
+        requesterUnit: source.requesterUnit,
+        requesterPhone: source.requesterPhone,
+        requesterEmail: source.requesterEmail,
+        form: duplicatedForm(source, mode, () => nextId('sc')),
+      }
+      set((s) => ({
+        locations: [...s.locations, loc],
+        cases: s.cases.map((c) =>
+          c.id === source.caseId ? { ...c, locationIds: [...c.locationIds, id] } : c,
+        ),
       }))
       return id
     },

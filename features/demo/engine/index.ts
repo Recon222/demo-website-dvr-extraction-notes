@@ -70,9 +70,15 @@ export {
   type FinalSubmissionOutcome,
 } from '@/features/demo/engine/logic/final-submission'
 export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
-// Location naming + the New Location submit gate (P3.4). P3.5 adds `generateCopyName` /
-// `ensureUniqueLocationName` to `location-name` and re-exports them here.
-export { isLocationNameTaken } from '@/features/demo/engine/logic/location-name'
+// Location naming + the New Location submit gate (P3.4 + P3.5). One set of comparison rules
+// per case: the duplicate chooser, its "New Location w/ Sub Info" default name, and the
+// create-location card's live collision check all read from here.
+export {
+  LOCATION_NAME_MAX_LENGTH,
+  ensureUniqueLocationName,
+  generateCopyName,
+  isLocationNameTaken,
+} from '@/features/demo/engine/logic/location-name'
 export {
   NEW_LOCATION_BLOCKS,
   NEW_LOCATION_BLOCK_MESSAGES,
@@ -138,6 +144,7 @@ export {
   type DemoState,
   type DemoActions,
   type CaptureState,
+  type NewAddressOverrides,
   type NewCaseInput,
   type NewLocationInput,
   type PersistedState,
