@@ -80,6 +80,14 @@ export interface AudioRecorderScreenProps {
   /** An informational line (today: the 1-hour auto-stop). Not a failure — it gets the neutral
    *  treatment, never the red one. */
   notice: string | null
+  /**
+   * `prefers-reduced-motion: reduce`, resolved by the flow (review R-17). A prop rather than a
+   * `useReducedMotion()` call inside here, unlike `MediaCaptureScreen.tsx:183`, because this
+   * screen is prop-driven end to end — that is what lets every one of its states be rendered in
+   * a test — and because the flow already has to resolve the same answer for the meter's tick
+   * rate. Two readers of one preference must not be able to disagree.
+   */
+  reduceMotion: boolean
   /** Operator-facing failure text from the capability layer; `null` when there is none. */
   failure: string | null
   onDismissFailure(): void
@@ -100,7 +108,7 @@ const BAR_GAP = 3
 const monoLabel: CSSProperties = { fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 0.5 }
 
 export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
-  const { mode, phase, elapsedMs, canStop, meter, format, timeOfDay, failure, notice } = props
+  const { mode, phase, elapsedMs, canStop, meter, format, timeOfDay, failure, notice, reduceMotion } = props
   const blockedId = `${useId()}-stop-blocked`
   const active = phase === 'recording' || phase === 'paused'
   // The gate applies to every stop affordance, not just the pill (deviation 1 above).
@@ -168,8 +176,11 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
                 // Recording: a smooth 1s pulse. Paused: the phone's hard blink (its Easing.steps).
                 // Idle: invisible, as the phone fades it to opacity 0 (TimerCard.tsx:114).
                 opacity: phase === 'idle' || phase === 'stopped' ? 0 : 1,
-                animation:
-                  phase === 'recording'
+                // Gated: an infinite loop is exactly what the preference is about, and the
+                // colour + READY/REC/PAUSED text carry the state without it.
+                animation: reduceMotion
+                  ? undefined
+                  : phase === 'recording'
                     ? 'blinkDot 1s ease-in-out infinite'
                     : phase === 'paused'
                       ? 'blinkDot 1.4s steps(1,end) infinite'
@@ -197,7 +208,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
           {meter.available ? (
             <span
               data-testid="waveform-live-dot"
-              style={{ width: 6, height: 6, borderRadius: 3, background: '#2B8CC1', animation: phase === 'recording' ? 'blinkDot 2s ease-in-out infinite' : undefined }}
+              style={{ width: 6, height: 6, borderRadius: 3, background: '#2B8CC1', animation: reduceMotion || phase !== 'recording' ? undefined : 'blinkDot 2s ease-in-out infinite' }}
             />
           ) : (
             <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1.4, color: '#7a6a3a' }}>NO LIVE INPUT</span>
@@ -207,7 +218,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
         <div data-testid="waveform-bars" style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: BAR_GAP, padding: '8px 16px' }}>
           <div style={{ position: 'absolute', left: 16, right: 16, top: '48%', height: 1, background: meter.available ? 'rgba(43,140,193,0.2)' : 'rgba(153,186,221,0.08)' }} />
           {meter.bars.map((value, index) => (
-            <Bar key={index} value={value} live={meter.available} paused={phase === 'paused'} />
+            <Bar key={index} value={value} live={meter.available} paused={phase === 'paused'} reduceMotion={reduceMotion} />
           ))}
         </div>
 
@@ -228,7 +239,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(30,58,95,0.5)', overflow: 'hidden' }}>
             <div
               data-testid="level-fill"
-              style={{ height: '100%', borderRadius: 2, width: `${Math.round(meter.level * 100)}%`, background: levelFillColor(meter.level), transition: 'width 120ms linear' }}
+              style={{ height: '100%', borderRadius: 2, width: `${Math.round(meter.level * 100)}%`, background: levelFillColor(meter.level), transition: reduceMotion ? undefined : 'width 120ms linear' }}
             />
           </div>
           <span style={{ fontFamily: MONO, fontSize: 10, color: '#7a9fc4', minWidth: 48, textAlign: 'right' }}>
@@ -270,6 +281,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
             )}
             <RecordButton
               phase={phase}
+              reduceMotion={reduceMotion}
               blocked={stopBlocked}
               describedBy={stopBlocked ? blockedId : undefined}
               onPress={active ? props.onStop : props.onStart}
@@ -341,21 +353,42 @@ function Shell({ children }: { children: ReactNode }) {
 
 /** One spectrum column: the bar above the centre line and the phone's dimmed reflection below
  *  it (`SpectrumVisualizer.tsx:92-118`). */
-function Bar({ value, live, paused }: { value: number; live: boolean; paused: boolean }) {
+function Bar({
+  value,
+  live,
+  paused,
+  reduceMotion,
+}: {
+  value: number
+  live: boolean
+  paused: boolean
+  reduceMotion: boolean
+}) {
   const color = !live
     ? 'rgba(153,186,221,0.2)'
     : paused
       ? 'rgba(255,217,61,0.45)'
       : 'rgba(43,140,193,0.65)'
-  // Heights are fractions of the panel's own half-height, so the panel can be any size.
-  const height = `${Math.max(2, value * 46)}%`
+  // `scaleY` on a full-height box, not an animated `height` (review R-20). The old shape
+  // re-ran style + layout + paint for 80 nodes every 60ms tick, for the whole take, beside a
+  // live recorder and an AudioContext; a transform is composited, so the same picture costs
+  // the compositor alone. The factors are the previous percentages over the same half-box
+  // (46% / 18%), so the geometry is unchanged — this is a rendering change, not a restyle.
+  const scale = Math.max(0.02, value * 0.46)
+  const reflection = Math.max(0.01, value * 0.18)
+  const glide = reduceMotion ? undefined : 'transform 90ms linear'
   return (
     <div style={{ width: BAR_WIDTH, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
-        <div style={{ width: '100%', height, background: color, borderRadius: 1, transition: 'height 90ms linear' }} />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', overflow: 'hidden' }}>
+        <div
+          data-testid="waveform-bar"
+          style={{ width: '100%', height: '100%', background: color, borderRadius: 1, transform: `scaleY(${scale})`, transformOrigin: 'bottom', transition: glide }}
+        />
       </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
-        <div style={{ width: '100%', height: `${Math.max(1, value * 18)}%`, background: color, opacity: 0.3, borderRadius: 1, transition: 'height 90ms linear' }} />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', overflow: 'hidden' }}>
+        <div
+          style={{ width: '100%', height: '100%', background: color, opacity: 0.3, borderRadius: 1, transform: `scaleY(${reflection})`, transformOrigin: 'top', transition: glide }}
+        />
       </div>
     </div>
   )
@@ -365,11 +398,13 @@ function Bar({ value, live, paused }: { value: number; live: boolean; paused: bo
  *  a small red square while recording, a full red circle while paused. */
 function RecordButton({
   phase,
+  reduceMotion,
   blocked,
   describedBy,
   onPress,
 }: {
   phase: RecordingPhase
+  reduceMotion: boolean
   blocked: boolean
   describedBy: string | undefined
   onPress(): void
@@ -405,7 +440,7 @@ function RecordButton({
         opacity: blocked ? 0.55 : 1,
       }}
     >
-      <span style={{ ...inner, transition: 'width 320ms ease, height 320ms ease, border-radius 320ms ease' }} />
+      <span style={{ ...inner, transition: reduceMotion ? undefined : 'width 320ms ease, height 320ms ease, border-radius 320ms ease' }} />
     </button>
   )
 }

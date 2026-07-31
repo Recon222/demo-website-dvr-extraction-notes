@@ -15,6 +15,7 @@ import {
   timeOfDay,
   waveformLevel,
 } from '@/features/demo/engine/logic/media/audio-levels'
+import type { RecordingPhase } from '@/features/demo/engine/logic/media/recording'
 
 /** A frequency buffer whose bins are `fill(binIndex)` — so a bucket's mean is knowable. */
 function bins(length: number, fill: (index: number) => number): Uint8Array {
@@ -118,6 +119,14 @@ describe('recorder status vocabulary (phone TimerCard.tsx:123-137)', () => {
     expect(recorderStatusColor('recording')).toBe('#ff4757')
     expect(recorderStatusColor('paused')).toBe('#ffd93d')
     expect(recorderStatusColor('idle')).toBe('#5a7a9a')
+  })
+
+  it('throws rather than defaulting to READY for a phase outside the union (R-27)', () => {
+    // The runtime half of the exhaustiveness guard. A `default:` here would render READY beside
+    // a live microphone for whatever a future phase describes — the label is a claim about what
+    // the hardware is doing, so silently absorbing an unknown one is the wrong failure mode.
+    expect(() => recorderStatusLabel('finalising' as RecordingPhase)).toThrow(/Unhandled case/)
+    expect(() => recorderStatusColor('finalising' as RecordingPhase)).toThrow(/Unhandled case/)
   })
 
   it('reads the terminal phase as READY, never as a live state', () => {

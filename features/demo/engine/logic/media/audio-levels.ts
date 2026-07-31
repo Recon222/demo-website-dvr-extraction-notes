@@ -16,6 +16,7 @@
  * vocabulary are verbatim ports — those are the phone's rules, not artefacts of its library.
  */
 
+import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { RecordingPhase } from '@/features/demo/engine/logic/media/recording'
 
 // ---- Spectrum -------------------------------------------------------------
@@ -114,30 +115,42 @@ export function levelFillColor(level: number): string {
 
 // ---- Recorder status vocabulary -------------------------------------------
 
-/** `READY` / `REC` / `PAUSED` — the phone's `getStatusText` (`TimerCard.tsx:123-129`).
- *  `stopped` reads `READY` because the recorder screen is never shown in that phase (the flow
- *  has already moved to review), and a label nobody can see should still be the safe one. */
+/**
+ * `READY` / `REC` / `PAUSED` — the phone's `getStatusText` (`TimerCard.tsx:123-129`).
+ *
+ * `idle` and `stopped` are NAMED rather than absorbed by a `default` (review R-27): a `default`
+ * here would silently render READY over whatever phase a future member describes, and this
+ * label sits beside a live microphone. `stopped` reads READY because the recorder screen is
+ * never shown in that phase — the flow has moved to review — and a label nobody can see should
+ * still be the safe one.
+ */
 export function recorderStatusLabel(phase: RecordingPhase): string {
   switch (phase) {
     case 'recording':
       return 'REC'
     case 'paused':
       return 'PAUSED'
-    default:
+    case 'idle':
+    case 'stopped':
       return 'READY'
+    default:
+      return assertNever(phase)
   }
 }
 
 /** The phone's `getStatusColor` (`TimerCard.tsx:131-137`): error red recording, gold paused,
- *  muted slate idle. */
+ *  muted slate idle. Exhaustive for the same reason as the label above. */
 export function recorderStatusColor(phase: RecordingPhase): string {
   switch (phase) {
     case 'recording':
       return '#ff4757'
     case 'paused':
       return '#ffd93d'
-    default:
+    case 'idle':
+    case 'stopped':
       return '#5a7a9a'
+    default:
+      return assertNever(phase)
   }
 }
 

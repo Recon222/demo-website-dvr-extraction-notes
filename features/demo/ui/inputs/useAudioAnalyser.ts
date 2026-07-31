@@ -8,6 +8,7 @@ import {
   waveformLevel,
 } from '@/features/demo/engine/logic/media/audio-levels'
 import {
+  prefersReducedMotion,
   readBrowserAnalyser,
   type AnalyserHandle,
   type AnalyserIo,
@@ -64,13 +65,6 @@ export interface UseAudioAnalyserOptions {
     /** Override the media query (the hook reads `prefers-reduced-motion` otherwise). */
     reducedMotion?: boolean
   }
-}
-
-/** Read the query directly rather than through `useReducedMotion`: that hook caches its
- *  matchMedia subscription module-globally, which the demo already works around at
- *  `screens/import/PickerStage.tsx:94-99`. */
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
 export function useAudioAnalyser({ stream, deps }: UseAudioAnalyserOptions): AudioMeter {

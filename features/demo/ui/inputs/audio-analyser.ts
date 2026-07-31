@@ -131,6 +131,19 @@ export interface AudioTrackFormat {
   channels: number | null
 }
 
+/**
+ * `prefers-reduced-motion: reduce`, read at call time.
+ *
+ * Read directly rather than through `motion/react`'s `useReducedMotion`: that hook caches its
+ * matchMedia subscription module-globally, which the demo already works around at
+ * `screens/import/PickerStage.tsx:94-99`. Lives here (with the other browser reads) rather than
+ * inside a hook, because both the meter's tick rate and the recorder screen's animations need
+ * the same answer and must not be able to disagree about it (review R-17).
+ */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
 export const UNKNOWN_AUDIO_FORMAT: AudioTrackFormat = Object.freeze({ sampleRate: null, channels: null })
 
 /**

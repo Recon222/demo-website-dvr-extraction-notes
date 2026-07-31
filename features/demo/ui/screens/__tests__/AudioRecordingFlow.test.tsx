@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 
-import { SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE } from '@/features/demo/engine/logic/media'
+import { SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import {
   AudioRecordingFlow,
   type AudioRecordingFlowDeps,
@@ -63,7 +64,8 @@ function liveDeps(over: Partial<AudioRecordingFlowDeps> = {}) {
 }
 
 function mount(over: Partial<AudioRecordingFlowProps> = {}) {
-  const onSave = vi.fn()
+  // Defaults to a store that TAKES the note; the refusal arm passes its own (R-1 / §60c).
+  const onSave = vi.fn((_captured: CapturedMedia, _meta: MetadataFormValue) => true)
   const onClose = vi.fn()
   const utils = render(
     <AudioRecordingFlow defaultFilenameBase="audio-note-1" onSave={onSave} onClose={onClose} {...over} />,
@@ -224,6 +226,24 @@ describe('AudioRecordingFlow — the live path', () => {
     expect(revoked).not.toContain(savedUrl)
   })
 
+  it('does NOT hand off a REFUSED save — the hook keeps the URL so its sweep can free it', async () => {
+    // R-1 / §60c, the other half of the guard. Mutation probe: change `if (accepted)` back to an
+    // unconditional `capture.handOff()` and this reddens — the refused take's bytes would be
+    // pinned for the tab's life with nothing left holding a reference to revoke them.
+    const { deps, recorder, revoked, advance } = liveDeps()
+    const onSave = vi.fn((_captured: CapturedMedia, _meta: MetadataFormValue) => false)
+    const { unmount } = mount({ deps, onSave })
+    await settle()
+    await recordAndStop(recorder, advance)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
+    const refusedUrl = onSave.mock.calls[0][0].url as string
+    unmount()
+
+    expect(refusedUrl).toMatch(/^blob:/)
+    expect(revoked).toContain(refusedUrl)
+  })
+
   it('carries the visitor’s filename and notes up to the bridge, not the default', async () => {
     // Row 56's audio half. The default is a PRE-FILL — what gets stored is what is in the field.
     const { deps, recorder, advance } = liveDeps()
@@ -274,8 +294,8 @@ describe('AudioRecordingFlow — the live path', () => {
     expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(2)
   })
 
-  it('shows the capability layer’s failure when a take produced no bytes, and stays put', async () => {
-    const { deps, recorder, advance } = liveDeps()
+  it('shows the capability layer’s failure when a take produced no bytes, and KEEPS the mic', async () => {
+    const { deps, recorder, stream, advance } = liveDeps()
     mount({ deps })
     await settle()
 
@@ -290,6 +310,13 @@ describe('AudioRecordingFlow — the live path', () => {
     // evidence.
     expect(screen.queryByText('Review Audio')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('nothing was saved')
+
+    // R-12: the half §61g claimed was pinned and was not. `handleStop` closes the stream ONLY
+    // on a real take; closing it here drops `mode` to 'offer' and replaces the live recorder
+    // with an "Enable microphone" button — taking away the retry affordance at the exact moment
+    // the visitor needs it. The two assertions above survive that regression; these do not.
+    for (const track of stream.tracks) expect(track.stop).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument()
   })
 
   it('abandons a take in flight when the visitor cancels', async () => {
@@ -344,8 +371,8 @@ describe('AudioRecordingFlow — the live path', () => {
 })
 
 describe('AudioRecordingFlow — the 1-hour ceiling', () => {
-  it('explains the auto-stop that moved the visitor to review on its own', async () => {
-    const { deps, recorder, advance } = liveDeps()
+  it('explains the auto-stop that moved the visitor to review on its own, and releases the mic', async () => {
+    const { deps, recorder, stream, advance } = liveDeps()
     mount({ deps })
     await settle()
 
@@ -362,5 +389,10 @@ describe('AudioRecordingFlow — the 1-hour ceiling', () => {
 
     expect(screen.getByText('Review Audio')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Maximum Duration Reached')
+    // R-21: the auto-stop fires inside useMediaCapture's tick and never passes through
+    // `handleStop`, so a release that lived there left the browser's recording indicator
+    // asserting a live microphone over a finished take. The release is now a reaction to the
+    // take existing, which covers both paths.
+    for (const track of stream.tracks) expect(track.stop).toHaveBeenCalled()
   })
 })

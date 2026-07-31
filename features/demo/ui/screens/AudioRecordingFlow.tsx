@@ -23,7 +23,7 @@ import {
   type RecorderIo,
 } from '@/features/demo/ui/inputs/capture-media'
 import type { ObjectUrlIo } from '@/features/demo/ui/inputs/object-urls'
-import { readAudioTrackFormat, type AnalyserIo } from '@/features/demo/ui/inputs/audio-analyser'
+import { prefersReducedMotion, readAudioTrackFormat, type AnalyserIo } from '@/features/demo/ui/inputs/audio-analyser'
 import { useAudioAnalyser } from '@/features/demo/ui/inputs/useAudioAnalyser'
 import { useMediaCapture } from '@/features/demo/ui/inputs/useMediaCapture'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
@@ -69,9 +69,13 @@ export interface AudioRecordingFlowProps {
    * name through `suggestedFilenameBase`.
    */
   defaultFilenameBase: string
-  /** Hand the finished capture to the bridge. Must be synchronous: `handOff()` runs straight
-   *  after, and the store has to own the URL by then. */
-  onSave(captured: CapturedMedia, meta: MetadataFormValue): void
+  /**
+   * Hand the finished capture to the bridge. Must be synchronous — `handOff()` runs straight
+   * after — and must report whether the store TOOK it (§60c, review R-1): a refused save leaves
+   * the object URL owned by the capture hook so the unmount sweep can free it, instead of
+   * pinning bytes nothing can reach.
+   */
+  onSave(captured: CapturedMedia, meta: MetadataFormValue): boolean
   /** Leave the launch surface (the bridge's `closeLaunch`). */
   onClose(): void
   deps?: AudioRecordingFlowDeps
@@ -97,9 +101,12 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
       capturedAt: deps?.capturedAt,
     },
   })
+  // ONE reading of the preference, shared by the meter's tick rate and the screen's animations
+  // (review R-17). Two readers of the same media query must not be able to disagree.
+  const reduceMotion = deps?.reducedMotion ?? prefersReducedMotion()
   const meter = useAudioAnalyser({
     stream: capture.stream,
-    deps: { analyser: deps?.analyser, reducedMotion: deps?.reducedMotion },
+    deps: { analyser: deps?.analyser, reducedMotion: reduceMotion },
   })
 
   const { captured, permission, phase, stream } = capture
@@ -114,6 +121,11 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     return io === null ? null : pickRecorderMimeType(recorderMimeCandidates('audio'), io.isTypeSupported)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-time capability probe
   }, [])
+
+  // Memoised on the stream (review R-20): the read walks the track list and calls
+  // `getSettings()`, and it ran on every render — including all ~16 the meter's tick causes
+  // each second for the whole take.
+  const trackFormat = useMemo(() => readAudioTrackFormat(stream), [stream])
 
   const readClock = useCallback(
     (): string => timeOfDay(deps?.capturedAt?.() ?? getCurrentFormattedTime(clock.now().getTime())),
@@ -143,6 +155,27 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     void openStream()
   }, [canStream, canRecord, permission, openStream])
 
+  /**
+   * The ONE microphone-release path (review R-21).
+   *
+   * The rule is "a take exists ⇒ the microphone is no longer needed", and it is true however
+   * the recorder got there. Expressing it as a REACTION to the take rather than as an action on
+   * the Stop button is what makes the phone's 1-hour ceiling correct by construction: that
+   * auto-stop fires inside `useMediaCapture`'s own tick and calls `stopRecording()` directly,
+   * so it never passes through `handleStop` — and the release used to live there, leaving the
+   * browser's recording indicator asserting a live microphone over a finished take. That is
+   * precisely the false statement §61g exists to prevent, on the one path that skipped it.
+   *
+   * A FAILED stop produces no take, so this deliberately does not fire: the visitor is still on
+   * the recorder with the microphone open, which is exactly what they need to retry (§61g,
+   * pinned by the zero-byte arm).
+   */
+  const closeStream = capture.close
+  useEffect(() => {
+    if (captured === null || stream === null) return
+    closeStream()
+  }, [captured, stream, closeStream])
+
   const mode: RecorderMode = !canStream || !canRecord
     ? 'sample'
     : permission === 'denied'
@@ -159,10 +192,9 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
   }, [capture])
 
   const handleStop = useCallback(async () => {
-    const result = await capture.stopRecording()
-    // Release the hardware only once a take exists. A failed stop leaves the visitor on the
-    // recorder with the microphone still open, which is exactly what they need to try again.
-    if (result !== null) capture.close()
+    // Releasing the hardware is NOT this handler's job — the effect above owns it, so the
+    // capability layer's auto-stop gets the same treatment as this press (R-21).
+    await capture.stopRecording()
   }, [capture])
 
   const handleRecordAgain = useCallback(() => {
@@ -176,10 +208,11 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
       if (captured === null) return
       // The form supplies a BASE; `buildMediaItem` (bridge side) owns the extension via
       // `mediaFilename`, so nothing here appends one (§58c).
-      onSave(captured, meta)
-      // P4.1 rule 1: the store owns the object URL from this point, so the registry must forget
-      // it. Skipping this revokes it on unmount and the saved note blanks.
-      capture.handOff()
+      const accepted = onSave(captured, meta)
+      // P4.1 rule 1: ownership passes to the store ONLY on a real save, so the registry must
+      // forget the URL only then. Skipping it on a taken save revokes the note on unmount and
+      // it blanks; running it on a REFUSED save pins the bytes with nothing left to free them.
+      if (accepted) capture.handOff()
     },
     [captured, capture, onSave],
   )
@@ -203,8 +236,6 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     )
   }
 
-  const trackFormat = readAudioTrackFormat(stream)
-
   return (
     <AudioRecorderScreen
       mode={mode}
@@ -218,6 +249,7 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
         codec: codecLabel(preferredMime ?? ''),
       }}
       timeOfDay={wallClock}
+      reduceMotion={reduceMotion}
       deniedTitle={CAPTURE_PERMISSION_COPY.microphone.title}
       deniedBody={CAPTURE_PERMISSION_COPY.microphone.deniedBody}
       sampleNotice={canStream ? NO_RECORDER_NOTICE.microphone : SAMPLE_MEDIA_NOTICE.microphone}
