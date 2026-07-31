@@ -48,7 +48,19 @@ export * from '@/features/demo/engine/logic/import'
 // consumer (pipeline, hook, bridge, terminal) uses the internal path, per this feature's
 // convention — and the barrel should not advertise the mutable importLogBus singleton as
 // public surface with zero consumers. Import from '@/features/demo/engine/logic/import-log'.
-export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinateResult } from '@/features/demo/engine/logic/coordinates'
+export {
+  parseCoordinate,
+  formatCoordinate,
+  hasCapturedCoordinates,
+  type CoordKind,
+  type ParseCoordinateResult,
+} from '@/features/demo/engine/logic/coordinates'
+export { assertNever } from '@/features/demo/engine/logic/assert-never'
+export {
+  actionsForStatus,
+  caseStatusSheetLabel,
+  type StatusActions,
+} from '@/features/demo/engine/logic/case-actions'
 export {
   FINAL_SUBMISSION_MESSAGES,
   finalSubmissionSchema,

@@ -38,20 +38,30 @@ export function formatCoordinate(lat: number, lng: number): string {
 }
 
 /**
- * "Were these coordinates actually CAPTURED?" — the phone's `hasCapturedCoordinates` policy
- * (BUG-008/BUG-024): reject NaN/Infinity, out-of-range values, and the exact (0,0) null-island
- * pair, which is what a failed fix reported as zeros looks like. A (0,0) row once printed as an
- * authoritative GPS location in a court-admissible PDF.
+ * Captured-position gate — port of the phone's `hasCapturedCoordinates`
+ * (`src/features/case-management/types/guards.ts:103-110`, BUG-008 display half).
  *
- * It lives HERE, next to the other coordinate policy, because it has two consumers with the
- * same duty — the notes camera formatter and the PDF camera table — exactly as on the phone,
- * where both import one shared function (`@/features/case-management`) rather than each
- * carrying its own copy of the (0,0) rule.
+ * Answers a DIFFERENT question than `parseCoordinate`:
+ *   parseCoordinate          → "is this a well-formed lat/lng?"                  (geometry)
+ *   hasCapturedCoordinates   → "should this ever DISPLAY as a captured position?" (policy)
+ *
+ * (0,0) — Null Island — is geometrically valid but is never a legitimate captured position
+ * for this app (Ontario policing; the point is in the Gulf of Guinea). It is the classic
+ * zero-init / failed-fix artifact, and rendering it as authoritative would put a false
+ * position into a court-facing record. Latitude 0 alone (equator) or longitude 0 alone
+ * (prime meridian) remain real places and pass.
+ *
+ * Every demo surface that DISPLAYS or PLOTS a coordinate should gate on this rather than on
+ * object presence — that is exactly how `0.000000, 0.000000` reached the phone's case-detail
+ * sheet in the original BUG-008 report.
+ *
+ * Shared by every consumer with this duty (notes camera formatter, PDF camera table,
+ * case sheet, screenData) — one function, not per-file copies of the (0,0) rule.
  */
-export function hasCapturedCoordinates(gps: { lat: number; lng: number }): boolean {
-  const { lat, lng } = gps
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false
-  if (lat === 0 && lng === 0) return false
-  return true
+export function hasCapturedCoordinates(
+  value: { lat: number; lng: number } | null | undefined,
+): value is { lat: number; lng: number } {
+  if (!value) return false
+  if (!Number.isFinite(value.lat) || !Number.isFinite(value.lng)) return false
+  return !(value.lat === 0 && value.lng === 0)
 }

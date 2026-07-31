@@ -4,6 +4,7 @@ import { COORD_SOURCES } from '@/features/demo/engine/types'
 import type {
   CameraGpsFix,
   CaptureMethod,
+  CaseStatus,
   GpsCoordinates,
   GpsSource,
   ChapterId,
@@ -121,6 +122,22 @@ export interface DemoActions {
    *  tracked case selection. The correlated-pair signature (`completeLocation(locationId)`)
    *  is the deferred stronger shape — see deferred.md §29 addendum. */
   completeCase(caseId: string): void
+  /**
+   * Case-level status change — the dashboard's Case Actions Sheet (P3.2): Complete Case →
+   * 'complete', Archive Case → 'archived', Reopen Case → 'draft' (the phone's three
+   * one-line services over `updateCase({ status })`, `case-service.ts:573-583`).
+   *
+   * DELIBERATELY NOT `completeCase` above: that action is the Completion SCREEN's, and it
+   * additionally stamps the open location's `form.completed` under the R-32 precondition
+   * that `caseId` owns the current location. The dashboard acts on a case the visitor
+   * merely long-pressed — it has no location context and must not invent one, so it only
+   * moves the status. A case marked complete from the dashboard therefore leaves its
+   * locations' own completion gates untouched, exactly as on the phone.
+   *
+   * SEAM (P3.1, cases CRUD): if that package lands a general `updateCase`, this collapses
+   * into it — keep the three call sites' semantics.
+   */
+  setCaseStatus(caseId: string, status: CaseStatus): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -295,6 +312,15 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
             : l,
         ),
       })),
+
+    setCaseStatus: (caseId, status) =>
+      set((s) => {
+        // No-op when the case is gone or already in that status — house rule: a write that
+        // changes nothing performs no write, so subscribers don't re-render on a repeat tap.
+        const current = s.cases.find((c) => c.id === caseId)
+        if (!current || current.status === status) return {}
+        return { cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }
+      }),
 
     addLocation: (caseId, input) => {
       const id = nextId('l')
