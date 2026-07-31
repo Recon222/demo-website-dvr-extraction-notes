@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
-import { useLongPress } from '@/features/demo/ui/primitives/useLongPress'
+import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -127,11 +127,15 @@ function CaseRow({
   // unreachable while its locations are on screen, so it can't be hit while browsing them.
   const actionsAllowed = !expanded
   const longPress = useLongPress(() => onToggleActions(key), { enabled: actionsAllowed })
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
-        <button type="button" onClick={() => onToggle(c.id)} style={{ flex: 1, textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
+      {/* The hook rides the BUTTON, not this strip: it is the gesture surface, so its own
+          nested-control rule resolves to "this element" for a press anywhere inside, while the
+          ⋯ trigger beside it stays outside the gesture entirely (R-1). */}
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button type="button" onClick={() => onToggle(c.id)} {...longPress} style={{ flex: 1, textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none', ...LONG_PRESS_SURFACE_STYLE }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
@@ -146,7 +150,7 @@ function CaseRow({
           </div>
         </button>
         {actionsAllowed && (
-          <RowActionsTrigger label={`Actions for case ${c.caseNumber}`} open={actionsOpen} onToggle={() => onToggleActions(key)} />
+          <RowActionsTrigger label={`Actions for case ${c.caseNumber}`} open={actionsOpen} onToggle={() => onToggleActions(key)} triggerRef={triggerRef} />
         )}
       </div>
 
@@ -155,7 +159,19 @@ function CaseRow({
           label={`Actions for case ${c.caseNumber}`}
           // The tray closes as it hands off, exactly as the phone closes the swipeable before
           // raising the confirm (`SwipeableCaseCard.tsx:75-78`).
-          actions={[{ label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteCase(c.id) } }]}
+          actions={[
+            {
+              label: 'Delete',
+              tone: 'danger',
+              // Focus moves to the ⋯ trigger BEFORE the tray unmounts (review R-10). The dialog
+              // captures `document.activeElement` on mount to restore it on close; the tray
+              // button it was activated from is gone by then, so without this the capture was
+              // `<body>` and the documented focus-return was a no-op at its only call path. The
+              // trigger is the right anchor anyway — it is the affordance that led here, and it
+              // survives the tray closing.
+              onSelect: () => { triggerRef.current?.focus(); onCloseActions(); onDeleteCase(c.id) },
+            },
+          ]}
         />
       )}
 
@@ -208,11 +224,13 @@ function LocationRow({
   const key = locationKey(loc.id)
   const actionsOpen = openActionsKey === key
   const longPress = useLongPress(() => onToggleActions(key))
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div style={{ marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
-        <button type="button" onClick={() => onOpenLocation(loc.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+      {/* Same as the case header above: the hook rides the row BUTTON (R-1). */}
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button type="button" onClick={() => onOpenLocation(loc.id)} {...longPress} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', ...LONG_PRESS_SURFACE_STYLE }}>
           <div style={{ flex: 1, marginRight: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
             {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
@@ -221,7 +239,7 @@ function LocationRow({
             <span style={{ fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
           </div>
         </button>
-        <RowActionsTrigger label={`Actions for location ${loc.locationName}`} open={actionsOpen} onToggle={() => onToggleActions(key)} />
+        <RowActionsTrigger label={`Actions for location ${loc.locationName}`} open={actionsOpen} onToggle={() => onToggleActions(key)} triggerRef={triggerRef} />
       </div>
       {actionsOpen && (
         // Both of the phone's location gestures land here (§48g's marked seam, closed at the
@@ -232,8 +250,9 @@ function LocationRow({
         <RowActionsTray
           label={`Actions for location ${loc.locationName}`}
           actions={[
-            { label: 'Duplicate…', onSelect: () => { onCloseActions(); onLocationActions(loc.id) } },
-            { label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteLocation(loc.id) } },
+            { label: 'Duplicate…', onSelect: () => { triggerRef.current?.focus(); onCloseActions(); onLocationActions(loc.id) } },
+            // Focus to the ⋯ trigger before the tray goes — see the case row above (R-10).
+            { label: 'Delete', tone: 'danger', onSelect: () => { triggerRef.current?.focus(); onCloseActions(); onDeleteLocation(loc.id) } },
           ]}
         />
       )}

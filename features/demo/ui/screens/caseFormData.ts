@@ -1,4 +1,4 @@
-import type { DemoCase } from '@/features/demo/engine/types'
+import type { DemoCase, IncidentCoordSource } from '@/features/demo/engine/types'
 import type { CaseEdits, NewCaseInput } from '@/features/demo/engine/store/create-store'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 
@@ -30,8 +30,18 @@ export interface NewCaseFields {
    *  The incident scene can be off-grid (no street address), so coords are hand-enterable. */
   incidentLatitude: string
   incidentLongitude: string
-  /** '' | 'geocoded' (filled by an address pick) | 'manual' (typed by hand). */
-  incidentCoordinateSource: string
+  /**
+   * `''` (none yet) | `'geocoded'` (filled by an address pick) | `'manual'` (typed by hand).
+   *
+   * The UNION, not bare `string` (review R-13, discharging §53d's fired trigger). Its engine
+   * twin `IncidentLocationValues.coordinateSource` has been `IncidentCoordSource | ''` since
+   * P3.6, and the coercion below records anything that is not `'geocoded'` as `'manual'` — so
+   * with a bare `string` a typo at a write site became a silent provenance mislabel on a field
+   * that is persisted and printed into the court document. §53d logged the duplication with
+   * the trigger "the next agent to touch `NewCaseModal`'s incident section — most likely
+   * P3.3's edit-mode work"; P3.3 rewrote the component and the fold did not happen.
+   */
+  incidentCoordinateSource: IncidentCoordSource | ''
   notes: string
 }
 
@@ -93,6 +103,9 @@ function toIncidentCoordinates(form: NewCaseFields): NewCaseInput['incidentCoord
   return {
     lat: lat.value,
     lng: lng.value,
+    // `''` means "no pick happened", which for a pair that nonetheless parsed can only mean
+    // hand entry. The union makes that an exhaustive two-way choice rather than a catch-all
+    // over every string that is not 'geocoded' (R-13).
     source: form.incidentCoordinateSource === 'geocoded' ? 'geocoded' : 'manual',
   }
 }

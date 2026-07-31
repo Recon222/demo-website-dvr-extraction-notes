@@ -16,7 +16,10 @@ export type { NewCaseFields }
 
 interface NewCaseModalBaseProps {
   form: NewCaseFields
-  onChange(field: keyof NewCaseFields, value: string): void
+  /** Field-typed, not `(field, value: string)` (review R-13): the provenance field is a union,
+   *  and a keyed setter that accepts any `string` would let a typo through to a persisted,
+   *  PDF-rendered value. Generic so each key checks against its OWN type. */
+  onChange<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K]): void
   onSubmit(): void
   onCancel(): void
 }
@@ -273,6 +276,13 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
       <Field label="Notes" multiline value={form.notes} onChange={(v) => onChange('notes', v)} placeholder="Case notes…" />
 
       <div style={{ marginTop: 4 }}>
+        {/* No `submitDescribedBy`, deliberately — do not "fix" this into a swallow or a reason
+            region (review appendix, WEB-7). §50a/§56d's whole design here is that the click
+            REACHES `handleSubmit`, which then writes the phone's verbatim per-field messages
+            ("Case number is required" / "Unit is required") into the fields' own `role="alert"`
+            nodes. The reason is reachable by activation rather than pre-stated, which is what
+            makes that copy live instead of dead. The New Location card is the other shape — its
+            reason is on screen before the press — and the two are meant to differ. */}
         <ModalActions submitLabel={isEdit ? 'Save Changes' : 'Create Case'} onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
       </div>
 

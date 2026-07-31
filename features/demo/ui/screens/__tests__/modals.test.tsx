@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
+import { blankCaseForm } from '@/features/demo/ui/screens/caseFormData'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -21,7 +22,9 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
 }
 
 describe('NewCaseModal', () => {
-  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '' }
+  // The shared blank, not a hand-rolled twin: R-13 narrowed `incidentCoordinateSource` to a
+  // union and this literal stopped compiling, which is the drift the union exists to catch.
+  const blankCase = blankCaseForm
 
   it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()

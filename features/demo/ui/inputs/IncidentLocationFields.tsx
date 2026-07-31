@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useId } from 'react'
 import type { CSSProperties } from 'react'
 
 import { parseCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
@@ -112,6 +112,7 @@ function CoordinateField({
   onChange(v: string): void
   onBlur(): void
 }) {
+  const errorId = `${useId()}-error`
   return (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
@@ -122,11 +123,20 @@ function CoordinateField({
         placeholder={kind === 'lat' ? INCIDENT_FIELD_LABELS.latitudePlaceholder : INCIDENT_FIELD_LABELS.longitudePlaceholder}
         aria-label={label}
         aria-invalid={error !== undefined}
+        // The treatment the shared `Field` gained in this same phase (§56e), applied to the one
+        // input that missed it (review R-16). Without the association an SR visitor heard
+        // "invalid entry" and never why; `role="alert"` announces it, since this message is
+        // raised by a deliberate action (blur), not by a live per-keystroke check.
+        aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
         style={error ? { ...coordInput, borderColor: '#ff4757' } : coordInput}
       />
-      {error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
+      {error && (
+        <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+          {error}
+        </div>
+      )}
     </div>
   )
 }

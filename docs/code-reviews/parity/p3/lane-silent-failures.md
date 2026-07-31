@@ -1,329 +1,224 @@
-# P3 review — SILENT-FAILURES lane
+# P3 review — SILENT-FAILURES lane · FIX-DELTA
 
-**Branch:** `feat/parity-p3` @ `4e60680` · **Diff:** `git diff master...feat/parity-p3` (91 files, +11321/-317)
-**Lane definition:** `.claude/agents/silent-failure-hunter.md` · **Contract read first:** `features/demo/CLAUDE.md`
-**Phase context honoured (not re-flagged):** PR #32 body + deferred `§48`–`§56` — honest export notices,
-`isDeleting` not ported (synchronous write), prior-phase choices, and the tracked `§15`/`§18`/`§28` items.
+**Branch:** `feat/parity-p3` @ `3cecfcc` · **Fix round:** `b678a8d..HEAD` (15 commits, R-1…R-17)
+**Initial pass was against:** `4e60680` · **Lane definition:** `.claude/agents/silent-failure-hunter.md`
+**Ledger:** deferred `§57` (fix-round judgement calls) + `§57h` (what stays deferred, with triggers)
 
-**Verdict: APPROVE with comments.** 0 CRITICAL, 0 HIGH, 1 MEDIUM, 3 LOW.
+## Verdict: APPROVE — all four prior findings FIXED, 0 new, 0 fix-introduced regressions
 
-The fallback-honesty machinery this lane exists to protect is intact and, in two places, extended
-correctly: the six-action chooser's export arms tell the truth on press instead of faking a download,
-the duplicate/new-address failure arms surface a visible banner rather than closing quietly, and the
-notice is portalled where it genuinely paints over an open modal (verified by z-index, below). The
-one substantive finding is the sibling the assembly's own `§56b` no-op hunt missed.
+| # | Finding (initial pass) | Status | Fixed by |
+|---|---|---|---|
+| 1 | **[MEDIUM]** `updateIncidentLocation` has no unknown-id guard, contradicting its own JSDoc | **FIXED** | `76abf1c` (R-4) |
+| 2 | **[LOW]** A second notice inside 2.6 s inherits the first one's timer | **FIXED** | `6616716` (R-8, + R-9 rider) |
+| 3 | **[LOW]** `§49g`'s `hasCapturedCoordinates` map audit fired on P3.7 but `toMapData` was not gated | **FIXED** | `113c5a3` (R-7) |
+| 4 | **[LOW]** `MapScreen.onEditIncident` optional but its CTA renders unconditionally | **FIXED** | `38bf301` (R-14) |
+| — | *(demoted observation, not filed)* `NEW_ADDRESS_FAILED_NOTICE` names two unreachable causes | **FIXED anyway** | `c0e48e4` rider (R-2) |
+
+Per the aggregator's disposition, the **no-change-Save subscriber wake** was dropped as not-owed
+(`updateCase` has the identical property and no sibling does deep no-change comparison). Not re-filed —
+and I agree with the reasoning: adding it to one writer alone would be a new divergence, not a fix.
+
+| Severity | Prior | New | Open |
+|---|---|---|---|
+| CRITICAL | 0 | 0 | 0 |
+| HIGH | 0 | 0 | 0 |
+| MEDIUM | 1 | 0 | **0** |
+| LOW | 3 | 0 | **0** |
 
 ---
 
-## Findings
+## Verification, finding by finding
 
-### [MEDIUM] `updateIncidentLocation` has no unknown-id guard — the `§56b` zustand no-op defect's surviving sibling, and its JSDoc says it does
+### 1 — [MEDIUM] incident writer's unknown-id guard · **FIXED** (`76abf1c`)
 
-**File:** `features/demo/engine/store/create-store.ts:506-509` (impl), `:220-225` (the doc that claims otherwise)
-
-**Code:**
-```ts
-updateIncidentLocation: (caseId, patch) =>
-  set((s) => ({
-    cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
-  })),
-```
-against its own action doc at `:224` — *"A no-op for an unknown id, like every other case-keyed writer here."*
-
-It is not. Every other case-keyed writer P3 added takes a `get()`-first early return before `set`:
-
-| Writer | Guard |
-|---|---|
-| `updateCase` | `:456` `if (!get().cases.some((c) => c.id === caseId)) return` |
-| `setCaseStatus` | `:502-503` `const current = get().cases.find(…); if (!current \|\| current.status === status) return` |
-| `deleteCase` | `:530` `if (!get().cases.some((c) => c.id === caseId)) return` |
-| `deleteLocation` | `:558-559` `const loc = get().locations.find(…); if (!loc) return` |
-| `setCameraGps` | `:691` `if (!loc \|\| !loc.form.cameras.some((c) => c.id === cameraId)) return` |
-| **`updateIncidentLocation`** | **none** |
-
-`updateCase`'s own comment two functions above states the rule this one breaks verbatim: *"a bare
-`.map` would still allocate a new `cases` array, waking every subscriber and triggering a snapshot
-write for nothing."*
-
-**Adversarial input / sequence (arm 1 — reachable today):** Map tab → incident pin → *Edit Incident
-Location* → press **Save Changes** without changing anything. `.map` allocates a fresh `cases` array
-and a fresh case object regardless, so every `cases` subscriber wakes: `caseCards`, `actionSheetCase`,
-`mapViewerCase`/`mapData` all recompute and the debounced persistence subscriber writes a snapshot —
-for a write that changed nothing. This is precisely the shape `§56b` caught in `setCaseStatus`'s
-`{}`-from-inside-`set`, one `.map` removed.
-
-**Adversarial input / sequence (arm 2 — defence-in-depth, not reachable today):** with a `caseId` no
-case owns, the visitor's edit is discarded and reported as saved — `submitIncidentLocation`
-(`features/demo/ui/DemoExperience.tsx:824-827`) calls the action and then closes the modal
-unconditionally, with no banner and no breadcrumb. I traced whether a case can be deleted underneath
-an open editor and it cannot: the phone overlay root is `zIndex: 40` (`ui/PhoneFrame.tsx`, the
-`ref={setOverlay}` div) while `TabBar` is `zIndex: 18`, and `ModalShell`'s scrim is `position:
-absolute; inset: 0; pointerEvents: 'auto'` inside that root — so the tab bar is covered and the Cases
-list is unreachable while the editor is up. The guard is what keeps that true if a later package
-hoists the editor to an always-mounted slot (the shape `§49f` already records for `CaseActionsSheet`)
-or adds any background writer.
-
-**Observable wrong behaviour:** nothing the visitor sees today; a documented invariant that the code
-does not implement, in the exact class of defect the P3 assembly just fixed one function away — and
-the safety net the `§50g`/`§49f` "a future concurrent writer should re-check this" triggers assume is
-already in place.
-
-**Why the test suite did not catch it:** `features/demo/engine/logic/__tests__/incident-location.test.ts:144`
-is titled *"touches only the named case, and no-ops on an unknown id"* but asserts only
-`expect(store.getState().cases.some((x) => x.incidentBusinessName === 'ghost')).toBe(false)` — a
-VALUE-level check that passes either way. That is the same assertion shape `§56b` records as the
-reason P3.2's `setCaseStatus` test *"passed either way"* and P3.1's whole-state assertion is what
-caught it. (Note `:155` deliberately asserts `cases` is a NEW array — for a *known* id, which is
-correct and should stay.)
-
-**Fix:** add P3.1's line verbatim before `set`:
+**Fix as landed** (`features/demo/engine/store/create-store.ts:506-516`):
 ```ts
 updateIncidentLocation: (caseId, patch) => {
   if (!get().cases.some((c) => c.id === caseId)) return
   set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)) }))
 },
 ```
-and upgrade the unknown-id arm of `incident-location.test.ts:144` to the whole-state pin
-(`const before = store.getState(); …; expect(store.getState()).toBe(before)`), matching the stronger
-assertion `store.test.ts` now carries at `setCaseStatus`'s call site.
+Exactly P3.1's line, in the position I named, with the `§56b` reasoning recorded at the guard.
+
+**Test upgraded, which is the half that mattered** —
+`features/demo/engine/logic/__tests__/incident-location.test.ts:150-157` now takes the whole-state
+pin (`const before = store.getState(); …; expect(store.getState()).toBe(before)`), replacing the
+value-level assertion that the writer satisfied unconditionally. That was my stated evidence for why
+the defect survived P3.6's suite; the commit records mutation-verification (removing the guard reddens
+it). The pre-existing `:155` arm that asserts a NEW `cases` array for a *known* id is correctly left
+alone — the two arms now pin both directions.
+
+**Both arms of the finding are closed.** Arm 1 (a fresh `cases` array + state object for a write that
+matched nothing) can no longer happen. Arm 2 (a save against a vanished case reported as success) is
+now a true no-op at the store, and `R-12` additionally gave the editor one close path
+(`closeIncidentModal`, `DemoExperience.tsx:851-861`) that clears `incidentCaseId`/`incidentForm` — so
+the seed can no longer outlive the modal either. The caller still closes unconditionally with no
+notice on that path; that is correct given it is unreachable twice over (the modal scrim covers the
+tab bar, and the id is seeded from a case just found), and the store no longer lies about it.
+
+**Bonus fix in the same family, not filed by me but worth recording:** `R-11` (`3c77199`) found the
+New Case sheet deriving its mode *twice* — the render arm from `cases.find(caseEditId)` with the
+create-mode fallback, `submitCase` from a bare `caseEditId !== null`. On disagreement the sheet
+presented "Create Case", ran the create confirmation, then took the EDIT branch into `updateCase`'s
+guarded no-op: **the visitor confirms a creation and nothing is created, silently.** That is a
+textbook fake-success and it sits directly beside the `§50g` fallback my pass cleared as
+"handled" — I checked the render arm and did not check that `submitCase` re-derived it. Now one
+`editingCase` derivation governs both (`DemoExperience.tsx:801-813, 1637-1643`), pinned end to end.
+Credit where due; noting the miss so the next pass checks both halves of a fallback, not one.
+
+### 2 — [LOW] notice timer · **FIXED** (`6616716`)
+
+`features/demo/ui/screens/map/DemoNotification.tsx:53` — `}, [durationMs, message])`. A message swap
+now restarts the dwell, so the export/failure banners get their full 2600 ms rather than inheriting
+~200 ms of a predecessor's window. Same-message re-renders still do not restart (deps compare by
+value), so there is no never-dismisses regression. Arm at
+`map/__tests__/DemoNotification.test.tsx`.
+
+**R-9 closed an arm of the same finding I missed.** The banner was a plain `<div>`. For Export ZIP,
+Export GeoJSON, the location-not-found arm and both failure arms this banner is the *entire* outcome
+(`§52.2`'s honest answer in place of a fake download) — so a screen-reader visitor got a closed
+dialog, focus on `<body>`, and silence: the truth told to sighted visitors only. `role="status"` is
+now on it (`:56`). My pass verified the banner *paints* over an open modal and stopped there; "is it
+announced" is the same question one sense over, and I should have asked it. The two fixes compose —
+a message change restarts the timer *and* re-announces.
+
+### 3 — [LOW] `toMapData` plotting gate · **FIXED** (`113c5a3`)
+
+`features/demo/ui/screens/map/mapData.ts:79-97` — both call sites gated:
+`hasCapturedCoordinates(ic)` for the incident, `locations.filter((l) => hasCapturedCoordinates(l.gps))`
+for the pins. The case sheet, the PDF camera row, the notes formatter and the map now read one policy,
+so a single stored pair no longer has two behaviours. `statusCounts` derives from `pins`, so an
+ungated (0,0) can no longer inflate the tally either — an arm I had not thought through and the fix
+did. Arms in `map/__tests__/mapData.test.ts`.
+
+`§49g`'s trigger is discharged in `§57e`, which also keeps my severity framing honest: the demo has no
+zero-init artifact, so this is consistency between consumers rather than a fabricated position.
+
+### 4 — [LOW] `MapScreen.onEditIncident` · **FIXED** (`38bf301`)
+
+`features/demo/ui/screens/map/MapScreen.tsx:26-38` — the prop is now required and forwarded directly
+(`onEditIncident={onEditIncident}`, `:113`), so a handler-less mount is a compile error rather than a
+full-size primary CTA that swallows every press. The two optional neighbours (`onChangeCase`,
+`onGoToLocation`) are correctly left alone — they gate their own affordances; this one's CTA did not.
+`tsc` surfaced four unwired test renders, which is the change doing its job.
 
 ---
 
-### [LOW] A second notice raised inside 2.6 s inherits the first one's timer and can flash for milliseconds
+## Sweep of the fix round's new arms
 
-**File:** `features/demo/ui/screens/map/DemoNotification.tsx:34-37`, consumed at
-`features/demo/ui/DemoExperience.tsx:1811-1815`
+**The abandoned-gesture paths (`R-1`, `ec20686`) — clean, and it fixed a real silent failure I
+missed.** The consolidated `ui/primitives/useLongPress.ts` now resets **both** latches at the top of
+every `pointerdown` before the button/nested-control guards (`:143-161`). Two genuine defects fell out
+that my pass did not find:
+- the shared hook **double-fired on touch** — `onContextMenu` ran `clear(); cb()` unconditionally, and
+  `clear()` is a no-op once the timer has nulled itself, so both Cases consumers (whose callback is a
+  toggle) read as open-then-close: *a hold on the row carrying Delete and Duplicate… appeared to do
+  nothing.* That is a silent failure in my lane and I walked past it;
+- the dashboard's private copy reset `firedRef` *after* the `e.button !== 0` return, so a mouse hold
+  left the latch standing and swallowed the next genuine right-click.
 
-**Code:**
-```ts
-useEffect(() => {
-  const t = setTimeout(() => onDismissRef.current(), durationMs)
-  return () => clearTimeout(t)
-}, [durationMs])          // `message` is NOT a dep
-```
-```tsx
-{notice && (
-  <PhoneOverlayPortal>
-    <DemoNotification message={notice} onDismiss={() => setNotice(null)} />
-  </PhoneOverlayPortal>
-)}
-```
-The element sits at a stable position in the tree, so a `notice` string change re-renders the *same*
-instance: the message swaps, the 2600 ms timer does not restart.
+I re-traced the merged hook against both platform sequences and it is correct: touch hold →
+timer fires once, the trailing `contextmenu` is consumed by `fired`, the trailing click by
+`swallowNextClick`; mouse hold → no `contextmenu`, and the *right-click's own* `pointerdown` clears
+`fired` because the reset precedes the button guard. `pointerdown` precedes `contextmenu` on every
+engine, so that ordering holds. Both sequences are pinned
+(`primitives/__tests__/useLongPress.test.tsx:170-206`), mutation-verified per the commit.
 
-**Adversarial input / sequence:** P3 is what makes this reachable — the bridge's `notice` is now a
-single slot driven by seven strings (`LOCATION_NOT_FOUND_NOTICE`, `DUPLICATION_FAILED_NOTICE`,
-`duplicatedNotice`, `newAddressCreatedNotice`, `NEW_ADDRESS_FAILED_NOTICE`, `EXPORT_ZIP_NOTICE`,
-`EXPORT_GEOJSON_NOTICE`; `DemoExperience.tsx:185-202`). Duplicate a location — notice at t=0 — then
-follow the rail's own tip for this modal (*"then re-open the chooser — the suggested name has moved
-on"*, `engine/content/narration.ts`, `duplicateLocation`), and press **Export ZIP** at t≈2.4 s. The
-export notice replaces the message and is dismissed 200 ms later.
+The call-site move (handlers from the wrapper strip onto the row/header `<button>`) keeps the
+capture-phase swallow effective — `onClickCapture` still runs before the button's own bubble-phase
+`onClick`, and `stopPropagation` in capture kills React's bubble dispatch — while leaving the ⋯
+trigger outside the gesture. `isNestedControl` reads `e.currentTarget` synchronously, so the synthetic
+event is still valid. `§57a`'s refutation of the review's "lift `closest('button')` verbatim"
+instruction is correct: that would have bailed on every Cases hold.
 
-**Observable wrong behaviour:** the two export actions have no other feedback by design — they close
-the chooser and raise the banner, and that banner *is* the honest answer `§52.2` built ("Export ZIP
-isn't available yet — it lands with the Export tab"). Truncated to a sub-perceptual flash, the visitor
-presses a live-looking primary button and sees nothing happen: the dead-button shape the honest-notice
-treatment exists to prevent. Same for a `NEW_ADDRESS_FAILED_NOTICE` landing on the heels of an earlier
-banner.
+**The gate-module routing's error surfaces (`R-3`, `3dee080`) — strictly more honest than before.**
+`DuplicateLocationModal` now derives from the shared `newLocationBlock({ …, requireAddress: false })`
+(`:135`), renders the reason in an unconditionally-mounted `role="status"` region (`:165-171`), points
+both dimmed actions at it via `aria-describedby`, and enforces in the caller (`:139-142`). The
+`addressRequired` arm is unreachable with `requireAddress: false`, and the module's ordering rule
+comes along, so a blank name reports "required" and never "duplicate". This closes a silent arm my
+pass cleared too generously: under the old hard `disabled`, a **blank** name produced *no message at
+all* and simply removed two primary actions from the tab order. `NAME_TAKEN_ERROR` is now a re-export
+of the module's string, so the two surfaces cannot drift on copy.
 
-**Fix:** one line at the call site — `<DemoNotification key={notice} …>` — or add `message` to the
-effect's dep array in `DemoNotification`.
+**`NEW_ADDRESS_FAILED_NOTICE` rider (`c0e48e4`) — correct and correctly scoped.** New copy:
+`"Failed to Create Location — the source location couldn't be read."` — the one cause that can
+actually reach it, since the card's own `newLocationBlock` gate holds blank-name and blank-street
+upstream. The old sentence would have told a visitor to fix a form that was already valid. The
+three-refusals-one-`null` shape is recorded on the constant with a pointer to type-design's carried
+NIT, so the copy can split back into three sentences if the store ever returns a discriminated result.
+The same commit also wrote the end-to-end arm for the `gps: locForm.coordinates` wire whose severing
+had left all 1891 tests green — `§57d` records the reusable lesson (an argument from similarity is not
+a pin), which is the right generalisation.
 
----
+**Other new arms, checked and clean:**
+- `R-16` (`c4dce78`) — `IncidentLocationFields`' `CoordinateField` error is now `role="alert"` + an id
+  the input's `aria-describedby` points at. `role="alert"` is the right mode here (blur-raised, not
+  per-keystroke), matching `§56e`'s distinction.
+- `R-10` (`56c0b63`) — focus moves to the row's own ⋯ trigger *before* the tray hands off, so
+  `DeleteConfirmationModal`'s `opener.isConnected` restore finds a live element instead of `<body>`.
+  `triggerRef.current?.focus()` degrades to a no-op if the ref is ever null, which loses focus
+  restoration but claims nothing false. `§57f` explains why neither shape the review proposed was
+  taken; the reasoning holds (keeping the tray mounted would drop `§48a`'s ported
+  tray-closes-on-handoff).
+- `R-12` (`3c77199`) — `closeIncidentModal` clears the seed on both Save and Cancel, the `§56j`
+  hardening applied to the sibling it missed.
+- `R-13` (`0618c7d`) — `NewCaseFields.incidentCoordinateSource` narrowed to `IncidentCoordSource | ''`
+  **and** the setter made generic per key. `§57g`'s note is the load-bearing part: narrowing the field
+  alone would have caught nothing, because `onChange(field: keyof NewCaseFields, value: string)`
+  accepted any string for any key — a typo would have become a silent provenance mislabel on a field
+  that is persisted and printed into the court document.
 
-### [LOW] `§49g`'s owed `hasCapturedCoordinates` audit fired on P3.7, but `toMapData` was not gated — the case sheet and the map now disagree about the same (0,0) pair
-
-**File:** `features/demo/ui/screens/map/mapData.ts:74-77` (incident) and `:84-88` / `:93-100` (locations)
-
-**Code:**
-```ts
-const ic = viewerCase.incidentCoordinates
-const incident: MapIncident | null = ic ? { id: viewerCase.id, …, lng: ic.lng, lat: ic.lat } : null
-…
-const located = locations.filter((l) => l.gps)
-```
-Presence-gated, not policy-gated. P3.7 introduced the shared policy (`engine/logic/coordinates.ts:60-68`)
-whose own doc says *"Every demo surface that DISPLAYS or PLOTS a coordinate should gate on this rather
-than on object presence"*, and applied it to three consumers — `notes/camera-formatter.ts`,
-`pdf/case-notes.ts` (`camGpsRow`), and `screenData.ts` `toCaseSheet` — but not to the map.
-`§49g` named the trigger explicitly: *"the map's `toMapData` and `CoordinateDisplay` were NOT audited
-… Trigger: P3.7 (per-camera GPS) or P6.1 (map depth), whichever touches plotting first."* P3.7 touched
-plotting (the PDF camera row and the case sheet's Coordinates row); the map half was not done.
-
-**Adversarial input / sequence:** create a case, type `0` into Latitude and `0` into Longitude. Both
-pass `parseCoordinate` (0 is in range for both axes), so `caseFormToInput` stores
-`{ lat: 0, lng: 0, source: 'manual' }`.
-
-**Observable wrong behaviour:** the Case Actions Sheet omits the Coordinates row (and drops the whole
-*Incident Location* group when nothing else is filled) because `toCaseSheet` gates on
-`hasCapturedCoordinates`; the Map tab plots the incident pin in the Gulf of Guinea and the detail card
-prints `0.000000, 0.000000`. Two surfaces in the same session giving two answers about one stored pair.
-
-**Why LOW and not higher:** the demo has no zero-init source — coordinates only arrive via
-`parseCoordinate`, a geocode (`Number.isFinite`-validated) or a real fix — so the pair can only get
-there by hand-typing it, which is arguably "what the visitor asked for". The finding is the
-inconsistency and the un-discharged trigger, not a fabricated position.
-
-**Fix:** gate `toMapData`'s `incident` and `located` on `hasCapturedCoordinates` (one import, two
-predicates), or, if the audit is deliberately deferred again, say so in `§54` with a named trigger so
-`§49g` is not left pointing at a package that has already shipped.
+**Fix-introduced regressions: none found.** Specifically re-checked: the `R-4` guard cannot refuse a
+legitimate write; `R-7`'s gates do not drop any coordinate the demo can actually produce (and the
+sheet/pin/tally now move together); `R-8`'s dep addition cannot strand a notice; `R-1`'s call-site
+move preserves the swallow's subtree reach and leaves the ⋯ trigger ungated; `R-3`'s
+`aria-disabled` swap keeps enforcement at the caller per `§56d`.
 
 ---
 
-### [LOW] `MapScreen.onEditIncident` is optional but the "Edit Incident Location" CTA renders unconditionally — the inverse of the precedent `§49a` set one package earlier
+## Recorded, not filed
 
-**File:** `features/demo/ui/screens/map/MapScreen.tsx:26-27` and `:102`;
-`features/demo/ui/screens/map/LocationDetailCard.tsx:70-72`
+**`onContextMenu` does not arm `swallowNextClick`.** If a browser were to dispatch `contextmenu`
+*before* the 500 ms timer and still dispatch a trailing `click`, the hold would open the tray and the
+click would then reach the row's own handler — opening the wizard on the row the operator was
+reaching the tray on, which is precisely what the swallow exists to prevent. The hook takes the
+contextmenu-first path correctly in every other respect (`clear()` cancels the pending timer, `cb()`
+runs exactly once), and both original hooks carried the same assumption with the reasoning written
+down ("a context-menu gesture produces no follow-up click to eat"). I cannot construct a browser
+sequence that reaches it — long-press-driven `contextmenu` on touch consumes the tap — so under the
+lane's pre-report gate this is demoted rather than filed. If `R-1`'s owner wants belt-and-braces it is
+one line (`swallowNextClick.current = true` in the `fired`-false branch of `onContextMenu`).
 
-**Code:**
-```ts
-onEditIncident?(caseId: string): void
-…
-onEditIncident={(caseId) => onEditIncident?.(caseId)}
-```
-```tsx
-<button type="button" style={cta} onClick={() => onEditIncident(item.id)}>
-  {EDIT_INCIDENT_LABEL}
-</button>
-```
-
-**Adversarial input / sequence:** any mount of `<MapScreen>` without the handler — a future route, a
-storybook-style harness, or a bridge refactor that forgets the prop. The full-size primary CTA renders
-identically and swallows every press through the optional-call.
-
-**Observable wrong behaviour:** nothing today — the bridge wires it (`DemoExperience.tsx:1594`,
-`onEditIncident={editIncident}`) and `LocationDetailCard`'s own prop is correctly *required*. The
-finding is the inverted contract: `§49a` reasoned exactly this case one package earlier and chose the
-other shape — `CaseActionsSheetProps.onEdit` is optional AND the button renders only when supplied,
-"because a button that cannot do what it says would break the demo's honesty rule". Here the
-optionality lives on the prop and the button ignores it. (`onChangeCase` / `onGoToLocation` carry the
-same pre-existing shape on this component; this is the first one added *after* the honesty precedent
-was written down.)
-
-**Fix:** make `MapScreen.onEditIncident` required (the bridge already passes it), or gate the CTA on
-the handler's presence the way `CaseActionsSheet` gates `Edit Case`.
+**`§57h`'s incident-fold leftover is the right call.** `NewCaseModal`'s private `CoordinateField`
+still lacks `R-16`'s association/announcement, so a screen-reader visitor typing a malformed incident
+latitude there gets `aria-invalid` and no reason — and `toIncidentCoordinates` then drops the pair on
+Save. That is a real silent-ish arm, but it is pre-existing on master, deliberately not fixed twice
+(the twin is slated for deletion by `§53d`'s full fold), and now carries a named trigger ("the next
+package to touch `NewCaseModal`'s incident section — and this time the fold, not another type patch").
+Fixing the twin would make the duplication harder to see, not easier. Agreed; flagging it here only so
+the trigger has a second witness.
 
 ---
 
-## Traced and found clean — recorded so the fix-delta need not re-derive
-
-**Notice portalling — can a notice render behind a sheet? No.** `DemoNotification` is `zIndex: 60`;
-`ModalShell`'s scrim is `21` and its dialog `22` (`ui/screens/_shared.tsx:70,82`); both render into the
-same `PhoneOverlayContext` root (`ui/PhoneFrame.tsx`, `zIndex: 40`, `pointerEvents: 'none'`), which is a
-single stacking context. The banner therefore paints over an open modal, which is what makes the
-new-address card's deliberate "stay open after a failed create" (phone parity, `§52.6`) safe. The banner
-sets no `pointerEvents`, so it inherits `none` from the root and blocks nothing underneath.
-`DeleteConfirmationModal` (60/61) and `AlertDialog` (60/61) tie or beat it, and both are rendered later
-in document order — correct, and no path raises a notice alongside either.
-
-**`DuplicateCaseNumberError`'s catch topology — it cannot escape.** `createCase`
-(`create-store.ts:421-451`) throws before minting an id; its only call site in the whole app is
-`submitCase` (`DemoExperience.tsx:794-803`), which deliberately does not catch. Both paths into it run
-inside `NewCaseModal.performSubmit`'s `try` (`NewCaseModal.tsx:137-149`): edit mode via
-`handleSubmit` → `performSubmit` (and edit routes to `updateCase`, which does not throw), create mode
-via the confirmation dialog's `onPress` → `confirmSubmit` → `performSubmit`. The throw lands before
-`setExpandedCaseId` and `closeCaseModal`, so a rejected create leaves no partial state and the form the
-visitor typed is still on screen behind the banner. `§56i`'s claim that
-`duplicateLocation`/`duplicateToNewAddress` cannot reach it holds — both mint locations via `nextId('l')`.
-
-**Each duplicate null-arm is honest for its only reachable cause — with one wrong sentence on an
-unreachable arm.** `duplicateLocation` returns `null` for source-gone or blank-name; the chooser
-hard-`disabled`s both duplicate buttons *and* re-guards in `duplicate()`
-(`DuplicateLocationModal.tsx:111-120`), so blank/taken is unreachable and
-`DUPLICATION_FAILED_NOTICE` ("the source location couldn't be read") is true for the arm that can fire.
-`duplicateToNewAddress` returns `null` for source-gone, blank-name or blank-street; `newLocationBlock`
-plus the caller's `if (block !== null) return` (`NewLocationModal.tsx:218-222`) cover the last two, so
-the only reachable arm is source-gone — for which `NEW_ADDRESS_FAILED_NOTICE` ("a name and street
-address are required") is the wrong sentence. Demoted rather than filed: I could not construct a
-sequence that reaches it (the card is a modal; the source can only be deleted from the Cases list,
-which the scrim covers). Worth one line in `§52` if the fix round is touching that file anyway.
-
-**Per-camera GPS failure paths in a row list — clean.** Each row owns its own `useGpsCapture`
-instance, so failures cannot cross rows: `role="alert"` error line and `role="status"` sample readout
-are both keyed `camera-gps-${cameraId}` (`ui/inputs/CameraGpsCapture.tsx:157-167`), and the promise
-chain carries an explicit `.catch` breadcrumb for an unexpected throw (`:125-129`, R-13's shape).
-`CameraGpsCapture`'s header claim that unmount aborts the capture is TRUE — `useGpsCapture` passes
-`isAborted: () => abortedRef.current` (`ui/inputs/useGpsCapture.ts:93`) and `captureGps` returns `null`
-at its checkpoints, so `capture()` resolves `null` and `onCapture` never runs. `setCameraGps`'s
-by-id re-resolution is the genuine second layer. The two silent drops (row removed, location switched)
-are `§54f`'s documented deliberate ones and the visitor caused both by their own gesture.
-
-**The incident editor's abandoned-lookup silence (`§53`) — honest; the lane agrees with the deferral.**
-`abandonLookups()` (`ui/inputs/IncidentLocationFields.tsx:163-166`) bumps `requestSeq` and drops the
-spinner when an address *pick* supersedes an in-flight reverse lookup; the retired request then returns
-at `requestSeq.current !== mine` without calling `onReverseGeocodeError`, and the pick's own
-`onReverseGeocodeError?.(null)` (`:256`) clears the banner. Nothing is hidden: the in-flight lookup was
-started from coordinates the pick has just replaced, so its result is stale input, not a suppressed
-failure — and letting it settle would be the actual silent corruption (it would write the *previous*
-address over the picked one; the phone has that gap at `handleAddressSelect`, and the demo closes it).
-`runReverseGeocode` clears on start, reports `REVERSE_GEOCODE_UNAVAILABLE` on no-match/throw and
-`REVERSE_GEOCODE_PARTIAL` on a half-resolve, all `mounted` + `requestSeq` guarded, and its `catch` is
-character-for-character `LocationFields`' reviewed treatment. The operator breadcrumb lives where the
-lane's rules put it — `ui/inputs/reverse-geocode.ts:45`, still present.
-
-**`deleteCase`/`deleteLocation` cascades + selection repair — nothing silently dropped.** All four
-pair states traced through `deleteCase` (`create-store.ts:529-546`): open location survives →
-`currentCaseId` re-derived from it and `capture` kept; open location dies → both halves null and
-`capture` blanked; no open location but the doomed case selected → `currentCaseId` null, `capture`
-correctly *not* blanked; unrelated case selected → untouched. `deleteLocation` moves only the location
-half plus `capture`, matching the phone's own asymmetry (`cases.tsx:651-654`), and unlinks
-`locationIds`. `confirmDelete` (`DemoExperience.tsx:872-885`) repairs the three bridge-local shadows
-the store cannot know about — `expandedCaseId`, `mapViewerCaseId`, `reviewAgainFor` — and reads
-`locations` from the pre-delete render closure, which is required for the case arm's ownership test and
-is correct. The remaining bridge state holding a case/location id (`targetCaseId`, `caseEditId`,
-`incidentCaseId`, `dupState`, `newAddrState`, `imp.lastLocId`) is all modal-scoped and unreachable
-while a delete is possible; `caseEditId` additionally has the explicit create-mode fallback at
-`:1604-1611`, discharging `§50g`'s reachable half.
-
-**No-op-write discipline beyond the finding above.** `updateCase`, `setCaseStatus`, `deleteCase`,
-`deleteLocation`, `setCameraGps`, `duplicateLocation` and `duplicateToNewAddress` all take a
-`get()`-first early return. `completeCase`, `updateField`, `applyImport`, `addMedia`, `deleteMedia`
-carry the same bare-`.map` shape but are unchanged by this diff (pre-P3, out of lane scope).
-`updateIncidentLocation` is the one the diff added.
-
-**Operator breadcrumbs.** No `console.warn`/`console.error` was removed anywhere in the diff; one was
-added (`CameraGpsCapture.tsx:128`). `generateExtractedScopes`' dev-warn + `extractedScopesPartial`
-flag, `applyImport`'s event-scoped warn, and `PhoneOverlayPortal`'s dev warn are all intact.
-
-**Partial-result flags.** No new partial-result path was introduced. `cloneScopesWithNewIds`
-(`engine/store/helpers.ts`) blanks `cameras` *by contract* rather than dropping entries, and
-`duplicatedForm` starts every DVR-derived field blank — no counted-and-flagged treatment is owed
-because nothing is silently short.
-
-**Stale async writes.** The only new store write behind an `await` is the camera fix, guarded twice
-(abort + by-id re-resolution). `IncidentLocationFields` guards its two post-await writes with
-`mounted` + a monotonic `requestSeq`. `NewLocationModal`'s draft token (`§45f`) is minted per open for
-BOTH callers, including the new-address card (`DemoExperience.tsx:676` and `:738`), and `locForm` is
-blanked on each open — so a lookup left over from one card cannot seed the other. The import
-generation token is untouched by this diff.
-
-## Observation for another lane (not a silent failure)
-
-`features/demo/ui/screens/DashboardScreen.tsx:44-83` still defines a private `useLongPress`, so
-`§56f`'s "ONE `useLongPress`" is in fact two implementations, not one. It is behaviourally safe here —
-the dashboard card has no click handler of its own, and `onPointerDown` bails when the press starts
-inside a `<button>`, so the shared hook's capture-phase swallow is not needed. Flagged for the
-type-design / TS lane rather than filed here.
-
----
-
-## Silent Failure Hunter Summary
+## Silent Failure Hunter Summary (post-fix)
 
 | Severity | Count |
 |---|---|
 | CRITICAL | 0 |
 | HIGH | 0 |
-| MEDIUM | 1 |
-| LOW | 3 |
+| MEDIUM | 0 |
+| LOW | 0 |
 
-Fallback honesty (every substitution announced): **yes** — the chooser's export arms, the duplicate
-failure arms and the new-address failure arm all raise a visible banner; nothing simulated is presented
-as real.
-Failure-cause distinctions preserved: **yes** for every reachable arm (one unreachable arm carries the
-wrong sentence — recorded, not filed).
+Fallback honesty (every substitution announced): **yes** — and improved: the chooser's blocked state
+now states its reason instead of removing two actions from the tab order, and every honest notice is
+both fully dwelt and announced.
+Failure-cause distinctions preserved: **yes** — `NEW_ADDRESS_FAILED_NOTICE` now names its only
+reachable cause; the collapsed-three-into-one shape is recorded at the constant with its un-defer path.
 Partial results flagged (not silently short): **n/a** — no new partial-result path.
-Async cancellation / stale-write safety: **yes** — abort + by-id re-resolution on the camera fix,
-`mounted` + `requestSeq` on the incident lookup, per-open draft tokens on both `NewLocationModal` callers.
-Operator breadcrumbs intact: **yes** — none removed, one added.
+Async cancellation / stale-write safety: **yes** — unchanged by the fix round and re-verified.
+Operator breadcrumbs intact: **yes** — none removed across either pass; one added (`CameraGpsCapture`).
 
-**Verdict: APPROVE** (with the MEDIUM and three LOWs above as comments).
+**Verdict: APPROVE.** Every finding this lane filed is fixed with evidence; the fix round additionally
+closed two silent failures my initial pass walked past (the touch-hold double-fire, and the New Case
+sheet's confirm-then-create-nothing divergence).

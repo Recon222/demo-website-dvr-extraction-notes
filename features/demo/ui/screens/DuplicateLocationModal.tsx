@@ -1,9 +1,10 @@
 'use client'
 
+import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Field, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
-import { isLocationNameTaken } from '@/features/demo/engine/logic/location-name'
+import { NEW_LOCATION_BLOCK_MESSAGES, newLocationBlock } from '@/features/demo/engine/logic/new-location-gate'
 import type { DuplicateMode } from '@/features/demo/engine/types'
 
 /**
@@ -26,7 +27,9 @@ import type { DuplicateMode } from '@/features/demo/engine/types'
  */
 
 /** Phone copy, verbatim (`DuplicateLocationModal.tsx:88`). */
-export const NAME_TAKEN_ERROR = 'A location with this name already exists in this case'
+/** Re-export of the shared gate's collision copy — same rule, same string, one owner
+ *  (`new-location-gate.ts`). Kept as a named export because the suite reads it. */
+export const NAME_TAKEN_ERROR = NEW_LOCATION_BLOCK_MESSAGES.duplicateName
 
 export interface DuplicateLocationModalProps {
   /** Current value of the Location Name field — seeded by the bridge with `generateCopyName`. */
@@ -59,27 +62,42 @@ const sectionCaption: CSSProperties = {
   marginBottom: 10,
 }
 
-/** One stacked chooser action. `disabled` dims and blocks — the phone's `Button disabled`. */
+/**
+ * One stacked chooser action.
+ *
+ * `blocked` dims and marks `aria-disabled`; it never sets the `disabled` attribute. That is the
+ * house rule §56d settled for this exact phase — `disabled` drops keyboard focus to `<body>`,
+ * and this gate flips on every keystroke, so a visitor typing a name would be thrown out of the
+ * dialog mid-edit and the two actions would leave the tab order and the actionable a11y tree
+ * without a word. This component shipped the spelling that reconciliation rejected, in the same
+ * diff that established it (review R-3). Enforcement is the caller's guard, as on `ModalActions`.
+ *
+ * `describedBy` points at the node saying WHY, so a keyboard visitor landing on a dimmed action
+ * hears the reason without having to activate it.
+ */
 function ActionButton({
   label,
   variant = 'primary',
-  disabled,
+  blocked = false,
+  describedBy,
   onClick,
 }: {
   label: string
   variant?: 'primary' | 'secondary'
-  disabled?: boolean
+  blocked?: boolean
+  describedBy?: string
   onClick(): void
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
+      aria-disabled={blocked}
+      aria-describedby={blocked ? describedBy : undefined}
       onClick={onClick}
       style={{
         ...actionButton,
         ...(variant === 'primary' ? glassBtnPrimary : glassBtnSecondary),
-        ...(disabled ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
+        ...(blocked ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
         marginBottom: 10,
       }}
     >
@@ -108,14 +126,18 @@ export function DuplicateLocationModal({
   onExportZip,
   onExportGeoJSON,
 }: DuplicateLocationModalProps) {
-  const isNameEmpty = !name.trim()
-  const isNameTaken = !isNameEmpty && isLocationNameTaken(name, existingNames)
-  const isSubmitDisabled = isNameEmpty || isNameTaken
+  const blockedId = `${useId()}-blocked`
+  // ONE derivation for the dimmed buttons, the field error and the reason line — and it is the
+  // SHARED one `NewLocationModal` uses (`new-location-gate.ts`), not a second copy of the same
+  // two rules. `requireAddress: false` with a blank street selects exactly the name half; the
+  // module's ordering rule comes with it, so a blank name reports "required", never "duplicate",
+  // even when a blank-named sibling exists.
+  const block = newLocationBlock({ locationName: name, streetAddress: '', existingNames, requireAddress: false })
 
-  // Guarded here too, not just by the `disabled` attribute: the commit path is what must
-  // refuse a blank/colliding name (the phone's `handleDuplicate` does the same).
+  // THE enforcement point, now that the buttons are `aria-disabled` rather than `disabled`:
+  // activation reaches here and is refused (the phone's `handleDuplicate` guards too).
   const duplicate = (mode: DuplicateMode) => {
-    if (isSubmitDisabled) return
+    if (block !== null) return
     onDuplicate(name.trim(), mode)
   }
 
@@ -131,14 +153,34 @@ export function DuplicateLocationModal({
         value={name}
         onChange={onChangeName}
         placeholder="e.g., Main Store - Copy"
-        error={isNameTaken ? NAME_TAKEN_ERROR : undefined}
+        // Live, at the field, exactly as the New Location card does it. The blank-name case is
+        // deliberately NOT an inline field error: an untouched form must not open shouting.
+        error={block === 'duplicateName' ? NEW_LOCATION_BLOCK_MESSAGES.duplicateName : undefined}
       />
 
+      {/* Why the two duplicate actions won't fire, as a live region they point at. Rendered
+          unconditionally so the region exists before it has content — a region created together
+          with its text is not reliably announced. Before R-3 the blank-name arm said nothing at
+          all: two primary actions simply vanished from the tab order. */}
+      <div role="status" data-testid="duplicate-location-blocked" style={{ fontSize: 12, color: '#ff6b78' }}>
+        {block !== null && (
+          <div id={blockedId} style={{ marginBottom: 10 }}>
+            {NEW_LOCATION_BLOCK_MESSAGES[block]}
+          </div>
+        )}
+      </div>
+
       <div style={{ paddingTop: 4 }}>
-        <ActionButton label="Duplicate Location" disabled={isSubmitDisabled} onClick={() => duplicate('submission-only')} />
+        <ActionButton
+          label="Duplicate Location"
+          blocked={block !== null}
+          describedBy={blockedId}
+          onClick={() => duplicate('submission-only')}
+        />
         <ActionButton
           label="Duplicate Location with Scopes"
-          disabled={isSubmitDisabled}
+          blocked={block !== null}
+          describedBy={blockedId}
           onClick={() => duplicate('with-scopes')}
         />
 

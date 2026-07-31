@@ -190,8 +190,18 @@ const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location co
 const NEW_ADDRESS_SUBTITLE = 'Submission info copied — enter the new address.'
 const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
   `Location Created — ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
-/** Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry. */
-const NEW_ADDRESS_FAILED_NOTICE = 'Failed to Create Location — a name and street address are required.'
+/**
+ * Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry.
+ *
+ * The copy names the only cause that can actually reach it. `duplicateToNewAddress` returns a
+ * bare `null` for three refusals — source gone, blank name, blank street — but the card's own
+ * `newLocationBlock` gate holds the last two upstream, so a null here means the source location
+ * went away. The old sentence ("a name and street address are required") described the two
+ * unreachable arms and would have told a visitor to fix a form that was already valid (review
+ * R-2's rider). If a cause is ever surfaced from the store (type-design's carried NIT: make the
+ * refusal a discriminated result), this splits back into three sentences.
+ */
+const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
 /**
  * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
  * location-level export entry point, and hiding the section would misrepresent the surface —
@@ -788,12 +798,25 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setNotice(newAddressCreatedNotice(created?.locationName ?? locForm.locationName, mode))
   }
 
+  /**
+   * THE New Case sheet's mode, derived ONCE (review R-11). The render arm and `submitCase` used
+   * to derive it separately — the render from `cases.find(caseEditId)` with a deliberate
+   * create-mode fallback for a case deleted out from under an open sheet, the submit from a
+   * bare `caseEditId !== null`. When they disagreed the sheet said "Create Case", ran the create
+   * confirmation, and then took the EDIT branch into a guarded no-op: confirming created
+   * nothing, silently. No UI path reaches that today (the scrim covers the rows and every
+   * opener re-seeds), which is why it was filed as latent — but the fallback exists precisely
+   * for that scenario and applying it to only one of two discriminators is how it stops being
+   * latent later.
+   */
+  const editingCase = caseEditId === null ? undefined : cases.find((c) => c.id === caseEditId)
+
   /** Create, or save an edit. Throws (`DuplicateCaseNumberError`) straight into the modal's
    *  catch — the banner is the modal's job, and swallowing it here would lose the case
    *  silently. Field trimming + the strict coordinate parse live in `caseFormToInput`. */
   const submitCase = () => {
-    if (caseEditId !== null) {
-      store.getState().updateCase(caseEditId, caseFormToEdits(caseForm))
+    if (editingCase) {
+      store.getState().updateCase(editingCase.id, caseFormToEdits(caseForm))
       closeCaseModal()
       return
     }
@@ -823,6 +846,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    */
   const submitIncidentLocation = () => {
     if (incidentCaseId) store.getState().updateIncidentLocation(incidentCaseId, incidentValuesToPatch(incidentForm))
+    closeIncidentModal()
+  }
+  /** The §56j hardening, applied to the sibling it missed (review R-12): both close paths clear
+   *  the seed as well as the modal, so the guarantee lives at the close rather than resting on
+   *  every future opener remembering to re-seed. Unreachable today — `editIncident` re-seeds on
+   *  every open and `modal` is excluded from snapshots — which is exactly what §56j said about
+   *  `closeCaseModal` before it was hardened. */
+  const closeIncidentModal = () => {
+    setIncidentCaseId(null)
+    setIncidentForm(blankIncidentForm)
     store.getState().closeModal()
   }
   const submitLocation = () => {
@@ -1601,11 +1634,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     switch (modal) {
       case 'newCase': {
         const onChange = (f: keyof NewCaseFields, v: string) => setCaseForm((s) => ({ ...s, [f]: v }))
-        const editing = caseEditId === null ? undefined : cases.find((c) => c.id === caseEditId)
-        // A case deleted while its edit sheet is open falls back to create mode rather than
-        // rendering an edit sheet with no case behind it (P3.1's delete makes that reachable).
-        return editing ? (
-          <NewCaseModal mode="edit" existingCase={editing} form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
+        // `editingCase` is the SAME derivation `submitCase` branches on (R-11), so the sheet
+        // can never present one mode and commit the other. Its create-mode fallback — for a
+        // case deleted out from under an open edit sheet — now governs both halves.
+        return editingCase ? (
+          <NewCaseModal mode="edit" existingCase={editingCase} form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
         ) : (
           <NewCaseModal form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
         )
@@ -1626,7 +1659,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'editIncident':
-        return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={() => store.getState().closeModal()} />
+        return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
       case 'duplicateLocation':
         // Rendered only with an open dupState — the chooser's six actions all need the source
         // it was opened for, so a state-less mount would be a modal with nothing behind it.

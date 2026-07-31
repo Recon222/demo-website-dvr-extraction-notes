@@ -160,7 +160,12 @@ describe('generateCaseNotesDoc — per-camera GPS row', () => {
   it('omits the accuracy clause when nothing measured one (R-18)', () => {
     const html = withGps({ lat: 43.608701, lng: -79.650502 })
     expect(html).toContain('43.608701, -79.650502')
-    expect(html).not.toContain('±')
+    // Scoped to the coordinate's own cell, not the whole document (review R-17): a
+    // document-wide `not.toContain('±')` false-fails the moment ANY other section legitimately
+    // prints one — the offset advisories and the GPS accuracy chips both can.
+    const gpsCell = html.slice(html.indexOf('GPS Location'), html.indexOf('GPS Location') + 200)
+    expect(gpsCell).toContain('43.608701, -79.650502')
+    expect(gpsCell).not.toContain('±')
   })
 
   it('prints NO GPS row for a camera that was never captured', () => {

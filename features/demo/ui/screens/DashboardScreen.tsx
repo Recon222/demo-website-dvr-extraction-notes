@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react'
+import { useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 /**
  * The phone's `DASHBOARD_CASE_LIMIT` (`app/(tabs)/home.tsx:37`), which it applies as
@@ -19,9 +19,6 @@ export const DASHBOARD_CASE_LIMIT = 5
 /** Locations shown as pills before collapsing to "+N" (phone DashboardCaseCard.tsx:29). */
 const VISIBLE_LOCATION_COUNT = 1
 
-/** The phone's `delayLongPress={500}` (DashboardCaseCard.tsx:169). */
-const LONG_PRESS_MS = 500
-
 export interface DashboardScreenProps {
   cases: CaseCard[]
   onOpenLocation(locationId: string): void
@@ -30,57 +27,17 @@ export interface DashboardScreenProps {
 }
 
 /**
- * Press-and-hold, the honest web equivalent of the phone's `onLongPress` (matrix row 8/9).
+ * Press-and-hold, the honest web equivalent of the phone's `onLongPress` (matrix row 8/9), plus
+ * right-click (the desktop convention for "reveal this thing's actions", and the event a touch
+ * long-press raises anyway) and the card's ⋯ button, which is the only one a keyboard or screen
+ * reader can reach.
  *
- * Three entry points, because no single browser gesture covers what one RN `Pressable`
- * does: hold (touch + mouse, the gesture itself), right-click (the desktop convention for
- * "reveal this thing's actions", and the event a touch long-press raises anyway — so
- * preventing it also suppresses the OS text-selection menu mid-hold), and the card's ⋯
- * button, which is the only one a keyboard or screen reader can reach.
- *
- * A hold that starts on a nested control (a location pill, ⋯ itself) does NOT arm: those
- * own their own press, and the phone's inner Touchables likewise claim the responder.
+ * The gesture itself is `@/features/demo/ui/primitives/useLongPress` — this screen shipped a
+ * PRIVATE copy of it (P3.2), which the assembly's §56f consolidation never saw because it was
+ * not a module. Review R-1 retired it; its two contributions, the `fired` latch and the
+ * nested-control bail, live in the shared hook now, and the local `LONG_PRESS_MS` that could
+ * have drifted from the shared beat is gone with it.
  */
-function useLongPress(onLongPress: () => void) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // A touch hold fires our timer at 500ms AND raises the OS `contextmenu` a moment later.
-  // Without this latch that one gesture would open the sheet twice.
-  const firedRef = useRef(false)
-  const clear = useCallback(() => {
-    if (timer.current !== null) {
-      clearTimeout(timer.current)
-      timer.current = null
-    }
-  }, [])
-  // Unmounting mid-hold (leaving the tab, a case removed) must not fire the sheet later.
-  useEffect(() => clear, [clear])
-
-  return {
-    onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return // secondary buttons arrive as contextmenu below
-      if (e.target instanceof Element && e.target.closest('button')) return
-      clear()
-      firedRef.current = false
-      timer.current = setTimeout(() => {
-        timer.current = null
-        firedRef.current = true
-        onLongPress()
-      }, LONG_PRESS_MS)
-    },
-    onPointerUp: clear,
-    onPointerLeave: clear,
-    onPointerCancel: clear,
-    onContextMenu: (e: ReactMouseEvent<HTMLDivElement>) => {
-      e.preventDefault() // no browser menu over the sheet, and no OS selection menu mid-hold
-      clear()
-      if (firedRef.current) {
-        firedRef.current = false // the hold already opened it — swallow the trailing event
-        return
-      }
-      onLongPress()
-    },
-  }
-}
 
 /** The dashboard "Recent Activity" timeline: the 5 most recent cases, newest first. */
 export function DashboardScreen({ cases, onOpenLocation, onCaseActions }: DashboardScreenProps) {
@@ -158,7 +115,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
           background: GLASS.gradientCardDiag,
           padding: 16,
           // A hold that selects the card's text reads as a broken gesture, not a menu.
-          userSelect: 'none',
+          ...LONG_PRESS_SURFACE_STYLE,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>

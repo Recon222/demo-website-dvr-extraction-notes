@@ -18,9 +18,25 @@ import { useLongPress, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLo
 function Probe({ onLongPress, onClick, enabled }: { onLongPress(): void; onClick(): void; enabled?: boolean }) {
   const press = useLongPress(onLongPress, { enabled })
   return (
+    <button type="button" onClick={onClick} {...press}>
+      <span>Row</span>
+    </button>
+  )
+}
+
+/**
+ * The dashboard's shape: the surface is a plain element with its own interactive children.
+ * `Probe` above is the Cases shape (the surface IS the button). Between them the two real call
+ * sites are covered, which matters because the nested-control rule is `closest(control) !==
+ * currentTarget` — it has to arm on one and bail on the other.
+ */
+function CardProbe({ onLongPress, onNested }: { onLongPress(): void; onNested(): void }) {
+  const press = useLongPress(onLongPress)
+  return (
     <div {...press}>
-      <button type="button" onClick={onClick}>
-        Row
+      <span>card body</span>
+      <button type="button" onClick={onNested}>
+        pill
       </button>
     </div>
   )
@@ -144,17 +160,68 @@ describe('useLongPress', () => {
     expect(prevented).toBe(true)
   })
 
-  it('never swallows keyboard activation', () => {
-    const onLongPress = vi.fn()
-    const onClick = vi.fn()
-    render(<Probe onLongPress={onLongPress} onClick={onClick} />)
+  // ---- the two halves of the touch/mouse contextmenu asymmetry (review R-1) ----------------
+  //
+  // A TOUCH hold fires the timer AND raises `contextmenu`; a MOUSE hold fires the timer and
+  // raises none. Before R-1 the two surviving hooks each got one of these right and the other
+  // wrong, and neither sequence was pinned anywhere — `useLongPress.test.tsx` fired
+  // `contextMenu` with no prior hold, `DashboardScreen.test.tsx` pinned only the suppression.
 
-    // A hold that ended off-element leaves the guard armed; Enter (detail 0) must still work.
+  it('a touch hold that also raises contextmenu fires ONCE, and the next right-click still works', () => {
+    const onLongPress = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={vi.fn()} />)
+
     down()
     act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
-    click(0)
+    expect(onLongPress).toHaveBeenCalledOnce()
 
-    expect(onClick).toHaveBeenCalledOnce()
+    // The OS menu arrives mid-gesture, with no pointerdown between. The latch consumes it —
+    // the pre-R-1 `clear()` was a no-op here (the timer had already nulled itself), so this
+    // fired a second time. On the Cases rows, whose callback is a toggle, that read as the
+    // hold doing nothing at all.
+    fireEvent.contextMenu(row())
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    // …and the latch is spent, so a deliberate right-click afterwards is not swallowed.
+    fireEvent.contextMenu(row())
+    expect(onLongPress).toHaveBeenCalledTimes(2)
+  })
+
+  it('a MOUSE hold does not leave a latch that eats the next right-click', () => {
+    const onLongPress = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={vi.fn()} />)
+
+    // No contextmenu follows a mouse hold, so nothing consumes the latch during the gesture.
+    down()
+    act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
+    fireEvent.pointerUp(row())
+    fireEvent.click(row(), { detail: 1 })
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    // The right-click's OWN pointerdown (button 2) is what clears it — which is why the reset
+    // runs BEFORE the `e.button !== 0` guard, not after it as P3.2's copy did.
+    fireEvent.pointerDown(row(), { pointerId: 1, button: 2, clientX: 10, clientY: 10 })
+    fireEvent.contextMenu(row())
+    expect(onLongPress).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not arm on a nested control, but still arms on the surface itself', () => {
+    // The rule is `closest(control) !== currentTarget`, not P3.2's bare `closest('button')`:
+    // the Cases rows attach the hook TO a button (see `Probe`, which arms throughout this
+    // suite), so lifting the bare check would have killed the gesture there outright.
+    const onLongPress = vi.fn()
+    const onNested = vi.fn()
+    render(<CardProbe onLongPress={onLongPress} onNested={onNested} />)
+
+    fireEvent.pointerDown(screen.getByText('pill'), { pointerId: 1, button: 0, clientX: 1, clientY: 1 })
+    act(() => void vi.advanceTimersByTime(LONG_PRESS_MS * 2))
+    expect(onLongPress).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('pill'), { detail: 1 })
+    expect(onNested).toHaveBeenCalledOnce() // the pill's own press is untouched
+
+    fireEvent.pointerDown(screen.getByText('card body'), { pointerId: 1, button: 0, clientX: 1, clientY: 1 })
+    act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
+    expect(onLongPress).toHaveBeenCalledOnce()
   })
 
   it('is wholly inert while disabled, and cancels a hold already in flight', () => {

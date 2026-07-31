@@ -45,6 +45,26 @@ const openChooser = (locationName: string) => {
 
 const chooser = () => screen.getByRole('dialog', { name: 'Duplicate Location' })
 
+/** Grants the render a location service for the duration of `run` (copied from
+ *  `DemoExperience.coordinates.test.tsx`, the sibling capture suite). */
+async function withGeolocation(
+  geolocation: { getCurrentPosition: (ok: (p: GeolocationPosition) => void) => void },
+  run: () => Promise<void>,
+) {
+  Object.defineProperty(navigator, 'geolocation', { value: geolocation, configurable: true })
+  try {
+    await run()
+  } finally {
+    Reflect.deleteProperty(navigator, 'geolocation')
+  }
+}
+
+const fixAt = (lat: number, lng: number, accuracy: number) =>
+  ({
+    coords: { latitude: lat, longitude: lng, accuracy, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+    timestamp: Date.UTC(2026, 6, 30, 12, 0, 0),
+  }) as GeolocationPosition
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -156,7 +176,8 @@ describe('DemoExperience — location action chooser', () => {
     fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'back office' } })
 
     expect(screen.getByRole('alert')).toHaveTextContent('A location with this name already exists in this case')
-    expect(within(chooser()).getByRole('button', { name: 'Duplicate Location' })).toBeDisabled()
+    // `aria-disabled`, not `disabled` — R-3 brought this chooser onto §56d's house gate.
+    expect(within(chooser()).getByRole('button', { name: 'Duplicate Location' })).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(within(chooser()).getByRole('button', { name: 'Duplicate Location' }))
     expect(store.getState().locations).toHaveLength(2) // nothing created
   })
@@ -304,6 +325,31 @@ describe('DemoExperience — location action chooser', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('A location with this name already exists in this case')
       expect(within(card()).getByRole('button', { name: 'Create Location' })).toHaveAttribute('aria-disabled', 'true')
       expect(store.getState().locations).toHaveLength(2)
+    })
+
+    it('carries a fix captured ON THE CARD through to the created location (R-2)', async () => {
+      // THE one unpinned link on a forensic-coordinate path. §56h pinned the modal's EMISSION
+      // and the store's STORAGE and argued the wire between them was safe by similarity to
+      // `submitLocation` — the same reasoning shape that let §56h's own two bugs live. The
+      // review's probe proved it: severing `gps: locForm.coordinates` in the bridge left all
+      // 1891 tests green, yielding a location with no coordinates, no error, and a success
+      // notice. This arm is what that mutation now reddens.
+      const store = sourceWithRequest()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+
+      await withGeolocation({ getCurrentPosition: (ok) => ok(fixAt(43.7, -79.4, 4)) }, async () => {
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+        })
+      })
+      fireEvent.change(screen.getByLabelText('Street Address'), { target: { value: '99 Queen St W' } })
+      fireEvent.click(within(card()).getByRole('button', { name: 'Create Location' }))
+
+      const created = store.getState().locations.find((l) => l.streetAddress === '99 Queen St W')
+      expect(created?.gps).toEqual({ lat: 43.7, lng: -79.4, accuracyM: 4, source: 'gps' })
     })
 
     it('Cancel drops the card without creating anything', () => {

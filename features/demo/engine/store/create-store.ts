@@ -503,10 +503,17 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       if (!current || current.status === status) return
       set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }))
     },
-    updateIncidentLocation: (caseId, patch) =>
+    updateIncidentLocation: (caseId, patch) => {
+      // The unknown-id guard this action's own doc already claimed. It was the only P3-added
+      // case-keyed writer without it, so a `.map` that matched nothing still allocated a fresh
+      // `cases` array and state object: every selector re-runs and the persistence subscriber
+      // writes a snapshot for a write that changed nothing — verbatim the §56b defect the
+      // assembly fixed one function up and missed here (review R-4).
+      if (!get().cases.some((c) => c.id === caseId)) return
       set((s) => ({
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
-      })),
+      }))
+    },
 
     /**
      * Delete a case and everything under it — the phone's `DELETE FROM cases` riding SQLite's

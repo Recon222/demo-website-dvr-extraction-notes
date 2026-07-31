@@ -2249,3 +2249,129 @@ every stored snapshot's keys are a subset of the new set, so no migration is owe
 reasoning P3.6 used. The version bumps when a persisted VALUE shape moves (P3.7's camera GPS keys
 took it to 5), not when a key space widens. §50d's "a second ModalId drags in a bump" was the
 cautious reading; this is the verified one.
+
+---
+
+## 57. P3 review fix round (R-1…R-17) — decisions, refutations, and what stays deferred
+
+**Source:** the P3 vetted review (`docs/code-reviews/parity/p3/p3-review.md`, approve-with-fixes,
+0 BLOCKER / 3 MAJOR / 14 MINOR), fixed on `parity/p3-fixes`. Every finding was addressed; the
+entries below are the judgement calls a fix-delta reviewer would otherwise have to re-derive.
+Nothing here is outstanding except where explicitly marked.
+
+### 57a. R-1's fix shape was followed except for one instruction, which is refuted
+
+The review asked to "lift the nested-control bail (`e.target.closest('button')`) into the shared
+hook — the Cases rows need it too". Lifting it verbatim would have **killed the Cases gesture
+outright**: the handlers rode a wrapper `<div>` whose every descendant is a `<button>`, so every
+hold would have bailed on its own row.
+
+What makes one rule serve both layouts is comparing against the surface —
+`closest(control) !== e.currentTarget` — together with each caller attaching the hook to the
+element that IS the gesture surface. So the Cases handlers moved from the wrapper strip onto the
+row/header BUTTON. Two things fall out: a press anywhere inside resolves to that button and arms,
+and the ⋯ trigger beside it leaves the gesture entirely (holding it no longer double-toggles its
+own tray — pinned).
+
+**The `userSelect` rider** is a style token (`LONG_PRESS_SURFACE_STYLE`) rather than a key in the
+returned handler object, because callers spread that object alongside their own `style` prop and
+a `style` key inside it would win or lose by attribute order at each call site.
+
+### 57b. The third long-press hook is the guard rail's third strike — state it as a rule
+
+§56f recorded "a shared primitive added at a NEW PATH will not conflict with the copy it
+duplicates". P3.2's copy was not at a new path; it was **not a module at all** — a private
+`useLongPress` inside `DashboardScreen.tsx`. The consolidation never saw it, and its private
+`LONG_PRESS_MS = 500` could have drifted from the shared beat with every test green.
+
+**The rule, generalised:** before writing a gesture/primitive helper inside a screen, grep
+`ui/primitives/` for it. A reviewer's counterpart: a `useX` defined in a screen file is a
+consolidation candidate by default. Both surviving copies encoded complementary halves of one
+platform fact (touch raises `contextmenu`, mouse does not), each correct where the other was
+broken — which is what duplication costs when neither copy can see the other's bug.
+
+### 57c. R-3 went further than the review asked — the gate is no longer re-derived
+
+The review asked for `aria-disabled` + a guarded click + a reason node on
+`DuplicateLocationModal`. It also had a private re-derivation of the two name rules
+`new-location-gate.ts` already owns, so the fix routes through `newLocationBlock({ …,
+requireAddress: false })` instead: the module's evaluation ORDER comes with it (a blank name
+reports "required", never "duplicate", even when a blank-named sibling exists), and
+`NAME_TAKEN_ERROR` becomes a re-export of the module's own string so the two surfaces cannot
+drift on copy. Same reasoning §56 applied to `location-name.ts`.
+
+Consequence worth knowing: the "emits nothing while gated" arm now pins the MECHANISM, not just
+the outcome. Under the old `disabled` attribute the click never reached the handler, so the
+commit-path guard was never actually exercised by that test.
+
+### 57d. R-2 conceded — an argument from similarity is not a pin
+
+§56h closed its own residual by arguing the new-address GPS wire "is the same expression
+`submitLocation` uses and which IS pinned there". The review re-ran the probe: severing it left
+all 1891 tests green. **Recorded as a reusable lesson, not just a fixed test:** §56h's own two
+bugs (a hard-coded `'geocoded'` stamp, a `gps`-excluding override type) survived by exactly that
+reasoning shape — a claim about construction standing in for a claim about behaviour. When a
+seam has already produced one class of bug, similarity to a sibling call site is not evidence.
+
+### 57e. R-7 closed rather than re-deferred, and §49g's trigger is discharged
+
+The review offered gating `toMapData` on `hasCapturedCoordinates` **or** re-deferring in §54 with
+a fresh trigger. Gated. §49g's trigger ("P3.7 or P6.1, whichever touches plotting first") fired
+at P3.7 and has been pointing at a shipped package since; re-deferring would leave three
+consumers of one record disagreeing for another phase over an import and two call sites.
+
+Honest about what it is: the demo has no zero-init artifact — coordinates arrive only via a
+capture, a geocode, or `parseCoordinate`, which correctly ACCEPTS a typed 0/0 — so the only
+source is a visitor deliberately typing zeros. This is consistency between consumers, not a
+fabricated position.
+
+### 57f. R-10's fix is neither shape the review proposed
+
+Both proposals had costs: keeping the tray mounted while `pendingDelete` is armed drops §48a's
+ported tray-closes-on-handoff behaviour (`SwipeableCaseCard.tsx:75-78`), and threading a
+`returnFocusTo` ref from the row up to the bridge crosses the callback-isolation boundary for
+chrome state. Instead the row moves focus to its own ⋯ trigger BEFORE handing off, so the
+dialog's existing capture finds a live element. The trigger is the right anchor on its merits: it
+is the affordance that led there, and unlike the tray's buttons it survives the tray closing.
+
+### 57g. R-13 needed the SETTER, not just the field
+
+Narrowing `NewCaseFields.incidentCoordinateSource` to `IncidentCoordSource | ''` alone would not
+have caught anything: `onChange(field: keyof NewCaseFields, value: string)` accepts any string
+for any key, so both write sites would have kept compiling. The setter is now generic per key
+(`onChange<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K])`), verified by probe
+— `onChange('incidentCoordinateSource', 'manaul')` is now a compile error. **Generalisable:** a
+keyed setter typed on the union of keys but a single value type erases every field's type; if a
+form field's type is load-bearing, the setter has to be generic.
+
+### 57h. Still deferred, with triggers
+
+- **§53d's FULL fold** (mount `IncidentLocationFields` in `NewCaseModal`, delete its private
+  `CoordinateField` + chip). R-13 took the type half only. `NewCaseModal`'s private
+  `CoordinateField` therefore still has R-16's a11y gap — fixed in `IncidentLocationFields`,
+  not in the private twin, because the twin is slated for deletion and fixing it twice would
+  make the duplication harder to see, not easier. **Trigger:** the next package to touch
+  `NewCaseModal`'s incident section — and this time the fold, not another type patch.
+- **The remaining `DemoCase` fixture sites.** R-15 built `demoCase`/`demoLocation` and folded the
+  four suites carrying hand-rolled literals; sites that build cases through the store are already
+  drift-proof and were left alone. **Trigger:** the next `DemoCase` field add — update the
+  factory first (CLAUDE.md's rule), then fold whatever still fails.
+- **Type-design's four carried NITs** (the duplicate actions' three-refusals-one-`null`;
+  `IncidentSheetItem.id`; `CaseNotesCamera.gps` widening `CameraGpsFix`; `activeModal()`'s
+  `default` over a 7-member `ModalId`). Untouched, per the review's disposition. One of them now
+  has a live consequence recorded at the call site: `NEW_ADDRESS_FAILED_NOTICE`'s copy had to name
+  a single cause because the store collapses three, so surfacing a discriminated result would
+  split it back into three sentences.
+- **TESTS-P3-7** (the `deleteCase` derivation arm cannot distinguish derive-from-location from
+  keep-previous). Carried as a NIT; the distinguishing state is unconstructible through any
+  writer today.
+
+### 57i. WEB-7's omission is now recorded at the call site, deliberately
+
+`NewCaseModal` passes `submitBlocked` with no `submitDescribedBy`, and that is the design, not an
+oversight: §50a/§56d's whole point is that the click REACHES `handleSubmit`, which writes the
+phone's verbatim per-field messages into the fields' own `role="alert"` nodes. The reason is
+reachable by activation rather than pre-stated, which is what keeps that copy live instead of
+dead. A comment at the call site says so, so a later a11y sweep does not "fix" it into a swallow.
+The New Location card is the other shape — its reason is on screen before the press — and the two
+are meant to differ.

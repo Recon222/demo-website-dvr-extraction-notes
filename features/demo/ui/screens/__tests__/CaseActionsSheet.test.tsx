@@ -4,43 +4,11 @@ import { CaseActionsSheet, reportScrollGate } from '@/features/demo/ui/screens/C
 import { toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { CaseStatus, DemoCase, DemoLocation } from '@/features/demo/engine/types'
+import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 
-const aCase = (over: Partial<DemoCase> = {}): DemoCase => ({
-  id: 'c1',
-  caseNumber: 'PR25-0001',
-  displayName: "Kim's — B&E",
-  unit: 'Robbery',
-  oicName: 'L. McHugh',
-  oicBadge: '4471',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: '',
-  incidentStreetAddress: '',
-  incidentCity: '',
-  notes: '',
-  status: 'draft',
-  createdLabel: 'Just now',
-  locationIds: ['l1'],
-  ...over,
-})
+const aCase = (over: Partial<DemoCase> = {}): DemoCase => demoCase(over)
 
-const aLoc = (over: Partial<DemoLocation> = {}): DemoLocation => ({
-  id: 'l1',
-  caseId: 'c1',
-  locationName: "Kim's Convenience",
-  businessName: '',
-  streetAddress: '1450 Eglinton Ave W',
-  city: 'Mississauga',
-  requesterName: '',
-  requesterBadge: '',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: '',
-  locationContact: '',
-  locationPhone: '',
-  form: blankLocationForm(),
-  ...over,
-})
+const aLoc = (over: Partial<DemoLocation> = {}): DemoLocation => demoLocation(over)
 
 const handlers = () => ({
   onComplete: vi.fn(),

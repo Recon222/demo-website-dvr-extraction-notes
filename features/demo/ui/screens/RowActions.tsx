@@ -1,5 +1,6 @@
 'use client'
 
+import type { Ref } from 'react'
 import { GLASS, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 /**
@@ -42,14 +43,20 @@ export function RowActionsTrigger({
   label,
   open,
   onToggle,
+  triggerRef,
 }: {
   /** Accessible name — callers scope it to the row ("Actions for case PR25-0098213"). */
   label: string
   open: boolean
   onToggle(): void
+  /** The row's stable focus anchor. Unlike the tray's own buttons this control survives the
+   *  tray closing, so it is where focus belongs when a destructive dialog hands back
+   *  (review R-10). */
+  triggerRef?: Ref<HTMLButtonElement>
 }) {
   return (
     <button
+      ref={triggerRef}
       type="button"
       aria-label={label}
       aria-expanded={open}
