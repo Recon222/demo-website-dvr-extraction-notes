@@ -9,7 +9,12 @@ import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import { ImportResultAccordion } from '@/features/demo/ui/screens/ImportResultAccordion'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ImportTerminalProgress, type TerminalOutcome } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
-import type { ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
+import type {
+  ImportStageId as RunStageId,
+  ImportErrorCode,
+  ImportErrorDetails,
+  ImportPartialData,
+} from '@/features/demo/ui/import/run-import'
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
@@ -25,7 +30,32 @@ export type ImportResult =
       /** Set when a fallback to the sample occurred (keyless or live failure); shown as a notice. */
       notice?: string
     }
-  | { ok: false; error: string; failures?: ImportFailure[] }
+  | {
+      ok: false
+      error: string
+      failures?: ImportFailure[]
+      /** Single-run enrichment (row 79): keys the friendly ERROR_MESSAGES copy. */
+      code?: ImportErrorCode
+      /** Raw failure context — rendered in the collapsible "Technical Details" block. */
+      details?: ImportErrorDetails
+      /** What the pipeline DID find — rendered in the "Data Found" block. */
+      partialData?: ImportPartialData
+    }
+
+/**
+ * Friendly message per failure code — the phone's ERROR_MESSAGES pattern
+ * (ImportFlowModal.tsx:82-94), rebuilt over the demo's REAL failure modes instead
+ * of copying the phone's JSON-import codes (the demo has no JSON import; owner
+ * decision D5). PDF_SCANNED and NO_FIELDS_FOUND are deliberately absent: their
+ * pipeline messages are already the honest user-facing copy, so the fallback
+ * `ERROR_MESSAGES[code] || error` renders them verbatim — the phone's own
+ * precedent for PDF codes (§5.7.8). Render rule matches the phone exactly:
+ * `ERROR_MESSAGES[result.error.code] || result.error.message` (:328-330).
+ */
+export const ERROR_MESSAGES: Record<string, string> = {
+  PDF_READ_FAILED: 'This PDF could not be read. It may be corrupted or password-protected.',
+  MODEL_OUTPUT_UNPARSEABLE: "The model's reply couldn't be read as form data. Please try the import again.",
+}
 
 export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
 
@@ -81,6 +111,57 @@ export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutc
 const secondaryBtn: CSSProperties = { ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
 const primaryBtn: CSSProperties = { ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
 
+const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
+
+/**
+ * Collapsible raw-failure context — the phone's "Technical Details" block
+ * (ImportFlowModal.tsx:332-352): chevron toggle, collapsed by default, content =
+ * JSON.stringify(details, null, 2) in a mono face.
+ */
+function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ width: '100%', textAlign: 'left' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="import-technical-details"
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#99badd' }}>Technical Details</span>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : undefined }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <pre
+          id="import-technical-details"
+          data-testid="import-technical-details"
+          style={{ margin: '8px 0 0', padding: '8px 10px', borderRadius: 8, background: '#0a1626', border: GLASS.borderSoft, fontFamily: stmono, fontSize: 11, lineHeight: '16px', color: '#8aa3bd', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+        >
+          {JSON.stringify(details, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
+/**
+ * "Data Found" — the phone's partial-extraction block (ImportFlowModal.tsx:353-368),
+ * labels verbatim: what the pipeline honestly recovered before the run failed.
+ */
+function DataFoundCard({ partial }: { partial: ImportPartialData }) {
+  if (!partial.caseNumber && !partial.businessName) return null
+  return (
+    <div data-testid="import-data-found" style={{ width: '100%', textAlign: 'left', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(26,45,68,0.45)', padding: '10px 12px' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#99badd', marginBottom: 6 }}>Data Found</div>
+      {partial.caseNumber && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>}
+      {partial.businessName && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Business: {partial.businessName}</div>}
+    </div>
+  )
+}
+
 /** Per-file failures, shown identically in the all-failed view and a partial batch. */
 function FailuresCard({ failures }: { failures: ImportFailure[] }) {
   return (
@@ -134,9 +215,17 @@ export function ImportModal(props: ImportModalProps) {
       {stage === 'result' && result && (
         <div style={{ paddingTop: 4 }}>
           {!result.ok ? (
+            // Failure card (row 79). The phone's ErrorOrDryRunContent also renders a
+            // dry-run/validation-only view — deliberately NOT ported: the demo has no
+            // JSON import and no validate-only mode, so there is nothing to dry-run.
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14, paddingTop: 16 }}>
               <svg aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-              <div role="status" aria-live="polite" style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>{result.error}</div>
+              {/* Phone render rule (:328-330): friendly map by code, else the pipeline's own honest string. */}
+              <div role="status" aria-live="polite" style={{ fontSize: 15, color: '#ff8a93', lineHeight: 1.5 }}>
+                {(result.code && ERROR_MESSAGES[result.code]) || result.error}
+              </div>
+              {result.details && <TechnicalDetails details={result.details} />}
+              {result.partialData && <DataFoundCard partial={result.partialData} />}
               {result.failures && result.failures.length > 0 && <div style={{ width: '100%' }}><FailuresCard failures={result.failures} /></div>}
               <button type="button" onClick={props.onRetry} style={{ ...secondaryBtn, padding: '12px 24px' }}>Try again</button>
             </div>

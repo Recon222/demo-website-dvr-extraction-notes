@@ -5,7 +5,16 @@ import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
-import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
+import {
+  runImport as runTextImport,
+  runPdfImport,
+  type ImportStageId as RunStageId,
+  type ImportRunResult,
+  type FallbackMode,
+  type ImportErrorCode,
+  type ImportErrorDetails,
+  type ImportPartialData,
+} from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -413,11 +422,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return id
   }
 
+  /** A per-file failure plus the single-run enrichment fields (row 79) the card can render. */
+  interface RunFailure extends ImportFailure {
+    code?: ImportErrorCode
+    details?: ImportErrorDetails
+    partialData?: ImportPartialData
+  }
   interface ImportTally {
     lastLocId: string | null
     notice: string | undefined
     locations: ImportedLocationView[]
-    failures: ImportFailure[]
+    failures: RunFailure[]
   }
   const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number, emitter: ImportLogEmitter) => {
     const locId = await applySuccess(caseId, res, myGen, emitter)
@@ -450,9 +465,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       if (totalFiles > 1) emitter.log('DONE', 'batch complete', `success: ${t.locations.length} · failed: ${t.failures.length} · ${emitter.elapsed()}ms`)
       else emitter.log('DONE', 'import complete', `${emitter.elapsed()}ms`)
     }
+    // A single failed run surfaces ITS error directly, enriched (code → friendly copy,
+    // details → Technical Details, partialData → Data Found); the per-file card would be
+    // redundant for one file. A multi-file all-failed run keeps the aggregate + rows.
+    const single = totalFiles === 1 && t.failures.length === 1 ? t.failures[0] : null
     const result: ImportResult =
       t.locations.length === 0
-        ? { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
+        ? single
+          ? { ok: false, error: single.error, code: single.code, details: single.details, partialData: single.partialData }
+          : { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
         : { ok: true, locations: t.locations, failures: t.failures, notice: t.notice }
     setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
   }
@@ -480,7 +501,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
       if (importGen.current !== myGen) return // cancelled while this file was processing
       if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
+      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
     }
     if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
     finishImport(tally, emitter, total)
@@ -509,7 +530,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
+    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
     if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
     finishImport(tally, emitter, 1)
   }

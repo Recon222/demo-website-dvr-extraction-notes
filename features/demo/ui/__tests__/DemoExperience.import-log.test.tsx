@@ -130,7 +130,9 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const { container } = render(<DemoExperience store={store} />)
     openImport(store, 'PR25-ERR')
     pickPdf(container, ['bad.pdf'])
-    await screen.findByText(/Could not read this PDF/)
+    // Row 79: the card now shows the friendly PDF_READ_FAILED copy; the raw
+    // 'Could not read this PDF.' lives on in the Technical Details block.
+    await screen.findByText(/This PDF could not be read/)
 
     const lines = importLogBus.getLines()
     expect(lines[lines.length - 1]!.level).toBe('ERR')

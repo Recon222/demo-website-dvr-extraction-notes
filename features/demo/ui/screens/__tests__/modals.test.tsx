@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
-import { ImportModal, deriveTerminalOutcome } from '@/features/demo/ui/screens/ImportModal'
+import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
 function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView {
@@ -195,5 +195,62 @@ describe('ImportModal', () => {
     expect(screen.getByText(/a\.pdf/)).toBeInTheDocument()
     expect(screen.getByText(/b\.pdf/)).toBeInTheDocument()
     expect(screen.getByText('Try again')).toBeInTheDocument()
+  })
+
+  // ---- row 79 enrichment: ERROR_MESSAGES + Technical Details + Data Found ----
+
+  it('a coded failure renders the friendly ERROR_MESSAGES copy, not the raw pipeline string', () => {
+    render(
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'Could not read this PDF.', code: 'PDF_READ_FAILED' }} {...cb} />,
+    )
+    expect(screen.getByText(ERROR_MESSAGES.PDF_READ_FAILED)).toBeInTheDocument()
+    expect(screen.queryByText('Could not read this PDF.')).not.toBeInTheDocument()
+  })
+
+  it('a code outside the map falls back to the pipeline\'s own honest string (phone §5.7.8 precedent)', () => {
+    render(
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'This PDF looks scanned or image-only — no selectable text was found. Paste the request text instead.', code: 'PDF_SCANNED' }} {...cb} />,
+    )
+    expect(ERROR_MESSAGES.PDF_SCANNED).toBeUndefined() // deliberately unmapped
+    expect(ERROR_MESSAGES.NO_FIELDS_FOUND).toBeUndefined() // deliberately unmapped
+    expect(screen.getByText(/This PDF looks scanned or image-only/)).toBeInTheDocument()
+  })
+
+  it('Technical Details: collapsed by default, expands to the JSON details, collapses again', () => {
+    render(
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'Could not read this PDF.', code: 'PDF_READ_FAILED', details: { stage: 'extracting_text', detail: 'boom' } }} {...cb} />,
+    )
+    const toggle = screen.getByRole('button', { name: 'Technical Details' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('import-technical-details')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const block = screen.getByTestId('import-technical-details')
+    expect(block).toHaveTextContent('"stage": "extracting_text"')
+    expect(block).toHaveTextContent('"detail": "boom"')
+    fireEvent.click(toggle)
+    expect(screen.queryByTestId('import-technical-details')).not.toBeInTheDocument()
+  })
+
+  it('Technical Details is absent when the failure carries no details', () => {
+    render(<ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'x' }} {...cb} />)
+    expect(screen.queryByRole('button', { name: 'Technical Details' })).not.toBeInTheDocument()
+  })
+
+  it('Data Found renders the phone-verbatim labels for whatever was recovered', () => {
+    render(
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'x', code: 'NO_FIELDS_FOUND', partialData: { caseNumber: 'PR25-777' } }} {...cb} />,
+    )
+    const block = screen.getByTestId('import-data-found')
+    expect(block).toHaveTextContent('Data Found')
+    expect(block).toHaveTextContent('Case Number: PR25-777')
+    expect(block).not.toHaveTextContent('Business:') // absent key → row absent
+  })
+
+  it('Data Found is absent without partialData, and when partialData has no values', () => {
+    const { rerender } = render(<ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'x' }} {...cb} />)
+    expect(screen.queryByTestId('import-data-found')).not.toBeInTheDocument()
+    rerender(<ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: 'x', partialData: {} }} {...cb} />)
+    expect(screen.queryByTestId('import-data-found')).not.toBeInTheDocument()
   })
 })
