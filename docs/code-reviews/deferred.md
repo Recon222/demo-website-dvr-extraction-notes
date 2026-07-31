@@ -785,3 +785,10 @@ demo behavior was deliberately changed — none are gaps to re-flag:
    failed run showed the aggregate "1 import failed." plus a one-row file card; it now
    surfaces the run's own error directly with code/details/partialData enrichment
    (phone single-failure anatomy). Multi-file all-failed runs keep aggregate + rows.
+
+4. **(p1-review R-30 addendum)** `ImportPartialData` carries only `caseNumber` — the
+   phone's second key, `businessName`, is structurally unreachable in the demo: the
+   sole `partialData` producer sits inside run-import's `fieldCount === 0` gate and
+   `fieldCount` counts `businessName`, so it is provably empty on that path. The field
+   and its `Business:` render row were dropped rather than shipped dead; re-add both
+   only if a producer outside that gate ever surfaces a business name on failure.

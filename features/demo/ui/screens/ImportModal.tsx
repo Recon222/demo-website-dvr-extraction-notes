@@ -157,15 +157,16 @@ function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
 
 /**
  * "Data Found" — the phone's partial-extraction block (ImportFlowModal.tsx:353-368),
- * labels verbatim: what the pipeline honestly recovered before the run failed.
+ * label verbatim: what the pipeline honestly recovered before the run failed. The
+ * phone's second row ('Business:') is deliberately not ported — that value is
+ * structurally unreachable in the demo pipeline (R-30, see ImportPartialData's doc).
  */
 function DataFoundCard({ partial }: { partial: ImportPartialData }) {
-  if (!partial.caseNumber && !partial.businessName) return null
+  if (!partial.caseNumber) return null
   return (
     <div data-testid="import-data-found" style={{ width: '100%', textAlign: 'left', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(26,45,68,0.45)', padding: '10px 12px' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#99badd', marginBottom: 6 }}>Data Found</div>
-      {partial.caseNumber && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>}
-      {partial.businessName && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Business: {partial.businessName}</div>}
+      <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>
     </div>
   )
 }

@@ -78,10 +78,15 @@ export interface ImportErrorDetails {
   detail: string
 }
 
-/** Phone partialData parity (ImportFlowModal.tsx:353-368): what the pipeline DID find. */
+/**
+ * What the pipeline DID find before failing (the phone's partialData concept,
+ * ImportFlowModal.tsx:353-368). Only `caseNumber` (the model-read OCC#): the phone's
+ * second key, businessName, is structurally unreachable here — the sole partialData
+ * producer sits inside the `fieldCount === 0` gate and fieldCount counts businessName,
+ * so it is provably empty on that path (p1-review R-30; recorded in deferred.md §35).
+ */
 export interface ImportPartialData {
   caseNumber?: string
-  businessName?: string
 }
 
 /**

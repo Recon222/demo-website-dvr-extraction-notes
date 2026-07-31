@@ -241,14 +241,16 @@ describe('ImportModal', () => {
     expect(screen.queryByRole('button', { name: 'Technical Details' })).not.toBeInTheDocument()
   })
 
-  it('Data Found renders the phone-verbatim labels for whatever was recovered', () => {
+  it('Data Found renders the phone-verbatim Case Number label for the recovered OCC#', () => {
     render(
       <ImportModal stage="result" text="" activeStage={null} lastRealStage={null} batch={null} result={{ ok: false, error: 'x', code: 'NO_FIELDS_FOUND', partialData: { caseNumber: 'PR25-777' } }} {...cb} />,
     )
     const block = screen.getByTestId('import-data-found')
     expect(block).toHaveTextContent('Data Found')
     expect(block).toHaveTextContent('Case Number: PR25-777')
-    expect(block).not.toHaveTextContent('Business:') // absent key → row absent
+    // R-30: the phone's 'Business:' row is deliberately not ported — structurally
+    // unreachable in the demo pipeline (fieldCount === 0 gate counts businessName).
+    expect(block).not.toHaveTextContent('Business:')
   })
 
   it('Data Found is absent without partialData, and when partialData has no values', () => {
