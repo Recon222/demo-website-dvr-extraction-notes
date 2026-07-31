@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAccuracy, getAccuracyRating, gpsSourceLabel, type AccuracyTone } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
  * The captured-coordinate card — the demo's port of the phone's `CoordinateDisplay`
@@ -55,7 +56,7 @@ export interface CoordinateDisplayProps {
   /** Absent when nothing measured one — the accuracy and rating chips then don't render
    *  (phone CoordinateDisplay.tsx:138-166). */
   accuracyM?: number
-  source?: 'gps' | 'geocoded' | 'manual'
+  source?: GpsSource
   /** Test seam — defaults to `navigator.clipboard.writeText`. */
   writeClipboard?(text: string): Promise<void>
 }

@@ -250,6 +250,9 @@ export type CaseStatus = (typeof CASE_STATUSES)[number]
 export const COORD_SOURCES = ['geocoded', 'manual'] as const
 /** Recovery-location fixes can additionally come from a real GPS capture. */
 export const GPS_SOURCES = ['gps', 'geocoded', 'manual'] as const
+/** Coordinate provenance. Named (R-25) so consumers annotate rather than hand-retyping the
+ *  members: a widened `GPS_SOURCES` must reach the provenance chip, not stop at a copy. */
+export type GpsSource = (typeof GPS_SOURCES)[number]
 
 export interface DemoCase {
   id: string
@@ -290,7 +293,7 @@ export interface DemoLocation {
   requesterEmail: string
   locationContact: string
   locationPhone: string
-  gps?: GpsCoordinates & { source: (typeof GPS_SOURCES)[number] }
+  gps?: GpsCoordinates & { source: GpsSource }
   form: LocationForm
 }
 

@@ -9,6 +9,7 @@ import { GpsCaptureControl } from '@/features/demo/ui/inputs/GpsCaptureControl'
 import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { Field } from '@/features/demo/ui/screens/_shared'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
+import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
  * The demo's port of the phone's `LocationForm`
@@ -42,7 +43,7 @@ export interface LocationFieldValues {
   lat?: number
   lng?: number
   accuracyM?: number
-  coordinateSource?: 'gps' | 'geocoded' | 'manual'
+  coordinateSource?: GpsSource
 }
 
 export interface LocationFieldsProps {

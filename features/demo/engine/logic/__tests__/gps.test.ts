@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
+import { GPS_SOURCES } from '@/features/demo/engine/types'
 import {
   ACCURACY_MODE_TARGET_M,
   GPS_CONFIG_STATIC,
@@ -212,6 +213,14 @@ describe('formatting', () => {
     expect(gpsSourceLabel('geocoded')).toBe('Geocoded')
     expect(gpsSourceLabel('manual')).toBe('Manual')
     expect(gpsSourceLabel(undefined)).toBe('')
+  })
+
+  it('labels EVERY declared source — a new member cannot ship chip-less (R-25)', () => {
+    // The `never` check makes an unhandled member a compile error; this is the runtime
+    // statement of the same rule, driven off the registry rather than a hand-written list.
+    for (const source of GPS_SOURCES) {
+      expect(gpsSourceLabel(source), `no provenance label for "${source}"`).not.toBe('')
+    }
   })
 
   it('interpolates the configured timeout into the timeout message', () => {

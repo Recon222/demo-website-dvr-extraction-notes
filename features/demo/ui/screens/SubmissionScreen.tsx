@@ -5,6 +5,7 @@ import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inp
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -43,7 +44,7 @@ export interface SubmissionCoordinates {
   lat: number
   lng: number
   accuracyM?: number
-  source: 'gps' | 'geocoded' | 'manual'
+  source: GpsSource
 }
 
 export interface SubmissionScreenProps {

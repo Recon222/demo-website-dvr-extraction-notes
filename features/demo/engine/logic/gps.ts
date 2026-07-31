@@ -26,6 +26,8 @@
  * same samples, so this module implements the phone's real behaviour. See deferred.md §41.
  */
 
+import type { GpsSource } from '@/features/demo/engine/types'
+
 // ---- Domain ---------------------------------------------------------------
 
 /** One raw reading. `accuracyM` is the radius of 68% confidence in metres, as reported by the
@@ -268,8 +270,14 @@ export function formatAccuracy(accuracyM: number): string {
   return `±${Math.round(accuracyM)}m`
 }
 
-/** CoordinateDisplay.tsx:30-41 — the coordinate provenance chip. */
-export function gpsSourceLabel(source: 'gps' | 'geocoded' | 'manual' | undefined): string {
+/** CoordinateDisplay.tsx:30-41 — the coordinate provenance chip.
+ *
+ *  R-25: `case undefined` + the `never` check, not a bare `default`. The old default was
+ *  load-bearing for `undefined` (no source yet → no chip), which disguised the exhaustiveness
+ *  gap: a fourth `GPS_SOURCES` member — P4's import-provided coordinates is the named
+ *  candidate — would have silently rendered NO provenance chip on a card whose whole job is
+ *  provenance. Now it fails to compile instead. */
+export function gpsSourceLabel(source: GpsSource | undefined): string {
   switch (source) {
     case 'gps':
       return 'GPS'
@@ -277,7 +285,11 @@ export function gpsSourceLabel(source: 'gps' | 'geocoded' | 'manual' | undefined
       return 'Manual'
     case 'geocoded':
       return 'Geocoded'
-    default:
+    case undefined:
       return ''
+    default: {
+      const exhaustive: never = source
+      return exhaustive
+    }
   }
 }
