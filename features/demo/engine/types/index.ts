@@ -252,7 +252,18 @@ export type MediaKind = (typeof MEDIA_KINDS)[number]
 export interface MediaItem {
   id: string
   kind: MediaKind
-  url: string
+  /**
+   * Where the bytes are. OPTIONAL (P4.1): a live capture is a `blob:` object URL scoped to
+   * the document that minted it, and the demo deliberately does NOT persist media bytes
+   * (plan §5 P4.1 / decision D2), so `snapshotOf` strips those URLs on the way to
+   * sessionStorage. An item restored from a snapshot therefore has no `url` and renders
+   * `MEDIA_EXPIRED_NOTICE` rather than a broken `<img>` — a library row that claims to hold
+   * evidence it cannot show is exactly the lie this app exists to prevent.
+   *
+   * Bundled sample assets keep theirs: `/demo-media/...` is as valid after a refresh as
+   * before it. See `engine/logic/media/captured.ts`.
+   */
+  url?: string
   poster?: string
   filename: string
   caption: string
