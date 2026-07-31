@@ -151,8 +151,9 @@ export async function captureGps(
       if (code === POSITION_ERROR.TIMEOUT) {
         return samples.length > 0 ? toGpsFix(samples) : timedOut
       }
-      // POSITION_UNAVAILABLE (or an unrecognised rejection): keep trying while attempts
-      // remain, exactly as the phone does (gps-service.ts:249-255).
+      // POSITION_UNAVAILABLE (or an unrecognised rejection — the demo classifies rather than
+      // carrying the phone's `UNKNOWN` code): keep trying while attempts remain, exactly as
+      // the phone does (gps-service.ts:249-255). Exhausting them yields LOCATION_UNAVAILABLE.
       if (attempts >= config.maxAttempts) break
       await delay(config.retryDelayMs)
       continue

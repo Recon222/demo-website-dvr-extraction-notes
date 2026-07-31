@@ -66,8 +66,12 @@ export function useGpsCapture(options: UseGpsCaptureOptions = {}): UseGpsCapture
 
   // Read the latest options inside the handler rather than closing over them, so a caller
   // passing an inline config object doesn't invalidate `capture`'s identity every render.
+  // Synced in an effect (not during render) — `capture` only ever runs from an event
+  // handler, which is always after the commit that refreshed this.
   const optionsRef = useRef(options)
-  optionsRef.current = options
+  useEffect(() => {
+    optionsRef.current = options
+  })
 
   const capture = useCallback(async (): Promise<GpsFix | null> => {
     if (runningRef.current) return null

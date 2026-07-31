@@ -48,16 +48,21 @@ export interface GpsFix {
   sampleCount: number
 }
 
-/** Phone parity: the same five codes as `GpsError` (gps-service.ts:29-32), plus `UNSUPPORTED`
- *  for the one failure mode a browser has and a phone does not — no geolocation API at all
- *  (jsdom, an insecure origin, a hardened browser). It never resolves to a fake coordinate. */
+/** The phone's `GpsError` codes (gps-service.ts:29-32) minus `UNKNOWN`, plus `UNSUPPORTED`.
+ *
+ *  `UNSUPPORTED` covers the one failure mode a browser has and a phone does not — no
+ *  geolocation API at all (jsdom, an insecure origin, a hardened browser). `UNKNOWN` is
+ *  dropped rather than carried as a dead variant: the phone needs it because an arbitrary
+ *  throw can escape `captureLocation`, whereas every rejection path in `capture-gps.ts` is
+ *  classified (an unrecognised `getCurrentPosition` rejection retries like
+ *  POSITION_UNAVAILABLE and ends in `LOCATION_UNAVAILABLE`). Add it back only alongside a
+ *  producer. */
 export const GPS_ERROR_CODES = [
   'PERMISSION_DENIED',
   'LOCATION_UNAVAILABLE',
   'TIMEOUT',
   'INVALID_COORDINATES',
   'UNSUPPORTED',
-  'UNKNOWN',
 ] as const
 export type GpsErrorCode = (typeof GPS_ERROR_CODES)[number]
 
@@ -70,9 +75,10 @@ export type GpsCaptureOutcome = { ok: true; fix: GpsFix } | { ok: false; failure
 
 // ---- Copy (lifted verbatim from the phone) --------------------------------
 
-/** Operator-facing failure copy. The first four strings are the phone's, character for
- *  character; `UNSUPPORTED` is demo-only and states plainly that nothing was captured —
- *  the demo never invents a coordinate to paper over a missing capability. */
+/** Operator-facing failure copy. `PERMISSION_DENIED` and `LOCATION_UNAVAILABLE` are the
+ *  phone's strings character for character (as is `gpsTimeoutMessage` below); `UNSUPPORTED`
+ *  is demo-only and states plainly that nothing was captured — the demo never invents a
+ *  coordinate to paper over a missing capability. */
 export const GPS_MESSAGES = {
   /** useGpsCapture.ts:135 */
   PERMISSION_DENIED: 'Location permission is required to capture GPS coordinates',
@@ -80,8 +86,6 @@ export const GPS_MESSAGES = {
   LOCATION_UNAVAILABLE: 'Could not capture GPS location after multiple attempts',
   /** Demo-only: no `navigator.geolocation` on this origin/browser. */
   UNSUPPORTED: 'This browser has no location service available — no coordinates were captured',
-  /** Demo-only fallback, mirroring useGpsCapture.ts:181's unknown-error branch. */
-  UNKNOWN: 'An unknown error occurred during GPS capture',
 } as const
 
 /** gps-service.ts:323 — the timeout message interpolates the configured timeout in ms. */

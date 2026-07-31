@@ -79,6 +79,12 @@ export function LocationFields({ values, onChange, deps, reverseGeocode = defaul
       const address = await reverseGeocode(fix.lat, fix.lng)
       if (address) onChange({ streetAddress: address.streetAddress, city: address.city })
       else setLookupFailed(true)
+    } catch {
+      // `reverseGeocode` soft-fails by contract, so this only fires for an injected seam or a
+      // future implementation that throws. Treat it as "no address" — the notice below already
+      // says the coordinates were kept — rather than letting it escape as an unhandled
+      // rejection and strand the button in its "Looking up address…" state.
+      setLookupFailed(true)
     } finally {
       setReverseGeocoding(false)
     }
