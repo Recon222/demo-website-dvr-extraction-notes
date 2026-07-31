@@ -71,6 +71,7 @@ describe('ImportModal', () => {
     onRetry: vi.fn(),
     onOpenLocation: vi.fn(),
     onCancel: vi.fn(),
+    onReviewImport: vi.fn(), // required since R-4 — the dwell's only exit
   }
 
   it('routes picker → paste: three cards, then the phone paste header (title + back chevron) and run', () => {

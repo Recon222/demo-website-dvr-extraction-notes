@@ -82,11 +82,12 @@ export interface ImportModalProps {
   onOpenLocation(locId: string | null): void
   onCancel(): void
   /**
-   * Fired by the terminal's outcome CTA. Pre-P1.5 the auto-flip to results still
-   * runs (an outcome never shows while stage is 'progress'), so this stays no-op-safe;
-   * P1.5's dwell makes it load-bearing.
+   * Fired by the terminal's outcome CTA — the dwell's ONLY exit (p1-review R-4):
+   * computeImportStage holds 'progress' until the acknowledge this callback writes,
+   * so an omitted/no-op handler would leave the CTA clicking into nothing forever.
+   * REQUIRED for exactly that reason.
    */
-  onReviewImport?(): void
+  onReviewImport(): void
   /** Test seam forwarded to the terminal — defaults to the singleton import log bus. */
   logBus?: ImportLogBus
   /** Test seam forwarded to PickerStage — defaults to navigator.clipboard.readText. */
@@ -96,10 +97,10 @@ export interface ImportModalProps {
 /**
  * ImportResult → the terminal's outcome union. null result = still running. The
  * counts follow the phone's derivation (cases.tsx:949-967): every file failed →
- * failure (no counts); some failed → amber partial; else success. Pre-P1.5 the
- * modal flips to 'result' the moment a result exists, so the terminal only ever
- * sees null here — the derivation becomes live when P1.5 holds the progress stage
- * through the dwell.
+ * failure (no counts); some failed → amber partial; else success. LIVE since the
+ * P1.5 dwell: computeImportStage keeps the modal on 'progress' after the result
+ * lands, so this derivation is what morphs the badge into the outcome CTA the
+ * visitor must tap to reach the result view.
  */
 export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutcome | null {
   if (result === null) return null
@@ -211,7 +212,7 @@ export function ImportModal(props: ImportModalProps) {
           lastRealStage={lastRealStage}
           outcome={deriveTerminalOutcome(result)}
           batch={batch}
-          onReview={props.onReviewImport ?? (() => undefined)}
+          onReview={props.onReviewImport}
           bus={props.logBus}
         />
       )}
