@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
-import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
+import {
+  createDemoStore,
+  type DemoStore,
+  type RestoreAllMode,
+  type ScrapAllMode,
+} from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
@@ -69,7 +74,7 @@ import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -406,6 +411,29 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => {
     if (view === 'notes') store.getState().reconcileNotes()
   }, [store, view, currentLocationId])
+
+  // Notes wiring (R-14): stable callback identities + memoised derivations, so
+  // SectionBlock's memo actually holds — the store ref is stable, so these bind once.
+  const notesMeta = useMemo(() => buildNotesSectionMeta(currentLocation), [currentLocation])
+  const notesCopyAllText = useMemo(
+    () =>
+      currentLocation
+        ? assembleNotesString(currentLocation.form.notesSections, currentLocation.form.notesFreeText)
+        : '',
+    [currentLocation],
+  )
+  const commitNoteSection = useCallback(
+    (id: NoteSectionId, text: string) => store.getState().commitNoteSection(id, text),
+    [store],
+  )
+  const commitNoteAddendum = useCallback(
+    (id: NoteSectionId, text: string) => store.getState().commitNoteAddendum(id, text),
+    [store],
+  )
+  const resetNoteSection = useCallback((id: NoteSectionId) => store.getState().resetNoteSection(id), [store])
+  const scrapAllNotes = useCallback((mode: ScrapAllMode) => store.getState().scrapAllNotes(mode), [store])
+  const restoreAllNotes = useCallback((mode: RestoreAllMode) => store.getState().restoreAllNotes(mode), [store])
+  const commitNotesFreeText = useCallback((text: string) => store.getState().commitNotesFreeText(text), [store])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
 
@@ -1111,19 +1139,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // copyAllText reads COMMITTED store values (the phone's documented micro-edge).
         return (
           <NotesScreen
-            sections={buildNotesSectionMeta(currentLocation)}
+            sections={notesMeta}
             freeText={currentLocation?.form.notesFreeText ?? ''}
-            copyAllText={
-              currentLocation
-                ? assembleNotesString(currentLocation.form.notesSections, currentLocation.form.notesFreeText)
-                : ''
-            }
-            onCommitSection={(id, text) => store.getState().commitNoteSection(id, text)}
-            onCommitAddendum={(id, text) => store.getState().commitNoteAddendum(id, text)}
-            onResetSection={(id) => store.getState().resetNoteSection(id)}
-            onScrapAll={(mode) => store.getState().scrapAllNotes(mode)}
-            onRestoreAll={(mode) => store.getState().restoreAllNotes(mode)}
-            onCommitFreeText={(text) => store.getState().commitNotesFreeText(text)}
+            copyAllText={notesCopyAllText}
+            onCommitSection={commitNoteSection}
+            onCommitAddendum={commitNoteAddendum}
+            onResetSection={resetNoteSection}
+            onScrapAll={scrapAllNotes}
+            onRestoreAll={restoreAllNotes}
+            onCommitFreeText={commitNotesFreeText}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

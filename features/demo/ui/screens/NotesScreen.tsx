@@ -297,6 +297,13 @@ export function NotesScreen({
   // from the primitive. Copy and button order stay phone-verbatim (ui-mapping 08);
   // Cancel is an explicit action, as the phone's Alert.alert declares it.
   const closeDialog = useCallback(() => setDialog(null), [])
+  // R-14: stable identity so SectionBlock's memo holds (a fresh arrow per render was
+  // defeating it — every parent keystroke re-rendered all seven blocks).
+  const requestReset = useCallback(
+    (id: NoteSectionId, label: string, deleted: boolean) =>
+      setDialog(deleted ? { kind: 'restoreSection', id, label } : { kind: 'reset', id, label }),
+    [],
+  )
   const act = (fn: () => void) => () => {
     setDialog(null)
     fn()
@@ -386,9 +393,7 @@ export function NotesScreen({
               meta={meta}
               onCommitSection={onCommitSection}
               onCommitAddendum={onCommitAddendum}
-              onRequestReset={(id, label, deleted) =>
-                setDialog(deleted ? { kind: 'restoreSection', id, label } : { kind: 'reset', id, label })
-              }
+              onRequestReset={requestReset}
             />
           ))}
           <textarea
