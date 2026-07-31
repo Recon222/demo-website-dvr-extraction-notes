@@ -81,6 +81,27 @@ export {
 } from '@/features/demo/engine/logic/media/captured'
 
 export {
+  DEFAULT_MEDIA_TAB,
+  DELETE_MEDIA_TITLE,
+  MAX_MEDIA_BADGE_COUNT,
+  MEDIA_DELETED_NOTICE,
+  MEDIA_LIBRARY_TABS,
+  UNKNOWN_DURATION_LABEL,
+  deleteMediaMessage,
+  formatCapturedDate,
+  mediaDurationLabel,
+  mediaForTab,
+  mediaLibraryCounts,
+  mediaLibrarySubtitle,
+  mediaLibraryTab,
+  mediaTabBadge,
+  type MediaBuckets,
+  type MediaLibraryCounts,
+  type MediaLibraryTab,
+  type MediaLibraryTabId,
+} from '@/features/demo/engine/logic/media/library'
+
+export {
   NO_RECORDER_NOTICE,
   SAMPLE_MEDIA,
   SAMPLE_MEDIA_BASE,
