@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import type { DemoLocation, GpsCoordinates } from '@/features/demo/engine/types'
+import type { CameraEntry, DemoLocation, GpsCoordinates } from '@/features/demo/engine/types'
 import type { NewLocationInput } from '@/features/demo/engine/store/create-store'
 import type { CoordinateDisplayProps } from '@/features/demo/ui/inputs/CoordinateDisplay'
 import type { LocationFieldValues } from '@/features/demo/ui/inputs/LocationFields'
@@ -38,6 +38,9 @@ const notesCameraIsDerived: CarriesEveryCoordinateKey<NonNullable<NotesCamera['g
 const newLocationFieldsIsDerived: CarriesEveryCoordinateKey<NonNullable<NewLocationFields['coordinates']>> = true
 const newLocationInputIsDerived: CarriesEveryCoordinateKey<NonNullable<NewLocationInput['gps']>> = true
 const storedFixIsDerived: CarriesEveryCoordinateKey<NonNullable<DemoLocation['gps']>> = true
+// The per-camera fix (P3.7) is the eighth carrier: it adds `source`/`capturedAt` on top of the
+// canonical shape, so it must keep carrying all of it.
+const cameraFixIsDerived: CarriesEveryCoordinateKey<NonNullable<CameraEntry['gps']>> = true
 
 // The one deliberate projection — a half-filled FORM, so every coordinate key is optional — is
 // held to the same key-exhaustiveness rule; only the optionality differs.
@@ -52,7 +55,8 @@ describe('coordinate shapes stay linked to GpsCoordinates (R-24)', () => {
       newLocationFieldsIsDerived,
       newLocationInputIsDerived,
       storedFixIsDerived,
+      cameraFixIsDerived,
       formProjectionIsDerived,
-    ]).toEqual([true, true, true, true, true, true, true])
+    ]).toEqual([true, true, true, true, true, true, true, true])
   })
 })
