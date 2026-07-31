@@ -453,10 +453,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return id
   }
 
-  /** A per-file failure plus the single-run enrichment fields (row 79) the card can render. */
+  /**
+   * A per-file failure plus the single-run enrichment fields (row 79) the card can
+   * render. `code`/`details` are REQUIRED (fix-delta R-41): every source is the
+   * post-R-29 failure arm (or the backstop's synthetic row), so optionality here was
+   * the one layer where a future bare push could silently drop the enrichment.
+   * `partialData` stays optional — honestly conditional.
+   */
   interface RunFailure extends ImportFailure {
-    code?: ImportErrorCode
-    details?: ImportErrorDetails
+    code: ImportErrorCode
+    details: ImportErrorDetails
     partialData?: ImportPartialData
   }
   interface ImportTally {

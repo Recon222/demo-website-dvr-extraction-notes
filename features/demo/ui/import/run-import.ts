@@ -76,9 +76,14 @@ export type ImportErrorCode =
   // unmapped in ERROR_MESSAGES: the backstop's own friendly string renders.
   | 'UNEXPECTED_ERROR'
 
-/** The phone's error.details shape for import failures ({ stage, detail } — §5.7.8). */
+/**
+ * The phone's error.details shape for import failures ({ stage, detail } — §5.7.8).
+ * `stage` is the REAL stage the failure happened at (fix-delta R-40): 'error' is a
+ * marker, not a stage anything failed AT — admitting it let Technical Details print
+ * `"stage": "error"`, the one value R-11 established as uninformative.
+ */
 export interface ImportErrorDetails {
-  stage: ImportStageId
+  stage: ImportRealStageId
   detail: string
 }
 
