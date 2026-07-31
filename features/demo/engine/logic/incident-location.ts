@@ -42,8 +42,23 @@ export interface IncidentLocationValues {
  */
 export type IncidentLocationPatch = Pick<
   DemoCase,
-  'incidentBusinessName' | 'incidentStreetAddress' | 'incidentCity' | 'incidentCoordinates'
->
+  'incidentBusinessName' | 'incidentStreetAddress' | 'incidentCity'
+> & {
+  /**
+   * REQUIRED, though its value may be `undefined` — deliberately not `Pick`ed, which would
+   * inherit `DemoCase`'s optionality (review R-5).
+   *
+   * The writer SPREADS this patch, so `{}` and `{ incidentCoordinates: undefined }` are both
+   * legal under an optional key and mean opposite things: preserve, versus clear. Today's only
+   * producer (`incidentValuesToPatch`) always emits the key, so the documented clear-on-save
+   * guarantee holds — but it holds by mapper discipline, not by the type. A future producer
+   * reaching for the conditional-spread idiom this store file uses four times would type-check
+   * and silently PRESERVE a stale forensic coordinate on a scene that had just been moved.
+   * Requiring the key makes that a compile error. Same reasoning §56c applied to `CaseEdits`,
+   * applied to the sibling it missed.
+   */
+  incidentCoordinates: DemoCase['incidentCoordinates']
+}
 
 /** Seed the incident form from a case. */
 export function caseToIncidentValues(c: DemoCase): IncidentLocationValues {

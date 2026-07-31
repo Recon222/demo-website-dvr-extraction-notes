@@ -146,9 +146,15 @@ describe('store.updateIncidentLocation', () => {
     const a = store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'A', unit: 'R' })
     const b = store.getState().createCase({ caseNumber: 'PR25-B', displayName: 'B', unit: 'R' })
     store.getState().updateIncidentLocation(a, { incidentBusinessName: 'A scene', incidentStreetAddress: '', incidentCity: '', incidentCoordinates: undefined })
-    store.getState().updateIncidentLocation('c-nope', { incidentBusinessName: 'ghost', incidentStreetAddress: '', incidentCity: '', incidentCoordinates: undefined })
     expect(store.getState().cases.find((x) => x.id === a)!.incidentBusinessName).toBe('A scene')
     expect(store.getState().cases.find((x) => x.id === b)!.incidentBusinessName).toBe('')
+
+    // A TRUE no-op, not merely a write that lands nowhere. The value-level assertion this arm
+    // used to make was satisfied unconditionally by the `.map` — it passed with the guard
+    // absent, which is exactly how §56b's sibling defect survived P3.2's own suite (R-4).
+    const before = store.getState()
+    store.getState().updateIncidentLocation('c-nope', { incidentBusinessName: 'ghost', incidentStreetAddress: '', incidentCity: '', incidentCoordinates: undefined })
+    expect(store.getState()).toBe(before)
     expect(store.getState().cases.some((x) => x.incidentBusinessName === 'ghost')).toBe(false)
   })
 
