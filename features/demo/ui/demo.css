@@ -4,8 +4,10 @@
    + the animation library those inline styles reference. Imported once by DemoExperience.
    Do not restyle the lifted rules. */
 
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700');
+/* Fonts (P1.1, matrix G10): Share Tech Mono + JetBrains Mono are self-hosted via next/font
+   in app/layout.tsx, which sets --font-stmono / --font-jbmono on <body> — /demo inherits them.
+   Inline styles consume the vars (with the original families as fallback). No runtime
+   Google-Fonts @import here — guarded by ui/__tests__/fonts.test.ts. */
 
 /* border-box is required for the lifted pixel dimensions (frame 404 = 378 + 13×2 padding).
    Scoped to the demo so the marketing site is untouched. */
@@ -113,6 +115,18 @@
 @keyframes sheetUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
+}
+
+/* Import terminal (P1.4): block-cursor blink + the badge→CTA morph fade (350ms,
+   mirroring the phone's Reanimated FadeIn.duration(350)). Both are gated by
+   useReducedMotion at the call site. */
+@keyframes termCursorBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes termFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Collapsible <details> accordion (New Case OIC / Video Coordinator): hide the native marker

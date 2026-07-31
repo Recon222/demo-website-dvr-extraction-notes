@@ -35,7 +35,7 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
               <button type="button" onClick={() => onToggle(c.id)} style={{ width: '100%', textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
+                    <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
                     {c.displayName && <div style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>{c.displayName}</div>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, marginLeft: 10 }}>

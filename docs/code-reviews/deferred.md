@@ -307,10 +307,22 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 **What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
 - ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
   sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
-  **RESOLVED (P0 fix round 2, R-27):** the trigger fired when `5c319e4` touched `selectors.ts`;
-  the catch now counts drops and dev-warns after the map, mirroring `generateExtractedScopes`,
-  pinned by tests in `select-adjusted-scopes.test.ts`. This half is done — P2.4's G8 scope
-  shrinks accordingly.
+  **RESOLVED (P0 fix round 2, R-27; placement corrected by R-33 in the P1 rider):** the
+  trigger fired when `5c319e4` touched `selectors.ts`. The breadcrumb is EVENT-scoped, not
+  render-scoped: `generateExtractedScopes` (Calculate) and `applyImport` (post-offset import)
+  each dev-warn once per event with the drop count, while the render-body selector stays
+  deliberately silent (documented in its catch). Pinned by tests in
+  `select-adjusted-scopes.test.ts` + `store-actions.test.ts`. This half is done — P2.4's G8
+  scope shrinks accordingly.
+  **Known residual (P1 review R-26, deliberate):** the THIRD creating boundary — editing or
+  adding a requested-scope row after an offset exists — warns nowhere. Scope rows write
+  through `updateField` once per keystroke (`listEditHandlers.change` rewrites the list per
+  field change), so an "event" warn at that boundary degenerates into exactly the
+  per-keystroke spam R-33 removed; a debounced/dedup'd variant is more machinery than the
+  operator-only gap warrants (the visitor surface stays annotated via
+  `adjustedScopesPartial` regardless). **Trigger:** P2.4 (G8) requested-scope
+  normalization — when scope writes gain a real commit boundary (blur/row-level), emit the
+  same dev-warn there and strike this residual.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
   `time.ts`'s own "fail loud" convention. **Still open.**
 
@@ -402,7 +414,14 @@ picker's (or portal ordering) so an open picker stays on top.
 
 ---
 
-## 21. PdfPreview has no Escape / backdrop dismiss (buttons only)
+## 21. PdfPreview has no Escape / backdrop dismiss (buttons only) — ✅ RESOLVED
+
+**RESOLVED** (`parity/p1-pdfsave`, P1.6): Escape listener added (same document-level pattern as
+ModalShell/WizardDrawer), the grey document surround now closes on click (the panel is full-screen,
+so the surround is the closest analog to a scrim — clicks on the document iframe itself do not
+close), and focus is handed back to the opener element on unmount. Covered by component tests in
+`features/demo/ui/chrome/__tests__/PdfPreview.test.tsx` plus a store-driven integration test in
+`DemoExperience.sandbox.test.tsx`.
 
 **Source:** PR #18 review (silent-failure, informational).
 
@@ -673,3 +692,138 @@ direction as correct boundary hygiene.
 
 **Trigger to revisit:** bundle budget pressure on `/demo`, or zod usage spreading beyond the
 two existing sites (beta form, snapshot guard) without a deliberate decision.
+
+---
+
+## 33. P1.2 (parity/p1-picker) — import picker/paste parity: deliberate adaptations & residuals
+
+**Source:** parity P1.2 (picker + paste stage upgrade, branch `parity/p1-picker`), 2026-07-30.
+Matrix rows 71/72; phone spec `phone-inventory.md` §5.2/§5.3, phone
+`src/features/import/json-import/components/ImportPickerModal.tsx`.
+
+**What (deliberate, don't re-flag):**
+
+- **Paste-stage error banner omitted.** The phone renders its shared error banner on the paste
+  step for the submit-throw backstop (`Failed to start text import…`, ImportPickerModal.tsx:695-702).
+  The demo's paste-submit failures already surface on the *result* stage's failure card — P1.5
+  owns that error surface (row 79); adding a second, picker-local error path for an unreachable
+  backstop would duplicate it.
+- **No `field-sizing: content` grow (240→320).** The phone's multiline input grows with content
+  from minHeight 240 to the 320 cap, then scrolls internally. csstype 3.1.3 (via @types/react 19)
+  doesn't type `fieldSizing`, so the demo textarea is a bounded 240px box with the same 320 cap
+  and internal scroll — the load-bearing contract (submit never pushed off-screen) holds; the
+  growth animation is cosmetic. Revisit when csstype learns the property.
+- **Paste-submit loading state not surfaced.** The phone's `isSubmittingText` spinner covers the
+  async window before the flow modal takes over; the demo flips to the progress stage
+  synchronously on run, so there is no visible window. Disabled-on-blank is the meaningful parity
+  and is implemented + pinned.
+- **Phone `accessibilityLabel`s not mirrored as `aria-label`s** on the cards/submit. On the web an
+  aria-label *overrides* the visible text as the accessible name; the phone's labels ("Select JSON
+  file from device" — itself stale on the phone) don't start with the visible text, which is the
+  WCAG label-in-name anti-pattern. The cards' visible copy is the accessible name; the textarea
+  (no visible label) keeps the phone's "Pasted request text".
+- **Mixed-selection error collapsed into unsupported-type.** With PDF the only valid file type
+  (D5: no JSON import), the phone's "Please select only one file type (all JSON or all PDF)."
+  branch has no demo meaning; any selection containing a non-PDF gets the D5-adapted
+  "Unsupported file type. Please select PDF files." A JSON-only revisit would restore the split.
+- **No-PDF-handler branch not ported** ("PDF import not available. Please select a JSON file.",
+  :268/:295) — the demo's PDF handler is unconditionally wired; the branch is unreachable.
+
+**Trigger:** P1.4/P1.5 (progress/result restructure) for the error-surface item; a D5 reversal
+(JSON import lands) for the mixed-selection and clipboard-JSON semantics; csstype support for the
+field-sizing item.
+## 34. One-click PDF download (html2pdf.js) — spiked, NOT shipped (P1.6/D4 spike verdict)
+
+**Source:** P1.6 (`parity/p1-pdfsave`) — the D4-mandated bounded spike on an html2canvas + jsPDF
+one-click `.pdf` download alongside the shipped `window.print()` save path.
+
+**What was evaluated:** html2pdf.js 0.14.0 (`pagebreak: { mode: ['css', 'legacy'] }`, scale-2
+html2canvas, letter/0.75in jsPDF) against headless-Chromium native print-to-PDF (`page.pdf` —
+byte-for-byte what the shipped Save-as-PDF path produces) on rich multi-page fixtures of BOTH
+court documents (all sections: scope tables, adjusted-scope callout + partial warning, DST
+advisory box, OCR tech-specs, NTP calibration + accuracy table + traceability chain).
+
+**Result — layout survived, the artifact degraded.** Pagination, headers, tables, and the DST
+advisory box all rendered faithfully (no sliced lines with the css+legacy pagebreak mode). But
+the produced PDF is a stack of JPEG page images:
+
+| Metric | Native print (shipped) | html2pdf.js |
+|---|---|---|
+| Case Notes size | 195 KB | 1,725 KB (8.8x) |
+| Time Offset size | 146 KB | 815 KB (5.6x) |
+| Extractable text, Case Notes (pdfjs) | 5,076 chars | **0** |
+| Extractable text, Time Offset (pdfjs) | 2,043 chars | **0** |
+| Text | vector (searchable/selectable/AT-accessible) | ~192 dpi effective raster |
+| Click cost | none | ~946 KB bundle (dynamic import) + rasterization |
+
+**Why not shipped:** a court document with zero text layer — unsearchable, unselectable,
+screen-reader-inaccessible, soft in print — is a materially degraded artifact, and it would
+misrepresent the phone app's real (vector, expo-print) export quality, contra the demo's
+honesty rule. D4's own criterion ("if it degrades the document, DON'T ship it") controls.
+No pdfmake either, per D4 — it would fork the document source of truth from the phone's HTML
+templates. Print-dialog Save-as-PDF remains the only save path.
+
+**Method (reproducible):** tsc-compile `engine/logic/pdf/*` to CJS, build maxed-out fixture
+data for both generators, render in headless Chromium (Playwright): `page.pdf()` for the
+native baseline vs `html2pdf().outputPdf('arraybuffer')` in-page; compare visually + via
+pdfjs `getTextContent` char counts + file sizes.
+
+**Trigger to revisit:** (a) real visitor/owner feedback that the print dialog loses users
+(one-click demand), AND (b) a client-side renderer that emits a REAL text layer from the same
+generator HTML (not rasterized pages) — re-run the method above and re-compare. Also revisit
+if the browsers ship a programmatic dialog-less print-to-PDF API.
+
+## 35. P1.5 (parity/p1-flowmodes) — dwell + failure-card enrichment: deliberate non-ports
+
+**Context:** P1.5 ported the phone's `computeImportFlowMode` dwell (matrix row 73) and the
+failure-card enrichment (row 79). Two phone behaviors were deliberately NOT ported, and one
+demo behavior was deliberately changed — none are gaps to re-flag:
+
+1. **No dry-run / validation-only view.** The phone's `ErrorOrDryRunContent` renders a
+   "Validation Successful / Dry run completed successfully" card for JSON-import dry runs.
+   The demo has no JSON import (owner decision D5) and no validate-only mode, so there is
+   nothing to dry-run. Noted in-source at the ImportModal failure branch. Trigger to
+   revisit: a JSON-import or validate-only path ever lands in the demo.
+
+2. **ERROR_MESSAGES deliberately does NOT cover PDF_SCANNED / NO_FIELDS_FOUND.** Their
+   pipeline messages are already the user-facing copy; the phone's own precedent
+   (§5.7.8: PDF codes stay out of its map so "the pipeline's own honest string always
+   renders"). Tests pin the absences so a future "helpful" mapping is a deliberate act.
+
+3. **Single-run failures no longer render the per-file FailuresCard.** Pre-P1.5 a lone
+   failed run showed the aggregate "1 import failed." plus a one-row file card; it now
+   surfaces the run's own error directly with code/details/partialData enrichment
+   (phone single-failure anatomy). Multi-file all-failed runs keep aggregate + rows.
+
+4. **(p1-review R-30 addendum)** `ImportPartialData` carries only `caseNumber` — the
+   phone's second key, `businessName`, is structurally unreachable in the demo: the
+   sole `partialData` producer sits inside run-import's `fieldCount === 0` gate and
+   `fieldCount` counts `businessName`, so it is provably empty on that path. The field
+   and its `Business:` render row were dropped rather than shipped dead; re-add both
+   only if a producer outside that gate ever surfaces a business name on failure.
+
+## 36. ImportState stays a flat record — runtime-enforced coherence, accepted (p1-review R-33)
+
+**Context:** P1.5 added `acknowledged` (and the R-11 fix added `lastRealStage`) to the
+bridge's flat `ImportState`. `acknowledged` is only meaningful while
+`stage === 'progress' && result !== null`; a shape like `{ stage: 'result', result: null }`
+type-checks but renders a blank modal body. The review lane traced every `setImp` writer
+and confirmed **no invalid state is reachable today** — coherence is enforced by
+discipline across the run/cancel/retry call sites plus the pure `computeImportStage`
+derivation, not by the type.
+
+**Writer inventory update (fix-delta R-39):** the round-2 backstop rework made
+`guardImportRun`'s catch report through `finishImport`, and `finishImport` now pins
+`stage: 'progress'` in its own updater — so EVERY result write (normal completion and
+backstop alike) lands in a pairing `computeImportStage` renders, restoring the "every
+setImp writer traced" claim this acceptance rests on.
+
+**Accepted (for now), not fixed:** remodelling the run half as a discriminated union
+(`picker/paste` | progress payload | result payload — the `RetentionView` house shape)
+would ripple through every `setImp` spread in the bridge mid-fix-round for a defect that
+is currently unreachable. Runtime enforcement is the same trade §27 records for the
+manifest's "exactly one active row" invariant.
+
+**Trigger to revisit:** the next field whose validity depends on `stage`/`result`
+pairings (a third correlated field is the tell), or any bug traced to an incoherent
+`ImportState` pairing — model the union then, in a dedicated change.

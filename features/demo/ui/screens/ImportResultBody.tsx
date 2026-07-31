@@ -20,7 +20,7 @@ const heading: CSSProperties = {
   marginBottom: 6,
 }
 const hairline = '1px solid rgba(255,255,255,0.05)'
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 const MONO_LABELS = new Set(['Badge', 'Phone', 'Email', 'Username', 'Password', 'Contact phone'])
 

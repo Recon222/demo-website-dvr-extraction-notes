@@ -11,7 +11,9 @@ describe('features/demo/engine barrel', () => {
     const surface = demo as unknown as Record<string, unknown>
     // FORM_OPTIONS + optionValues: deleted dead registry/helper (reviews R-11/R-17, R-20) —
     // the canonical option lists in engine/content/form-options are the only surface.
-    for (const gone of ['runBeat', 'BEATS', 'realClock', 'FORM_OPTIONS', 'optionValues']) {
+    // importLogBus/createImportLogBus: the import-log module is internal-path-only (P1
+    // review R-10) — the barrel must not advertise the mutable bus singleton.
+    for (const gone of ['runBeat', 'BEATS', 'realClock', 'FORM_OPTIONS', 'optionValues', 'importLogBus', 'createImportLogBus']) {
       expect(gone in surface, `"${gone}" should no longer be exported`).toBe(false)
     }
   })

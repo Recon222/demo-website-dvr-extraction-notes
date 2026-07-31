@@ -259,6 +259,13 @@ export interface ImportTransform {
   warnings: ImportWarning[]
   fieldCount: number
   timeFrameCount: number
+  /**
+   * The OCC# the model read, surfaced for diagnostics only — mapAiToForm drops it from
+   * the patch (the case record owns the number). Not counted in fieldCount, so a reply
+   * that yielded ONLY an OCC# still reads as zero usable fields; the failure card's
+   * "Data Found" block (P1.5) shows it as the honest partial result.
+   */
+  occurrenceNumber: string
 }
 
 /** parseAiJson → normalizeExtractedFields → mapAiToForm. Pure. Throws only if no JSON object. */
@@ -273,5 +280,5 @@ export function parseNormalizeMap(rawText: string, opts: NormalizeOptions = {}):
     patch._import.hasVideoMonitor, patch._import.dvrUsername, patch._import.dvrPassword,
   ]
   const fieldCount = flat.filter((v) => v && v.length > 0).length
-  return { patch, warnings, fieldCount, timeFrameCount: patch._import.timeFrames.length }
+  return { patch, warnings, fieldCount, timeFrameCount: patch._import.timeFrames.length, occurrenceNumber: fields.occurrenceNumber }
 }

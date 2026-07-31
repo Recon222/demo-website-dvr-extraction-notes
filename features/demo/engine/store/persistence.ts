@@ -105,10 +105,12 @@ export interface StorageLike {
 /** Every key of T — required and optional alike — must appear in the shape (device 2). */
 type FullShape<T> = { [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined> }
 
-/** Input-agnostic `FullShape` (R-28) for the one shape whose fields REFINE from a wider input:
- *  `view`/`currentChapter` are `z.string().refine(<type guard>)`, so their `_input` is `string`
- *  and `FullShape`'s default (`Input = Output`) rejects them. Same key-exhaustiveness
- *  guarantee — an omitted `PersistedState` key (even a future optional) is a compile error. */
+/** Input-agnostic `FullShape` (R-28): same key-exhaustiveness guarantee — an omitted key
+ *  (even a future optional) is a compile error — with the schema's INPUT type left `unknown`,
+ *  so it also fits shapes whose fields refine from a wider input (`view`/`currentChapter` are
+ *  `z.string().refine(<type guard>)`: their `_input` is `string`, which `FullShape`'s default
+ *  `Input = Output` rejects). With `unknown` Input, devices 1 and 2 compose on every shape in
+ *  this file (R-39). */
 type FullShapeIn<T> = {
   [K in keyof Required<T>]-?: z.ZodType<Required<T>[K] | undefined, z.ZodTypeDef, unknown>
 }
@@ -306,7 +308,10 @@ const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, imp
 const isVisitId = (v: string): v is AppView | ModalId =>
   isAppView(v) || Object.prototype.hasOwnProperty.call(MODAL_IDS, v)
 
-const persistedStateSchema = z.object({
+// Device 1 (R-39): the Input-agnostic annotation — FullShapeIn alone enforces key presence,
+// not required-ness, so a required future field declared `.optional()` would pass device 2
+// silently; the output annotation catches exactly that (probe-verified TS2322).
+const persistedStateSchema: z.ZodType<PersistedState, z.ZodTypeDef, unknown> = z.object({
   profile: z.enum(PROFILES),
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
@@ -404,11 +409,27 @@ export function loadSnapshot(
   // Selection integrity (R-15): dangling ids pass the shape guard but rehydrate a wizard
   // where updateField silently no-ops. Drop what doesn't resolve; if that leaves a wizard
   // view/chapter with no location, restore to 'cases' instead of a dead form.
+  //
+  // Pair coherence (R-32): rehydration is the one construction path that ingests state the
+  // engine didn't produce, so it must obey the same law as every store action (R-19: "no
+  // writer leaves the pair pointing across cases"). When a location is open, IT owns the
+  // case — currentCaseId is derived from it, never trusted independently, so a snapshot
+  // pairing case B with case A's location can't misattribute an OCC number in the PDF header.
+  // An ORPHANED open location (its caseId resolving to no case — P1 review R-9) is dropped
+  // with its case: the restored pair is fully coherent or fully empty, never half-live (a
+  // caseless wizard would render '—' OCC headers and let Complete & Save stamp a location
+  // while greening nothing).
   const caseIds = new Set(d.cases.map((c) => c.id))
-  const locationIds = new Set(d.locations.map((l) => l.id))
-  const currentCaseId = d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
-  const currentLocationId =
-    d.currentLocationId !== null && locationIds.has(d.currentLocationId) ? d.currentLocationId : null
+  const openLocation =
+    d.currentLocationId !== null
+      ? d.locations.find((l) => l.id === d.currentLocationId && caseIds.has(l.caseId))
+      : undefined
+  const currentLocationId = openLocation ? openLocation.id : null
+  const currentCaseId = openLocation
+    ? openLocation.caseId
+    : d.currentCaseId !== null && caseIds.has(d.currentCaseId)
+      ? d.currentCaseId
+      : null
   const isWizardScreen = (v: string): boolean => (WIZARD_SCREENS as readonly string[]).includes(v)
   let restoredChapter: ChapterId = currentChapter
   let restoredView: AppView = (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view
@@ -463,8 +484,10 @@ const NOOP_HANDLE: PersistenceHandle = { flush: () => undefined, dispose: () => 
 
 /**
  * Subscribe to the store and mirror it into `storage` (debounced). Returns a handle whose
- * `dispose` unsubscribes (flushing first). Write failures (quota, security) are swallowed —
- * persistence must never surface in the demo.
+ * `dispose` unsubscribes (flushing first). Write failures (quota, security) never surface to
+ * the VISITOR — but they are not silent (R-14/R-26): a dev-gated `console.warn` carries the
+ * cause, and the stale snapshot is cleared so a later refresh boots honestly empty instead of
+ * silently restoring pre-failure work. Do not delete that breadcrumb as noise.
  */
 export function persistDemoStore(
   store: DemoStore,

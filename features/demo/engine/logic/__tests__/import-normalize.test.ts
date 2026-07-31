@@ -117,6 +117,15 @@ describe('parseNormalizeMap', () => {
     expect(parseNormalizeMap(RAW_CLEAN).fieldCount).toBeGreaterThan(0)
     expect(parseNormalizeMap(RAW_NULLS).fieldCount).toBe(0)
   })
+  it('surfaces the OCC# the model read (diagnostics only — never in the patch, never in fieldCount)', () => {
+    const t = parseNormalizeMap(RAW_CLEAN)
+    expect(t.occurrenceNumber).toBe('PR25-0098213')
+    expect(JSON.stringify(t.patch)).not.toContain('PR25-0098213') // still dropped from the patch
+    // A reply carrying ONLY an OCC# stays fieldCount 0 but keeps the number for "Data Found".
+    const occOnly = parseNormalizeMap(JSON.stringify({ occurrenceNumber: 'PR25-777', businessName: 'n/a' }))
+    expect(occOnly.fieldCount).toBe(0)
+    expect(occOnly.occurrenceNumber).toBe('PR25-777')
+  })
   it('throws when there is no JSON object in the reply', () => {
     expect(() => parseNormalizeMap(RAW_NO_JSON)).toThrow()
   })

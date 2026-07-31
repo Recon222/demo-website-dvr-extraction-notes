@@ -15,7 +15,7 @@ export function DashboardScreen({ cases, onOpenLocation }: DashboardScreenProps)
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 16px' }}>
         <div style={{ fontSize: 30, fontWeight: 700, color: '#f0f4f8' }}>Dashboard</div>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#7a9fc4', textTransform: 'uppercase', letterSpacing: 1.5, margin: '8px 0 16px 42px' }}>
+      <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 11, color: '#7a9fc4', textTransform: 'uppercase', letterSpacing: 1.5, margin: '8px 0 16px 42px' }}>
         Recent Activity
       </div>
 
@@ -33,7 +33,7 @@ export function DashboardScreen({ cases, onOpenLocation }: DashboardScreenProps)
 
           <div style={{ flex: 1, marginLeft: 8, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
+              <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
               <div style={{ padding: '4px 10px', borderRadius: 20, border: `1px solid ${c.status.border}`, background: c.status.bg }}>
                 <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: c.status.color }}>{c.status.label}</div>
               </div>
@@ -45,7 +45,7 @@ export function DashboardScreen({ cases, onOpenLocation }: DashboardScreenProps)
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1a2d44', borderRadius: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 500, color: '#7a9fc4' }}>{p.role}</span>
                     <span style={{ fontSize: 11, color: '#f0f4f8' }}>{p.name}</span>
-                    {p.badge && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: '#4ecdc4' }}>#{p.badge}</span>}
+                    {p.badge && <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 10, color: '#4ecdc4' }}>#{p.badge}</span>}
                   </div>
                 ))}
               </div>

@@ -10,7 +10,7 @@ export interface SplashScreenProps {
 }
 
 const bracket = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', width: 38, height: 38, ...pos })
-const status: CSSProperties = { fontFamily: "'Share Tech Mono',monospace", fontSize: 23, letterSpacing: 6 }
+const status: CSSProperties = { fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 23, letterSpacing: 6 }
 
 /** Biometric-lock splash (simulated). Tap anywhere to scan. Lifted from the prototype. */
 export function SplashScreen({ authState, onScan }: SplashScreenProps) {
@@ -29,7 +29,7 @@ export function SplashScreen({ authState, onScan }: SplashScreenProps) {
     >
       <div
         style={{
-          fontFamily: "'Share Tech Mono',monospace",
+          fontFamily: "var(--font-stmono),'Share Tech Mono',monospace",
           fontSize: 18,
           letterSpacing: 8,
           color: '#2B8CC1',
@@ -64,7 +64,7 @@ export function SplashScreen({ authState, onScan }: SplashScreenProps) {
       {authState === 'authorized' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ ...status, color: '#30D158' }}>AUTHORIZED</div>
-          <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: 'rgba(48,209,88,0.7)', marginTop: 16 }}>
+          <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: 'rgba(48,209,88,0.7)', marginTop: 16 }}>
             ACCESS GRANTED
           </div>
         </div>
