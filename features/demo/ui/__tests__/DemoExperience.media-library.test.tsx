@@ -69,7 +69,7 @@ describe('the library reads the OPEN location’s media', () => {
     render(<DemoExperience store={store} />)
     openLibrary(store)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Video tab, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Video tab, 1 items' }))
     expect(screen.getByRole('button', { name: 'Video: lobby.mp4, 01:35' })).toBeInTheDocument()
   })
 })

@@ -42,7 +42,7 @@ function oneOfEach(): MediaBuckets {
   })
 }
 
-const tab = (name: string) => screen.getByRole('tab', { name })
+const tab = (name: string) => screen.getByRole('button', { name })
 
 describe('the sheet header (P4.2’s title, kept)', () => {
   it('is the phone’s "Media Library" with the item total under it', () => {
@@ -65,19 +65,30 @@ describe('the tabs (row 58)', () => {
   it('are Photos / Video / Audio, each naming its own count', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((t) => t.getAttribute('aria-label'))).toEqual([
+    const group = screen.getByRole('group', { name: 'Media type' })
+    expect(within(group).getAllByRole('button').map((t) => t.getAttribute('aria-label'))).toEqual([
       'Photos tab, 1 items',
       'Video tab, 1 items',
       'Audio tab, 1 items',
     ])
   })
 
+  it('are toggle buttons, not ARIA tabs — the APG keyboard model is not implemented (R-18)', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+
+    // `role="tab"` promises roving tabindex, arrow-key navigation and an aria-controls'd
+    // tabpanel. None of that exists here, so the roles are not claimed. Same shape as the
+    // sibling segmented control in this package (MediaCaptureScreen's Photo/Video pill).
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.queryAllByRole('tablist')).toHaveLength(0)
+    expect(screen.queryAllByRole('tabpanel')).toHaveLength(0)
+  })
+
   it('opens on Photos', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
-    expect(tab('Photos tab, 1 items')).toHaveAttribute('aria-selected', 'true')
-    expect(tab('Video tab, 1 items')).toHaveAttribute('aria-selected', 'false')
+    expect(tab('Photos tab, 1 items')).toHaveAttribute('aria-pressed', 'true')
+    expect(tab('Video tab, 1 items')).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('badges a populated tab and leaves an empty one unbadged', () => {

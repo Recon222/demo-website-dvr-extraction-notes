@@ -183,7 +183,14 @@ function MediaTabs({
   onSelect(tab: MediaLibraryTabId): void
 }) {
   return (
-    <div role="tablist" style={{ display: 'flex', borderBottom: GLASS.border, flex: '0 0 auto' }}>
+    // `role="group"` + `aria-pressed`, NOT `role="tablist"`/`role="tab"` (R-18). The tab roles
+    // promise the APG keyboard model — roving tabindex, arrow-key navigation between tabs, and
+    // an `aria-controls`-linked `tabpanel` — none of which this implemented, so it announced a
+    // contract it did not honour and left arrow keys dead for anyone who took it at its word.
+    // Three mutually-exclusive toggle buttons is what this actually is, and it is the shape the
+    // sibling segmented control in this same package already uses (`MediaCaptureScreen.tsx:440-456`,
+    // the Photo/Video mode pill). Tab still reaches every tab; Enter/Space still switches.
+    <div role="group" aria-label="Media type" style={{ display: 'flex', borderBottom: GLASS.border, flex: '0 0 auto' }}>
       {MEDIA_LIBRARY_TABS.map((t) => {
         const isActive = t.id === active
         const count = counts[t.id]
@@ -192,8 +199,7 @@ function MediaTabs({
           <button
             key={t.id}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             // Phone `MediaTabs.tsx:85`, verbatim: the count rides in the accessible name so a
             // screen reader hears how full a tab is without opening it.
             aria-label={`${t.label} tab, ${count} items`}
