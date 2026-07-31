@@ -800,6 +800,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             dvrAppliesDST={capture.dvrAppliesDST}
             onToggleDst={() => store.getState().updateField('capture.dvrAppliesDST', !capture.dvrAppliesDST)}
             dstAdvisory={dstAdvisory}
+            hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

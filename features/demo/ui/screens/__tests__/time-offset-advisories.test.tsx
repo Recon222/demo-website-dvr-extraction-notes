@@ -20,6 +20,7 @@ const base: TimeOffsetScreenProps = {
   dvrAppliesDST: false,
   onToggleDst: vi.fn(),
   dstAdvisory: null,
+  hasExtractedScopes: false,
   onNext: vi.fn(),
   onBack: vi.fn(),
   onMenu: vi.fn(),
@@ -49,6 +50,61 @@ describe('TimeOffsetScreen — DST advisory surface', () => {
   it('shows the phone’s DVR-Applies-DST hint line under the toggle', () => {
     render(<TimeOffsetScreen {...base} />)
     expect(screen.getByText('Enable if the DVR clock adjusts for Daylight Saving Time')).toBeInTheDocument()
+  })
+})
+
+describe('TimeOffsetScreen — recalculate guard', () => {
+  it('calculates straight through when there is nothing to overwrite', () => {
+    const onCalculate = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes={false} />)
+    fireEvent.click(screen.getByText('Calculate'))
+    expect(onCalculate).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('asks first when extracted scopes exist, with the phone’s copy', () => {
+    const onCalculate = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
+    fireEvent.click(screen.getByText('Calculate'))
+    expect(onCalculate).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Recalculate Time Offset?')
+    expect(dialog).toHaveTextContent(
+      'This will reset your extracted video scopes. Any manual edits to the extracted times will be lost.',
+    )
+  })
+
+  it('Continue proceeds and closes', () => {
+    const onCalculate = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
+    fireEvent.click(screen.getByText('Calculate'))
+    fireEvent.click(screen.getByText('Continue'))
+    expect(onCalculate).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('Cancel aborts the recalculation', () => {
+    const onCalculate = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
+    fireEvent.click(screen.getByText('Calculate'))
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(onCalculate).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('Escape and backdrop click both cancel', () => {
+    const onCalculate = vi.fn()
+    render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
+
+    fireEvent.click(screen.getByText('Calculate'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByText('Calculate'))
+    fireEvent.click(document.querySelector('[data-recalc-backdrop]') as HTMLElement)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    expect(onCalculate).not.toHaveBeenCalled()
   })
 })
 
@@ -93,5 +149,17 @@ describe('DemoExperience — DST advisory wiring', () => {
     if (zoneHasDst) expect(advisory).toBeInTheDocument()
     else expect(advisory).toBeNull()
     vi.restoreAllMocks()
+  })
+
+  it('guards Calculate once extracted scopes exist', { timeout: 20000 }, () => {
+    const store = bootAtTimeOffset({ startDateTime: '2026-06-01 09:00:00', endDateTime: '2026-06-01 17:00:00' })
+    act(() => {
+      store.getState().calculateOffset()
+      store.getState().generateExtractedScopes()
+    })
+    expect(store.getState().locations[0].form.extractedScopes.length).toBe(1)
+
+    fireEvent.click(screen.getByText('Calculate'))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Recalculate Time Offset?')
   })
 })
