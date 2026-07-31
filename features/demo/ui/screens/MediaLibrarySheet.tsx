@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
@@ -18,6 +18,7 @@ import {
   mediaLibrarySubtitle,
   mediaLibraryTab,
   mediaTabBadge,
+  type AvailableMedia,
   type MediaBuckets,
   type MediaLibraryTabId,
 } from '@/features/demo/engine/logic/media'
@@ -138,7 +139,11 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
 
       {/* Mounted only while it is actually open — the phone does the same, so no player exists
           for a fullscreen nobody asked for (MediaLibrarySheet.tsx:343-351). */}
-      {fullscreen !== null && <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />}
+      {/* `canFullscreen` narrows as well as guards (R-24): the layer cannot be handed an item
+          with no bytes, and now cannot be COMPILED that way either. */}
+      {fullscreen !== null && canFullscreen(fullscreen) && (
+        <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />
+      )}
 
       {/* The phone's native `Alert.alert` (row 66) on the shared blocking-dialog primitive:
           title, message and both button styles verbatim, Escape dismissing to the safe arm. */}
@@ -183,7 +188,14 @@ function MediaTabs({
   onSelect(tab: MediaLibraryTabId): void
 }) {
   return (
-    <div role="tablist" style={{ display: 'flex', borderBottom: GLASS.border, flex: '0 0 auto' }}>
+    // `role="group"` + `aria-pressed`, NOT `role="tablist"`/`role="tab"` (R-18). The tab roles
+    // promise the APG keyboard model — roving tabindex, arrow-key navigation between tabs, and
+    // an `aria-controls`-linked `tabpanel` — none of which this implemented, so it announced a
+    // contract it did not honour and left arrow keys dead for anyone who took it at its word.
+    // Three mutually-exclusive toggle buttons is what this actually is, and it is the shape the
+    // sibling segmented control in this same package already uses (`MediaCaptureScreen.tsx:440-456`,
+    // the Photo/Video mode pill). Tab still reaches every tab; Enter/Space still switches.
+    <div role="group" aria-label="Media type" style={{ display: 'flex', borderBottom: GLASS.border, flex: '0 0 auto' }}>
       {MEDIA_LIBRARY_TABS.map((t) => {
         const isActive = t.id === active
         const count = counts[t.id]
@@ -192,8 +204,7 @@ function MediaTabs({
           <button
             key={t.id}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             // Phone `MediaTabs.tsx:85`, verbatim: the count rides in the accessible name so a
             // screen reader hears how full a tab is without opening it.
             aria-label={`${t.label} tab, ${count} items`}
@@ -296,7 +307,7 @@ function MediaPreview({ item, onFullscreen, onClose }: { item: MediaItem; onFull
 }
 
 /** Audio never opens fullscreen on the phone, and neither does a capture with no bytes left. */
-function canFullscreen(item: MediaItem): boolean {
+function canFullscreen(item: MediaItem): item is AvailableMedia {
   return item.kind !== 'audio' && isMediaAvailable(item)
 }
 
@@ -308,19 +319,44 @@ function canFullscreen(item: MediaItem): boolean {
  *
  * It portals into the phone overlay root like every other overlay in this feature, so it pins to
  * the visible screen instead of scrolling with the sheet's list.
+ *
+ * FOCUS (R-8). `aria-modal="true"` prunes everything outside this container from the
+ * accessibility tree, so leaving focus on the "View fullscreen" button that opened it stranded a
+ * keyboard or screen-reader visitor OUTSIDE the only thing they could still perceive — Tab then
+ * walked every hidden control behind the layer before reaching Close. The two effects below are
+ * `AlertDialog`'s, verbatim in shape (`AlertDialog.tsx:55-61`): focus the container on mount
+ * (`tabIndex={-1}`, so the label is announced rather than just the first button), hand focus back
+ * to the opener on unmount, guarded by `isConnected` because the row that opened it may have been
+ * deleted meanwhile.
+ *
+ * The video branch's `autoFocus` is gone with it: it solved half the problem (entry, not exit) for
+ * one of the two media kinds, and two entry paths in one component is how the photo branch got
+ * missed in the first place.
  */
-function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }) {
+function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
+  const layerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const opener = document.activeElement
+    layerRef.current?.focus()
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
   return (
     <PhoneOverlayPortal>
       <div
+        ref={layerRef}
         data-testid="media-fullscreen"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         // Phone container label (`Fullscreen ${media.type}: ${media.filename}`,
         // MediaPreviewFullscreen.tsx:73-75) — with the demo's own kind word for the type.
         aria-label={`Fullscreen ${item.kind}: ${item.filename}`}
-        style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}
+        style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto', outline: 'none' }}
       >
         {isPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element -- see MediaContent.
@@ -335,7 +371,6 @@ function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }
             src={item.url}
             poster={item.poster}
             controls
-            autoFocus
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         )}
@@ -371,7 +406,7 @@ function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }
 
 /** The bytes themselves. Photos get a 4:3 box and videos 16:9, matching the phone's
  *  `PREVIEW_CONFIG` aspect ratios; audio has no picture, so its control sits in the same well. */
-function MediaContent({ item }: { item: MediaItem }) {
+function MediaContent({ item }: { item: AvailableMedia }) {
   if (item.kind === 'photo') {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a blob: object URL cannot go
@@ -505,8 +540,15 @@ function MediaRow({
    * The visible Delete button is not optional decoration: a hold is undiscoverable, unreachable
    * from a keyboard and unannounced to a screen reader, so the primitive's own contract is that
    * it is an accelerator and never the only way in.
+   *
+   * `contextMenu: false` (R-19) — the ONE call site of the three whose callback is destructive.
+   * The primitive's default treats a right-click as a second way to open what a hold opens,
+   * which is right for the two tray callers and wrong here: an ordinary right-click, often just
+   * reaching for Copy or Inspect, put a delete confirmation on screen with no hold and no press.
+   * Opting out also gives the browser's own menu back on these rows — suppression exists to stop
+   * the OS menu covering what the hold opened, and nothing opens on this path.
    */
-  const longPress = useLongPress(onRequestDelete)
+  const longPress = useLongPress(onRequestDelete, { contextMenu: false })
 
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid rgba(30,58,95,0.35)' }}>
@@ -596,7 +638,8 @@ function MediaRow({
  * rather than a broken image — the preview panel is where that state is EXPLAINED.
  */
 function MediaThumbnail({ item }: { item: MediaItem }) {
-  const showImage = item.kind === 'photo' && item.url !== undefined && item.url !== ''
+  // The predicate, not a third hand-written copy of its rule (R-24).
+  const showImage = item.kind === 'photo' && isMediaAvailable(item)
   return (
     <span
       style={{

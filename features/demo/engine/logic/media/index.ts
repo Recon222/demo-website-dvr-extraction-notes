@@ -84,6 +84,7 @@ export {
   sanitizeFilename,
   withoutEphemeralMedia,
   withoutEphemeralMediaUrls,
+  type AvailableMedia,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media/captured'
 
@@ -91,6 +92,7 @@ export {
   DEFAULT_MEDIA_TAB,
   DELETE_MEDIA_TITLE,
   MAX_MEDIA_BADGE_COUNT,
+  MEDIA_BUCKET,
   MEDIA_DELETED_NOTICE,
   MEDIA_LIBRARY_TABS,
   UNKNOWN_DURATION_LABEL,

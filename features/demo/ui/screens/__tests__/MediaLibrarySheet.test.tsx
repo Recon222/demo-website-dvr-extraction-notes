@@ -42,7 +42,7 @@ function oneOfEach(): MediaBuckets {
   })
 }
 
-const tab = (name: string) => screen.getByRole('tab', { name })
+const tab = (name: string) => screen.getByRole('button', { name })
 
 describe('the sheet header (P4.2’s title, kept)', () => {
   it('is the phone’s "Media Library" with the item total under it', () => {
@@ -65,19 +65,30 @@ describe('the tabs (row 58)', () => {
   it('are Photos / Video / Audio, each naming its own count', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((t) => t.getAttribute('aria-label'))).toEqual([
+    const group = screen.getByRole('group', { name: 'Media type' })
+    expect(within(group).getAllByRole('button').map((t) => t.getAttribute('aria-label'))).toEqual([
       'Photos tab, 1 items',
       'Video tab, 1 items',
       'Audio tab, 1 items',
     ])
   })
 
+  it('are toggle buttons, not ARIA tabs — the APG keyboard model is not implemented (R-18)', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+
+    // `role="tab"` promises roving tabindex, arrow-key navigation and an aria-controls'd
+    // tabpanel. None of that exists here, so the roles are not claimed. Same shape as the
+    // sibling segmented control in this package (MediaCaptureScreen's Photo/Video pill).
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.queryAllByRole('tablist')).toHaveLength(0)
+    expect(screen.queryAllByRole('tabpanel')).toHaveLength(0)
+  })
+
   it('opens on Photos', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
-    expect(tab('Photos tab, 1 items')).toHaveAttribute('aria-selected', 'true')
-    expect(tab('Video tab, 1 items')).toHaveAttribute('aria-selected', 'false')
+    expect(tab('Photos tab, 1 items')).toHaveAttribute('aria-pressed', 'true')
+    expect(tab('Video tab, 1 items')).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('badges a populated tab and leaves an empty one unbadged', () => {
@@ -385,6 +396,19 @@ describe('delete (row 66)', () => {
       expect(screen.getByText('Delete Media')).toBeInTheDocument()
     })
 
+    it('a right-click raises no delete confirmation, and keeps the browser menu (R-19)', () => {
+      const onDelete = vi.fn()
+      render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }), onDelete })} />)
+
+      const prevented = !fireEvent.contextMenu(screen.getByRole('button', { name: 'Photo: front-door.jpg' }))
+
+      // A reflex right-click — often just reaching for Copy or Inspect — must not put a
+      // destructive dialog on screen, and must not silently lose the browser's own menu.
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(onDelete).not.toHaveBeenCalled()
+      expect(prevented).toBe(false)
+    })
+
     it('a tap selects the row and raises nothing', () => {
       render(
         <MediaLibrarySheet
@@ -475,6 +499,44 @@ describe('the fullscreen preview (row 65)', () => {
 
     expect(screen.getByTestId('media-expired-notice')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'View fullscreen' })).not.toBeInTheDocument()
+  })
+
+  it('takes focus on open and hands it back to the opener on close (R-8)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    fireEvent.click(opener)
+
+    // `aria-modal` prunes everything outside this container, so focus must be INSIDE it —
+    // otherwise Tab walks the hidden controls behind the layer before reaching Close.
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(document.activeElement).toBe(layer)
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('takes the same focus path for a video — no autoFocus branch (R-8)', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+    fireEvent.click(tab('Video tab, 1 items'))
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    fireEvent.click(opener)
+
+    expect(document.activeElement).toBe(screen.getByTestId('media-fullscreen'))
+  })
+
+  it('does not force focus onto a stale opener that was removed while it was open (R-8)', () => {
+    // The guard that matters: `isConnected`. Closing after the opener is gone must not throw
+    // and must not blur something else the visitor moved to.
+    const { unmount } = render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    expect(screen.getByTestId('media-fullscreen')).toBeInTheDocument()
+
+    expect(() => unmount()).not.toThrow()
   })
 
   it('self-cancels when the selection moves to another row', () => {

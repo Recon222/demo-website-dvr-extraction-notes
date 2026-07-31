@@ -4,6 +4,7 @@ import {
   DEFAULT_MEDIA_TAB,
   DELETE_MEDIA_TITLE,
   MAX_MEDIA_BADGE_COUNT,
+  MEDIA_BUCKET,
   MEDIA_DELETED_NOTICE,
   MEDIA_LIBRARY_TABS,
   UNKNOWN_DURATION_LABEL,
@@ -16,7 +17,9 @@ import {
   mediaLibraryTab,
   mediaTabBadge,
   type MediaBuckets,
+  type MediaLibraryTabId,
 } from '@/features/demo/engine/logic/media/library'
+import { mediaBucket } from '@/features/demo/engine/store/helpers'
 import type { MediaItem } from '@/features/demo/engine/types'
 
 function item(over: Partial<MediaItem> = {}): MediaItem {
@@ -40,7 +43,28 @@ describe('the tab registry', () => {
     expect(MEDIA_LIBRARY_TABS.map((t) => t.id)).toEqual(['photos', 'video', 'audio'])
     expect(MEDIA_LIBRARY_TABS.map((t) => t.label)).toEqual(['Photos', 'Video', 'Audio'])
     expect(MEDIA_LIBRARY_TABS.map((t) => t.kind)).toEqual(['photo', 'video', 'audio'])
-    expect(MEDIA_LIBRARY_TABS.map((t) => t.bucket)).toEqual(['photos', 'videos', 'audios'])
+  })
+
+  it('carries no bucket of its own — the kind→bucket mapping is the one shared map (R-26)', () => {
+    // The pairing used to be written twice (here and `store/helpers.mediaBucket`), which let
+    // `kind: 'audio', bucket: 'videos'` compile: a tab listing the wrong bucket's rows, whose
+    // delete then writes to the kind the ROW carries — an undeletable row on screen.
+    expect(MEDIA_LIBRARY_TABS.map((t) => MEDIA_BUCKET[t.kind])).toEqual(['photos', 'videos', 'audios'])
+    expect(Object.keys(MEDIA_BUCKET)).toEqual(['photo', 'video', 'audio'])
+    // The store helper and this module read the same object, not two spellings of it.
+    for (const kind of ['photo', 'video', 'audio'] as const) {
+      expect(mediaBucket(kind)).toBe(MEDIA_BUCKET[kind])
+    }
+  })
+
+  it('mediaLibraryTab returns the registry ENTRY, keeping its literals (R-33)', () => {
+    const photos = mediaLibraryTab('photos')
+    // THE assertion is the annotations: `id` and `label` stay literal unions off the registry
+    // rather than widening to `string`, which is what returning the `MediaLibraryTab` interface
+    // did. Neither line compiles against that return type.
+    const id: MediaLibraryTabId = photos.id
+    const label: 'Photos' | 'Video' | 'Audio' = photos.label
+    expect([id, label]).toEqual(['photos', 'Photos'])
   })
 
   it('carries the phone’s empty-state copy verbatim, message and hint', () => {

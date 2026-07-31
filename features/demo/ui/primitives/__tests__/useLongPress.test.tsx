@@ -15,8 +15,19 @@ import { useLongPress, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLo
  * callback could not.
  */
 
-function Probe({ onLongPress, onClick, enabled }: { onLongPress(): void; onClick(): void; enabled?: boolean }) {
-  const press = useLongPress(onLongPress, { enabled })
+function Probe({
+  onLongPress,
+  onClick,
+  enabled,
+  contextMenu,
+}: {
+  onLongPress(): void
+  onClick(): void
+  enabled?: boolean
+  /** R-19's opt-out — the media library's shape (a destructive callback). */
+  contextMenu?: boolean
+}) {
+  const press = useLongPress(onLongPress, { enabled, contextMenu })
   return (
     <button type="button" onClick={onClick} {...press}>
       <span>Row</span>
@@ -159,6 +170,49 @@ describe('useLongPress', () => {
     render(<Probe onLongPress={onLongPress} onClick={vi.fn()} />)
 
     const prevented = !fireEvent.contextMenu(row())
+    expect(onLongPress).toHaveBeenCalledOnce()
+    expect(prevented).toBe(true)
+  })
+
+  // ---- the destructive-callback opt-out (review R-19) ---------------------------------------
+  //
+  // Three arms, one per rule the branch encodes, so a regression in any one of them reddens
+  // alone: the right-click must not fire; the browser's menu must come BACK (suppressing it
+  // when nothing opens is a second, unrelated loss); and a touch hold's trailing event must
+  // still be consumed and suppressed, because that one IS the gesture that just fired.
+
+  it('with contextMenu:false a right-click does not fire the destructive callback', () => {
+    const onLongPress = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={vi.fn()} contextMenu={false} />)
+
+    fireEvent.contextMenu(row())
+
+    expect(onLongPress).not.toHaveBeenCalled()
+  })
+
+  it('with contextMenu:false the browser’s own menu is left alone', () => {
+    render(<Probe onLongPress={vi.fn()} onClick={vi.fn()} contextMenu={false} />)
+
+    // `fireEvent` returns false when the event was default-prevented.
+    const prevented = !fireEvent.contextMenu(row())
+
+    expect(prevented).toBe(false)
+  })
+
+  it('with contextMenu:false a TOUCH hold still fires once and still suppresses its own menu', () => {
+    // The hold is the one gesture that DOES open something here, so its trailing contextmenu is
+    // still consumed (no second call) and still suppressed (no OS menu over the dialog).
+    const onLongPress = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={vi.fn()} contextMenu={false} />)
+
+    touchDown()
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS)
+    })
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    const prevented = !fireEvent.contextMenu(row())
+
     expect(onLongPress).toHaveBeenCalledOnce()
     expect(prevented).toBe(true)
   })

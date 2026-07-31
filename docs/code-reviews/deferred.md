@@ -3520,6 +3520,70 @@ whose fix lands a `modeFor(kind)` capability API plus the minimal consumption ch
 left `capability.sampleOnly`'s two consumption sites (`onShutter`, and the review stage's sample
 notice via `ReviewStage`) untouched so the two changesets merge without contention.
 
+---
+
+## 67. P4.5 fix round (parity/p4-fix-library) — R-8, R-18, R-19, R-24, R-26, R-30, R-33
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, the seven findings routed to
+P4.5. All seven FIXED; none refuted. One commit each, except R-26+R-33 which the review itself
+directs to land together.
+
+### 67a. R-19's opt-out changed a SHARED primitive — what the next caller needs to know
+
+`useLongPress` gained `contextMenu?: boolean` (default `true`). The default is not laziness: for
+the two tray call sites, right-click-to-open-the-actions-menu is what a desktop context menu is
+FOR, and the tray it opens is exactly what the browser's own menu would have covered. Only a
+DESTRUCTIVE callback wants `false`.
+
+The branch now has three rules where it had two, and the house pin for this primitive (§57a — one
+test arm per rule, verified by mutation) holds: dropping the opt-out reddens the doesn't-fire arms
+(3); making the opt-out `preventDefault` reddens only the menu-preservation arms (2); dropping
+`preventDefault` from the touch-hold arm reddens only the touch arm (1).
+
+Worth knowing: the touch-hold trailing menu's SUPPRESSION had no arm before this round. The
+existing touch test asserts call counts only, and the dashboard's suppression test exercises the
+no-prior-hold path, so that rule was load-bearing and unpinned. It has an arm now.
+**Trigger:** a fourth call site with a destructive callback passes `contextMenu: false`; anything
+else leaves the default alone.
+
+### 67b. R-24 crossed into P4.1's module — the exact extent
+
+`isMediaAvailable` is P4.1's. This round changed its signature line to `item is AvailableMedia`,
+added that type + docblock, and added one barrel export. No behaviour, no other symbol in
+`captured.ts`. Recorded because the routing table flagged the file as shared.
+**Trigger:** none — noted for whoever reconciles P4.1's own fix branch.
+
+### 67c. R-18 traded ARIA roles for the sibling's shape — a real choice, not a downgrade
+
+The review offered two fixes: complete the APG tablist contract, or drop to the sibling segmented
+control's `role="group"` + `aria-pressed` (`MediaCaptureScreen.tsx:440-456`). The second was taken.
+What a screen reader SAYS is unchanged — the phone's dynamic `${label} tab, ${count} items` name is
+kept — and the two media surfaces now answer the keyboard identically. What changed is that the
+markup stopped promising arrow-key navigation it did not implement.
+**Trigger:** if the library ever gains a real tabpanel region and roving tabindex, the roles can
+come back — together, not one at a time. A new arm asserts their absence, so a half-return reddens.
+
+### 67d. RESIDUAL — the `MEDIA_BUCKET` map is exhaustive, the TAB registry is not
+
+R-26 made the kind→bucket mapping a `Record<MediaKind, …>`, so a fourth media kind is a compile
+error there. `MEDIA_LIBRARY_TABS` has no equivalent guard: a fourth kind would add a bucket and a
+map entry with no tab, and the library would simply never show it. Deliberate for now — the
+registry is ORDERED display content, and forcing exhaustiveness on it would make "built but not
+yet surfaced" impossible to express, which is the state the media screens themselves were in for
+three packages.
+**Trigger:** add `MediaKind` exhaustiveness over `MEDIA_LIBRARY_TABS` if a kind ever ships without
+a tab by accident rather than by decision.
+
+### 67e. RESIDUAL — §63e (Escape closes the sheet from inside an overlay) is untouched and still open
+
+R-8 fixed focus, not Escape. Pressing Escape inside the fullscreen layer or the delete confirmation
+still closes the whole sheet, because `ModalShell` owns a document-level listener registered before
+either overlay's and a later document listener cannot suppress an earlier one. Unchanged from
+§63e, restated here so the fix round is not read as having closed it.
+**Trigger:** unchanged — fix in `ModalShell` when the alert-inside-shell pattern gets a third
+caller (`NewCaseModal` is the second).
+
+
 ## 68. P4.6 review-r1 fix round — the audio recorder: dispositions, a grouped commit, and what stayed
 
 **Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, findings owned by P4.6 —
