@@ -48,6 +48,10 @@ export interface SubmissionCoordinates {
 
 export interface SubmissionScreenProps {
   occNumber: string
+  /** Identity of the open recovery location — forwarded to `LocationFields` as its write-guard
+   *  token so an in-flight reverse-geocode can never land on a location the visitor switched
+   *  away from (p2-review R-1). */
+  locationId?: string
   fields: SubmissionFields
   /** The recovery location's stored fix, if any — drives the coordinate card. */
   coordinates?: SubmissionCoordinates
@@ -84,6 +88,7 @@ const COPY = {
 
 export function SubmissionScreen({
   occNumber,
+  locationId,
   fields,
   coordinates,
   onChange,
@@ -136,7 +141,7 @@ export function SubmissionScreen({
           <Field label={COPY.requesterEmail} value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder={COPY.requesterEmailPlaceholder} />
         </SectionCard>
         <SectionCard title="Location Information">
-          <LocationFields values={locationValues} onChange={handleLocationChange} deps={gpsDeps} reverseGeocode={reverseGeocode} />
+          <LocationFields locationId={locationId} values={locationValues} onChange={handleLocationChange} deps={gpsDeps} reverseGeocode={reverseGeocode} />
           <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />
           <Field label={COPY.contactPhone} value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder={COPY.contactPlaceholder} />
         </SectionCard>

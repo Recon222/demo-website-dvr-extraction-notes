@@ -41,28 +41,32 @@ const denied: GeolocationLike = {
   getCurrentPosition: (_onSuccess, onError) => onError({ code: 1, message: 'denied' } as GeolocationPositionError),
 }
 
-function renderSubmission(o: {
+interface SubmissionOptions {
   geolocation?: GeolocationLike | null
   coordinates?: SubmissionCoordinates
+  locationId?: string
   onCoordinates?: (c: SubmissionCoordinates) => void
   onChange?: (f: keyof typeof fields, v: string) => void
   reverseGeocode?: (lat: number, lng: number) => Promise<{ streetAddress: string; city: string } | null>
-} = {}) {
-  return render(
-    <SubmissionScreen
-      occNumber="PR25-0098213"
-      fields={fields}
-      coordinates={o.coordinates}
-      onChange={o.onChange ?? vi.fn()}
-      onCoordinates={o.onCoordinates ?? vi.fn()}
-      onNext={vi.fn()}
-      onBack={vi.fn()}
-      onMenu={vi.fn()}
-      gpsDeps={{ geolocation: o.geolocation ?? null, delay: async () => undefined }}
-      reverseGeocode={o.reverseGeocode ?? (async () => null)}
-    />,
-  )
 }
+
+const submission = (o: SubmissionOptions = {}) => (
+  <SubmissionScreen
+    occNumber="PR25-0098213"
+    locationId={o.locationId}
+    fields={fields}
+    coordinates={o.coordinates}
+    onChange={o.onChange ?? vi.fn()}
+    onCoordinates={o.onCoordinates ?? vi.fn()}
+    onNext={vi.fn()}
+    onBack={vi.fn()}
+    onMenu={vi.fn()}
+    gpsDeps={{ geolocation: o.geolocation ?? null, delay: async () => undefined }}
+    reverseGeocode={o.reverseGeocode ?? (async () => null)}
+  />
+)
+
+const renderSubmission = (o: SubmissionOptions = {}) => render(submission(o))
 
 describe('Submission — location section shape (ui-mapping 05)', () => {
   it('renders the phone render order: business → street → city → GPS → contacts', () => {
@@ -248,5 +252,69 @@ describe('Submission — live sample readout', () => {
     // Capture finished: the button is live again and the progress line is gone.
     expect(screen.queryByTestId('gps-capture-progress')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Use Current Location' })).toBeEnabled()
+  })
+})
+
+describe('Submission — cross-location write guard (R-1)', () => {
+  it('drops an in-flight reverse-geocode result when the open location changed', async () => {
+    // A slow lookup started on location l1; the visitor switches to l2 before it resolves.
+    // The bridge's updateField resolves its target at CALL time, so an unguarded write would
+    // stamp l1's address onto l2 — the string the completion gate checks and the PDF prints.
+    let resolveLookup!: (v: { streetAddress: string; city: string } | null) => void
+    const reverseGeocode = () =>
+      new Promise<{ streetAddress: string; city: string } | null>((resolve) => {
+        resolveLookup = resolve
+      })
+    const onChange = vi.fn()
+    const { rerender } = renderSubmission({ locationId: 'l1', geolocation: geolocation(4), onChange, reverseGeocode })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+    expect(screen.getByRole('button', { name: 'Looking up address, please wait' })).toBeInTheDocument()
+
+    rerender(submission({ locationId: 'l2', geolocation: geolocation(4), onChange, reverseGeocode }))
+    await act(async () => {
+      resolveLookup({ streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' })
+    })
+
+    expect(onChange).not.toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
+    expect(onChange).not.toHaveBeenCalledWith('city', 'Mississauga')
+    // Nor a stale "lookup unavailable" notice attributed to the location now on screen.
+    expect(screen.queryByTestId('reverse-geocode-notice')).not.toBeInTheDocument()
+  })
+
+  it('still writes the result when the location did not change', async () => {
+    const onChange = vi.fn()
+    renderSubmission({
+      locationId: 'l1',
+      geolocation: geolocation(4),
+      onChange,
+      reverseGeocode: async () => ({ streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' }),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    expect(onChange).toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
+    expect(onChange).toHaveBeenCalledWith('city', 'Mississauga')
+  })
+
+  it('abandons an in-flight CAPTURE when the open location changes', async () => {
+    // The capture half of the same race: useGpsCapture aborts on unmount, and the control is
+    // keyed on locationId so a switch counts as an unmount.
+    let deliver!: (p: GeolocationPosition) => void
+    const held: GeolocationLike = { getCurrentPosition: (onSuccess) => { deliver = onSuccess } }
+    const onCoordinates = vi.fn()
+    const { rerender } = renderSubmission({ locationId: 'l1', geolocation: held, onCoordinates })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    rerender(submission({ locationId: 'l2', geolocation: held, onCoordinates }))
+    await act(async () => {
+      deliver(position(5))
+    })
+
+    expect(onCoordinates).not.toHaveBeenCalled()
   })
 })

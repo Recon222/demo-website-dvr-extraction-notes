@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { GpsFix } from '@/features/demo/engine/logic/gps'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
@@ -24,6 +24,15 @@ import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCaptu
  * `'geocoded'` for an address pick (LocationForm.tsx:108), `'gps'` for a capture (:123) — which
  * is the reconciliation the parity matrix's row 29 asks for: one component decides provenance,
  * so the two paths can never disagree.
+ *
+ * WRITE GUARD (p2-review R-1). Every `onChange` here ends in the bridge's
+ * `store.getState().updateField(...)`, which resolves its target at CALL time
+ * (`create-store.ts` reads `get().currentLocationId`). The reverse-geocode write happens after
+ * an unbounded `await`, so without a token a lookup started on location A can land A's address
+ * on location B. `locationId` is the token: the generation ref below is invalidated whenever it
+ * changes AND on unmount, and the post-await write is abandoned if the generation moved. The
+ * capture half already had this via `useGpsCapture`'s `abortedRef`; the `key` on the control
+ * extends that guard from "unmounted" to "different location" too.
  */
 
 export interface LocationFieldValues {
@@ -37,6 +46,10 @@ export interface LocationFieldValues {
 }
 
 export interface LocationFieldsProps {
+  /** Identity of the location these values belong to — the write-guard token (see header).
+   *  Optional so a caller without a selection still renders; an undefined id is its own
+   *  generation, so a switch to or from "no location" invalidates in-flight lookups too. */
+  locationId?: string
   values: LocationFieldValues
   /** Partial patch — mirrors the phone's `onChange(updates: Partial<LocationFormValues>)`. */
   onChange(updates: Partial<LocationFieldValues>): void
@@ -60,7 +73,7 @@ export const LOCATION_FIELD_LABELS = {
  *  and states the part that matters: the coordinates were kept. */
 export const REVERSE_GEOCODE_UNAVAILABLE = 'Address lookup unavailable — the captured coordinates were kept.'
 
-export function LocationFields({ values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
+export function LocationFields({ locationId, values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
   // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
   // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
   // settings store; the demo has no settings surface until P7, so it lives here for now.
@@ -68,18 +81,35 @@ export function LocationFields({ values, onChange, deps, reverseGeocode = defaul
   const [reverseGeocoding, setReverseGeocoding] = useState(false)
   const [lookupFailed, setLookupFailed] = useState(false)
 
+  // R-1 write guard. Bumped by the cleanup, which React runs both when `locationId` changes and
+  // on unmount — so a lookup in flight across either event is abandoned rather than written.
+  const writeGen = useRef(0)
+  useEffect(
+    () => () => {
+      writeGen.current += 1
+    },
+    [locationId],
+  )
+
   const handleCapture = async (fix: GpsFix) => {
     // Coordinates land first and stand on their own (phone LocationForm.tsx:119-126).
     onChange({ lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM, coordinateSource: 'gps' })
     setLookupFailed(false)
     if (!geocodeEnabled) return
 
+    const gen = writeGen.current
     setReverseGeocoding(true)
     try {
       const address = await reverseGeocode(fix.lat, fix.lng)
+      // The open location changed (or this unmounted) while the lookup was in flight — the
+      // address belongs to a location nobody is editing any more. Drop it silently: writing it
+      // would overwrite whoever is open NOW, and a notice about an abandoned lookup on a
+      // location the visitor has left is noise.
+      if (gen !== writeGen.current) return
       if (address) onChange({ streetAddress: address.streetAddress, city: address.city })
       else setLookupFailed(true)
     } catch {
+      if (gen !== writeGen.current) return
       // `reverseGeocode` soft-fails by contract, so this only fires for an injected seam or a
       // future implementation that throws. Treat it as "no address" — the notice below already
       // says the coordinates were kept — rather than letting it escape as an unhandled
@@ -125,6 +155,9 @@ export function LocationFields({ values, onChange, deps, reverseGeocode = defaul
         placeholder={LOCATION_FIELD_LABELS.cityPlaceholder}
       />
       <GpsCaptureControl
+        key={locationId ?? '—'}
+        // Remount on a location switch so `useGpsCapture`'s unmount abort fires for an
+        // in-flight CAPTURE too (R-1's other half) — a 30-120s budget easily outlives a switch.
         onCapture={handleCapture}
         geocodeEnabled={geocodeEnabled}
         onToggleGeocode={setGeocodeEnabled}

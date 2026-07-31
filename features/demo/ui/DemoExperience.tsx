@@ -969,6 +969,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return (
           <SubmissionScreen
             occNumber={currentCase?.caseNumber ?? ''}
+            locationId={currentLocation?.id}
             fields={fields}
             coordinates={currentLocation?.gps}
             onChange={(f, v) => store.getState().updateField(f, v)}
