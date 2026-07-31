@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
@@ -141,6 +141,10 @@ const PROGRESS_SAVED_TITLE = 'Progress Saved'
 const PROGRESS_SAVED_BODY =
   'You can continue this location later from the Cases screen.\n\n' +
   'Your work stays in this browser tab — it survives a refresh, but closing the tab starts fresh.'
+
+/** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
+ *  can call it every render without looping on a fresh array identity. */
+const dropGateErrors = (prev: readonly string[]): readonly string[] => (prev.length === 0 ? prev : [])
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -336,20 +340,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   /** Messages from the last BLOCKED attempt — the phone's `validationErrors` state. */
   const [gateErrors, setGateErrors] = useState<readonly string[]>([])
   const [alert, setAlert] = useState<AlertState | null>(null)
-  const closeAlert = () => setAlert(null)
-  /** Empty→empty keeps the SAME array reference, so an effect can't loop on a fresh identity. */
-  const clearGateErrors = () => setGateErrors((prev) => (prev.length === 0 ? prev : []))
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear down and re-add the listener on every store update.
+  const closeAlert = useCallback(() => setAlert(null), [])
 
   // Auto-clear, mirroring the phone's effect (`completion.tsx:115-125`): the card disappears
   // the moment the operator fixes the underlying data — they never have to re-tap to find out.
   useEffect(() => {
-    if (gateOutcome.ok) setGateErrors((prev) => (prev.length === 0 ? prev : []))
+    if (gateOutcome.ok) setGateErrors(dropGateErrors)
   }, [gateOutcome])
   // Errors belong to the location they were computed for. On the phone the screen remounts per
   // location; here the bridge outlives the switch, so drop them rather than show location A's
   // list over location B's form.
   useEffect(() => {
-    setGateErrors((prev) => (prev.length === 0 ? prev : []))
+    setGateErrors(dropGateErrors)
   }, [currentLocationId])
   // The phone's Alert is OS-modal — nothing can navigate under it. The demo's rail sits OUTSIDE
   // the phone and can jump views, so an alert left standing over another screen would misstate
@@ -779,7 +783,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       })
       return
     }
-    clearGateErrors()
+    setGateErrors(dropGateErrors)
     setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
   }
 
@@ -801,7 +805,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       })
       return
     }
-    clearGateErrors()
+    setGateErrors(dropGateErrors)
     st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
     setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
   }
