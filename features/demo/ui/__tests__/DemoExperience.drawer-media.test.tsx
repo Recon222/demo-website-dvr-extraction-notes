@@ -11,9 +11,12 @@ import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/cr
  * copy and a11y labels are pinned at the component level (`controls/__tests__`); what is
  * pinned HERE is what each one does to the store — the half a presentational test cannot see.
  *
- * Capture Media now lands on the real screen (P4.3); Record Audio still has none (P4.6), and
- * landing on the honest placeholder is the CORRECT interim behaviour, so that arm says so
- * rather than leaving a future package to guess whether the routing was ever verified.
+ * Both launch targets now land on real surfaces — Capture Media on `MediaCaptureScreen`
+ * (P4.3), Record Audio on `AudioRecordingFlow` (P4.6). What is pinned here is still the
+ * ROUTING; each screen's own behaviour lives in its own suite
+ * (`screens/__tests__/MediaCaptureScreen.test.tsx`, `screens/__tests__/AudioRecordingFlow.test.tsx`)
+ * and the bridge store writes in `DemoExperience.media-capture.test.tsx` /
+ * `DemoExperience.audio.test.tsx`.
  */
 
 function seed() {
@@ -64,7 +67,9 @@ describe('drawer Media accordion — wiring (row 80)', () => {
     expect(s.view).toBe('audioRecording')
     expect(s.drawerOpen).toBe(false)
     expect(s.currentChapter).toBe('dvrInfo')
-    expect(screen.getByText(/“audioRecording” screen is a fast-follow/)).toBeInTheDocument()
+    // P4.6 replaced the placeholder with the real recorder; under vitest (no mediaDevices) it
+    // opens on its honest sample treatment.
+    expect(screen.getByText('AUDIO CAPTURE')).toBeInTheDocument()
   })
 
   it('Media Library opens the sheet and closes the drawer when a location is open', () => {

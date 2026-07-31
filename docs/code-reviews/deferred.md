@@ -2776,3 +2776,151 @@ calls it — so `SNAPSHOT_VERSION` stays at 6 and the three compile-time guard d
 move. A saved capture round-trips through `snapshotOf` exactly as §58i describes: the `blob:`
 URL is stripped and the restored row renders `MEDIA_EXPIRED_NOTICE`. Sample captures keep their
 `/demo-media` URLs and survive a refresh intact.
+
+## 61. P4.6 (parity/p4-audio) — the audio recorder: decisions, deviations, refutations & residuals
+
+**Source:** P4.6 audio recording (plan §5 P4.6; matrix rows 67-69; ui-mapping `10-audio.md`;
+phone `src/features/media/audio-recording/`). Engine metering in
+`features/demo/engine/logic/media/audio-levels.ts`, Web Audio I/O in
+`features/demo/ui/inputs/audio-analyser.ts` + `useAudioAnalyser.ts`, screens in
+`features/demo/ui/screens/Audio{RecorderScreen,PreviewScreen,RecordingFlow}.tsx`, bridge arm in
+`DemoExperience.tsx`.
+
+### 61a. DECISION — the `<audio>` preview does NOT auto-reset on finish
+
+The plan asked P4.6 to decide this deliberately rather than inherit it. Decision: **no
+auto-reset, and the phone's replay guard ported verbatim.** Three reasons, in order of weight:
+
+1. **A finished take should still read as finished.** The bar sitting full is information — "you
+   have heard all of this". Snapping it to zero makes a played clip look untouched, which is a
+   worse lie than the one the reset would be fixing.
+2. **`HTMLMediaElement` already behaves this way.** `ended` leaves `currentTime` at the duration,
+   so auto-resetting would be the DEVIATION here, not the parity. The phone's non-reset being an
+   `expo-audio` quirk does not make the same behaviour a quirk in a browser — it is the platform
+   default on both, arrived at independently.
+3. **The part that actually matters is ported.** `AudioPreview.tsx:106-109` seeks to 0 when the
+   head is within 0.1s of the end, so pressing Play at the end replays instead of doing nothing.
+   That is a behaviour, not a quirk, and it is what keeps the control from ever being dead.
+
+Four tests pin it (`AudioPreviewScreen.test.tsx` § the auto-reset decision): no rewind on
+`ended`, rewind on the next press, the 0.1s tolerance honoured, and no rewind from mid-take.
+**Trigger:** none — this is a settled decision, not a deferral. Re-open only if the phone
+changes deliberately (not if it changes libraries).
+
+### 61b. DEVIATION — the 500ms Stop gate binds BOTH stop controls
+
+The phone gates only the Stop pill (`RecorderScreen.tsx:314`) and never passes `disabled` to the
+big record/stop button; its own ui-mapping records the guard as "currently inert" for that
+control (`10-audio.md:62`, `:70`). A sub-500ms take can therefore leave by the other door, where
+`stopRecording()` returns nothing and the visitor gets a "Failed to save recording" toast.
+
+The demo gates both, using the established `aria-disabled` + guarded-handler + `role="status"`
+reason idiom (§44b / R-15) so the refused control stays focusable and announces why. Not
+replicating a bug is the same call P4.5 was given for the phone's missing-`onDismiss` (D-B6).
+**Phone-side follow-up (NOT actioned — this repo is read-only for the parity effort):** worth a
+`BUG-NNN` on the phone, severity low: the guard exists and one path ignores it.
+
+### 61c. DEVIATION — the format row prints what is true, and the bitrate cell is gone
+
+The phone's `TimerCard` bottom row reads `44.1kHz / AAC`, a wall clock, and `MONO / 128k`, all
+derived from `AUDIO_CAPTURE_SETTINGS` — figures the phone CHOSE, so printing them is truthful
+there. The demo chooses none of them: the browser picks the container, and the rate and channel
+count come off the opened track. So the row reads `{sampleRate} / {channels}` · clock ·
+`{codec}`, each `null` rendering as an em dash, and the **bitrate cell has no honest
+counterpart at all** — `MediaRecorder` does not report the bitrate it settled on, and P4.1's
+`startStreamRecording` does not set one. The codec occupies that cell instead.
+
+`readAudioTrackFormat` deliberately returns `null` for whatever a browser omits (Firefox states
+`channelCount` but not `sampleRate`) rather than defaulting: 44.1kHz printed beside a recording
+this browser made would be one device's constant presented as another's fact.
+**Trigger:** if P7.1's Settings shell ever grows a Media pane (§58h), an explicitly-set
+`audioBitsPerSecond` would make a real bitrate available — add the cell back then, not before.
+
+### 61d. DEVIATION — the glass pills are named by their visible text
+
+The phone gives the Stop pill `accessibilityLabel="Stop recording"` — byte-identical to the big
+button's — leaving two controls on one screen indistinguishable to a screen reader. The demo's
+pills are named `Pause` / `Resume` / `Stop` (their visible text, which is also the stronger web
+convention, WCAG 2.5.3); the big button keeps the phone's `Start recording` / `Stop recording`
+verbatim.
+
+### 61e. DEVIATION — a denied microphone offers a retry; the phone's view has none
+
+`RecorderScreen.tsx:214-236` offers only Cancel, correctly: once iOS has recorded a refusal it
+will not prompt again, so a retry button could not work. In a browser the site permission is one
+click away in the address bar, so `Try again` (calling `open()` again) is a real affordance
+rather than a dead control. The headline is the phone's verbatim; the body is §58b's
+browser-corrected remedy.
+
+### 61f. REFUTATION — `captureFailureMessage` did not need extending for the denied view
+
+The brief instructed P4.6 to "extend `captureFailureMessage` — the single copy site — not inline
+strings" for the permission-denied view. `captureFailureMessage` is the FAILURE-notice site, and
+it already covers `PERMISSION_DENIED`. The permission SCREEN's copy has its own single site,
+which P4.1 also built: `CAPTURE_PERMISSION_COPY.microphone` (`permissions.ts:130-144`), carrying
+`title` / `body` / `deniedBody`. The screen consumes those as props from the flow, so no copy is
+inlined and nothing needed extending. One string WAS added, and to the same layer rather than to
+a component: `NO_RECORDER_NOTICE` in `samples.ts`, keyed by facility so P4.3 can reuse it.
+
+### 61g. The microphone is released at stop, not held through review
+
+A browser shows a live recording indicator for as long as a track is open. Leaving the stream up
+through the review screen would say the microphone is still listening when it is not, so the
+flow calls `close()` once a take is assembled and `open()` again on Record Again (no second
+prompt — the page already holds the grant). A FAILED stop deliberately keeps the stream: the
+visitor is still on the recorder and that is exactly what they need to retry. Both directions
+are pinned in `AudioRecordingFlow.test.tsx`.
+
+Consequence worth knowing: entering the recorder opens the microphone immediately (phone parity,
+`RecorderScreen.tsx:112-116`), so a visitor who never presses Record still sees their browser's
+mic indicator. Judged correct — they pressed "Record Audio" to get here, and it is what makes
+the idle waveform real rather than decorative.
+
+### 61h. A suspended `AudioContext` degrades to "NO LIVE INPUT", never to flat bars
+
+An `AudioContext` constructed outside a user gesture starts suspended and fills its analysis
+buffers with zeros. Flat bars over a live recording would read as "the microphone heard
+silence" — a false statement about the take. `AnalyserHandle.running()` reports whether the
+graph is processing, `useAudioAnalyser` re-checks it every tick (a backgrounded tab can suspend
+one after the fact), and any un-live path returns the single frozen `RESTING_METER`, which the
+panel labels. The dB cell is withheld rather than showing `-inf dB`, which would be a
+measurement.
+**Trigger:** if device testing shows the resume-on-sticky-activation attempt failing in a real
+browser family, the fix is a gesture-scoped `resume()` on the first Record press — not removing
+the `running()` check.
+
+### 61i. RESIDUAL — the accept path has no MetadataForm (P4.4 owns it)
+
+INTERIM, disclosed: Save writes `{ filename: <default base>, caption: '' }` with no form. Three
+grep-able `SEAM(P4.4)` markers bracket the insertion point — `AudioPreviewScreen.tsx` (between
+the player card and the action row, the phone's content order), `AudioRecordingFlow.tsx`
+(`handleSave`, where the form's value replaces the synthesized object), and `DemoExperience.tsx`
+(`saveAudioNote`'s `meta` parameter and the `defaultFilenameBase` prop). The base name is
+`audio-note-{n}` off the location's existing audio count, and a SAMPLE take is renamed to the
+bundled asset's own `sample-note` so a library row cannot read like something the visitor
+recorded. `Save Audio` is currently **ungated**; P4.4 restores the phone's
+filename-validity gate along with the form.
+**Trigger:** P4.4, in the commit that mounts the form.
+
+### 61j. RESIDUAL — the spectrum's displayed band is a constant, not a setting
+
+`SPECTRUM_BIN_FRACTION = 0.25` shows the bottom quarter of the analyser's range (~6kHz at 48k)
+because a voice note puts effectively all of its energy there and the full range would leave
+three quarters of the bars flat at all times. This is a choice of WHICH real bins to display,
+never a rescaling of what they say — but it is a constant nobody can see or change.
+**Trigger:** only if a reviewer looking at a real recording finds the band wrong for the
+content; it is a one-line change with its own test.
+
+### 61k. RESIDUAL — the wall-clock cell is blank for one frame
+
+The clock seam may not be read at render scope (features/demo/CLAUDE.md), so `timeOfDay` is
+filled by an effect and the cell is empty on the very first paint. A lazy `useState` initialiser
+would fix it and would also be a render-scope clock read. Left as is.
+
+### 61l. The 1-hour auto-stop explains itself in-screen rather than as a toast
+
+The phone fires an info toast (`RecorderScreen.tsx:186-190`). The demo shows the same words as a
+`role="status"` line, carried onto whichever screen the visitor ends up on — because the
+auto-stop also MOVES them to review, and a screen that changes by itself with no explanation is
+a silent event. Both screens therefore take a `notice` prop; it is neutral-styled, never the red
+failure treatment.

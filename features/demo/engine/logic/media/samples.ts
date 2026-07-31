@@ -78,6 +78,21 @@ export const SAMPLE_MEDIA_NOTICE: Readonly<Record<CaptureFacility, string>> = Ob
     'This browser exposes no microphone to the page, so the demo attached a bundled sample instead. Nothing was recorded.',
 })
 
+/**
+ * The other way a browser can leave a capture surface with nothing to record: `getUserMedia`
+ * works, so a live preview and a level meter are real, but there is no `MediaRecorder` to turn
+ * the stream into a file (Safari before 14.1). `SAMPLE_MEDIA_NOTICE`'s "exposes no microphone"
+ * would be plainly false there — the microphone is open and the visitor can see it working.
+ *
+ * Added by P4.6 and keyed by facility so P4.3's video mode has the same sentence available.
+ */
+export const NO_RECORDER_NOTICE: Readonly<Record<CaptureFacility, string>> = Object.freeze({
+  camera:
+    'This browser can open a camera but cannot record video to a file, so the demo attached a bundled sample instead. Nothing was recorded.',
+  microphone:
+    'This browser can open a microphone but cannot record audio to a file, so the demo attached a bundled sample instead. Nothing was recorded.',
+})
+
 /** The facility a kind is captured with — photo and video both come from the camera. */
 export function facilityForKind(kind: MediaKind): CaptureFacility {
   return kind === 'audio' ? 'microphone' : 'camera'
