@@ -827,3 +827,89 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+---
+
+## 37. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
+
+Recorded by the P2.2 package (matrix rows 38/39 + the `TODO(M2)` at `engine/logic/ocr.ts:135`).
+Everything below is a *considered* choice or a *found-not-fixed* item, not drift.
+
+### 37a. One `date-disambiguation` module serves both the import and OCR paths (DIVERGENCE — accepted)
+
+The phone keeps **two** copies of the resolver under an explicit autonomy contract: the OCR
+copy (`src/features/ocr-time-capture/utils/date-disambiguation.ts`) is proximity-only, and the
+import copy (`src/features/import/pdf-import/normalization/date-disambiguation.ts`, lines 7-44)
+adds two domain rules — no-future and a recency window. The demo ported the **import** copy, and
+`readDvrTimestamp` now consumes it on the OCR path too.
+
+**Why that's acceptable here:** for a live DVR clock, a month/day swap that lands in the future
+is not a reading an operator should accept silently, and a years-stale reading is exactly the
+case where "closer to today" carries no signal. Both extra rules resolve to `confidence: 'low'`,
+i.e. the operator gets warned rather than quietly overridden — strictly the safer failure.
+
+**Consequence to know:** the demo's OCR path can return `year_outside_proximity_window` /
+`both_interpretations_future`, reason codes the phone's OCR path cannot. Anyone comparing reason
+codes side-by-side with the phone will see the difference; the *choice* still matches for every
+case where the phone's copy has an opinion.
+
+**Trigger to revisit:** if the demo ever needs to reproduce a phone OCR reason code exactly (a
+support/repro scenario), split the module the way the phone does — and copy the phone's autonomy
+comment with it.
+
+### 37b. The assumed-date gate is AHEAD of the phone, deliberately
+
+The phone's parser stamps `new Date()` over a dateless frame
+(`timestamp-parser.ts:260-266`) and its `ConfirmationScreen` pre-fills the picker with the
+result — so a guessed date can be committed without anyone being told it was guessed. The
+`TODO(M2)` this package closes called that a BLOCK, and the demo now refuses it: the assumed
+date is labelled, and the commit is held until the operator confirms or corrects it.
+
+This is a place where the demo is **better than the phone**, not a copy-parity miss. It is worth
+raising as a phone-side follow-up (plan §8 territory — file separately; the phone repo is
+read-only to this effort).
+
+### 37c. The ambiguous sample frame's warning depends on the visitor's clock
+
+`OCR_SAMPLE_FRAMES.ambiguous` is `06/07/2024 23:45:30`. It renders
+`DateDisambiguationWarning` because 2024 falls outside the resolver's proximity window
+(`year < currentYear - 1`) — true for every visitor from 2026 onward, and *more* true as time
+passes. A visitor whose device clock is set to 2025 or earlier would get a high-confidence
+resolution and see no warning (the resolution itself is still correct and still applied).
+
+Not worth engineering around: the engine tests inject a fixed clock, so the *behaviour* is
+pinned deterministically in both directions; only the live sample's flavour depends on the
+visitor's clock.
+
+### 37d. `capture.ocr` is populated but the Time-Offset PDF still ignores it
+
+`confirmOcr` now writes a real `OcrProof` (`rawText` / `cleanedText` / `parsedDateTime` /
+`confidence`), which `calculateOffset` threads into `timeOffset.ocr`. The PDF generator already
+has a full OCR tech-specs block (`engine/logic/pdf/time-offset.ts:119-133`) gated on
+`ocrRawText`, but `previewTimeOffset` in `DemoExperience` never maps those three fields into
+`generateTimeOffsetDoc`, so the block stays dead. The fix is three lines
+(`ocrRawText`/`ocrCleanedText`/`ocrParsedDateTime` from `off.ocr`).
+
+**Why deferred:** matrix row 37 already owns the OCR→PDF evidence path for **P4** (the image
+half of that block needs the real camera anyway). Doing the text half here would have put a
+P2 package into a P4 surface for a partial win.
+
+### 37e. The confirm stage has no direct Cancel
+
+The phone's confirmation is wrapped in a `FormLayout` whose back button cancels the flow; the
+demo's confirm stage offers only `Retake` and `Use this & calculate`. Exiting from confirm is
+therefore two taps (Retake → Cancel), not one. Left alone because the button row is lifted,
+reviewed chrome and the exit is reachable — but it is a real one-tap parity gap on row 38's
+surface.
+
+### 37f. The OCR rail narration still overclaims (pre-existing, row 37 / P4)
+
+`engine/content/narration.ts` tells the visitor "This runs real in-browser OCR" and lists "Live
+webcam capture" as a bullet. Neither is true today — there is no recogniser and no camera; the
+*cleaning and parsing* pipeline is real, running over a hardcoded frame (matrix row 37, STUB).
+The screen itself is honest ("No camera available here"); only the narration overclaims.
+
+This package updated the two narration lines its own change made stale (confirm → correct, and
+the new sample frames) and deliberately left the recognition/camera claims for **P4**, which
+owns row 37 and will rewrite that copy when a real capture surface lands. Flagged here so the
+honesty gap is not mistaken for an oversight.

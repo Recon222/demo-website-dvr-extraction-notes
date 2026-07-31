@@ -222,9 +222,10 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     bullets: [
       'Live webcam capture, or a generated sample DVR clock',
       'Real OCR → ported text cleaning → multi-format timestamp parse',
-      'Confidence score; confirm to calculate the offset automatically',
+      'Confidence score; correct the parsed time before you commit it',
+      'Warns when a date could read either MM/DD or DD/MM, and never accepts an assumed date silently',
     ],
-    tip: 'Press "Use sample DVR clock" (works without a camera) — or capture a live frame.',
+    tip: 'Press "Use sample DVR clock" (works without a camera) — or try the awkward frames underneath it.',
   },
 }
 
