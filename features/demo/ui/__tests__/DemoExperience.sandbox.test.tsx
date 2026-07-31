@@ -18,6 +18,7 @@ vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
+import { importLogBus } from '@/features/demo/engine/logic/import-log'
 
 const runText = vi.mocked(runTextImport)
 const runPdf = vi.mocked(runPdfImport)
@@ -51,6 +52,15 @@ function setupLocation(store: Store) {
 function currentLoc(store: Store) {
   const s = store.getState()
   return s.locations.find((l) => l.id === s.currentLocationId)
+}
+
+/**
+ * P1.5 dwell (row 73): a finished run holds on the terminal's outcome CTA — the result
+ * view renders only after tapping it. Every result-view assertion below now goes through
+ * this release first (the pre-P1.5 auto-flip is deliberately gone).
+ */
+async function releaseDwell() {
+  fireEvent.click(await screen.findByTestId('terminal-review-cta'))
 }
 
 // Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
@@ -271,6 +281,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage from Store X' } })
     fireEvent.click(screen.getByText('Import with AI'))
 
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBeGreaterThan(0)
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true, documentText: 'recover footage from Store X' }))
@@ -292,6 +303,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
     fireEvent.click(screen.getByText('Import with AI'))
 
+    await releaseDwell()
     await screen.findByText('Import complete')
     expect(forwardGeocodeMock).toHaveBeenCalledWith('1450 Eglinton Ave W, Mississauga')
     expect(store.getState().locations[0]?.gps).toEqual({ lat: 43.61, lng: -79.65, accuracyM: 0, source: 'geocoded' })
@@ -311,6 +323,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
     fireEvent.click(screen.getByText('Import with AI'))
 
+    await releaseDwell()
     await screen.findByText('Import complete')
     expect(store.getState().locations.length).toBe(1)
     expect(store.getState().locations[0]?.gps).toBeUndefined()
@@ -327,6 +340,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
 
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(1)
     expect(runPdf).toHaveBeenCalledTimes(1)
@@ -342,6 +356,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     })
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })] } })
+    await releaseDwell()
     fireEvent.click(await screen.findByText('Open location'))
     const id = store.getState().locations[0].id
     expect(store.getState().currentLocationId).toBe(id)
@@ -361,6 +376,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const files = [new File(['a'], 'a.pdf', { type: 'application/pdf' }), new File(['b'], 'b.pdf', { type: 'application/pdf' })]
     fireEvent.change(input, { target: { files } })
 
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(2)
     expect(runPdf).toHaveBeenCalledTimes(2)
@@ -377,6 +393,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['x'], 'scan.pdf', { type: 'application/pdf' })] } })
 
+    await releaseDwell()
     expect(await screen.findByText(/This PDF looks scanned/)).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(0)
   })
@@ -393,6 +410,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'video request text' } })
     fireEvent.click(screen.getByText('Import with AI'))
 
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true }))
   })
@@ -482,6 +500,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.click(screen.getByText('Paste Text'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'request text' } })
     fireEvent.click(screen.getByText('Import with AI'))
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
   })
@@ -500,6 +519,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(input, {
       target: { files: [new File(['a'], 'real.pdf', { type: 'application/pdf' }), new File(['b'], 'fell-back.pdf', { type: 'application/pdf' })] },
     })
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText(/couldn.t reach the live model/i)).toBeInTheDocument() // aggregate notice
     expect(screen.getAllByText('Sample data')).toHaveLength(1) // …and the specific card is badged
@@ -539,6 +559,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       resolveB(okRun({ filename: 'live.pdf' }))
     })
     expect(store.getState().locations.length).toBe(1)
+    await releaseDwell()
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
   })
 
@@ -594,6 +615,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     })
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    await releaseDwell()
     expect(await screen.findByText(/couldn.t reach the live model/i)).toBeInTheDocument()
     expect(store.getState().locations.length).toBe(1)
   })
@@ -608,6 +630,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     })
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    await releaseDwell()
     expect(await screen.findByText(/not configured/i)).toBeInTheDocument()
   })
 
@@ -618,8 +641,90 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.click(screen.getByText('Paste Text'))
     fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'something' } })
     fireEvent.click(screen.getByText('Import with AI'))
+    // Pre-pipeline guard: no run, no log, nothing to dwell on — the error shows directly
+    // (the stored-'result' passthrough in computeImportStage).
     expect(await screen.findByText('Select a case first.')).toBeInTheDocument()
     expect(runText).not.toHaveBeenCalled()
+  })
+
+  // ---- P1.5 the dwell (row 73) ----
+
+  it('DWELL: a successful run holds on the terminal — results render ONLY after "Review import →"', async () => {
+    runText.mockResolvedValue(okRun({ filename: undefined }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-DW', displayName: 'Dwell', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Import with AI'))
+
+    // The run finished (the CTA proves the outcome landed) yet the result view is HELD back.
+    const cta = await screen.findByTestId('terminal-review-cta')
+    expect(cta).toHaveTextContent('Import ready for review')
+    expect(cta).toHaveTextContent('Review import →') // phone :247
+    expect(screen.queryByText('Import complete')).not.toBeInTheDocument()
+    expect(screen.getByTestId('import-terminal')).toBeInTheDocument()
+    // The location itself already exists — the dwell gates the VIEW, not the write.
+    expect(store.getState().locations.length).toBe(1)
+
+    fireEvent.click(cta)
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
+    expect(screen.queryByTestId('import-terminal')).not.toBeInTheDocument()
+  })
+
+  it('DWELL: a failed run dwells on the log too — CTA reads "See error details →" (phone :273)', async () => {
+    runText.mockResolvedValue({ ok: false, warnings: [], fallbackMode: 'none', error: 'No JSON object found in AI response', code: 'MODEL_OUTPUT_UNPARSEABLE', details: { stage: 'normalizing', detail: 'No JSON object found in AI response' } })
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-DWF', displayName: 'DwellFail', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'garbage in' } })
+    fireEvent.click(screen.getByText('Import with AI'))
+
+    // "The log is most valuable when something broke" — terminal held, red CTA.
+    const cta = await screen.findByRole('button', { name: 'See error details' })
+    expect(cta).toHaveTextContent('Import failed')
+    expect(cta).toHaveTextContent('See error details →')
+    expect(screen.queryByText('Try again')).not.toBeInTheDocument() // failure card not shown yet
+
+    fireEvent.click(cta)
+    // Released: the enriched failure card (friendly copy + Technical Details).
+    expect(await screen.findByText("The model's reply couldn't be read as form data. Please try the import again.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
+    expect(screen.getByTestId('import-technical-details')).toHaveTextContent('No JSON object found in AI response')
+  })
+
+  it('DWELL: cancel during the dwell resets cleanly — bus reset, fresh picker on reopen, data kept', async () => {
+    runText.mockResolvedValue(okRun({ filename: undefined }))
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-DWC', displayName: 'DwellCancel', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Import with AI'))
+    await screen.findByTestId('terminal-review-cta') // dwelling
+
+    const epochDuringDwell = importLogBus.getEpoch()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // close mid-dwell
+    expect(store.getState().modal).toBeNull()
+    expect(importLogBus.getEpoch()).toBe(epochDuringDwell + 1) // bus reset — no stale log
+    expect(importLogBus.getLines()).toEqual([])
+    expect(store.getState().locations.length).toBe(1) // the applied import survives the close
+
+    act(() => store.getState().openModal('import'))
+    // blankImport: back at the picker, no leftover result/acknowledged state.
+    expect(screen.getByText('Pick File')).toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-review-cta')).not.toBeInTheDocument()
+    expect(screen.queryByText('Import complete')).not.toBeInTheDocument()
   })
 
   it('completion: Preview / Export PDF mounts the real generated court document', () => {

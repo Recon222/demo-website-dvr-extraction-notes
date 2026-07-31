@@ -49,6 +49,14 @@ function pickPdf(container: HTMLElement, names: string[]) {
   fireEvent.change(input, { target: { files: names.map((n) => new File(['%PDF'], n, { type: 'application/pdf' })) } })
 }
 
+/**
+ * P1.5 dwell (row 73): a finished run holds on the terminal's outcome CTA — release it
+ * before asserting anything on the result view (the pre-P1.5 auto-flip is gone).
+ */
+async function releaseDwell() {
+  fireEvent.click(await screen.findByTestId('terminal-review-cta'))
+}
+
 describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 }, () => {
   it('a real sample-mode PDF run emits the pinned line sequence INIT→FILE→PDF→AI→…→DONE, fallback visible', async () => {
     pdfMock.mockResolvedValue(DOC_TEXT)
@@ -57,6 +65,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const { container } = render(<DemoExperience store={store} />)
     openImport(store, 'PR25-LOG')
     pickPdf(container, ['request.pdf'])
+    await releaseDwell()
     await screen.findByText('Import complete')
 
     const lines = importLogBus.getLines()
@@ -97,6 +106,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     fireEvent.click(screen.getByText('Paste Text'))
     fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage from Store X' } })
     fireEvent.click(screen.getByText('Import with AI'))
+    await releaseDwell()
     await screen.findByText('Import complete')
 
     const levels = importLogBus.getLines().map((l) => l.level)
@@ -113,6 +123,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const { container } = render(<DemoExperience store={store} />)
     openImport(store, 'PR25-BATCH')
     pickPdf(container, ['a.pdf', 'b.pdf'])
+    await releaseDwell()
     await screen.findByText('Import complete')
 
     const lines = importLogBus.getLines()
@@ -130,7 +141,10 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const { container } = render(<DemoExperience store={store} />)
     openImport(store, 'PR25-ERR')
     pickPdf(container, ['bad.pdf'])
-    await screen.findByText(/Could not read this PDF/)
+    // Row 79: the card now shows the friendly PDF_READ_FAILED copy; the raw
+    // 'Could not read this PDF.' lives on in the Technical Details block.
+    await releaseDwell()
+    await screen.findByText(/This PDF could not be read/)
 
     const lines = importLogBus.getLines()
     expect(lines[lines.length - 1]!.level).toBe('ERR')
@@ -166,6 +180,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const { container } = render(<DemoExperience store={store} />)
     openImport(store, 'PR25-TWICE')
     pickPdf(container, ['first.pdf'])
+    await releaseDwell()
     await screen.findByText('Import complete')
     const firstEpoch = importLogBus.getEpoch()
 
@@ -173,6 +188,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     expect(importLogBus.getLines()).toEqual([]) // a closed modal leaves no stale log behind
     act(() => store.getState().openModal('import'))
     pickPdf(container, ['second.pdf']) // beginRun (epoch +2)
+    await releaseDwell()
     await screen.findByText('Import complete')
 
     expect(importLogBus.getEpoch()).toBe(firstEpoch + 2)

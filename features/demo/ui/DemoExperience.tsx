@@ -5,7 +5,16 @@ import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
-import { runImport as runTextImport, runPdfImport, type ImportStageId as RunStageId, type ImportRunResult, type FallbackMode } from '@/features/demo/ui/import/run-import'
+import {
+  runImport as runTextImport,
+  runPdfImport,
+  type ImportStageId as RunStageId,
+  type ImportRunResult,
+  type FallbackMode,
+  type ImportErrorCode,
+  type ImportErrorDetails,
+  type ImportPartialData,
+} from '@/features/demo/ui/import/run-import'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -18,6 +27,7 @@ import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
+import { computeImportStage } from '@/features/demo/ui/screens/import/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
@@ -88,8 +98,14 @@ interface ImportState {
   lastLocId: string | null
   activeStage: RunStageId | null
   batch: { current: number; total: number } | null
+  /**
+   * The visitor tapped the terminal's outcome CTA (phone `pdfTerminalAcknowledged`).
+   * Reset in the same two places as the phone (§5.7.2): at run start and on close
+   * (blankImport); onRetry clears it with the rest of the run state.
+   */
+  acknowledged: boolean
 }
-const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, batch: null }
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, batch: null, acknowledged: false }
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -413,11 +429,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return id
   }
 
+  /** A per-file failure plus the single-run enrichment fields (row 79) the card can render. */
+  interface RunFailure extends ImportFailure {
+    code?: ImportErrorCode
+    details?: ImportErrorDetails
+    partialData?: ImportPartialData
+  }
   interface ImportTally {
     lastLocId: string | null
     notice: string | undefined
     locations: ImportedLocationView[]
-    failures: ImportFailure[]
+    failures: RunFailure[]
   }
   const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number, emitter: ImportLogEmitter) => {
     const locId = await applySuccess(caseId, res, myGen, emitter)
@@ -450,11 +472,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       if (totalFiles > 1) emitter.log('DONE', 'batch complete', `success: ${t.locations.length} · failed: ${t.failures.length} · ${emitter.elapsed()}ms`)
       else emitter.log('DONE', 'import complete', `${emitter.elapsed()}ms`)
     }
+    // A single failed run surfaces ITS error directly, enriched (code → friendly copy,
+    // details → Technical Details, partialData → Data Found); the per-file card would be
+    // redundant for one file. A multi-file all-failed run keeps the aggregate + rows.
+    const single = totalFiles === 1 && t.failures.length === 1 ? t.failures[0] : null
     const result: ImportResult =
       t.locations.length === 0
-        ? { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
+        ? single
+          ? { ok: false, error: single.error, code: single.code, details: single.details, partialData: single.partialData }
+          : { ok: false, error: `${t.failures.length} import${t.failures.length === 1 ? '' : 's'} failed.`, failures: t.failures }
         : { ok: true, locations: t.locations, failures: t.failures, notice: t.notice }
-    setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
+    // THE DWELL (P1.5, row 73): the stage stays 'progress' — computeImportStage keeps the
+    // terminal up (its badge morphs into the outcome CTA) until onReviewImport acknowledges.
+    // activeStage/batch are kept so the frozen bar and the batch-aware CTA copy stay truthful.
+    setImp((s) => ({ ...s, result, lastLocId: t.lastLocId }))
   }
 
   // PickerStage validates the selection (all-PDF, batch confirm) and hands File[] up here.
@@ -475,12 +506,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
       if (importGen.current !== myGen) return // cancelled, or a newer run started
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
+      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', acknowledged: false }))
       emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
       const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
       if (importGen.current !== myGen) return // cancelled while this file was processing
       if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error })
+      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
     }
     if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
     finishImport(tally, emitter, total)
@@ -504,12 +535,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const myGen = ++importGen.current // this run's token — any bump invalidates it
     const emitter = importLogBus.beginRun(logClock)
     emitter.log('INIT', 'reading pasted text…')
-    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model' }))
+    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', acknowledged: false }))
     const res = await runTextImport({ documentText, live: true, onStage: onImportStage, emitter })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error })
+    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
     if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
     finishImport(tally, emitter, 1)
   }
@@ -801,15 +832,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'import':
         return (
           <ImportModal
-            stage={imp.stage}
+            // The dwell derivation (P1.5, row 73): the DISPLAYED stage comes from the
+            // pure mode machine — a finished run keeps showing the terminal until the
+            // CTA acknowledges it (phone computeImportFlowMode semantics).
+            stage={computeImportStage(imp)}
             text={imp.text}
             activeStage={imp.activeStage}
             result={imp.result}
             batch={imp.batch}
-            // Pre-P1.5 no-op-safe: an outcome never shows while stage is 'progress'
-            // (finishImport flips stage+result together), so this can't fire yet;
-            // P1.5's dwell makes it the load-bearing exit.
-            onReviewImport={() => setImp((s) => (s.stage === 'progress' ? { ...s, stage: 'result' } : s))}
+            // The dwell's ONLY exit: acknowledging morphs the derived stage to 'result'.
+            // Guarded so a stray call mid-run (no result yet) can never fast-forward.
+            onReviewImport={() => setImp((s) => (s.stage === 'progress' && s.result !== null ? { ...s, acknowledged: true } : s))}
             onPdfFilesSelected={processPdfFiles}
             onClipboardText={runTextImportFlow}
             onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: '' }))}
@@ -819,7 +852,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onRetry={() => {
               // No token reset here: a retry simply starts a new run, which takes
               // its own generation. An untokened clear would revive stale runs (H1).
-              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
+              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null, acknowledged: false }))
             }}
             onOpenLocation={(locId) => {
               if (locId) openLocation(locId)
