@@ -116,8 +116,24 @@ export function useLongPress(
   const origin = useRef<{ x: number; y: number } | null>(null)
   /** Set when the timer fires; consumed by the trailing click. */
   const swallowNextClick = useRef(false)
-  /** Set when the timer fires; consumed by the touch gesture's trailing `contextmenu`. */
+  /**
+   * Set when a TOUCH hold's timer fires; consumed by that gesture's trailing `contextmenu`.
+   *
+   * Touch-only, deliberately (review R-20). It used to be set for every hold, which was
+   * correct for every `contextmenu` PRECEDED BY A POINTERDOWN — R-1's reset-first-guard-second
+   * rule covers those. The keyboard context-menu key (Shift+F10, or the Menu key) raises
+   * `contextmenu` on the FOCUSED element with no pointer event at all, so nothing cleared the
+   * latch and the first press after a mouse hold was swallowed. R-1's own improvement made
+   * that reachable: the Cases gesture surface is now a real `<button>`, hence focusable.
+   *
+   * Setting the latch only when it can be NEEDED removes the residual class rather than adding
+   * a second clearing path: a mouse hold raises no trailing `contextmenu`, so it never had a
+   * use for it. The dashboard card was never affected — a non-focusable `<div>` receives no
+   * keyboard context-menu event.
+   */
   const fired = useRef(false)
+  /** The pointer type of the gesture in flight, read by the timer body (see `fired`). */
+  const pointerType = useRef<string>('')
   // Held in a ref so the returned handlers stay stable across the re-render the long-press
   // itself causes (opening the tray) — a handler identity change mid-gesture is how
   // pointerup/pointerdown pairs get orphaned.
@@ -151,11 +167,13 @@ export function useLongPress(
       if (!enabled) return
       if (e.button !== 0) return // primary button only; a right-click is the context-menu path
       if (isNestedControl(e)) return
+      pointerType.current = e.pointerType
       origin.current = { x: e.clientX, y: e.clientY }
       timer.current = setTimeout(() => {
         timer.current = null
         swallowNextClick.current = true
-        fired.current = true
+        // Only a touch hold raises a trailing `contextmenu` to be consumed — see `fired`.
+        fired.current = pointerType.current === 'touch'
         cb.current()
       }, delayMs)
     },

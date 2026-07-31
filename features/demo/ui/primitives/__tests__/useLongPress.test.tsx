@@ -43,8 +43,11 @@ function CardProbe({ onLongPress, onNested }: { onLongPress(): void; onNested():
 }
 
 const row = () => screen.getByRole('button', { name: 'Row' })
-const down = (o: { clientX?: number; clientY?: number; button?: number } = {}) =>
-  fireEvent.pointerDown(row(), { pointerId: 1, button: 0, clientX: 10, clientY: 10, ...o })
+/** A pointerdown on the surface. Defaults to MOUSE — since R-20 the hook branches on
+ *  `pointerType`, so an arm about touch has to say so. */
+const down = (o: { clientX?: number; clientY?: number; button?: number; pointerType?: string } = {}) =>
+  fireEvent.pointerDown(row(), { pointerId: 1, button: 0, pointerType: 'mouse', clientX: 10, clientY: 10, ...o })
+const touchDown = (o: { clientX?: number; clientY?: number } = {}) => down({ pointerType: 'touch', ...o })
 /** A real (pointer-originated) click carries detail ≥ 1; keyboard activation carries 0. */
 const click = (detail = 1) => fireEvent.click(row(), { detail })
 
@@ -171,7 +174,7 @@ describe('useLongPress', () => {
     const onLongPress = vi.fn()
     render(<Probe onLongPress={onLongPress} onClick={vi.fn()} />)
 
-    down()
+    touchDown()
     act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
     expect(onLongPress).toHaveBeenCalledOnce()
 
@@ -202,6 +205,46 @@ describe('useLongPress', () => {
     // runs BEFORE the `e.button !== 0` guard, not after it as P3.2's copy did.
     fireEvent.pointerDown(row(), { pointerId: 1, button: 2, clientX: 10, clientY: 10 })
     fireEvent.contextMenu(row())
+    expect(onLongPress).toHaveBeenCalledTimes(2)
+  })
+
+  it('never swallows keyboard activation, even with the flag armed by an abandoned hold [R-18]', () => {
+    // The exemption `if (e.detail === 0) return`. A hold released OFF the row leaves
+    // `swallowNextClick` armed — `clear()` touches only the timer and the origin — and an
+    // Enter/Space activation synthesises a click with `detail: 0`. Without the line that click
+    // would be `preventDefault`ed on the surface carrying Delete and Duplicate…
+    //
+    // §56f recorded this exemption as a known wrong-reason trap, and R-1's rewrite of this file
+    // then replaced the arm that pinned it instead of adding beside it. Restored (R-18): a
+    // repo-wide grep for `detail: 0` had returned nothing at all.
+    const onLongPress = vi.fn()
+    const onClick = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={onClick} />)
+
+    down()
+    act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    click(0) // keyboard
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('a MOUSE hold leaves nothing for the keyboard menu key to trip over [R-20]', () => {
+    // Shift+F10 / the Menu key raises `contextmenu` on the FOCUSED element with NO pointer event
+    // at all, so R-1's reset-first-guard-second rule — which keys off pointerdown — could not
+    // clear the latch. R-1's own improvement made this reachable: the Cases gesture surface is
+    // now a real `<button>`, hence focusable. The latch is now set only for touch, which is the
+    // only gesture that has a trailing `contextmenu` to consume it.
+    const onLongPress = vi.fn()
+    render(<Probe onLongPress={onLongPress} onClick={vi.fn()} />)
+
+    down()
+    act(() => void vi.advanceTimersByTime(LONG_PRESS_MS))
+    fireEvent.pointerUp(row())
+    fireEvent.click(row(), { detail: 1 })
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    fireEvent.contextMenu(row()) // keyboard menu key: no pointerdown precedes it
     expect(onLongPress).toHaveBeenCalledTimes(2)
   })
 

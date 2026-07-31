@@ -115,7 +115,10 @@ describe('CasesScreen row actions — reveal', () => {
     renderScreen({ expandedId: 'c1' })
     const row = locationRow("Kim's Convenience")
 
-    fireEvent.pointerDown(row, { button: 0 })
+    // `pointerType: 'touch'` is load-bearing since R-20 — the latch that consumes the trailing
+    // `contextmenu` is armed only for touch, because only touch raises one. This arm was
+    // written with the default (mouse) and passed for the wrong reason until then.
+    fireEvent.pointerDown(row, { button: 0, pointerType: 'touch' })
     act(() => {
       vi.advanceTimersByTime(LONG_PRESS_MS)
     })
@@ -178,7 +181,12 @@ describe('CasesScreen row actions — reveal', () => {
 
     fireEvent.pointerDown(row, { button: 0 })
     fireEvent.pointerUp(row)
-    fireEvent.click(row)
+    // `detail: 1` — without it this click is keyboard-shaped (jsdom defaults to 0), so
+    // `onClickCapture` consumed the armed flag at the KEYBOARD exemption and returned before
+    // any swallow could happen: the arm passed with or without the reset it claims to pin.
+    // 2b18a0a's "probe-verified red" was true on P3.1's branch, before the §56f assembly merged
+    // the `detail` check in — the assembly silently made it vacuous (R-19).
+    fireEvent.click(row, { detail: 1 })
     expect(onOpenLocation).toHaveBeenCalledWith('l2')
   })
 

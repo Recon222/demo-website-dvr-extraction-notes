@@ -147,7 +147,9 @@ describe('DashboardScreen — Case Actions entry points (the phone long-press)',
   it('a touch hold that also raises contextmenu opens the sheet ONCE', () => {
     vi.useFakeTimers()
     const { onCaseActions, cardEl } = renderOne()
-    fireEvent.pointerDown(cardEl, { button: 0 })
+    // Touch, explicitly: since R-20 the contextmenu latch is armed only for touch,
+    // because only a touch hold raises a trailing `contextmenu` to consume it.
+    fireEvent.pointerDown(cardEl, { button: 0, pointerType: 'touch' })
     act(() => void vi.advanceTimersByTime(500))
     // iOS/Android raise the OS context menu at the end of the same hold.
     fireEvent.contextMenu(cardEl)
