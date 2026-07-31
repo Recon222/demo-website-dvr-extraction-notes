@@ -16,7 +16,10 @@ export type { NewCaseFields }
 
 interface NewCaseModalBaseProps {
   form: NewCaseFields
-  onChange(field: keyof NewCaseFields, value: string): void
+  /** Field-typed, not `(field, value: string)` (review R-13): the provenance field is a union,
+   *  and a keyed setter that accepts any `string` would let a typo through to a persisted,
+   *  PDF-rendered value. Generic so each key checks against its OWN type. */
+  onChange<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K]): void
   onSubmit(): void
   onCancel(): void
 }
