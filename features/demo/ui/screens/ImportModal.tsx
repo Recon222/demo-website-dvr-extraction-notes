@@ -8,12 +8,11 @@ import { PasteStage, PASTE_COPY } from '@/features/demo/ui/screens/import/PasteS
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import { ImportResultAccordion } from '@/features/demo/ui/screens/ImportResultAccordion'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { ImportTerminalProgress, type TerminalOutcome } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
+import type { ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
+import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
-export interface ImportStage {
-  label: string
-  state: 'done' | 'active' | 'pending'
-}
 export interface ImportFailure {
   filename: string
   error: string
@@ -33,9 +32,10 @@ export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
 export interface ImportModalProps {
   stage: ImportStageId
   text: string
-  stages: ImportStage[]
+  /** The pipeline's coarse stage (run-import onStage) — drives the terminal's headline/bar. */
+  activeStage: RunStageId | null
   result: ImportResult | null
-  /** Current file index for a batch import (shown as "Importing 2 of 3…"). */
+  /** 1-based batch position, shown in the terminal's processing badge ("File 2 of 3 · …"). */
   batch: { current: number; total: number } | null
   /** A validated all-PDF selection from the picker stage (1..n files). */
   onPdfFilesSelected(files: File[]): void | Promise<void>
@@ -48,8 +48,33 @@ export interface ImportModalProps {
   onRetry(): void
   onOpenLocation(locId: string | null): void
   onCancel(): void
+  /**
+   * Fired by the terminal's outcome CTA. Pre-P1.5 the auto-flip to results still
+   * runs (an outcome never shows while stage is 'progress'), so this stays no-op-safe;
+   * P1.5's dwell makes it load-bearing.
+   */
+  onReviewImport?(): void
+  /** Test seam forwarded to the terminal — defaults to the singleton import log bus. */
+  logBus?: ImportLogBus
   /** Test seam forwarded to PickerStage — defaults to navigator.clipboard.readText. */
   readClipboardText?(): Promise<string>
+}
+
+/**
+ * ImportResult → the terminal's outcome union. null result = still running. The
+ * counts follow the phone's derivation (cases.tsx:949-967): every file failed →
+ * failure (no counts); some failed → amber partial; else success. Pre-P1.5 the
+ * modal flips to 'result' the moment a result exists, so the terminal only ever
+ * sees null here — the derivation becomes live when P1.5 holds the progress stage
+ * through the dwell.
+ */
+export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutcome | null {
+  if (result === null) return null
+  if (!result.ok) return { status: 'failure' }
+  const successCount = result.locations.length
+  const totalFiles = successCount + result.failures.length
+  if (result.failures.length === 0) return { status: 'success', successCount, totalFiles }
+  return { status: 'partial', successCount, totalFiles }
 }
 
 // Shared result-action button styles (override padding/width per use).
@@ -69,7 +94,7 @@ function FailuresCard({ failures }: { failures: ImportFailure[] }) {
 }
 
 export function ImportModal(props: ImportModalProps) {
-  const { stage, text, stages, result, batch } = props
+  const { stage, text, activeStage, result, batch } = props
   const [openIndex, setOpenIndex] = useState(-1) // batch accordions, single-open (-1 = all collapsed)
   // Reset on a new result so a stale index can't pre-expand the wrong accordion after Retry (H1).
   useEffect(() => setOpenIndex(-1), [result])
@@ -95,26 +120,15 @@ export function ImportModal(props: ImportModalProps) {
       {stage === 'paste' && <PasteStage text={text} onTextChange={props.onTextChange} onRun={props.onRun} />}
 
       {stage === 'progress' && (
-        <div role="status" aria-live="polite">
-          <div style={{ fontSize: 13, color: '#9fc0db', marginBottom: batch ? 10 : 22 }}>Running the extraction pipeline…</div>
-          {batch && batch.total > 1 && (
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#cfe6f5', marginBottom: 18 }}>Importing {batch.current} of {batch.total}…</div>
-          )}
-          {stages.map((st, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-              {st.state === 'done' && (
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-              )}
-              {st.state === 'active' && (
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5AB4E6" strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" /></svg>
-              )}
-              {st.state === 'pending' && (
-                <div style={{ width: 20, display: 'flex', justifyContent: 'center' }}><div style={{ width: 8, height: 8, borderRadius: 4, background: '#2a4a6f' }} /></div>
-              )}
-              <div style={{ fontSize: 15, color: st.state === 'pending' ? '#5d7a9a' : '#cdd9e6' }}>{st.label}</div>
-            </div>
-          ))}
-        </div>
+        // The live terminal IS the progress screen (phone-inventory §5.7, web note 1) —
+        // it replaced the old 3-row checklist. It carries its own live region + progressbar.
+        <ImportTerminalProgress
+          stage={activeStage}
+          outcome={deriveTerminalOutcome(result)}
+          batch={batch}
+          onReview={props.onReviewImport ?? (() => undefined)}
+          bus={props.logBus}
+        />
       )}
 
       {stage === 'result' && result && (

@@ -17,7 +17,7 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
-import { ImportModal, type ImportStage, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
+import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
@@ -81,32 +81,15 @@ const blankCaseForm: NewCaseFields = {
 }
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
-const IMPORT_STAGE_ORDER: RunStageId[] = ['extracting_text', 'reading_model', 'normalizing', 'done']
-
-/** Build the progress checklist from the active pipeline stage (PDF adds the text-extract step). */
-function buildImportStages(active: RunStageId | null, isPdf: boolean): ImportStage[] {
-  const steps: { id: RunStageId; label: string }[] = [
-    ...(isPdf ? [{ id: 'extracting_text' as RunStageId, label: 'Extracting text from the PDF' }] : []),
-    { id: 'reading_model', label: 'Reading the request with the model' },
-    { id: 'normalizing', label: 'Mapping fields to the form' },
-  ]
-  const ai = active ? IMPORT_STAGE_ORDER.indexOf(active) : -1
-  return steps.map((s) => {
-    const si = IMPORT_STAGE_ORDER.indexOf(s.id)
-    return { label: s.label, state: si < ai ? 'done' : si === ai ? 'active' : 'pending' }
-  })
-}
-
 interface ImportState {
   stage: 'picker' | 'paste' | 'progress' | 'result'
   text: string
   result: ImportResult | null
   lastLocId: string | null
   activeStage: RunStageId | null
-  isPdf: boolean
   batch: { current: number; total: number } | null
 }
-const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, isPdf: false, batch: null }
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, batch: null }
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -492,7 +475,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
       if (importGen.current !== myGen) return // cancelled, or a newer run started
-      setImp((s) => ({ ...s, stage: 'progress', isPdf: true, batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
+      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text' }))
       emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
       const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
       if (importGen.current !== myGen) return // cancelled while this file was processing
@@ -521,7 +504,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const myGen = ++importGen.current // this run's token — any bump invalidates it
     const emitter = importLogBus.beginRun(logClock)
     emitter.log('INIT', 'reading pasted text…')
-    setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
+    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model' }))
     const res = await runTextImport({ documentText, live: true, onStage: onImportStage, emitter })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
@@ -820,9 +803,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           <ImportModal
             stage={imp.stage}
             text={imp.text}
-            stages={buildImportStages(imp.activeStage, imp.isPdf)}
+            activeStage={imp.activeStage}
             result={imp.result}
             batch={imp.batch}
+            // Pre-P1.5 no-op-safe: an outcome never shows while stage is 'progress'
+            // (finishImport flips stage+result together), so this can't fire yet;
+            // P1.5's dwell makes it the load-bearing exit.
+            onReviewImport={() => setImp((s) => (s.stage === 'progress' ? { ...s, stage: 'result' } : s))}
             onPdfFilesSelected={processPdfFiles}
             onClipboardText={runTextImportFlow}
             onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: '' }))}
