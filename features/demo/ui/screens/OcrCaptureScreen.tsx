@@ -26,7 +26,9 @@ export interface OcrCaptureScreenProps {
   /** The operator's working DVR date/time — pre-filled from the read, editable before commit. */
   dvrDraft: string
   onChangeDvrDraft(value: string): void
-  /** True once the operator has accepted the assumed date (only meaningful when `assumedDate` is set). */
+  /** True once the operator has accepted the assumed date (only meaningful when
+   *  `result.resolution.kind === 'assumed-date'` — R-23 replaced the flat `assumedDate` field
+   *  this once named with the three-arm union). */
   dateConfirmed: boolean
   onConfirmDate(): void
   /**
