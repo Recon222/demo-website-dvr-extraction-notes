@@ -827,3 +827,29 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+## 37. P2.1 (parity/p2-notes) — notes-generator port: shared-address-formatting placement + header/notes abbreviation seam
+
+**Context:** P2.1 ported the phone's seven-section notes generator. The address section
+formatter needs the phone's `formatAddress`/`abbreviateStreetTypes`
+(`src/lib/utils/address-formatting.ts`), which the demo did not have — it was ported
+**inside the notes module** (`engine/logic/notes/address-formatting.ts`) to keep P2.1's
+footprint out of P2.3's concurrent territory.
+
+1. **Lift `address-formatting.ts` to a shared engine/logic location when P2.3 lands.**
+   P2.3 (Submission depth, matrix row 29) builds the `formatAddress`
+   street-type-abbreviation derivation for the submission screen's derived address
+   field. Two copies of the abbreviation map would drift; the notes-module copy is
+   fully tested and ready to move as-is. Owner: whichever of P2.1/P2.3 is merged
+   second (orchestrator's call at phase assembly).
+
+2. **The PDF header address is NOT street-type-abbreviated; the notes body now is.**
+   `selectCaseNotesData.address` (and the Completion summary / screenData rows) still
+   use the inline `[businessName, streetAddress, city].filter(Boolean).join(', ')`
+   join, so a location entered as "123 Main Street" renders "Main Street" in the PDF
+   header and "Main St" in the notes body below it. On the phone both surfaces run
+   through `formatAddress`. Deliberately left to P2.3 (the derived-address package)
+   rather than fixed piecemeal here — switching the header changes several non-notes
+   surfaces (Completion summary, case cards, map data) that P2.3 owns wholesale.
+   **Trigger:** P2.3's `formatAddress` wiring; verify the header/notes strings agree
+   afterward.
