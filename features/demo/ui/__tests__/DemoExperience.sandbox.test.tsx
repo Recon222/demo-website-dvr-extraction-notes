@@ -827,6 +827,44 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     }
   })
 
+  it("a superseded run's late THROW cannot publish its tally over the live run (R-50: guardImportRun's stale-token arm)", async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      let rejectA: (e: Error) => void = () => {}
+      runPdf
+        .mockResolvedValueOnce(okRun({ filename: 'good.pdf' })) // run A file 1 LANDS in run A's tally
+        .mockImplementationOnce(() => new Promise<ImportRunResult>((_res, rej) => { rejectA = rej })) // file 2 hangs
+        .mockImplementationOnce(() => new Promise<ImportRunResult>(() => {})) // run B stays in flight
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-STK', displayName: 'StaleThrow', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input(), { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'hang.pdf', { type: 'application/pdf' })] } })
+      await screen.findByText(/File 2 of 2/) // run A landed file 1 and is now waiting on file 2
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close' })) // supersede run A mid-flight
+      act(() => { store.getState().openModal('import') })
+      fireEvent.change(input(), { target: { files: [new File(['c'], 'live.pdf', { type: 'application/pdf' })] } })
+      expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+
+      // Run A's rejection lands AFTER run B took the token. Since ca0df27 the catch no longer
+      // publishes a self-contained failure object but run A's whole TALLY through finishImport
+      // (stage + result + lastLocId) — so dropping the token check would paint an amber
+      // "Batch partially failed — 1 of 2" CTA and a result card over a live, unfinished run.
+      await act(async () => { rejectA(new Error('boom from the superseded run')) })
+
+      expect(screen.queryByRole('button', { name: /Batch partially failed/ })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('terminal-review-cta')).not.toBeInTheDocument() // no outcome at all
+      expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   it('a pre-seed throw reports the honest default stage, never the PREVIOUS run’s (R-45: the mirror is cleared at the token bump)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const realBeginRun = importLogBus.beginRun
