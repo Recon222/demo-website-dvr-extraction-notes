@@ -1809,9 +1809,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
       case 'mediaLibrary':
-        // P4.2 registered the id and the entry point; P4.5 replaces the sheet's BODY. The row
-        // that opens it is gated on a location, so this never mounts against nothing.
-        return <MediaLibrarySheet onClose={() => store.getState().closeModal()} />
+        // P4.2 registered the id and the entry point; P4.5 gave the sheet its real body. The
+        // row that opens it is gated on a location, so `currentLocation` is set here — the
+        // `EMPTY_FORM.media` fallback exists only for the case where that location is deleted
+        // out from under an open sheet, which shows an empty library rather than throwing.
+        return <MediaLibrarySheet media={currentLocation?.form.media ?? EMPTY_FORM.media} onClose={() => store.getState().closeModal()} />
       case 'duplicateLocation':
         // Rendered only with an open dupState — the chooser's six actions all need the source
         // it was opened for, so a state-less mount would be a modal with nothing behind it.

@@ -257,6 +257,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Type an address (Mapbox suggests as you go), then press Create Location.',
   },
+  mediaLibrary: {
+    eyebrow: 'Media',
+    title: 'Everything captured here',
+    paras: [
+      'Photos, video and audio notes taken at this location, split by kind and read newest first. Tap a row to preview it in place; expand a photo or clip to fill the screen.',
+      'The bytes live in this tab and nowhere else — the demo never writes captured media into browser storage, so a refresh keeps the record of a capture and honestly says the file itself is gone.',
+    ],
+    bullets: [
+      'Photos / Video / Audio tabs, each with its own count',
+      'Inline preview with filename, notes and when it was taken',
+      'Hold a row — or use its Delete button — to remove a capture',
+    ],
+    tip: 'Capture Media or Record Audio first, then come back — the library opens on the newest one.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
