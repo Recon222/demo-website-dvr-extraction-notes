@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { DateTimeField, SectionCard, switchKeyDown, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
-import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface CorrectedScope {
   id: string
@@ -46,55 +47,6 @@ const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, f
 /** The demo's warning amber — the same `colors.warning` stop the import terminal uses. */
 const WARNING = '#ffd93d'
 
-/**
- * The phone's `Recalculate Time Offset?` confirmation (`app/(form)/time-offset.tsx:372-382`,
- * spec `docs/ui-mapping/06-wizard-b-time.md:80-83`) as an in-phone blocking dialog: title,
- * message and both button labels are verbatim; `Cancel` is the safe default (the phone marks
- * it `style: 'cancel'`), and Escape / backdrop both cancel.
- *
- * Deliberately local to this screen: the demo has no shared blocking-dialog primitive yet and
- * one is scheduled work elsewhere in the plan (P3.1 / P4.5 / P5.3) — this is not it. Fold it in
- * when that primitive lands (deferred ledger).
- */
-function RecalculateDialog({ onCancel, onContinue }: { onCancel(): void; onContinue(): void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
-  return (
-    <div
-      data-recalc-backdrop
-      onClick={onCancel}
-      style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(4,8,14,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Recalculate Time Offset?"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 286, maxWidth: '100%', ...glassCard, boxShadow: '0 24px 60px rgba(0,0,0,0.6)', padding: '20px 20px 16px', textAlign: 'center' }}
-      >
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f4f8', marginBottom: 8 }}>Recalculate Time Offset?</div>
-        <div style={{ fontSize: 13, lineHeight: 1.5, color: '#bcccde', marginBottom: 18 }}>
-          This will reset your extracted video scopes. Any manual edits to the extracted times will be lost.
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus -- focus lands on the safe default action when the dialog opens */}
-          <button type="button" autoFocus onClick={onCancel} style={{ flex: 1, padding: 11, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Cancel
-          </button>
-          <button type="button" onClick={onContinue} style={{ flex: 1, padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Continue
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
 export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
@@ -108,8 +60,11 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
     if (p.hasExtractedScopes) setConfirmRecalc(true)
     else p.onCalculate()
   }
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear the listener down and re-add it on every parent update.
+  const cancelRecalc = useCallback(() => setConfirmRecalc(false), [])
   return (
-    <div style={{ position: 'relative', minHeight: 786, paddingBottom: 40 }}>
+    <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Time Offset" onBack={p.onBack} onMenu={p.onMenu} />
       <div style={{ padding: 16 }}>
         <SectionCard title="DVR Time vs Actual Time">
@@ -187,13 +142,25 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
         </div>
       </div>
 
+      {/* The phone's `Recalculate Time Offset?` Alert (`app/(form)/time-offset.tsx:372-382`,
+          spec `docs/ui-mapping/06-wizard-b-time.md:80-83`) on the shared blocking-dialog
+          primitive: title, message and both button labels verbatim, `Cancel` carrying the
+          phone's `style: 'cancel'`, Escape dismissing to the safe default. */}
       {confirmRecalc && (
-        <RecalculateDialog
-          onCancel={() => setConfirmRecalc(false)}
-          onContinue={() => {
-            setConfirmRecalc(false)
-            p.onCalculate()
-          }}
+        <AlertDialog
+          title="Recalculate Time Offset?"
+          message="This will reset your extracted video scopes. Any manual edits to the extracted times will be lost."
+          actions={[
+            { label: 'Cancel', style: 'cancel', onPress: cancelRecalc },
+            {
+              label: 'Continue',
+              onPress: () => {
+                setConfirmRecalc(false)
+                p.onCalculate()
+              },
+            },
+          ]}
+          onDismiss={cancelRecalc}
         />
       )}
     </div>

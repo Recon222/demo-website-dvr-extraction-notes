@@ -88,7 +88,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes={false} />)
     fireEvent.click(screen.getByText('Calculate'))
     expect(onCalculate).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   it('asks first when extracted scopes exist, with the phone’s copy', () => {
@@ -96,7 +96,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
     fireEvent.click(screen.getByText('Calculate'))
     expect(onCalculate).not.toHaveBeenCalled()
-    const dialog = screen.getByRole('dialog')
+    const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveTextContent('Recalculate Time Offset?')
     expect(dialog).toHaveTextContent(
       'This will reset your extracted video scopes. Any manual edits to the extracted times will be lost.',
@@ -109,7 +109,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.click(screen.getByText('Continue'))
     expect(onCalculate).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   it('Cancel aborts the recalculation', () => {
@@ -118,20 +118,22 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.click(screen.getByText('Cancel'))
     expect(onCalculate).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
-  it('Escape and backdrop click both cancel', () => {
+  it('Escape cancels; the scrim deliberately does not', () => {
     const onCalculate = vi.fn()
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
 
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
 
+    // AlertDialog's scrim is inert by design (a native alert is answered by choosing a
+    // button) — clicking it must NOT let a visitor skip the decision the phone forces.
     fireEvent.click(screen.getByText('Calculate'))
-    fireEvent.click(document.querySelector('[data-recalc-backdrop]') as HTMLElement)
-    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(document.querySelector('[data-alert-scrim]') as HTMLElement)
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
 
     expect(onCalculate).not.toHaveBeenCalled()
   })
@@ -189,6 +191,6 @@ describe('DemoExperience — DST advisory wiring', () => {
     expect(store.getState().locations[0].form.extractedScopes.length).toBe(1)
 
     fireEvent.click(screen.getByText('Calculate'))
-    expect(screen.getByRole('dialog')).toHaveTextContent('Recalculate Time Offset?')
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Recalculate Time Offset?')
   })
 })
