@@ -1385,3 +1385,90 @@ missing members, which is the direction real drift runs.
 by a binary ternary in `LocationFields`, so a fourth member would silently render the
 partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
 `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+## 48. P3.1 (parity/p3-crud) — cases CRUD + delete: adaptations, refutations & residuals
+
+**Source:** P3.1 (matrix rows 10 CRUD, 15; plan §5). Spec: phone `docs/ui-mapping/02-tab-cases.md`
++ `11-case-modals.md`, phone `src/features/case-management/components/` (`CaseList`,
+`SwipeableCaseCard`, `SwipeDeleteAction`, `LocationItem`, `DeleteConfirmationModal`) and
+`services/case-service.ts`. Nothing here is unfinished work the package owes; each item is a
+decision a reviewer would otherwise have to re-derive.
+
+**48a. The swipe reveal became a hold + a visible trigger — and gained an a11y path the phone
+lacks.** The brief called for "pointer long-press + row action buttons — match intent, not
+gesture". A horizontal swipe on a pointer device is a scroll, so the reveal is a 500 ms hold
+(React Native's own `onLongPress` default, the beat `LocationItem.tsx:34-38` uses) OR an
+always-visible, keyboard-focusable ⋯ trigger. The phone carries a screen-reader-only
+`accessibilityActions` delete entry (`SwipeableCaseCard.tsx:147`) precisely BECAUSE its gesture
+is invisible to assistive tech; replicating an invisible gesture plus a parallel a11y-only path
+would have been copy-parity over intent. What IS ported: single-open across the list (keyed
+`case-${id}`/`location-${id}`, `CaseList.tsx:101-104`), the expanded gate on case rows only
+(`SwipeableCaseCard.tsx:99-100,162`), tray-closes-on-expand (`:67-73`), and tray-closes-on-handoff
+(`:75-78`).
+
+**48b. "Scrolling the list closes the open swipeable" (`CaseList.tsx:86-93`) deliberately NOT
+ported.** That rule protects against a stranded OVERLAY drawer. The web tray renders in flow,
+takes its own row's height, and hides nothing — there is nothing to strand, and closing it on
+scroll would make it feel like it had been dismissed by accident. Revisit only if the tray ever
+becomes an overlay.
+
+**48c. The delete confirmation is a port, not an `AlertDialog` consumer.** Plan §6 notes the
+blocking-dialog primitive is wanted by P3.1/P4.5/P5.3, so `AlertDialog` (P2.4) was tried first
+and judged against ui-mapping 11. It does not fit: (1) its body is one string, while this dialog's
+content is structured and the case arm needs a `maxHeight: 150` SCROLLING location list — a cap
+that is load-bearing, since a twenty-location case flattened into a `\n`-joined message pushes its
+own buttons off the 786px phone screen; (2) the scrims disagree by design — `AlertDialog` mirrors
+an OS alert whose scrim is deliberately inert, while this modal's scrim DOES dismiss (the phone's
+`handleOverlayPress`). The overlay MECHANICS are shared (phone-screen portal, Escape, focus onto
+the dialog and back to the opener). P5.3 should treat this as a second consumer-shaped datapoint:
+the "primitive" the three surfaces want is the mechanics, not one component.
+
+**48d. Refutation — the "shared destructive-warning line" is two different strings.** The brief
+(and ui-mapping 11's phrasing) reads as one shared line. It is not: the location arm says
+`All form data, photos, and PDFs for this location will be permanently deleted.`
+(`DeleteConfirmationModal.tsx:164`), the case arm drops the qualifier —
+`All form data, photos, and PDFs will be permanently deleted.` (`:226`). What is shared is the
+styled slot (italic, `colors.error`, same position). Both lifted verbatim; both pinned by test,
+including a negative assertion that the case arm does not carry the location wording.
+
+**48e. `isDeleting` not ported.** On the phone, delete is async SQLite + filesystem, so the
+component carries a pending flag (disabled buttons, spinner, backdrop no-op) and `cases.tsx` adds
+a synchronous double-submit ref guard (`isDeletePending`). The demo's delete is one synchronous
+store write; the dialog unmounts in the same tick. A permanently-false prop would be dead weight
+pretending at an in-flight window that does not exist. **Trigger:** if a future package makes the
+demo's delete asynchronous (an export/cleanup step, say), restore the prop and the guard together.
+
+**48f. The verbatim warning copy names PDFs the demo never stored.** "All form data, photos, and
+PDFs … will be permanently deleted" is lifted whole. Form data and captured media entries really
+are destroyed; the demo generates PDFs on demand and stores none, so that clause has nothing to
+over-promise — it is not a claim about a capability, and the deletion it warns about is entirely
+real. Recorded because the honesty rule makes verbatim copy worth a second look, not because the
+line needs softening.
+
+**48g. Row 10's remaining CRUD verbs are deliberately NOT on this screen.** Row 10 lists
+"edit / delete / duplicate / archive" as missing, but on the phone only DELETE is reachable from
+the Cases tab; Edit and complete/archive/reopen live on the dashboard's `CaseActionsSheet`
+(row 9 / P3.2) and duplicate lives in `DuplicateLocationModal` (row 14 / P3.5). Adding them to
+this screen's tray would have invented a surface the phone does not have. The store actions they
+need (`updateCase`, `archiveCase`, `reopenCase`) ARE built and tested here and are THE canonical
+ones — P3.2/P3.3 consume them rather than minting their own. **Trigger:** P3.5 appends its
+`Duplicate…` action to the same location tray (the web collapses the phone's two separate
+gestures onto one affordance); the seam is marked in `CasesScreen.tsx`.
+
+**48h. Status gating lives in the caller, not the store.** `archiveCase`/`reopenCase` will move
+any case to any of their statuses; the phone's services are equally unguarded
+(`case-service.ts:571-583`) and its `actionsForStatus` matrix gates the BUTTONS. P3.2 owns that
+matrix (with the `assertNever` the row-9 spec calls for). Do not push it down into the store —
+the sheet needs the matrix as data for rendering anyway.
+
+**48i. The tray's open key is screen-local state.** Unlike `expandedCaseId` (bridge state, because
+`submitCase` auto-expands the case it just created — the phone's `newlyCreatedCaseId`), nothing
+outside `CasesScreen` drives which row is showing a button. Kept local so the bridge does not grow
+a field for chrome. Consequence: it resets if the screen ever unmounts — which is what closing a
+swipeable on unmount does on the phone anyway.
+
+**48j. `capture` is blanked when the OPEN location is deleted.** Not cosmetic: `switchLocation`
+blanks the in-progress calibration on every switch but `addLocation` does not, so deleting the open
+location and then creating a new one would have opened Time Offset pre-filled with the deleted
+DVR's clock reading. Pinned by a regression test. If `addLocation` ever gains its own reset, this
+one stays — they cover different paths.
