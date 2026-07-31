@@ -704,6 +704,32 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('0%')
   })
 
+  it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      runPdf.mockRejectedValue(new Error('boom from the pipeline')) // a throw, not a failure result
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-THROW', displayName: 'Throw', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+      // Pre-fix this spun forever (finishImport was the only result writer). Now: failure dwell…
+      const cta = await screen.findByRole('button', { name: /See error details/ })
+      fireEvent.click(cta)
+      // …and the released card carries the friendly copy + the raw throw in Technical Details.
+      expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
+      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the pipeline')
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+      expect(store.getState().locations.length).toBe(0)
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   // ---- P1.5 the dwell (row 73) ----
 
   it('DWELL: a successful run holds on the terminal — results render ONLY after "Review import →"', async () => {
