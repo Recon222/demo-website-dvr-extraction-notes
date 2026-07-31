@@ -32,7 +32,14 @@ import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
-import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
+import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
+import {
+  blankCaseForm,
+  caseFormToEdits,
+  caseFormToInput,
+  caseToCaseForm,
+  type NewCaseFields,
+} from '@/features/demo/ui/screens/caseFormData'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
 import { EditIncidentLocationModal } from '@/features/demo/ui/screens/EditIncidentLocationModal'
 import {
@@ -70,7 +77,6 @@ import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittab
 import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
-import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
@@ -93,22 +99,6 @@ const realNow = () => new Date()
 // bus itself never touches Date.now() — elapsedMs comes from this injection (P1.3).
 const logClock = () => clock.now().getTime()
 
-const blankCaseForm: NewCaseFields = {
-  caseNumber: '',
-  displayName: '',
-  unit: '',
-  oicName: '',
-  oicBadge: '',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: '',
-  incidentStreetAddress: '',
-  incidentCity: '',
-  incidentLatitude: '',
-  incidentLongitude: '',
-  incidentCoordinateSource: '',
-  notes: '',
-}
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 /** Only ever a placeholder: `editIncident` seeds the real values from the case before opening. */
 const blankIncidentForm: IncidentLocationValues = { businessName: '', streetAddress: '', city: '', latitude: '', longitude: '', coordinateSource: '' }
@@ -303,6 +293,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
+  // Which case the New Case sheet is serving. One modal id, two modes — the phone's own
+  // framing (`NewCaseModal` is a multi-caller component: Cases opens it to create, the
+  // dashboard's actions sheet opens it to edit). Held here, not in the store, because it is
+  // modal chrome: `modal` itself is deliberately not persisted, and neither is this.
+  const [caseEditId, setCaseEditId] = useState<string | null>(null)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   // The New Location modal's write-guard identity (deferred §45f: every `LocationFields` caller
   // passes its OWN identity). The location does not exist yet, so what an in-flight lookup
@@ -570,8 +565,35 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     store.getState().setView('submission')
   }
   const newCase = () => {
+    setCaseEditId(null)
     setCaseForm(blankCaseForm)
     store.getState().openModal('newCase')
+  }
+  /**
+   * Open the New Case sheet on an EXISTING case (phone: dashboard long-press →
+   * CaseActionsSheet → "Edit Case", `app/(tabs)/home.tsx:168-173`). Seeds the form from the
+   * stored case through the shared mapper, so the seed and the submit can't drift.
+   *
+   * Wired at the P3 assembly to the dashboard sheet's `onEdit` (§49a's one-line trigger,
+   * §50e's). Do not inline a second copy of this — seed drift between two edit entry points is
+   * exactly what `caseFormData.ts` exists to prevent.
+   */
+  const editCase = (caseId: string) => {
+    const target = store.getState().cases.find((c) => c.id === caseId)
+    if (!target) return
+    setCaseEditId(caseId)
+    setCaseForm(caseToCaseForm(target))
+    store.getState().openModal('newCase')
+  }
+  // Closing always returns the sheet to create mode, so a later `openModal('newCase')` from
+  // anywhere can never inherit a stale edit target — NOR a stale edit SEED. Clearing the id
+  // alone left the previous case's values in `caseForm`: every UI entry happens to blank them
+  // (`newCase` does it on open), so nothing was reachable, but the guarantee is worth having
+  // at the close rather than resting on every future opener remembering to.
+  const closeCaseModal = () => {
+    setCaseEditId(null)
+    setCaseForm(blankCaseForm)
+    store.getState().closeModal()
   }
 
   // ---- dashboard case actions (P3.2, rows 8/9) ----
@@ -593,6 +615,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setActionSheetCaseId(null)
     store.getState().setCaseStatus(id, status)
   }
+  /** "Edit Case" — close the sheet, then open the editor. The phone additionally waits 350 ms
+   *  for its pageSheet dismissal animation (`home.tsx:41,168-173`); the demo's overlays unmount
+   *  synchronously, so there is nothing to wait for. Closes §49a. */
+  const editCaseFromSheet = () => {
+    const id = actionSheetCaseId
+    if (!id) return
+    setActionSheetCaseId(null)
+    editCase(id)
+  }
   const addLocation = (caseId: string) => {
     setTargetCaseId(caseId)
     setLocForm(blankLocForm)
@@ -604,18 +635,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp(blankImport)
     store.getState().openModal('import')
   }
+  /** Create, or save an edit. Throws (`DuplicateCaseNumberError`) straight into the modal's
+   *  catch — the banner is the modal's job, and swallowing it here would lose the case
+   *  silently. Field trimming + the strict coordinate parse live in `caseFormToInput`. */
   const submitCase = () => {
-    // Build incidentCoordinates only when BOTH lat & lng parse + range-validate. An invalid or
-    // partial entry yields no coordinates (the case is still created — no required-field gate).
-    const latR = parseCoordinate(caseForm.incidentLatitude, 'lat')
-    const lngR = parseCoordinate(caseForm.incidentLongitude, 'lng')
-    const incidentCoordinates =
-      latR.ok && lngR.ok
-        ? { lat: latR.value, lng: lngR.value, source: caseForm.incidentCoordinateSource === 'geocoded' ? ('geocoded' as const) : ('manual' as const) }
-        : undefined
-    const id = store.getState().createCase({ ...caseForm, incidentCoordinates })
+    if (caseEditId !== null) {
+      store.getState().updateCase(caseEditId, caseFormToEdits(caseForm))
+      closeCaseModal()
+      return
+    }
+    const id = store.getState().createCase(caseFormToInput(caseForm))
     setExpandedCaseId(id)
-    store.getState().closeModal()
+    closeCaseModal()
   }
   /** Map incident card → the incident-only editor, seeded from the case (matrix rows 22 → 23).
    *  A missing case is a no-op rather than an empty modal — the phone's `handleEditCase` makes
@@ -1414,8 +1445,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   function activeModal() {
     switch (modal) {
-      case 'newCase':
-        return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
+      case 'newCase': {
+        const onChange = (f: keyof NewCaseFields, v: string) => setCaseForm((s) => ({ ...s, [f]: v }))
+        const editing = caseEditId === null ? undefined : cases.find((c) => c.id === caseEditId)
+        // A case deleted while its edit sheet is open falls back to create mode rather than
+        // rendering an edit sheet with no case behind it (P3.1's delete makes that reachable).
+        return editing ? (
+          <NewCaseModal mode="edit" existingCase={editing} form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
+        ) : (
+          <NewCaseModal form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
+        )
+      }
       case 'newLocation': {
         // Same case resolution `submitLocation` uses, so the duplicate check and the write can
         // never be looking at different cases. Names are per-case: siblings only.
@@ -1554,8 +1594,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {actionSheetCase && (
             <CaseActionsSheet
               caseData={actionSheetCase}
-              // P3.3 SEAM — pass `onEdit={…}` here once NewCaseModal grows its edit mode.
-              // Until then the sheet renders no Edit Case button rather than a dead one.
+              // P3.3 seam, wired at the P3 assembly (§49a + §50e): NewCaseModal has its edit
+              // mode, so Edit Case is now a real button and renders FIRST, as on the phone.
+              // The honest-rule consequence is the point — the button appeared the moment it
+              // could do what it says, and not one merge earlier.
+              onEdit={editCaseFromSheet}
               onComplete={() => runCaseAction('complete')}
               onReopen={() => runCaseAction('draft')}
               onArchive={() => runCaseAction('archived')}

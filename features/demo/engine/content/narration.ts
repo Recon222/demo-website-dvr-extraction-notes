@@ -183,7 +183,10 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
       'The incident location is captured here at the case level',
       'Duplicate-number detection stops you clobbering an existing case',
     ],
-    tip: 'The form is pre-filled — just press Create Case.',
+    // The scripted-tour era pre-filled this form; the hands-on demo boots empty, so the old
+    // "The form is pre-filled — just press Create Case." tip was describing a demo that no
+    // longer exists. Replaced with what the visitor actually has to do (P3.3).
+    tip: 'Case number and unit are required — everything else can wait.',
   },
   newLocation: {
     eyebrow: 'Case management',

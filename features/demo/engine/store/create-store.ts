@@ -24,6 +24,7 @@ import type {
 } from '@/features/demo/engine/types'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
 import {
   calculateCorrectedTimeRange,
   calculateTimeDifference,
@@ -57,23 +58,36 @@ export interface NewCaseInput {
 }
 
 /**
- * The editable slice of a case — the payload of `updateCase` (P3.3's `mode="edit"` submit
- * target; phone `NewCaseModal` edit mode, ui-mapping 11 § NewCaseModal).
+ * The editable half of a case — every `NewCaseInput` field EXCEPT the number. The payload of
+ * `updateCase` (the New Case modal's `mode="edit"` submit; phone `NewCaseModal` edit mode,
+ * ui-mapping 11 § NewCaseModal).
  *
- * The four keys it deliberately CANNOT carry are the case's invariants, each owned elsewhere:
+ * Derived by subtraction from the CREATE input, which is a structural port of the phone's own
+ * edit call site: `handleEditSubmit` destructures the number off the full create payload and
+ * forwards the rest — `const { caseNumber: _caseNumber, ...updates } = input`
+ * (`app/(tabs)/home.tsx:184-188`). So the edit payload is TOTAL, not a patch: whatever the
+ * form holds is what the case becomes, which is what makes clearing a field work.
+ *
+ * P3.1 proposed `Partial<Omit<DemoCase, …>>` instead — a faithful port of the phone's *service*
+ * signature (`UpdateCaseInput`, types/index.ts:239-251, every key optional, only defined keys
+ * written). Reconciled onto this one at the P3 assembly: partiality is meaningful on the phone
+ * because a SQL writer builds its SET list from the present keys, and meaningless here where
+ * the writer spreads onto the record either way; a partial type would invite a caller to send
+ * `{ displayName }` and silently keep the rest, which the total writer below would NOT honour.
+ * P3.1's contributions were kept — the unknown-id guard on the writer, and the compile-time
+ * probe in `crud-actions.test.ts` pinning the invariants below.
+ *
+ * The case's invariants are unreachable through this type, each owned elsewhere:
  * - `id` — identity;
- * - `caseNumber` — immutable after create. The phone locks the field (`editable={!isEdit}`,
- *   helper text "Case number cannot be changed") and warns at create time ("The case number
- *   … can't be changed after the case is created"); expressing that in the type means a future
- *   edit form physically cannot smuggle a rename through;
+ * - `caseNumber` — immutable after create. `directory_name` (the evidence folder on disk) is
+ *   derived from it at creation and the rename path isn't wired, so the phone locks the field
+ *   (`editable={!isEdit}`, helper "Case number cannot be changed") and warns at create time;
  * - `status` — owned by `completeCase` (the Completion screen) and `setCaseStatus` (every
  *   other move), exactly as the phone routes every status move through its own service
  *   function (`case-service.ts:571-583`);
  * - `createdLabel` / `locationIds` — derived bookkeeping (`addLocation` / `deleteLocation`).
  */
-export type UpdateCaseInput = Partial<
-  Omit<DemoCase, 'id' | 'caseNumber' | 'status' | 'createdLabel' | 'locationIds'>
->
+export type CaseEdits = Omit<NewCaseInput, 'caseNumber'>
 
 export interface NewLocationInput {
   locationName: string
@@ -135,7 +149,19 @@ export interface DemoState {
 
 export interface DemoActions {
   reset(): void
+  /** THROWS `DuplicateCaseNumberError` when `caseNumber` (trimmed, case-sensitive) is
+   *  already in use — the demo's write-boundary stand-in for the phone's UNIQUE column.
+   *  Callers that surface a user-facing form (the New Case modal) must catch it; see
+   *  engine/logic/case-number.ts for why the rule lives at this boundary. */
   createCase(input: NewCaseInput): string
+  /** Overwrite a case's editable fields (everything but the number — see `CaseEdits`).
+   *  Unknown ids are a TRUE no-op: the guard is an early return, not a `.map` that misses,
+   *  so no fresh `cases` array wakes every subscriber and triggers a snapshot write (P3.1).
+   *  Deliberately does NOT touch the case/location selection pair:
+   *  editing a case from the dashboard must not move the wizard off the location the visitor
+   *  had open (R-19's invariant is about which case OWNS the current location, and this
+   *  action changes no ownership). */
+  updateCase(caseId: string, edits: CaseEdits): void
   /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
    *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
    *  The Completion screen's confirmation gate reads the location flag, never the case status.
@@ -172,9 +198,6 @@ export interface DemoActions {
    *  stays with the New Case modal in edit mode, exactly as on the phone. A no-op for an
    *  unknown id, like every other case-keyed writer here. */
   updateIncidentLocation(caseId: string, patch: IncidentLocationPatch): void
-  /** Edit an existing case (phone `NewCaseModal` mode="edit" → `updateCase` service).
-   *  No-ops for an unknown id. See `UpdateCaseInput` for what edit deliberately cannot reach. */
-  updateCase(caseId: string, patch: UpdateCaseInput): void
   /** Delete a case and every location under it (the phone's ON DELETE CASCADE,
    *  `case-service.ts:551`). Repairs the selection pair — see the R-19 note at the impl. */
   deleteCase(caseId: string): void
@@ -317,6 +340,11 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     reset: () => set(initialState()),
 
     createCase: (input) => {
+      // The write boundary refuses a number that is already in use — the demo's stand-in for
+      // the phone's `cases.case_number … UNIQUE` column, which is what makes the phone's
+      // `DuplicateCaseNumberError` reach the New Case banner. Checked BEFORE `nextId` so a
+      // rejected create never burns an id (ids are the persistence seq's contract).
+      assertCaseNumberFree(get().cases, input.caseNumber)
       const id = nextId('c')
       const c: DemoCase = {
         id,
@@ -341,6 +369,34 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       // switchLocation set both halves. No action leaves the pair pointing across cases.
       set((s) => ({ cases: [c, ...s.cases], currentCaseId: id, currentLocationId: null }))
       return id
+    },
+
+    updateCase: (caseId, edits) => {
+      // Unknown id is a genuine no-op (P3.1): a bare `.map` would still allocate a new
+      // `cases` array, waking every subscriber and triggering a snapshot write for nothing.
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => ({
+        cases: s.cases.map((c) =>
+          c.id === caseId
+            ? {
+                ...c,
+                displayName: edits.displayName,
+                unit: edits.unit,
+                oicName: edits.oicName ?? '',
+                oicBadge: edits.oicBadge ?? '',
+                vcName: edits.vcName ?? '',
+                vcBadge: edits.vcBadge ?? '',
+                incidentBusinessName: edits.incidentBusinessName ?? '',
+                incidentStreetAddress: edits.incidentStreetAddress ?? '',
+                incidentCity: edits.incidentCity ?? '',
+                // Assigned unconditionally, so clearing the coordinates in the form CLEARS
+                // them on the case. A conditional spread would make removal impossible.
+                incidentCoordinates: edits.incidentCoordinates,
+                notes: edits.notes ?? '',
+              }
+            : c,
+        ),
+      }))
     },
 
     completeCase: (caseId) =>
@@ -372,13 +428,6 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       set((s) => ({
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
       })),
-
-    updateCase: (caseId, patch) => {
-      // Unknown id is a genuine no-op: a bare `.map` would still allocate a new `cases`
-      // array, waking every subscriber and triggering a snapshot write for nothing.
-      if (!get().cases.some((c) => c.id === caseId)) return
-      set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)) }))
-    },
 
     /**
      * Delete a case and everything under it — the phone's `DELETE FROM cases` riding SQLite's

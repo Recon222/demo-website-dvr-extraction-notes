@@ -211,8 +211,15 @@ export function NewLocationModal({
       <ModalActions
         submitLabel={COPY.submit}
         onCancel={onCancel}
-        onSubmit={onSubmit}
-        submitDisabled={block !== null}
+        // ENFORCEMENT LIVES HERE. `submitBlocked` dims the button and marks it `aria-disabled`
+        // but does not swallow the click — see its doc in `_shared.tsx`. Unlike New Case, a
+        // blocked click needs no further feedback: the reason is already on screen in the
+        // `role="status"` region above, which the button also points at.
+        onSubmit={() => {
+          if (block !== null) return
+          onSubmit()
+        }}
+        submitBlocked={block !== null}
         submitDescribedBy={blockedId}
       />
     </ModalShell>

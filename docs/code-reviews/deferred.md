@@ -1704,6 +1704,98 @@ added with a stable identity but a changing VALUE is not, and nor is `copyAllTex
 memoised derivation — which no block consumes; it is covered only by `assembleNotesString`'s own
 suite. Its `useMemo` shares `[currentLocation]` with `notesMeta`, so the bridge-half assertion
 does move together with it in practice.
+
+---
+
+## 50. P3.3 (parity/p3-newcase) — New Case create/edit completion: adaptations & residuals
+
+**Source:** P3.3 NewCaseModal completion (matrix rows 11 + 12) — required-field gate,
+duplicate-case-number detection, edit mode, confirm-on-create. Everything below is a decision
+taken inside the package, not work left undone; the two genuinely open items are 50f and 50g.
+
+### 50a. The primary action is `aria-disabled`, not `disabled` — on purpose
+
+The phone hard-disables Create Case while Case Number or Unit is blank
+(`NewCaseModal.tsx:445`). Its `validateForm` (`:135-150`) owns the messages "Case number is
+required" / "Unit is required" — and because the disabled predicate is the SAME expression,
+those messages are unreachable on the phone: `handleSubmit` cannot run while either field is
+blank. Shipping them as-is would have been shipping dead copy.
+
+The demo dims the button and marks it `aria-disabled`, lets the click reach `handleSubmit`,
+and validates there. Enforcement is identical (validate-and-return); what changes is that a
+visitor now learns *which* field is missing instead of only that the button is unavailable.
+Follows §45a's `aria-disabled`-over-`disabled` precedent. **Consequence to know:**
+`ModalActions.submitBlocked` does NOT swallow the click — the guard is the caller's, and
+deleting a caller's validate-and-return re-opens the submit. Its doc comment says so; P3.4's
+New Location gate must not assume the prop blocks.
+
+### 50b. Duplicate detection lives at the store's write boundary, and its scope is honest
+
+The phone's uniqueness is a SQLite `UNIQUE` column; the narrowing to
+`DuplicateCaseNumberError` happens in the service catch. The demo has no database, so
+`createCase` calls `assertCaseNumberFree` before minting an id. Two truthful differences,
+both documented in `engine/logic/case-number.ts`: the demo's uniqueness is **session-scoped**
+(the phone's spans every case on the device), and the check is **proactive** rather than a
+caught constraint failure. No copy claims otherwise.
+
+Comparison is trimmed and **case-SENSITIVE** — SQLite's default collation is BINARY and the
+phone declares no `COLLATE NOCASE`, so `PR25-1` and `pr25-1` are two cases there too.
+**Do not harmonize this with `isLocationNameTaken`** (P3.4/P3.5), which is deliberately
+case-INsensitive because it is a proactive service check with no index behind it
+(`utils/errors.ts:204-213`). The two rules differ on the phone; they must differ here.
+
+### 50c. `createCase` now throws — a contract change for every caller
+
+Any code path that creates a case must either guarantee a free number or catch. Today the only
+caller is the bridge's `submitCase`, which deliberately does NOT catch: the modal's own
+try/catch renders the banner, and swallowing it in the bridge would lose the case silently.
+**Trigger:** P3.5's duplicate-location flows and any future seeded/imported case creation must
+decide their own answer (a generated name, or the banner) rather than inheriting an
+uncaught throw.
+
+### 50d. One modal id for two modes — the exploration manifest cannot tell them apart
+
+Edit mode reuses `ModalId 'newCase'` (the phone treats this component as one multi-caller
+surface, and matrix row 12 calls edit "a multi-caller config of #11"). Because `openModal`
+records the id in `visited`, opening the sheet to EDIT a case lights the rail's "Create a Case"
+row. Accepted: the alternative is a second `ModalId`, which widens the persisted `visited` key
+space and therefore drags in a `SNAPSHOT_VERSION` bump plus the union-tuple guards — a
+disproportionate cost for a checklist nuance, paid in the store/persistence hotspot several
+packages share. **Trigger:** revisit if the manifest ever reports completion rather than mere
+exposure.
+
+### 50e. The edit seam is deliberately unwired in this package
+
+`DemoExperience.editCase(caseId)` seeds the form and opens the sheet in edit mode; nothing
+calls it yet. Its two callers belong to sibling packages — P3.2's dashboard `CaseActionsSheet`
+("Edit Case") and P3.1's Cases-row actions — and both pass it straight through as their edit
+callback. It lands here because the modal, the mapper (`caseFormData.ts`), the `updateCase`
+action and the immutability rule all land here; a second inlined copy is exactly the seed
+drift the mapper exists to prevent. **Trigger:** P3.1/P3.2 wire it. Until one of them does,
+the bridge's edit branch (`submitCase` when `caseEditId !== null`) has no end-to-end test —
+its parts are covered (mapper, store action, modal mode), the composition is not. **The first
+package to wire an entry owns adding that end-to-end test.**
+
+### 50f. Reverse-geocode errors have no banner path here yet
+
+The phone routes `IncidentLocationForm`'s `onReverseGeocodeError` into this modal's
+`submitError` banner (ui-mapping 11 § Conditional Behavior). The demo's incident block has no
+GPS capture and no reverse-geocode toggle yet (matrix row 11 delta; deferred §24), so there is
+no error to route. The banner state and its render are already in place. **Trigger:** whoever
+adds incident GPS capture (P3.6/P3.7 territory) wires the failure into `setSubmitError` rather
+than inventing a second error surface.
+
+### 50g. Edit mode does not re-seed if the underlying case changes while open
+
+The form is seeded once, when `editCase` opens the sheet — matching the phone, which mounts a
+fresh modal per edit precisely so its lazy initializers capture the right case
+(`app/(tabs)/home.tsx:371-374`). If a case were mutated by something else while its edit sheet
+was open, the sheet would keep the stale seed and overwrite on save. Nothing in the demo can do
+that today (there is no background writer). The bridge does handle the one reachable
+disappearance: a case deleted out from under an open edit sheet falls back to create mode
+rather than rendering an edit sheet with no case behind it. **Trigger:** P3.1's delete, or any
+future concurrent writer, should re-check this.
+
 ## 51. P3.4 (parity/p3-locgps) — New Location GPS + duplicate-name: deliberate choices & residuals
 
 **Source:** parity plan §5 P3.4, matrix row 13, phone `docs/ui-mapping/11-case-modals.md:64-112`.

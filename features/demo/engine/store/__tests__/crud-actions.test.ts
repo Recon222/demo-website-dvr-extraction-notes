@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { freshStore, newCaseInput, newLocationInput } from './test-utils'
-import { createDemoStore, type UpdateCaseInput } from '@/features/demo/engine/store/create-store'
+import { createDemoStore, type CaseEdits } from '@/features/demo/engine/store/create-store'
 import {
   SNAPSHOT_VERSION,
   loadSnapshot,
@@ -28,19 +28,29 @@ function twoCases() {
   return { store, a, a1, a2, b, b1 }
 }
 
+/** A complete edit payload. `CaseEdits` is TOTAL (see its doc): the edit form always submits
+ *  every editable field, so a partial literal is a type error, not a partial write. */
+function caseEdits(over: Partial<CaseEdits> = {}): CaseEdits {
+  const { caseNumber: _caseNumber, ...rest } = newCaseInput()
+  return { ...rest, ...over }
+}
+
 // ---- updateCase ------------------------------------------------------------
 
 describe('updateCase', () => {
   it('patches the named case only, leaving siblings untouched', () => {
     const { store, a, b } = twoCases()
-    store.getState().updateCase(a, {
-      displayName: 'Kim’s — B&E (amended)',
-      unit: 'Major Crime',
-      oicName: 'A. Okafor',
-      oicBadge: '3318',
-      incidentCity: 'Brampton',
-      notes: 'Second DVR found in the back office',
-    })
+    store.getState().updateCase(
+      a,
+      caseEdits({
+        displayName: 'Kim’s — B&E (amended)',
+        unit: 'Major Crime',
+        oicName: 'A. Okafor',
+        oicBadge: '3318',
+        incidentCity: 'Brampton',
+        notes: 'Second DVR found in the back office',
+      }),
+    )
     const [, updated] = [0, store.getState().cases.find((c) => c.id === a)!]
     expect(updated.displayName).toBe('Kim’s — B&E (amended)')
     expect(updated.unit).toBe('Major Crime')
@@ -53,7 +63,7 @@ describe('updateCase', () => {
   it('leaves the case number, status and location links alone', () => {
     const { store, a } = twoCases()
     store.getState().setCaseStatus(a, 'archived')
-    store.getState().updateCase(a, { displayName: 'renamed' })
+    store.getState().updateCase(a, caseEdits({ displayName: 'renamed' }))
     const c = store.getState().cases.find((x) => x.id === a)!
     expect(c.caseNumber).toBe('PR25-A') // immutable after create (phone: editable={!isEdit})
     expect(c.status).toBe('archived') // only the status actions move this
@@ -63,25 +73,27 @@ describe('updateCase', () => {
   it('is a true no-op for an unknown id (no new state object, no subscriber wake)', () => {
     const { store } = twoCases()
     const before = store.getState()
-    store.getState().updateCase('c-nope', { displayName: 'x' })
+    store.getState().updateCase('c-nope', caseEdits({ displayName: 'x' }))
     expect(store.getState()).toBe(before)
   })
 
-  it('the patch type cannot reach a case invariant', () => {
+  it('the edit payload cannot reach a case invariant', () => {
     // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it): each `@ts-expect-error`
-    // fails the typecheck the moment `UpdateCaseInput` stops rejecting that key. Deliberately
-    // a type probe rather than a store call — `{ ...c, ...patch }` would happily write any of
-    // these at runtime, which is exactly why the door is closed in the TYPE.
-    const probe = (patch: UpdateCaseInput) => patch
-    // @ts-expect-error caseNumber is immutable after create — UpdateCaseInput omits it.
-    probe({ caseNumber: 'PR25-RENAMED' })
+    // fails the typecheck the moment `CaseEdits` stops rejecting that key. Deliberately a type
+    // probe rather than a store call — the writer spreads onto the record and would happily
+    // write any of these at runtime, which is exactly why the door is closed in the TYPE.
+    // Each literal spreads a VALID base so the only thing TS can object to is the extra key.
+    const probe = (edits: CaseEdits) => edits
+    const base = caseEdits()
+    // @ts-expect-error caseNumber is immutable after create — CaseEdits omits it.
+    probe({ ...base, caseNumber: 'PR25-RENAMED' })
     // @ts-expect-error status belongs to completeCase / setCaseStatus.
-    probe({ status: 'archived' })
+    probe({ ...base, status: 'archived' })
     // @ts-expect-error locationIds is derived bookkeeping (addLocation/deleteLocation).
-    probe({ locationIds: [] })
+    probe({ ...base, locationIds: [] })
     // @ts-expect-error id is identity.
-    probe({ id: 'c9' })
-    expect(probe({ displayName: 'ok' })).toEqual({ displayName: 'ok' })
+    probe({ ...base, id: 'c9' })
+    expect(probe(caseEdits({ displayName: 'ok' })).displayName).toBe('ok')
   })
 })
 

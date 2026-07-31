@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
 // Drive the interactive surface end-to-end (the bridge's most-grown, least-covered code):
@@ -1116,6 +1116,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByTitle('Time-Offset Calibration')).toBeInTheDocument()
   })
 
+  /** Create mode raises the immutable-case-number confirmation (P3.3); its own "Create Case"
+   *  arm is what performs the create. */
+  const confirmCreate = () => fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Create Case'))
+
   it('New Case modal: fill + Create Case adds the case and closes the modal', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -1124,9 +1128,35 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-NEW' } })
     fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
     fireEvent.click(screen.getByText('Create Case'))
+    confirmCreate()
 
     expect(store.getState().cases.some((c) => c.caseNumber === 'PR25-NEW')).toBe(true)
     expect(store.getState().modal).toBeNull()
+  })
+
+  // P3.3 / matrix row 11: the store refuses the duplicate at the write boundary and the modal
+  // renders the phone's typed-error banner. End-to-end because the value of this feature is
+  // that the throw actually reaches the banner — neither half is worth much alone.
+  it('New Case modal: a duplicate case number is refused, banner shown, nothing created', () => {
+    const store = createDemoStore()
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-DUP', displayName: 'First', unit: 'Robbery' })
+    })
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('newCase'))
+
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-DUP' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.click(screen.getByText('Create Case'))
+    confirmCreate()
+
+    expect(
+      screen.getByText(
+        'A case with number "PR25-DUP" already exists. Open the existing case or enter a different number.',
+      ),
+    ).toBeInTheDocument()
+    expect(store.getState().cases).toHaveLength(1)
+    expect(store.getState().modal).toBe('newCase') // the modal stays open on the typed form
   })
 
   it('New Case modal: hand-typed coordinates persist as incidentCoordinates with source manual', () => {
@@ -1139,6 +1169,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '43.6087' } })
     fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-79.6505' } })
     fireEvent.click(screen.getByText('Create Case'))
+    confirmCreate()
 
     const c = store.getState().cases.find((x) => x.caseNumber === 'PR25-COORD')
     expect(c?.incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'manual' })
@@ -1154,6 +1185,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '999' } })
     fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-79.6505' } })
     fireEvent.click(screen.getByText('Create Case'))
+    confirmCreate()
 
     const c = store.getState().cases.find((x) => x.caseNumber === 'PR25-BADCOORD')
     expect(c).toBeDefined()

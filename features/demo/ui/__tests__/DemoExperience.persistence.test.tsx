@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { SNAPSHOT_KEY } from '@/features/demo/engine/store/persistence'
@@ -15,10 +15,15 @@ describe('DemoExperience — sessionStorage persistence wiring (P0.4)', { timeou
   beforeEach(() => window.sessionStorage.clear())
   afterEach(() => window.sessionStorage.clear())
 
+  // Unit is filled because P3.3's required-field gate (matrix row 11) blocks the submit
+  // while Case Number OR Unit is blank — same two fields the phone requires.
   const createCaseViaUi = (caseNumber: string) => {
     fireEvent.click(screen.getByRole('button', { name: 'New case' }))
     fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: caseNumber } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
     fireEvent.click(screen.getByText('Create Case'))
+    // …and answer the immutable-case-number confirmation the phone raises on create.
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Create Case'))
   }
 
   it('a remount after pagehide restores the visitor’s case (the refresh survives)', () => {

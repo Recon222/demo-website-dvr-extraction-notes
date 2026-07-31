@@ -121,12 +121,82 @@ describe('Case Actions Sheet — status actions', () => {
     expect(statusOf(store, second)).toBe('draft')
   })
 
-  it('carries no Edit Case button until P3.3 wires NewCaseModal edit mode (no dead affordance)', () => {
+  /**
+   * The §50e END-TO-END edit test, owed by whichever package wired the first entry — this one
+   * (P3 assembly). P3.3 shipped the modal's edit mode, the `caseFormData` mapper, `updateCase`
+   * and the immutability rule, each covered on its own; nothing covered the COMPOSITION,
+   * because `DemoExperience.editCase` had no caller until §49a's seam was wired here.
+   *
+   * The whole round trip, in one arm: open the sheet → Edit Case → the form comes up SEEDED
+   * from the stored case → change a field → Save Changes → the patch lands on the case and the
+   * case number is untouched.
+   */
+  it('Edit Case → seeded form → Save Changes patches the case, number immutable (§50e)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    const caseId = setupDashboard(store)
+
+    openSheet()
+    // §49a's honest-rule consequence: the button renders now that it can do what it says.
+    // Its position (first, as on the phone) is pinned at component level in
+    // `CaseActionsSheet.test.tsx` — "renders Edit Case FIRST when the bridge supplies onEdit".
+    expect(screen.getByRole('button', { name: 'Edit Case' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
+
+    // The sheet closed and the editor opened in EDIT mode, seeded through the shared mapper.
+    expect(screen.queryByRole('dialog', { name: 'PR25-0001' })).toBeNull()
+    const caseNumber = screen.getByLabelText('Case Number') as HTMLInputElement
+    expect(caseNumber.value).toBe('PR25-0001')
+    expect(caseNumber).toHaveAttribute('readonly') // immutable after create
+    const displayName = screen.getByLabelText('Display Name') as HTMLInputElement
+    expect(displayName.value).toBe('Dash Case') // seeded, not blank
+    expect((screen.getByLabelText('OIC Name') as HTMLInputElement).value).toBe('L. McHugh')
+
+    fireEvent.change(displayName, { target: { value: 'Dash Case (amended)' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    const saved = store.getState().cases.find((c) => c.id === caseId)!
+    expect(saved.displayName).toBe('Dash Case (amended)')
+    expect(saved.caseNumber).toBe('PR25-0001') // never rewritten by an edit
+    expect(saved.oicName).toBe('L. McHugh') // untouched fields survive the total payload
+    expect(saved.status).toBe('draft') // edit is not a status move
+    // One case, not two — the edit submit must never fall through to create.
+    expect(store.getState().cases).toHaveLength(1)
+    expect(store.getState().modal).toBeNull()
+  })
+
+  it('a second Edit opens on the case just long-pressed, not the previous one', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupDashboard(store, 'PR25-0001')
+    setupDashboard(store, 'PR25-0002')
+
+    openSheet('PR25-0001')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
+    expect((screen.getByLabelText('Case Number') as HTMLInputElement).value).toBe('PR25-0001')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    openSheet('PR25-0002')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
+    expect((screen.getByLabelText('Case Number') as HTMLInputElement).value).toBe('PR25-0002')
+  })
+
+  it('Cancel leaves create mode behind it — the next New Case opens blank', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     setupDashboard(store)
+
     openSheet()
-    expect(screen.queryByRole('button', { name: 'Edit Case' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    act(() => void store.getState().openModal('newCase'))
+    // `closeCaseModal` clears the edit target, so this is the CREATE sheet: an editable,
+    // blank case number and a Create Case action.
+    const caseNumber = screen.getByLabelText('Case Number') as HTMLInputElement
+    expect(caseNumber.value).toBe('')
+    expect(caseNumber).not.toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'Create Case' })).toBeInTheDocument()
   })
 })
 
