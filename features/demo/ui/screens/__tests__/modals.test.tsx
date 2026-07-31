@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
@@ -39,7 +39,10 @@ describe('NewCaseModal', () => {
     expect(onChange).toHaveBeenCalledWith('incidentBusinessName', 'Acme')
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'rear cam' } })
     expect(onChange).toHaveBeenCalledWith('notes', 'rear cam')
+    // Create mode routes through the immutable-case-number confirmation (P3.3); the alert's
+    // own "Create Case" arm is what submits. Confirmation behaviour: NewCaseModal.gate.test.
     fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Create Case'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
 })

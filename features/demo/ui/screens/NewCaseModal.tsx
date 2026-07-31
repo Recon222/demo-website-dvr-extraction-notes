@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -109,14 +110,34 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
 
   const blocked = Object.keys(validateRequired(form)).length > 0
 
+  // The immutable-case-number confirmation (phone `NewCaseModal.tsx:237-249`), held open
+  // until the visitor answers. Stable identity for the dismiss handler: AlertDialog keys
+  // its Escape listener on `onDismiss`.
+  const [confirming, setConfirming] = useState(false)
+  const cancelConfirm = useCallback(() => setConfirming(false), [])
+
   /** Mirrors the phone's `handleSubmit` → `validateForm` gate: a failed validation sets the
-   *  field errors and returns without submitting. */
+   *  field errors and returns without submitting. On success, create mode raises the
+   *  confirmation first; only its "Create Case" arm performs the submit. */
   const handleSubmit = () => {
     const found = validateRequired(form)
     setErrors(found)
     if (Object.keys(found).length > 0) return
+    setConfirming(true)
+  }
+
+  const confirmSubmit = () => {
+    setConfirming(false)
     onSubmit()
   }
+
+  // While the alert is up it is the ONLY answerable surface (its scrim is inert by design),
+  // so the sheet behind it must not take a dismissal either: without this, Escape would be
+  // heard by BOTH document listeners and throw away the whole form on the way to cancelling
+  // a confirmation. The X and the scrim are already covered — they sit under the alert.
+  const handleShellClose = useCallback(() => {
+    if (!confirming) onCancel()
+  }, [confirming, onCancel])
 
   /** Typing into a field that is currently flagged clears its message immediately. */
   const change = (field: keyof NewCaseFields, value: string) => {
@@ -127,7 +148,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
   }
 
   return (
-    <ModalShell title="New Case" onClose={onCancel}>
+    <ModalShell title="New Case" onClose={handleShellClose}>
       <Field label="Case Number" required value={form.caseNumber} onChange={(v) => change('caseNumber', v)} placeholder="OCC2025-001" hint="Locked once the case is created — it names the evidence folder." error={errors.caseNumber} />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />
       <Field label="Unit" required value={form.unit} onChange={(v) => change('unit', v)} placeholder="Investigation unit" error={errors.unit} />
@@ -196,6 +217,22 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
       <div style={{ marginTop: 4 }}>
         <ModalActions submitLabel="Create Case" onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
       </div>
+
+      {/* The phone's create-mode confirmation (`NewCaseModal.tsx:237-249`) on the shared
+          blocking-dialog primitive: title, message and both button labels verbatim, `Cancel`
+          carrying the phone's `style: 'cancel'`, Escape dismissing to the safe default. The
+          number is quoted in its TRIMMED form — the same value the case is created with. */}
+      {confirming && (
+        <AlertDialog
+          title="Confirm Case Number"
+          message={`The case number "${form.caseNumber.trim()}" can't be changed after the case is created. Everything else can be edited later.`}
+          actions={[
+            { label: 'Cancel', style: 'cancel', onPress: cancelConfirm },
+            { label: 'Create Case', onPress: confirmSubmit },
+          ]}
+          onDismiss={cancelConfirm}
+        />
+      )}
     </ModalShell>
   )
 }

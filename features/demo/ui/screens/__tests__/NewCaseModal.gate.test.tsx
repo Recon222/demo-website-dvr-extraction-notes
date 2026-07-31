@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 
 /**
@@ -18,12 +18,20 @@ const blank: NewCaseFields = {
   incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '',
 }
 
-function renderModal(over: Partial<NewCaseFields> = {}, props: { onSubmit?: () => void; onChange?: () => void } = {}) {
+function renderModal(
+  over: Partial<NewCaseFields> = {},
+  props: { onSubmit?: () => void; onChange?: () => void; onCancel?: () => void } = {},
+) {
   const onSubmit = props.onSubmit ?? vi.fn()
   const onChange = props.onChange ?? vi.fn()
-  render(<NewCaseModal form={{ ...blank, ...over }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
-  return { onSubmit, onChange, submit: screen.getByText('Create Case') }
+  const onCancel = props.onCancel ?? vi.fn()
+  render(<NewCaseModal form={{ ...blank, ...over }} onChange={onChange} onSubmit={onSubmit} onCancel={onCancel} />)
+  return { onSubmit, onChange, onCancel, submit: screen.getByText('Create Case') }
 }
+
+/** A form that clears the required-field gate, so submits reach the confirmation. */
+const fillable: Partial<NewCaseFields> = { caseNumber: 'PR25-1', unit: 'Robbery' }
+const confirmButton = (label: string) => within(screen.getByRole('alertdialog')).getByText(label)
 
 describe('NewCaseModal — required-field gate', () => {
   it('marks Create Case unavailable while Case Number or Unit is blank', () => {
@@ -78,5 +86,63 @@ describe('NewCaseModal — required-field gate', () => {
     fireEvent.click(screen.getByText('Create Case'))
     expect(screen.queryByText(/names the evidence folder/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Case Number')).toHaveAttribute('aria-invalid', 'true')
+  })
+})
+
+/**
+ * P3.3 / matrix row 11 — the create-mode confirmation (`NewCaseModal.tsx:237-249`).
+ * The phone raises `Alert.alert('Confirm Case Number', …)` BEFORE saving, so the visitor
+ * learns the number is the one field they can never change; only the "Create Case" arm
+ * proceeds. The demo renders it on the shared blocking-dialog primitive.
+ */
+describe('NewCaseModal — confirm on create', () => {
+  it('a valid submit raises the confirmation instead of creating', () => {
+    const { onSubmit } = renderModal(fillable)
+    fireEvent.click(screen.getByText('Create Case'))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+  })
+
+  it('carries the phone copy verbatim, quoting the trimmed number', () => {
+    renderModal({ ...fillable, caseNumber: '  PR25-1  ' })
+    fireEvent.click(screen.getByText('Create Case'))
+    expect(screen.getByText('Confirm Case Number')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'The case number "PR25-1" can\'t be changed after the case is created. Everything else can be edited later.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('the Create Case arm performs the submit', () => {
+    const { onSubmit } = renderModal(fillable)
+    fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(confirmButton('Create Case'))
+    expect(onSubmit).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('Cancel dismisses the confirmation without submitting, leaving the form open', () => {
+    const { onSubmit, onCancel } = renderModal(fillable)
+    fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(confirmButton('Cancel'))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Case Number')).toBeInTheDocument()
+  })
+
+  it('Escape answers the confirmation only — it must not also close the form', () => {
+    const { onCancel } = renderModal(fillable)
+    fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(onCancel).not.toHaveBeenCalled() // the sheet behind the alert stays put
+  })
+
+  it('Escape still closes the form when no confirmation is up', () => {
+    const { onCancel } = renderModal(fillable)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 })
