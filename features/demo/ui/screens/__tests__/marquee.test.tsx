@@ -216,11 +216,27 @@ describe('OcrCaptureScreen', () => {
   it('blocks the commit with the phone’s copy when the DVR time is empty', () => {
     const onConfirm = vi.fn()
     render(<OcrCaptureScreen {...ocrBase} result={parsed} dvrDraft="" onConfirm={onConfirm} />)
-    expect(screen.getByText(/DVR Time Required/)).toBeInTheDocument()
+    const hint = screen.getByText(/DVR Time Required/)
     const commit = screen.getByText('Use this & calculate')
-    expect(commit).toBeDisabled()
+    // R-15: the CTA stays focusable (aria-disabled) and NAMES the blocking reason, which is
+    // itself a live region so it announces when an edit produces it.
+    expect(commit).toHaveAttribute('aria-disabled', 'true')
+    expect(commit).toHaveAccessibleDescription(/DVR Time Required/)
+    expect(hint.closest('[role="status"]')).not.toBeNull()
     fireEvent.click(commit)
     expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('names the assumed-date reason on the CTA too, and drops the description once it clears', () => {
+    const timeOnlyResult = { ...parsed, dvrTime: '2026-07-31 12:05:30', resolution: { kind: 'assumed-date', assumedDate: '2026-07-31' } } as const
+    const { rerender } = render(<OcrCaptureScreen {...ocrBase} result={timeOnlyResult} dvrDraft="2026-07-31 12:05:30" />)
+    const commit = screen.getByText('Use this & calculate')
+    expect(commit).toHaveAttribute('aria-disabled', 'true')
+    expect(commit).toHaveAccessibleDescription(/Confirm or correct the assumed date/)
+
+    rerender(<OcrCaptureScreen {...ocrBase} result={timeOnlyResult} dvrDraft="2026-07-31 12:05:30" dateConfirmed />)
+    expect(commit).toHaveAttribute('aria-disabled', 'false')
+    expect(commit).toHaveAccessibleDescription('')
   })
 
   it('renders the ambiguity warning when the resolver was unsure', () => {
@@ -248,7 +264,7 @@ describe('OcrCaptureScreen', () => {
       <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
     )
     expect(screen.getByText('No date on the DVR display')).toBeInTheDocument()
-    expect(screen.getByText('Use this & calculate')).toBeDisabled()
+    expect(screen.getByText('Use this & calculate')).toHaveAttribute('aria-disabled', 'true')
 
     fireEvent.click(screen.getByText('The date is correct'))
     expect(onConfirmDate).toHaveBeenCalledOnce()
@@ -268,7 +284,7 @@ describe('OcrCaptureScreen', () => {
     render(<OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2025-03-08 12:05:30" onConfirm={onConfirm} />)
     expect(screen.getByText('Manually edited')).toBeInTheDocument()
     const commit = screen.getByText('Use this & calculate')
-    expect(commit).toBeEnabled()
+    expect(commit).toHaveAttribute('aria-disabled', 'false')
     fireEvent.click(commit)
     expect(onConfirm).toHaveBeenCalledOnce()
   })

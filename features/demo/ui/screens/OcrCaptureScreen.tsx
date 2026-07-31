@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, type CSSProperties } from 'react'
+import { useCallback, useId, useState, type CSSProperties } from 'react'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
@@ -67,6 +67,8 @@ export function OcrCaptureScreen({
   // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
   // per render would tear the listener down and re-add it on every parent update.
   const closeRecalc = useCallback(() => setConfirmRecalc(false), [])
+  /** Ties the commit CTA to whichever reason is currently blocking it (R-15). */
+  const blockedId = `${useId()}-blocked`
 
   if (result) {
     // The commit gate is the engine's (`isDvrDraftCommittable`) — this screen only reflects it.
@@ -76,6 +78,7 @@ export function OcrCaptureScreen({
     // Committing runs `generateExtractedScopes`, which replaces the editable extracted-scope
     // list wholesale. The phone stops here and asks (ocr-capture.tsx:282-317); so do we.
     const onCommitClick = () => {
+      if (!canCommit) return // the CTA is aria-disabled, not disabled — the guard lives here
       if (hasExtractedScopes) setConfirmRecalc(true)
       else onConfirm(true)
     }
@@ -135,15 +138,24 @@ export function OcrCaptureScreen({
             <DateTimeField label="DVR Date/Time" value={dvrDraft} onChange={onChangeDvrDraft} />
             {edited && <div style={{ fontSize: 12, fontStyle: 'italic', color: '#7a9fc4', marginTop: -8, marginBottom: 12 }}>Manually edited</div>}
 
+            {/* R-15: the reason the commit is blocked is a live region (it appears in response
+                to an edit, so it has to announce), and it NAMES the CTA it blocks via
+                aria-describedby. The CTA uses `aria-disabled` rather than `disabled` so it
+                stays focusable — a keyboard user has to be able to land on it to hear why it
+                won't fire, and `disabled` would also drop focus at the exact moment confirming
+                the date re-enables it (the R-7 failure shape). The click is guarded instead. */}
             <div style={{ marginTop: 'auto' }}>
-              {!dvrDraft && <div style={{ ...label12, marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
-              {dateNeedsConfirming && <div style={{ ...label12, marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
+              <div role="status" style={{ ...label12 }}>
+                {!dvrDraft && <div id={blockedId} style={{ marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
+                {dateNeedsConfirming && <div id={blockedId} style={{ marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
+              </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" onClick={onRetake} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
                 <button
                   type="button"
                   onClick={onCommitClick}
-                  disabled={!canCommit}
+                  aria-disabled={!canCommit}
+                  aria-describedby={canCommit ? undefined : blockedId}
                   style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: canCommit ? 'pointer' : 'not-allowed', opacity: canCommit ? 1 : 0.45 }}
                 >
                   Use this &amp; calculate
