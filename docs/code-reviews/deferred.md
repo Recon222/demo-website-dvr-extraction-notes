@@ -2069,8 +2069,8 @@ does move together with it in practice.
 
 **Source:** the P3 assembly merge of `parity/p3-crud` (P3.1), `parity/p3-newcase` (P3.3) and
 `parity/p3-duplicate` (P3.5) into `feat/parity-p3` (P3.2/P3.4/P3.6/P3.7 were already in).
-Everything below is a decision taken at the merge, not work left undone. The one genuinely open
-item is 56h.
+Everything below is a decision taken at the merge, not work left undone; nothing here is
+outstanding.
 
 ### 56a. `parity/p3-crud` was NOT merged when the assembly brief said it was
 
@@ -2194,11 +2194,12 @@ Two things the no-op had been masking, both fixed here:
 2. `NewAddressOverrides.gps` was typed `Exclude<GpsSource, 'gps'>` — a type that was true only
    because of the no-op. Widened to `GpsSource`; narrowing it again would drop real fixes.
 
-**Still open:** the new-address card is the only `LocationFields` caller whose GPS path has no
-test of its own. §52.4's recipe was verified by construction (same component, same props) rather
-than by an arm driving a capture through the card. **Trigger:** the phase review, or the next
-package to touch the duplicate flow — the fixture already exists in
-`new-location-gps.test.tsx`.
+**Closed rather than deferred:** "the same component" is a claim about construction, so three
+arms now put it under test — `new-location-gps.test.tsx` drives a real capture through the card
+in its `requireAddress` variant and asserts the fix arrives stamped `'gps'`, and
+`duplicate-location.test.ts` asserts the store keeps that provenance. The only unpinned link left
+is the bridge's one-line `gps: locForm.coordinates` pass-through, which is the same expression
+`submitLocation` uses and which IS pinned there.
 
 ### 56i. §50c's case-sensitivity split verified, and its `createCase` flag cleared
 

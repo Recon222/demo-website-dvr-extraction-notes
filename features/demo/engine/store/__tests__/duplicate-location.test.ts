@@ -183,6 +183,21 @@ describe('duplicateToNewAddress', () => {
     expect(created.requesterEmail).toBe('l.mchugh@example.ca')
   })
 
+  it("stores a card-captured fix with its own provenance, GPS included (§56h)", () => {
+    // `NewAddressOverrides.gps` was typed `Exclude<GpsSource, 'gps'>` while the card inherited
+    // deferred §24's capture no-op, so an address pick was the only reachable source. P3.4's
+    // real capture made `'gps'` reachable and the type was widened at the P3 assembly; this is
+    // the arm that fails if anyone narrows it back or re-introduces a flat re-stamp.
+    const { store, sourceId } = storeWithSource()
+    const id = store.getState().duplicateToNewAddress(
+      sourceId,
+      { ...overrides, gps: { lat: 43.608701, lng: -79.650502, accuracyM: 6, source: 'gps' } },
+      'submission-only',
+    )
+
+    expect(loc(store, id).gps).toEqual({ lat: 43.608701, lng: -79.650502, accuracyM: 6, source: 'gps' })
+  })
+
   it("does NOT inherit the source's address, business name or coordinates", () => {
     const { store, sourceId } = storeWithSource()
     const id = store.getState().duplicateToNewAddress(

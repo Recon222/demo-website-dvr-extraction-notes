@@ -69,12 +69,17 @@ interface Options {
   geolocation?: GeolocationLike | null
   onChange?: (patch: Partial<NewLocationFields>) => void
   reverseGeocode?: (lat: number, lng: number) => Promise<{ streetAddress: string; city: string } | null>
+  /** The duplicate flow's copy-to-a-new-address variant (P3.5's caller). */
+  requireAddress?: boolean
+  subtitle?: string
 }
 
 const modal = (o: Options = {}) => (
   <NewLocationModal
     form={{ ...blank, ...o.form }}
     draftId={o.draftId}
+    requireAddress={o.requireAddress}
+    subtitle={o.subtitle}
     onChange={o.onChange ?? vi.fn()}
     onSubmit={vi.fn()}
     onCancel={vi.fn()}
@@ -302,6 +307,42 @@ describe('NewLocationModal — the draft is the write-guard identity (deferred �
       streetAddress: '1450 Eglinton Ave W',
       city: 'Mississauga',
       coordinates: { lat: 43.6087, lng: -79.6505, accuracyM: 5, source: 'geocoded' },
+    })
+  })
+})
+
+/**
+ * The duplicate flow's second caller (P3.5's "New Location w/ Sub Info [+ Scopes]" card),
+ * closing §56h. Deferred §52.4 required that the card stop inheriting deferred §24's
+ * `onCaptureGps={() => undefined}` no-op and mount P3.4's real capture instead. It does — it is
+ * the same component — but "the same component" is a claim about construction, and the two arms
+ * below are the claim under test: the variant props do not switch the capture off, and a real
+ * fix leaves this card stamped `'gps'`, not flattened to `'geocoded'`.
+ */
+describe('NewLocationModal — the copy-to-a-new-address variant carries the REAL capture (§52.4)', () => {
+  it('offers the same live control the plain caller does', () => {
+    renderModal({ requireAddress: true, subtitle: 'Submission info copied — enter the new address.' })
+
+    expect(screen.getByText('Submission info copied — enter the new address.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('switch', { name: 'Reverse-geocode captured coordinates into an address' })).toBeInTheDocument()
+    expect(screen.queryByText('Capture GPS coordinates')).not.toBeInTheDocument() // §24's no-op
+  })
+
+  it("emits a captured fix stamped 'gps' — the provenance the bridge used to flatten", async () => {
+    const onChange = vi.fn()
+    renderModal({ requireAddress: true, geolocation: geolocation(6), onChange })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    // `'gps'`, not `'geocoded'`. The bridge's `submitNewAddressLocation` re-stamped every fix
+    // `'geocoded'` while the no-op made a real capture impossible; it now passes the coordinates
+    // through as `submitLocation` does, and `NewAddressOverrides.gps` accepts the full
+    // `GpsSource` (both fixed at the P3 assembly — see §56h).
+    expect(onChange).toHaveBeenCalledWith({
+      coordinates: { lat: 43.608701, lng: -79.650502, accuracyM: 6, source: 'gps' },
     })
   })
 })
