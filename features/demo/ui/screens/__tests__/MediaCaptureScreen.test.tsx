@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
-import { CAPTURE_PERMISSION_COPY, SAMPLE_MEDIA } from '@/features/demo/engine/logic/media'
+import { CAPTURE_PERMISSION_COPY, MAX_RECORDING_DURATION_MS, SAMPLE_MEDIA } from '@/features/demo/engine/logic/media'
+import { RECORDING_TICK_MS } from '@/features/demo/ui/inputs/useMediaCapture'
 import {
   MediaCaptureScreen,
   type MediaCaptureScreenDeps,
@@ -449,6 +450,28 @@ describe('video recording', () => {
     // Recorded duration, not the wall time of the take — and the honest WebM extension.
     expect(screen.getByText('Duration: 00:01')).toBeInTheDocument()
     expect(screen.getByText('video-20260730-140506.webm')).toBeInTheDocument()
+  })
+
+  it('auto-stops at the one-hour ceiling and says the take was cut there', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: false })
+    const h = harness({ live: true })
+    await startRecording(h)
+    h.recorder.emitData('an hour of video')
+
+    await act(async () => {
+      h.advance(MAX_RECORDING_DURATION_MS)
+      vi.advanceTimersByTime(RECORDING_TICK_MS)
+      // The hook's tick calls stop() for us; the recorder still has to deliver its `stop`.
+      h.recorder.emitStop()
+    })
+
+    expect(h.recorder.stopCalls).toBe(1)
+    expect(screen.getByText('Review Video')).toBeInTheDocument()
+    expect(screen.getByText(/stopped at the one-hour limit/)).toBeInTheDocument()
+
+    // A retake clears the notice — it described the take that was just thrown away.
+    fireEvent.click(screen.getByRole('button', { name: 'Record again' }))
+    expect(screen.queryByText(/stopped at the one-hour limit/)).not.toBeInTheDocument()
   })
 
   it('reports a recording that produced no bytes instead of saving an empty file', async () => {
