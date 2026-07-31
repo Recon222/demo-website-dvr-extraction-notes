@@ -111,15 +111,21 @@ export function fakeRecorderIo(
   return io
 }
 
-/** A canvas stand-in: jsdom's own returns no 2d context and implements no `toBlob`. */
+/** A canvas stand-in: jsdom's own returns no 2d context and implements no `toBlob`.
+ *  Records the (type, quality) arguments of both encoders so R-15's decoupled qualities —
+ *  the recognition blob's vs the persisted data URL's — are assertable. */
 export function fakeCanvas(
   over: { context?: boolean; blob?: Blob | null; dataUrl?: string } = {},
-): HTMLCanvasElement & { drawCalls: unknown[][] } {
+): HTMLCanvasElement & { drawCalls: unknown[][]; blobCalls: unknown[][]; dataUrlCalls: unknown[][] } {
   const drawCalls: unknown[][] = []
+  const blobCalls: unknown[][] = []
+  const dataUrlCalls: unknown[][] = []
   const canvas = {
     width: 0,
     height: 0,
     drawCalls,
+    blobCalls,
+    dataUrlCalls,
     getContext: (id: string) =>
       over.context === false || id !== '2d'
         ? null
@@ -128,12 +134,20 @@ export function fakeCanvas(
               drawCalls.push(args)
             },
           },
-    toBlob: (cb: (blob: Blob | null) => void) => {
+    toBlob: (cb: (blob: Blob | null) => void, ...args: unknown[]) => {
+      blobCalls.push(args)
       cb(over.blob === undefined ? new Blob(['jpeg-bytes'], { type: 'image/jpeg' }) : over.blob)
     },
-    toDataURL: () => over.dataUrl ?? 'data:image/jpeg;base64,AAAA',
+    toDataURL: (...args: unknown[]) => {
+      dataUrlCalls.push(args)
+      return over.dataUrl ?? 'data:image/jpeg;base64,AAAA'
+    },
   }
-  return canvas as unknown as HTMLCanvasElement & { drawCalls: unknown[][] }
+  return canvas as unknown as HTMLCanvasElement & {
+    drawCalls: unknown[][]
+    blobCalls: unknown[][]
+    dataUrlCalls: unknown[][]
+  }
 }
 
 /** A frame source with the given intrinsic dimensions. */

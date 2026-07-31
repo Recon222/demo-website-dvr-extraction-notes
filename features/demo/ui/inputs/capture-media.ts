@@ -202,6 +202,13 @@ export interface FrameGrabOptions {
   /** JPEG quality, 0–1. */
   quality?: number
   /**
+   * Encoding quality for the DATA URL when it should differ from the blob's (R-15). P4.7's
+   * strip is the consumer: the blob feeds recognition (max quality, phone parity), the data
+   * URL is what gets persisted into the sessionStorage snapshot — where q=1.0 costs ~2–3× the
+   * bytes for no forensic gain. Defaults to `quality`.
+   */
+  dataUrlQuality?: number
+  /**
    * Normalized (0–1) sub-rectangle of the frame to keep. P4.7's OCR strip is the intended
    * consumer: the phone crops to the DVR timestamp band before recognition, and cropping at
    * grab time means the recognizer and the stored `OcrProof.imageDataUrl` see the same pixels.
@@ -292,7 +299,9 @@ export async function grabVideoFrame(
     mimeType: blob.type === '' ? mimeType : blob.type,
     width: dw,
     height: dh,
-    ...(options.includeDataUrl === true ? { dataUrl: canvas.toDataURL(mimeType, options.quality) } : {}),
+    ...(options.includeDataUrl === true
+      ? { dataUrl: canvas.toDataURL(mimeType, options.dataUrlQuality ?? options.quality) }
+      : {}),
   }
 }
 

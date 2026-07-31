@@ -88,8 +88,14 @@ const VIEWFINDER_ASPECT = 16 / 9
 const OCR_STRIP_MAX_WIDTH = 1280
 
 /** Phone `IMAGE_SETTINGS.CAPTURE_QUALITY` (constants/index.ts:27): maximum quality to
- *  minimise JPEG artifacts at capture — the recogniser reads this exact image. */
+ *  minimise JPEG artifacts at capture — the RECOGNISER reads this exact image. */
 const OCR_CAPTURE_QUALITY = 1.0
+
+/** The PERSISTED strip's encoding (R-15): the data URL goes into the sessionStorage
+ *  snapshot, where q=1.0 costs ~2–3× the §64a byte budget for no forensic gain — the
+ *  recogniser never reads this copy. 0.85 keeps the report image visually indistinguishable
+ *  and the budget honest. */
+const OCR_STRIP_DATAURL_QUALITY = 0.85
 
 /** The on-screen guide box mirrors the phone's: 80% × 17% of the (visible) frame. The extra
  *  5% per-side crop buffer lands OUTSIDE the guide, exactly as on the phone — the guide shows
@@ -256,6 +262,7 @@ export function OcrCaptureScreen({
               includeDataUrl: true,
               targetWidth: OCR_STRIP_MAX_WIDTH,
               quality: OCR_CAPTURE_QUALITY,
+              dataUrlQuality: OCR_STRIP_DATAURL_QUALITY,
               ...(deps?.createCanvas ? { createCanvas: deps.createCanvas } : {}),
             })
           : null

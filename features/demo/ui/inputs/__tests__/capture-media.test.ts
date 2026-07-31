@@ -323,6 +323,30 @@ describe('grabVideoFrame', () => {
     expect(canvas.height).toBe(1)
   })
 
+  it('encodes the data URL at its OWN quality when decoupled from the blob’s (R-15)', async () => {
+    // The blob feeds recognition (max quality); the data URL is what gets persisted. One
+    // shared quality put q=1.0 base64 on the sessionStorage-quota path for no forensic gain.
+    const canvas = fakeCanvas()
+    await grabVideoFrame(fakeVideo(640, 480), {
+      createCanvas: () => canvas,
+      includeDataUrl: true,
+      quality: 1.0,
+      dataUrlQuality: 0.85,
+    })
+    expect(canvas.blobCalls[0]).toEqual(['image/jpeg', 1.0])
+    expect(canvas.dataUrlCalls[0]).toEqual(['image/jpeg', 0.85])
+
+    // Undecoupled, the data URL inherits the blob's quality — the pre-R-15 behaviour stays
+    // the default so no other caller moves.
+    const shared = fakeCanvas()
+    await grabVideoFrame(fakeVideo(640, 480), {
+      createCanvas: () => shared,
+      includeDataUrl: true,
+      quality: 0.9,
+    })
+    expect(shared.dataUrlCalls[0]).toEqual(['image/jpeg', 0.9])
+  })
+
   it('omits the data URL unless asked — a 1080p frame is megabytes of base64', async () => {
     const plain = await grabVideoFrame(fakeVideo(640, 480), { createCanvas: () => fakeCanvas() })
     expect(plain).toMatchObject({ ok: true })

@@ -161,6 +161,10 @@ describe('the live shutter', () => {
     expect(h.reads).toEqual([
       { rawText: '2025-03-08 12:05:30', confidence: 0.91, imageDataUrl: 'data:image/jpeg;base64,STRIP' },
     ])
+    // R-15: the recogniser's blob keeps the phone's max quality; the PERSISTED data URL is
+    // encoded at its own 0.85 — the sessionStorage copy must not pay q=1.0 bytes.
+    expect(h.canvas.blobCalls[0]).toEqual(['image/jpeg', 1.0])
+    expect(h.canvas.dataUrlCalls[0]).toEqual(['image/jpeg', 0.85])
   })
 
   it('narrows the crop to the VISIBLE band for a camera that does not match the viewfinder', async () => {
