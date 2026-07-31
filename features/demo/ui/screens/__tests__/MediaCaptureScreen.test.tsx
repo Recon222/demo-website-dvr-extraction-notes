@@ -470,8 +470,11 @@ describe('live viewfinder', () => {
 
     // The stream itself is fine — this failure is about the LIST, and the viewfinder stays live.
     expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
-    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('DEVICE_LIST_UNAVAILABLE', 'camera'))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
+    // §66d: whatever that sentence says, it must not describe the camera failing to open —
+    // it is rendered directly beneath a working viewfinder.
+    expect(screen.queryByText(/nothing was captured|could not be opened/)).not.toBeInTheDocument()
   })
 
   it('stays quiet when the list simply came back empty', async () => {
@@ -481,7 +484,7 @@ describe('live viewfinder', () => {
     mount(h)
     await grant()
 
-    expect(screen.queryByText(captureFailureMessage('UNKNOWN', 'camera'))).not.toBeInTheDocument()
+    expect(screen.queryByText(captureFailureMessage('DEVICE_LIST_UNAVAILABLE', 'camera'))).not.toBeInTheDocument()
   })
 
   it('offers the device picker only when there is another device to pick', async () => {

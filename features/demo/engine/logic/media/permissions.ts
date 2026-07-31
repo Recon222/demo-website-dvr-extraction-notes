@@ -66,6 +66,16 @@ export const CAPTURE_ERROR_CODES = [
   'RECORDING_FAILED',
   /** A photo frame could not be drawn or encoded (no 2d context, `toBlob` returned null). */
   'FRAME_GRAB_FAILED',
+  /**
+   * `enumerateDevices` could not be read — missing, or it rejected (§66d).
+   *
+   * Scoped to the device LIST, not to the device. Every other code here describes a failure to
+   * open or use hardware, and their sentences say so; rendered under a LIVE viewfinder to
+   * explain why the camera picker is absent, any of them names the wrong subject. The cause
+   * distinction `classifyCaptureError` would draw is deliberately discarded: a denied, absent
+   * or broken enumeration all leave the visitor with the same fact and the same non-options.
+   */
+  'DEVICE_LIST_UNAVAILABLE',
   /** An unrecognised rejection — classified as such rather than mislabelled. */
   'UNKNOWN',
 ] as const
@@ -106,6 +116,10 @@ export function captureFailureMessage(code: CaptureErrorCode, facility: CaptureF
       return 'The recording failed and produced no audio or video — nothing was saved.'
     case 'FRAME_GRAB_FAILED':
       return 'This browser could not turn the camera frame into an image — nothing was captured.'
+    case 'DEVICE_LIST_UNAVAILABLE':
+      // Subject: the LIST. Says nothing about the open stream, because this line renders
+      // beneath a working viewfinder and its only job is to explain the picker's absence.
+      return `This browser wouldn't list the available ${thing}s, so there's nothing to switch between.`
     case 'UNKNOWN':
       return `The ${thing} could not be opened — nothing was captured.`
     default:
@@ -217,6 +231,10 @@ export function permissionAfterFailure(code: CaptureErrorCode): CapturePermissio
     case 'DEVICE_BUSY':
     case 'RECORDING_FAILED':
     case 'FRAME_GRAB_FAILED':
+    // Never reached for this code — a device-list failure is reported on `deviceFailure` and
+    // never runs through the permission derivation, because the STREAM is fine. Named rather
+    // than absorbed into a `default` so the switch stays total (R-25's rule).
+    case 'DEVICE_LIST_UNAVAILABLE':
     case 'UNKNOWN':
       return 'prompt'
     default:

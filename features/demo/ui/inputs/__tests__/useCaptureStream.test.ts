@@ -94,7 +94,7 @@ describe('useCaptureStream — opening', () => {
       await result.current.open()
     })
     expect(result.current.stream).not.toBeNull()
-    expect(result.current.deviceFailure).toMatchObject({ code: 'PERMISSION_DENIED' })
+    expect(result.current.deviceFailure).toMatchObject({ code: 'DEVICE_LIST_UNAVAILABLE' })
   })
 
   it('reports the honest denied state — never a stream', async () => {
