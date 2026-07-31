@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { MapCameraMarker, MapData, SheetItem } from '@/features/demo/ui/screens/map/mapData'
 import {
-  DEFAULT_PROXIMITY_RADIUS,
-  PROXIMITY_PRESETS,
   RING_STEPS,
   computeProximity,
   generateRadiusCircle,
   itemsWithinRadius,
 } from '@/features/demo/ui/screens/map/mapProximity'
+import { DEFAULT_PROXIMITY_RADIUS, PROXIMITY_PRESETS } from '@/features/demo/ui/screens/map/mapTokens'
 
 const CENTER: [number, number] = [-79.6, 43.6]
 

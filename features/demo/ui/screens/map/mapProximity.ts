@@ -17,13 +17,6 @@ import { countLocations, countStatuses, type MapData, type SheetItem } from '@/f
  * reaches the demo's own chunk.
  */
 
-/** Phone `PROXIMITY_PRESETS` (constants/index.ts:131). */
-export const PROXIMITY_PRESETS = [0.5, 1, 2, 5] as const
-export type RadiusPreset = (typeof PROXIMITY_PRESETS)[number]
-
-/** Phone `DEFAULT_PROXIMITY_RADIUS` (constants/index.ts:133). */
-export const DEFAULT_PROXIMITY_RADIUS: RadiusPreset = 1
-
 /** Phone `generateRadiusCircle`'s default vertex count (proximity-service.ts:82). */
 export const RING_STEPS = 64
 

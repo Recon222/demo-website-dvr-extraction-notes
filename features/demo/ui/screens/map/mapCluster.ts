@@ -68,23 +68,6 @@ interface PointProps {
 }
 
 /**
- * Circle radius by cluster size — phone `CLUSTER_CIRCLE_STYLE.circleRadius`
- * (`constants/index.ts:180`): `['step', ['get','point_count'], 16, 10, 22, 50, 28]`.
- */
-export function clusterRadiusFor(count: number): number {
-  if (count >= 50) return 28
-  if (count >= 10) return 22
-  return 16
-}
-
-/** Count-label size by cluster size — phone ClusterBadge `textSize` step (ClusterBadge.tsx:46-54). */
-export function clusterFontSizeFor(count: number): number {
-  if (count >= 50) return 16
-  if (count >= 10) return 14
-  return 12
-}
-
-/**
  * Mapbox's `point_count_abbreviated` rule: counts under 1000 print whole; 1000+ collapse to one
  * decimal with a `k` suffix (trailing `.0` dropped). Reimplemented because the label is produced
  * locally rather than by a SymbolLayer expression.

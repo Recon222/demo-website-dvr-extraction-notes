@@ -1,8 +1,7 @@
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import type { ClusterDescriptor } from '@/features/demo/ui/screens/map/mapCluster'
-import { clusterFontSizeFor, clusterRadiusFor } from '@/features/demo/ui/screens/map/mapCluster'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
-import { CAMERA_MARKER, CLUSTER_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { CAMERA_MARKER, CLUSTER_COLORS, clusterFontSizeFor, clusterRadiusFor } from '@/features/demo/ui/screens/map/mapTokens'
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
 
 /**

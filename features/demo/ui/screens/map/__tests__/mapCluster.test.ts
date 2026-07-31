@@ -7,13 +7,12 @@ import {
   WORLD_BBOX,
   abbreviateCount,
   buildClusterIndex,
-  clusterFontSizeFor,
-  clusterRadiusFor,
   computeClusterExpansionCamera,
   expandCluster,
   normalizeBbox,
   type ClusterDescriptor,
 } from '@/features/demo/ui/screens/map/mapCluster'
+import { clusterFontSizeFor, clusterRadiusFor } from '@/features/demo/ui/screens/map/mapTokens'
 
 const loc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'location', color: '#00BFFF' })
 const inc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'incident', color: '#e53935' })

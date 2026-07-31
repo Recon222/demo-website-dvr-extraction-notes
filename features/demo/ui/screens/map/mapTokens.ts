@@ -63,6 +63,39 @@ export const CLUSTER_COLORS = {
   halo: 'rgba(0, 0, 0, 0.5)',
 } as const
 
+/**
+ * Circle radius by cluster size — phone `CLUSTER_CIRCLE_STYLE.circleRadius`
+ * (constants/index.ts:180): `['step', ['get','point_count'], 16, 10, 22, 50, 28]`.
+ *
+ * These two step rules live with the tokens rather than in `mapCluster.ts` so the marker chrome
+ * can read them WITHOUT importing the clustering module — that module carries `supercluster`, and
+ * it must stay behind `MapCanvas`'s dynamic import.
+ */
+export function clusterRadiusFor(count: number): number {
+  if (count >= 50) return 28
+  if (count >= 10) return 22
+  return 16
+}
+
+/** Count-label size by cluster size — phone ClusterBadge `textSize` step (ClusterBadge.tsx:46-54). */
+export function clusterFontSizeFor(count: number): number {
+  if (count >= 50) return 16
+  if (count >= 10) return 14
+  return 12
+}
+
+/**
+ * Proximity radius presets and the default selection — phone `PROXIMITY_PRESETS` /
+ * `DEFAULT_PROXIMITY_RADIUS` (constants/index.ts:131-133).
+ *
+ * Here rather than in `mapProximity.ts` for the same reason as the cluster steps: `MapControls`
+ * renders the preset pills on first paint, and `mapProximity` carries Turf, which must stay
+ * behind the screen's dynamic import.
+ */
+export const PROXIMITY_PRESETS = [0.5, 1, 2, 5] as const
+export type RadiusPreset = (typeof PROXIMITY_PRESETS)[number]
+export const DEFAULT_PROXIMITY_RADIUS: RadiusPreset = 1
+
 /** Per-camera marker chrome — phone `CAMERA_MARKER` (constants/index.ts:103-123). */
 export const CAMERA_MARKER = {
   glyphSize: 30,

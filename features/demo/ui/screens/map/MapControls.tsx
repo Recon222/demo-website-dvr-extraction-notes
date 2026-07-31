@@ -2,9 +2,15 @@
 
 import type { CSSProperties } from 'react'
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
-import { MAP_GLASS_COLORS, MAP_PIN_COLORS, PROXIMITY_COLORS, STATUS_LABEL } from '@/features/demo/ui/screens/map/mapTokens'
+import {
+  MAP_GLASS_COLORS,
+  MAP_PIN_COLORS,
+  PROXIMITY_COLORS,
+  PROXIMITY_PRESETS,
+  STATUS_LABEL,
+  type RadiusPreset,
+} from '@/features/demo/ui/screens/map/mapTokens'
 import { MAP_FILTER_STATUSES, type MapFilterState } from '@/features/demo/ui/screens/map/mapFilters'
-import { PROXIMITY_PRESETS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapProximity'
 
 /**
  * The floating pill overlay over the map — port of the phone's `MapControls.tsx`: three stacked
