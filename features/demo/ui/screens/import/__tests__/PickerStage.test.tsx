@@ -41,6 +41,14 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     }
   })
 
+  it('clicking "Pick File" forwards the tap to the hidden file input — the card’s only job (R-5)', () => {
+    const { fileInput } = renderStage()
+    const clickSpy = vi.fn()
+    fileInput().addEventListener('click', clickSpy)
+    fireEvent.click(screen.getByText('Pick File'))
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('Cancel fires onCancel; the Paste Text card fires onChoosePaste', () => {
     const { props } = renderStage()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
