@@ -220,4 +220,25 @@ describe('captureGps — multi-sample behaviour', () => {
 
     expect(outcome).toBeNull()
   })
+
+  it('stops at the loop-head checkpoint when the abort arrives MID-capture (R-21)', async () => {
+    // Aborting before the first reading is the easy case. This pins the checkpoint at the top
+    // of iteration ≥2: without it an unmounted component keeps polling geolocation for up to
+    // 10 × 500 ms after the visitor has moved on.
+    const geo = scripted([position(90), position(3)])
+    const spy = vi.spyOn(geo, 'getCurrentPosition')
+    let aborted = false
+    const outcome = await captureGps(buildGpsConfig('precise'), {
+      geolocation: geo,
+      ...noDelay,
+      // The first reading (90 m) misses the 10 m target, so the loop would otherwise continue.
+      onProgress: () => {
+        aborted = true
+      },
+      isAborted: () => aborted,
+    })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(outcome).toBeNull()
+  })
 })
