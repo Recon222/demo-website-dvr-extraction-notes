@@ -101,3 +101,20 @@ describe('IncidentLocationFields — address pick', () => {
     expect(screen.getByLabelText('City')).toHaveValue('Mississauga')
   })
 })
+
+describe('IncidentLocationFields — coordinate error a11y (R-16)', () => {
+  it('associates and announces the message, not just the red border', async () => {
+    // The treatment the shared `Field` gained in this same phase (§56e), applied to the one
+    // input that missed it. Before this the message was a bare <div>: an SR visitor heard
+    // "invalid entry" from `aria-invalid` and never why.
+    render(<Host />)
+    const lat = screen.getByLabelText('Latitude')
+    fireEvent.change(lat, { target: { value: '43.6abc' } })
+    fireEvent.blur(lat)
+
+    const message = await screen.findByRole('alert')
+    expect(message).toHaveTextContent('Enter a valid number')
+    expect(lat).toHaveAttribute('aria-invalid', 'true')
+    expect(lat).toHaveAccessibleDescription('Enter a valid number')
+  })
+})
