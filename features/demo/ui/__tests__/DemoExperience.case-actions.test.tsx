@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
@@ -179,6 +179,35 @@ describe('Case Actions Sheet — status actions', () => {
     openSheet('PR25-0002')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
     expect((screen.getByLabelText('Case Number') as HTMLInputElement).value).toBe('PR25-0002')
+  })
+
+  it('a case deleted under an open edit sheet falls back to create — in BOTH halves (R-11)', () => {
+    // The render arm always had this fallback; `submitCase` branched on a bare `caseEditId`
+    // instead, so the sheet said "Create Case", ran the create confirmation, and then took the
+    // EDIT branch into a guarded no-op — confirming created nothing, silently. One derivation
+    // now governs both. (Reached here by deleting through the store, which no UI path can do
+    // while the sheet's scrim is up; the point is that the two halves cannot disagree, not that
+    // a visitor can get here.)
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    const caseId = setupDashboard(store)
+
+    openSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Case' }))
+    act(() => void store.getState().deleteCase(caseId))
+
+    // Render half: back to create mode.
+    const caseNumber = screen.getByLabelText('Case Number') as HTMLInputElement
+    expect(caseNumber).not.toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'Create Case' })).toBeInTheDocument()
+
+    // Submit half: it CREATES, rather than silently updating a case that is gone.
+    fireEvent.change(caseNumber, { target: { value: 'PR25-REBORN' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Case' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Create Case'))
+
+    expect(store.getState().cases.map((c) => c.caseNumber)).toEqual(['PR25-REBORN'])
   })
 
   it('Cancel leaves create mode behind it — the next New Case opens blank', () => {
