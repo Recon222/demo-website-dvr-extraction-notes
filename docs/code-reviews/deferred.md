@@ -2431,3 +2431,97 @@ before the timer, still followed by a click), both original hooks carried the sa
 assumption, and R-20 narrowed the latch rather than widening it — adding an unreachable
 belt-and-braces here would be one more unpinned line in the file this round exists to make
 honest.
+
+## 59. P4.2 (parity/p4-drawer) — the drawer Media accordion + save-status chrome: refutations, deviations, residuals
+
+**Source:** P4.2 drawer media accordion (matrix row 80; ui-mapping 14 § CustomDrawerContent;
+phone `src/components/layout/CustomDrawerContent.tsx:265-400`) — the Media accordion, the
+save-status indicator slot, and the app-version chrome line.
+
+### 59a. REFUTATION — the phone has no save-status indicator, in the drawer or anywhere else
+
+Row 80 lists "the **save-status indicator** (`isDirty`/`saveStatus`)" among the drawer's missing
+pieces, which reads as a phone surface waiting to be ported. It is not one. ui-mapping 14's
+render order for `CustomDrawerContent` is header → Back to Cases → item list → Media accordion →
+footer, and the source confirms it: `CustomDrawerContent.tsx` imports `useSectionCompletion` but
+never `useSaveStatus`. Across the whole phone app, `useSaveStatus()` — the READER — has **zero**
+production callers; only the `setSaveStatus` writer is wired (`useAutoSave.ts:24`,
+`useScreenSave.ts:4`, `AppStateHandler.tsx:29`, `app/(form)/_layout.tsx:15`,
+`completion.tsx:8`). The phone computes save status and shows it to nobody.
+
+So there was no copy, placement, or colour to lift, and the demo's line is an **original** held
+to the honesty rule rather than to parity: it reports the per-tab sessionStorage snapshot and
+never implies the phone's device persistence. Anyone re-reading row 80 later should not go
+looking for the phone widget it seems to promise.
+
+### 59b. REFUTATION — the app-version chrome was already there; what was missing was honesty
+
+Row 80 also lists "app-version chrome" as missing. The drawer footer has rendered
+`DVR Extraction Notes` + `v1.0.0` since the original prototype port (visible in `2da3e3d`,
+pre-P0). The real defect was subtler and is what P4.2 fixed: a bare `v1.0.0` inside a browser
+demo reads as a build of the app. It now reads `Interactive demo · v1.0.0`, with the version
+still the app's own (phone `app.config.js:11` — the same value the phone footer renders through
+`Constants.expoConfig?.version`), as a literal because the demo is a separate deployable with no
+Expo config to ask.
+
+### 59c. Collapsed sub-rows are UNMOUNTED, not clipped — deliberate divergence
+
+The phone animates a container height and keeps the three rows mounted behind it, which forces
+three extra props to stop a hidden row being focusable or announced: `pointerEvents={'none'}`,
+`accessibilityElementsHidden`, `importantForAccessibility={'no-hide-descendants'}`
+(`CustomDrawerContent.tsx:304-309`). The demo renders them only while expanded, which achieves
+all three by construction — and on the web the phone's arrangement would be an a11y **defect**
+(`aria-hidden` over focusable buttons), not a fix. Consequence: the expand animates and the
+collapse is immediate, matching the demo's dominant one-way idiom (`ModalShell`'s `screenIn`),
+and keeping the component tests synchronous — no `waitFor` on an exit animation.
+**Trigger:** if a reviewer wants a symmetric collapse, it is an `AnimatePresence` wrap plus
+`waitFor` in two arms — and it should be weighed against the contention-flake budget the
+5000ms `asyncUtilTimeout` in `vitest.setup.ts` exists to absorb.
+
+### 59d. The status line is sampled per drawer-open, not ticked
+
+`saveStatus` is computed when `drawerOpen` flips true (after a `flush()`, so a write inside its
+250 ms debounce lands first) and cleared on close. It does not tick while the drawer sits open,
+so a menu left open for two minutes still reads "just now". Judged not worth an interval: the
+drawer is a transient overlay, the reading is correct at the moment it is asked for, and every
+alternative (interval, or reading at render) either adds a timer to a component test suite or
+breaks the "no clock at render scope" rule.
+**Trigger:** if the drawer ever becomes a persistent surface (a pinned sidebar at desktop
+widths), the line needs a tick or it becomes a stale claim.
+
+### 59e. No `MODAL_NARRATION` entry for `mediaLibrary`
+
+Every other modal id has rail narration; the media library deliberately does not, so the rail
+keeps showing the chapter the visitor is on. `narration`'s `?? ` fallback is documented for
+exactly this case ("guards a modal with no narration entry — falls back to the chapter rather
+than blanking"). Writing narration for a sheet whose body is an honest placeholder would be
+narrating a fast-follow.
+**Trigger:** P4.5, in the same commit that replaces the sheet's body.
+
+### 59f. The two capture rows are ungated, matching the phone's failure mode
+
+The phone hides `Capture Media`/`Record Audio` behind `useStepVisible('media-capture')` /
+`useStepVisible('audio-recording')` — form-customization step visibility. The demo has no
+analog to gate on: both targets are `LaunchableId`s, not wizard screens, so they never appear in
+a profile's step list (`selectDrawerItems` filters wizard screens only). Both rows therefore
+always render. Note also that neither is gated on an open location, on the phone or here — only
+`Media Library` is (and that gate IS ported, toast copy and drawer-stays-open behaviour included).
+**Trigger:** if form-customization profiles ever gain launchable visibility, this is where it
+lands.
+
+### 59g. `DrawerItem.icon` is still dead
+
+`DrawerItem` has carried an unused `icon?: ReactNode` since the port — the step rows render the
+active bar, the label and the dot, never an icon. P4.2 did not use it (the accordion's icons are
+internal to the accordion, not per-item data) and did not remove it, to keep this package's diff
+off the settled dots/items code.
+**Trigger:** the next package that touches `DrawerItem`'s shape — delete it there, or wire the
+step rows to it if the phone's per-item Ionicons are ever wanted.
+
+### 59h. The bridge's absent-handle fallback is unpinned, deliberately
+
+`describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, …)` mirrors `saveProgress`'s
+`persistenceRef.current?.isLive() ?? false` (R-2's never-assume rule). It has no test:
+`persistDemoStore` returns a non-nullable handle and the effect that sets the ref commits before
+any interaction, so the only way to exercise the branch is to make the module mock return
+something the real module's type forbids — a test of the mock. Recorded rather than faked.
