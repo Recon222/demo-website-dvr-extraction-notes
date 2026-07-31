@@ -1385,3 +1385,75 @@ missing members, which is the direction real drift runs.
 by a binary ternary in `LocationFields`, so a fourth member would silently render the
 partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
 `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+---
+
+## 51. P3.4 (parity/p3-locgps) — New Location GPS + duplicate-name: deliberate choices & residuals
+
+**Source:** parity plan §5 P3.4, matrix row 13, phone `docs/ui-mapping/11-case-modals.md:64-112`.
+The package closes deferred **§24's location-modal half** (the no-op "Capture GPS coordinates"
+button) by mounting P2.3's `LocationFields` whole. This entry records the judgement calls so a
+review round does not have to re-derive them.
+
+**51a. The write-guard token is a per-open DRAFT id, not a location id.** §45f requires every
+`LocationFields` caller to pass its OWN identity; here the location does not exist yet, so the
+thing an in-flight lookup belongs to is the draft. `addLocation` mints `draft-l<n>` from the
+existing `uiSeq` counter on every open. Strictly, `mounted` alone would cover today's code — the
+modal is conditionally mounted and really unmounts on close — but the token is what (i) makes
+the guarantee expressible as a test at the component level, (ii) re-keys `GpsCaptureControl` per
+open (that `key` IS the capture half's abort), and (iii) survives the "always mounted, toggle
+`visible`" refactor the phone's own JSDoc warns about (`NewLocationModal.tsx:49-52`).
+**Trigger:** none — but a future refactor that drops `draftId` must first prove the modal is
+still remounted per open.
+
+**51b. `LocationFields` was NOT given the phone's `errors` prop.** The phone's `LocationForm`
+takes `errors?: { businessName?, streetAddress?, city? }` and `NewLocationModal` wires all three
+(`NewLocationModal.tsx:258-262`), but only one is ever produced there — `streetAddress` in the
+`requireAddress` flow. The demo states that message in the modal's blocked-reason region instead,
+which it needs regardless because its submit is `aria-disabled` + `aria-describedby` (the R-7/R-15
+house shape) rather than `disabled`. Adding a three-key prop with one live producer and two
+permanently-undefined keys would ship dead surface.
+**Trigger:** the first caller that genuinely needs a business-name or city error under its field
+(P3.6's `EditIncidentLocationModal` is the candidate) — port `LocationForm`'s `errors` shape onto
+`LocationFields` then, and move the address message under the field with it.
+
+**51c. The phone's silent reverse-geocode failure in THIS modal is deliberately not reproduced.**
+ui-mapping 11:386 records the fact-check finding that `NewLocationModal` passes no
+`onReverseGeocodeError`, so a failed lookup here reaches Sentry and nothing else — no banner, no
+inline message, coordinates saved. The demo's `LocationFields` always renders
+`REVERSE_GEOCODE_UNAVAILABLE` / `REVERSE_GEOCODE_PARTIAL` (P2.3's treatment). Copying a silent
+failure would break the honesty rule to gain nothing. **Trigger:** file it on the phone-repo
+follow-up ledger (HANDOFF §8.4) as a BUG-NNN when the owner returns.
+
+**51d. The duplicate message renders in two places when it blocks.** Inline under Location Name
+(phone parity — the phone's live check IS the field's `error`) and in the reason region the
+disabled submit describes. In a scrolling sheet the field error can be off-screen when the visitor
+reaches the button, and the region is what makes an `aria-disabled` control explain itself.
+**Trigger:** if a review prefers one site, give `Field` an `errorId` escape hatch and point
+`submitDescribedBy` at the field's error for the `duplicateName` arm only.
+
+**51e. `isSubmitting` is not part of the gate.** The phone's `disabled` condition has four terms;
+the demo's has three. `onSubmit` here is a synchronous in-memory store write, so there is no
+in-flight window — a fabricated spinner would be theatre. Recorded because a reviewer diffing the
+two conditions will notice the missing term.
+
+**51f. Only `isLocationNameTaken` was ported from the phone's `location-name.ts`.**
+`generateCopyName` and `ensureUniqueLocationName` are P3.5's per plan §5, and they belong in the
+same `engine/logic/location-name.ts`: both build on its `normalizeLocationName` and both need the
+phone's `LIMITS.MAX_LOCATION_NAME_LENGTH` (100, phone `case-management/constants/index.ts:64`),
+which this package had no use for and therefore did not port.
+
+**51g. §24 is only partly closed.** Its three halves are the incident coordinates (P3.6), the
+per-camera GPS (P3.7) and the New Location button (this package). Strike §24 when the last of the
+three lands — it was left untouched here deliberately, so three concurrent lanes do not each
+rewrite the same entry.
+
+**51h. R-39 (§45i) did NOT fire.** Its trigger is "the next touch of `LocationFields.tsx`", and
+this package deliberately touched nothing in that file — mounting the P2.3 capability unchanged
+was the point. It remains open and still cheap.
+
+**51i. Shared chrome grew three additive props, in `_shared.tsx`.** `Field.error` (phone
+`TextInput`'s), `ModalActions.submitDisabled` + `submitDescribedBy`, and `ModalShell.subtitle`
+(phone `NewLocationModal.tsx:212-219`, for P3.5's caller). P3.3 (NewCaseModal's required-field
+gate + duplicate-case-number banner) needs the first two for the same reasons; if both lanes add
+them, the merge should keep one copy rather than two spellings of the same prop.
