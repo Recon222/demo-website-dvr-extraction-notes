@@ -61,6 +61,32 @@ describe('sandbox pass (headless)', () => {
     expect(html).not.toContain('Eglinton Avenue')
   })
 
+  it('R-3: the review\'s nothing-warns trace now warns — stale-short extracted list annotates the PDF even after adjustedScopesPartial clears', () => {
+    // (1) Calculate with one non-canonical scope → extracted list SHORT, flag true.
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.scopes', [
+      { id: 'bad', startDateTime: '11:45 PM on March 8 2025', endDateTime: 'whenever', isActualTime: true, cameras: '1' },
+      { id: 'good', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+    // (2) visitor fixes the bad scope's times but does NOT re-Calculate…
+    store.getState().updateField('form.scopes.0.startDateTime', '2025-03-08 20:00:00')
+    store.getState().updateField('form.scopes.0.endDateTime', '2025-03-08 21:00:00')
+    // (3) …so adjustedScopesPartial (live recompute) clears while the stored extracted
+    // list is still one entry short.
+    const data = selectCaseNotesData(store.getState())
+    expect(data.adjustedScopesPartial).toBe(false)
+    expect(data.extractedScopesPartial).toBe(true)
+    // (4) the document now carries the warning instead of silently under-reporting.
+    const html = generateCaseNotesDoc(data)
+    expect(html).toContain('recovered footage reported in these notes may be incomplete')
+  })
+
   it('creates a case + two locations and round-trips updateField per location', () => {
     const store = freshStore()
     const c = store.getState().createCase(newCaseInput())

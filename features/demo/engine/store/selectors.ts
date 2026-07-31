@@ -272,6 +272,10 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     export: form?.export,
     notesSections,
     notesFreeText: form?.notesFreeText,
+    // R-3: the stored extracted list can be SHORT (non-canonical scopes dropped at the
+    // last Calculate) — the flag rides with the notes so the document annotates the
+    // possibly-under-reported recovered-footage line instead of shipping it silently.
+    extractedScopesPartial: form?.extractedScopesPartial,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
   }
 }
