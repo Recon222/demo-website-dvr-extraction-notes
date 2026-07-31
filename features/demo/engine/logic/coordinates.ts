@@ -63,5 +63,6 @@ export function hasCapturedCoordinates(
 ): value is { lat: number; lng: number } {
   if (!value) return false
   if (!Number.isFinite(value.lat) || !Number.isFinite(value.lng)) return false
+  if (value.lat < -90 || value.lat > 90 || value.lng < -180 || value.lng > 180) return false
   return !(value.lat === 0 && value.lng === 0)
 }
