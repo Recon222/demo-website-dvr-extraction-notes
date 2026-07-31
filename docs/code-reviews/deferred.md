@@ -827,3 +827,77 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+---
+
+## 37. P2.5 (parity/p2-advisories) — Time-Offset advisories: deliberate non-ports & residuals
+
+**Source:** P2.5 implementation (matrix row 34 residual — the phone's four DST advisory
+branches plus its Toast/Alert guards).
+
+### 37.1 The recalculate confirmation is a screen-local dialog, not the shared primitive
+
+**What:** the phone's `Recalculate Time Offset?` Alert is ported as `RecalculateDialog`,
+declared inside `features/demo/ui/screens/TimeOffsetScreen.tsx` and rendered as an absolute
+overlay within the phone screen.
+
+**Why deferred:** the demo still has **no shared blocking-dialog primitive** (matrix row 28:
+"only the auto-dismissing `DemoNotification`"), and building one is scheduled work owned by
+other packages — plan §5 flags it as "wanted by P3.1/P4.5/P5.3". Inventing the shared
+primitive from an S-sized advisory package would pre-empt that design and create a merge
+hotspot mid-wave. The local dialog is ~45 lines, carries the phone's verbatim copy, and
+follows `ExitDialog`'s conventions (`role="dialog"`, `aria-modal`, Escape + backdrop cancel,
+autofocus on the safe default).
+
+**Trigger to revisit:** the moment P3.1 / P4.5 / P5.3 lands a shared dialog primitive — move
+`RecalculateDialog` onto it and delete the local copy. Second trigger: a third screen needing
+a blocking confirm before that lands (two bespoke dialogs is the tell).
+
+### 37.2 Three of the phone's five Time-Offset toasts are deliberately NOT ported
+
+The package brief asked for the toast/alert guards "where they map to the demo's flow", and
+to refute rather than ship dead UX. Evidence per toast:
+
+- **`Missing Information` / "Please enter both DVR and actual times"** (`time-offset.tsx:362-367`)
+  — unreachable in the demo: `Calculate` is `disabled` whenever either field is empty
+  (`TimeOffsetScreen.tsx` `canCalc`, pinned by `marquee.test.tsx` "disables Calculate until both
+  datetimes are present"). The demo prevents the state the phone warns about.
+- **`Using Calibrated Time` / `Using Device Time`** (`time-offset.tsx:242-254`) — the demo's
+  sync is `simulateNtpSync()` (`engine/logic/time-sync.ts:17-34`), which has **no failure
+  path**, so the "NTP unavailable — verify device clock accuracy" branch can never fire; the
+  success branch would only restate what `SyncStatusCard` already renders in place. These are
+  outcome notifications, not guards.
+- **`Calculation Complete`** (`time-offset.tsx:333-340`) — the demo renders the same sentence
+  as the 34px result card the moment the calculation commits.
+
+**Trigger to revisit:** if the demo ever gains a simulated sync-failure mode (making the
+uncalibrated branch reachable) or a general in-phone toast surface for the wizard, port the
+matching copy verbatim then.
+
+### 37.3 `calculateOffset` has no error path — the phone's `Calculation Error` toast is unreachable
+
+**What:** the phone wraps `performCalculation` in try/catch and shows a `Calculation Error`
+toast (`time-offset.tsx:341-353`). The demo's `calculateOffset` action does not catch, so a
+throw from `calculateTimeDifference` ("Unable to parse date values",
+`engine/logic/time.ts:35`) would escape the click handler into `DemoErrorBoundary`.
+
+**Why deferred:** every writer of `capture.dvrDateTime` / `capture.actualDateTime` produces a
+canonical `'YYYY-MM-DD HH:MM:SS'` string — the `DateTimeField` pickers (via `formatStored`),
+`getCurrentFormattedTime` on the sync path, the OCR parser, and the zod-guarded snapshot.
+There is no reachable input that throws, so a friendly error surface here would be UX for a
+state the demo cannot enter. (This is unlike `generateExtractedScopes`, which legitimately
+catches per entry because free-text import CAN write non-canonical scope times.)
+
+**Trigger to revisit:** any path that writes a non-canonical capture time — an import that
+populates `capture.*`, or free-text entry replacing the pickers. Add the catch + copy then.
+
+### 37.4 Phone-repo follow-up: `getDSTTransitionDates` misses month-boundary transitions
+
+**Not a demo deferral — a phone bug for the §8 follow-up ledger.** The phone's scan is
+`for (day = 1; day < daysInMonth; day++)` comparing `day` with `day + 1`
+(`src/lib/utils/bidirectional-time.ts:330-344`), so it never compares the last day of a month
+with the first of the next. A DST transition landing on the 1st is invisible and the advisory
+degrades to the literal word `spring`/`fall`. Reachable in North America whenever the November
+fall-back Sunday is the 1st — e.g. **2026-11-01**. The demo's port brackets on month starts and
+binary-searches inside, so it resolves the boundary case (pinned in
+`engine/logic/__tests__/dst-advisory.test.ts`). File as a `BUG-NNN` when the owner returns.
