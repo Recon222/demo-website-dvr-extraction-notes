@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
@@ -97,7 +97,7 @@ describe('ImportModal', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     const file = new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })
     fireEvent.change(input, { target: { files: [file] } })
-    await vi.waitFor(() => expect(onPdfFilesSelected).toHaveBeenCalledWith([file]))
+    await waitFor(() => expect(onPdfFilesSelected).toHaveBeenCalledWith([file]))
   })
 
   it('progress stage renders the live terminal (P1.4) with the batch counter in its processing badge', () => {

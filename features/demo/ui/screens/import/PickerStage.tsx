@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import type { ChangeEvent, CSSProperties, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, CSSProperties, ReactNode, Ref } from 'react'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 /**
@@ -90,9 +90,30 @@ const actionCard: CSSProperties = {
 const ICON_STROKE = '#5AB4E6'
 const DISABLED_STROKE = '#5d7a9a'
 
-function Spinner() {
+/** Per-render reduced-motion check (review R-14). Deliberately NOT motion/react's
+ *  useReducedMotion: that hook caches its matchMedia subscription module-globally
+ *  (motion-dom's hasReducedMotionListener), which buys nothing for a spinner that only
+ *  exists for the seconds a read is in flight — and a direct read is correct on the very
+ *  first frame (no armed-animation flash) and honors the suite's per-test overrides. */
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+function Spinner({ testId }: { testId: string }) {
+  // Reduced motion keeps the static arc (the card also carries aria-busy) — motion is
+  // the only thing gated, matching the terminal's cursor/CTA treatment.
+  const reduce = prefersReducedMotion()
   return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ICON_STROKE} strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite' }}>
+    <svg
+      data-testid={testId}
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={ICON_STROKE}
+      strokeWidth="2.5"
+      style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite' }}
+    >
       <path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" />
     </svg>
   )
@@ -104,18 +125,25 @@ function ActionCard({
   title,
   description,
   busy,
+  busyTestId,
   disabled,
   onClick,
+  ref,
 }: {
   icon: ReactNode
   title: string
   description: string
   busy?: boolean
+  /** data-testid for the busy spinner (phone testID parity, phone-inventory §5.2). */
+  busyTestId?: string
   disabled: boolean
   onClick(): void
+  /** React 19 ref-as-prop — used by the R-17 focus restores. */
+  ref?: Ref<HTMLButtonElement>
 }) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}
@@ -125,7 +153,7 @@ function ActionCard({
       {icon}
       <div style={{ fontSize: 17, fontWeight: 600, color: disabled ? DISABLED_STROKE : '#f0f4f8' }}>{title}</div>
       <div style={{ fontSize: 13, color: disabled ? DISABLED_STROKE : '#9fc0db', lineHeight: 1.45 }}>{description}</div>
-      {busy && <Spinner />}
+      {busy && <Spinner testId={busyTestId ?? 'picker-loading-indicator'} />}
     </button>
   )
 }
@@ -140,15 +168,43 @@ export function PickerStage(props: PickerStageProps) {
   // has no honest equivalent of a native alert, so the confirm replaces the card list in place.
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
 
+  // R-17 focus management. Opening the confirm unmounts the just-activated "Pick File"
+  // card (focus would drop to <body>), so the confirm takes focus on mount; cancelling it
+  // hands focus back to the card. The clipboard card is disabled while its read is in
+  // flight — a failure re-enables it, and focus returns to it so a keyboard user isn't
+  // stranded on <body> while the role="alert" banner announces.
+  const confirmRef = useRef<HTMLDivElement | null>(null)
+  const fileCardRef = useRef<HTMLButtonElement | null>(null)
+  const clipboardCardRef = useRef<HTMLButtonElement | null>(null)
+  const confirmWasOpen = useRef(false)
+  const clipboardErrored = useRef(false)
+  useEffect(() => {
+    const open = pendingFiles !== null
+    if (open) confirmRef.current?.focus()
+    else if (confirmWasOpen.current) fileCardRef.current?.focus()
+    confirmWasOpen.current = open
+  }, [pendingFiles])
+  useEffect(() => {
+    if (!isReadingClipboard && clipboardErrored.current) {
+      clipboardErrored.current = false
+      clipboardCardRef.current?.focus()
+    }
+  }, [isReadingClipboard])
+
   const isLoading = isReadingFile || isReadingClipboard
 
   const startPdfImport = async (files: File[]) => {
     setIsReadingFile(true)
     try {
       await props.onPdfFilesSelected(files)
-    } catch {
+    } catch (e) {
       // Backstop, mirroring the phone's general file-read catch (:545-554); the parent
       // pipeline normally converts its own failures into a result-stage failure card.
+      // Breadcrumb first (review R-23a): in production the parent flips the stage and
+      // unmounts this component before a pipeline throw lands here, so React discards
+      // the setError below — the console line is then the ONLY signal the run threw.
+      // The pipeline-level backstop that releases the dwell lives in DemoExperience.
+      console.error('[demo/import] import run threw', e)
       setError(PICKER_COPY.fileReadFailed)
     } finally {
       setIsReadingFile(false)
@@ -179,17 +235,23 @@ export function PickerStage(props: PickerStageProps) {
       try {
         text = await readClipboard()
       } catch {
+        clipboardErrored.current = true // R-17: restore focus to the card once re-enabled
         setError(PICKER_COPY.clipboardBlocked)
         return
       }
       if (!text.trim()) {
+        clipboardErrored.current = true
         setError(PICKER_COPY.clipboardEmpty)
         return
       }
       try {
         await props.onClipboardText(text)
-      } catch {
+      } catch (e) {
         // Clipboard text feeds the same AI pipeline as Paste Text — same backstop copy (:175).
+        // Same R-23a breadcrumb as the file path: the text pipeline also unmounts this
+        // stage on start, so a late throw's setError is discarded — log it.
+        console.error('[demo/import] import run threw', e)
+        clipboardErrored.current = true
         setError(PICKER_COPY.textImportFailed)
       }
     } finally {
@@ -197,13 +259,22 @@ export function PickerStage(props: PickerStageProps) {
     }
   }
 
-  // Large-batch confirm replaces the card list (see pendingFiles above).
+  // Large-batch confirm replaces the card list (see pendingFiles above). role="alertdialog"
+  // without aria-modal: the ModalShell header (close) stays reachable, so claiming modality
+  // without a focus trap would overstate; focus lands here on mount (R-17) via tabIndex -1.
   if (pendingFiles) {
     return (
-      <div role="group" aria-label={PICKER_COPY.largeBatchTitle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div
+        role="alertdialog"
+        aria-label={PICKER_COPY.largeBatchTitle}
+        aria-describedby="import-batch-confirm-message"
+        tabIndex={-1}
+        ref={confirmRef}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14, outline: 'none' }}
+      >
         <div style={{ borderRadius: 14, border: GLASS.borderAccent, background: GLASS.gradientPanel, padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#f0f4f8' }}>{PICKER_COPY.largeBatchTitle}</div>
-          <div style={{ fontSize: 13, color: '#cdd9e6', lineHeight: 1.5 }}>{PICKER_COPY.largeBatchMessage(pendingFiles.length)}</div>
+          <div id="import-batch-confirm-message" style={{ fontSize: 13, color: '#cdd9e6', lineHeight: 1.5 }}>{PICKER_COPY.largeBatchMessage(pendingFiles.length)}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button
               type="button"
@@ -263,6 +334,8 @@ export function PickerStage(props: PickerStageProps) {
         title={PICKER_COPY.pickFileTitle}
         description={PICKER_COPY.pickFileDescription}
         busy={isReadingFile}
+        busyTestId="file-loading-indicator"
+        ref={fileCardRef}
         disabled={isLoading}
         onClick={() => fileInputRef.current?.click()}
       />
@@ -278,6 +351,8 @@ export function PickerStage(props: PickerStageProps) {
         title={PICKER_COPY.clipboardTitle}
         description={PICKER_COPY.clipboardDescription}
         busy={isReadingClipboard}
+        busyTestId="clipboard-loading-indicator"
+        ref={clipboardCardRef}
         disabled={isLoading}
         onClick={() => void handlePasteClipboard()}
       />

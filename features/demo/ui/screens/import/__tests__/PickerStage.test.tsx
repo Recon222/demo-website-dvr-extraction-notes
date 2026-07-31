@@ -41,6 +41,14 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     }
   })
 
+  it('clicking "Pick File" forwards the tap to the hidden file input — the card’s only job (R-5)', () => {
+    const { fileInput } = renderStage()
+    const clickSpy = vi.fn()
+    fileInput().addEventListener('click', clickSpy)
+    fireEvent.click(screen.getByText('Pick File'))
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('Cancel fires onCancel; the Paste Text card fires onChoosePaste', () => {
     const { props } = renderStage()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -123,6 +131,8 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     const cardOf = (title: string) => screen.getByText(title).closest('button')!
     fireEvent.click(screen.getByText('Paste from Clipboard'))
     expect(cardOf('Paste from Clipboard')).toHaveAttribute('aria-busy', 'true')
+    // Default (no reduced-motion preference): the spinner spins (R-14's other direction).
+    expect(screen.getByTestId('clipboard-loading-indicator').style.animation).toContain('spin')
     expect(cardOf('Pick File')).toBeDisabled()
     expect(cardOf('Paste from Clipboard')).toBeDisabled()
     expect(cardOf('Paste Text')).toBeDisabled()
@@ -130,6 +140,66 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     await waitFor(() => expect(props.onClipboardText).toHaveBeenCalledWith('text from clipboard'))
     expect(cardOf('Pick File')).not.toBeDisabled()
     expect(cardOf('Paste from Clipboard')).not.toHaveAttribute('aria-busy')
+  })
+
+  it('reduced motion: the busy spinner renders static — arc visible, no spin animation (R-14)', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+    try {
+      renderStage({ readClipboardText: () => new Promise<string>(() => {}) }) // hangs → stays busy
+      fireEvent.click(screen.getByText('Paste from Clipboard'))
+      const spinner = screen.getByTestId('clipboard-loading-indicator')
+      expect(spinner).toBeInTheDocument() // busy is still communicated (plus aria-busy)…
+      expect(spinner.style.animation).toBe('') // …but nothing spins
+      expect(screen.getByText('Paste from Clipboard').closest('button')).toHaveAttribute('aria-busy', 'true')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('a rejecting onPdfFilesSelected surfaces the file-read backstop and re-enables the cards (R-22)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { fileInput } = renderStage({ onPdfFilesSelected: vi.fn().mockRejectedValue(new Error('pipeline boom')) })
+      fireEvent.change(fileInput(), { target: { files: [pdf()] } })
+      expect(await screen.findByRole('alert')).toHaveTextContent('Failed to read file. Please try again.')
+      // The finally must release the busy lock — dropping it would leave every card disabled.
+      expect(screen.getByText('Pick File').closest('button')).not.toBeDisabled()
+      expect(screen.getByText('Paste from Clipboard').closest('button')).not.toBeDisabled()
+      expect(screen.getByText('Paste Text').closest('button')).not.toBeDisabled()
+      // R-23a breadcrumb: in production this catch's setError is discarded (stage unmounts
+      // first), so the console line must exist as the only remaining signal.
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
+  it('a rejecting onClipboardText surfaces the text-import backstop and re-enables the cards (R-22)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      renderStage({
+        readClipboardText: () => Promise.resolve('copied request'),
+        onClipboardText: vi.fn().mockRejectedValue(new Error('pipeline boom')),
+      })
+      fireEvent.click(screen.getByText('Paste from Clipboard'))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Failed to start text import. Please try again.')
+      expect(screen.getByText('Pick File').closest('button')).not.toBeDisabled()
+      expect(screen.getByText('Paste from Clipboard').closest('button')).not.toBeDisabled()
+      expect(screen.getByText('Paste Text').closest('button')).not.toBeDisabled()
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw', expect.any(Error)) // R-23a
+    } finally {
+      errSpy.mockRestore()
+    }
   })
 
   it(`>${BATCH_SIZE_WARNING_THRESHOLD} files: shows the Large Batch Import confirm; Continue hands the batch up`, async () => {
@@ -151,6 +221,26 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' })) // the confirm's Cancel (cards are hidden)
     expect(props.onPdfFilesSelected).not.toHaveBeenCalled()
     expect(screen.getByText('Pick File')).toBeInTheDocument() // back on the picker cards
+  })
+
+  it('opening the large-batch confirm moves focus into it; cancelling returns focus to the card (R-17)', () => {
+    const { fileInput } = renderStage()
+    const files = Array.from({ length: BATCH_SIZE_WARNING_THRESHOLD + 1 }, (_, i) => pdf(`r${i}.pdf`))
+    fireEvent.change(fileInput(), { target: { files } })
+    // The activated card just unmounted — without explicit management focus drops to <body>.
+    expect(screen.getByRole('alertdialog', { name: 'Large Batch Import' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('Pick File').closest('button')).toHaveFocus()
+  })
+
+  it('a clipboard failure returns focus to the re-enabled clipboard card (R-17)', async () => {
+    renderStage({ readClipboardText: () => Promise.reject(new Error('NotAllowedError')) })
+    const card = () => screen.getByText('Paste from Clipboard').closest('button')!
+    card().focus()
+    fireEvent.click(card())
+    await screen.findByRole('alert') // blocked notice announced…
+    await waitFor(() => expect(card()).toHaveFocus()) // …and focus is back on the card, not <body>
+    expect(card()).not.toBeDisabled()
   })
 
   it(`exactly ${BATCH_SIZE_WARNING_THRESHOLD} files skips the confirm (threshold is strictly greater-than)`, async () => {
