@@ -580,3 +580,74 @@ describe('kill switch + disabled paths', () => {
     expect(loadSnapshot(null)).toBeNull()
   })
 })
+
+describe('isLive — the handle’s honesty signal (R-2)', () => {
+  it('is false for a null backend: the NOOP handle must never claim to be storing anything', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, null)
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is false when persistence is switched off, even with a working backend', () => {
+    const storage = new FakeStorage()
+    const handle = persistDemoStore(freshStore(), storage, { enabled: false })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is true once a write has actually landed', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(true)
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+  })
+
+  it('goes false the moment a write fails and the snapshot is cleared — the refresh promise is void', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(true)
+
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(false) // cleared, per R-14
+    expect(handle.isLive()).toBe(false) // …and the handle says so
+    handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('recovers to true when a later write succeeds — the signal tracks reality, not a latch', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    let fail = true
+    const realSet = storage.setItem.bind(storage)
+    storage.setItem = (k, v) => {
+      if (fail) throw new Error('QuotaExceededError')
+      realSet(k, v)
+    }
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(false)
+
+    fail = false
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+    warn.mockRestore()
+  })
+})

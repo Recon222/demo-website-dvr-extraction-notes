@@ -140,9 +140,12 @@ describe('Completion gate — Complete & Save', { timeout: 20000 }, () => {
 
     const dialog = screen.getByRole('alertdialog', { name: 'Progress Saved' })
     expect(dialog).toHaveTextContent('You can continue this location later from the Cases screen.')
-    // Honesty rule: the demo's "save" is the tab's sessionStorage snapshot, not a database —
-    // it says so instead of implying durability it does not have.
-    expect(dialog).toHaveTextContent('survives a refresh, but closing the tab starts fresh')
+    // Honesty rule (R-2): the persistence sentence is gated on the persistence layer actually
+    // storing. An INJECTED store is deliberately never persisted, so the truthful copy here is
+    // the demoted one — the promise must not be a constant. Both arms live in
+    // DemoExperience.progress-saved.test.tsx.
+    expect(dialog).toHaveTextContent("This browser isn't storing the session")
+    expect(dialog).not.toHaveTextContent('survives a refresh')
 
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
     expect(store.getState().view).toBe('cases')

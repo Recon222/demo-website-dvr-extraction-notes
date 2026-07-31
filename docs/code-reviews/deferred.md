@@ -882,7 +882,7 @@ reason — the seed overwrites the stale ref before the rejection lands. A pre-s
 is the only reachable window, and the emitter's `INIT` log is the only throwable in it.
 ---
 
-## 38. Four hand-rolled address joins — fold into P2.3's `formatAddress` when it lands
+## 38. Four hand-rolled address joins — RESOLVED (`formatAddress` is the single producer)
 
 **Source:** P2.4 (parity/p2-gate), self-logged while porting `finalSubmissionSchema`.
 
@@ -903,16 +903,29 @@ and drops the blanks — without it a three-space address clears a gate the phon
 the gate is correct and the other three are merely untrimmed, which is invisible today
 (nothing writes whitespace-only components) but is a second definition of "the address".
 
-**Why deferred:** P2.3 (submission depth, matrix row 29) is concurrently porting
-`formatAddress` — including the street-type abbreviation the demo has no equivalent of.
-Introducing a fifth, competing helper here while that lands would be the exact drift this
-entry is about, and the gate's own behaviour is fully pinned by tests either way.
+**Why deferred (historical):** P2.3 (submission depth, matrix row 29) was concurrently
+porting `formatAddress` — including the street-type abbreviation the demo had no equivalent
+of. Introducing a fifth, competing helper while that landed would have been the exact drift
+this entry is about.
 
-**Trigger:** when P2.3's `formatAddress` port lands, make it the single producer: the gate's
-`toFinalSubmissionInput`, `selectCaseNotesData`, `generateNotes` and the bridge's two summary
-joins all call it, and this entry is struck. Keep the two deliberate differences explicit at
-the call sites — the gate must NOT take the `locationName` fallback (a location with no
-address must not pass), and the summary card must keep it (display, not validation).
+**RESOLVED — trigger fired and fully discharged in P2.** P2.3 landed
+`engine/logic/address-format.ts`; `selectCaseNotesData`, the notes address formatter and both
+bridge joins converted with it, and P2.4's `toFinalSubmissionInput` converted in the P2 fix
+round (review **R-11**, which caught that this entry shipped stale-on-arrival — four of four
+sites now call `formatAddress`, and the ledger says so).
+
+The conversion was behaviourally inert for the gate by construction: `formatAddress` trims
+each component and drops the blanks, the same emptiness semantics the private join had, so a
+whitespace-only address still fails `min(1)`. It is not cosmetic, though — the gate now
+validates the *same string* the PDF header, notes body and Cases row display, street-type
+abbreviation included. Pinned by
+`engine/logic/__tests__/final-submission.test.ts` ("composes the address through the shared
+formatAddress"), which fails if the private join ever returns.
+
+Both deliberate call-site differences survive the conversion and stay explicit in the source:
+the gate must NOT take the `locationName` fallback (a location with no address must not pass),
+and the Completion summary card must keep it (display, not validation).
+
 ---
 
 ## 39. P2.5 (parity/p2-advisories) — Time-Offset advisories: deliberate non-ports & residuals

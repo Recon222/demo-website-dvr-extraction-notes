@@ -51,7 +51,7 @@ import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
-import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
+import { loadSnapshot, persistDemoStore, type PersistenceHandle, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
 import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
@@ -142,9 +142,26 @@ const MISSING_FIELDS_BODY = 'Please fill in all required fields to complete the 
  * page's "this tab's session snapshot".
  */
 const PROGRESS_SAVED_TITLE = 'Progress Saved'
+/**
+ * True on BOTH arms below, and the reason the title still reads "Progress Saved" even when
+ * nothing is being stored: the location is in the store either way, and Cases really does
+ * reopen it. Only the persistence sentence differs.
+ */
+const PROGRESS_SAVED_SHARED = 'You can continue this location later from the Cases screen.\n\n'
 const PROGRESS_SAVED_BODY =
-  'You can continue this location later from the Cases screen.\n\n' +
+  PROGRESS_SAVED_SHARED +
   'Your work stays in this browser tab — it survives a refresh, but closing the tab starts fresh.'
+/**
+ * R-2: the demoted arm. `sessionStorage` can be absent or blocked (enterprise policy, privacy
+ * extension, sandboxed embed) — `persistDemoStore` answers that with a total no-op handle —
+ * and a quota/security write failure deliberately CLEARS the snapshot, so the refresh the
+ * visitor was just promised would boot empty. Saying nothing is not an option either: silence
+ * leaves them assuming the demo's usual behaviour. Same shape as the FallbackMode / "Sample
+ * data" honesty treatments.
+ */
+const PROGRESS_NOT_STORED_BODY =
+  PROGRESS_SAVED_SHARED +
+  "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -292,13 +309,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // P0.4: mirror the store into sessionStorage (debounced) so a mid-wizard refresh restores
   // the tab's work. pagehide flushes a pending write — a refresh rarely waits out the
   // debounce. Injected stores (the test seam) are deliberately not persisted.
+  // The handle is read at ALERT time by saveProgress (R-2), never at render — a value captured
+  // once would keep promising refresh survival after a write failure revoked it.
+  const persistenceRef = useRef<PersistenceHandle | null>(null)
   useEffect(() => {
-    if (injectedStore) return
-    const handle = persistDemoStore(store, sessionStorageOrNull())
+    // Injected stores (the test seam) are still deliberately not persisted — but they are
+    // wired with a NULL BACKEND rather than skipped, so every mount has a handle to ask about
+    // persistence. An absent handle is exactly the unknown state the old unconditional
+    // "survives a refresh" copy assumed away.
+    const handle = persistDemoStore(store, injectedStore ? null : sessionStorageOrNull())
+    persistenceRef.current = handle
     const onPageHide = () => handle.flush()
     window.addEventListener('pagehide', onPageHide)
     return () => {
       window.removeEventListener('pagehide', onPageHide)
+      persistenceRef.current = null
       handle.dispose()
     }
   }, [injectedStore, store])
@@ -846,9 +871,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   /** The blocked alert's second arm (`completion.tsx:377` → `handleSaveProgress`). */
   const saveProgress = () => {
+    // Honesty rule (parity plan §4; review R-2): promise refresh survival ONLY when the
+    // persistence layer is genuinely writing. Read here, at alert time, so a write failure
+    // that revoked the promise mid-session demotes the very next alert. A missing handle is
+    // treated as "not storing" — never assume.
+    const stored = persistenceRef.current?.isLive() ?? false
     setAlert({
       title: PROGRESS_SAVED_TITLE,
-      message: PROGRESS_SAVED_BODY,
+      message: stored ? PROGRESS_SAVED_BODY : PROGRESS_NOT_STORED_BODY,
       actions: [
         {
           label: 'OK',
