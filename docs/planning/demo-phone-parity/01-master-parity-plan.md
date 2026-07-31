@@ -214,12 +214,12 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P0 | P0.3 option consolidation | ✅ | #29 | canonical `engine/content/form-options.ts`; custom path live; FORM_OPTIONS deleted |
 | P0 | P0.4 persistence (D2) | ✅ | #29 | sessionStorage v2 snapshot, compile-time drift guards (FullShape/FullShapeIn) |
 | P0 | P0.5 glass tokens | ✅ | #29 | + @theme mirrors for the route error page |
-| P1 | P1.1 fonts | ✅ built | — | banked on `parity/p1-fonts`; merges with the P1 phase branch |
-| P1 | P1.2 picker upgrade | ☐ | | |
-| P1 | P1.3 log bus | ☐ | | |
-| P1 | P1.4 live terminal | ☐ | | |
-| P1 | P1.5 flow modes + dwell | ☐ | | |
-| P1 | P1.6 pdf preview save | ☐ | | |
+| P1 | P1.1 fonts | ✅ | #30 | next/font vars; guard widened to .ts + PDF templates |
+| P1 | P1.2 picker upgrade | ✅ | #30 | phone-verbatim 3 cards + paste stage; D5 honesty adaptations (§33) |
+| P1 | P1.3 log bus | ✅ | #30 | retain-and-replay, real pipeline emission, readonly lines, `pnpm typecheck` |
+| P1 | P1.4 live terminal | ✅ | #30 | phone-cited terminal; dual trust scopes (segment + run); Level-A a11y |
+| P1 | P1.5 flow modes + dwell | ✅ | #30 | computeImportFlowMode port; CTA sole exit; ERROR_MESSAGES enrichment |
+| P1 | P1.6 pdf preview save | ✅ | #30 | real window.print (pinned sandbox), beforeprint success signal; html2pdf no-ship (§34) |
 | P2 | P2.1 notes generator | ☐ | | |
 | P2 | P2.2 OCR confirm depth | ☐ | | |
 | P2 | P2.3 submission depth | ☐ | | |

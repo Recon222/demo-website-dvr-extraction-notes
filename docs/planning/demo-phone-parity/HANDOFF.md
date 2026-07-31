@@ -2,7 +2,7 @@
 
 **Purpose:** everything a fresh orchestrator instance (post-compaction or new session) needs to pick up EXACTLY where the previous one left off. Updated by the orchestrator at every milestone — trust the newest "Current state" snapshot over anything in a conversation summary.
 
-**Last updated:** 2026-07-30 — milestone: *PR #29 MERGED (all of P0, verdict APPROVE after 2 fix rounds); P1 wave + riders launching.*
+**Last updated:** 2026-07-31 — milestone: *PR #30 MERGED (all of P1 — the import experience — verdict APPROVE after 2 fix rounds, R-1..R-51). P2 wave launching under the HYBRID model policy (the A/B: Fable on P2.1, Opus tiers on P2.2–P2.5 + riders). P3 HOLDS until the post-P2 owner debrief. Master @ a5a91bd + docs. P1-era worktrees/branches all pruned; P2 worktrees: parity-p2 (phase), p2-notes, p2-ocr, p2-submission, p2-gate, p2-advisories, rider-import, rider-pdfsave. The 7 P1 residual minors (R-45..R-51, doc: docs/code-reviews/parity/p1/p1-r2-review-fixdelta.md — now IN-REPO, scratchpad worktree copies are gone) ride in P2: P1.4-owned five → opus-implementer-high rider; P1.6-owned two → the pdfsave-v2 agent. P2 reviewers will be RESUMABLE background agents per the §7 continuity policy.*
 
 ---
 
