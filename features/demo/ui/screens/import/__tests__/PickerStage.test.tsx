@@ -131,6 +131,8 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     const cardOf = (title: string) => screen.getByText(title).closest('button')!
     fireEvent.click(screen.getByText('Paste from Clipboard'))
     expect(cardOf('Paste from Clipboard')).toHaveAttribute('aria-busy', 'true')
+    // Default (no reduced-motion preference): the spinner spins (R-14's other direction).
+    expect(screen.getByTestId('clipboard-loading-indicator').style.animation).toContain('spin')
     expect(cardOf('Pick File')).toBeDisabled()
     expect(cardOf('Paste from Clipboard')).toBeDisabled()
     expect(cardOf('Paste Text')).toBeDisabled()
@@ -138,6 +140,30 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     await waitFor(() => expect(props.onClipboardText).toHaveBeenCalledWith('text from clipboard'))
     expect(cardOf('Pick File')).not.toBeDisabled()
     expect(cardOf('Paste from Clipboard')).not.toHaveAttribute('aria-busy')
+  })
+
+  it('reduced motion: the busy spinner renders static — arc visible, no spin animation (R-14)', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+    try {
+      renderStage({ readClipboardText: () => new Promise<string>(() => {}) }) // hangs → stays busy
+      fireEvent.click(screen.getByText('Paste from Clipboard'))
+      const spinner = screen.getByTestId('clipboard-loading-indicator')
+      expect(spinner).toBeInTheDocument() // busy is still communicated (plus aria-busy)…
+      expect(spinner.style.animation).toBe('') // …but nothing spins
+      expect(screen.getByText('Paste from Clipboard').closest('button')).toHaveAttribute('aria-busy', 'true')
+    } finally {
+      window.matchMedia = original
+    }
   })
 
   it('a rejecting onPdfFilesSelected surfaces the file-read backstop and re-enables the cards (R-22)', async () => {

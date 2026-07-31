@@ -90,9 +90,30 @@ const actionCard: CSSProperties = {
 const ICON_STROKE = '#5AB4E6'
 const DISABLED_STROKE = '#5d7a9a'
 
-function Spinner() {
+/** Per-render reduced-motion check (review R-14). Deliberately NOT motion/react's
+ *  useReducedMotion: that hook caches its matchMedia subscription module-globally
+ *  (motion-dom's hasReducedMotionListener), which buys nothing for a spinner that only
+ *  exists for the seconds a read is in flight — and a direct read is correct on the very
+ *  first frame (no armed-animation flash) and honors the suite's per-test overrides. */
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+function Spinner({ testId }: { testId: string }) {
+  // Reduced motion keeps the static arc (the card also carries aria-busy) — motion is
+  // the only thing gated, matching the terminal's cursor/CTA treatment.
+  const reduce = prefersReducedMotion()
   return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ICON_STROKE} strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite' }}>
+    <svg
+      data-testid={testId}
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={ICON_STROKE}
+      strokeWidth="2.5"
+      style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite' }}
+    >
       <path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" />
     </svg>
   )
@@ -104,6 +125,7 @@ function ActionCard({
   title,
   description,
   busy,
+  busyTestId,
   disabled,
   onClick,
 }: {
@@ -111,6 +133,8 @@ function ActionCard({
   title: string
   description: string
   busy?: boolean
+  /** data-testid for the busy spinner (phone testID parity, phone-inventory §5.2). */
+  busyTestId?: string
   disabled: boolean
   onClick(): void
 }) {
@@ -125,7 +149,7 @@ function ActionCard({
       {icon}
       <div style={{ fontSize: 17, fontWeight: 600, color: disabled ? DISABLED_STROKE : '#f0f4f8' }}>{title}</div>
       <div style={{ fontSize: 13, color: disabled ? DISABLED_STROKE : '#9fc0db', lineHeight: 1.45 }}>{description}</div>
-      {busy && <Spinner />}
+      {busy && <Spinner testId={busyTestId ?? 'picker-loading-indicator'} />}
     </button>
   )
 }
@@ -271,6 +295,7 @@ export function PickerStage(props: PickerStageProps) {
         title={PICKER_COPY.pickFileTitle}
         description={PICKER_COPY.pickFileDescription}
         busy={isReadingFile}
+        busyTestId="file-loading-indicator"
         disabled={isLoading}
         onClick={() => fileInputRef.current?.click()}
       />
@@ -286,6 +311,7 @@ export function PickerStage(props: PickerStageProps) {
         title={PICKER_COPY.clipboardTitle}
         description={PICKER_COPY.clipboardDescription}
         busy={isReadingClipboard}
+        busyTestId="clipboard-loading-indicator"
         disabled={isLoading}
         onClick={() => void handlePasteClipboard()}
       />
