@@ -19,18 +19,25 @@ describe('sandbox pass (headless)', () => {
     store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     store.getState().calculateOffset()
     store.getState().generateExtractedScopes()
-    store.getState().generateNotes()
+    store.getState().reconcileNotes()
 
     const loc = selectCurrentLocation(store.getState())
     expect(loc?.businessName).toBe("Kim's Convenience")
     expect(loc?.form.timeOffset?.formattedDifference).toBe('00:05:30')
     expect(loc?.form.extractedScopes.length).toBeGreaterThan(0) // DVR-time scopes from the offset
-    expect(loc?.form.notesText).toContain('PR25-0098213')
+    // Sectioned notes (P2.1): the address section carries the attendance line with the
+    // derived corrected (DVR Time) range; the scopes section uses the extracted scopes.
+    const sections = loc?.form.notesSections ?? []
+    expect(sections).toHaveLength(7)
+    expect(sections.find((s) => s.id === 'address')?.content).toContain("Kim's Convenience")
+    expect(sections.find((s) => s.id === 'address')?.content).toContain('DVR Time:')
+    expect(sections.find((s) => s.id === 'scopes')?.content).toContain('(DVR time)')
 
     const html = generateCaseNotesDoc(selectCaseNotesData(store.getState()))
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('PR25-0098213')
     expect(html).toContain('Extraction Scope')
+    expect(html).toContain("Attended Kim's Convenience") // the assembled notes body reached the PDF
   })
 
   it('creates a case + two locations and round-trips updateField per location', () => {

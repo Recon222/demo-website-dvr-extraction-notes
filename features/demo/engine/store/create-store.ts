@@ -10,6 +10,8 @@ import type {
   MediaItem,
   MediaKind,
   ModalId,
+  NoteSection,
+  NoteSectionId,
   OcrProof,
   Profile,
   ScopeEntry,
@@ -25,6 +27,12 @@ import {
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
+import {
+  assembleNotesString,
+  extractNotesRelevantData,
+  freshSectionContent,
+  reconcileSections,
+} from '@/features/demo/engine/logic/notes'
 import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
@@ -119,11 +127,37 @@ export interface DemoActions {
   closeLaunch(): void
   calculateOffset(): void
   generateExtractedScopes(): void
-  generateNotes(): void
+  /** Flow A (phone parity): reconcile stored sections against current wizard data —
+   *  un-edited sections silently pick up fresh output; edited ones are never clobbered.
+   *  Writes only when something changed (a clean pass performs ZERO writes). */
+  reconcileNotes(): void
+  /** Flow B: a section block committed (blur/unmount) with replaced text. Empty text
+   *  is an explicit deletion. `generatedContent` stays frozen (staleness baseline). */
+  commitNoteSection(sectionId: NoteSectionId, text: string): void
+  /** Flow C: user annotation for a section; never flips `manuallyEdited`. */
+  commitNoteAddendum(sectionId: NoteSectionId, text: string): void
+  /** Flow D: the ONLY path that clears `manuallyEdited` — rebuilds the section fresh.
+   *  The addendum survives. */
+  resetNoteSection(sectionId: NoteSectionId): void
+  /** Flow E1, footer "Write my own notes…": one atomic write — free text seeded per
+   *  mode, every section deleted (content '', manuallyEdited, addendum dropped);
+   *  `generatedContent` kept so deleted+stale restore rows still work. */
+  scrapAllNotes(mode: ScrapAllMode): void
+  /** Flow E2, banner "Restore": every section rebuilt fresh, addenda preserved;
+   *  'clear' also empties the free-text tail. */
+  restoreAllNotes(mode: RestoreAllMode): void
+  /** Free-text tail commit — no-op when unchanged (clean blurs never write). */
+  commitNotesFreeText(text: string): void
   applyImport(patch: MappedImport): void
   addMedia(kind: MediaKind, item: MediaItem): void
   deleteMedia(kind: MediaKind, id: string): void
 }
+
+/** Footer "Write my own notes…" modes: seed the free text from the current assembled
+ *  notes, or start blank (phone Flow E1). */
+export type ScrapAllMode = 'current' | 'blank'
+/** Banner "Restore" modes: keep or clear the free-text tail (phone Flow E2). */
+export type RestoreAllMode = 'keep' | 'clear'
 
 export type DemoStore = StoreApi<DemoState & DemoActions>
 
@@ -366,36 +400,184 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       }))
     },
 
-    generateNotes: () => {
+    // ---- Notes (P2.1 — the phone's seven-section generator; flows A–E2) ----------
+    // Every action reads the CURRENT location fresh at call time and no-ops when
+    // nothing changed, so clean blurs and unmount flushes never write (phone parity:
+    // "every callback reads getState() fresh; every one no-ops when nothing changed").
+
+    reconcileNotes: () => {
       const s = get()
       const id = s.currentLocationId
       if (!id) return
       const loc = s.locations.find((l) => l.id === id)
       if (!loc) return
-      const caseObj = s.cases.find((c) => c.id === loc.caseId)
-      const lines: string[] = [`Occurrence #: ${caseObj?.caseNumber ?? 'N/A'}`]
-      const addr = [loc.businessName, loc.streetAddress, loc.city].filter(Boolean).join(', ')
-      if (addr) lines.push(`Location: ${addr}`)
-      if (loc.requesterName) lines.push(`Requested by: ${loc.requesterName}`)
-      const off = loc.form.timeOffset
-      if (off) {
-        lines.push(
-          `DVR time offset: ${
-            off.isCorrect ? 'DVR time is correct' : `DVR is ${off.formattedDifference} ${off.direction} real time`
-          }`,
-        )
-      }
-      for (const sc of loc.form.scopes) {
-        lines.push(
-          `Requested scope: ${sc.startDateTime} → ${sc.endDateTime} (${sc.isActualTime ? 'real' : 'DVR'} time)${
-            sc.cameras ? `, cameras ${sc.cameras}` : ''
-          }`,
-        )
-      }
-      const notesText = lines.join('\n')
+      const { sections, changed } = reconcileSections(
+        extractNotesRelevantData(loc),
+        loc.form.notesSections,
+      )
+      // Phone Flow A gate: `changed || sections were never generated` — otherwise a
+      // clean focus performs zero writes (reference preservation upstream makes this
+      // exact, not heuristic).
+      if (!changed && loc.form.notesSections.length > 0) return
       set((st) => ({
         locations: st.locations.map((l) =>
-          l.id === id ? { ...l, form: { ...l.form, notesText, notesEdited: false } } : l,
+          l.id === id ? { ...l, form: { ...l.form, notesSections: sections } } : l,
+        ),
+      }))
+    },
+
+    commitNoteSection: (sectionId, text) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      const stored = loc?.form.notesSections.find((sec) => sec.id === sectionId)
+      if (!stored || stored.content === text) return
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                form: {
+                  ...l.form,
+                  notesSections: l.form.notesSections.map((sec) =>
+                    // generatedContent untouched — the frozen staleness baseline.
+                    sec.id === sectionId ? { ...sec, content: text, manuallyEdited: true } : sec,
+                  ),
+                },
+              }
+            : l,
+        ),
+      }))
+    },
+
+    commitNoteAddendum: (sectionId, text) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      const stored = loc?.form.notesSections.find((sec) => sec.id === sectionId)
+      if (!stored || (stored.userAddendum ?? '') === text) return
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                form: {
+                  ...l.form,
+                  notesSections: l.form.notesSections.map((sec) =>
+                    // NEVER sets manuallyEdited — an annotation is not a takeover.
+                    sec.id === sectionId ? { ...sec, userAddendum: text || undefined } : sec,
+                  ),
+                },
+              }
+            : l,
+        ),
+      }))
+    },
+
+    resetNoteSection: (sectionId) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      const stored = loc?.form.notesSections.find((sec) => sec.id === sectionId)
+      if (!loc || !stored) return
+      const fresh = freshSectionContent(sectionId, extractNotesRelevantData(loc))
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                form: {
+                  ...l.form,
+                  notesSections: l.form.notesSections.map((sec) =>
+                    sec.id === sectionId
+                      ? {
+                          id: sec.id,
+                          content: fresh,
+                          generatedContent: fresh,
+                          manuallyEdited: false, // the ONLY path that clears it
+                          ...(sec.userAddendum !== undefined
+                            ? { userAddendum: sec.userAddendum } // addendum survives reset
+                            : {}),
+                        }
+                      : sec,
+                  ),
+                },
+              }
+            : l,
+        ),
+      }))
+    },
+
+    scrapAllNotes: (mode) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      if (!loc) return
+      const notesFreeText =
+        mode === 'current'
+          ? assembleNotesString(loc.form.notesSections, loc.form.notesFreeText)
+          : ''
+      // ONE atomic write. generatedContent kept as the frozen baseline so
+      // deleted+stale restore rows still work; addenda are dropped (phone E1).
+      const notesSections: NoteSection[] = loc.form.notesSections.map((sec) => ({
+        id: sec.id,
+        content: '',
+        generatedContent: sec.generatedContent,
+        manuallyEdited: true,
+      }))
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id ? { ...l, form: { ...l.form, notesSections, notesFreeText } } : l,
+        ),
+      }))
+    },
+
+    restoreAllNotes: (mode) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      if (!loc) return
+      const fd = extractNotesRelevantData(loc)
+      const notesSections: NoteSection[] = loc.form.notesSections.map((sec) => {
+        const fresh = freshSectionContent(sec.id, fd)
+        return {
+          id: sec.id,
+          content: fresh,
+          generatedContent: fresh,
+          manuallyEdited: false,
+          ...(sec.userAddendum !== undefined ? { userAddendum: sec.userAddendum } : {}), // preserved
+        }
+      })
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                form: {
+                  ...l.form,
+                  notesSections,
+                  ...(mode === 'clear' ? { notesFreeText: '' } : {}),
+                },
+              }
+            : l,
+        ),
+      }))
+    },
+
+    commitNotesFreeText: (text) => {
+      const s = get()
+      const id = s.currentLocationId
+      if (!id) return
+      const loc = s.locations.find((l) => l.id === id)
+      if (!loc || loc.form.notesFreeText === text) return
+      set((st) => ({
+        locations: st.locations.map((l) =>
+          l.id === id ? { ...l, form: { ...l.form, notesFreeText: text } } : l,
         ),
       }))
     },

@@ -58,6 +58,7 @@ import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
+import { assembleNotesString, buildNotesSectionMeta } from '@/features/demo/engine/logic/notes'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
@@ -321,6 +322,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     prevFirstRecorded.current = fr
   }, [store, currentLocation])
+
+  // Flow A (phone parity: the Notes screen's focus reconcile): entering the Notes
+  // screen reconciles stored sections against current wizard data — un-edited sections
+  // silently pick up fresh output, edited ones are never clobbered. Keyed on the
+  // location too, so switching locations while the screen is open re-reconciles.
+  // The action itself is a no-op when nothing changed (reference-preserving).
+  useEffect(() => {
+    if (view === 'notes') store.getState().reconcileNotes()
+  }, [store, view, currentLocationId])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
 
@@ -839,14 +849,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'notes':
+        // The seven-section editor (P2.1). Meta derives from the subscribed location;
+        // copyAllText reads COMMITTED store values (the phone's documented micro-edge).
         return (
           <NotesScreen
-            notes={currentLocation?.form.notesText ?? ''}
-            onChange={(v) => {
-              store.getState().updateField('form.notesText', v)
-              store.getState().updateField('form.notesEdited', true)
-            }}
-            onRegenerate={() => store.getState().generateNotes()}
+            sections={buildNotesSectionMeta(currentLocation)}
+            freeText={currentLocation?.form.notesFreeText ?? ''}
+            copyAllText={
+              currentLocation
+                ? assembleNotesString(currentLocation.form.notesSections, currentLocation.form.notesFreeText)
+                : ''
+            }
+            onCommitSection={(id, text) => store.getState().commitNoteSection(id, text)}
+            onCommitAddendum={(id, text) => store.getState().commitNoteAddendum(id, text)}
+            onResetSection={(id) => store.getState().resetNoteSection(id)}
+            onScrapAll={(mode) => store.getState().scrapAllNotes(mode)}
+            onRestoreAll={(mode) => store.getState().restoreAllNotes(mode)}
+            onCommitFreeText={(text) => store.getState().commitNotesFreeText(text)}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

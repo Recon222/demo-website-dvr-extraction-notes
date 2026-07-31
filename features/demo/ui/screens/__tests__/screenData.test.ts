@@ -131,7 +131,7 @@ describe('truthful location-row status (G3)', () => {
       },
       cameras: [{ id: 'c1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15' }],
       export: { exportMedia: 'USB', fileType: '.mp4', sizeGb: '2', mediaPlayerIncluded: false, mediaProvidedVia: 'USB' },
-      notesText: 'Notes',
+      notesFreeText: 'Notes',
       dateTimeCompleted: '2025-03-09 12:00',
       completedBy: 'Det. McHugh',
     }

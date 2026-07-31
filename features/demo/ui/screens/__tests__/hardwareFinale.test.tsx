@@ -50,12 +50,36 @@ describe('ExportInfoScreen', () => {
   })
 })
 
-describe('NotesScreen', () => {
-  it('regenerates the notes', () => {
-    const onRegenerate = vi.fn()
-    render(<NotesScreen notes="case notes" onChange={vi.fn()} onRegenerate={onRegenerate} {...nav} />)
-    fireEvent.click(screen.getByText('Regenerate'))
-    expect(onRegenerate).toHaveBeenCalledOnce()
+describe('NotesScreen (smoke — full behavioral suite in NotesScreen.test.tsx)', () => {
+  it('renders a section paragraph and commits an edit on blur', () => {
+    const onCommitSection = vi.fn()
+    render(
+      <NotesScreen
+        sections={[
+          {
+            id: 'address',
+            label: 'address & visits',
+            content: '• Attended Shop to recover requested video evidence.',
+            manuallyEdited: false,
+            stale: false,
+            freshContent: '• Attended Shop to recover requested video evidence.',
+          },
+        ]}
+        freeText=""
+        copyAllText=""
+        onCommitSection={onCommitSection}
+        onCommitAddendum={vi.fn()}
+        onResetSection={vi.fn()}
+        onScrapAll={vi.fn()}
+        onRestoreAll={vi.fn()}
+        onCommitFreeText={vi.fn()}
+        {...nav}
+      />,
+    )
+    const body = screen.getByLabelText('address & visits')
+    fireEvent.change(body, { target: { value: 'my own account' } })
+    fireEvent.blur(body)
+    expect(onCommitSection).toHaveBeenCalledWith('address', 'my own account')
   })
 })
 

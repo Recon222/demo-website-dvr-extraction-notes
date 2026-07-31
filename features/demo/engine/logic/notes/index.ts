@@ -13,6 +13,7 @@ export {
 } from '@/features/demo/engine/logic/notes/section-reconciler'
 export { assembleNotesString } from '@/features/demo/engine/logic/notes/notes-assembler'
 export { extractNotesRelevantData } from '@/features/demo/engine/logic/notes/notes-relevant-data'
+export { buildNotesSectionMeta, type NoteSectionMeta } from '@/features/demo/engine/logic/notes/section-meta'
 export type {
   NotesRelevantFormData,
   NotesScope,

@@ -218,8 +218,12 @@ export interface LocationForm {
   dvr: DvrInformation
   cameras: CameraEntry[]
   export: ExportInformation
-  notesText: string
-  notesEdited: boolean
+  /** The seven independently-tracked notes sections (registry order once reconciled).
+   *  Empty until the Notes screen first reconciles (Flow A) — read paths that need
+   *  wizard-fresh notes reconcile READ-ONLY themselves (Flow F, the PDF path). */
+  notesSections: NoteSection[]
+  /** Free-text tail appended after all sections in the assembled notes. */
+  notesFreeText: string
   /** Completion screen entry fields. */
   dateTimeCompleted: string
   completedBy: string
