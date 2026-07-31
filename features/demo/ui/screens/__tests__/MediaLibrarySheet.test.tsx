@@ -159,8 +159,10 @@ describe('the list rows (rows 59–61)', () => {
       />,
     )
 
-    expect(screen.getAllByText('Jul 16, 2026')).toHaveLength(2)
-    expect(screen.getByText('Rear door, north wall')).toBeInTheDocument()
+    // Scoped to the list — the preview panel below shows the selected item's date too.
+    const list = screen.getByTestId('media-library-content')
+    expect(within(list).getAllByText('Jul 16, 2026')).toHaveLength(2)
+    expect(within(list).getByText('Rear door, north wall')).toBeInTheDocument()
   })
 
   it('orders newest first', () => {
@@ -232,5 +234,130 @@ describe('selection (row 58 — auto-select-first)', () => {
   it('selects nothing on an empty tab', () => {
     render(<MediaLibrarySheet {...props()} />)
     expect(screen.queryByRole('button', { name: /^Photo: / })).not.toBeInTheDocument()
+  })
+})
+
+describe('the inline preview (row 63)', () => {
+  it('opens on the auto-selected item and shows its bytes', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+
+    expect(screen.getByTestId('media-preview')).toBeInTheDocument()
+    expect(screen.getByAltText('Image preview: front-door.jpg')).toHaveAttribute('src', 'blob:one')
+  })
+
+  it('renders a video and an audio item with their own playback controls', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+
+    fireEvent.click(tab('Video tab, 1 items'))
+    expect(screen.getByLabelText('Video preview: lobby.mp4')).toHaveAttribute('controls')
+
+    fireEvent.click(tab('Audio tab, 1 items'))
+    expect(screen.getByLabelText('Audio preview: note.m4a')).toHaveAttribute('controls')
+  })
+
+  it('follows the selected row', () => {
+    render(
+      <MediaLibrarySheet
+        {...props({
+          media: buckets({
+            photos: [
+              item({ id: 'p1', filename: 'older.jpg', capturedAt: '2026-07-14 09:00:00', url: 'blob:older' }),
+              item({ id: 'p2', filename: 'newer.jpg', capturedAt: '2026-07-16 09:00:00', url: 'blob:newer' }),
+            ],
+          }),
+        })}
+      />,
+    )
+
+    expect(screen.getByAltText('Image preview: newer.jpg')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Photo: older.jpg' }))
+
+    expect(screen.getByAltText('Image preview: older.jpg')).toBeInTheDocument()
+    expect(screen.queryByAltText('Image preview: newer.jpg')).not.toBeInTheDocument()
+  })
+
+  it('collapses through its own Close preview button, leaving the list up', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
+
+    expect(screen.queryByTestId('media-preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('is absent on an empty tab', () => {
+    render(<MediaLibrarySheet {...props()} />)
+    expect(screen.queryByTestId('media-preview')).not.toBeInTheDocument()
+  })
+})
+
+describe('a capture that did not survive the refresh (P4.1’s contract)', () => {
+  /** What `snapshotOf` leaves behind: the record of the capture, with no `url`. */
+  const expired = item({ id: 'x1', filename: 'front-door.jpg', url: undefined })
+
+  it('explains the mechanism instead of rendering a broken image', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [expired] }) })} />)
+
+    expect(screen.queryByAltText('Image preview: front-door.jpg')).not.toBeInTheDocument()
+    const notice = screen.getByTestId('media-expired-notice')
+    expect(notice).toHaveTextContent('did not survive the refresh')
+    expect(notice).toHaveTextContent('never writes captured media to storage')
+  })
+
+  it('still lists the row, with its filename and metadata intact', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [expired] }) })} />)
+
+    expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).toBeInTheDocument()
+    expect(screen.getByTestId('media-preview-info')).toHaveTextContent('front-door.jpg')
+  })
+})
+
+describe('the item info panel (row 64)', () => {
+  it('shows filename, duration, date and caption — and nothing editable', () => {
+    render(
+      <MediaLibrarySheet
+        {...props({
+          media: buckets({ videos: [item({ id: 'v1', kind: 'video', filename: 'lobby.mp4', durationSec: 95, caption: 'Rear door, north wall' })] }),
+        })}
+      />,
+    )
+    fireEvent.click(tab('Video tab, 1 items'))
+
+    const info = screen.getByTestId('media-preview-info')
+    expect(info).toHaveTextContent('lobby.mp4')
+    expect(info).toHaveTextContent('01:35 · Jul 16, 2026')
+    expect(within(info).getByTestId('media-item-caption')).toHaveTextContent('Rear door, north wall')
+    // The phone's library DISPLAYS metadata and never edits it (MediaItemInfo.tsx:88-147 is
+    // read-only Text; MediaPreview takes no change callback) — so neither does this.
+    expect(within(info).queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('reserves the caption line when there is no caption, so selection does not shift the list', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ caption: '' })] }) })} />)
+
+    expect(screen.queryByTestId('media-item-caption')).not.toBeInTheDocument()
+    expect(screen.getByTestId('media-preview-info').lastElementChild).toHaveStyle({ minHeight: '16px' })
+  })
+
+  it('badges a bundled sample', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ sample: true })] }) })} />)
+    expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toBeInTheDocument()
+  })
+
+  it('shows no Sample badge for a live capture', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    expect(within(screen.getByTestId('media-preview-info')).queryByText('Sample')).not.toBeInTheDocument()
+  })
+
+  it('omits the duration segment entirely when nothing measured it', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ audios: [item({ id: 'a1', kind: 'audio', filename: 'note.m4a' })] }) })} />)
+    fireEvent.click(tab('Audio tab, 1 items'))
+
+    const info = screen.getByTestId('media-preview-info')
+    expect(info).toHaveTextContent('Jul 16, 2026')
+    // Not the row's `--:--` placeholder — the panel drops the segment (MediaItemInfo.tsx:46-64).
+    expect(info).not.toHaveTextContent('--:--')
   })
 })

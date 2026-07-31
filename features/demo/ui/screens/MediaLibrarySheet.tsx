@@ -5,9 +5,11 @@ import type { CSSProperties } from 'react'
 
 import {
   DEFAULT_MEDIA_TAB,
+  MEDIA_EXPIRED_NOTICE,
   MEDIA_LIBRARY_TABS,
   UNKNOWN_DURATION_LABEL,
   formatCapturedDate,
+  isMediaAvailable,
   mediaDurationLabel,
   mediaForTab,
   mediaLibraryCounts,
@@ -83,6 +85,18 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
           as they do on the phone; the paddings below are each surface's own. */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, margin: -18 }}>
         <MediaTabs active={tab} counts={counts} onSelect={selectTab} />
+
+        {/* Between the tabs and the list — the phone's content order (ui-mapping 09:285-296). */}
+        {selected !== null && (
+          <MediaPreview
+            // Keyed so switching rows REMOUNTS the panel: the media element is torn down and
+            // rebuilt rather than re-pointed, which is the same reason the phone keys its inset
+            // on `media.id` (MediaPreview.tsx:320-322 — a re-pointed native player crashed).
+            key={selected.id}
+            item={selected}
+            onClose={() => setSelectedId(null)}
+          />
+        )}
 
         <div data-testid="media-library-content" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {items.length === 0 ? (
@@ -171,6 +185,137 @@ function MediaTabs({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ---- Inline preview + item info (matrix rows 63, 64) ------------------------
+
+/**
+ * The phone's three zones, in its order (`MediaPreview.tsx:286-353`): the recessed inset that
+ * holds the media, the read-only info panel BELOW it, then the action row.
+ *
+ * Zone 1 uses the browser's own `<video controls>` / `<audio controls>`, which is the demo's
+ * established treatment for playback (`MediaCaptureScreen`'s review stage does the same for
+ * video) and, unlike a second hand-rolled transport, is keyboard-operable and announced without
+ * any work — the phone's play/pause + seekable bar + elapsed/total IS what a native control is.
+ * §63d records the choice and what would change it.
+ */
+function MediaPreview({ item, onClose }: { item: MediaItem; onClose(): void }) {
+  const available = isMediaAvailable(item)
+
+  return (
+    <div data-testid="media-preview" style={{ flex: '0 0 auto', borderBottom: '1px solid rgba(43,140,193,0.12)', paddingBottom: 6 }}>
+      {/* ---- Zone 1: the recessed inset ---- */}
+      <div
+        style={{
+          margin: '10px 10px 0',
+          padding: 8,
+          borderRadius: 12,
+          border: '1px solid rgba(0,0,0,0.5)',
+          background: 'rgba(10,20,34,0.85)',
+          boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.35)',
+        }}
+      >
+        {available ? <MediaContent item={item} /> : <ExpiredMediaNotice />}
+      </div>
+
+      {/* ---- Zone 2: the info panel (read-only, exactly as the phone's is) ---- */}
+      <MediaItemInfo item={item} />
+
+      {/* ---- Zone 3: the action row ---- */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 12px 4px' }}>
+        <button type="button" aria-label="Close preview" onClick={onClose} style={previewActionButton}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** The bytes themselves. Photos get a 4:3 box and videos 16:9, matching the phone's
+ *  `PREVIEW_CONFIG` aspect ratios; audio has no picture, so its control sits in the same well. */
+function MediaContent({ item }: { item: MediaItem }) {
+  if (item.kind === 'photo') {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a blob: object URL cannot go
+      // through next/image, and the bundled samples are served unoptimized from /public.
+      <img
+        src={item.url}
+        alt={`Image preview: ${item.filename}`}
+        style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'contain', background: '#0a1320', borderRadius: 8, display: 'block' }}
+      />
+    )
+  }
+  if (item.kind === 'video') {
+    return (
+      <video
+        aria-label={`Video preview: ${item.filename}`}
+        src={item.url}
+        poster={item.poster}
+        controls
+        style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'contain', background: '#0a1320', borderRadius: 8, display: 'block' }}
+      />
+    )
+  }
+  return (
+    <div style={{ padding: '18px 6px 10px' }}>
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- an operator's own audio note has
+          no caption track; the filename and the visitor's notes are its transcript. */}
+      <audio aria-label={`Audio preview: ${item.filename}`} src={item.url} controls style={{ width: '100%' }} />
+    </div>
+  )
+}
+
+/**
+ * What a restored capture shows instead of a player (P4.1's refresh contract). It says the
+ * MECHANISM, because "media unavailable" would read as a bug: the demo deliberately does not
+ * write a visitor's photographs into browser storage, so the record of the capture survives a
+ * refresh and the bytes do not.
+ */
+function ExpiredMediaNotice() {
+  return (
+    <div
+      data-testid="media-expired-notice"
+      style={{ padding: '22px 16px', textAlign: 'center', fontSize: 12, lineHeight: 1.55, color: '#ffd07a', background: 'rgba(255,200,90,0.06)', border: '1px solid rgba(255,200,90,0.25)', borderRadius: 8 }}
+    >
+      {MEDIA_EXPIRED_NOTICE}
+    </div>
+  )
+}
+
+/**
+ * Phone `MediaItemInfo` (`MediaItemInfo.tsx`, ui-mapping 09:502) — three lines, DISPLAY ONLY.
+ * Line 1 the filename, line 2 the badge/duration/date meta row, line 3 the caption, which
+ * always reserves its height so selecting a captioned row after an uncaptioned one does not
+ * shift the list under the pointer.
+ *
+ * The phone's badge slot carries an `ImageCategory` (`DVR`/`Crop`/`Camera`); the demo's
+ * `MediaItem` has no category and instead knows whether the capture came from bundled sample
+ * bytes, which is the fact a visitor here needs — so `Sample` takes that slot (§63b).
+ */
+function MediaItemInfo({ item }: { item: MediaItem }) {
+  const duration = mediaDurationLabel(item)
+  const date = formatCapturedDate(item.capturedAt)
+  const segments = [duration, date === '' ? null : date].filter((s): s is string => s !== null)
+
+  return (
+    <div data-testid="media-preview-info" style={{ padding: '10px 12px 4px' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8', wordBreak: 'break-all' }}>{item.filename}</div>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+        {item.sample === true && <span style={sampleBadge}>Sample</span>}
+        {segments.length > 0 && <span style={{ fontSize: 11, color: '#7a9fc4' }}>{segments.join(' · ')}</span>}
+      </div>
+      {/* ` ` when empty — the phone renders a bare space for the same reason
+          (MediaItemInfo.tsx:138-146) and, like the phone's, the empty line carries no test id. */}
+      <div
+        data-testid={item.caption === '' ? undefined : 'media-item-caption'}
+        style={{ fontSize: 12, fontStyle: 'italic', color: '#7a9fc4', marginTop: 4, minHeight: 16 }}
+      >
+        {item.caption === '' ? ' ' : item.caption}
+      </div>
     </div>
   )
 }
@@ -341,4 +486,34 @@ const metaLine: CSSProperties = {
   fontSize: 11,
   color: '#7a9fc4',
   marginTop: 2,
+}
+
+/** The 3D glass action button of the phone's preview action row (`MediaPreview.tsx:258-278`). */
+const previewActionButton: CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderTopColor: 'rgba(255,255,255,0.14)',
+  borderBottomColor: 'rgba(0,0,0,0.3)',
+  color: '#cdd9e6',
+  cursor: 'pointer',
+}
+
+/** The demo's sample badge, shared in appearance with the two capture screens' — a bundled
+ *  asset is labelled everywhere it appears, never only where it was made. */
+const sampleBadge: CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: 0.8,
+  textTransform: 'uppercase',
+  color: '#ffd07a',
+  background: 'rgba(255,200,90,0.12)',
+  border: '1px solid rgba(255,200,90,0.3)',
+  borderRadius: 6,
+  padding: '1px 6px',
 }
