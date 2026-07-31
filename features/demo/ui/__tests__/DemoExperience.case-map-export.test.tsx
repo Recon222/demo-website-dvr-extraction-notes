@@ -52,6 +52,7 @@ function openMap(opts: { located?: boolean } = {}) {
   act(() => {
     const c = store.getState().createCase({ caseNumber: 'PR25-MAP', displayName: 'MapCase', unit: 'Central Robbery' })
     store.getState().updateIncidentLocation(c, {
+      incidentBusinessName: '',
       incidentStreetAddress: '1 Main St',
       incidentCity: 'Mississauga',
       incidentCoordinates: { lat: 43.7, lng: -79.4, source: 'geocoded' },

@@ -51,8 +51,8 @@ export function buildCaseMapMeta(caseData: DemoCase | null | undefined, generate
  *
  * `JSON.stringify` does not escape `<`, so a location name containing `</script>` would
  * close the tag early: the map's reader (`case-map.app.js:109`) would hit a `JSON.parse`
- * failure inside a bare `catch {}` and render an EMPTY map with no error anywhere. `<`
- * is valid JSON and parses back to `<`, so this is lossless.
+ * failure inside a bare `catch {}` and render an EMPTY map with no error anywhere. The
+ * escape written below is valid JSON and parses back to `<`, so this is lossless.
  *
  * A hardening the phone does not have (its builder passes `JSON.stringify` straight in,
  * case-map-export-service.ts:143-144) — logged as a back-port candidate in
