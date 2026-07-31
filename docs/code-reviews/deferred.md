@@ -3194,3 +3194,118 @@ Selection, fullscreen and the pending delete are all held as IDs and RESOLVED ag
 list each render, which is what gives the phone's `onDeleted → closePreview` behaviour for free.
 **Trigger:** none — this is a note for whoever next reads the two files side by side and wonders
 where the effects went.
+
+## 64. P4.7 (parity/p4-ocr) — the OCR real camera: decisions, refutations & residuals
+
+**Source:** P4.7 OCR real camera (plan §5 P4.7; matrix row 37; owner decision D8; ui-mapping
+`06-wizard-b-time.md`; phone `src/features/ocr-time-capture/`). Crop geometry in
+`features/demo/engine/logic/ocr-crop.ts`, recognition I/O in
+`features/demo/ui/inputs/ocr-recognize.ts`, the live viewfinder in
+`features/demo/ui/screens/OcrCaptureScreen.tsx`, the shared read-presentation path
+(`runOcrRead`) and the Time-Offset PDF proof mapping in `ui/DemoExperience.tsx`, vendored
+runtime assets in `public/ocr/` (see `SOURCES.md` there).
+
+### 64a. DECISION — `OcrProof.imageDataUrl` persists under SNAPSHOT_VERSION 6, size-bounded at capture
+
+The brief flagged this as potentially version-shaped. It is not: `imageDataUrl` has been an
+optional member of `OcrProof` and of `ocrProofSchema` (`z.string().optional()`,
+`engine/store/persistence.ts:166`) since the field was typed — this package is the first
+WRITER, not a schema change, so v5→v6-style discard analysis does not arise and
+`SNAPSHOT_VERSION` stays 6. The persistence choice among the three options:
+
+- **Ephemeral** would break the feature's own point — the strip is the evidence image the
+  Time-Offset report embeds, and a refresh that silently dropped it would reproduce the
+  demo's "always-empty OCR image block" bug in a new form.
+- **Strip-on-persist** (the `MediaItem.url` precedent) is for `blob:` URLs, which die with
+  the document. A data URL is self-contained and survives; stripping it would discard data
+  that rehydrates fine.
+- **Persist with a size bound** wins, with the bound enforced at CONSTRUCTION:
+  `grabVideoFrame`'s new `targetWidth` caps the strip at 1280 px wide (aspect preserved,
+  never upscaled), so the recogniser and the stored proof read the same bounded pixels.
+  Measured: a 720p frame yields a 1152×122 strip ≈ 25–60 KB JPEG ≈ 35–80 KB base64; the
+  4K worst case downscales to 1280×136 ≈ ≤120 KB base64. One proof per location (plus the
+  staging copy in `capture.ocr`) against the ~5 MB sessionStorage quota. Round-trip pinned in
+  `DemoExperience.ocr.test.tsx`.
+
+**Trigger:** none — revisit the 1280 px bound only if the report's print fidelity is ever
+found wanting.
+
+### 64b. DECISION — self-hosted recogniser assets; the SIMD+LSTM core is pinned as ONE file
+
+tesseract.js's browser defaults are all jsdelivr CDN URLs (worker, core, langdata —
+`src/worker/browser/defaultOptions.js`, `src/worker-script/browser/index.js`,
+`worker-script/index.js:130`). The demo must not depend on a third-party CDN at runtime, so
+`public/ocr/` vendors: `worker.min.js` (109 KB), `tesseract-core-simd-lstm.wasm.js` (3.7 MB,
+single-file build — verified it references no sibling `.wasm` to fetch), and
+`eng.traineddata.gz` (2.8 MB, `4.0.0_best_int` LSTM-only model). ~6.8 MB in-repo, fetched
+lazily only when a live capture runs recognition.
+
+Pinning `corePath` to a specific `.js` file skips tesseract's runtime SIMD feature detection
+(a directory `corePath` would make the worker pick among relaxedsimd/simd/plain variants —
+hosting all three LSTM variants costs ~11.7 MB for a marginal relaxed-SIMD win). **Residual:**
+a browser without wasm SIMD (pre-16.4 Safari era) fails recognition honestly — the notice
+names the failure and the sample path stays available. **Trigger:** a real-world report of
+that failure → vendor `tesseract-core-lstm.wasm.js` too and pass the directory instead.
+
+### 64c. DECISION — the crop is taken from the VISIBLE (cover-fitted) band, not the raw frame
+
+The phone crops the raw photo (centered 90% × 17%) because its full frame IS what the
+operator saw. The demo's landscape viewfinder renders the stream `object-fit: cover`, so a
+camera whose aspect differs from 16:9 has pixels OFF-screen — and a raw-frame crop would
+include regions the operator never aimed at (with no height buffer to forgive it, a 4:3
+camera's raw-frame strip would read ~25% off-target vertically). `ocrCropRegion` therefore
+scales the strip into the visible band, reducing EXACTLY to the phone's
+`{0.05, 0.415, 0.90, 0.17}` when aspects match. Pinned to source-rect pixels in
+`OcrCaptureScreen.live.test.tsx` (both the matched and the 4:3-in-16:9 case).
+
+### 64d. REFUTATION (plan wording) — the 5% buffer is WIDTH-ONLY, and the guide excludes it
+
+The plan/brief say "80% × 17% with a 5% crop buffer", which under-specifies two things the
+phone source pins: the buffer applies per side to the WIDTH ONLY
+(`ocr-capture-service.ts:65-70` — `boxWidth = photo.width * (widthPercent + CROP_BUFFER_PERCENT * 2)`;
+`boxHeight = photo.height * heightPercent`, no buffer), and the on-screen guide shows the
+UNBUFFERED 80% × 17% — the buffer lands outside the guide, forgiving hands without inviting
+the operator to fill it. Both carried over verbatim; the constants are re-pinned by test with
+the phone citations (`engine/logic/__tests__/ocr-crop.test.ts`).
+
+### 64e. DECISION — recogniser configuration and lifecycle
+
+- **PSM `SINGLE_BLOCK`** (6): the strip is a cropped band carrying one or two short lines;
+  full-page auto-segmentation hunts for layout that does not exist. Not `SINGLE_LINE` (7) —
+  some DVRs stack date over time, and the strip can legitimately carry both.
+- **No `tessedit_char_whitelist`.** A digits-and-separators whitelist would forbid exactly
+  the tokens the ported cleaning pipeline protects and repairs (day/month names, AM/PM,
+  O→0/l→1 slips — `cleanOcrText`'s whole reason to exist). The recogniser stays naive; the
+  cleaning pipeline stays the work of art.
+- **Worker lifecycle:** module singleton, created on first shutter, reused across retakes,
+  disposed on screen unmount (tens of MB of wasm heap must not outlive the screen). A FAILED
+  boot is not cached — a transient asset-fetch failure is retryable. All pinned in
+  `ocr-recognize.test.ts` / `OcrCaptureScreen.dispose.test.tsx`.
+
+### 64f. EVIDENCE — recognition quality on DVR-style strips (node-side lab, vendored model)
+
+Ten synthetic DVR-style strips (1152×122, the demo's real capture size) run through the SAME
+tesseract.js 7.0.0 + vendored `eng.traineddata.gz`: clean ISO / slash / dash / time-only /
+AM-PM formats, a sans OSD font, small far-DVR text, low contrast, text over live-video grey,
+and a noisy frame — **10/10 exact reads, confidence 94–96**. Real webcam captures of real DVR
+monitors will land lower (glare, moiré, seven-segment-style fonts), which the measured
+confidence tiers and the failed-parse/failed-recognition notices absorb honestly. The `.gz`
+langdata serves as `application/gzip` (no transparent decoding) and tesseract inflates it
+itself — verified in the lab run through the same `langPath` file.
+
+### 64g. NOTE — R-16's "Sample" badge is now conditional, and its copy changed
+
+`OcrResult.confidence` gained `measured: boolean`. The badge + disclaimer render only for the
+fixed sample score; a live read's confidence is the recogniser's own number and carries
+neither. The old disclaimer sentence "a browser has no recogniser to score" became FALSE the
+moment this package landed and now reads "no live frame was scored here". The sample score
+itself remains the demo's one fabricated on-screen number, exactly as R-16 recorded.
+
+### 64h. RESIDUAL — the granted-but-closed viewfinder state
+
+The camera is released while the confirm stage is up (phone parity: its camera unmounts under
+the confirmation screen) and reopened automatically ONLY for a stream the screen itself
+closed. If that reopen fails — device unplugged mid-confirm — the viewfinder shows a
+"Restart camera" control rather than retrying in a loop. Deliberate: an auto-retry against a
+`NO_DEVICE` failure whose permission state stays `granted` would spin.
+**Trigger:** none — behaviour note.
