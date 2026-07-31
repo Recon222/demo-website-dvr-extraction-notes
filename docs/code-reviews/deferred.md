@@ -3387,6 +3387,10 @@ new, names no device on purpose (both existing sentences would be false), and
 visitor is told the first thing that would have to be fixed. This is what makes the folded S-3
 rider genuinely closed rather than relabelled.
 
+**Fix-delta FD-6 (NIT) — ✅ RESOLVED in `parity/p4-fix2-capability`.** Deleting `sampleOnly` left
+`useMediaCapture`'s own docblock still naming it, twenty lines above the interface that explains
+it is gone. Now reads `capability.modeFor(kind)`. Rode FD-1's commit (same file, one sentence).
+
 ### 65c. R-3's screen half is a disclosed territory crossing into P4.3's file
 
 `MediaCaptureScreen.tsx` is P4.3's, and P4.3 was fixing other findings in it in a parallel
@@ -3411,6 +3415,23 @@ the state already stopped and returns early, so nothing would ever assemble the 
 of `stopRecording` is now a shared `finishTake(stopped, atMs)` that both paths call. With the
 state banked at the real end, the two figures no longer disagree at all — so the "prefer recorded
 length" half of the suggested fix is unnecessary rather than skipped.
+
+**Fix-delta FD-1 (MINOR, fix-introduced) — ✅ RESOLVED in `parity/p4-fix2-capability`.** The
+split carried a cost this entry did not notice: it moved `handleRef.current = null` ahead of
+`await handle.stop()`, and `abortRecording`'s only route to the recorder is
+`handleRef.current?.abort()`. A Cancel landing between Stop and the recorder's `stop` event hit
+nothing, and the cancelled take assembled, minted a URL and published itself to review — the
+hook's stated contract false in exactly the window it exists for. Latent (the sole caller pairs
+abort with unmount, so `abortedRef` intercepted) but `MediaCaptureScreen` already holds an
+`abortRecording` it does not yet call.
+
+The handle now stays in the ref across the await, and afterwards whoever cleared or replaced it
+owns the take — `abortRecording` nulls it, a fresh `startRecording` reassigns it — so both bail
+without publishing, and the ref is un-set only while it still points at this take. That also
+closes a race the fix shape did not name: an abort arriving after `onstop` has already settled is
+a no-op inside the handle, but the identity re-check still refuses to publish. **Generalise:**
+moving a ref clear across an `await` moves it out of reach of every handler that reads that ref
+— the window is not the await, it is everything the ref gates.
 
 ### 65f. `useCaptureStream` is deliberately NOT given the same self-end signal
 
@@ -3542,6 +3563,14 @@ assertion that the message names the list and never says the capture failed, and
 arm that no "nothing was captured / could not be opened" text renders under a live viewfinder.
 Mutation-probed — restoring `classifyCaptureError` on the rejection reddens nine arms across
 four files.
+
+**Fix-delta FD-5 (LOW) — ✅ RESOLVED in `parity/p4-fix2-capability`.** The collapse was endorsed
+on a condition this entry did not carry through: that the cause survives SOMEWHERE. The rejection
+branch's `catch` was unbound, so after the collapse denied / absent / broken enumeration were
+indistinguishable from every seat including the console. One `console.warn` carrying the original
+error, matching `reverse-geocode.ts` and `import/geocode.ts` (P1 review L2). Pinned with a spy
+asserting the error OBJECT reaches it, not just a message — collapsing a visitor-facing
+distinction is only acceptable while the operator-facing one survives.
 
 ### 66e. R-3 is P4.1's, and is NOT in this branch
 
