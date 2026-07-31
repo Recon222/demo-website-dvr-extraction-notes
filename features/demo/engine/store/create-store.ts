@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 
 import { COORD_SOURCES } from '@/features/demo/engine/types'
 import type {
+  CameraGpsFix,
   CaptureMethod,
   GpsCoordinates,
   GpsSource,
@@ -123,6 +124,12 @@ export interface DemoActions {
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
+  /** Commit a per-camera GPS fix (P3.7). Addressed BY CAMERA ID, never by row index —
+   *  a capture runs for up to 120 s (`PRECISE_GPS_CONFIG`) and the row list is editable
+   *  throughout, so an index resolved before the await can point at a different camera, or
+   *  past the end, by the time the fix lands. A camera the current location no longer has is
+   *  a no-op: a removed row must not be resurrected, and a fix must never be misattributed. */
+  setCameraGps(cameraId: string, gps: CameraGpsFix): void
   setView(view: AppView): void
   openModal(modal: ModalId): void
   closeModal(): void
@@ -334,6 +341,25 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       const id = get().currentLocationId
       if (!id) return
       set((s) => ({ locations: s.locations.map((l) => (l.id === id ? setPath(l, path, value) : l)) }))
+    },
+
+    setCameraGps: (cameraId, gps) => {
+      const id = get().currentLocationId
+      if (!id) return
+      const loc = get().locations.find((l) => l.id === id)
+      // The identity guard (the R-1/R-32 discipline applied to a dynamic row list). Both
+      // dropped writes are silent by design: an operator who removed the row, or left for
+      // another location, has already said what should happen to that reading. Camera ids are
+      // globally unique (`uiSeq`, seeded past every rehydrated id), so "not in the OPEN
+      // location" also covers "belongs to a location the visitor has since switched away from".
+      if (!loc || !loc.form.cameras.some((c) => c.id === cameraId)) return
+      set((s) => ({
+        locations: s.locations.map((l) =>
+          l.id === id
+            ? { ...l, form: { ...l.form, cameras: l.form.cameras.map((c) => (c.id === cameraId ? { ...c, gps } : c)) } }
+            : l,
+        ),
+      }))
     },
 
     setView: (view) =>

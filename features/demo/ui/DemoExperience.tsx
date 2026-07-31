@@ -1175,6 +1175,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChange={cam.change}
             onAdd={() => cam.add(blankCamera())}
             onRemove={cam.remove}
+            // NOT `cam.change` (P3.7): the list-edit handlers close over the camera array of the
+            // render that created them, and a precise capture runs for up to 120 s. Writing that
+            // captured list back would resurrect any row removed meanwhile — and an index
+            // resolved before the await can name a different camera afterwards. `setCameraGps`
+            // re-resolves the camera by id against current state and drops the write if it is
+            // gone (the R-1/R-32 identity discipline, applied to a dynamic row list).
+            onCaptureGps={(cameraId, gps) => store.getState().setCameraGps(cameraId, gps)}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

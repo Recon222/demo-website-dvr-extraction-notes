@@ -1381,6 +1381,89 @@ LOSES a field). Corrected to key-exhaustiveness, matching `persistence.ts`'s `Fu
 keeping in mind for future type guards in this repo: assignability-to-a-looser-type never catches
 missing members, which is the direction real drift runs.
 
+**45i. Still open, P2.3-owned, deliberately out of round-3 scope:** R-39 (`LookupNotice` consumed
+by a binary ternary in `LocationFields`, so a fourth member would silently render the
+partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
+`never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+## 54. P3.7 (parity/p3-camgps) — per-camera GPS: refutations & deliberate non-ports
+
+**Source:** P3.7 per-camera GPS (matrix row 42; ui-mapping 07:112-176; phone-inventory §M15) —
+`CameraGpsCapture`, the five camera keys, the max-50 row gate.
+
+### 54a. `capturedAt` comes from the READING, not the clock seam — the brief was too weak
+
+The package brief specified "`coordinateCapturedAt` via the clock seam, never `Date.now`". The
+clock seam would have been wrong in the same direction, just less so. The phone stamps
+`new Date(bestSample.timestamp).toISOString()` (`gps-service.ts:301`) — the winning satellite
+reading's OWN platform timestamp — and `GpsFix.capturedAtIso` already carried exactly that from
+P2.3. `toCameraGpsFix` passes it through untouched; no clock is read anywhere on the camera GPS
+path. A forensic capture time must be when the fix was taken, not when the app got round to
+storing it (which, under `PRECISE_GPS_CONFIG`'s 2-minute budget, can be two minutes later).
+Pinned by `gps.test.ts` ("takes `capturedAt` from the fix, never from an ambient clock").
+
+### 54b. The phone's `minItems={1}` is deliberately NOT ported alongside `maxItems={50}`
+
+`ArrayFieldManager` gates both ends: the phone hides Remove at one camera and Add at fifty. Only
+the cap is ported. `minItems` exists on the phone to protect a SEEDED first row; the demo boots
+empty by owner decision (D2/empty-boot) and has its own "No cameras yet — add the ones in the
+recovery." state, so a floor of 1 would mean either seeding a camera nobody asked for or
+forbidding the removal of the last one on a screen that legitimately starts at zero.
+**Trigger:** only if the demo ever seeds a camera row. Nothing in the plan does.
+
+### 54c. Other `ArrayFieldManager` caps are still unported
+
+The phone also caps Extracted Video Scope at 10 (`maxItems={10}`, ui-mapping 07:204). P3.7's
+scope was row 42, so only the Cameras cap landed. `MAX_CAMERAS` + `maxCamerasMessage` in
+`CamerasScreen.tsx` are the pattern to copy — the message template is the shared phone string.
+**Trigger:** the next package that touches `ExtractedScopeScreen`.
+
+### 54d. Scope extension taken deliberately: the PDF camera-GPS row
+
+Row 42 names the Cameras screen only, but the five keys would otherwise have reached NO output:
+the `cameras` NOTES section is `''` on both sides (PR-86 — the PDF camera table is the canonical
+camera surface), and the demo's table had three columns and no GPS row while the phone emits one
+(`cameras-table.ts:44-70`). Shipping the capture without the consumer would have "closed" five
+field-parity keys into a dead end, so the row was ported with the phone's
+`hasCapturedCoordinates` gate. That policy moved from `notes/camera-formatter.ts` into
+`engine/logic/coordinates.ts` and is now shared by both consumers — the arrangement the phone
+already has. Recorded because it is outside the row's literal wording.
+
+### 54e. `source` is the literal `'gps'`, deliberately narrower than `GpsSource`
+
+A recovery location's fix can be geocoded from its address or typed by hand; a camera has exactly
+one coordinate path — the crosshair button — so `CameraGpsFix.source` is
+`Extract<GpsSource, 'gps'>`, matching the phone's `coordinateSource: 'gps'`
+(`camera-gps/types.ts:17,36`). Written as `Extract<...>` rather than a bare literal so it stays
+linked to the canonical union. **If P4's import ever supplies camera coordinates, this is the
+line that must widen first** — and `persistence.ts`'s `z.literal('gps')` will stop compiling
+until it does, which is the intended alarm.
+
+### 54f. §45f's trigger, discharged
+
+§45f warned: "a per-camera control passing the recovery location's id would guard the wrong
+thing." It doesn't. The camera control's write token is the CAMERA id, and `setCameraGps`
+re-resolves that id against current state — which, because camera ids are globally unique, also
+subsumes the cross-location guard (a fix captured on location A cannot be found in location B).
+`LocationFields`' `canWriteFor` shape is not reused here because the identity being guarded is
+different, not because the discipline is.
+
+### 54g. Demo-only additions over the phone's control, both truthful
+
+The live sample readout (`Sample n of 10 · best ±Xm`) and the `UNSUPPORTED` failure line are
+carried over from `GpsCaptureControl` for the same reasons recorded in §41: the phone's
+multi-sample loop is invisible behind a spinner and the demo exists to show it, and a browser can
+lack geolocation entirely where a phone cannot. Under `PRECISE_GPS_CONFIG` the readout matters
+more, not less — the budget is 120 s, not 30 s. Every number on the line is measured; the
+accuracy clause is omitted entirely when nothing measured one. `formatSampleProgress` is shared
+by both surfaces so they cannot drift into two sentences for one state.
+
+### 54h. `sampleCount` is not stored on a camera
+
+`GpsFix.sampleCount` is dropped by `toCameraGpsFix`. The phone's `GpsLocation.sampleCount`
+doesn't reach its camera entry either, nothing renders it, and a stored reading count would be
+dead weight in every snapshot. **Trigger:** a surface that wants to show how many readings a
+stored fix took — it would need the same addition on `DemoLocation.gps` to be worth anything.
 **45i. ~~Still open, P2.3-owned, deliberately out of round-3 scope:~~ RESOLVED — see §55c.**
 R-39 (`LookupNotice` consumed by a binary ternary in `LocationFields`, so a fourth member would
 silently render the partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34;

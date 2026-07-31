@@ -24,6 +24,8 @@ beforeEach(() => stubClock())
 afterEach(() => vi.restoreAllMocks())
 
 const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+/** CamerasScreen additionally takes the per-camera GPS callback (P3.7). */
+const camNav = { ...nav, onCaptureGps: vi.fn() }
 
 const blankDvr = (): DvrInformation => blankLocationForm().dvr
 const camera = (patch: Partial<CameraEntry> = {}): CameraEntry => ({ id: 'c1', cameraName: 'A', resolution: '', recordingFps: '', ...patch })
@@ -52,7 +54,7 @@ describe('rendered option lists === engine/content/form-options', () => {
   })
 
   it('CamerasScreen renders the canonical Resolution + FPS lists', async () => {
-    render(<CamerasScreen cameras={[camera()]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    render(<CamerasScreen cameras={[camera()]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     expect(await renderedOptions(/^Resolution/)).toEqual(labelsOf(RESOLUTION_OPTIONS))
     expect(await renderedOptions(/^FPS/)).toEqual(labelsOf(FPS_OPTIONS))
   })
@@ -116,7 +118,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
   it('selecting Other (Custom) CLEARS that camera\'s stored value and reveals the input', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
-    render(<CamerasScreen cameras={[camera({ resolution: '1920x1080' })]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    render(<CamerasScreen cameras={[camera({ resolution: '1920x1080' })]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(onChange).toHaveBeenCalledWith(0, { resolution: '' }) // phone parity: cameras clear on switch
@@ -133,7 +135,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
         onChange={vi.fn()}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
-        {...nav}
+        {...camNav}
       />,
     )
     await user.click(screen.getAllByRole('button', { name: /^FPS/ })[1])
@@ -145,7 +147,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
   it('switching back to a standard value writes it and hides the input', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
-    render(<CamerasScreen cameras={[camera()]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    render(<CamerasScreen cameras={[camera()]} onChange={onChange} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     await user.click(screen.getByRole('button', { name: /^Resolution/ }))
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
@@ -162,13 +164,13 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const user = userEvent.setup()
     const a = camera({ id: 'cA', cameraName: 'A', resolution: '1920x1080' })
     const b = camera({ id: 'cB', cameraName: 'B' })
-    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     // put camera B (row index 1) into custom mode…
     await user.click(screen.getAllByRole('button', { name: /^Resolution/ })[1])
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
     expect(screen.getByLabelText('Custom Resolution')).toBeInTheDocument()
     // …the visitor types a value and removes camera A → B re-indexes from 1 to 0
-    rerender(<CamerasScreen cameras={[{ ...b, resolution: '1440x900' }]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    rerender(<CamerasScreen cameras={[{ ...b, resolution: '1440x900' }]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     // B keeps its editable custom field and typed value (index-keyed flags lost it here)
     expect(screen.getByLabelText('Custom Resolution')).toHaveValue('1440x900')
   })
@@ -177,11 +179,11 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
     const user = userEvent.setup()
     const a = camera({ id: 'cA', cameraName: 'A' })
     const b = camera({ id: 'cB', cameraName: 'B', resolution: '1920x1080' })
-    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    const { rerender } = render(<CamerasScreen cameras={[a, b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     // camera A (row index 0) goes custom, then A is removed → B re-indexes from 1 to 0
     await user.click(screen.getAllByRole('button', { name: /^Resolution/ })[0])
     await user.click(screen.getByRole('menuitemradio', { name: 'Other (Custom)' }))
-    rerender(<CamerasScreen cameras={[b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />)
+    rerender(<CamerasScreen cameras={[b]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...camNav} />)
     // B stays a standard row (index-keyed flags rendered it spuriously custom here)
     expect(screen.queryByLabelText('Custom Resolution')).not.toBeInTheDocument()
     expect(screen.getByText('1920x1080 (1080p)')).toBeInTheDocument()
@@ -194,7 +196,7 @@ describe('Cameras custom Resolution/FPS path (phone cameras.tsx:43-61)', () => {
         onChange={vi.fn()}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
-        {...nav}
+        {...camNav}
       />,
     )
     expect(screen.getByLabelText('Custom Resolution')).toHaveValue('1440x900')

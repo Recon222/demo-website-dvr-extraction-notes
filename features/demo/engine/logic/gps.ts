@@ -26,7 +26,7 @@
  * same samples, so this module implements the phone's real behaviour. See deferred.md §41.
  */
 
-import type { GpsSource } from '@/features/demo/engine/types'
+import type { CameraGpsFix, GpsSource } from '@/features/demo/engine/types'
 
 // ---- Domain ---------------------------------------------------------------
 
@@ -239,6 +239,28 @@ export function toGpsFix(samples: readonly GpsSample[]): GpsCaptureOutcome {
   }
 }
 
+// ---- Per-camera fix -------------------------------------------------------
+
+/**
+ * `GpsFix` → the stored per-camera coordinate (P3.7). The demo's counterpart to the phone's
+ * `mapGpsLocationToCameraData` (`src/features/location/camera-gps/types.ts:47-55`), and pure
+ * for the same reason: the mapping between "what a capture produced" and "what a camera row
+ * stores" is the one place the five keys are decided, so it is unit-testable without a browser.
+ *
+ * `sampleCount` is deliberately dropped — the phone's `GpsLocation.sampleCount` doesn't reach
+ * the camera entry either, and a stored reading count nothing renders would be dead weight in
+ * the snapshot. `capturedAt` is the winning reading's own timestamp, carried through untouched.
+ */
+export function toCameraGpsFix(fix: GpsFix): CameraGpsFix {
+  return {
+    lat: fix.lat,
+    lng: fix.lng,
+    accuracyM: fix.accuracyM,
+    source: 'gps',
+    capturedAt: fix.capturedAtIso,
+  }
+}
+
 // ---- Accuracy rating ------------------------------------------------------
 
 export const ACCURACY_RATINGS = ['Excellent', 'Good', 'Fair', 'Poor'] as const
@@ -268,6 +290,21 @@ export function getAccuracyRating(accuracyM: number): AccuracyRating {
 /** CoordinateDisplay.tsx:145 — `±{rounded}m`. */
 export function formatAccuracy(accuracyM: number): string {
   return `±${Math.round(accuracyM)}m`
+}
+
+/**
+ * The demo-only live sample readout, shared by every capture surface (`GpsCaptureControl`,
+ * `CameraGpsCapture`). The phone shows a bare spinner; the demo exists to SHOW that a capture
+ * is a forensic multi-sample procedure, and every number on this line is measured — the
+ * accuracy clause is omitted entirely when no reading has carried one, rather than printing a
+ * placeholder (the same R-18 rule the coordinate card follows).
+ *
+ * Pure and shared so the two surfaces cannot drift into two different sentences for the same
+ * state, and so the format is pinned by an engine test rather than by two JSX assertions.
+ */
+export function formatSampleProgress(samplesTaken: number, maxAttempts: number, bestAccuracyM?: number): string {
+  const best = bestAccuracyM === undefined ? '' : ` · best ${formatAccuracy(bestAccuracyM)}`
+  return `Sample ${samplesTaken} of ${maxAttempts}${best}`
 }
 
 /** CoordinateDisplay.tsx:30-41 — the coordinate provenance chip.

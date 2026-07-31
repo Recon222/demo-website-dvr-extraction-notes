@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react'
 
-import { buildGpsConfig, formatAccuracy, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
+import { buildGpsConfig, formatSampleProgress, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
 import { useGpsCapture, type UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
@@ -49,11 +49,15 @@ const button: CSSProperties = {
   textAlign: 'center',
 }
 
-/** Phone copy, verbatim (GpsCaptureControl.tsx:71 / LocationForm.tsx:207 / :113). */
+/** Phone copy, verbatim (GpsCaptureControl.tsx:71 / LocationForm.tsx:207 / :113), plus the two
+ *  demo-only accessible-name strings. `capturingA11y` is exported because `CameraGpsCapture`
+ *  (P3.7) announces the same state on its own button — one string, one place. */
 export const GPS_CONTROL_LABELS = {
   capture: 'Use Current Location',
   capturing: 'Capturing…',
+  capturingA11y: 'Capturing location, please wait',
   lookingUp: 'Looking up address…',
+  lookingUpA11y: 'Looking up address, please wait',
   geocodeToggle: 'Geocode',
 } as const
 
@@ -153,7 +157,7 @@ export function GpsCaptureControl({
           onClick={onClick}
           aria-disabled={busy || disabled}
           aria-busy={busy}
-          aria-label={isCapturing ? 'Capturing location, please wait' : reverseGeocoding ? 'Looking up address, please wait' : label}
+          aria-label={isCapturing ? GPS_CONTROL_LABELS.capturingA11y : reverseGeocoding ? GPS_CONTROL_LABELS.lookingUpA11y : label}
           style={{ ...button, opacity: busy || disabled ? 0.7 : 1, cursor: busy || disabled ? 'default' : 'pointer' }}
         >
           {busy ? <Spinner /> : <LocateIcon />}
@@ -182,9 +186,7 @@ export function GpsCaptureControl({
       {/* Live sample readout — demo-only (see the header note); every value is measured. */}
       {isCapturing && progress && (
         <div role="status" data-testid="gps-capture-progress" style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>
-          {`Sample ${progress.samplesTaken} of ${resolvedConfig.maxAttempts}${
-            progress.bestAccuracyM === undefined ? '' : ` · best ${formatAccuracy(progress.bestAccuracyM)}`
-          }`}
+          {formatSampleProgress(progress.samplesTaken, resolvedConfig.maxAttempts, progress.bestAccuracyM)}
         </div>
       )}
 

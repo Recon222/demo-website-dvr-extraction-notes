@@ -8,13 +8,16 @@ import {
   PRECISE_GPS_CONFIG,
   buildGpsConfig,
   formatAccuracy,
+  formatSampleProgress,
   getAccuracyRating,
   gpsSourceLabel,
   gpsTimeoutMessage,
   meetsTargetAccuracy,
   selectBestSample,
+  toCameraGpsFix,
   toGpsFix,
   validateCoordinates,
+  type GpsFix,
   type GpsSample,
 } from '@/features/demo/engine/logic/gps'
 
@@ -198,6 +201,56 @@ describe('getAccuracyRating', () => {
     [180, 'Poor', 'error'],
   ])('rates %sm as %s/%s', (accuracy, label, tone) => {
     expect(getAccuracyRating(accuracy as number)).toEqual({ label, tone })
+  })
+})
+
+describe('toCameraGpsFix (P3.7 — the five phone camera keys)', () => {
+  const fix = (o: Partial<GpsFix> = {}): GpsFix => ({
+    lat: 43.608701,
+    lng: -79.650502,
+    accuracyM: 6,
+    capturedAtIso: '2026-07-30T14:05:06.000Z',
+    sampleCount: 4,
+    ...o,
+  })
+
+  it('carries lat/lng/accuracy, stamps `gps`, and keeps the READING\'s own capture time', () => {
+    expect(toCameraGpsFix(fix())).toEqual({
+      lat: 43.608701,
+      lng: -79.650502,
+      accuracyM: 6,
+      source: 'gps',
+      capturedAt: '2026-07-30T14:05:06.000Z',
+    })
+  })
+
+  it('takes `capturedAt` from the fix, never from an ambient clock', () => {
+    // The forensic point: the stored time is when the satellite fix was taken (phone
+    // gps-service.ts:301), so it cannot drift with how long the app took to store it.
+    const before = new Date().toISOString()
+    const stored = toCameraGpsFix(fix({ capturedAtIso: '2001-02-03T04:05:06.000Z' })).capturedAt
+    expect(stored).toBe('2001-02-03T04:05:06.000Z')
+    expect(stored < before).toBe(true)
+  })
+
+  it('leaves accuracy absent when the reading carried none (R-18) — never a fabricated 0', () => {
+    const mapped = toCameraGpsFix(fix({ accuracyM: undefined }))
+    expect(mapped.accuracyM).toBeUndefined()
+    expect(mapped).not.toHaveProperty('accuracyM', 0)
+  })
+
+  it('drops `sampleCount` — the phone stores no reading count on a camera either', () => {
+    expect(toCameraGpsFix(fix())).not.toHaveProperty('sampleCount')
+  })
+})
+
+describe('formatSampleProgress', () => {
+  it('reports the readings taken against the configured attempt budget', () => {
+    expect(formatSampleProgress(2, 10, 70)).toBe('Sample 2 of 10 · best ±70m')
+  })
+
+  it('omits the accuracy clause entirely when nothing has been measured (R-18)', () => {
+    expect(formatSampleProgress(1, 10, undefined)).toBe('Sample 1 of 10')
   })
 })
 

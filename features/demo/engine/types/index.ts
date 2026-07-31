@@ -113,12 +113,38 @@ export interface GpsCoordinates {
   accuracyM?: number
 }
 
+/**
+ * A per-camera coordinate (P3.7, matrix row 42) — the demo's nested form of the phone's five
+ * flat camera keys `latitude` / `longitude` / `coordinateAccuracy` / `coordinateSource` /
+ * `coordinateCapturedAt` (`src/features/location/camera-gps/types.ts:13-19`).
+ *
+ * Two members the recovery-location fix does NOT carry, both required here because the phone
+ * writes all five keys in one shot (`mapGpsLocationToCameraData`, camera-gps/types.ts:47-55):
+ *
+ * - `source` is the LITERAL `'gps'`, not `GpsSource`. A recovery location can be geocoded from
+ *   its address or entered by hand; a camera has exactly one coordinate path — the crosshair
+ *   button — so "captured by GPS" is the only representable provenance, exactly as the phone
+ *   types it (`coordinateSource: 'gps'`, camera-gps/types.ts:17,36). Written as
+ *   `Extract<GpsSource, 'gps'>` rather than a bare `'gps'` so it stays LINKED to the canonical
+ *   union (R-24/R-25 discipline): if `GPS_SOURCES` ever loses that member this resolves to
+ *   `never` and every producer stops compiling, instead of silently stamping a dead provenance
+ *   the chip can no longer label.
+ * - `capturedAt` is ISO-8601 UTC taken from the winning READING's own platform timestamp
+ *   (`GpsFix.capturedAtIso`), never an ambient clock read — the phone does the same
+ *   (`new Date(bestSample.timestamp).toISOString()`, gps-service.ts:301). A forensic capture
+ *   time must be when the satellite fix was taken, not when the app got round to storing it.
+ */
+export interface CameraGpsFix extends GpsCoordinates {
+  source: Extract<GpsSource, 'gps'>
+  capturedAt: string
+}
+
 export interface CameraEntry {
   id: string
   cameraName: string
   resolution: string
   recordingFps: string
-  gps?: GpsCoordinates
+  gps?: CameraGpsFix
 }
 
 export interface DvrInformation {

@@ -175,7 +175,15 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     })
     store.getState().calculateOffset() // commits sync + ocr (incl. imageDataUrl) into timeOffset
     store.getState().updateField('form.cameras', [
-      { id: 'cam1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15', gps: { lat: 43.6, lng: -79.6, accuracyM: 4 } },
+      {
+        id: 'cam1',
+        cameraName: 'Front door',
+        resolution: '1080p',
+        recordingFps: '15',
+        // v5: the full five-key camera fix (P3.7) — `source`/`capturedAt` are required members,
+        // so a schema that forgot either would drop them here and fail the whole-state diff.
+        gps: { lat: 43.6, lng: -79.6, accuracyM: 4, source: 'gps', capturedAt: '2026-07-30T14:05:06.000Z' },
+      },
     ])
     // Sectioned notes (v3): an edited section carrying the optional userAddendum,
     // plus the free-text tail — pins the deepest new optional through the round-trip.
@@ -204,7 +212,13 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     const loc = rehydrated.getState().locations[0]
     expect(loc.form.timeOffset?.ocr?.imageDataUrl).toBe('data:image/png;base64,AA==')
     expect(loc.form.timeOffset?.sync?.stratum).toBe(2)
-    expect(loc.form.cameras[0].gps).toEqual({ lat: 43.6, lng: -79.6, accuracyM: 4 })
+    expect(loc.form.cameras[0].gps).toEqual({
+      lat: 43.6,
+      lng: -79.6,
+      accuracyM: 4,
+      source: 'gps',
+      capturedAt: '2026-07-30T14:05:06.000Z',
+    })
     expect(loc.form.media.photos[0].poster).toBe('blob:poster')
     const address = loc.form.notesSections.find((sec) => sec.id === 'address')
     expect(address?.content).toBe('my own account of attendance')
@@ -245,6 +259,29 @@ describe('shape guard (never crash boot)', () => {
     const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as { state: { cases: unknown } }
     parsed.state.cases = 'nope'
     storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)).toBeNull()
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
+  })
+
+  it('a pre-v5 camera fix (no source/capturedAt) is rejected — which is why v5 bumped', () => {
+    // The shape guard treats a partial camera fix as a foreign snapshot rather than
+    // rehydrating a coordinate with no provenance and no capture time into a forensic form.
+    // The version bump is what makes that discard attributable instead of mysterious.
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(caseId, newLocationInput())
+    store.getState().updateField('form.cameras', [
+      { id: 'cam1', cameraName: 'Front door', resolution: '', recordingFps: '' },
+    ])
+    saveNow(store, storage)
+
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { locations: Array<{ form: { cameras: Array<Record<string, unknown>> } }> }
+    }
+    parsed.state.locations[0].form.cameras[0].gps = { lat: 43.6, lng: -79.6, accuracyM: 4 } // v4 shape
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+
     expect(loadSnapshot(storage)).toBeNull()
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(false)
   })

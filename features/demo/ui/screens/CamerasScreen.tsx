@@ -1,22 +1,37 @@
 'use client'
 
 import { useState } from 'react'
-import type { CameraEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
 import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE, isCustomResolution, isCustomFps } from '@/features/demo/ui/screens/field-options'
+import { CameraGpsCapture } from '@/features/demo/ui/inputs/CameraGpsCapture'
+import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
+
+/** Phone `ArrayFieldManager` cap for this screen (`app/(form)/cameras.tsx:174`, ui-mapping
+ *  07:126) — 50 camera rows. The phone's `minItems={1}` is deliberately NOT ported: the demo
+ *  boots empty by owner decision and has its own "No cameras yet" empty state, so there is no
+ *  seeded row to protect (deferred §54). */
+export const MAX_CAMERAS = 50
+
+/** `ArrayFieldManager.tsx:94-98`, verbatim template. */
+export const maxCamerasMessage = (max: number) => `Maximum ${max} items allowed`
 
 export interface CamerasScreenProps {
   cameras: CameraEntry[]
   onChange(index: number, patch: Partial<CameraEntry>): void
   onAdd(): void
   onRemove(index: number): void
+  /** A per-camera GPS fix, addressed by camera id — see `CameraGpsCapture`. */
+  onCaptureGps(cameraId: string, gps: CameraGpsFix): void
   onNext(): void
   onBack(): void
   onMenu(): void
+  /** Test seam forwarded to every row's capture control. */
+  gpsDeps?: UseGpsCaptureOptions['deps']
 }
 
-export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBack, onMenu }: CamerasScreenProps) {
+export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, onNext, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
   // Per-camera custom Resolution/FPS mode — the phone's cameras.tsx:43-61 behavior with two
   // deliberate divergences (review R-2): the maps are keyed by the stable CameraEntry.id, not
   // the row index (the phone's index keying silently reassigns custom mode between rows when a
@@ -79,9 +94,20 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBa
             {customFps[c.id] && (
               <Field label="Custom FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} placeholder="e.g., 12" />
             )}
+            {/* Per-camera GPS — last in the row, matching the phone's render order
+                (`renderCamera`, cameras.tsx:85-160; ui-mapping 07:127-132). */}
+            <CameraGpsCapture cameraId={c.id} gps={c.gps} onCapture={onCaptureGps} deps={gpsDeps} />
           </div>
         ))}
-        <AddRowButton label="+ Add Camera" onClick={onAdd} />
+        {/* Phone parity: the Add button HIDES at the cap and the limit line takes its place —
+            it is never a disabled button (`ArrayFieldManager.tsx:83-98`). */}
+        {cameras.length < MAX_CAMERAS ? (
+          <AddRowButton label="+ Add Camera" onClick={onAdd} />
+        ) : (
+          <div data-testid="cameras-max-notice" style={{ fontSize: 13, color: '#7a9fc4', textAlign: 'center', padding: '10px 0', marginBottom: 14 }}>
+            {maxCamerasMessage(MAX_CAMERAS)}
+          </div>
+        )}
         <WizardNext label="Continue →" onClick={onNext} />
       </div>
     </div>
