@@ -4,6 +4,7 @@ import {
   isValidDateInterpretation,
   daysBetween,
   disambiguateDateFormat,
+  generateDisambiguationWarning,
 } from '@/features/demo/engine/logic/date-disambiguation'
 
 // Fixed "today": 2026-06-28 (local).
@@ -89,5 +90,57 @@ describe('disambiguateDateFormat — reason codes', () => {
     expect(r.reason).toBe('dd_mm_closer_by_7plus')
     expect(r.chosenFormat).toBe('DD-MM')
     expect(r.chosenDate).toBe('2026-06-01')
+  })
+})
+
+// Copy pinned against the phone's OCR sibling module
+// (src/features/ocr-time-capture/utils/date-disambiguation.ts:232-280).
+describe('generateDisambiguationWarning', () => {
+  it('uses the phone-verbatim title and suggestion', () => {
+    const w = generateDisambiguationWarning(disambiguateDateFormat(6, 1, 2026, NOW))
+    expect(w.title).toBe('Date Format Ambiguity Detected')
+    expect(w.suggestion).toBe('Please verify the displayed date matches the DVR screen. If incorrect, edit the date manually.')
+  })
+
+  it('builds the comparison description with both format labels and both distances', () => {
+    const w = generateDisambiguationWarning(disambiguateDateFormat(6, 1, 2026, NOW))
+    expect(w.description).toBe(
+      'The date "06/01" could be interpreted as either June 1 (Month-Day (US)) or January 6 (Day-Month (European)). '
+      + "System chose Month-Day (US) format as it's 27 day(s) from today vs 173 day(s) for the alternative.",
+    )
+  })
+
+  it('flips the labels when the resolver chose DD-MM', () => {
+    const w = generateDisambiguationWarning(disambiguateDateFormat(1, 6, 2026, NOW))
+    expect(w.description).toContain('June 1 (Day-Month (European))')
+    expect(w.description).toContain('January 6 (Month-Day (US))')
+  })
+
+  it('uses the equidistant wording for an equidistant result', () => {
+    // Built by hand, not via disambiguateDateFormat: two DISTINCT interpretations can only be
+    // equidistant from today if today is their midpoint, which puts one of them in the future —
+    // and the future branch claims that case first. So `equidistant` is unreachable through the
+    // resolver (module note, lines 200-203) while the copy branch still has to be pinned.
+    const r = {
+      chosenDate: '2026-05-04',
+      chosenFormat: 'MM-DD',
+      alternativeDate: '2026-04-05',
+      confidence: 'low',
+      reason: 'equidistant',
+      chosenDistanceDays: 55,
+      alternativeDistanceDays: 55,
+    } as const
+    expect(generateDisambiguationWarning(r).description).toBe(
+      'The date "05/04" is ambiguous. Both interpretations are equally close to today. '
+      + 'System chose Month-Day (US) format: May 4. Alternative interpretation: April 5 (Day-Month (European)).',
+    )
+  })
+
+  it('de-pads the day numerals in the prose but not in the quoted "MM/DD" fragment', () => {
+    // ui-mapping 06 fact-check row 3: parseInt() strips the leading zero in the sentence.
+    const w = generateDisambiguationWarning(disambiguateDateFormat(6, 1, 2026, NOW))
+    expect(w.description).toContain('"06/01"')
+    expect(w.description).toContain('June 1 ')
+    expect(w.description).not.toContain('June 01')
   })
 })
