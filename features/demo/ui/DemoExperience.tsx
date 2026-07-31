@@ -1012,14 +1012,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'timeOffset': {
         const off = currentLocation?.form.timeOffset ?? null
         // DST advisory: the phone recomputes it on every render of the result block, so it
-        // tracks the toggle and the scope edits live. `clock.now` is the UI's wall-clock seam
-        // (spy-able in tests) — the engine helper never reads an argless clock itself.
+        // tracks the toggle and the scope edits live. BOTH host-time inputs come through the
+        // UI seam (review R-9) — `clock.now` for "today" and `clock.isDst` for the zone rule —
+        // so the end-to-end wiring is pinnable on a runner in any timezone, UTC CI included.
         const dstAdvisory = off
           ? computeDstAdvisory({
               scopes: currentLocation?.form.scopes ?? [],
               actualDateTime: capture.actualDateTime,
               dvrAppliesDST: capture.dvrAppliesDST,
               now: clock.now,
+              isDst: clock.isDst,
             })
           : null
         return (

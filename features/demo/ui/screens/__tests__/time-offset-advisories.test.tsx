@@ -139,6 +139,22 @@ describe('TimeOffsetScreen — recalculate guard', () => {
   })
 })
 
+/**
+ * North-American DST rule for the years these tests use, injected through the bridge's host-time
+ * seam (review R-9). Without it the only end-to-end pin of the advisory wiring depended on the
+ * runner's timezone and went vacuous on a UTC runner — deleting the `dstAdvisory` prop kept CI
+ * green. The engine's own branch tests use the same technique (`dst-advisory.test.ts`).
+ */
+const US_DST: Record<number, { start: string; end: string }> = {
+  2026: { start: '2026-03-08', end: '2026-11-01' },
+}
+const usIsDst = (dateTime: string): boolean => {
+  const date = dateTime.slice(0, 10)
+  const table = US_DST[Number(date.slice(0, 4))]
+  if (!table) throw new Error(`test fake has no DST table for ${date}`)
+  return date >= table.start && date < table.end
+}
+
 describe('DemoExperience — DST advisory wiring', () => {
   beforeEach(() => window.sessionStorage.clear())
 
@@ -162,9 +178,10 @@ describe('DemoExperience — DST advisory wiring', () => {
   }
 
   it('surfaces the straddle advisory once an offset has been calculated', { timeout: 20000 }, () => {
-    // Mid-January "today" so scenario B (today across the DST line) is the branch under test —
-    // this is the only wall-clock input the advisory reads, and it comes through the UI seam.
+    // Mid-January "today" against a June scope: scenario B (today across the DST line). Both
+    // host-time inputs are stubbed, so this asserts UNCONDITIONALLY in any runner timezone.
     vi.spyOn(clock, 'now').mockReturnValue(new Date(2026, 0, 15, 12))
+    vi.spyOn(clock, 'isDst').mockImplementation(usIsDst)
     const store = bootAtTimeOffset({ startDateTime: '2026-06-01 09:00:00', endDateTime: '2026-06-01 17:00:00' })
 
     // Nothing before Calculate — the advisory lives inside the result block.
@@ -172,14 +189,19 @@ describe('DemoExperience — DST advisory wiring', () => {
     act(() => {
       store.getState().calculateOffset()
     })
+    expect(screen.getByText(/either side of the DST change/)).toBeInTheDocument()
+  })
 
-    const advisory = screen.queryByText(/either side of the DST change/)
-    // A runner in a zone with no DST cannot produce the branch; assert the honest alternative
-    // (no advisory) rather than skipping, so the wiring is still exercised end to end.
-    const zoneHasDst = new Date(2026, 0, 15).getTimezoneOffset() !== new Date(2026, 6, 15).getTimezoneOffset()
-    if (zoneHasDst) expect(advisory).toBeInTheDocument()
-    else expect(advisory).toBeNull()
-    vi.restoreAllMocks()
+  it('stays silent when today sits on the same side of the change as the scope', { timeout: 20000 }, () => {
+    // The negative control: same wiring, same seam, only "today" moves. Without it the pin above
+    // could pass on a screen that renders the advisory unconditionally.
+    vi.spyOn(clock, 'now').mockReturnValue(new Date(2026, 6, 15, 12))
+    vi.spyOn(clock, 'isDst').mockImplementation(usIsDst)
+    const store = bootAtTimeOffset({ startDateTime: '2026-06-01 09:00:00', endDateTime: '2026-06-01 17:00:00' })
+    act(() => {
+      store.getState().calculateOffset()
+    })
+    expect(screen.queryByText(/either side of the DST change/)).toBeNull()
   })
 
   it('guards Calculate once extracted scopes exist', { timeout: 20000 }, () => {
