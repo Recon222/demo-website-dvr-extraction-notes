@@ -922,7 +922,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               store.getState().setDrawerOpen(false)
             }}
           />
-          {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} onSave={() => setPdf(null)} />}
+          {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>

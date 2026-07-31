@@ -98,14 +98,15 @@ describe('CompletionScreen', () => {
 describe('PdfPreview', () => {
   it('renders the document HTML in an iframe and closes', () => {
     const onClose = vi.fn()
-    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} onSave={vi.fn()} />)
+    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
     expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Close'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('sandboxes the preview iframe (defense-in-depth)', () => {
-    render(<PdfPreview title="Doc" html="<!DOCTYPE html><html><body><p>x</p></body></html>" onClose={vi.fn()} onSave={vi.fn()} />)
-    expect(screen.getByTitle('Doc')).toHaveAttribute('sandbox', '')
+  it('sandboxes the preview iframe (defense-in-depth: print-only tokens, never allow-scripts)', () => {
+    render(<PdfPreview title="Doc" html="<!DOCTYPE html><html><body><p>x</p></body></html>" onClose={vi.fn()} />)
+    // Pinned exactly (see the PdfPreview suite for the per-token rationale).
+    expect(screen.getByTitle('Doc')).toHaveAttribute('sandbox', 'allow-modals allow-same-origin')
   })
 })

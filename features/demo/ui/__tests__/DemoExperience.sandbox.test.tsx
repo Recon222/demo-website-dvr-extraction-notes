@@ -633,6 +633,39 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
   })
 
+  it('completion: Escape dismisses the PDF preview and focus returns to the opener button (deferred §21)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    const opener = screen.getByText('Preview / Export PDF')
+    opener.focus() // jsdom does not focus on click — make the opener the focused element, as a real tap/tab would
+    fireEvent.click(opener)
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByTitle('Case Notes — PDF')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('completion: Save as PDF prints the framed court document (real print path, store-driven)', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupLocation(store)
+    act(() => store.getState().setView('completion'))
+
+    fireEvent.click(screen.getByText('Preview / Export PDF'))
+    const frame = screen.getByTitle('Case Notes — PDF') as HTMLIFrameElement
+    const print = vi.fn()
+    ;(frame.contentWindow as Window & { print: () => void }).print = print
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+    expect(print).toHaveBeenCalledTimes(1)
+    // The preview stays up — printing is not a dismissal.
+    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+  })
+
   it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
