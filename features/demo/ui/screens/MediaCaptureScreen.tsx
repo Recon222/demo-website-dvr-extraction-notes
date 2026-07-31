@@ -208,6 +208,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     selectedDeviceId,
     isOpening,
     open,
+    close,
     selectDevice,
     capability,
     failure,
@@ -236,6 +237,35 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
       element.srcObject = null
     }
   }, [stream])
+
+  /**
+   * Release the hardware while a capture is under review (review R-7).
+   *
+   * The phone's camera is `isActive={isFocused}` and `MediaCaptureFlow` swaps the whole screen
+   * for `PhotoPreview`/`VideoPreview`, so the sensor is idle the moment the review is up. Here
+   * the review is a sibling branch of the same component and the stream would otherwise stay
+   * open for the entire naming-and-deciding window — camera LED and tab indicator lit, with
+   * nothing rendering the frames, which is exactly the state `useCaptureStream` names as the
+   * thing to avoid. `withAudio` is unconditional (§58e/§60d), so the microphone track is held
+   * too: a live mic behind a filename field is the worse half of this.
+   *
+   * Same effect `OcrCaptureScreen` runs for its confirm stage, latch included: only the stream
+   * WE closed is reopened, so a sample-path visitor — who never had one — is never met with a
+   * surprise permission prompt on Retake. `stopRecording` resolves its capture before this
+   * fires, so there is no ordering hazard with the recorder.
+   */
+  const reopenAfterReviewRef = useRef(false)
+  useEffect(() => {
+    if (captured) {
+      if (stream) {
+        reopenAfterReviewRef.current = true
+        close()
+      }
+    } else if (reopenAfterReviewRef.current) {
+      reopenAfterReviewRef.current = false
+      void open()
+    }
+  }, [captured, stream, close, open])
 
   const runBusy = useCallback(async (work: () => Promise<unknown>) => {
     setBusy(true)

@@ -17,6 +17,7 @@ import {
   fakeRecorderIo,
   fakeStream,
   type FakeRecorder,
+  type FakeTrack,
 } from '@/features/demo/ui/inputs/__tests__/capture-media-io'
 
 /**
@@ -62,6 +63,9 @@ interface Harness {
   onCancel: Mock<() => void>
   revoked: string[]
   getUserMedia: Mock<(constraints: MediaStreamConstraints) => Promise<MediaStream>>
+  /** Every stream the default `getUserMedia` handed out, newest last — so a test can assert the
+   *  screen actually stopped its tracks rather than merely dropping the reference. */
+  streams: (MediaStream & { tracks: FakeTrack[] })[]
   recorder: FakeRecorder
   advance(ms: number): void
 }
@@ -76,18 +80,29 @@ function harness(
     accept?: boolean
     devices?: MediaDeviceInfo[]
     getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>
+    /** Make the device enumeration FAIL — distinct from it returning nothing (§60e). */
+    enumerateDevices?: () => Promise<MediaDeviceInfo[]>
   } = {},
 ): Harness {
   const { io, revoked } = urlIo()
   const recorder = fakeRecorder('video/webm')
   const saved: SaveMediaRequest[] = []
+  const streams: (MediaStream & { tracks: FakeTrack[] })[] = []
   let nowMs = 1_000_000
 
   const getUserMedia = vi.fn(
-    options.getUserMedia ?? (async () => fakeStream(['video', 'audio'])),
+    options.getUserMedia ??
+      (async () => {
+        const stream = fakeStream(['video', 'audio'])
+        streams.push(stream)
+        return stream
+      }),
   )
   const mediaDevices: MediaDevicesLike | null = options.live
-    ? { getUserMedia, enumerateDevices: async () => options.devices ?? [] }
+    ? {
+        getUserMedia,
+        enumerateDevices: options.enumerateDevices ?? (async () => options.devices ?? []),
+      }
     : null
 
   const onSave = vi.fn((request: SaveMediaRequest) => {
@@ -109,6 +124,7 @@ function harness(
     onCancel: vi.fn(),
     revoked,
     getUserMedia,
+    streams,
     recorder,
     advance: (ms: number) => {
       nowMs += ms
@@ -541,6 +557,66 @@ describe('video recording', () => {
 
     expect(screen.queryByText('Review Video')).not.toBeInTheDocument()
     expect(screen.getByText(/recording failed and produced no audio or video/)).toBeInTheDocument()
+  })
+})
+
+// ---- Hardware lifecycle -----------------------------------------------------
+
+describe('camera release while a capture is under review (R-7)', () => {
+  async function capturePhotoLive(h: Harness) {
+    const view = mount(h)
+    await grant()
+    const preview = screen.getByLabelText('Live camera preview')
+    Object.defineProperty(preview, 'videoWidth', { value: 640, configurable: true })
+    Object.defineProperty(preview, 'videoHeight', { value: 480, configurable: true })
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    return view
+  }
+
+  it('stops the camera AND the microphone track the moment the review stage is up', async () => {
+    // The phone's sensor is idle behind `PhotoPreview` (`isActive={isFocused}`). Here the review
+    // is a sibling branch of the same component, so without the effect the LED and the tab
+    // indicator stay lit for the whole naming-and-deciding window with nothing rendering the
+    // frames — and `withAudio` is unconditional, so the mic is held behind a text field too.
+    const h = harness({ live: true })
+    await capturePhotoLive(h)
+
+    expect(screen.getByText('Review Image')).toBeInTheDocument()
+    expect(h.streams).toHaveLength(1)
+    for (const track of h.streams[0].tracks) {
+      expect(track.stop, `${track.kind} track left running`).toHaveBeenCalled()
+    }
+  })
+
+  it('reopens the camera the demo closed when the visitor retakes', async () => {
+    const h = harness({ live: true })
+    await capturePhotoLive(h)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    expect(h.getUserMedia).toHaveBeenCalledTimes(2)
+    expect(h.streams).toHaveLength(2)
+    // The replacement is live — its tracks are the ones NOT stopped.
+    for (const track of h.streams[1].tracks) expect(track.stop).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+  })
+
+  it('never opens a camera the visitor never had — the sample path retake stays silent', async () => {
+    // The latch is the point: reopening unconditionally would fire a permission prompt at a
+    // visitor who has been on the bundled sample the whole time and never asked for a camera.
+    const h = harness()
+    mount(h)
+    fireEvent.click(shutter('Attach sample photo'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    expect(h.getUserMedia).not.toHaveBeenCalled()
+    expect(shutter('Attach sample photo')).toBeInTheDocument()
   })
 })
 
