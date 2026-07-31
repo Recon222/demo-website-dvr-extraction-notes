@@ -3717,6 +3717,40 @@ See §61g. Its "both directions are pinned" sentence was false when written, and
 stays visible with the lesson attached: that is a claim about TESTS, and the only way to earn it
 is to run the mutation. The arm now carries the two assertions that survive nothing.
 
+### 68g. FD-2 — the flow's hand-rolled capability rules are gone (fix round 2)
+
+**Added in the second fix round (`parity/p4-fix2-audio`), discharging §65c's trigger.** §65c
+deferred the `modeFor` collapse of this flow's `canStream`/`canRecord` pair to "P4.6's own fix
+round" — and that round (§68a–f) came and went inside the same merge without touching it. The
+trigger lapsed, which is why this could not be deferred a second time; recorded plainly because
+a named trigger that expires unnoticed is worth more as a lesson than as a footnote.
+
+**What was wrong.** Two hand-rolled derivations, both missing the `objectUrls` term:
+`mode`'s sample arm (`!capability.stream || !capability.record`) and the `sampleNotice` ternary
+(`canStream ? NO_RECORDER_NOTICE : SAMPLE_MEDIA_NOTICE`). On a `{ stream: true, record: true,
+objectUrls: false }` browser — a hardened or embedded WebView — the engine answers `'sample'`
+and the flow rendered the **full live recorder**: microphone open, meter responding to the
+visitor's voice. They recorded a take, pressed Stop, and the registry check answered
+`captureFailure('UNSUPPORTED', 'microphone')` — *"This browser doesn't expose a microphone to
+this page"* — over a completed recording. The ternary was also structurally incapable of
+producing `NO_CAPTURE_STORAGE_NOTICE`, the sentence §65b added for precisely this state.
+
+**Fix:** three reads, all now the engine's. `capability.modeFor('audio') === 'live'` is the one
+derivation (closed with `assertNever` over `MediaKind`, so a fourth kind cannot inherit the
+photo rule), it gates the mount-time `open()` as well as `mode`, and `capability.sampleNotice`
+supplies the sentence by binding-reason priority. Both notice imports are gone from the flow,
+so the surface has nothing left to re-derive with.
+
+**Pin:** a `deps.objectUrls: null` arm asserting sample mode, that `getUserMedia` is never
+called, and that the storage sentence — not either device sentence — is what prints. Probed by
+restoring the exact pre-fix expressions: it reddens.
+
+**Not done here, deliberately:** FD-2's optional coda (dropping `CaptureSupport` from the public
+`CaptureCapability`, which would make this finding structurally unrepeatable) and FD-6 both land
+in `useMediaCapture.ts`, which P4.1 is editing on a parallel micro-branch for FD-1/FD-5. Two
+agents in one file is how §65c's reconcile happened. The audio flow now reads none of the three
+raw booleans, so nothing here blocks that coda.
+
 ## 69. P4.7 fix round 1 (parity/p4-fix-ocr) — R-4/R-5/R-6/R-10/R-15/R-29(twin)/R-32 dispositions
 
 **Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, the P4.7-routed findings.
