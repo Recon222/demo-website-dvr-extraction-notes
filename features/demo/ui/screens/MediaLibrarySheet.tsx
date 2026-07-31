@@ -21,6 +21,7 @@ import {
 } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 
 /**
@@ -68,11 +69,15 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
    * unmounts it, so a reopen re-runs the initialiser. Same behaviour, no effects.
    */
   const [selectedId, setSelectedId] = useState<string | null>(() => firstIdOf(media, DEFAULT_MEDIA_TAB))
+  /** Which item is being viewed full-screen — an ID rather than a boolean, so it self-cancels
+   *  the moment the selection moves or the item is deleted, with nothing to remember to reset. */
+  const [fullscreenId, setFullscreenId] = useState<string | null>(null)
 
   // DERIVED, never a second copy of the item: a deleted row's id simply stops resolving and the
   // preview closes itself — the phone needs an explicit `onDeleted` → `closePreview` for this
   // (`MediaLibrarySheet.tsx:63-70`).
   const selected = items.find((m) => m.id === selectedId) ?? null
+  const fullscreen = selected !== null && selected.id === fullscreenId ? selected : null
 
   const selectTab = (next: MediaLibraryTabId) => {
     setTab(next)
@@ -94,6 +99,7 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
             // on `media.id` (MediaPreview.tsx:320-322 — a re-pointed native player crashed).
             key={selected.id}
             item={selected}
+            onFullscreen={() => setFullscreenId(selected.id)}
             onClose={() => setSelectedId(null)}
           />
         )}
@@ -112,6 +118,10 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
           )}
         </div>
       </div>
+
+      {/* Mounted only while it is actually open — the phone does the same, so no player exists
+          for a fullscreen nobody asked for (MediaLibrarySheet.tsx:343-351). */}
+      {fullscreen !== null && <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />}
     </ModalShell>
   )
 }
@@ -201,7 +211,7 @@ function MediaTabs({
  * any work — the phone's play/pause + seekable bar + elapsed/total IS what a native control is.
  * §63d records the choice and what would change it.
  */
-function MediaPreview({ item, onClose }: { item: MediaItem; onClose(): void }) {
+function MediaPreview({ item, onFullscreen, onClose }: { item: MediaItem; onFullscreen(): void; onClose(): void }) {
   const available = isMediaAvailable(item)
 
   return (
@@ -225,6 +235,16 @@ function MediaPreview({ item, onClose }: { item: MediaItem; onClose(): void }) {
 
       {/* ---- Zone 3: the action row ---- */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 12px 4px' }}>
+        {/* Image and video only (phone `showFullscreenButton`, MediaPreview.tsx:255) — and only
+            with bytes to show: an expired capture has nothing to fill a screen with, so the
+            control is absent rather than present-and-empty. */}
+        {canFullscreen(item) && (
+          <button type="button" aria-label="View fullscreen" onClick={onFullscreen} style={previewActionButton}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3" />
+            </svg>
+          </button>
+        )}
         <button type="button" aria-label="Close preview" onClick={onClose} style={previewActionButton}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M6 9l6 6 6-6" />
@@ -232,6 +252,80 @@ function MediaPreview({ item, onClose }: { item: MediaItem; onClose(): void }) {
         </button>
       </div>
     </div>
+  )
+}
+
+/** Audio never opens fullscreen on the phone, and neither does a capture with no bytes left. */
+function canFullscreen(item: MediaItem): boolean {
+  return item.kind !== 'audio' && isMediaAvailable(item)
+}
+
+// ---- Fullscreen preview (matrix row 65) -------------------------------------
+
+/**
+ * Phone `MediaPreviewFullscreen` (ui-mapping 09:525): a black full-bleed layer with one floating
+ * close button top-right, image or video contained inside it, audio never.
+ *
+ * It portals into the phone overlay root like every other overlay in this feature, so it pins to
+ * the visible screen instead of scrolling with the sheet's list.
+ */
+function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }) {
+  const isPhoto = item.kind === 'photo'
+  return (
+    <PhoneOverlayPortal>
+      <div
+        data-testid="media-fullscreen"
+        role="dialog"
+        aria-modal="true"
+        // Phone container label (`Fullscreen ${media.type}: ${media.filename}`,
+        // MediaPreviewFullscreen.tsx:73-75) — with the demo's own kind word for the type.
+        aria-label={`Fullscreen ${item.kind}: ${item.filename}`}
+        style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}
+      >
+        {isPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element -- see MediaContent.
+          <img
+            src={item.url}
+            alt={`Fullscreen image: ${item.filename}`}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <video
+            aria-label={`Fullscreen video: ${item.filename}`}
+            src={item.url}
+            poster={item.poster}
+            controls
+            autoFocus
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        )}
+
+        <button
+          type="button"
+          aria-label="Close fullscreen"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 44,
+            right: 14,
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            border: 'none',
+            background: 'rgba(0,0,0,0.5)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </PhoneOverlayPortal>
   )
 }
 

@@ -314,6 +314,71 @@ describe('a capture that did not survive the refresh (P4.1’s contract)', () =>
   })
 })
 
+describe('the fullscreen preview (row 65)', () => {
+  it('opens a photo full-bleed and returns to the sheet on close', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+
+    const layer = screen.getByRole('dialog', { name: 'Fullscreen photo: front-door.jpg' })
+    expect(within(layer).getByAltText('Fullscreen image: front-door.jpg')).toBeInTheDocument()
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(screen.queryByTestId('media-fullscreen')).not.toBeInTheDocument()
+    // Back to the inline preview, selection intact (phone: closeFullscreen → 'inline').
+    expect(screen.getByTestId('media-preview')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('opens a video with its controls', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+    fireEvent.click(tab('Video tab, 1 items'))
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+
+    // Scoped: the layer itself carries the same name (phone container-label parity), so the
+    // element inside it is found by searching descendants.
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(within(layer).getByLabelText('Fullscreen video: lobby.mp4')).toHaveAttribute('controls')
+  })
+
+  it('is not offered for audio — the phone’s image/video-only rule', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+    fireEvent.click(tab('Audio tab, 1 items'))
+
+    expect(screen.getByTestId('media-preview')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View fullscreen' })).not.toBeInTheDocument()
+  })
+
+  it('is not offered for a capture whose bytes did not survive the refresh', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ url: undefined })] }) })} />)
+
+    expect(screen.getByTestId('media-expired-notice')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View fullscreen' })).not.toBeInTheDocument()
+  })
+
+  it('self-cancels when the selection moves to another row', () => {
+    render(
+      <MediaLibrarySheet
+        {...props({
+          media: buckets({
+            photos: [
+              item({ id: 'p1', filename: 'older.jpg', capturedAt: '2026-07-14 09:00:00' }),
+              item({ id: 'p2', filename: 'newer.jpg', capturedAt: '2026-07-16 09:00:00' }),
+            ],
+          }),
+        })}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    expect(screen.getByTestId('media-fullscreen')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Photo: older.jpg' }))
+
+    expect(screen.queryByTestId('media-fullscreen')).not.toBeInTheDocument()
+  })
+})
+
 describe('the item info panel (row 64)', () => {
   it('shows filename, duration, date and caption — and nothing editable', () => {
     render(
