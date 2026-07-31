@@ -232,13 +232,13 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P3 | P3.5 duplicate location | ✅ | #32 | 6-action chooser; last field-parity key closed |
 | P3 | P3.6 incident editing | ✅ | #32 | map affordance + modal; phone stale-lookup bug fixed demo-side |
 | P3 | P3.7 per-camera GPS | ✅ | #32 | 5 keys, precise config, snapshot v5 |
-| P4 | P4.1 capture capability | ☐ | | |
-| P4 | P4.2 drawer accordion | ☐ | | |
-| P4 | P4.3 photo/video capture | ☐ | | |
-| P4 | P4.4 MetadataForm | ☐ | | |
-| P4 | P4.5 media library | ☐ | | |
-| P4 | P4.6 audio recording | ☐ | | |
-| P4 | P4.7 OCR camera | ☐ | | |
+| P4 | P4.1 capture capability | ✅ | #33 | engine media core + hooks; SNAPSHOT v6 (blob-strip); sample-fallback contract |
+| P4 | P4.2 drawer accordion | ✅ | #33 | Media entry point; honest save-status (original, row-80 refuted ×2) |
+| P4 | P4.3 photo/video capture | ✅ | #33 | viewfinder, mode pill, review; boolean onSave/handOff contract |
+| P4 | P4.4 MetadataForm | ✅ | #33 | shared form at both SEAMs; no P7 filename dependency (refuted) |
+| P4 | P4.5 media library | ✅ | #33 | tabs/previews/long-press delete; phone verified display-only |
+| P4 | P4.6 audio recording | ✅ | #33 | AnalyserNode waveform, CRT, no-auto-reset decision; phone bug 9 found |
+| P4 | P4.7 OCR camera | ✅ | #33 | LANDSCAPE viewfinder; lazy tesseract 10/10 reads; OcrProof.imageDataUrl fills the PDF |
 | P5 | P5.1 export engine | ☐ | | |
 | P5 | P5.2 export tab | ☐ | | |
 | P5 | P5.3 export modals | ☐ | | |
