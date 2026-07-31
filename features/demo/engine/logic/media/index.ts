@@ -86,3 +86,19 @@ export {
   toSampleCapture,
   type SampleMediaAsset,
 } from '@/features/demo/engine/logic/media/samples'
+
+export {
+  RECORDER_SCALE_LABELS,
+  SPECTRUM_BAR_COUNT,
+  SPECTRUM_BIN_FRACTION,
+  channelLabel,
+  codecLabel,
+  formatSampleRate,
+  levelDbLabel,
+  levelFillColor,
+  recorderStatusColor,
+  recorderStatusLabel,
+  spectrumBars,
+  timeOfDay,
+  waveformLevel,
+} from '@/features/demo/engine/logic/media/audio-levels'
