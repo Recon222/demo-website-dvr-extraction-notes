@@ -30,6 +30,7 @@ You are the ORCHESTRATOR of the demo↔phone parity effort: bring the `/demo` ex
 - **Verification lane:** Playwright drives the demo; the phone runs on the iOS Simulator via the phone repo's `driving-ios-simulator` skill; Opus agents absorb all screenshot-heavy work. Computer use available as backup.
 - **P4.7 OCR screen:** landscape viewfinder (owner directive in plan §5 P4.7 — the phone's portrait-vertical strip means "rotate the phone"; demo renders landscape).
 - Owner is burning a Max-plan quota week — front-load heavy work; don't idle agents.
+- **Implementation model policy (owner-ratified after P1): HYBRID.** Opus implementers (1M context since 4.7 — context is NOT a constraint) take well-specified/mechanical packages; Fable keeps the precision cores (notes generator, store/persistence invariants, OCR recognition) and ALWAYS the review aggregator. Three tiers exist in `.claude/agents/`: `opus-implementer-high` (S-sized mechanical), `opus-implementer` (xhigh, standard), `opus-implementer-max` (subtle Opus packages). **P2 is the A/B**: Fable on P2.1, Opus max on P2.2, Opus xhigh on P2.3/P2.4, Opus high on P2.5 — track per-package review-findings density (severity-weighted), fix-round count, refutation quality, and token use; DEBRIEF WITH THE OWNER after P2 merges before deciding P3's mix. P3 does NOT launch until that debrief.
 
 ## 4. Standing rules learned this session (put these in EVERY agent brief)
 
