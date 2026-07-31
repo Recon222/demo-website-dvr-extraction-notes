@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
+import { GPS_SOURCES } from '@/features/demo/engine/types'
 import {
   ACCURACY_MODE_TARGET_M,
   GPS_CONFIG_STATIC,
@@ -65,6 +66,12 @@ describe('meetsTargetAccuracy', () => {
     expect(meetsTargetAccuracy(sample({ accuracyM: 49.9 }), 50)).toBe(true)
     expect(meetsTargetAccuracy(sample({ accuracyM: 50.1 }), 50)).toBe(false)
   })
+
+  it('never ends the loop early on a reading with no accuracy figure (R-18)', () => {
+    // A `0` default would satisfy every target instantly and collapse the multi-sample
+    // procedure to one reading — on a number nobody measured.
+    expect(meetsTargetAccuracy(sample({ accuracyM: undefined }), 100)).toBe(false)
+  })
 })
 
 describe('selectBestSample', () => {
@@ -81,6 +88,19 @@ describe('selectBestSample', () => {
 
   it('returns null for an empty set', () => {
     expect(selectBestSample([])).toBeNull()
+  })
+
+  it('prefers a MEASURED reading over an unmeasured one, in either order (R-18)', () => {
+    const measured = sample({ accuracyM: 40 })
+    const unmeasured = sample({ accuracyM: undefined })
+    expect(selectBestSample([unmeasured, measured])).toBe(measured)
+    expect(selectBestSample([measured, unmeasured])).toBe(measured)
+  })
+
+  it('still returns an unmeasured reading when nothing in the set carries an accuracy', () => {
+    // Better an honest coordinate with no accuracy chip than discarding a real fix.
+    const first = sample({ accuracyM: undefined, timestampMs: 1_000 })
+    expect(selectBestSample([first, sample({ accuracyM: undefined, timestampMs: 2_000 })])).toBe(first)
   })
 })
 
@@ -143,6 +163,23 @@ describe('toGpsFix', () => {
     expect(out.ok === false && out.failure.code).toBe('INVALID_COORDINATES')
   })
 
+  it('commits a fix with no accuracy when no reading carried one (R-18)', () => {
+    const out = toGpsFix([sample({ accuracyM: undefined })])
+    expect(out.ok).toBe(true)
+    expect(out.ok === true && out.fix.accuracyM).toBeUndefined()
+    expect(out.ok === true && out.fix.lat).toBe(43.6087)
+  })
+
+  it('fails with a typed error rather than throwing on a malformed timestamp (R-13)', () => {
+    // new Date(NaN).toISOString() throws; unguarded that became an unhandled rejection and a
+    // dead capture button with no failure line.
+    const out = toGpsFix([sample({ accuracyM: 5, timestampMs: Number.NaN })])
+    expect(out).toEqual({
+      ok: false,
+      failure: { code: 'INVALID_COORDINATES', message: 'Invalid timestamp reported by the location service.' },
+    })
+  })
+
   it('counts every reading taken, not just the winner', () => {
     const out = toGpsFix([sample({ accuracyM: 9 }), sample({ accuracyM: 9 }), sample({ accuracyM: 9 })])
     expect(out.ok === true && out.fix.sampleCount).toBe(3)
@@ -176,6 +213,14 @@ describe('formatting', () => {
     expect(gpsSourceLabel('geocoded')).toBe('Geocoded')
     expect(gpsSourceLabel('manual')).toBe('Manual')
     expect(gpsSourceLabel(undefined)).toBe('')
+  })
+
+  it('labels EVERY declared source — a new member cannot ship chip-less (R-25)', () => {
+    // The `never` check makes an unhandled member a compile error; this is the runtime
+    // statement of the same rule, driven off the registry rather than a hand-written list.
+    for (const source of GPS_SOURCES) {
+      expect(gpsSourceLabel(source), `no provenance label for "${source}"`).not.toBe('')
+    }
   })
 
   it('interpolates the configured timeout into the timeout message', () => {

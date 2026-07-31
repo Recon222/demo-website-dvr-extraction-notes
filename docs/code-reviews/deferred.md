@@ -1310,3 +1310,45 @@ a value instead of telling the truth about it — the inverse of how this demo h
 else it cannot really do — and would make the confidence tiers unreachable on two of three
 frames. If a real recogniser ever lands (P4), the badge and its note must be removed with the
 constant; `OCR_SAMPLE_CONFIDENCE`'s docblock carries that instruction.
+## 45. P2.3 fix round (p2-review R-1/R-6/R-7/R-10/R-13/R-17/R-18/R-21/R-24/R-25/R-31) — choices made
+
+**Source:** the P2 aggregated review, `docs/code-reviews/parity/p2/p2-review.md`. All eleven
+P2.3-owned findings are FIXED on `parity/p2-fix-submission`; nothing was deferred or refuted.
+This entry records the judgement calls inside those fixes, so the fix-delta pass does not have
+to re-derive them. (§41 remains the package's own refutation/residual ledger — it was §37 on the
+authoring branch and renumbered during merge integration.)
+
+**45a. R-7 took the stronger option, not the in-repo idiom.** The review offered PickerStage's
+re-focus-on-failure effect (`:171-192`) or `aria-disabled` + an early return. Chose the latter:
+PickerStage *repairs* focus after losing it, which fits a sub-second clipboard read, whereas the
+GPS stranding window is the whole 30–120 s capture and covers the SUCCESS path too. `aria-disabled`
+never drops focus at all. Consequence to know: the button stays tabbable and clickable while busy,
+so the `if (busy || disabled) return` guard in `onClick` is load-bearing — deleting it re-enables
+double-capture. Pinned by a test that clicks during the capture and asserts one write.
+
+**45b. R-13 classified a bad timestamp as `INVALID_COORDINATES`.** A separate code would have been
+more literal, but the union is deliberately the phone's minus the unreachable `UNKNOWN` (§41), and
+`INVALID_COORDINATES` already means "this reading cannot be trusted". The message names the actual
+defect. Revisit only if a caller ever needs to branch on timestamp-vs-coordinate invalidity.
+
+**45c. R-18's unmeasured-sample ordering is a decision, not a fallout.** With `accuracyM` optional,
+`selectBestSample` prefers any MEASURED reading over an unmeasured one in either order, and returns
+an unmeasured one only when nothing in the set carries an accuracy. The alternative — never
+returning an unmeasured sample — would turn "coordinates captured, accuracy unknown" into
+`LOCATION_UNAVAILABLE`, which is dishonest in the other direction: the fix is real, only the
+accuracy figure is missing. Both arms are pinned.
+
+**45d. R-1 abandons a superseded lookup silently.** When the write guard fires, no notice is shown.
+A notice would be attributed to the location now on screen, which never had a lookup in flight —
+noise about someone else's operation. The dropped result is not evidence: the coordinates it would
+have annotated were already written, stamped, and visible before the lookup started.
+
+**45e. R-24 left one deliberate divergence.** `LocationFieldValues` is a flattened, all-optional
+projection (`CoordinateProjection`) rather than `GpsCoordinates` proper, because a half-filled form
+IS a real state there — unlike a stored fix, where lat/lng are required together. It is expressed
+as a mapped type over `GpsCoordinates` so a field added to the canonical shape still has to be
+projected explicitly. The other six carriers are straight derivations.
+
+**Trigger for all five:** P3.4/P3.7 mount `GpsCaptureControl`/`LocationFields` for New Location and
+per-camera capture. Re-read 45a (the `onClick` guard) and 45d (the guard token — those callers must
+pass their own identity, not the recovery location's) before wiring them.

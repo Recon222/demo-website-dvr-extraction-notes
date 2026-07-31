@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react'
 
-import { formatAccuracy, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
+import { buildGpsConfig, formatAccuracy, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
 import { useGpsCapture, type UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
@@ -114,15 +114,35 @@ export function GpsCaptureControl({
   disabled = false,
   deps,
 }: GpsCaptureControlProps) {
-  const { isCapturing, progress, failure, capture } = useGpsCapture({ config, deps })
+  // Resolve the config ONCE and hand the same object to the hook and the readout (R-10): a
+  // second `?? 10` default here would drift the moment `GPS_CONFIG_STATIC.maxAttempts` changes,
+  // and this component's docblock promises every number on that line is measured.
+  const resolvedConfig = config ?? buildGpsConfig()
+  const { isCapturing, progress, failure, capture } = useGpsCapture({ config: resolvedConfig, deps })
 
   const busy = isCapturing || reverseGeocoding
   const busyText = isCapturing ? GPS_CONTROL_LABELS.capturing : GPS_CONTROL_LABELS.lookingUp
 
   const onClick = () => {
-    void capture().then((fix) => {
-      if (fix) onCapture(fix)
-    })
+    // R-7: the button is `aria-disabled`, not `disabled`, so activation must be refused here.
+    // A real `disabled` attribute makes the browser blur the element, dropping keyboard focus
+    // to <body> for the whole 30 s (120 s under PRECISE_GPS_CONFIG) capture budget — a keyboard
+    // user loses their place in a 12-field form, and the permission-denied `role="alert"` below
+    // then announces with focus nowhere near a route back. Staying focused and inert is the
+    // stronger form of PickerStage's re-focus-on-failure idiom (:171-192): focus is never
+    // dropped at all, on the success path either.
+    if (busy || disabled) return
+    capture()
+      .then((fix) => {
+        if (fix) onCapture(fix)
+      })
+      .catch((e: unknown) => {
+        // R-13 backstop. `capture()` classifies every failure it can see, and `onCapture`'s
+        // consumers guard their own awaits — so reaching here means a genuinely unexpected
+        // throw. Swallowing it silently would leave the dead-button shape (idle, no fix, no
+        // message); the breadcrumb is the repo's console.warn convention for soft-failed I/O.
+        console.warn('[demo/gps] capture chain threw unexpectedly:', e)
+      })
   }
 
   return (
@@ -131,7 +151,7 @@ export function GpsCaptureControl({
         <button
           type="button"
           onClick={onClick}
-          disabled={busy || disabled}
+          aria-disabled={busy || disabled}
           aria-busy={busy}
           aria-label={isCapturing ? 'Capturing location, please wait' : reverseGeocoding ? 'Looking up address, please wait' : label}
           style={{ ...button, opacity: busy || disabled ? 0.7 : 1, cursor: busy || disabled ? 'default' : 'pointer' }}
@@ -162,7 +182,9 @@ export function GpsCaptureControl({
       {/* Live sample readout — demo-only (see the header note); every value is measured. */}
       {isCapturing && progress && (
         <div role="status" data-testid="gps-capture-progress" style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>
-          {`Sample ${progress.samplesTaken} of ${config?.maxAttempts ?? 10} · best ${formatAccuracy(progress.bestAccuracyM)}`}
+          {`Sample ${progress.samplesTaken} of ${resolvedConfig.maxAttempts}${
+            progress.bestAccuracyM === undefined ? '' : ` · best ${formatAccuracy(progress.bestAccuracyM)}`
+          }`}
         </div>
       )}
 

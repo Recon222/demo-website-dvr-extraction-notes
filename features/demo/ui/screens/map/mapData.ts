@@ -1,6 +1,7 @@
 import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
+import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
  * Map data projection — the viewer case + its locations → everything the map and sheet render. Pure
@@ -40,7 +41,7 @@ export interface LocationSheetItem {
   requesterEmail: string
   locationContact: string
   locationPhone: string
-  coordinateSource: 'gps' | 'geocoded' | 'manual'
+  coordinateSource: GpsSource
 }
 
 export interface IncidentSheetItem {
