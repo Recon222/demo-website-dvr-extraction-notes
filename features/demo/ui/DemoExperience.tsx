@@ -397,6 +397,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11)
    * and is mirrored into a ref so event-scope code (the guardImportRun catch) can read
    * the run's real stage without an impure state read (fix-delta R-40).
+   *
+   * The mirror is RUN-scoped in meaning but mount-scoped in lifetime, so it must be
+   * cleared wherever the run token moves (fix-delta R-45): its state twin
+   * (`imp.lastRealStage`) is nulled by blankImport/onRetry, the ref was nulled nowhere,
+   * and a throw landing in a new run's pre-seed window then published the PREVIOUS
+   * run's stage as if it were this one's — strictly more stale-prone than the
+   * `s.activeStage` read R-40 replaced. Cleared at both token bumps (the runs' own
+   * entry points, so `openImport` is covered too) plus onCancel's bump, belt-and-braces.
+   * With the clear, `?? 'extracting_text'` at the sole read reproduces exactly the
+   * honest pre-R-40 default for a pre-seed throw.
    */
   const lastRealStageRef = useRef<ImportRealStageId | null>(null)
   const importStageFor = (myGen: number) => (st: RunStageId) => {
@@ -470,6 +480,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     notice: string | undefined
     locations: ImportedLocationView[]
     failures: RunFailure[]
+    /**
+     * The run's files that have not been accounted for yet, in order — the head is the
+     * file the run is AT (in flight, or the next one up before the loop's first seed),
+     * drained as each lands in `locations` or `failures`. Exists so the
+     * throw backstop can keep the tally COMPLETE (fix-delta R-46): every downstream count
+     * is `locations.length + failures.length` (deriveTerminalOutcome, the result view's
+     * "Imported N of M", the DONE line), a sum that is only sound while the tally accounts
+     * for every file in the run. An aborted batch otherwise shrank its own denominator —
+     * 3 files with a throw on file 2 reported "1 of 2" — and the casualty was spelled with
+     * the 'import' sentinel. Empty on the paste path: one document, and no file to name.
+     */
+    unaccounted: string[]
   }
   const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number, emitter: ImportLogEmitter) => {
     const locId = await applySuccess(caseId, res, myGen, emitter)
@@ -551,12 +573,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       const detail = e instanceof Error ? e.message : String(e)
       emitter.log('ERR', '✗ import run threw unexpectedly', detail) // no-op if superseded/reset
       if (importGen.current !== myGen) return
+      const stage = lastRealStageRef.current ?? 'extracting_text'
+      // Account for the WHOLE run (R-46): one synthetic row for the file that was in
+      // flight, plus a row per file the aborted loop never reached. Without them the
+      // unattempted files were in neither array and every derived count summed over a
+      // tally that was incomplete by construction. `UNEXPECTED_ERROR` is right for both:
+      // it is the bridge-only code (the phone's UNKNOWN_ERROR parity) and is deliberately
+      // unmapped in ERROR_MESSAGES, so each row's own honest string renders verbatim.
+      const [threw, ...skipped] = tally.unaccounted
       tally.failures.push({
-        filename: 'import',
+        filename: threw ?? 'import', // the paste path has no filename — sentinel kept
         error: 'The import failed unexpectedly. Please try again.',
-        code: 'UNEXPECTED_ERROR', // bridge-synthesized — the phone's UNKNOWN_ERROR parity
-        details: { stage: lastRealStageRef.current ?? 'extracting_text', detail },
+        code: 'UNEXPECTED_ERROR',
+        details: { stage, detail },
       })
+      for (const name of skipped) {
+        tally.failures.push({
+          filename: name,
+          error: 'Not attempted — the import stopped after an unexpected failure.',
+          code: 'UNEXPECTED_ERROR',
+          details: { stage, detail: `The run stopped before this file was attempted: ${detail}` },
+        })
+      }
       setImp((s) => ({ ...s, activeStage: 'error' }))
       finishImport(tally, emitter, totalFiles)
     }
@@ -571,25 +609,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     // One log run per import (a batch is ONE run, like the phone). beginRun clears the
     // previous run's retained lines; the emitter self-invalidates when superseded/reset.
     const emitter = importLogBus.beginRun(logClock)
     const total = files.length
     // Hoisted OUT of the guarded closure (R-38): the catch reports through this tally,
-    // so already-landed files stay visible even when a later file's run throws.
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    // so already-landed files stay visible even when a later file's run throws. Seeded
+    // with every selected filename (R-46) so an aborted run can still report its full size.
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [], unaccounted: files.map((f) => f.name) }
     await guardImportRun(myGen, emitter, tally, total, async () => {
       if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
       else emitter.log('INIT', 'reading document…')
       for (let i = 0; i < total; i++) {
         if (importGen.current !== myGen) return // cancelled, or a newer run started
         lastRealStageRef.current = 'extracting_text'
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
+        setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
         emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
         const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
         if (importGen.current !== myGen) return // cancelled while this file was processing
         if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
         else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
+        tally.unaccounted.shift() // this file is now in locations or failures (R-46)
       }
       if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
       finishImport(tally, emitter, total)
@@ -612,8 +653,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     const emitter = importLogBus.beginRun(logClock)
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    // No `unaccounted` names: the paste path is one document with no filename, so its
+    // backstop row keeps the 'import' sentinel and its totals were never derivable wrong.
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [], unaccounted: [] }
     await guardImportRun(myGen, emitter, tally, 1, async () => {
       emitter.log('INIT', 'reading pasted text…')
       lastRealStageRef.current = 'reading_model'
@@ -943,6 +987,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
             onCancel={() => {
               importGen.current++ // invalidate any in-flight run's token (H1/H2)
+              lastRealStageRef.current = null // R-45: the state twin is cleared by blankImport below — the mirror moves with it
               importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
               // Phone handleClose parity (ImportPickerModal.tsx:147-152): a reopen always
               // starts back at the picker step with empty text, even after a mid-run close.

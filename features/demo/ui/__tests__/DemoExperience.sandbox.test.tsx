@@ -18,7 +18,7 @@ vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
-import { importLogBus } from '@/features/demo/engine/logic/import-log'
+import { importLogBus, type ImportLogLevel } from '@/features/demo/engine/logic/import-log'
 
 const runText = vi.mocked(runTextImport)
 const runPdf = vi.mocked(runPdfImport)
@@ -759,10 +759,55 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     }
   })
 
+  it('an aborted batch reports its FULL size and names the casualty (R-46): 3 files, throw on file 2', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      runPdf
+        .mockResolvedValueOnce(okRun({ filename: 'a.pdf' })) // lands
+        .mockRejectedValueOnce(new Error('boom mid-batch')) // file 2 THROWS — the loop aborts here
+      // c.pdf is never attempted: the arity where derived (locations+failures) and real
+      // totals diverge, and the one the R-38 pin's 2-file/throw-on-last shape cannot see.
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-AB3', displayName: 'AbortedBatch', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input, { target: { files: [
+        new File(['a'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['b'], 'b.pdf', { type: 'application/pdf' }),
+        new File(['c'], 'c.pdf', { type: 'application/pdf' }),
+      ] } })
+
+      // The visitor selected THREE — the denominator must say three, at the CTA moment…
+      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 3, 2 need attention/ })
+      fireEvent.click(cta)
+      expect(await screen.findByText(/Imported 1 of 3 requests/)).toBeInTheDocument() // …and in the result view
+      // …and both casualties are named, instead of one row spelled 'import'.
+      expect(screen.getByText(/b\.pdf — The import failed unexpectedly/)).toBeInTheDocument()
+      expect(screen.getByText(/c\.pdf — Not attempted — the import stopped/)).toBeInTheDocument()
+      expect(screen.queryByText(/^import — /)).not.toBeInTheDocument()
+      expect(runPdf).toHaveBeenCalledTimes(2) // c.pdf really was never attempted
+      expect(store.getState().locations.length).toBe(1)
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      runPdf.mockRejectedValue(new Error('boom from the pipeline')) // a throw, not a failure result
+      // Advance a real stage before throwing (R-49): the backstop's reported stage must be
+      // the one the run actually reached, which is carried ONLY by the lastRealStageRef
+      // forwarder write in importStageFor. Deleting that write leaves tsc and the rest of
+      // the suite green while Technical Details silently reverts to the coarse entry seed —
+      // exactly the wrong-but-plausible diagnostic R-40 exists to prevent.
+      runPdf.mockImplementation(async (_file, input) => {
+        input.onStage?.('normalizing')
+        throw new Error('boom from the pipeline') // a throw, not a failure result
+      })
       const store = createDemoStore()
       const { container } = render(<DemoExperience store={store} />)
       act(() => {
@@ -777,7 +822,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       // …and the released card carries the friendly copy + the raw throw in Technical Details.
       expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
-      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the pipeline')
+      const details = screen.getByTestId('import-technical-details')
+      expect(details).toHaveTextContent('boom from the pipeline')
+      expect(details).toHaveTextContent('"stage": "normalizing"') // the stage reached, not the entry seed
+      expect(details).not.toHaveTextContent('"stage": "extracting_text"')
       expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
       expect(store.getState().locations.length).toBe(0)
     } finally {
@@ -803,10 +851,104 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.click(cta)
       expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
-      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the text pipeline')
+      const details = screen.getByTestId('import-technical-details')
+      expect(details).toHaveTextContent('boom from the text pipeline')
+      // The paste flow seeds the mirror to 'reading_model' BEFORE calling runImport, so this
+      // path pins the seed write, not the `?? 'extracting_text'` default (which the pre-seed
+      // R-45 test above owns) — the p1-r2 doc's R-49 note has these two the other way round.
+      expect(details).toHaveTextContent('"stage": "reading_model"')
       expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
       expect(store.getState().locations.length).toBe(0)
     } finally {
+      errSpy.mockRestore()
+    }
+  })
+
+  it("a superseded run's late THROW cannot publish its tally over the live run (R-50: guardImportRun's stale-token arm)", async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      let rejectA: (e: Error) => void = () => {}
+      runPdf
+        .mockResolvedValueOnce(okRun({ filename: 'good.pdf' })) // run A file 1 LANDS in run A's tally
+        .mockImplementationOnce(() => new Promise<ImportRunResult>((_res, rej) => { rejectA = rej })) // file 2 hangs
+        .mockImplementationOnce(() => new Promise<ImportRunResult>(() => {})) // run B stays in flight
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-STK', displayName: 'StaleThrow', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input(), { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'hang.pdf', { type: 'application/pdf' })] } })
+      await screen.findByText(/File 2 of 2/) // run A landed file 1 and is now waiting on file 2
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close' })) // supersede run A mid-flight
+      act(() => { store.getState().openModal('import') })
+      fireEvent.change(input(), { target: { files: [new File(['c'], 'live.pdf', { type: 'application/pdf' })] } })
+      expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+
+      // Run A's rejection lands AFTER run B took the token. Since ca0df27 the catch no longer
+      // publishes a self-contained failure object but run A's whole TALLY through finishImport
+      // (stage + result + lastLocId) — so dropping the token check would paint an amber
+      // "Batch partially failed — 1 of 2" CTA and a result card over a live, unfinished run.
+      await act(async () => { rejectA(new Error('boom from the superseded run')) })
+
+      expect(screen.queryByRole('button', { name: /Batch partially failed/ })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('terminal-review-cta')).not.toBeInTheDocument() // no outcome at all
+      expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
+  it('a pre-seed throw reports the honest default stage, never the PREVIOUS run’s (R-45: the mirror is cleared at the token bump)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const realBeginRun = importLogBus.beginRun
+    const beginRun = vi.spyOn(importLogBus, 'beginRun')
+    try {
+      // Run 1 reaches 'normalizing' and fails there — the bridge's stage mirror now holds it.
+      runPdf.mockImplementationOnce(async (_file, input) => {
+        input.onStage?.('normalizing')
+        return { ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'first.pdf', code: 'PDF_SCANNED', details: { stage: 'normalizing', detail: 'no selectable text' } }
+      })
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-STALE', displayName: 'StaleStage', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input(), { target: { files: [new File(['a'], 'first.pdf', { type: 'application/pdf' })] } })
+      fireEvent.click(await screen.findByRole('button', { name: /See error details/ }))
+      // Back to the picker through Retry, NOT Close: onRetry takes no token and clears no
+      // ref, so only run 2's own token bump can drop run 1's stage. (Close would satisfy this
+      // test through the belt-and-braces clear and hide a missing token-bump clear.)
+      fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+
+      // Run 2 throws on the guarded closure's FIRST statement — the pre-seed window R-45
+      // names, and the only throwable in it. The emitter is the run's collaborator; the
+      // backstop's whole premise is "if a callee ever does throw".
+      beginRun.mockImplementationOnce((now: () => number) => {
+        const emitter = realBeginRun(now)
+        return {
+          ...emitter,
+          log: (level: ImportLogLevel, text: string, detail?: string) => {
+            if (level === 'INIT') throw new Error('pre-seed boom')
+            emitter.log(level, text, detail)
+          },
+        }
+      })
+      fireEvent.change(input(), { target: { files: [new File(['b'], 'second.pdf', { type: 'application/pdf' })] } })
+      fireEvent.click(await screen.findByRole('button', { name: /See error details/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
+
+      const block = screen.getByTestId('import-technical-details')
+      expect(block).toHaveTextContent('"stage": "extracting_text"') // the honest default
+      expect(block).not.toHaveTextContent('"stage": "normalizing"') // run 1's stage — a lie about run 2
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      beginRun.mockRestore()
       errSpy.mockRestore()
     }
   })

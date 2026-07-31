@@ -827,3 +827,45 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+## 37. P1 residual-minor rider (R-45/R-46/R-49/R-50/R-51) — deliberate residuals
+
+**Context:** the five P1.4-owned minors from `docs/code-reviews/parity/p1/p1-r2-review-fixdelta.md`
+were all FIXED on `parity/p2-rider-import` (nothing from that set is deferred). Three
+choices inside those fixes are deliberate and should not be re-flagged:
+
+1. **R-46 took option (b), not option (a).** The review offered carrying `totalFiles` on
+   the `ImportResult` arms (structural) or padding the tally (catch-local). Padding was
+   taken because it closes BOTH halves of the finding — the shrunken denominator *and*
+   the row that could not name the file that threw — where (a) closes only the first and
+   would leave the printed total disagreeing with the number of failure rows beside it.
+   `deriveTerminalOutcome` keeps summing `locations.length + failures.length`; the
+   premise it now rests on (every writer accounts for every file) is stated in its
+   docstring and in `ImportTally.unaccounted`. **Trigger to revisit:** a second partial
+   reporter that cannot enumerate its own files — carry the total then, for all writers
+   at once.
+
+2. **`filename: 'import'` survives on the paste path** (the type-design lane's folded
+   `filename: string | null` secondary). The PDF backstop now names real files, but the
+   paste path has no filename to name, so its synthetic row keeps the sentinel.
+   Modelling "not a file" as `null` would ripple through `ImportFailure`, `FailuresCard`,
+   and the phone-parity row copy for one sentinel on one path. **Trigger to revisit:** a
+   second non-file import source (a URL/QR path would be the tell).
+
+3. **The unattempted rows reuse `UNEXPECTED_ERROR`.** "Not attempted — the import stopped
+   after an unexpected failure." is not really an *error* code, but the code union is
+   closed and `UNEXPECTED_ERROR` is the bridge-only member that is deliberately unmapped
+   in `ERROR_MESSAGES` — so each row's own honest string renders verbatim, which is the
+   behaviour wanted. Adding a `NOT_ATTEMPTED` member would ripple into the map, the
+   phone-parity §5.7.8 precedent, and every exhaustiveness site for a code no consumer
+   branches on. **Trigger to revisit:** any consumer that needs to branch on "skipped"
+   vs "failed" (a retry-only-the-skipped affordance would be the tell).
+
+**Recorded, not filed (verified during this rider):** the p1-r2 doc's R-49 note assumed
+the R-43 text-path test covered the `?? 'extracting_text'` default — it does not.
+`runTextImportFlow` seeds the stage mirror to `'reading_model'` before calling
+`runImport`, so that test pins the SEED write (now asserted); the null-ref default is
+covered by the new pre-seed R-45 test. Same doc's suggested R-45 shortcut ("reject
+`runText` immediately after a completed PDF run") cannot reach the defect for the same
+reason — the seed overwrites the stale ref before the rejection lands. A pre-seed throw
+is the only reachable window, and the emitter's `INIT` log is the only throwable in it.
