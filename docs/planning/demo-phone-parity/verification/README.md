@@ -1,0 +1,241 @@
+# drive-harness — driving the phone app + the web demo, programmatically
+
+Everything here runs **without computer use**. The phone is driven with Maestro taps and read
+with a Vision-framework OCR helper; the demo is driven with Playwright. No screenshot ever has
+to enter an agent transcript just to find out what is on screen — `look.sh` prints the screen as
+text with tap coordinates.
+
+**Scratch base** (referred to below as `$SP`):
+
+```
+/private/tmp/claude-501/-Users-fvadev-Developer-extraction-notes-DVR-Extraction-Notes-ReactNative/7423d8f5-e7f4-4135-a726-296308b62d4d/scratchpad
+```
+
+The phone repo `/Users/fvadev/Developer/extraction-notes/DVR-Extraction-Notes-ReactNative` is
+**read-only**. Running builds/sims out of it is fine; nothing here writes to it or commits.
+
+---
+
+## 1. The phone app (iOS Simulator)
+
+### Device / app / build facts (verified 2026-07-30)
+
+| | |
+|---|---|
+| Simulator | iPhone 17 Pro, iOS 26.5 — UDID `3906B441-8B65-4907-AA8F-8197D1932C5A` |
+| Xcode | 26.6 |
+| Bundle id | `com.kris.dvrextractionnotes` |
+| App bundle | already installed — **no rebuild was needed for any of this work** |
+| Metro | already running on `:8081` (`curl -s localhost:8081/status` → `packager-status:running`) |
+| Arch | x86_64 under Rosetta (ML Kit has no arm64 sim slice — see CLAUDE.md) |
+
+Check before you ever consider rebuilding — a rebuild is ~20 min and was **not** required:
+
+```bash
+xcrun simctl list devices booted
+xcrun simctl listapps booted | grep -A3 dvrextractionnotes
+curl -s -m 5 http://localhost:8081/status
+```
+
+### Start / stop
+
+```bash
+# launch (Metro must already be up; the dev client attaches to :8081)
+xcrun simctl launch    booted com.kris.dvrextractionnotes
+xcrun simctl terminate booted com.kris.dvrextractionnotes
+
+# pre-grant permissions so no dialog can ever block a flow
+for s in camera photos location microphone; do
+  xcrun simctl privacy booted grant $s com.kris.dvrextractionnotes
+done
+xcrun simctl location booted set 43.6532,-79.3832
+```
+
+### Prerequisites installed by this session
+
+* **Maestro 2.7.0** → `~/.maestro/bin/maestro` (`curl -Ls https://get.maestro.mobile.dev | bash`).
+* **Java** — Maestro needs a JRE and there is **no system Java**; `/usr/libexec/java_home` fails.
+  Homebrew `openjdk` **is** installed but unlinked. Every script here therefore exports:
+
+  ```bash
+  export JAVA_HOME=/opt/homebrew/opt/openjdk
+  export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
+  ```
+
+  Without that, Maestro dies with `Unable to locate a Java Runtime`. This is the single
+  most likely thing to break for the next agent.
+* **`ocr`** — a Swift/Vision binary compiled here from `ocr.swift` (`swiftc -O -o ocr ocr.swift`).
+  Recompile if it goes missing; it needs nothing but Xcode.
+
+### The driving loop
+
+```bash
+./look.sh [out.png]          # screenshot the sim + print every on-screen string as
+                             #   "<y%>  <x%>  text"   -> read state, get tap targets
+./tap.sh   50% 79%           # tap a point (repeatable: x y x y x y ...)
+./swipe.sh 50% 75% 50% 30%   # swipe (scrolling — mouse wheel does NOT work in the sim)
+./mrun.sh flow.yaml          # run any Maestro flow file
+```
+
+`look.sh` prints **y first, then x**; `tap.sh` takes **x first, then y**. Swapping them is the
+easiest mistake to make.
+
+Typical cycle: `./look.sh` → pick a label's coordinates → `./tap.sh <x%> <y%>` → `./look.sh`.
+Each Maestro invocation carries ~8 s of JVM startup, so batch taps into one `tap.sh` call or one
+flow file when the sequence is known.
+
+### Text entry — no paste permission needed
+
+Maestro `inputText` typed a 247-character request **cleanly**, with no accent-popover glitch and
+no iOS paste dialog. Prefer it over the `simctl pbcopy` + Paste-affordance route, which triggers
+a permission dialog:
+
+```yaml
+appId: com.kris.dvrextractionnotes
+---
+- tapOn:
+    point: "50%,31%"
+- inputText: "Please recover CCTV for occurrence 2026-451122. ..."
+```
+
+Run with `./mrun.sh flow-typetext.yaml`. (`flow-typetext.yaml` here is the exact flow used for
+the import baselines.)
+
+### Programmatic dialog handling (what actually came up)
+
+| Dialog | How it was cleared — no computer use |
+|---|---|
+| `Open in "DVR Extraction Notes"?` (leftover deep-link confirm, blocking the Dashboard) | `./look.sh` located `Cancel` at x≈32% y≈54% → `./tap.sh 32% 54%` |
+| Camera / photos / location / microphone prompts | never appeared — pre-granted with `simctl privacy grant` before launch |
+| iOS paste permission | never appeared — avoided entirely by using Maestro `inputText` instead of the clipboard |
+
+General recipe for any unexpected dialog: `./look.sh` renders its buttons **with coordinates**,
+so it is tappable even when Maestro can't see it as a semantic element. Maestro's own
+`maestro hierarchy` sees only the status bar for this RN app — accessibility nodes are not
+exposed usefully, which is exactly why the OCR helper exists.
+
+### Observing
+
+```bash
+xcrun simctl spawn booted log stream --process DVRExtractionNotes
+xcrun simctl get_app_container booted com.kris.dvrextractionnotes data
+```
+
+The SQLite DB is SQLCipher-encrypted — `sqlite3` from the Mac cannot read it. Don't chase the
+key; use the Fast-Refresh injection pattern in `.claude/skills/driving-ios-simulator/SKILL.md`.
+
+---
+
+## 2. The web demo (Next.js)
+
+**Use the P1 worktree, not master — master does not contain the P1 import experience.**
+
+```bash
+cd $SP/worktrees/parity-p1        # node_modules already installed (pnpm)
+pnpm dev --port 3001              # ✓ Ready in ~1s; app at http://localhost:3001/demo
+
+# stop
+kill $(lsof -nP -iTCP:3001 -sTCP:LISTEN -t)
+```
+
+Drivers (Playwright, installed in this directory):
+
+```bash
+cd $SP/drive-harness
+DEMO_BASE=http://localhost:3001 SHOT_DIR=$SP/baselines/demo/<name> node <script>.js
+HEADED=1 ...                      # watch it run
+```
+
+| Script | Covers |
+|---|---|
+| `01-wizard-walk.js` | empty state → New Case → Add Location → all 10 wizard screens → PDF preview → dashboard |
+| `02-time-offset.js` | requested scope → Time Offset → Use Current Time → Calculate → adjusted ranges → extracted scope → OCR capture |
+| `03-import.js` | **stale** — written against the pre-P1 import UI (`Extract & import`, `Import complete` stages). Superseded by `05-import-p1.js`; keep only as a master-branch reference |
+| `04-map.js` | Map tab case picker → tokenless map fallback → bottom sheet |
+| `05-import-p1.js` | the P1 import experience: 3-card picker → paste step → live terminal → dwell → result |
+| `lib.js` / `flows.js` | shared open/shot/step helpers and case/location/wizard sub-flows |
+| `probe.js` | scratch introspection — dumps the phone frame's text and every button name |
+
+### Working selectors (demo)
+
+```js
+phone(page)                                  // [data-phone="frame"] — modals portal INSIDE it
+p.getByRole('button', { name: 'New case' })
+p.getByRole('dialog',  { name: 'New Case' })
+p.getByLabel('Case Number' | 'Display Name' | 'Unit' | 'OIC Name' | 'Business / Scene Name' | 'City')
+p.getByRole('button', { name: 'Import', exact: true })      // on the expanded case card
+p.getByText('Pick File' | 'Paste from Clipboard' | 'Paste Text', { exact: true })
+p.getByLabel('Pasted request text')                          // the paste textarea
+p.getByRole('button', { name: /Import with AI/i })
+p.locator('[data-testid="import-terminal"]')                 // the live terminal
+p.locator('[data-testid="terminal-status"]')                 // headline, aria-live
+p.locator('[data-testid="terminal-log"]')
+p.locator('[data-testid="terminal-review-cta"]')             // "Review import →" — the dwell gate
+p.locator('[data-testid="case-map-picker"]')
+p.locator('[data-testid^="case-row-"]')
+```
+
+Viewport is pinned to 1440×1000 in `lib.js` — height ≥ 840 forces `usePhoneScale()` to exactly
+1.0 so the phone renders 1:1 and no coordinate math is needed. Don't shrink it.
+
+### Traps found in the demo drivers
+
+* **`expandCase` must be idempotent.** The demo **auto-expands** a freshly created case; the
+  inherited unconditional click *collapsed* it and every downstream `Add Location` wait timed
+  out at 30 s. This is what made all four inherited scripts fail. Fixed in `flows.js` and in
+  `01-wizard-walk.js`'s inline copy — check for `Add Location` first, only click if absent.
+* **Sample mode substitutes content.** With no `OLLAMA_API_KEY`, `/api/extract` returns
+  `503 NOT_CONFIGURED` and `run-import.ts` falls back to the fixed `SAMPLE_EXTRACTION`. The
+  result screen therefore shows **Kim's Convenience / 2025-03-08** regardless of what was
+  pasted, plus an amber *"Live model not configured — imported the sample request instead."*
+  For parity work: compare the **UI shape**, never the field values, against the phone.
+* **The keyless 503 returns instantly**, so the live terminal flashes past. `05-import-p1.js`
+  holds it open with `page.route('**/api/extract', …)` + a 6 s delay to make mid-run states
+  observable. Keep that when re-capturing.
+* No `NEXT_PUBLIC_MAPBOX_TOKEN` in this environment → `MapCanvas` renders the
+  `[data-map-fallback]` "Map preview unavailable" panel. Expected, not a bug.
+* The demo has **Dashboard / Cases / Map** tabs only — no Export tab.
+
+---
+
+## 3. Baseline inventory (57 PNG)
+
+```
+$SP/baselines/
+├── phone/import/                      10   ← P1 review evidence, the parity reference
+│   ├── 01-picker-3-cards.png
+│   ├── 02-paste-text-empty.png
+│   ├── 03-paste-text-filled.png
+│   ├── 04-terminal-midrun-init.png              T+0.00 INIT / T+0.31 PDF extract
+│   ├── 05-terminal-midrun-prompt-stream.png     prompt streaming live
+│   ├── 06-terminal-dwell-review-cta.png         "Import ready for review" + "Review import →"
+│   ├── 07-terminal-dwell-confirm.png            dwell persists (no auto-advance)
+│   ├── 08-import-result.png
+│   ├── 09-import-result-scrolled.png            extraction scopes + "Imported in 6.8s"
+│   └── 10-import-result-warning-expanded.png
+└── demo/
+    ├── import/                        11   ← the NEW P1 experience
+    │   ├── 01-picker-3-cards.png … 03-paste-text-filled.png
+    │   ├── 04/05/06-terminal-midrun-*.png
+    │   ├── 07-terminal-dwell-review-cta.png     "Import ready for review" + "Review import →"
+    │   ├── 08-terminal-dwell-persists.png       still there 2.5 s later — CTA is the only exit
+    │   └── 09/10/11-import-result*.png
+    ├── wizard/                        23   full walk, 10 wizard screens + PDF preview
+    ├── time-offset/                   10   NTP sync → Calculate → adjusted ranges → OCR
+    └── map/                            3   picker → tokenless fallback → expanded sheet
+```
+
+Phone run detail worth keeping: the **on-device Apple Foundation Models provider genuinely ran
+in the simulator** — no key, nothing stubbed. It extracted Riverside Variety / 4120 Lakeshore
+Blvd West / 2026-03-03 21:15→23:45 / "cameras 1 through 4" from the pasted text, finishing at
+T+36.12 with a 6.8 s import and one warning. So the phone side can be re-driven end-to-end at
+will; only the demo needs the sample-mode caveat.
+
+## 4. Blockers
+
+* **None that stopped a capture.** No iOS dialog required computer use; no build was needed.
+* Maestro's `hierarchy` is useless for this RN app (status-bar nodes only) — hence OCR-driven
+  coordinate tapping. If a future agent wants semantic Maestro selectors, RN accessibility
+  props would have to be surfaced to XCUITest first.
+* `03-import.js` is left stale on purpose (documents the pre-P1 demo surface); delete it once
+  P1 merges to master.

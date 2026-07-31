@@ -52,7 +52,7 @@ You are the ORCHESTRATOR of the demo↔phone parity effort: bring the `/demo` ex
 **P1 wave A — MERGED into `feat/parity-p1` (@ `1a85f16`, 128 files / 991 tests green):** fonts (P1.1), all three riders (all 10 carried minors closed; R-34 landed twice from parallel riders — two additive test guards in different suites, disclosed for the P1 review), P1.3 log bus (real pipeline emission, FallbackMode honesty in the log, stale-run isolation in the bus), P1.2 picker+paste (phone-verbatim copy with cited D5 honesty adaptations; clipboard feeds the pasted-text AI path), P1.6 PDF saves (real `window.print()` with pinned `sandbox="allow-modals allow-same-origin"`; html2pdf spike NOT shipped — evidence in deferred §34: 0 extractable text chars, 8.8x size; deferred §21 struck RESOLVED). Merge-integration fixes made by the orchestrator (in merge commits): DemoExperience import-block + picker/logbus combination (picker's `documentText` param + logbus's `emitter`; cancel path carries BOTH `importLogBus.reset()` AND the phone-parity `setImp(blankImport)`); logbus test queries updated to the new picker copy; deferred §33/§34 renumbering.
 **IN FLIGHT: P1.4 live terminal** (fresh Fable, `parity/p1-terminal` off 1a85f16) — bus API + full §5.7 spec + truthful-trust-line requirement in its brief. **P1.5 (flow modes + dwell + result-error enrichment) launches after P1.4.**
 
-**Still out:** the verification-harness Opus agent (Playwright + demo baselines + simulator build/baselines) — launched in wave 1, no report yet, status ping sent. Deliverables expected in `<scratchpad>/drive-harness/` + `<scratchpad>/baselines/`. If blocked, resolve before the P1 review needs phone-side terminal comparisons (the text spec in phone-inventory §5.7 suffices for building).
+**Verification lane: COMPLETE (v2 agent).** 57 baselines on disk (`<scratchpad>/baselines/`: phone/import ×10 incl. terminal mid-run + dwell — the on-device Apple model genuinely extracted pasted text in the sim; demo/import ×11 from the parity-p1 worktree on :3001; demo sweep ×36). Harness scripts + the 241-line README are preserved IN-REPO at `docs/planning/demo-phone-parity/verification/` (scratchpad copies are session-ephemeral; the PNG baselines stay in scratchpad pending the owner's call on committing images). Non-negotiables for future driving agents (full detail in the README): NO COMPUTER USE while the owner is away; Maestro needs `JAVA_HOME=/opt/homebrew/opt/openjdk`; `maestro hierarchy` is useless on this RN app — use the Vision-OCR helper (`ocr` + `look.sh`) for text+coordinates screen reads; `simctl privacy grant` for permissions; Maestro `inputText` avoids the iOS paste dialog; **demo keyless sample mode substitutes fixed content (Kim's Convenience) — side-by-side parity compares UI SHAPE ONLY, never field values.**
 
 ## 6. Git topology
 
@@ -74,6 +74,10 @@ Resume agents with SendMessage using the basename (without `.output`) of their t
 | Fonts (P1.1) — Fable | `a4ac7fe263be102c6.output` |
 | Glass tokens (P0.5) — Fable | `aca36de553446187a.output` |
 | Review-system port (done, resumable for review-system refinement) — Opus | `a388a76a7b0739c99.output` |
+| P1.2 picker (P1 wave) — Fable | `ad03e47807a849f5d.output` |
+| P1.3 log bus (P1 wave) — Fable | `a88740b63052d01a2.output` |
+| P1.4+P1.5 terminal/dwell (P1 wave) — Fable | `a957bc487fa6d2f6d.output` |
+| P1.6 PDF saves **v2** (v1 `a33af4ad84c351a28` transcript lost pre-limit; v2 inherits ownership via brief) — Fable | `a5fc0dd9016aabb04.output` |
 | Verification harness / app driving — Opus **v2** (v1 `adf24869c18c6bef3` hung 4h blocked on a computer-use access dialog, killed; v2 inherits its scripts + booted sim with a hard NO-COMPUTER-USE rule + interim-report duty) | `ac12740426479a4bb.output` |
 | Recon (done): doc-locator / demo-inventory / phone-inventory / parity-matrix — Opus | `ac59c0bc448ce5aed.output` / `a46f0f3ccdc81d89c.output` / `a0257d509da576d42.output` / `a9a9f02d2f5bea836.output` |
 
