@@ -100,6 +100,15 @@ export type ImportRunResult =
 const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
 
 /**
+ * The machine-readable marker prefix on every sample-fallback log line. Exported as the
+ * SINGLE source of the contract between the emit sites below and the terminal's
+ * `deriveTrust` (p1-review R-32): a copy edit to the human sentence after the prefix
+ * can no longer silently break the trust derivation — both sides compile against this
+ * constant, and the tests pin it.
+ */
+export const SAMPLE_FALLBACK_PREFIX = 'sample fallback:'
+
+/**
  * Truthful log line for every FallbackMode transition — the honesty machinery's trace in
  * the terminal. NORM is the warning-accent level (the phone uses it for warning-class
  * lines beyond normalization proper, e.g. the OCC# mismatch); every substitution of the
@@ -108,13 +117,13 @@ const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
 function emitFallback(emitter: ImportLogEmitter | undefined, mode: Exclude<FallbackMode, 'none'>): void {
   switch (mode) {
     case 'sample':
-      emitter?.log('NORM', 'sample fallback: live import disabled — importing the sample request')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live import disabled — importing the sample request`)
       break
     case 'unavailable':
-      emitter?.log('NORM', 'sample fallback: live model not configured — importing the sample request', '/api/extract → 503 NOT_CONFIGURED')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`, '/api/extract → 503 NOT_CONFIGURED')
       break
     case 'error':
-      emitter?.log('NORM', "sample fallback: couldn't reach the live model — importing the sample request", '/api/extract failed (non-503 or network error)')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`, '/api/extract failed (non-503 or network error)')
       break
     default: {
       const exhaustive: never = mode

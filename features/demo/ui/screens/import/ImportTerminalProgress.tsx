@@ -8,7 +8,7 @@ import {
   type ImportLogLine,
 } from '@/features/demo/engine/logic/import-log'
 import { useImportLog } from '@/features/demo/ui/import/useImportLog'
-import type { ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
+import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
 
@@ -72,17 +72,27 @@ export interface ImportTerminalProgressProps {
 export type TerminalTrust = 'cloud' | 'sample'
 
 /**
- * The run's data-path truth, read from the log itself. run-import prefixes every
- * FallbackMode transition with `sample fallback:` (emitFallback, run-import.ts:70-86);
- * until one lands the demo is on its live path — extracted text leaves the browser
- * for the server proxy, so `cloud` is the honest default in both directions
- * (overclaiming exposure is safe; underclaiming never is).
+ * The run's data-path truth, read from the log itself. run-import marks every
+ * FallbackMode transition with {@link SAMPLE_FALLBACK_PREFIX} (emitFallback — the
+ * shared constant is the typed contract, p1-review R-32); until one lands the demo is
+ * on its live path — extracted text leaves the browser for the server proxy, so
+ * `cloud` is the honest default in both directions (overclaiming exposure is safe;
+ * underclaiming never is).
+ *
+ * SEGMENT-SCOPED, not run-scoped (p1-review R-1): a batch is ONE bus run, so a sticky
+ * latch would label files AFTER an early fallback as "in-browser" while their text
+ * goes to the cloud — an underclaim of exposure, the exact failure this line exists
+ * to prevent. Each `FILE` marker (emitted per batch file) resets the derivation to
+ * `cloud`, so the label always reflects the CURRENT file's mode. Single-file and
+ * paste runs have at most one segment — behaviour there is unchanged.
  */
 export function deriveTrust(lines: readonly ImportLogLine[]): TerminalTrust {
+  let trust: TerminalTrust = 'cloud'
   for (const line of lines) {
-    if (line.level === 'NORM' && line.text.startsWith('sample fallback:')) return 'sample'
+    if (line.level === 'FILE') trust = 'cloud'
+    else if (line.level === 'NORM' && line.text.startsWith(SAMPLE_FALLBACK_PREFIX)) trust = 'sample'
   }
-  return 'cloud'
+  return trust
 }
 
 /**

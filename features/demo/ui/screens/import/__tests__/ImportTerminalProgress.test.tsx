@@ -12,6 +12,7 @@ import {
   type TerminalOutcome,
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
 import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
 
 // Fake timers drive the useImportLog coalescing frame (same rig as useImportLog.test.ts).
 beforeEach(() => vi.useFakeTimers())
@@ -138,14 +139,52 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(deriveTrust([])).toBe('cloud')
     expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'AI', text: 'AI Request → /api/extract' }])).toBe('cloud')
     for (const text of [
-      'sample fallback: live import disabled — importing the sample request',
-      'sample fallback: live model not configured — importing the sample request',
-      "sample fallback: couldn't reach the live model — importing the sample request",
+      `${SAMPLE_FALLBACK_PREFIX} live import disabled — importing the sample request`,
+      `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`,
+      `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`,
     ]) {
       expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'NORM', text }])).toBe('sample')
     }
     // A NORM normalization-warning line is NOT a fallback signal.
     expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'NORM', text: 'Assumed MM/DD format for ambiguous date' }])).toBe('cloud')
+    // The contract is the shared typed prefix, not re-declared prose (R-32).
+    expect(SAMPLE_FALLBACK_PREFIX).toBe('sample fallback:')
+  })
+
+  it('deriveTrust is SEGMENT-scoped in a batch (R-1): a FILE marker resets to cloud — no sticky sample latch', () => {
+    const l = (seq: number, level: 'FILE' | 'NORM' | 'AI', text: string) => ({ seq, elapsedMs: 0, level, text }) as const
+    // File 1 falls back to the sample; file 2 goes to the cloud model. The label must
+    // follow the CURRENT file — claiming "in-browser" for file 2 would underclaim exposure.
+    expect(
+      deriveTrust([
+        l(1, 'FILE', "▸ file 1/3 'a.pdf'"),
+        l(2, 'NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`),
+        l(3, 'FILE', "▸ file 2/3 'b.pdf'"),
+        l(4, 'AI', 'AI Request → /api/extract'),
+      ]),
+    ).toBe('cloud')
+    // …and the reverse still flips: the current file's own fallback reads sample.
+    expect(
+      deriveTrust([
+        l(1, 'FILE', "▸ file 1/2 'a.pdf'"),
+        l(2, 'AI', 'AI Request → /api/extract'),
+        l(3, 'FILE', "▸ file 2/2 'b.pdf'"),
+        l(4, 'NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`),
+      ]),
+    ).toBe('sample')
+  })
+
+  it('mid-batch, the badge and title bar re-label the CURRENT file after an earlier fallback (R-1)', () => {
+    const { emitter } = setup({ batch: { current: 2, total: 3 } })
+    act(() => {
+      emitter.log('FILE', "▸ file 1/3 'a.pdf'")
+      emitter.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`)
+      emitter.log('FILE', "▸ file 2/3 'b.pdf'")
+      emitter.log('AI', 'AI Request → /api/extract')
+    })
+    nextFrame()
+    expect(screen.getByTestId('terminal-trust-line')).toHaveTextContent(TRUST_LINE.cloud)
+    expect(screen.getByTestId('terminal-processing-badge')).toHaveTextContent(`File 2 of 3 · ${TRUST_LINE.cloud}`)
   })
 
   // ---- cursor ----
