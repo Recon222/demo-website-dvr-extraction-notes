@@ -2352,10 +2352,13 @@ form field's type is load-bearing, the setter has to be generic.
   not in the private twin, because the twin is slated for deletion and fixing it twice would
   make the duplication harder to see, not easier. **Trigger:** the next package to touch
   `NewCaseModal`'s incident section — and this time the fold, not another type patch.
-- **The remaining `DemoCase` fixture sites.** R-15 built `demoCase`/`demoLocation` and folded the
-  four suites carrying hand-rolled literals; sites that build cases through the store are already
-  drift-proof and were left alone. **Trigger:** the next `DemoCase` field add — update the
-  factory first (CLAUDE.md's rule), then fold whatever still fails.
+- ~~**The remaining `DemoCase` fixture sites.**~~ **CLOSED — see §57j.** The sentence that stood
+  here was wrong in both halves, as the fix-delta established (R-21): it claimed the four folded
+  suites were all the hand-rolled ones and that the survivors "build cases through the store and
+  are already drift-proof". Three survivors were full hand-rolled literals and none went through
+  the store. The trigger it offered was self-defeating too — the entity grows by OPTIONAL fields,
+  which never make a stale literal *fail*, so "fold whatever still fails" named the empty set.
+  All three are folded; no hand-rolled `DemoCase` literal remains.
 - **Type-design's four carried NITs** (the duplicate actions' three-refusals-one-`null`;
   `IncidentSheetItem.id`; `CaseNotesCamera.gps` widening `CameraGpsFix`; `activeModal()`'s
   `default` over a 7-member `ModalId`). Untouched, per the review's disposition. One of them now
@@ -2375,3 +2378,56 @@ reachable by activation rather than pre-stated, which is what keeps that copy li
 dead. A comment at the call site says so, so a later a11y sweep does not "fix" it into a swallow.
 The New Location card is the other shape — its reason is on screen before the press — and the two
 are meant to differ.
+
+### 57j. The micro-round (R-18…R-21 + two NITs) — and what it says about test evidence
+
+Four integrator-owned minors from the fix-delta, all landed. Three of them are one finding wearing
+three faces: **the long-press click/contextmenu rules were correct in production and unpinned,
+mis-pinned, or half-covered in the suite.**
+
+- **R-18** — R-1's rewrite REPLACED the keyboard-exemption arm rather than adding beside it, and a
+  repo-wide grep for `detail: 0` then returned nothing while the file header still promised the
+  guarantee. §56f had recorded that exemption as a known wrong-reason trap, which makes deleting
+  its only pin the worse half. Restored, and stronger: the arm now abandons a hold off the row
+  first, so the flag is genuinely armed when the keyboard activation arrives.
+- **R-19** — the off-row-hold arm ended in a bare `fireEvent.click(row)` (jsdom `detail: 0`), so it
+  rode the very exemption R-18 is about and passed with or without the reset it existed to pin.
+  Not introduced by the fix round: `2b18a0a`'s probe was genuinely red on P3.1's branch, and the
+  §56f ASSEMBLY silently made it vacuous by merging the `detail` check in. **The general hazard:
+  merging two correct mechanisms can make a third party's correct test vacuous, and nothing in the
+  merge is red to say so.**
+- **R-20** — `fired` was armed for every hold, but only touch raises a trailing `contextmenu` to
+  consume it, and the keyboard menu key (Shift+F10) raises one with NO pointer event, which R-1's
+  reset-on-pointerdown rule cannot reach. R-1's own improvement made it reachable by turning the
+  Cases surface into a focusable `<button>`. Fixed by arming the latch only for touch — removing
+  the class rather than adding a second clearing path.
+
+  **R-20 paid for itself immediately:** it turned three EXISTING arms red — the hook suite's,
+  `CasesScreen`'s and `DashboardScreen`'s "touch hold" arms were all simulating a MOUSE hold and
+  passing for the wrong reason. `pointerType` is now explicit at every long-press pointerdown and
+  the hook suite's `down()` helper defaults to `'mouse'`, so an arm about touch has to say so.
+
+- **R-21** — the three surviving hand-rolled `DemoCase` literals folded onto the factory
+  (`caseFormData.test.ts`, `incident-location.test.ts`, `final-submission.test.ts`; the last also
+  carried a hand-rolled `DemoLocation`, and was the live demonstration of the drift — it omitted
+  the optional `incidentCoordinates` and type-checked). §57h's false sentence corrected above. The
+  `CaseCard` fixtures in three screen suites are deliberately NOT folded: that is the view-model
+  `toCaseCards` produces, not the stored entity, and it has its own shape.
+
+**Both NITs taken** (each genuinely one line, per the fix-delta's own framing):
+
+- **TD-N1** — `NewCaseModal`'s `change` wrapper and the bridge's `onChange` were
+  `(field, value: string)`, which is assignable to R-13's generic prop by constraint
+  instantiation and silently erased the per-key typing. Both are generic now; probe-verified that
+  `change('incidentCoordinateSource', 'manaul')` is a compile error. **Generalise:** hardening a
+  prop's type does nothing if a wrapper on the way to it is still typed loosely — check the
+  forwarders, not just the declaration.
+- **TD-N2** — `LONG_PRESS_SURFACE_STYLE` is now `as const satisfies CSSProperties`, matching every
+  other exported style token; it was mutable shared data spread into three call sites.
+
+**Deliberately still not filed:** the silent-failures lane's `onContextMenu`-does-not-arm-
+`swallowNextClick` observation. No constructible browser sequence reaches it (a `contextmenu`
+before the timer, still followed by a click), both original hooks carried the same written-down
+assumption, and R-20 narrowed the latch rather than widening it — adding an unreachable
+belt-and-braces here would be one more unpinned line in the file this round exists to make
+honest.
