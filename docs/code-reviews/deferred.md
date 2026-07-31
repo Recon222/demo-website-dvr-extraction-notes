@@ -314,6 +314,15 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
   deliberately silent (documented in its catch). Pinned by tests in
   `select-adjusted-scopes.test.ts` + `store-actions.test.ts`. This half is done — P2.4's G8
   scope shrinks accordingly.
+  **Known residual (P1 review R-26, deliberate):** the THIRD creating boundary — editing or
+  adding a requested-scope row after an offset exists — warns nowhere. Scope rows write
+  through `updateField` once per keystroke (`listEditHandlers.change` rewrites the list per
+  field change), so an "event" warn at that boundary degenerates into exactly the
+  per-keystroke spam R-33 removed; a debounced/dedup'd variant is more machinery than the
+  operator-only gap warrants (the visitor surface stays annotated via
+  `adjustedScopesPartial` regardless). **Trigger:** P2.4 (G8) requested-scope
+  normalization — when scope writes gain a real commit boundary (blur/row-level), emit the
+  same dev-warn there and strike this residual.
 - `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
   `time.ts`'s own "fail loud" convention. **Still open.**
 
