@@ -364,6 +364,38 @@ describe('Export flow — guards', () => {
     expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
   })
 
+  it('Continue resumes the case the prompt was ARMED for, not one re-derived at press time', () => {
+    // `continueValidatedExport` takes the case id as an argument, so remembering WHICH case
+    // raised the prompt is the shell's job. Re-deriving it from the open location would let a
+    // prompt raised on case A export case B — scope escalation of the exact kind the machine's
+    // arming rules exist to prevent, and reachable the moment P5.2's tab can arm a case that is
+    // not the open location's.
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'PR25-AAA', displayName: 'Case A', unit: 'Robbery' })
+      caseB = store.getState().createCase({ caseNumber: 'PR25-BBB', displayName: 'Case B', unit: 'Robbery' })
+    })
+    const aValid = addExportableLocation(store, caseA, 'Front Counter')
+    addIncompleteLocation(store, caseA, 'Rear Alley Camera') // forces the prompt
+    const bValid = addExportableLocation(store, caseB, 'Plaza Office')
+    openCompletion(store, aValid)
+
+    chooseScope('case')
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+
+    // The prompt is not view-scoped, so the open location can move underneath it.
+    act(() => store.getState().switchLocation(bValid))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
+
+    step()
+    expect(screen.getByText('"Front Counter"')).toBeInTheDocument()
+    expect(screen.queryByText('"Plaza Office"')).not.toBeInTheDocument()
+    runToEnd()
+  })
+
   it('an export whose case has gone raises the phone’s "no longer available" backstop', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

@@ -4097,3 +4097,20 @@ a run-generation token (the `importGen` idiom) and cancel on view change, saying
 cadence). The phone's stages are however long the filesystem takes; there is no number to port.
 It is the only fabricated quantity in the flow — the stage ORDER, the k-of-n counter, the
 location names and every string are real. **No trigger.**
+
+### 74l. The prompt's THIRD arm lives in the shell (`pendingExportCaseId`)
+
+`ExportFlowState` arms the pipeline TYPE and the subset ids, but not the case — the engine takes
+the case id as an ARGUMENT to `continueValidatedExport`, by design (ids never re-read from
+state). So the shell holds `pendingExportCaseId`, written when `applyValidation` returns
+`prompt` and cleared on Cancel and on every non-ignored Continue, mirroring the machine's own
+"Continue consumes the modal on every path".
+
+Not cosmetic: the first draft re-derived the case at Continue time from the OPEN LOCATION, which
+is correct only while every validated dispatch comes from Completion (where the two always
+agree). P5.2's Export tab can arm a case that is not the open location's, at which point a
+prompt raised on case A would have resumed against case B — the scope escalation the arming
+rules exist to prevent. Pinned in `DemoExperience.export.test.tsx` ("Continue resumes the case
+the prompt was ARMED for"), which moves the open location out from under an open prompt.
+**Trigger for P5.2:** nothing to do — dispatch through `requestExportFlow` and the arm is taken
+from the request. Do NOT add a second Continue path that supplies its own case id.

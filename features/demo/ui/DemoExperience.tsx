@@ -652,6 +652,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setExportFlowState(next)
   }, [])
   const exportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /**
+   * The case the OPEN validation prompt was armed for — the third arm, alongside the machine's
+   * `pendingValidatedExport` and `pendingSubsetLocationIds`.
+   *
+   * It lives here because `continueValidatedExport` takes the case id as an ARGUMENT (the
+   * engine deliberately never re-reads ids from state), which makes remembering it the shell's
+   * job. Re-deriving it at Continue time — from the open location, say — would let a prompt
+   * raised for one case resume against a different one, which is precisely the scope
+   * escalation the arming rules exist to prevent. Today every validated dispatch comes from
+   * Completion, where the two always agree; the moment P5.2's Export tab can arm a case that
+   * is not the open location's, they do not.
+   */
+  const pendingExportCaseId = useRef<string | null>(null)
   // A pipeline left mid-flight when the experience unmounts must not keep ticking into a dead
   // setState — the syncTimer rule, same reason.
   useEffect(() => () => {
@@ -1758,6 +1771,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * because "Opening share dialog..." precedes an OS share sheet a browser tab does not have.
    */
   const runZipPipeline = (run: ExportRun, pdfPass: readonly string[]) => {
+    // The entry guard already makes a concurrent run unreachable; this is the `runTimeSync`
+    // belt-and-braces, so a future caller that bypasses the guard cannot leave two pipelines
+    // ticking into one piece of state.
+    if (exportTimer.current) clearTimeout(exportTimer.current)
     const steps: ((s: ExportFlowState) => ExportFlowState)[] = pdfPass.map(
       (name, i) => (s: ExportFlowState) =>
         reportProgress(advanceStage(s, 'generating'), i + 1, pdfPass.length, name),
@@ -1840,6 +1857,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return
     }
     const verdict = applyValidation(exportFlowRef.current, run, result)
+    // Armed in the same step the machine arms its own two — see the ref's note.
+    pendingExportCaseId.current = verdict.kind === 'prompt' ? run.caseId : null
     setExportFlow(verdict.state)
     if (verdict.kind === 'run') startExportRun(verdict.run, verdict.state)
   }
@@ -1879,9 +1898,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
 
-  /** The validation prompt's Continue / Export Anyway (phone `handleValidationContinue`). */
+  /**
+   * The validation prompt's Continue / Export Anyway (phone `handleValidationContinue`).
+   *
+   * Resumes against the case the prompt was ARMED for, never a case re-derived now — the same
+   * rule that makes the machine arm the pipeline TYPE rather than defaulting to whole-case.
+   * The arm is consumed here whatever the outcome, mirroring the machine's own "Continue
+   * consumes the modal on every path".
+   */
   const continueExportFlow = () => {
-    const outcome = continueValidatedExport(exportFlowRef.current, exportCaseId())
+    const armedCaseId = pendingExportCaseId.current
+    const outcome = continueValidatedExport(exportFlowRef.current, armedCaseId)
+    if (outcome.kind !== 'ignored') pendingExportCaseId.current = null
     switch (outcome.kind) {
       case 'ignored':
         return
@@ -1898,8 +1926,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
 
-  /** The prompt's Cancel (phone `handleValidationCancel`): drops the prompt AND both arms. */
-  const cancelExportFlow = () => setExportFlow(cancelValidation(exportFlowRef.current))
+  /** The prompt's Cancel (phone `handleValidationCancel`): drops the prompt AND every arm. */
+  const cancelExportFlow = () => {
+    pendingExportCaseId.current = null
+    setExportFlow(cancelValidation(exportFlowRef.current))
+  }
 
   /** Completion's "Export Zip" (phone `setShowExportSheet(true)`, completion.tsx:554). */
   const openExportSheet = () => store.getState().openModal('exportScope')
