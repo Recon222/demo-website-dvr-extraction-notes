@@ -146,9 +146,14 @@ export function PickerStage(props: PickerStageProps) {
     setIsReadingFile(true)
     try {
       await props.onPdfFilesSelected(files)
-    } catch {
+    } catch (e) {
       // Backstop, mirroring the phone's general file-read catch (:545-554); the parent
       // pipeline normally converts its own failures into a result-stage failure card.
+      // Breadcrumb first (review R-23a): in production the parent flips the stage and
+      // unmounts this component before a pipeline throw lands here, so React discards
+      // the setError below — the console line is then the ONLY signal the run threw.
+      // The pipeline-level backstop that releases the dwell lives in DemoExperience.
+      console.error('[demo/import] import run threw', e)
       setError(PICKER_COPY.fileReadFailed)
     } finally {
       setIsReadingFile(false)
@@ -188,8 +193,11 @@ export function PickerStage(props: PickerStageProps) {
       }
       try {
         await props.onClipboardText(text)
-      } catch {
+      } catch (e) {
         // Clipboard text feeds the same AI pipeline as Paste Text — same backstop copy (:175).
+        // Same R-23a breadcrumb as the file path: the text pipeline also unmounts this
+        // stage on start, so a late throw's setError is discarded — log it.
+        console.error('[demo/import] import run threw', e)
         setError(PICKER_COPY.textImportFailed)
       }
     } finally {
