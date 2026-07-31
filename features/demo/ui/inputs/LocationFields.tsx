@@ -51,8 +51,12 @@ import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
 
 /** The address block's working values. The coordinate half is a deliberately FLATTENED,
  *  all-optional projection of `GpsCoordinates` (a half-filled form is a real state here, unlike
- *  a stored fix) — `CoordinateProjection` states that relationship so a field added to
- *  `GpsCoordinates` fails to compile until it is projected (R-24). */
+ *  a stored fix). Being a homomorphic mapped type, it TRACKS the canonical shape automatically:
+ *  a field added there appears here as optional, and a field removed there disappears here.
+ *
+ *  It does not, on its own, make anything fail to compile — the round-1 comment claimed that and
+ *  was wrong (R-34). Enforcement lives in `__tests__/coordinate-shapes.test.ts`, which asserts
+ *  key-exhaustiveness for this and the six other carriers. */
 type CoordinateProjection = { [K in keyof GpsCoordinates]?: GpsCoordinates[K] }
 
 export interface LocationFieldValues extends CoordinateProjection {
