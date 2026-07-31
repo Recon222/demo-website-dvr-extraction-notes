@@ -277,13 +277,31 @@ export async function grabVideoFrame(
   const context = canvas.getContext('2d')
   if (!context) return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
 
-  // `video` is typed structurally (only the two dimensions are read here), but drawImage
-  // needs the element itself — the cast is confined to this one call.
-  context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh)
+  // R-22: `drawImage` and `toDataURL` both THROW rather than returning a falsy value —
+  // `InvalidStateError` for a source element the browser considers unusable, `SecurityError`
+  // for a canvas tainted by cross-origin frames. Neither call site catches, so an escape was a
+  // floating rejection and a shutter press that visibly did nothing. The outcome union is the
+  // contract; a throw must arrive as the same typed failure the four checks above produce.
+  try {
+    // `video` is typed structurally (only the two dimensions are read here), but drawImage
+    // needs the element itself — the cast is confined to this one call.
+    context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh)
+  } catch {
+    return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+  }
 
   const blob = await toBlobAsync(canvas, mimeType, options.quality)
   if (!blob || blob.size === 0) {
     return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+  }
+
+  let dataUrl: string | undefined
+  if (options.includeDataUrl === true) {
+    try {
+      dataUrl = canvas.toDataURL(mimeType, options.quality)
+    } catch {
+      return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+    }
   }
 
   return {
@@ -292,7 +310,7 @@ export async function grabVideoFrame(
     mimeType: blob.type === '' ? mimeType : blob.type,
     width: dw,
     height: dh,
-    ...(options.includeDataUrl === true ? { dataUrl: canvas.toDataURL(mimeType, options.quality) } : {}),
+    ...(dataUrl !== undefined ? { dataUrl } : {}),
   }
 }
 
@@ -306,7 +324,14 @@ function toBlobAsync(canvas: HTMLCanvasElement, mimeType: string, quality?: numb
       resolve(null)
       return
     }
-    canvas.toBlob((blob) => resolve(blob), mimeType, quality)
+    // R-22: a synchronous throw inside a Promise executor rejects the promise, which the
+    // callers `await` without a catch. `null` routes it into the existing FRAME_GRAB_FAILED
+    // check instead — one honest outcome rather than an unhandled rejection.
+    try {
+      canvas.toBlob((blob) => resolve(blob), mimeType, quality)
+    } catch {
+      resolve(null)
+    }
   })
 }
 

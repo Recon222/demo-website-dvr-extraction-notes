@@ -631,3 +631,35 @@ describe('a recorder the browser stops by itself (R-13)', () => {
     expect(await started.handle.stop()).toMatchObject({ ok: true })
   })
 })
+
+
+describe('grabVideoFrame — a throwing canvas is a typed failure, not a dead shutter (R-22)', () => {
+  it.each([
+    ['drawImage', { throwOnDraw: true }],
+    ['toBlob', { throwOnBlob: true }],
+  ] as const)('turns a %s throw into FRAME_GRAB_FAILED', async (_call, over) => {
+    // Both sit outside the four explicit checks, and neither call site catches — an escape was
+    // a floating rejection and a shutter press that visibly did nothing.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), { createCanvas: () => fakeCanvas(over) }),
+    ).resolves.toMatchObject({ ok: false, failure: { code: 'FRAME_GRAB_FAILED' } })
+  })
+
+  it('turns a toDataURL SecurityError into FRAME_GRAB_FAILED rather than losing the whole grab', async () => {
+    // A canvas tainted by cross-origin frames throws here and nowhere else — the blob is fine,
+    // but the caller asked for a data URL and must not be handed a half-answer.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), {
+        createCanvas: () => fakeCanvas({ throwOnDataUrl: true }),
+        includeDataUrl: true,
+      }),
+    ).resolves.toMatchObject({ ok: false, failure: { code: 'FRAME_GRAB_FAILED' } })
+  })
+
+  it('does not touch toDataURL when no data URL was asked for', async () => {
+    // The throwing path must not become reachable for the photo shutter, which never wants one.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ throwOnDataUrl: true }) }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+})
