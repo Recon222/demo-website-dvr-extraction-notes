@@ -3,11 +3,25 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
-/** The frame's window narrowed to a writable, optional print, as the tests stub it. */
-function frameWindow(container: HTMLElement): { print?: () => void } {
+/** The frame's window with `print` writable/optional, as the tests stub it — full Window otherwise
+ *  so stubs can dispatch real events (`beforeprint`) on it. */
+type StubbableFrameWindow = Omit<Window, 'print'> & { print?: () => void }
+
+function frameWindow(container: HTMLElement): StubbableFrameWindow {
   const frame = container.querySelector('iframe')
   if (!frame?.contentWindow) throw new Error('preview iframe has no contentWindow')
-  return frame.contentWindow as unknown as { print?: () => void }
+  return frame.contentWindow as unknown as StubbableFrameWindow
+}
+
+/** Stub print the way a real, unblocked browser behaves: the printing steps fire `beforeprint`
+ *  on the framed window before the dialog opens. That event is the component's positive success
+ *  signal (R-12) — a stub that merely returns models a silently-swallowed print, not a save. */
+function stubDialogPrint(win: StubbableFrameWindow) {
+  const print = vi.fn(() => {
+    win.dispatchEvent(new Event('beforeprint'))
+  })
+  win.print = print
+  return print
 }
 
 describe('PdfPreview', () => {
@@ -53,8 +67,7 @@ describe('PdfPreview', () => {
   describe('Save as PDF (print path)', () => {
     it('prints the framed court document via its contentWindow', () => {
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
-      const print = vi.fn()
-      frameWindow(container).print = print
+      const print = stubDialogPrint(frameWindow(container))
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       expect(print).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('status')).not.toBeInTheDocument() // no failure notice on success
@@ -63,7 +76,7 @@ describe('PdfPreview', () => {
     it('keeps the preview open after printing (the user closes it explicitly)', () => {
       const onClose = vi.fn()
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={onClose} />)
-      frameWindow(container).print = vi.fn()
+      stubDialogPrint(frameWindow(container))
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       expect(onClose).not.toHaveBeenCalled()
       expect(screen.getByRole('button', { name: 'Save as PDF' })).toBeInTheDocument()
@@ -93,9 +106,47 @@ describe('PdfPreview', () => {
       }
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       expect(screen.getByRole('status')).toBeInTheDocument()
-      win.print = vi.fn()
+      stubDialogPrint(win)
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('shows the honest blocked notice when even probing the frame window throws (cross-origin SecurityError) — R-12', () => {
+      // The sandbox rationale in PdfPreview documents this exact failure: an opaque-origin frame
+      // throws on any contentWindow property touch. The probe must live inside the try — the
+      // notice must render, not an uncaught error.
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      Object.defineProperty(frameWindow(container), 'print', {
+        configurable: true,
+        get() {
+          throw new Error('SecurityError: Blocked a frame from accessing a cross-origin frame.')
+        },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
+    })
+
+    it('treats a print() that returns without opening the dialog as blocked — silent-ignore is not success (R-12)', () => {
+      // Chromium's sandboxed behaviour: "Ignored call to 'print()'" — the call returns normally,
+      // no dialog, no beforeprint. Absence-of-throw must not be rewarded as a save.
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      win.print = vi.fn()
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
+    })
+
+    it('a silently-ignored retry does NOT clear a prior failure notice (never a fake success) — R-12', () => {
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      win.print = () => {
+        throw new Error('blocked')
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      expect(screen.getByRole('status')).toBeInTheDocument()
+      win.print = vi.fn() // second attempt swallowed silently — two failed saves, notice must survive
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
     })
   })
 

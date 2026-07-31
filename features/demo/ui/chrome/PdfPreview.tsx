@@ -26,15 +26,32 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   const [printNotice, setPrintNotice] = useState<string | null>(null)
 
   const printDocument = () => {
-    const win = frameRef.current?.contentWindow
-    if (!win || typeof win.print !== 'function') {
-      setPrintNotice(PRINT_BLOCKED_NOTICE)
-      return
-    }
     try {
-      win.focus() // some browsers print the focused frame's parent otherwise
-      win.print()
-      setPrintNotice(null)
+      // The probe lives INSIDE the try (R-12): touching `print` on a cross-origin contentWindow
+      // throws a SecurityError — the exact failure the sandbox rationale below documents — and
+      // that must render the honest notice, not escape as an uncaught error.
+      const win = frameRef.current?.contentWindow
+      if (!win || typeof win.print !== 'function') {
+        setPrintNotice(PRINT_BLOCKED_NOTICE)
+        return
+      }
+      // Positive success signal (R-12): the printing steps fire `beforeprint` on the framed
+      // window before the dialog opens. A browser that swallows the call ("Ignored call to
+      // 'print()'" in Chromium) returns normally WITHOUT firing it — so absence-of-throw is
+      // never treated as success, and a prior failure notice is never cleared by a second
+      // failed attempt.
+      let dialogOpened = false
+      const markOpened = () => {
+        dialogOpened = true
+      }
+      win.addEventListener('beforeprint', markOpened)
+      try {
+        win.focus() // some browsers print the focused frame's parent otherwise
+        win.print()
+      } finally {
+        win.removeEventListener('beforeprint', markOpened)
+      }
+      setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
     } catch {
       setPrintNotice(PRINT_BLOCKED_NOTICE)
     }
