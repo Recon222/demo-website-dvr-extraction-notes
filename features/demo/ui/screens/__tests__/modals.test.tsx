@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
-import { ImportModal } from '@/features/demo/ui/screens/ImportModal'
+import { ImportModal, deriveTerminalOutcome } from '@/features/demo/ui/screens/ImportModal'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
 function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView {
@@ -77,12 +77,12 @@ describe('ImportModal', () => {
     const onChoosePaste = vi.fn()
     const onBack = vi.fn()
     const onRun = vi.fn()
-    const { rerender } = render(<ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
+    const { rerender } = render(<ImportModal stage="picker" text="" activeStage={null} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
     expect(screen.getByRole('dialog', { name: 'Import Recovery Request' })).toBeInTheDocument()
     expect(screen.getByText('Pick File')).toBeInTheDocument() // PickerStage mounted
     fireEvent.click(screen.getByText('Paste Text'))
     expect(onChoosePaste).toHaveBeenCalledOnce()
-    rerender(<ImportModal stage="paste" text="hi" stages={[]} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
+    rerender(<ImportModal stage="paste" text="hi" activeStage={null} result={null} batch={null} {...cb} onChoosePaste={onChoosePaste} onBack={onBack} onRun={onRun} />)
     // The paste step takes the phone's own header title + back chevron (row 72).
     expect(screen.getByRole('dialog', { name: 'Paste Request Text' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to import options' }))
@@ -93,22 +93,37 @@ describe('ImportModal', () => {
 
   it('picker: a PDF selection reaches onPdfFilesSelected through the stage seam', async () => {
     const onPdfFilesSelected = vi.fn()
-    const { container } = render(<ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...cb} onPdfFilesSelected={onPdfFilesSelected} />)
+    const { container } = render(<ImportModal stage="picker" text="" activeStage={null} result={null} batch={null} {...cb} onPdfFilesSelected={onPdfFilesSelected} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     const file = new File(['%PDF'], 'request.pdf', { type: 'application/pdf' })
     fireEvent.change(input, { target: { files: [file] } })
     await vi.waitFor(() => expect(onPdfFilesSelected).toHaveBeenCalledWith([file]))
   })
 
-  it('shows a per-file batch counter in the progress stage', () => {
-    render(<ImportModal stage="progress" text="" stages={[]} result={null} batch={{ current: 2, total: 3 }} {...cb} />)
-    expect(screen.getByText(/Importing 2 of 3/)).toBeInTheDocument()
+  it('progress stage renders the live terminal (P1.4) with the batch counter in its processing badge', () => {
+    render(<ImportModal stage="progress" text="" activeStage="extracting_text" result={null} batch={{ current: 2, total: 3 }} {...cb} />)
+    expect(screen.getByTestId('import-terminal')).toBeInTheDocument()
+    expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+    expect(screen.getByTestId('terminal-processing-badge')).toHaveTextContent('File 2 of 3 ·')
+  })
+
+  it('deriveTerminalOutcome mirrors the phone derivation: null → running, all-failed → failure, mixed → partial', () => {
+    expect(deriveTerminalOutcome(null)).toBeNull()
+    expect(deriveTerminalOutcome({ ok: false, error: 'x' })).toEqual({ status: 'failure' })
+    expect(deriveTerminalOutcome({ ok: true, locations: [locView()], failures: [] })).toEqual({
+      status: 'success',
+      successCount: 1,
+      totalFiles: 1,
+    })
+    expect(
+      deriveTerminalOutcome({ ok: true, locations: [locView(), locView({ locId: 'loc-2' })], failures: [{ filename: 'c.pdf', error: 'scanned' }] }),
+    ).toEqual({ status: 'partial', successCount: 2, totalFiles: 3 })
   })
 
   it('single success: renders the detail body + warnings; Open location fires onOpenLocation', () => {
     const onOpenLocation = vi.fn()
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [] }} {...cb} onOpenLocation={onOpenLocation} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView()], failures: [] }} {...cb} onOpenLocation={onOpenLocation} />,
     )
     expect(screen.getByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText('Requesting Officer')).toBeInTheDocument() // the detail body
@@ -119,7 +134,7 @@ describe('ImportModal', () => {
 
   it('batch success: summary + single-open accordions (expanding one reveals its detail)', () => {
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
     )
     expect(screen.getByText(/Imported 2 of 2/)).toBeInTheDocument()
     expect(screen.queryByText('Requesting Officer')).not.toBeInTheDocument() // collapsed
@@ -129,7 +144,7 @@ describe('ImportModal', () => {
 
   it('batch accordions are single-open and toggle off (M6)', () => {
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Store A/ }))
     expect(screen.getAllByText('Requesting Officer')).toHaveLength(1)
@@ -141,19 +156,19 @@ describe('ImportModal', () => {
 
   it('resets the open accordion when the result changes (H1)', () => {
     const { rerender } = render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView({ locId: 'a', title: 'Store A' }), locView({ locId: 'b', title: 'Store B' })], failures: [] }} {...cb} />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Store A/ }))
     expect(screen.getByText('Requesting Officer')).toBeInTheDocument()
     rerender(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView({ locId: 'c', title: 'Store C' }), locView({ locId: 'd', title: 'Store D' })], failures: [] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView({ locId: 'c', title: 'Store C' }), locView({ locId: 'd', title: 'Store D' })], failures: [] }} {...cb} />,
     )
     expect(screen.queryByText('Requesting Officer')).not.toBeInTheDocument() // stale index cleared
   })
 
   it('partial batch: shows the summary and the failure row', () => {
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [{ filename: 'scan.pdf', error: 'This PDF looks scanned.' }] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView()], failures: [{ filename: 'scan.pdf', error: 'This PDF looks scanned.' }] }} {...cb} />,
     )
     expect(screen.getByText(/Imported 1 of 2/)).toBeInTheDocument()
     expect(screen.getByText(/scan\.pdf/)).toBeInTheDocument()
@@ -161,20 +176,20 @@ describe('ImportModal', () => {
 
   it('renders the degraded notice', () => {
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: true, locations: [locView()], failures: [], notice: 'Live model not configured — imported the sample request instead.' }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: true, locations: [locView()], failures: [], notice: 'Live model not configured — imported the sample request instead.' }} {...cb} />,
     )
     expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
   })
 
   it('total failure: error view with retry', () => {
-    render(<ImportModal stage="result" text="" stages={[]} result={{ ok: false, error: 'Could not read the request.' }} batch={null} {...cb} />)
+    render(<ImportModal stage="result" text="" activeStage={null} result={{ ok: false, error: 'Could not read the request.' }} batch={null} {...cb} />)
     expect(screen.getByText('Could not read the request.')).toBeInTheDocument()
     expect(screen.getByText('Try again')).toBeInTheDocument()
   })
 
   it('all-failed batch: error summary + per-file failures card (M6)', () => {
     render(
-      <ImportModal stage="result" text="" stages={[]} batch={null} result={{ ok: false, error: '2 imports failed.', failures: [{ filename: 'a.pdf', error: 'scanned' }, { filename: 'b.pdf', error: 'no JSON' }] }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} batch={null} result={{ ok: false, error: '2 imports failed.', failures: [{ filename: 'a.pdf', error: 'scanned' }, { filename: 'b.pdf', error: 'no JSON' }] }} {...cb} />,
     )
     expect(screen.getByText('2 imports failed.')).toBeInTheDocument()
     expect(screen.getByText(/a\.pdf/)).toBeInTheDocument()
