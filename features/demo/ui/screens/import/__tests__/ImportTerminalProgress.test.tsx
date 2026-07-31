@@ -14,6 +14,7 @@ import {
   ImportTerminalProgress,
   isNearBottom,
   deriveTrust,
+  runHadSampleFallback,
   TRUST_LINE,
   TERMINAL_TITLE,
   NEAR_BOTTOM_THRESHOLD,
@@ -498,6 +499,41 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(cta).toHaveTextContent('sample import — review →')
     expect(cta).not.toHaveTextContent('Review import →')
     expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
+  })
+
+  it('MIXED batch (R-35): a mid-batch fallback still marks the CTA while the live trust line reads cloud', () => {
+    // The R-1 × R-25 interaction: file 1 fell back to the sample, file 2 went live.
+    // The segment-scoped trust line must read cloud (file 2's truth) AND the
+    // run-scoped CTA must still carry the amber sample attribution — Escape during
+    // the dwell discards the result view, so this is the last guaranteed signal.
+    const { emitter, rerenderWith } = setup({ batch: { current: 2, total: 2 } })
+    act(() => {
+      emitter.log('FILE', "▸ file 1/2 'a.pdf'")
+      emitter.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`)
+      emitter.log('FILE', "▸ file 2/2 'b.pdf'")
+      emitter.log('AI', 'AI Request → /api/extract')
+    })
+    nextFrame()
+    rerenderWith({ outcome: { status: 'success', successCount: 2, totalFiles: 2 } })
+    expect(screen.getByTestId('terminal-trust-line')).toHaveTextContent(TRUST_LINE.cloud) // live surface: current file
+    const cta = screen.getByTestId('terminal-review-cta')
+    expect(cta).toHaveTextContent('sample import — review →') // run summary: substitution disclosed
+    expect(cta).not.toHaveTextContent(/^.*Review import →/)
+    expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber
+  })
+
+  it('runHadSampleFallback is run-scoped: FILE markers do NOT reset it (unlike deriveTrust)', () => {
+    const l = (seq: number, level: 'FILE' | 'NORM' | 'AI', text: string) => ({ seq, elapsedMs: 0, level, text }) as const
+    const mixed = [
+      l(1, 'FILE', "▸ file 1/2 'a.pdf'"),
+      l(2, 'NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`),
+      l(3, 'FILE', "▸ file 2/2 'b.pdf'"),
+      l(4, 'AI', 'AI Request → /api/extract'),
+    ]
+    expect(runHadSampleFallback(mixed)).toBe(true)
+    expect(deriveTrust(mixed)).toBe('cloud') // the two scopes deliberately disagree here
+    expect(runHadSampleFallback([])).toBe(false)
+    expect(runHadSampleFallback([l(1, 'NORM', 'Assumed MM/DD format for ambiguous date')])).toBe(false)
   })
 
   it('failure in a batch run reads "Batch failed" (no counts — phone parity, outcome carries none)', () => {
