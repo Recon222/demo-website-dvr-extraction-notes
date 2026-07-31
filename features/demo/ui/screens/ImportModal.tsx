@@ -52,8 +52,12 @@ export type ImportResult =
  * `ERROR_MESSAGES[code] || error` renders them verbatim — the phone's own
  * precedent for PDF codes (§5.7.8). Render rule matches the phone exactly:
  * `ERROR_MESSAGES[result.error.code] || result.error.message` (:328-330).
+ *
+ * Keyed by the code union (p1-review R-8): a typo'd/renamed code is a compile
+ * error, and reads honestly type `string | undefined` — the `|| result.error`
+ * fallback is visibly load-bearing for the deliberately unmapped codes.
  */
-export const ERROR_MESSAGES: Record<string, string> = {
+export const ERROR_MESSAGES: Partial<Record<ImportErrorCode, string>> = {
   PDF_READ_FAILED: 'This PDF could not be read. It may be corrupted or password-protected.',
   MODEL_OUTPUT_UNPARSEABLE: "The model's reply couldn't be read as form data. Please try the import again.",
 }

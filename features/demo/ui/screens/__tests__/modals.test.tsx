@@ -204,7 +204,10 @@ describe('ImportModal', () => {
     render(
       <ImportModal stage="result" text="" activeStage={null} lastRealStage={null} batch={null} result={{ ok: false, error: 'Could not read this PDF.', code: 'PDF_READ_FAILED' }} {...cb} />,
     )
-    expect(screen.getByText(ERROR_MESSAGES.PDF_READ_FAILED)).toBeInTheDocument()
+    // Reads type string | undefined since R-8 — pin presence before use.
+    const friendly = ERROR_MESSAGES.PDF_READ_FAILED
+    expect(friendly).toBeDefined()
+    expect(screen.getByText(friendly as string)).toBeInTheDocument()
     expect(screen.queryByText('Could not read this PDF.')).not.toBeInTheDocument()
   })
 
