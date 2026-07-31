@@ -100,7 +100,7 @@ describe('Submission — location section shape (ui-mapping 05)', () => {
 
   it('offers "Use Current Location" with the Geocode toggle defaulted on', () => {
     renderSubmission()
-    expect(screen.getByRole('button', { name: 'Use Current Location' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
     expect(screen.getByRole('switch', { name: 'Reverse-geocode captured coordinates into an address' })).toHaveAttribute(
       'aria-checked',
       'true',
@@ -244,14 +244,14 @@ describe('Submission — live sample readout', () => {
     })
 
     expect(screen.getByTestId('gps-capture-progress')).toHaveTextContent('Sample 2 of 10 · best ±70m')
-    expect(screen.getByRole('button', { name: 'Capturing location, please wait' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Capturing location, please wait' })).toHaveAttribute('aria-disabled', 'true')
 
     await act(async () => {
       release?.()
     })
     // Capture finished: the button is live again and the progress line is gone.
     expect(screen.queryByTestId('gps-capture-progress')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Use Current Location' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
   })
 })
 
@@ -316,5 +316,44 @@ describe('Submission — cross-location write guard (R-1)', () => {
     })
 
     expect(onCoordinates).not.toHaveBeenCalled()
+  })
+})
+
+describe('Submission — capture button keeps keyboard focus (R-7)', () => {
+  it('stays focused and inert for the whole capture instead of blurring to <body>', async () => {
+    // A real `disabled` attribute blurs the element: focus would land on <body> for the entire
+    // 30-120s budget, and the permission-denied alert would announce with no route back.
+    let deliver!: (p: GeolocationPosition) => void
+    const held: GeolocationLike = { getCurrentPosition: (onSuccess) => { deliver = onSuccess } }
+    const onCoordinates = vi.fn()
+    renderSubmission({ geolocation: held, onCoordinates })
+
+    const button = screen.getByRole('button', { name: 'Use Current Location' })
+    button.focus()
+    fireEvent.click(button)
+
+    const busy = screen.getByRole('button', { name: 'Capturing location, please wait' })
+    expect(busy).toHaveAttribute('aria-disabled', 'true')
+    expect(document.activeElement).toBe(busy)
+
+    // Inert: a second activation while busy must not start a second capture.
+    fireEvent.click(busy)
+    await act(async () => {
+      deliver(position(6))
+    })
+    expect(onCoordinates).toHaveBeenCalledOnce()
+  })
+
+  it('keeps focus on the control when the capture fails', async () => {
+    renderSubmission({ geolocation: denied })
+
+    const button = screen.getByRole('button', { name: 'Use Current Location' })
+    button.focus()
+    await act(async () => {
+      fireEvent.click(button)
+    })
+
+    expect(screen.getByTestId('gps-capture-error')).toHaveTextContent(GPS_MESSAGES.PERMISSION_DENIED)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Use Current Location' }))
   })
 })

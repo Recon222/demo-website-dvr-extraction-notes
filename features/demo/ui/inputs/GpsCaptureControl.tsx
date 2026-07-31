@@ -120,6 +120,14 @@ export function GpsCaptureControl({
   const busyText = isCapturing ? GPS_CONTROL_LABELS.capturing : GPS_CONTROL_LABELS.lookingUp
 
   const onClick = () => {
+    // R-7: the button is `aria-disabled`, not `disabled`, so activation must be refused here.
+    // A real `disabled` attribute makes the browser blur the element, dropping keyboard focus
+    // to <body> for the whole 30 s (120 s under PRECISE_GPS_CONFIG) capture budget — a keyboard
+    // user loses their place in a 12-field form, and the permission-denied `role="alert"` below
+    // then announces with focus nowhere near a route back. Staying focused and inert is the
+    // stronger form of PickerStage's re-focus-on-failure idiom (:171-192): focus is never
+    // dropped at all, on the success path either.
+    if (busy || disabled) return
     void capture().then((fix) => {
       if (fix) onCapture(fix)
     })
@@ -131,7 +139,7 @@ export function GpsCaptureControl({
         <button
           type="button"
           onClick={onClick}
-          disabled={busy || disabled}
+          aria-disabled={busy || disabled}
           aria-busy={busy}
           aria-label={isCapturing ? 'Capturing location, please wait' : reverseGeocoding ? 'Looking up address, please wait' : label}
           style={{ ...button, opacity: busy || disabled ? 0.7 : 1, cursor: busy || disabled ? 'default' : 'pointer' }}
