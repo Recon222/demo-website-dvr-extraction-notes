@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
@@ -45,6 +45,10 @@ export function ModalShell({
   children,
 }: {
   title: string
+  /** One-line header caption under the title, rendered only when passed (phone
+   *  NewLocationModal.tsx:212-219). It becomes the dialog's DESCRIPTION, never part of its
+   *  accessible name. ReactNode so richer captions (P3.2's sheet) fit; plain strings for the
+   *  phone-parity callers. */
   subtitle?: ReactNode
   onClose(): void
   onBack?(): void
@@ -53,6 +57,7 @@ export function ModalShell({
   footer?: ReactNode
   children: ReactNode
 }) {
+  const subtitleId = `${useId()}-subtitle`
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -67,6 +72,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={subtitle ? subtitleId : undefined}
         style={{
           position: 'absolute',
           left: 0,
@@ -96,7 +102,11 @@ export function ModalShell({
             )}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
-              {subtitle}
+              {subtitle && (
+                <div id={subtitleId} data-testid="modal-subtitle" style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>
+                  {subtitle}
+                </div>
+              )}
             </div>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
@@ -153,6 +163,7 @@ export function Field({
   placeholder,
   hint,
   multiline,
+  error,
 }: {
   label: string
   required?: boolean
@@ -161,7 +172,16 @@ export function Field({
   placeholder?: string
   hint?: string
   multiline?: boolean
+  /** Validation message for THIS field — the phone's `TextInput` `error` prop (used by
+   *  NewLocationModal's live duplicate-name check, NewLocationModal.tsx:243). Red border +
+   *  message below, matching NewCaseModal's coordinate fields; announced by pointing the
+   *  input's `aria-describedby` at it rather than by a `role="alert"`, because a live check
+   *  fires on every keystroke and would otherwise interrupt continuously. */
+  error?: string
 }) {
+  const errorId = `${useId()}-error`
+  const describedBy = error ? errorId : undefined
+  const invalid = error ? true : undefined
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
@@ -174,11 +194,26 @@ export function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-label={label}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
           rows={3}
-          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, ...(error ? { borderColor: '#ff4757' } : {}) }}
         />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} style={fieldInput} />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          style={error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput}
+        />
+      )}
+      {error && (
+        <div id={errorId} style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+          {error}
+        </div>
       )}
       {hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
     </div>
@@ -206,18 +241,46 @@ export function ModalActions({
   submitLabel,
   onCancel,
   onSubmit,
+  submitDisabled = false,
+  submitDescribedBy,
 }: {
   cancelLabel?: string
   submitLabel: string
   onCancel(): void
   onSubmit(): void
+  /** Blocks the primary action. Rendered as `aria-disabled` + a refusal in the handler, not the
+   *  `disabled` attribute — the R-7/R-15 house choice: `disabled` drops keyboard focus to
+   *  <body>, and a form gate flipping on a keystroke would strand the visitor mid-form. */
+  submitDisabled?: boolean
+  /** Id of the element stating WHY the action is blocked; described from the button while
+   *  disabled so a keyboard user landing on it hears the reason. */
+  submitDescribedBy?: string
 }) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {cancelLabel}
       </button>
-      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button
+        type="button"
+        onClick={() => {
+          // Load-bearing: the button is `aria-disabled`, so activation must be refused here.
+          if (submitDisabled) return
+          onSubmit()
+        }}
+        aria-disabled={submitDisabled}
+        aria-describedby={submitDisabled ? submitDescribedBy : undefined}
+        style={{
+          flex: 1,
+          textAlign: 'center',
+          padding: 13,
+          ...glassBtnPrimary,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: submitDisabled ? 'not-allowed' : 'pointer',
+          opacity: submitDisabled ? 0.45 : 1,
+        }}
+      >
         {submitLabel}
       </button>
     </div>

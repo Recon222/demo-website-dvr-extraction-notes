@@ -70,6 +70,16 @@ export {
   type FinalSubmissionOutcome,
 } from '@/features/demo/engine/logic/final-submission'
 export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
+// Location naming + the New Location submit gate (P3.4). P3.5 adds `generateCopyName` /
+// `ensureUniqueLocationName` to `location-name` and re-exports them here.
+export { isLocationNameTaken } from '@/features/demo/engine/logic/location-name'
+export {
+  NEW_LOCATION_BLOCKS,
+  NEW_LOCATION_BLOCK_MESSAGES,
+  newLocationBlock,
+  type NewLocationBlock,
+  type NewLocationGateInput,
+} from '@/features/demo/engine/logic/new-location-gate'
 export {
   ACCURACY_MODE_TARGET_M,
   ACCURACY_RATINGS,

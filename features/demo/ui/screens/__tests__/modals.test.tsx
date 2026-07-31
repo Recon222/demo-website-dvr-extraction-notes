@@ -44,17 +44,18 @@ describe('NewCaseModal', () => {
 describe('NewLocationModal', () => {
   const blankLoc = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
-  it('edits contact fields, captures GPS, and submits', () => {
-    const onCaptureGps = vi.fn()
+  it('edits the contact fields (phone labels + placeholders) and submits', () => {
     const onSubmit = vi.fn()
     const onChange = vi.fn()
-    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} onPickCoords={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
-    expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
-    fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })
-    expect(onChange).toHaveBeenCalledWith('locationPhone', '905-555-0142')
-    fireEvent.click(screen.getByText('Capture GPS coordinates'))
-    expect(onCaptureGps).toHaveBeenCalledOnce()
+    render(<NewLocationModal form={{ ...blankLoc, locationName: 'Rear Door' }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    const contact = screen.getByLabelText('Location Contact')
+    expect(contact).toHaveAttribute('placeholder', 'Contact person name')
+    fireEvent.change(contact, { target: { value: 'Sandeep' } })
+    expect(onChange).toHaveBeenCalledWith({ locationContact: 'Sandeep' })
+    const phone = screen.getByLabelText('Location Phone')
+    expect(phone).toHaveAttribute('placeholder', '(555) 123-4567')
+    fireEvent.change(phone, { target: { value: '905-555-0142' } })
+    expect(onChange).toHaveBeenCalledWith({ locationPhone: '905-555-0142' })
     fireEvent.click(screen.getByText('Create Location'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
