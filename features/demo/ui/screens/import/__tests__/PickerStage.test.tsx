@@ -223,6 +223,26 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     expect(screen.getByText('Pick File')).toBeInTheDocument() // back on the picker cards
   })
 
+  it('opening the large-batch confirm moves focus into it; cancelling returns focus to the card (R-17)', () => {
+    const { fileInput } = renderStage()
+    const files = Array.from({ length: BATCH_SIZE_WARNING_THRESHOLD + 1 }, (_, i) => pdf(`r${i}.pdf`))
+    fireEvent.change(fileInput(), { target: { files } })
+    // The activated card just unmounted — without explicit management focus drops to <body>.
+    expect(screen.getByRole('alertdialog', { name: 'Large Batch Import' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('Pick File').closest('button')).toHaveFocus()
+  })
+
+  it('a clipboard failure returns focus to the re-enabled clipboard card (R-17)', async () => {
+    renderStage({ readClipboardText: () => Promise.reject(new Error('NotAllowedError')) })
+    const card = () => screen.getByText('Paste from Clipboard').closest('button')!
+    card().focus()
+    fireEvent.click(card())
+    await screen.findByRole('alert') // blocked notice announced…
+    await waitFor(() => expect(card()).toHaveFocus()) // …and focus is back on the card, not <body>
+    expect(card()).not.toBeDisabled()
+  })
+
   it(`exactly ${BATCH_SIZE_WARNING_THRESHOLD} files skips the confirm (threshold is strictly greater-than)`, async () => {
     const { props, fileInput } = renderStage()
     const files = Array.from({ length: BATCH_SIZE_WARNING_THRESHOLD }, (_, i) => pdf(`r${i}.pdf`))

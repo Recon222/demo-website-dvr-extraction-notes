@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import type { ChangeEvent, CSSProperties, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, CSSProperties, ReactNode, Ref } from 'react'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 /**
@@ -128,6 +128,7 @@ function ActionCard({
   busyTestId,
   disabled,
   onClick,
+  ref,
 }: {
   icon: ReactNode
   title: string
@@ -137,9 +138,12 @@ function ActionCard({
   busyTestId?: string
   disabled: boolean
   onClick(): void
+  /** React 19 ref-as-prop — used by the R-17 focus restores. */
+  ref?: Ref<HTMLButtonElement>
 }) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}
@@ -163,6 +167,29 @@ export function PickerStage(props: PickerStageProps) {
   // The >25-file confirm (phone: native Alert.alert, ImportPickerModal.tsx:308-334). The browser
   // has no honest equivalent of a native alert, so the confirm replaces the card list in place.
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
+
+  // R-17 focus management. Opening the confirm unmounts the just-activated "Pick File"
+  // card (focus would drop to <body>), so the confirm takes focus on mount; cancelling it
+  // hands focus back to the card. The clipboard card is disabled while its read is in
+  // flight — a failure re-enables it, and focus returns to it so a keyboard user isn't
+  // stranded on <body> while the role="alert" banner announces.
+  const confirmRef = useRef<HTMLDivElement | null>(null)
+  const fileCardRef = useRef<HTMLButtonElement | null>(null)
+  const clipboardCardRef = useRef<HTMLButtonElement | null>(null)
+  const confirmWasOpen = useRef(false)
+  const clipboardErrored = useRef(false)
+  useEffect(() => {
+    const open = pendingFiles !== null
+    if (open) confirmRef.current?.focus()
+    else if (confirmWasOpen.current) fileCardRef.current?.focus()
+    confirmWasOpen.current = open
+  }, [pendingFiles])
+  useEffect(() => {
+    if (!isReadingClipboard && clipboardErrored.current) {
+      clipboardErrored.current = false
+      clipboardCardRef.current?.focus()
+    }
+  }, [isReadingClipboard])
 
   const isLoading = isReadingFile || isReadingClipboard
 
@@ -208,10 +235,12 @@ export function PickerStage(props: PickerStageProps) {
       try {
         text = await readClipboard()
       } catch {
+        clipboardErrored.current = true // R-17: restore focus to the card once re-enabled
         setError(PICKER_COPY.clipboardBlocked)
         return
       }
       if (!text.trim()) {
+        clipboardErrored.current = true
         setError(PICKER_COPY.clipboardEmpty)
         return
       }
@@ -222,6 +251,7 @@ export function PickerStage(props: PickerStageProps) {
         // Same R-23a breadcrumb as the file path: the text pipeline also unmounts this
         // stage on start, so a late throw's setError is discarded — log it.
         console.error('[demo/import] import run threw', e)
+        clipboardErrored.current = true
         setError(PICKER_COPY.textImportFailed)
       }
     } finally {
@@ -229,13 +259,22 @@ export function PickerStage(props: PickerStageProps) {
     }
   }
 
-  // Large-batch confirm replaces the card list (see pendingFiles above).
+  // Large-batch confirm replaces the card list (see pendingFiles above). role="alertdialog"
+  // without aria-modal: the ModalShell header (close) stays reachable, so claiming modality
+  // without a focus trap would overstate; focus lands here on mount (R-17) via tabIndex -1.
   if (pendingFiles) {
     return (
-      <div role="group" aria-label={PICKER_COPY.largeBatchTitle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div
+        role="alertdialog"
+        aria-label={PICKER_COPY.largeBatchTitle}
+        aria-describedby="import-batch-confirm-message"
+        tabIndex={-1}
+        ref={confirmRef}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14, outline: 'none' }}
+      >
         <div style={{ borderRadius: 14, border: GLASS.borderAccent, background: GLASS.gradientPanel, padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#f0f4f8' }}>{PICKER_COPY.largeBatchTitle}</div>
-          <div style={{ fontSize: 13, color: '#cdd9e6', lineHeight: 1.5 }}>{PICKER_COPY.largeBatchMessage(pendingFiles.length)}</div>
+          <div id="import-batch-confirm-message" style={{ fontSize: 13, color: '#cdd9e6', lineHeight: 1.5 }}>{PICKER_COPY.largeBatchMessage(pendingFiles.length)}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button
               type="button"
@@ -296,6 +335,7 @@ export function PickerStage(props: PickerStageProps) {
         description={PICKER_COPY.pickFileDescription}
         busy={isReadingFile}
         busyTestId="file-loading-indicator"
+        ref={fileCardRef}
         disabled={isLoading}
         onClick={() => fileInputRef.current?.click()}
       />
@@ -312,6 +352,7 @@ export function PickerStage(props: PickerStageProps) {
         description={PICKER_COPY.clipboardDescription}
         busy={isReadingClipboard}
         busyTestId="clipboard-loading-indicator"
+        ref={clipboardCardRef}
         disabled={isLoading}
         onClick={() => void handlePasteClipboard()}
       />
