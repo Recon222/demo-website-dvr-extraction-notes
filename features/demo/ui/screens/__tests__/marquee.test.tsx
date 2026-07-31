@@ -53,8 +53,8 @@ describe('TimeOffsetScreen', () => {
 
   it('renders the adjusted-time-ranges table for corrected scopes (the payoff)', () => {
     const correctedScopes = [
-      { id: 'a', reqLabel: 'real time', reqStart: '2025-03-08 23:45:00', reqEnd: '2025-03-09 01:30:00', adjStart: '2025-03-08 23:50:30', adjEnd: '2025-03-09 01:35:30', cameras: '3, 4, 7' },
-      { id: 'b', reqLabel: 'real time', reqStart: '2025-03-10 10:00:00', reqEnd: '2025-03-10 11:00:00', adjStart: '2025-03-10 10:05:30', adjEnd: '2025-03-10 11:05:30', cameras: '1' },
+      { id: 'a', reqLabel: 'real time', adjLabel: 'DVR time', reqStart: '2025-03-08 23:45:00', reqEnd: '2025-03-09 01:30:00', adjStart: '2025-03-08 23:50:30', adjEnd: '2025-03-09 01:35:30', cameras: '3, 4, 7' },
+      { id: 'b', reqLabel: 'real time', adjLabel: 'DVR time', reqStart: '2025-03-10 10:00:00', reqEnd: '2025-03-10 11:00:00', adjStart: '2025-03-10 10:05:30', adjEnd: '2025-03-10 11:05:30', cameras: '1' },
     ]
     render(<TimeOffsetScreen {...base} result={{ diff: '00:05:30', direction: 'AHEAD OF', isCorrect: false }} correctedScopes={correctedScopes} />)
     expect(screen.getByText('Adjusted Time Ranges')).toBeInTheDocument()

@@ -53,13 +53,42 @@ describe('TimeOffsetScreen — DST advisory surface', () => {
   })
 })
 
+describe('TimeOffsetScreen — adjusted-range domain labels', () => {
+  // Phone parity: REQUESTED and ADJUSTED carry INVERSE domain labels
+  // (`app/(form)/time-offset.tsx:556` vs `:578`; spec `docs/ui-mapping/06-wizard-b-time.md:69-70`).
+  const row = (o: Partial<TimeOffsetScreenProps['correctedScopes'][number]>) => ({
+    id: 'a',
+    reqLabel: 'real time',
+    adjLabel: 'DVR time',
+    reqStart: '2025-03-08 23:47:30',
+    reqEnd: '2025-03-09 01:32:30',
+    adjStart: '2025-03-08 23:53:00',
+    adjEnd: '2025-03-09 01:38:00',
+    cameras: '',
+    ...o,
+  })
+
+  it('labels a real-time request "Adjusted (DVR time)"', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[row({})]} />)
+    expect(screen.getByText('Requested (real time)')).toBeInTheDocument()
+    expect(screen.getByText('Adjusted (DVR time)')).toBeInTheDocument()
+  })
+
+  it('labels a DVR-time request "Adjusted (real time)" — not hardcoded to DVR', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[row({ reqLabel: 'DVR time', adjLabel: 'real time' })]} />)
+    expect(screen.getByText('Requested (DVR time)')).toBeInTheDocument()
+    expect(screen.getByText('Adjusted (real time)')).toBeInTheDocument()
+    expect(screen.queryByText('Adjusted (DVR time)')).toBeNull()
+  })
+})
+
 describe('TimeOffsetScreen — recalculate guard', () => {
   it('calculates straight through when there is nothing to overwrite', () => {
     const onCalculate = vi.fn()
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes={false} />)
     fireEvent.click(screen.getByText('Calculate'))
     expect(onCalculate).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   it('asks first when extracted scopes exist, with the phone’s copy', () => {
@@ -67,7 +96,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
     fireEvent.click(screen.getByText('Calculate'))
     expect(onCalculate).not.toHaveBeenCalled()
-    const dialog = screen.getByRole('dialog')
+    const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveTextContent('Recalculate Time Offset?')
     expect(dialog).toHaveTextContent(
       'This will reset your extracted video scopes. Any manual edits to the extracted times will be lost.',
@@ -80,7 +109,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.click(screen.getByText('Continue'))
     expect(onCalculate).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   it('Cancel aborts the recalculation', () => {
@@ -89,20 +118,22 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.click(screen.getByText('Cancel'))
     expect(onCalculate).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
-  it('Escape and backdrop click both cancel', () => {
+  it('Escape cancels; the scrim deliberately does not', () => {
     const onCalculate = vi.fn()
     render(<TimeOffsetScreen {...base} onCalculate={onCalculate} hasExtractedScopes />)
 
     fireEvent.click(screen.getByText('Calculate'))
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
 
+    // AlertDialog's scrim is inert by design (a native alert is answered by choosing a
+    // button) — clicking it must NOT let a visitor skip the decision the phone forces.
     fireEvent.click(screen.getByText('Calculate'))
-    fireEvent.click(document.querySelector('[data-recalc-backdrop]') as HTMLElement)
-    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(document.querySelector('[data-alert-scrim]') as HTMLElement)
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
 
     expect(onCalculate).not.toHaveBeenCalled()
   })
@@ -160,6 +191,6 @@ describe('DemoExperience — DST advisory wiring', () => {
     expect(store.getState().locations[0].form.extractedScopes.length).toBe(1)
 
     fireEvent.click(screen.getByText('Calculate'))
-    expect(screen.getByRole('dialog')).toHaveTextContent('Recalculate Time Offset?')
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Recalculate Time Offset?')
   })
 })
