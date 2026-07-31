@@ -213,6 +213,21 @@ const visit = (
 
 /** True when a view value is a chapter (not a launch-only screen like OCR/media, nor the Map tab).
  *  Keeps `currentChapter` on the last real chapter so the rail/narration never break on the Map view. */
+/**
+ * The passthrough branch's canonicality guard, matching `applyTimeOffset` / `roundTo5Min`:
+ * a bound that isn't canonical `'YYYY-MM-DD HH:MM:SS'` — including empty, i.e. an unset bound —
+ * THROWS, so `generateExtractedScopes`'s per-entry isolation counts it as dropped and flags
+ * `extractedScopesPartial`. Without this the D10 passthrough would be the one path that carries
+ * "not-a-date" onto the extracted-scope screen and from there onto a forensic document, which is
+ * exactly the G8 regression `roundTo5Min` was hardened against (deferred §15).
+ */
+function requireCanonicalTime(value: string): string {
+  if (!value || isNaN(new Date(value.replace(' ', 'T') + 'Z').getTime())) {
+    throw new Error('Unable to parse date value')
+  }
+  return value
+}
+
 const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
@@ -371,15 +386,47 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       let dropped = 0
       for (const sc of loc.form.scopes) {
         try {
-          const corrected = calculateCorrectedTimeRange(
-            { startDateTime: sc.startDateTime, endDateTime: sc.endDateTime },
-            off,
-            sc.isActualTime,
-          )
+          // D10 (owner ruling): the extracted window is derived DIFFERENTLY per time domain,
+          // because the two kinds of request mean different things on the ground.
+          //
+          // REAL-TIME request (`isActualTime === true`) — the requester named a real-world
+          // window and has no idea what the DVR's clock reads. Map it onto the DVR timeline
+          // with the measured offset, then pad OUTWARD to the 5-minute marks — start back, end
+          // forward — so the export cannot clip the moment of interest. That padding is the
+          // whole point of the rounding: it is deliberate slack on a converted estimate.
+          //
+          // DVR-TIME request (`isActualTime === false`) — the requester stood at the device,
+          // read its clock, and asked for exactly those times. What comes back is normally
+          // exactly what was asked for, so the window passes through UNTOUCHED: no offset, no
+          // rounding. Neither has any business here. Widening a window the requester specified
+          // against the DVR's own clock invents scope they did not ask for, and the offset is
+          // INFORMATIONAL for this kind of request — it tells the reader what real-world time
+          // the DVR window corresponds to, which the Time-Offset screen shows separately
+          // (`selectAdjustedScopes`), exactly as the phone does.
+          //
+          // The old unconditional branch was wrong twice over for DVR-time scopes:
+          // `calculateCorrectedTimeRange` converts DVR→real for that input (the offset applied
+          // in the REVERSE of the intended direction), and the real-domain result was then
+          // stamped back as `isActualTime: false` and rounded. `isActualTime: false` below is
+          // now honest on both paths — the passthrough values already are DVR-domain.
+          let startDateTime: string
+          let endDateTime: string
+          if (sc.isActualTime) {
+            const corrected = calculateCorrectedTimeRange(
+              { startDateTime: sc.startDateTime, endDateTime: sc.endDateTime },
+              off,
+              sc.isActualTime,
+            )
+            startDateTime = roundTo5Min(corrected.startDateTime, 'down')
+            endDateTime = roundTo5Min(corrected.endDateTime, 'up')
+          } else {
+            startDateTime = requireCanonicalTime(sc.startDateTime)
+            endDateTime = requireCanonicalTime(sc.endDateTime)
+          }
           extracted.push({
             id: nextId('es'),
-            startDateTime: roundTo5Min(corrected.startDateTime, 'down'),
-            endDateTime: roundTo5Min(corrected.endDateTime, 'up'),
+            startDateTime,
+            endDateTime,
             isActualTime: false,
             cameras: sc.cameras,
           })
