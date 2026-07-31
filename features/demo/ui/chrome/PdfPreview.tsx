@@ -54,8 +54,10 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
         // R-16: win.focus() moved keyboard focus INTO the sandboxed frame — a scriptless
         // document where nothing forwards keys, so the parent document's Escape listener
         // (deferred §21) would go deaf after a save. Whatever the print attempt did (dialog,
-        // throw, silent ignore), hand focus back to the parent chrome.
-        window.focus()
+        // throw, silent ignore), hand focus back to the parent chrome. Focusing a parent
+        // element is what restores it (and implicitly blurs the frame) — window.focus()
+        // requests top-level browser-window activation, moves no DOM focus, and is not
+        // needed here (R-37).
         saveBtnRef.current?.focus()
       }
       setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
