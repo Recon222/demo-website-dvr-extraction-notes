@@ -58,6 +58,15 @@ export {
   type FinalSubmissionOutcome,
 } from '@/features/demo/engine/logic/final-submission'
 export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
+// Location-name uniqueness (P3.5 — the phone's `utils/location-name.ts` port). The duplicate
+// chooser, its "New Location w/ Sub Info" default name, and the create-location card's live
+// collision check all read from here — one set of comparison rules per case.
+export {
+  LOCATION_NAME_MAX_LENGTH,
+  ensureUniqueLocationName,
+  generateCopyName,
+  isLocationNameTaken,
+} from '@/features/demo/engine/logic/location-name'
 export {
   ACCURACY_MODE_TARGET_M,
   ACCURACY_RATINGS,
