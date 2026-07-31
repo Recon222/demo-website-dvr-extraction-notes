@@ -54,10 +54,48 @@ function truncateForModel(text: string): string {
  */
 export type FallbackMode = 'none' | 'sample' | 'unavailable' | 'error'
 
+/**
+ * The demo pipeline's REAL failure modes (P1.5, matrix row 79) — the phone's
+ * `error.code` analog, adapted honestly: proxy 503/network failures are NOT here
+ * because they fall back to the SAMPLE (a success with a notice), never a failure.
+ * Codes whose pipeline message is already the honest user-facing string
+ * (PDF_SCANNED, NO_FIELDS_FOUND) are deliberately absent from the modal's
+ * ERROR_MESSAGES map — the phone's own precedent (§5.7.8: "No PDF code is in the
+ * map, so the pipeline's own honest string always renders").
+ */
+export type ImportErrorCode =
+  | 'PDF_SCANNED' // pdf.js found no selectable text (scanned/image-only)
+  | 'PDF_READ_FAILED' // pdf.js could not load/parse the file (corrupt, encrypted, not a PDF)
+  | 'MODEL_OUTPUT_UNPARSEABLE' // no JSON object in the model reply (parseAiJson threw)
+  | 'NO_FIELDS_FOUND' // reply parsed but yielded zero usable fields
+
+/** The phone's error.details shape for import failures ({ stage, detail } — §5.7.8). */
+export interface ImportErrorDetails {
+  stage: ImportStageId
+  detail: string
+}
+
+/** Phone partialData parity (ImportFlowModal.tsx:353-368): what the pipeline DID find. */
+export interface ImportPartialData {
+  caseNumber?: string
+  businessName?: string
+}
+
 /** Discriminated on `ok` — a success always carries the patch + counts; a failure carries the error. */
 export type ImportRunResult =
   | { ok: true; patch: MappedImport; fieldCount: number; timeFrameCount: number; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
-  | { ok: false; error: string; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
+  | {
+      ok: false
+      error: string
+      warnings: ImportWarning[]
+      fallbackMode: FallbackMode
+      filename?: string
+      code?: ImportErrorCode
+      /** Raw failure context for the collapsible "Technical Details" block. */
+      details?: ImportErrorDetails
+      /** Honest partial extraction results for the "Data Found" block. */
+      partialData?: ImportPartialData
+    }
 
 const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
 
@@ -128,7 +166,7 @@ export async function runImport(input: {
   const currentTimeMs = Date.now()
   const sourceText = fallbackMode === 'none' ? documentText : SAMPLE_REQUEST_DOC
   try {
-    const { patch, warnings, fieldCount, timeFrameCount } = parseNormalizeMap(rawText, { currentTimeMs, sourceText })
+    const { patch, warnings, fieldCount, timeFrameCount, occurrenceNumber } = parseNormalizeMap(rawText, { currentTimeMs, sourceText })
     emitter?.log('OK', 'parse + map ✓', `fields: ${fieldCount} · timeFrames: ${timeFrameCount}`)
     for (const w of warnings) emitter?.log('NORM', w.reason, `field: ${w.field}`)
     emitter?.log('OK', 'normalize ✓', `warnings: ${warnings.length}`)
@@ -136,14 +174,33 @@ export async function runImport(input: {
     if (fallbackMode === 'none' && fieldCount === 0 && timeFrameCount === 0) {
       emitter?.log('ERR', 'no recognizable fields found — nothing to import')
       onStage?.('error')
-      return { ok: false, error: 'No recognizable fields found in this document — check it and try again.', warnings, fallbackMode }
+      // The OCC# is not a usable form field (the case record owns it), but it IS the
+      // honest "here's what the model DID find" for the failure card's Data Found block.
+      const partialData = occurrenceNumber ? { caseNumber: occurrenceNumber } : undefined
+      return {
+        ok: false,
+        error: 'No recognizable fields found in this document — check it and try again.',
+        warnings,
+        fallbackMode,
+        code: 'NO_FIELDS_FOUND',
+        details: { stage: 'normalizing', detail: `parsed ✓ but fields: 0 · timeFrames: 0` },
+        ...(partialData ? { partialData } : {}),
+      }
     }
     onStage?.('done')
     return { ok: true, patch, warnings, fieldCount, timeFrameCount, fallbackMode }
   } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
     emitter?.log('ERR', '✗ failed at normalizing', e instanceof Error ? e.message : undefined)
     onStage?.('error')
-    return { ok: false, error: e instanceof Error ? e.message : 'Could not read the request.', warnings: [], fallbackMode }
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Could not read the request.',
+      warnings: [],
+      fallbackMode,
+      code: 'MODEL_OUTPUT_UNPARSEABLE',
+      details: { stage: 'normalizing', detail },
+    }
   }
 }
 
@@ -160,8 +217,20 @@ export async function runPdfImport(
   } catch (e) {
     emitter?.log('ERR', '✗ failed at extracting text', e instanceof Error ? e.message : undefined)
     input.onStage?.('error')
-    const error = e instanceof PdfExtractionError ? e.message : 'Could not read this PDF.'
-    return { ok: false, error, warnings: [], fallbackMode: 'none', filename: file.name }
+    // PDF_SCANNED's own message is the user-facing string (phone precedent: PDF codes stay
+    // out of the friendly map); a generic pdf.js failure keeps its raw message for the
+    // Technical Details block while the card shows the mapped PDF_READ_FAILED copy.
+    const scanned = e instanceof PdfExtractionError
+    const raw = e instanceof Error ? e.message : String(e)
+    return {
+      ok: false,
+      error: scanned ? e.message : 'Could not read this PDF.',
+      warnings: [],
+      fallbackMode: 'none',
+      filename: file.name,
+      code: scanned ? 'PDF_SCANNED' : 'PDF_READ_FAILED',
+      details: { stage: 'extracting_text', detail: raw },
+    }
   }
   // In-browser pdf.js, vs the phone's native extractor — the raw PDF bytes never leave the browser.
   emitter?.log('PDF', 'extract text ✓', `pdf.js (in-browser) · ${documentText.length} chars · ${(emitter?.elapsed() ?? pdfT0) - pdfT0}ms`)
