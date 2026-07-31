@@ -39,7 +39,7 @@ import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/scre
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
-import { OcrCaptureScreen, type OcrResult, type OcrSampleFrame } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -52,7 +52,8 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
 import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
-import { cleanOcrText, readDvrTimestamp, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
+import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
+import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
@@ -121,29 +122,6 @@ const blankImport: ImportState = { stage: 'picker', text: '', result: null, last
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
 
-/**
- * The hardcoded DVR frames the OCR pipeline runs over. A browser has no camera, so every
- * "capture" is one of these strings put through the real `cleanOcrText` → `readDvrTimestamp`
- * path — nothing about the result is faked.
- *
- * `clean` is the marquee frame (year-first, unambiguous, stable offset against
- * `SAMPLE_ACTUAL_TIME`). The other two exist so the confirmation step's two hard cases are
- * reachable in the demo at all:
- *  - `ambiguous` — 06 vs 07 with a year deliberately outside the resolver's proximity window
- *    (`year < currentYear - 1`), which pins the result at `confidence: 'low'` for any visitor
- *    from 2026 on, so `DateDisambiguationWarning` actually renders. A DVR whose clock is a
- *    couple of years stale is the normal case in this domain, not a contrivance.
- *  - `timeOnly` — a clock with no date, the `assumedDate` path.
- */
-const OCR_SAMPLE_FRAMES: Record<OcrSampleFrame, string> = {
-  clean: '2025-03-08 12:05:30',
-  ambiguous: '06/07/2024 23:45:30',
-  timeOnly: '12:05:30',
-}
-/** Fallback "actual" instant when the visitor hasn't synced a real one yet. */
-const SAMPLE_ACTUAL_TIME = '2025-03-08 12:00:00'
-/** Fixed OCR score for the sample frames — no real recogniser to score against. */
-const OCR_SAMPLE_CONFIDENCE = 0.93
 
 /** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
 function sessionStorageOrNull(): StorageLike | null {
@@ -712,7 +690,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
   /** "Use this & calculate": the operator's (possibly corrected) value is what gets committed. */
   const confirmOcr = () => {
-    if (!ocrResult?.ok || !ocrDraft) return
+    // Same gate the CTA is disabled by — enforced here too so the commit path, not just the
+    // button, is what refuses an empty draft or an unconfirmed assumed date.
+    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.assumedDate, ocrDateConfirmed)) return
     const st = store.getState()
     st.updateField('capture.method', 'ocr')
     if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', ocrResult.actual)

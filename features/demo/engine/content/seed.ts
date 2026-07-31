@@ -7,7 +7,38 @@ import type { LocationForm } from '@/features/demo/engine/types'
  * every field of the import mapper and is the fallback document when the live model is
  * unavailable (see ui/import/run-import.ts). The demo itself boots EMPTY (owner decision:
  * the visitor creates everything; the guided tour and its seed case were removed with it).
+ *
+ * `OCR_SAMPLE_FRAMES` is the same idea for the OCR chapter: a browser has no camera, so every
+ * "capture" is one of these DVR-display strings put through the real `cleanOcrText` →
+ * `readDvrTimestamp` path. Nothing about the result is faked — only the frame is.
  */
+
+/** Which sample DVR display the OCR pipeline reads. */
+export type OcrSampleFrame = 'clean' | 'ambiguous' | 'timeOnly'
+
+/**
+ * The sample DVR displays.
+ *
+ * `clean` is the marquee frame — year-first, unambiguous, and a stable 00:05:30 against the
+ * demo's sample "actual" instant. The other two exist because the confirmation step's two hard
+ * cases would otherwise be unreachable in a cameraless demo:
+ *  - `ambiguous` — 06 vs 07, with a year deliberately outside the resolver's proximity window
+ *    (`year < currentYear - 1`), which pins the resolution at `confidence: 'low'` so the
+ *    warning actually renders for any visitor from 2026 on (deferred §37c). A DVR whose clock
+ *    is a couple of years stale is the normal case in this domain, not a contrivance.
+ *  - `timeOnly` — a clock with no date at all: the `assumedDate` path.
+ */
+export const OCR_SAMPLE_FRAMES: Record<OcrSampleFrame, string> = {
+  clean: '2025-03-08 12:05:30',
+  ambiguous: '06/07/2024 23:45:30',
+  timeOnly: '12:05:30',
+}
+
+/** Fallback "actual" instant for the OCR chapter when no real sync has been run yet. */
+export const SAMPLE_ACTUAL_TIME = '2025-03-08 12:00:00'
+
+/** Fixed OCR score for the sample frames — there is no recogniser here to score against. */
+export const OCR_SAMPLE_CONFIDENCE = 0.93
 
 export const SAMPLE_REQUEST_DOC = `From: det.mchugh.4471@peelpolice.ca
 To: Video Services Unit

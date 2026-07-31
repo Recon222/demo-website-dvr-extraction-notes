@@ -5,13 +5,8 @@ import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/gl
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
 import type { DateDisambiguationResult } from '@/features/demo/engine/logic/date-disambiguation'
-
-/**
- * Which hardcoded DVR frame the pipeline runs over. A browser has no camera, so the demo can
- * only offer sample frames — these three exist because each one exercises a different arm of
- * `readDvrTimestamp`, and a surface that can never render is not a ported surface.
- */
-export type OcrSampleFrame = 'clean' | 'ambiguous' | 'timeOnly'
+import { isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
+import type { OcrSampleFrame } from '@/features/demo/engine/content/seed'
 
 export type OcrResult =
   | {
@@ -64,13 +59,9 @@ export function OcrCaptureScreen({
   onConfirm,
 }: OcrCaptureScreenProps) {
   if (result) {
-    // The commit is gated on a DVR time existing, as on the phone (`ConfirmationScreen.tsx:312`
-    // disables Confirm on `!dvrDateTime`), plus — the demo's addition, resolving the TODO(M2) —
-    // an assumed date having been confirmed OR corrected. Editing the date away from the
-    // assumption IS the correction, so it releases the gate on its own.
-    const dateNeedsConfirming =
-      result.ok && result.assumedDate !== null && !dateConfirmed && dvrDraft.slice(0, 10) === result.assumedDate
-    const canCommit = result.ok && Boolean(dvrDraft) && !dateNeedsConfirming
+    // The commit gate is the engine's (`isDvrDraftCommittable`) — this screen only reflects it.
+    const canCommit = result.ok && isDvrDraftCommittable(dvrDraft, result.assumedDate, dateConfirmed)
+    const dateNeedsConfirming = result.ok && Boolean(dvrDraft) && !canCommit
     const edited = result.ok && dvrDraft !== result.dvrTime
 
     return (
@@ -129,9 +120,7 @@ export function OcrCaptureScreen({
 
             <div style={{ marginTop: 'auto' }}>
               {!dvrDraft && <div style={{ ...label12, marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
-              {dateNeedsConfirming && Boolean(dvrDraft) && (
-                <div style={{ ...label12, marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>
-              )}
+              {dateNeedsConfirming && <div style={{ ...label12, marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" onClick={onRetake} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
                 <button

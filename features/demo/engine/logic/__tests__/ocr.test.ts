@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { cleanOcrText, parseTimestampFromText, getConfidenceLevel, readDvrTimestamp } from '@/features/demo/engine/logic/ocr'
+import {
+  cleanOcrText,
+  parseTimestampFromText,
+  getConfidenceLevel,
+  readDvrTimestamp,
+  isDvrDraftCommittable,
+} from '@/features/demo/engine/logic/ocr'
+import { OCR_SAMPLE_FRAMES, SAMPLE_ACTUAL_TIME } from '@/features/demo/engine/content/seed'
 
 /** Fixed "today" for every clock-sensitive assertion: 2026-07-31 12:00 local. */
 const NOW = new Date(2026, 6, 31, 12, 0, 0).getTime()
@@ -165,5 +172,63 @@ describe('readDvrTimestamp', () => {
     const reading = readDvrTimestamp('06-07-24 23:45:30', NOW)
     expect(reading?.ambiguity?.chosenDate).toBe('2024-06-07')
     expect(reading?.dvrTime).toBe('2024-06-07 23:45:30')
+  })
+})
+
+// The sample frames are content, and the content is load-bearing: each one is the ONLY way
+// its arm of the confirmation step can be reached in a cameraless demo. If a frame stops
+// producing the case it was chosen for, the surface it feeds goes dark and nothing else fails.
+describe('OCR sample frames reach the case each was chosen for', () => {
+  const read = (frame: keyof typeof OCR_SAMPLE_FRAMES, nowMs = NOW) =>
+    readDvrTimestamp(cleanOcrText(OCR_SAMPLE_FRAMES[frame]), nowMs)
+
+  it('clean: parses cleanly, no warning, no assumption', () => {
+    expect(read('clean')).toEqual({ dvrTime: '2025-03-08 12:05:30', assumedDate: null, ambiguity: null })
+  })
+
+  it('clean: is the 00:05:30 the marquee offset depends on', () => {
+    // SAMPLE_ACTUAL_TIME is 12:00:00 on the same day.
+    expect(read('clean')?.dvrTime).toBe('2025-03-08 12:05:30')
+    expect(SAMPLE_ACTUAL_TIME).toBe('2025-03-08 12:00:00')
+  })
+
+  it('ambiguous: resolves at LOW confidence, so the warning actually renders', () => {
+    expect(read('ambiguous')?.ambiguity?.confidence).toBe('low')
+  })
+
+  it('ambiguous: stays low-confidence as the visitor’s clock moves further forward', () => {
+    const in2030 = new Date(2030, 0, 1).getTime()
+    expect(read('ambiguous', in2030)?.ambiguity?.confidence).toBe('low')
+  })
+
+  it('timeOnly: carries no date, so the assumed-date gate engages', () => {
+    expect(read('timeOnly')?.assumedDate).toBe('2026-07-31')
+  })
+})
+
+describe('isDvrDraftCommittable', () => {
+  it('refuses an empty draft, whatever else is true', () => {
+    expect(isDvrDraftCommittable('', null, false)).toBe(false)
+    expect(isDvrDraftCommittable('', '2026-07-31', true)).toBe(false)
+  })
+
+  it('allows a read that carried its own date', () => {
+    expect(isDvrDraftCommittable('2025-03-08 12:05:30', null, false)).toBe(true)
+  })
+
+  it('holds an unconfirmed assumed date', () => {
+    expect(isDvrDraftCommittable('2026-07-31 12:05:30', '2026-07-31', false)).toBe(false)
+  })
+
+  it('releases on an explicit confirmation', () => {
+    expect(isDvrDraftCommittable('2026-07-31 12:05:30', '2026-07-31', true)).toBe(true)
+  })
+
+  it('releases when the assumed date has been corrected, without a confirmation', () => {
+    expect(isDvrDraftCommittable('2025-03-08 12:05:30', '2026-07-31', false)).toBe(true)
+  })
+
+  it('keeps holding when only the TIME was edited — the date is still the assumption', () => {
+    expect(isDvrDraftCommittable('2026-07-31 09:00:00', '2026-07-31', false)).toBe(false)
   })
 })

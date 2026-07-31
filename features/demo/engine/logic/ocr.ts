@@ -227,6 +227,26 @@ export function readDvrTimestamp(text: string, currentTimeMs: number): DvrTimest
   return { dvrTime: `${ambiguity.chosenDate}${parse.value.slice(10)}`, assumedDate: null, ambiguity }
 }
 
+/**
+ * Whether the operator's working DVR date/time may be committed.
+ *
+ * Two conditions, both forensic rather than cosmetic:
+ *  - there has to be a value at all (the phone gates its Confirm the same way,
+ *    `ConfirmationScreen.tsx:312`);
+ *  - if the read carried no date, the assumption has to have been dealt with — either
+ *    explicitly confirmed, or corrected by editing the date away from it. Editing IS the
+ *    correction, so it releases the gate on its own; an operator who has typed the real date
+ *    should not also have to tap "confirm", or the gate becomes something to dismiss.
+ *
+ * Lives here, not in the screen, so the bridge can refuse the same commit the button disables —
+ * a gate enforced only by a disabled button is enforced only by the UI.
+ */
+export function isDvrDraftCommittable(draft: string, assumedDate: string | null, dateConfirmed: boolean): boolean {
+  if (!draft) return false
+  if (assumedDate === null || dateConfirmed) return true
+  return draft.slice(0, 10) !== assumedDate
+}
+
 export interface ConfidenceTier {
   level: 'high' | 'medium' | 'low' | 'fail'
   message: string
