@@ -1269,16 +1269,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     switch (modal) {
       case 'newCase':
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
-      case 'newLocation':
+      case 'newLocation': {
+        // Same case resolution `submitLocation` uses, so the duplicate check and the write can
+        // never be looking at different cases. Names are per-case: siblings only.
+        const intoCaseId = targetCaseId ?? currentCaseId
         return (
           <NewLocationModal
             form={locForm}
             draftId={locDraftId ?? undefined}
+            existingNames={locations.filter((l) => l.caseId === intoCaseId).map((l) => l.locationName)}
             onChange={(patch) => setLocForm((s) => ({ ...s, ...patch }))}
             onSubmit={submitLocation}
             onCancel={() => store.getState().closeModal()}
           />
         )
+      }
       case 'import':
         return (
           <ImportModal

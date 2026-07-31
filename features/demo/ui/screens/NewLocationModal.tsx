@@ -1,7 +1,10 @@
 'use client'
 
+import { useId } from 'react'
+
 import { Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inputs/LocationFields'
+import { NEW_LOCATION_BLOCK_MESSAGES, newLocationBlock } from '@/features/demo/engine/logic/new-location-gate'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import type { DemoLocation } from '@/features/demo/engine/types'
@@ -60,6 +63,10 @@ export interface NewLocationModalProps {
    *  deferred §45f). Optional so the modal still renders without one; an undefined draft is its
    *  own identity, so it does not silently pass for a real one. */
   draftId?: string
+  /** Location names already on the TARGET case — the live duplicate check's comparison set
+   *  (phone `existingNames`, NewLocationModal.tsx:36-41). Uniqueness is per-case: the caller
+   *  passes one case's siblings, never every name in the demo. */
+  existingNames?: readonly string[]
   /** Partial patch — mirrors the phone's `handleLocationChange` (NewLocationModal.tsx:129-157)
    *  and `LocationFields`' own `onChange` shape, so a capture that writes coordinates and an
    *  address in one gesture is one write per gesture rather than one per field. */
@@ -86,12 +93,24 @@ const COPY = {
 export function NewLocationModal({
   form,
   draftId,
+  existingNames = [],
   onChange,
   onSubmit,
   onCancel,
   gpsDeps,
   reverseGeocode,
 }: NewLocationModalProps) {
+  const blockedId = `${useId()}-blocked`
+  // One derivation drives the greyed-out button, the inline field error and the reason line —
+  // the phone keeps `validateForm` and the `disabled` condition as two separate lists of the
+  // same rules (see `new-location-gate.ts`).
+  const block = newLocationBlock({
+    locationName: form.locationName,
+    streetAddress: form.streetAddress,
+    existingNames,
+    requireAddress: false,
+  })
+
   const locationValues: LocationFieldValues = {
     businessName: form.businessName,
     streetAddress: form.streetAddress,
@@ -133,6 +152,9 @@ export function NewLocationModal({
         value={form.locationName}
         onChange={(v) => onChange({ locationName: v })}
         placeholder={COPY.locationNamePlaceholder}
+        // Live, exactly as on the phone (NewLocationModal.tsx:100-105/:243): the collision is
+        // reported at the field the moment it exists, not held back until a submit attempt.
+        error={block === 'duplicateName' ? NEW_LOCATION_BLOCK_MESSAGES.duplicateName : undefined}
       />
       <LocationFields
         locationId={draftId}
@@ -153,7 +175,24 @@ export function NewLocationModal({
         onChange={(v) => onChange({ locationPhone: v })}
         placeholder={COPY.locationPhonePlaceholder}
       />
-      <ModalActions submitLabel={COPY.submit} onCancel={onCancel} onSubmit={onSubmit} />
+      {/* Why the primary action won't fire, as a live region the button points at
+          (OcrCaptureScreen's R-15 shape). The wrapper renders unconditionally so the region
+          exists before it has content — a region created together with its text is not
+          reliably announced. */}
+      <div role="status" data-testid="new-location-blocked" style={{ fontSize: 12, color: '#ff6b78' }}>
+        {block !== null && (
+          <div id={blockedId} style={{ marginBottom: 10 }}>
+            {NEW_LOCATION_BLOCK_MESSAGES[block]}
+          </div>
+        )}
+      </div>
+      <ModalActions
+        submitLabel={COPY.submit}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+        submitDisabled={block !== null}
+        submitDescribedBy={blockedId}
+      />
     </ModalShell>
   )
 }
