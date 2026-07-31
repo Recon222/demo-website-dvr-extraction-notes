@@ -55,6 +55,7 @@ import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/dem
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
+import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
@@ -948,6 +949,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'timeOffset': {
         const off = currentLocation?.form.timeOffset ?? null
+        // DST advisory: the phone recomputes it on every render of the result block, so it
+        // tracks the toggle and the scope edits live. `clock.now` is the UI's wall-clock seam
+        // (spy-able in tests) — the engine helper never reads an argless clock itself.
+        const dstAdvisory = off
+          ? computeDstAdvisory({
+              scopes: currentLocation?.form.scopes ?? [],
+              actualDateTime: capture.actualDateTime,
+              dvrAppliesDST: capture.dvrAppliesDST,
+              now: clock.now,
+            })
+          : null
         return (
           <TimeOffsetScreen
             dvrDateTime={capture.dvrDateTime}
@@ -966,6 +978,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             correctedScopes={selectAdjustedScopes(store.getState())}
             dvrAppliesDST={capture.dvrAppliesDST}
             onToggleDst={() => store.getState().updateField('capture.dvrAppliesDST', !capture.dvrAppliesDST)}
+            dstAdvisory={dstAdvisory}
+            hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}

@@ -21,6 +21,8 @@ describe('TimeOffsetScreen', () => {
     correctedScopes: [],
     dvrAppliesDST: false,
     onToggleDst: vi.fn(),
+    dstAdvisory: null,
+    hasExtractedScopes: false,
     ...nav,
   }
 
