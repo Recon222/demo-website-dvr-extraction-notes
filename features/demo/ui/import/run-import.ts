@@ -29,6 +29,9 @@ import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pd
 
 export type ImportStageId = 'extracting_text' | 'reading_model' | 'normalizing' | 'done' | 'error'
 
+/** A stage the pipeline actually reached (excludes the terminal 'error' marker). */
+export type ImportRealStageId = Exclude<ImportStageId, 'error'>
+
 // Detail-dump clip sizes at the emit sites — same numbers as the phone (§5.7.4).
 const DUMP_DETAIL_CHARS = 1200
 const USER_PROMPT_DETAIL_CHARS = 800

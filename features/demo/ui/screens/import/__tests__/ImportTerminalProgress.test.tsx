@@ -38,7 +38,7 @@ function setup(over: Partial<ImportTerminalProgressProps> = {}, preEmit?: (e: Im
   const emitter = bus.beginRun(() => 0)
   if (preEmit) preEmit(emitter)
   const onReview = vi.fn()
-  const props: ImportTerminalProgressProps = { stage: 'reading_model', outcome: null, batch: null, onReview, bus, ...over }
+  const props: ImportTerminalProgressProps = { stage: 'reading_model', lastRealStage: null, outcome: null, batch: null, onReview, bus, ...over }
   const utils = render(<ImportTerminalProgress {...props} />)
   const rerenderWith = (next: Partial<ImportTerminalProgressProps>) =>
     utils.rerender(<ImportTerminalProgress {...props} {...next} />)
@@ -109,9 +109,11 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(width()).toBe('80%')
   })
 
-  it("stage 'error' freezes the last real stage's headline and percent", () => {
-    const { rerenderWith } = setup({ stage: 'normalizing' })
-    rerenderWith({ stage: 'error' })
+  it("stage 'error' freezes on the bridge-tracked lastRealStage — even one never rendered (R-11)", () => {
+    // lastRealStage arrives as a prop; the stage itself jumps straight to 'error'
+    // (the batched-commit shape production actually produces — 'normalizing' and
+    // 'error' land in one commit, so 'normalizing' never renders).
+    setup({ stage: 'error', lastRealStage: 'normalizing' })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Normalizing extracted data...')
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
   })
@@ -446,7 +448,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
   })
 
   it('failure: red treatment, "See error details →", the log stays visible, and the bar does not claim 100%', () => {
-    const { emitter, rerenderWith } = setup({ stage: 'normalizing' })
+    const { emitter, rerenderWith } = setup({ stage: 'normalizing', lastRealStage: 'normalizing' })
     act(() => emitter.log('ERR', '✗ failed at normalizing'))
     nextFrame()
     rerenderWith({ stage: 'error', outcome: { status: 'failure' } })

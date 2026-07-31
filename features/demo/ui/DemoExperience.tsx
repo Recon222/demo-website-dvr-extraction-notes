@@ -9,6 +9,7 @@ import {
   runImport as runTextImport,
   runPdfImport,
   type ImportStageId as RunStageId,
+  type ImportRealStageId,
   type ImportRunResult,
   type FallbackMode,
   type ImportErrorCode,
@@ -97,6 +98,15 @@ interface ImportState {
   result: ImportResult | null
   lastLocId: string | null
   activeStage: RunStageId | null
+  /**
+   * The last REAL stage the pipeline reached (never 'error') — tracked here, in the
+   * functional updater, because React batches onStage('normalizing') with the
+   * following onStage('error'|'done') from the same continuation: a stage that never
+   * RENDERS would be invisible to any component-side "last rendered stage" ref, and a
+   * normalize failure froze the bar at 15% (p1-review R-11). The terminal freezes its
+   * bar/headline on this when activeStage is 'error'.
+   */
+  lastRealStage: ImportRealStageId | null
   batch: { current: number; total: number } | null
   /**
    * The visitor tapped the terminal's outcome CTA (phone `pdfTerminalAcknowledged`).
@@ -105,7 +115,7 @@ interface ImportState {
    */
   acknowledged: boolean
 }
-const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, batch: null, acknowledged: false }
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -379,7 +389,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     store.getState().closeModal()
   }
-  const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
+  /**
+   * Per-run stage forwarder. Token-guarded (p1-review R-24): every other import
+   * checkpoint validates importGen, but the old bare setImp let a cancelled run's late
+   * onStage('normalizing'|'done') drive a NEWER run's headline/bar — and, post-P1.5,
+   * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11).
+   */
+  const importStageFor = (myGen: number) => (st: RunStageId) =>
+    setImp((s) => {
+      if (importGen.current !== myGen) return s // stale run — display writes drop too
+      return { ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }
+    })
 
   // Exhaustive by construction (review M2): every FallbackMode must decide its notice
   // here — a new variant is a compile error, not a silently-missing warning. Only
@@ -506,9 +526,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     for (let i = 0; i < total; i++) {
       if (importGen.current !== myGen) return // cancelled, or a newer run started
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', acknowledged: false }))
+      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
       emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
-      const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
+      const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
       if (importGen.current !== myGen) return // cancelled while this file was processing
       if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
       else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
@@ -535,8 +555,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const myGen = ++importGen.current // this run's token — any bump invalidates it
     const emitter = importLogBus.beginRun(logClock)
     emitter.log('INIT', 'reading pasted text…')
-    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', acknowledged: false }))
-    const res = await runTextImport({ documentText, live: true, onStage: onImportStage, emitter })
+    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', lastRealStage: 'reading_model', acknowledged: false }))
+    const res = await runTextImport({ documentText, live: true, onStage: importStageFor(myGen), emitter })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
@@ -838,6 +858,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             stage={computeImportStage(imp)}
             text={imp.text}
             activeStage={imp.activeStage}
+            lastRealStage={imp.lastRealStage}
             result={imp.result}
             batch={imp.batch}
             // The dwell's ONLY exit: acknowledging morphs the derived stage to 'result'.
@@ -852,7 +873,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onRetry={() => {
               // No token reset here: a retry simply starts a new run, which takes
               // its own generation. An untokened clear would revive stale runs (H1).
-              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null, acknowledged: false }))
+              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null, lastRealStage: null, acknowledged: false }))
             }}
             onOpenLocation={(locId) => {
               if (locId) openLocation(locId)

@@ -11,6 +11,7 @@ import type { ImportedLocationView } from '@/features/demo/ui/screens/importResu
 import { ImportTerminalProgress, type TerminalOutcome } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
 import type {
   ImportStageId as RunStageId,
+  ImportRealStageId,
   ImportErrorCode,
   ImportErrorDetails,
   ImportPartialData,
@@ -64,6 +65,8 @@ export interface ImportModalProps {
   text: string
   /** The pipeline's coarse stage (run-import onStage) — drives the terminal's headline/bar. */
   activeStage: RunStageId | null
+  /** The last real (non-error) stage — the terminal freezes its bar here on failure (R-11). */
+  lastRealStage: ImportRealStageId | null
   result: ImportResult | null
   /** 1-based batch position, shown in the terminal's processing badge ("File 2 of 3 · …"). */
   batch: { current: number; total: number } | null
@@ -175,7 +178,7 @@ function FailuresCard({ failures }: { failures: ImportFailure[] }) {
 }
 
 export function ImportModal(props: ImportModalProps) {
-  const { stage, text, activeStage, result, batch } = props
+  const { stage, text, activeStage, lastRealStage, result, batch } = props
   const [openIndex, setOpenIndex] = useState(-1) // batch accordions, single-open (-1 = all collapsed)
   // Reset on a new result so a stale index can't pre-expand the wrong accordion after Retry (H1).
   useEffect(() => setOpenIndex(-1), [result])
@@ -205,6 +208,7 @@ export function ImportModal(props: ImportModalProps) {
         // it replaced the old 3-row checklist. It carries its own live region + progressbar.
         <ImportTerminalProgress
           stage={activeStage}
+          lastRealStage={lastRealStage}
           outcome={deriveTerminalOutcome(result)}
           batch={batch}
           onReview={props.onReviewImport ?? (() => undefined)}

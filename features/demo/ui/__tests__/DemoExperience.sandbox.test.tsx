@@ -647,6 +647,63 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(runText).not.toHaveBeenCalled()
   })
 
+  // ---- p1-review R-11 / R-24: stage forwarding under batching + cancellation ----
+
+  it('a normalize failure freezes the bar at 55% even though the batched "normalizing" commit never rendered (R-11)', async () => {
+    // All three onStage calls land in ONE promise continuation — React batches them with
+    // the failure result, so 'normalizing' never renders; only the bridge-tracked
+    // lastRealStage (written in the functional updater) can see it.
+    runText.mockImplementation(async (input) => {
+      input.onStage?.('reading_model')
+      input.onStage?.('normalizing')
+      input.onStage?.('error')
+      return { ok: false, error: 'No JSON object found in AI response', code: 'MODEL_OUTPUT_UNPARSEABLE', details: { stage: 'normalizing', detail: 'No JSON object found in AI response' }, warnings: [], fallbackMode: 'none' }
+    })
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-FRZ', displayName: 'Freeze', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'garbage' } })
+    fireEvent.click(screen.getByText('Import with AI'))
+    await screen.findByTestId('terminal-review-cta') // failure dwell
+    expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%') // frozen at normalizing, not 15%
+  })
+
+  it("a cancelled run's late onStage cannot drive a newer run's terminal (R-24: the one un-tokened callback)", async () => {
+    type OnStage = (s: 'extracting_text' | 'reading_model' | 'normalizing' | 'done' | 'error') => void
+    let stageA: OnStage | undefined
+    let resolveA: (r: ImportRunResult) => void = () => {}
+    runPdf
+      .mockImplementationOnce((_file, input) => {
+        stageA = input.onStage
+        return new Promise<ImportRunResult>((res) => { resolveA = res })
+      })
+      .mockImplementationOnce(() => new Promise<ImportRunResult>(() => {})) // run B stays in flight
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-STG', displayName: 'Stage', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input(), { target: { files: [new File(['x'], 'stale.pdf', { type: 'application/pdf' })] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel run A mid-flight
+    act(() => { store.getState().openModal('import') })
+    fireEvent.change(input(), { target: { files: [new File(['y'], 'live.pdf', { type: 'application/pdf' })] } })
+    expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+    // Run A's late stage callbacks fire AFTER B started — they must not move B's terminal.
+    await act(async () => {
+      stageA?.('normalizing')
+      stageA?.('done')
+      resolveA(okRun({ filename: 'stale.pdf' }))
+    })
+    expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
+    expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('0%')
+  })
+
   // ---- P1.5 the dwell (row 73) ----
 
   it('DWELL: a successful run holds on the terminal — results render ONLY after "Review import →"', async () => {

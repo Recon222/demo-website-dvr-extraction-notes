@@ -8,7 +8,7 @@ import {
   type ImportLogLine,
 } from '@/features/demo/engine/logic/import-log'
 import { useImportLog } from '@/features/demo/ui/import/useImportLog'
-import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
+import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId, type ImportRealStageId } from '@/features/demo/ui/import/run-import'
 // The DEMO's reduced-motion hook (p1-review R-18): motion/react seeds from a global on
 // the FIRST render, so a reduced-motion visitor never gets one committed frame with
 // animations armed — the marketing hook (@/lib/hooks) starts false and corrects in an
@@ -61,6 +61,14 @@ export type TerminalOutcome =
 export interface ImportTerminalProgressProps {
   /** The demo pipeline's coarse stage (run-import onStage); null before the run starts. */
   stage: RunStageId | null
+  /**
+   * The last real (non-error) stage, tracked by the bridge in its functional updater
+   * (p1-review R-11): React batches onStage('normalizing') with the following
+   * onStage('error'), so a component-side "last rendered stage" ref would never see
+   * stages that never rendered — a normalize failure froze the bar at 15%. When
+   * `stage` is 'error', the bar/headline freeze on THIS.
+   */
+  lastRealStage: ImportRealStageId | null
   /** null while running; set when the pipeline returns (the "done" signal). */
   outcome: TerminalOutcome | null
   /** 1-based batch position, shown in the processing badge ("File N of M · "). */
@@ -380,7 +388,7 @@ const EMPTY_SET: ReadonlySet<number> = new Set()
 /** Keys that scroll a focused scroll container — user intent for the pin (R-2). */
 const SCROLL_KEYS: ReadonlySet<string> = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '])
 
-export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = importLogBus }: ImportTerminalProgressProps) {
+export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, onReview, bus = importLogBus }: ImportTerminalProgressProps) {
   const { lines, epoch } = useImportLog(true, bus)
   const reduce = useReducedMotion()
   // Pin state renders the pill (state) AND gates the tail (ref). The tail effect must
@@ -405,12 +413,10 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
 
   // stage 'error' freezes the last real stage's headline/percent (the phone leaves
   // progress wherever the pipeline stopped; the outcome CTA then takes the headline).
-  const lastViewRef = useRef<{ message: string; percent: number } | null>(null)
-  const stageView = stage && stage !== 'error' ? STAGE_VIEW[stage] : null
-  useEffect(() => {
-    if (stageView) lastViewRef.current = stageView
-  }, [stageView])
-  const running = stageView ?? lastViewRef.current ?? PREPARING
+  // The freeze source is the bridge-tracked lastRealStage prop, not a rendered-stage
+  // ref — batching made intermediate stages unrenderable (R-11, see the prop's doc).
+  const effectiveStage = stage === 'error' ? lastRealStage : stage
+  const running = effectiveStage ? STAGE_VIEW[effectiveStage] : PREPARING
 
   const trust = useMemo(() => deriveTrust(lines), [lines])
   const isBatchRun = batch !== null && batch.total > 1

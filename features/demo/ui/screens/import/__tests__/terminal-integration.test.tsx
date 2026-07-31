@@ -33,6 +33,7 @@ describe('ImportModal progress stage × real sample-mode run (P1.4)', () => {
         stage="progress"
         text=""
         activeStage={lastStage}
+        lastRealStage="done"
         result={null} // pre-P1.5: stage 'progress' means no result committed yet
         batch={null}
         logBus={bus}
