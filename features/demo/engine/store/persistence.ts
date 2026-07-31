@@ -37,6 +37,7 @@ import {
   SYNC_METHODS,
 } from '@/features/demo/engine/types'
 import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import type { SaveState } from '@/features/demo/engine/logic/save-status'
 
 /**
  * sessionStorage persistence for the demo store (P0.4, owner decision D2).
@@ -526,14 +527,28 @@ export interface PersistenceHandle {
    * PROMISE. Any surface that tells the visitor their work will survive a refresh must gate
    * that sentence on this (parity plan §4 honesty rule; review R-2). Never assume a wired
    * handle is a working one.
+   *
+   * Derived from `saveState()` — the two can never disagree.
    */
   isLive(): boolean
+  /**
+   * The same fact `isLive()` reports, widened to carry WHY (P4.2, matrix row 80).
+   *
+   * `isLive()` collapses three different falses — never wired, wired but nothing written yet,
+   * and a write that failed — into one boolean. That is exactly right for a yes/no PROMISE
+   * (the "Progress Saved" alert), and not enough for a status surface, which would otherwise
+   * have to tell a visitor who has simply not typed anything yet that their browser isn't
+   * storing the session. See `engine/logic/save-status.ts` for the state's semantics and the
+   * single place it is put into words.
+   */
+  saveState(): SaveState
 }
 
 const NOOP_HANDLE: PersistenceHandle = {
   flush: () => undefined,
   dispose: () => undefined,
   isLive: () => false,
+  saveState: () => ({ kind: 'unavailable' }),
 }
 
 /**
@@ -546,16 +561,20 @@ const NOOP_HANDLE: PersistenceHandle = {
 export function persistDemoStore(
   store: DemoStore,
   storage: StorageLike | null,
-  opts: { debounceMs?: number; enabled?: boolean } = {},
+  opts: { debounceMs?: number; enabled?: boolean; now?: () => number } = {},
 ): PersistenceHandle {
   const enabled = opts.enabled ?? PERSISTENCE_ENABLED
   if (!enabled || !storage) return NOOP_HANDLE
   const debounceMs = opts.debounceMs ?? SAVE_DEBOUNCE_MS
+  // Wall clock for the WRITE TIMESTAMP only — injectable for the same reason every other
+  // clock in this codebase is (`ui/inputs/clock.ts`, `dst-advisory`'s `isDst`): the default
+  // is the host's, and a test/bridge can hand in its own. Never read at module scope.
+  const now = opts.now ?? (() => Date.now())
 
   let timer: ReturnType<typeof setTimeout> | null = null
-  // Tracks whether the LAST write attempt landed. Starts false: nothing has been stored yet,
-  // so nothing can be promised yet (see `isLive`).
-  let live = false
+  // Tracks the LAST write attempt's outcome. Starts 'pending': the handle is wired, but
+  // nothing has been stored yet, so nothing can be promised yet (see `isLive`/`saveState`).
+  let state: SaveState = { kind: 'pending' }
   const save = () => {
     timer = null
     try {
@@ -563,11 +582,11 @@ export function persistDemoStore(
         SNAPSHOT_KEY,
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
-      live = true
+      state = { kind: 'saved', at: now() }
     } catch (e) {
       // The snapshot is about to be cleared, so this tab can no longer promise refresh
       // survival — say so to anyone who asks (R-2), independently of the dev breadcrumb.
-      live = false
+      state = { kind: 'failed' }
       // Best-effort — a full/blocked storage must never break the demo — but not silent
       // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
       // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
@@ -600,6 +619,7 @@ export function persistDemoStore(
       unsubscribe()
       flush()
     },
-    isLive: () => live,
+    isLive: () => state.kind === 'saved',
+    saveState: () => state,
   }
 }
