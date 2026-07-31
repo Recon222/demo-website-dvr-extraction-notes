@@ -12,28 +12,36 @@ import type { NotesCamera } from '@/features/demo/engine/logic/notes/types'
  * R-24 linkage guard. `GpsCoordinates` had seven structural hand-copies with no compile-time
  * link to the canonical declaration, so the `accuracyM?` widening was a seven-site manual edit
  * — and one site (`NotesCamera`) was missed by the authoring branch and repaired by hand at
- * merge time. Each copy is now derived; these assertions are what FAILS TO COMPILE if someone
- * re-flattens one, which is the only way this class of drift can be caught before a reviewer.
+ * merge time. Each copy is now derived; these assertions fail to compile if someone re-flattens
+ * one and it then falls behind the canonical shape.
+ *
+ * DIRECTION MATTERS (p2-review R-34). The first version of this file asserted
+ * `GpsCoordinates extends T`, which is assignability TO a looser type — unaffected by a copy
+ * that is MISSING a member, i.e. silent for exactly the historical drift it claimed to catch,
+ * and noisy only for copies that narrow or add required members. The check below is
+ * key-exhaustiveness in the direction the drift runs, the same property `persistence.ts`'s
+ * `FullShape` device enforces on the snapshot schema — the one mirrored layer that never drifted.
  *
  * `tsc --noEmit` covers this file, so the checks are compile-time; the runtime body only exists
  * to give vitest something to report.
  */
 
-/** Every coordinate carrier must still accept a canonical `GpsCoordinates` value. */
-type AcceptsCoordinates<T> = GpsCoordinates extends T ? true : never
+/** Every key of `GpsCoordinates` — required and optional alike — must appear on the carrier.
+ *  `Exclude` is not a naked type parameter here, so the conditional does not distribute and a
+ *  fully-covering carrier resolves to `never extends never` → `true`. */
+type CarriesEveryCoordinateKey<T> = Exclude<keyof GpsCoordinates, keyof T> extends never ? true : never
 
 // A fix that EXISTS: lat/lng required, accuracy optional.
-const displayIsDerived: AcceptsCoordinates<CoordinateDisplayProps> = true
-const submissionIsDerived: AcceptsCoordinates<Omit<SubmissionCoordinates, 'source'>> = true
-const notesCameraIsDerived: AcceptsCoordinates<NonNullable<NotesCamera['gps']>> = true
-const newLocationFieldsIsDerived: AcceptsCoordinates<NonNullable<NewLocationFields['coordinates']>> = true
-const newLocationInputIsDerived: AcceptsCoordinates<Omit<NonNullable<NewLocationInput['gps']>, 'source'>> = true
-const storedFixIsDerived: AcceptsCoordinates<Omit<NonNullable<DemoLocation['gps']>, 'source'>> = true
+const displayIsDerived: CarriesEveryCoordinateKey<CoordinateDisplayProps> = true
+const submissionIsDerived: CarriesEveryCoordinateKey<SubmissionCoordinates> = true
+const notesCameraIsDerived: CarriesEveryCoordinateKey<NonNullable<NotesCamera['gps']>> = true
+const newLocationFieldsIsDerived: CarriesEveryCoordinateKey<NonNullable<NewLocationFields['coordinates']>> = true
+const newLocationInputIsDerived: CarriesEveryCoordinateKey<NonNullable<NewLocationInput['gps']>> = true
+const storedFixIsDerived: CarriesEveryCoordinateKey<NonNullable<DemoLocation['gps']>> = true
 
-// The one deliberate projection: a half-filled FORM, so every coordinate key is optional.
-const formProjectionIsDerived: Partial<GpsCoordinates> extends Pick<LocationFieldValues, 'lat' | 'lng' | 'accuracyM'>
-  ? true
-  : never = true
+// The one deliberate projection — a half-filled FORM, so every coordinate key is optional — is
+// held to the same key-exhaustiveness rule; only the optionality differs.
+const formProjectionIsDerived: CarriesEveryCoordinateKey<LocationFieldValues> = true
 
 describe('coordinate shapes stay linked to GpsCoordinates (R-24)', () => {
   it('compiles — every carrier is derived from the canonical declaration', () => {

@@ -18,6 +18,14 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Per-test budget. MUST stay above `asyncUtilTimeout` (5000, vitest.setup.ts) or the raise
+    // that fixed the measured load flake is inert: with both at 5000 a slow wait dies as a bare
+    // "Test timed out in 5000ms" instead of RTL's element-name + DOM dump, and the suite is
+    // fully exposed to contention (the P2 review's five concurrent lane runs produced 29-40
+    // spurious timeouts each, including on synchronous tests). See
+    // docs/code-reviews/parity/p2/gate-import-flake.md and `__tests__/async-util-timeout.test.ts`,
+    // which pins the relationship. The 10 files carrying `{ timeout: 20000 }` are now redundant.
+    testTimeout: 20000,
     setupFiles: ['./vitest.setup.ts'],
     // Tailwind/global CSS is irrelevant to behavior tests; skip CSS processing.
     css: false,

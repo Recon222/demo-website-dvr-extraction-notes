@@ -1352,3 +1352,36 @@ projected explicitly. The other six carriers are straight derivations.
 **Trigger for all five:** P3.4/P3.7 mount `GpsCaptureControl`/`LocationFields` for New Location and
 per-camera capture. Re-read 45a (the `onClick` guard) and 45d (the guard token — those callers must
 pass their own identity, not the recovery location's) before wiring them.
+
+### Round 3 (fix-delta R-32/R-33/R-34) — additions and one superseded entry
+
+**45f. The write guard is an identity check, not a generation counter — 45d is superseded.**
+R-32 found the address-PICK path unguarded (R-1 had covered only the reverse-geocode write). Fixing
+it exposed a defect in the round-1 shape: the fix-delta's suggested "capture `writeGen.current` in
+the `onPick` body" reads the token at CONTINUATION time, after the switch, so it can never fire;
+and capturing at handler-creation time instead hits an ordering hazard — the effect cleanup that
+bumps the counter runs AFTER the re-render following a `locationId` change, so a handler created by
+that render holds the pre-bump value and refuses its own first write. Both paths now share
+`canWriteFor(issuedFor)` = mounted AND `issuedFor === openLocation.current`. The `mounted` half is
+load-bearing and must not be dropped as redundant: it covers "left the wizard entirely", where the
+id still matches while the store's target has moved on. A mutation test (`accepts a pick issued
+AFTER the switch`) pins the deviation — it is red under the counter shape.
+**Trigger for P3.4/P3.7:** these callers must pass their OWN identity as `locationId`; a per-camera
+control passing the recovery location's id would guard the wrong thing.
+
+**45g. R-33's guard reads the config source, not the config module.** Importing `vitest.config.mts`
+into the test breaks `tsc --noEmit` (the `.mts` sits outside this tsconfig's module resolution, and
+the extension-ful import is rejected). Reading the declaration out of the file text is the
+type-check-safe way to assert the `testTimeout > asyncUtilTimeout` relationship. If the config ever
+moves to `.ts` under the app's resolution, swap the regex for a real import.
+
+**45h. R-34: the derivations are the protection; the guard file is the statement.** The round-1
+guard asserted the wrong direction (`GpsCoordinates extends T` is silent precisely when a copy
+LOSES a field). Corrected to key-exhaustiveness, matching `persistence.ts`'s `FullShape`. Worth
+keeping in mind for future type guards in this repo: assignability-to-a-looser-type never catches
+missing members, which is the direction real drift runs.
+
+**45i. Still open, P2.3-owned, deliberately out of round-3 scope:** R-39 (`LookupNotice` consumed
+by a binary ternary in `LocationFields`, so a fourth member would silently render the
+partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
+`never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
