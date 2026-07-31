@@ -157,6 +157,14 @@ export function IncidentLocationFields({
   // Phone :113 — only the newest request's result may be applied.
   const requestSeq = useRef(0)
 
+  /** Retire every in-flight lookup and take the spinner with it. Used when something NEWER and
+   *  authoritative supersedes them (an address pick), so the retired request's `finally` can't
+   *  leave the spinner up for a lookup that no longer owns the fields. */
+  const abandonLookups = () => {
+    requestSeq.current += 1
+    setLookingUp(false)
+  }
+
   const runReverseGeocode = async (lat: number, lng: number, key: string) => {
     const mine = ++requestSeq.current
     lastGeocoded.current = key
@@ -223,6 +231,12 @@ export function IncidentLocationFields({
         onChange={(v) => onChange({ streetAddress: v })}
         onPick={(p) => {
           if (!mounted.current) return
+          // A pick is newer and authoritative: it brings street, city AND the coordinates they
+          // belong to. Any reverse-geocode still in flight was started from the PREVIOUS
+          // coordinates, so letting it settle would write that address over this one — the
+          // mirror image of the guard `runReverseGeocode` already applies to itself. (The phone
+          // has this gap: `handleAddressSelect` never touches `geocodeRequestRef`, :145-158.)
+          abandonLookups()
           onChange({
             streetAddress: p.streetAddress,
             city: p.city,
