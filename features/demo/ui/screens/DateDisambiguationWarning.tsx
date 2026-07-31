@@ -5,7 +5,7 @@ import { generateDisambiguationWarning, type DateDisambiguationResult } from '@/
 /** Phone dark-theme `colors.warning` (`src/constants/Colors.ts:102`). */
 const WARNING = '#ffd93d'
 
-const MONTHS_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 
 /** `YYYY-MM-DD` → `Mon D, YYYY` (phone `DateDisambiguationWarning.tsx:83-90`). */
 function formatDateForDisplay(isoDate: string): string {

@@ -182,6 +182,17 @@ describe('OCR sample frames reach the case each was chosen for', () => {
   const read = (frame: keyof typeof OCR_SAMPLE_FRAMES, nowMs = NOW) =>
     readDvrTimestamp(cleanOcrText(OCR_SAMPLE_FRAMES[frame]), nowMs)
 
+  it('the registry is frozen — a frame cannot be reassigned at runtime', () => {
+    // Sibling keyed registries (ACCURACY_MODE_TARGET_M, STREET_TYPE_ABBREVIATIONS) freeze;
+    // these strings are the only route into each arm of the confirm step, so a stray write
+    // would silently retarget a whole surface.
+    expect(Object.isFrozen(OCR_SAMPLE_FRAMES)).toBe(true)
+    expect(() => {
+      ;(OCR_SAMPLE_FRAMES as Record<string, string>).clean = 'tampered'
+    }).toThrow(TypeError)
+    expect(OCR_SAMPLE_FRAMES.clean).toBe('2025-03-08 12:05:30')
+  })
+
   it('clean: parses cleanly, no warning, no assumption', () => {
     expect(read('clean')).toEqual({ dvrTime: '2025-03-08 12:05:30', assumedDate: null, ambiguity: null })
   })

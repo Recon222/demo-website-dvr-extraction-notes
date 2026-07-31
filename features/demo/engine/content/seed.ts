@@ -28,11 +28,11 @@ export type OcrSampleFrame = 'clean' | 'ambiguous' | 'timeOnly'
  *    is a couple of years stale is the normal case in this domain, not a contrivance.
  *  - `timeOnly` — a clock with no date at all: the `assumedDate` path.
  */
-export const OCR_SAMPLE_FRAMES: Record<OcrSampleFrame, string> = {
+export const OCR_SAMPLE_FRAMES: Readonly<Record<OcrSampleFrame, string>> = Object.freeze({
   clean: '2025-03-08 12:05:30',
   ambiguous: '06/07/2024 23:45:30',
   timeOnly: '12:05:30',
-}
+} as const satisfies Record<OcrSampleFrame, string>)
 
 /** Fallback "actual" instant for the OCR chapter when no real sync has been run yet. */
 export const SAMPLE_ACTUAL_TIME = '2025-03-08 12:00:00'
