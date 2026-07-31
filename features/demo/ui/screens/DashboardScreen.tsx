@@ -217,7 +217,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
         {/* The expanded list shows EVERY location, including the one already on a pill —
             phone parity (DashboardCaseCard.tsx:248-261). */}
         {hidden > 0 && expanded && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #1e3a5f' }}>
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: GLASS.border }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#99badd', marginBottom: 8 }}>All Locations:</div>
             {card.locations.map((loc) => (
               <button

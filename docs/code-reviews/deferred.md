@@ -1385,3 +1385,98 @@ missing members, which is the direction real drift runs.
 by a binary ternary in `LocationFields`, so a fourth member would silently render the
 partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
 `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+---
+
+## 49. P3.2 (parity/p3-dashboard) — dashboard actions: seams, deliberate deviations, residuals
+
+**Source:** P3.2 Dashboard actions (matrix rows 8 + 9) — `CaseActionsSheet`, `actionsForStatus` +
+`assertNever`, the read-only case report with its measured-overflow scroll gate, complete /
+archive / reopen wiring, the 5-recent cap and `MoreLocationsPill` overflow.
+
+### 49a. `Edit Case` is wired as an OPTIONAL prop and currently absent (P3.3 seam)
+
+The phone's sheet renders `Edit Case` first, unconditionally, and it opens `NewCaseModal` in
+**edit mode** — which is package P3.3's deliverable, in a parallel worktree. `CaseActionsSheetProps.onEdit`
+is therefore optional and the button renders only when supplied; the bridge passes nothing, with a
+`P3.3 SEAM` comment at the JSX call site (`DemoExperience.tsx`, the `actionSheetCase &&` block).
+A button that cannot do what it says would break the demo's honesty rule, and a "coming soon"
+alert is the fake-success shape the rule exists to prevent.
+**Trigger (one line, do it at the P3 assembly merge):** once `NewCaseModal` accepts
+`mode`/`initialCase`, add `onEdit={…}` to the `<CaseActionsSheet/>` props — closing the sheet
+first, then opening the editor (the phone additionally waits 350 ms for its pageSheet dismissal
+animation, `home.tsx:41,168-173`; the demo's overlays unmount synchronously, so no delay is
+needed). The component test `renders Edit Case FIRST when the bridge supplies onEdit` already
+pins the wired arm.
+
+### 49b. `setCaseStatus` may collapse into P3.1's `updateCase`
+
+P3.1 owns cases CRUD. P3.2 needed a status writer before that landed, so it added the minimal
+`setCaseStatus(caseId, status)` — deliberately NOT reusing the existing `completeCase`, which is
+the Completion screen's action and additionally stamps the open location's `form.completed` under
+the R-32 "the caseId must own the current location" precondition. The dashboard has no location
+context and must not invent one.
+**Trigger:** if P3.1 lands a general `updateCase(caseId, patch)`, fold `setCaseStatus` into it and
+keep the three call sites' semantics (complete → `'complete'`, archive → `'archived'`, reopen →
+`'draft'`) plus the no-write-on-no-change behaviour, which `store.test.ts` pins by reference.
+
+### 49c. The sheet's `Status:` line copies a phone inconsistency verbatim
+
+`caseStatusSheetLabel` renders `Active` for a draft and the **raw lowercase enum value**
+(`complete` / `archived`) otherwise — the phone's `CaseActionsSheet.tsx:133`, which its own
+ui-mapping doc flags as inconsistent with the title-cased `CaseStatusBadge` labels. Lifted as-is:
+copy parity is the contract, and quietly "fixing" the demo would put the two apps' court-facing
+wording out of step over a cosmetic call that is the phone's to make.
+**Phone-repo follow-up (BUG-NNN ledger when the owner returns):** the status subtitle should
+almost certainly read `Complete` / `Archived`. Cosmetic, one line.
+
+### 49d. The dashboard card still labels a draft `DRAFT`, where the phone's says `ACTIVE`
+
+`getStatusDisplay` (phone `DashboardCaseCard.tsx:32-42`) maps DRAFT → the literal `ACTIVE`; the
+demo's `caseStatusTheme` (`ui/screens/screenData.ts`) maps `'draft'` → `Draft`. A genuine copy gap
+— but `caseStatusTheme` is shared by the Cases list (row 10, **P3.1's**) and the map case picker,
+so changing it inside P3.2 would silently restyle two surfaces another package owns and is
+concurrently editing. Not in row 8's Delta either.
+**Trigger:** P3.1, or whoever next touches `caseStatusTheme` — change the one label and re-run
+`screenData.test.ts` + `appChapters.test.tsx` + the map picker suite together.
+
+### 49e. No toast on a case action (deliberate; do not re-flag)
+
+The phone toasts `Case Updated · {caseNumber} completed|reopened|archived` on success and
+`Action Failed` on error (`home.tsx:100-126`) because its write is an async SQLite round-trip
+followed by a refetch — the toast is the only confirmation the row will change. The demo's write
+is synchronous: the card behind the sheet re-renders green/grey on the same tick, so a toast would
+announce something the visitor is already looking at, and there is no failure arm to report (an
+in-memory status write cannot fail). The demo has no toast primitive at all today.
+**Trigger:** if a later package introduces a toast/snackbar primitive AND a case action ever gains
+a failure mode (e.g. a persisted backend), revisit both halves together.
+
+### 49f. Phone behaviours the demo cannot have, and does not fake
+
+- **Focus refresh** (`useFocusEffect` → `refresh()`, `home.tsx:65-69`): exists because the phone's
+  tabs are `lazy:false` and its list is a snapshot of a database query. The demo's dashboard reads
+  the store through the bridge's subscription, so it is never stale — nothing to port.
+- **The phone's sheet never unmounts** (it sits mounted with `caseData=null`), which is why it
+  carries a measured-height reset keyed on `caseData.id` (`CaseActionsSheet.tsx:121-125`). The
+  demo mounts the sheet only while a case is open, so each open measures from scratch and the
+  guard has no equivalent. If the sheet is ever hoisted to an always-mounted slot, that guard must
+  come with it.
+- **Sheet dismissal animation delay** (`SHEET_DISMISS_ANIMATION_MS = 350`): an iOS pageSheet
+  constraint. See 49a.
+
+### 49g. Residuals worth a later pass
+
+- **Per-card expansion state resets when the dashboard unmounts.** The phone's tabs stay mounted,
+  so a card left expanded is still expanded on return; the demo's `ScreenStage` swaps screens, so
+  expansion is per-visit. Lifting it to the bridge (next to `expandedCaseId`, which the Cases tab
+  uses) would fix it. Cosmetic; deferred rather than adding bridge state for a nicety.
+- **`hasCapturedCoordinates` is consumed only by the sheet.** The port lives in
+  `engine/logic/coordinates.ts` and every demo surface that displays or plots a coordinate should
+  gate on it (the phone's rule). The map's `toMapData` and `CoordinateDisplay` were NOT audited in
+  this package. Low risk here — demo coordinates only ever arrive via `parseCoordinate`, a
+  geocode, or a real GPS fix, so the phone's zero-init artifact has no source — but the audit is
+  owed. **Trigger:** P3.7 (per-camera GPS) or P6.1 (map depth), whichever touches plotting first.
+- **The 5-recent cap is silent**, exactly as on the phone: a sixth case simply is not on the
+  dashboard, under a heading that says "Recent Activity", and every case remains on the Cases tab.
+  No "and N more" affordance was invented. **Trigger:** only an owner call that the demo should
+  lead the phone here.
