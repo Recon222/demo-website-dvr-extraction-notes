@@ -225,13 +225,13 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P2 | P2.3 submission depth | ✅ | #31 | reusable GPS capability (§M13 2σ refuted), formatAddress |
 | P2 | P2.4 final gate + G8 | ✅ | #31 | finalSubmissionSchema ×3 sites, AlertDialog, isLive() honesty |
 | P2 | P2.5 offset advisories | ✅ | #31 | 4 DST branches, recalc guard, D10 passthrough fix rider |
-| P3 | P3.1 cases CRUD | ☐ | | |
-| P3 | P3.2 dashboard actions | ☐ | | |
-| P3 | P3.3 NewCaseModal | ☐ | | |
-| P3 | P3.4 location GPS | ☐ | | |
-| P3 | P3.5 duplicate location | ☐ | | |
-| P3 | P3.6 incident editing | ☐ | | |
-| P3 | P3.7 per-camera GPS | ☐ | | |
+| P3 | P3.1 cases CRUD | ✅ | #32 | store CRUD + selection repair; DeleteConfirmationModal; row tray |
+| P3 | P3.2 dashboard actions | ✅ | #32 | CaseActionsSheet, setCaseStatus, 5-recent paging |
+| P3 | P3.3 NewCaseModal | ✅ | #32 | gate + duplicate check + edit mode (typed immutability) |
+| P3 | P3.4 location GPS | ✅ | #32 | real capture in the modal; dup-name gate; §24 location half closed |
+| P3 | P3.5 duplicate location | ✅ | #32 | 6-action chooser; last field-parity key closed |
+| P3 | P3.6 incident editing | ✅ | #32 | map affordance + modal; phone stale-lookup bug fixed demo-side |
+| P3 | P3.7 per-camera GPS | ✅ | #32 | 5 keys, precise config, snapshot v5 |
 | P4 | P4.1 capture capability | ☐ | | |
 | P4 | P4.2 drawer accordion | ☐ | | |
 | P4 | P4.3 photo/video capture | ☐ | | |
