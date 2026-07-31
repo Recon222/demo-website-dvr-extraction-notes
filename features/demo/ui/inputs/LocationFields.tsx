@@ -105,6 +105,18 @@ export const REVERSE_GEOCODE_PARTIAL = 'Address lookup found only part of the ad
  *  mutually exclusive and the "both true" state has no rendering. */
 type LookupNotice = 'none' | 'failed' | 'partial'
 
+/** R-39 (§45i): a TOTAL map over the noticing states, not a binary ternary. The old
+ *  `lookupNotice === 'failed' ? … : …` read "not failed" as "partial", so a fourth member —
+ *  `'rate-limited'` and `'no-token'` are the named candidates — would have rendered the
+ *  partial-address copy, telling the operator the rest of their address stood when nothing had
+ *  been looked up at all. Adding a member is a compile error here instead. Same guarantee R-25's
+ *  `never` check gives `gpsSourceLabel`, in the shape the review named — and with no unreachable
+ *  default arm to carry. `'none'` is excluded because it has no copy: the notice is not rendered. */
+const LOOKUP_NOTICE_COPY: Record<Exclude<LookupNotice, 'none'>, string> = {
+  failed: REVERSE_GEOCODE_UNAVAILABLE,
+  partial: REVERSE_GEOCODE_PARTIAL,
+}
+
 export function LocationFields({ locationId, values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
   // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
   // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
@@ -229,7 +241,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
       />
       {lookupNotice !== 'none' && (
         <div role="status" data-testid="reverse-geocode-notice" style={{ fontSize: 12, color: '#ffd93d', marginTop: -8, marginBottom: 14 }}>
-          {lookupNotice === 'failed' ? REVERSE_GEOCODE_UNAVAILABLE : REVERSE_GEOCODE_PARTIAL}
+          {LOOKUP_NOTICE_COPY[lookupNotice]}
         </div>
       )}
       {hasCoordinates && (

@@ -283,9 +283,27 @@ describe('OcrCaptureScreen', () => {
     rerender(
       <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" dateConfirmed onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
     )
-    expect(screen.getByText('Date confirmed')).toBeDisabled()
+    expect(screen.getByText('Date confirmed')).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the confirmed date button focusable and refuses the repeat click in the handler (R-35)', () => {
+    const onConfirmDate = vi.fn()
+    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', resolution: { kind: 'assumed-date', assumedDate: '2026-07-31' } } as const
+    render(<OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" dateConfirmed onConfirmDate={onConfirmDate} />)
+    const confirmed = screen.getByText('Date confirmed')
+    // §44b's rule, applied to the button that trips it: a native `disabled` is dropped by the
+    // browser from the tab order and blurs the pressed element, so confirming the date would
+    // throw focus to <body> at the exact moment the blocked-reason clears and the commit CTA
+    // (aria-disabled for this same reason) becomes the thing to press.
+    expect(confirmed).not.toBeDisabled()
+    expect(confirmed).toHaveAttribute('aria-disabled', 'true')
+    confirmed.focus()
+    expect(confirmed).toHaveFocus()
+    // Still focusable and still clickable — so the refusal has to live in the handler.
+    fireEvent.click(confirmed)
+    expect(onConfirmDate).not.toHaveBeenCalled()
   })
 
   it('also releases the commit when the operator corrects the assumed date instead of confirming it', () => {

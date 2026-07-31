@@ -27,7 +27,7 @@ import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
-import { AlertDialog, type AlertAction } from '@/features/demo/ui/controls/AlertDialog'
+import { AlertDialog, type AlertDialogProps } from '@/features/demo/ui/controls/AlertDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -129,12 +129,17 @@ interface ImportState {
 }
 const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
 
-/** An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload). */
-interface AlertState {
-  title: string
-  message: string
-  actions: readonly AlertAction[]
-}
+/**
+ * An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload):
+ * everything `AlertDialog` takes except the dismissal, which the bridge owns (`closeAlert`).
+ *
+ * R-37: DERIVED from the primitive, never re-declared. Now that `AlertDialog` is the single
+ * blocking-dialog primitive (R-5 deleted `ConfirmDialog`), a prop added to it has to reach
+ * this state — a hand-written triple would keep compiling while the new prop was simply
+ * unrepresentable in the bridge, so every alert the bridge opens would silently lack it.
+ * Same rule as R-22's store-union import in `NotesScreen`.
+ */
+type AlertState = Omit<AlertDialogProps, 'onDismiss'>
 
 /** Phone copy, verbatim — `app/(form)/completion.tsx:373-374`. */
 const MISSING_FIELDS_TITLE = 'Missing Required Fields'
@@ -1381,7 +1386,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
-          {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}
+          {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus
+              `onDismiss` (R-37), so a prop added there flows straight through. */}
+          {alert && <AlertDialog {...alert} onDismiss={closeAlert} />}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>
