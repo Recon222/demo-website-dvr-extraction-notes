@@ -1133,6 +1133,31 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(store.getState().modal).toBeNull()
   })
 
+  // P3.3 / matrix row 11: the store refuses the duplicate at the write boundary and the modal
+  // renders the phone's typed-error banner. End-to-end because the value of this feature is
+  // that the throw actually reaches the banner — neither half is worth much alone.
+  it('New Case modal: a duplicate case number is refused, banner shown, nothing created', () => {
+    const store = createDemoStore()
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-DUP', displayName: 'First', unit: 'Robbery' })
+    })
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().openModal('newCase'))
+
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-DUP' } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
+    fireEvent.click(screen.getByText('Create Case'))
+    confirmCreate()
+
+    expect(
+      screen.getByText(
+        'A case with number "PR25-DUP" already exists. Open the existing case or enter a different number.',
+      ),
+    ).toBeInTheDocument()
+    expect(store.getState().cases).toHaveLength(1)
+    expect(store.getState().modal).toBe('newCase') // the modal stays open on the typed form
+  })
+
   it('New Case modal: hand-typed coordinates persist as incidentCoordinates with source manual', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

@@ -22,6 +22,7 @@ import type {
 } from '@/features/demo/engine/types'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
 import {
   calculateCorrectedTimeRange,
   calculateTimeDifference,
@@ -111,6 +112,10 @@ export interface DemoState {
 
 export interface DemoActions {
   reset(): void
+  /** THROWS `DuplicateCaseNumberError` when `caseNumber` (trimmed, case-sensitive) is
+   *  already in use — the demo's write-boundary stand-in for the phone's UNIQUE column.
+   *  Callers that surface a user-facing form (the New Case modal) must catch it; see
+   *  engine/logic/case-number.ts for why the rule lives at this boundary. */
   createCase(input: NewCaseInput): string
   /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
    *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
@@ -251,6 +256,11 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     reset: () => set(initialState()),
 
     createCase: (input) => {
+      // The write boundary refuses a number that is already in use — the demo's stand-in for
+      // the phone's `cases.case_number … UNIQUE` column, which is what makes the phone's
+      // `DuplicateCaseNumberError` reach the New Case banner. Checked BEFORE `nextId` so a
+      // rejected create never burns an id (ids are the persistence seq's contract).
+      assertCaseNumberFree(get().cases, input.caseNumber)
       const id = nextId('c')
       const c: DemoCase = {
         id,

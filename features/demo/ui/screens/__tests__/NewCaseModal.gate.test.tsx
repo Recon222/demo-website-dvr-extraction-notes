@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
+import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
 
 /**
  * P3.3 / matrix row 11 — the required-field gate.
@@ -144,5 +145,64 @@ describe('NewCaseModal — confirm on create', () => {
     const { onCancel } = renderModal(fillable)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalledOnce()
+  })
+})
+
+/**
+ * P3.3 / matrix row 11 — the duplicate-case-number banner.
+ *
+ * Phone: the write fails, `case-service.ts:405-415` narrows the constraint violation to
+ * `DuplicateCaseNumberError`, and `performSubmit`'s catch (`NewCaseModal.tsx:182-195`)
+ * renders the typed message plus a recovery hint. The demo's store throws the same typed
+ * error from its own write boundary, so this branch is the phone's.
+ */
+describe('NewCaseModal — submit-failure banner', () => {
+  const submitting = (err: unknown) => {
+    const onSubmit = vi.fn(() => {
+      throw err
+    })
+    renderModal(fillable, { onSubmit })
+    fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(confirmButton('Create Case'))
+    return onSubmit
+  }
+
+  it('renders the phone message plus its recovery hint for a duplicate number', () => {
+    submitting(new DuplicateCaseNumberError('PR25-1'))
+    expect(
+      screen.getByText(
+        'A case with number "PR25-1" already exists. Open the existing case or enter a different number.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the form open and populated so the number can be corrected', () => {
+    submitting(new DuplicateCaseNumberError('PR25-1'))
+    expect(screen.getByLabelText('Case Number')).toHaveValue('PR25-1')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('falls back to a plain error message for any other failure', () => {
+    submitting(new Error('storage is full'))
+    expect(screen.getByText('storage is full')).toBeInTheDocument()
+  })
+
+  it('uses the phone fallback copy when the thrown value is not an Error', () => {
+    submitting('nope')
+    expect(screen.getByText('Failed to create case')).toBeInTheDocument()
+  })
+
+  it('clears the banner on the next submit attempt', () => {
+    let willFail = true
+    const onSubmit = vi.fn(() => {
+      if (willFail) throw new DuplicateCaseNumberError('PR25-1')
+    })
+    renderModal(fillable, { onSubmit })
+    fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(confirmButton('Create Case'))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    willFail = false
+    fireEvent.click(screen.getByText('Create Case')) // re-attempt: the banner goes at once
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

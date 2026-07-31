@@ -5,6 +5,7 @@ import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/s
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
+import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface NewCaseFields {
@@ -116,19 +117,41 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
   const [confirming, setConfirming] = useState(false)
   const cancelConfirm = useCallback(() => setConfirming(false), [])
 
+  // The submit-failure banner (phone `submitError`, rendered first in the content column).
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
   /** Mirrors the phone's `handleSubmit` → `validateForm` gate: a failed validation sets the
    *  field errors and returns without submitting. On success, create mode raises the
    *  confirmation first; only its "Create Case" arm performs the submit. */
   const handleSubmit = () => {
+    setSubmitError(null)
     const found = validateRequired(form)
     setErrors(found)
     if (Object.keys(found).length > 0) return
     setConfirming(true)
   }
 
+  /**
+   * The phone's `performSubmit` catch (`NewCaseModal.tsx:182-195`): a
+   * `DuplicateCaseNumberError` gets the typed message plus a recovery hint, anything else
+   * gets its own message or the `Failed to create case` fallback. The demo's `onSubmit` is
+   * synchronous but throws the same way — the store refuses at the write boundary — so the
+   * branch is the phone's, not an approximation of it. The modal deliberately stays OPEN on
+   * failure: the form the visitor typed is still there to fix.
+   */
   const confirmSubmit = () => {
     setConfirming(false)
-    onSubmit()
+    try {
+      onSubmit()
+    } catch (err) {
+      setSubmitError(
+        err instanceof DuplicateCaseNumberError
+          ? `${err.message}. Open the existing case or enter a different number.`
+          : err instanceof Error
+            ? err.message
+            : 'Failed to create case',
+      )
+    }
   }
 
   // While the alert is up it is the ONLY answerable surface (its scrim is inert by design),
@@ -149,6 +172,15 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
 
   return (
     <ModalShell title="New Case" onClose={handleShellClose}>
+      {/* Render order #1 on the phone: the submit-failure banner sits above every field. */}
+      {submitError && (
+        <div
+          role="alert"
+          style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 14, fontSize: 13, fontWeight: 500, color: '#ff6b78' }}
+        >
+          {submitError}
+        </div>
+      )}
       <Field label="Case Number" required value={form.caseNumber} onChange={(v) => change('caseNumber', v)} placeholder="OCC2025-001" hint="Locked once the case is created — it names the evidence folder." error={errors.caseNumber} />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />
       <Field label="Unit" required value={form.unit} onChange={(v) => change('unit', v)} placeholder="Investigation unit" error={errors.unit} />
