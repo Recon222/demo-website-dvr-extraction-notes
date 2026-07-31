@@ -74,6 +74,7 @@ describe('OcrCaptureScreen', () => {
     hasExtractedScopes: false,
     onUseSample: vi.fn(),
     onCapture: vi.fn(),
+    onLiveRead: vi.fn(),
     onCancel: vi.fn(),
     onRetake: vi.fn(),
     onConfirm: vi.fn(),
@@ -81,7 +82,7 @@ describe('OcrCaptureScreen', () => {
   const parsed = {
     ok: true as const,
     dvrTime: '2025-03-08 12:05:30',
-    confidence: { label: 'High', color: '#10d177' },
+    confidence: { label: 'High', color: '#10d177', measured: false },
     actual: '2025-03-08 12:00:00',
     resolution: { kind: 'exact' } as const,
   }
@@ -197,15 +198,24 @@ describe('OcrCaptureScreen', () => {
     expect(onRetake).toHaveBeenCalledOnce()
   })
 
-  // R-16: the confidence score is the only fabricated number on this screen; it must not read
-  // as measured, and it must not look like it is contradicting the warnings under it.
-  it('badges the confidence score as sample-derived and says what it does not describe', () => {
+  // R-16: the SAMPLE confidence score is a fabricated number; it must not read as measured,
+  // and it must not look like it is contradicting the warnings under it.
+  it('badges the sample confidence score as sample-derived and says what it does not describe', () => {
     render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity } }} />)
     expect(screen.getByText('Sample')).toBeInTheDocument()
-    expect(screen.getByText(/a browser has no recogniser to score/i)).toBeInTheDocument()
+    expect(screen.getByText(/no live frame was scored here/i)).toBeInTheDocument()
     expect(screen.getByText(/never which date they mean/i)).toBeInTheDocument()
     // …and it still shows the score rather than hiding the feature
     expect(screen.getByText('High')).toBeInTheDocument()
+  })
+
+  it('a MEASURED (live camera) confidence carries no Sample badge and no disclaimer', () => {
+    // P4.7: the recogniser's own score for a live frame is a real number — badging it
+    // "Sample" would be the inverse dishonesty.
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, confidence: { label: 'High', color: '#10d177', measured: true } }} />)
+    expect(screen.getByText('High')).toBeInTheDocument()
+    expect(screen.queryByText('Sample')).not.toBeInTheDocument()
+    expect(screen.queryByText(/no live frame was scored here/i)).not.toBeInTheDocument()
   })
 
   it('exposes the parsed DVR time as an editable field, pre-filled with the read', () => {

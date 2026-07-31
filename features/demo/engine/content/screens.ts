@@ -29,6 +29,13 @@ export const CHAPTERS: readonly ChapterId[] = ['splash', 'dashboard', 'cases', .
 /** Launch-only screens — reached by an action button, never Next/Back. */
 export const LAUNCHABLE: readonly LaunchableId[] = ['ocr', 'mediaCapture', 'audioRecording']
 
+/** Whether a view id is a launch-only screen. The narration anchor needs this (§60k): a
+ *  launchable's rail copy lives in `MODAL_NARRATION`, keyed by `ModalId | LaunchableId`, and
+ *  indexing that record with the full `AppView` union would not typecheck. */
+export function isLaunchableId(v: string): v is LaunchableId {
+  return (LAUNCHABLE as readonly string[]).includes(v)
+}
+
 /** The in-phone wizard drawer, in display order (mirrors WIZARD_SCREENS). */
 export const DRAWER_DEFS: readonly DrawerDef[] = [
   { id: 'submission', label: 'Submission Details', icon: 'document-text' },

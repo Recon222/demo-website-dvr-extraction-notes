@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -65,7 +65,7 @@ import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/scre
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
-import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { OcrCaptureScreen, type OcrLiveRead, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
 import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
@@ -407,9 +407,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // so Cancel/Retake leave no trace of a read the operator rejected.
   const [ocrDraft, setOcrDraft] = useState('')
   const [ocrDateConfirmed, setOcrDateConfirmed] = useState(false)
-  // Render-irrelevant OCR proof (raw/cleaned text + score) carried from the read to the
-  // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
-  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
+  // Render-irrelevant OCR proof (raw/cleaned text + score, and for a live camera read the
+  // cropped strip image) carried from the read to the commit, where it becomes
+  // `capture.ocr` → `timeOffset.ocr`.
+  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number; imageDataUrl?: string } | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
@@ -474,10 +475,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
-  // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
-  // modal with no narration entry — falls back to the chapter rather than blanking.
+  // else an open LAUNCH SCREEN with an entry shows its own (§60k — the OCR camera; the two
+  // media launchables carry no entry by decision §59e and fall through), else the Map tab its
+  // contextual copy, else the current chapter's. The ?? guards an id with no narration
+  // entry — falls back to the chapter rather than blanking.
   const narration =
-    (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+    (modal && MODAL_NARRATION[modal]) ??
+    (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
+    (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
   // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
@@ -1373,15 +1378,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setOcrDateConfirmed(false)
     ocrProof.current = null
   }
-  const runOcrSample = (frame: OcrSampleFrame) => {
-    const raw = OCR_SAMPLE_FRAMES[frame]
-    const cleaned = cleanOcrText(raw)
+  /**
+   * ONE presentation path for every OCR read — sample frame or live camera. The raw text goes
+   * through the ported clean/parse pipeline, the proof is staged (written to the store only on
+   * commit — nothing about a rejected read survives Cancel), and the capture instant is frozen
+   * here (the phone freezes it at the shutter).
+   */
+  const runOcrRead = (read: { rawText: string; confidence: number; measured: boolean; imageDataUrl?: string; fallbackActual: string }) => {
+    const cleaned = cleanOcrText(read.rawText)
     const reading = readDvrTimestamp(cleaned, clock.now().getTime())
-    const conf = getConfidenceLevel(OCR_SAMPLE_CONFIDENCE)
-    // The capture instant is frozen here (the phone freezes it at the shutter) but written to
-    // the store only on commit — nothing about a rejected read should survive Cancel.
-    const actual = store.getState().capture.actualDateTime || SAMPLE_ACTUAL_TIME
-    ocrProof.current = { rawText: raw, cleanedText: cleaned, confidence: OCR_SAMPLE_CONFIDENCE }
+    const conf = getConfidenceLevel(read.confidence)
+    const actual = store.getState().capture.actualDateTime || read.fallbackActual
+    ocrProof.current = {
+      rawText: read.rawText,
+      cleanedText: cleaned,
+      confidence: read.confidence,
+      ...(read.imageDataUrl !== undefined ? { imageDataUrl: read.imageDataUrl } : {}),
+    }
     setOcrDateConfirmed(false)
     setOcrDraft(reading?.dvrTime ?? '')
     setOcrResult(
@@ -1389,13 +1402,30 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         ? {
             ok: true,
             dvrTime: reading.dvrTime,
-            confidence: { label: conf.message, color: conf.color },
+            confidence: { label: conf.message, color: conf.color, measured: read.measured },
             actual,
             resolution: reading.resolution,
           }
         : { ok: false, rawText: cleaned },
     )
   }
+  const runOcrSample = (frame: OcrSampleFrame) =>
+    runOcrRead({
+      rawText: OCR_SAMPLE_FRAMES[frame],
+      confidence: OCR_SAMPLE_CONFIDENCE, // the fixed sample score — badged, not measured
+      measured: false,
+      fallbackActual: SAMPLE_ACTUAL_TIME,
+    })
+  /** A live camera frame (P4.7): measured confidence, the strip image for the proof, and the
+   *  device's calibrated "now" — a real frame must not borrow the sample's fixed instant. */
+  const runOcrLive = (read: OcrLiveRead) =>
+    runOcrRead({
+      rawText: read.rawText,
+      confidence: read.confidence,
+      measured: true,
+      imageDataUrl: read.imageDataUrl,
+      fallbackActual: getCurrentFormattedTime(clock.now().getTime()),
+    })
   /**
    * "Use this & calculate": the operator's (possibly corrected) value is what gets committed.
    * `regenerate` carries the answer to the phone's recalculate prompt — false is "Keep My Edits".
@@ -1515,6 +1545,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         dvrDateTime: off?.dvrDateTime,
         actualDateTime: off?.actualDateTime,
         captureMethod: off?.captureMethod,
+        // The OCR evidence block (P4.7): raw/cleaned/parsed always travel with an OCR-method
+        // offset; the strip image exists only for a live camera read — the template renders
+        // no image block without it, which is the honest shape for a sample commit.
+        ocrImageDataUrl: off?.ocr?.imageDataUrl,
+        ocrRawText: off?.ocr?.rawText,
+        ocrCleanedText: off?.ocr?.cleanedText,
+        ocrParsedDateTime: off?.ocr?.parsedDateTime,
         dvrAppliesDST: off?.dvrAppliesDST,
         sync: off?.sync ?? null,
       }),
@@ -1649,6 +1686,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onUseSample={runOcrSample}
             onCapture={() => runOcrSample('clean')}
+            onLiveRead={runOcrLive}
             onCancel={cancelOcr}
             onRetake={resetOcr}
             onConfirm={confirmOcr}

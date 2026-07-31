@@ -289,6 +289,30 @@ describe('grabVideoFrame', () => {
     expect(canvas.drawCalls[0].slice(1)).toEqual([100, 200, 800, 85, 0, 0, 800, 85])
   })
 
+  it('downscales to targetWidth, aspect preserved — the OcrProof size bound (P4.7)', async () => {
+    const canvas = fakeCanvas()
+    const outcome = await grabVideoFrame(fakeVideo(3840, 2160), {
+      createCanvas: () => canvas,
+      crop: { x: 0.05, y: 0.415, width: 0.9, height: 0.17 },
+      targetWidth: 1280,
+    })
+    // crop = 3456 × 367; scaled to 1280 wide → 136 tall. Source rect stays full-res.
+    expect(outcome).toMatchObject({ ok: true, width: 1280, height: 136 })
+    expect(canvas.width).toBe(1280)
+    expect(canvas.height).toBe(136)
+    expect(canvas.drawCalls[0].slice(1)).toEqual([192, 896, 3456, 367, 0, 0, 1280, 136])
+  })
+
+  it('never UPSCALES to targetWidth — a small frame stays its own size', async () => {
+    const canvas = fakeCanvas()
+    const outcome = await grabVideoFrame(fakeVideo(640, 480), {
+      createCanvas: () => canvas,
+      targetWidth: 1280,
+    })
+    expect(outcome).toMatchObject({ ok: true, width: 640, height: 480 })
+    expect(canvas.drawCalls[0].slice(1)).toEqual([0, 0, 640, 480, 0, 0, 640, 480])
+  })
+
   it('never produces a zero-dimension crop', async () => {
     const canvas = fakeCanvas()
     await grabVideoFrame(fakeVideo(640, 480), {

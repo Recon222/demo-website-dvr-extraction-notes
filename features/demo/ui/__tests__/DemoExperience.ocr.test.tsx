@@ -54,6 +54,32 @@ function seedEditedExtractedScope(store: DemoStore): string {
 beforeEach(() => stubClock(NOW))
 afterEach(() => vi.restoreAllMocks())
 
+describe('DemoExperience — OCR rail narration (§60k)', () => {
+  it('anchors the rail on the OCR copy while the capture screen is open', () => {
+    // §60k: `MODAL_NARRATION.ocr` existed but was unreachable — the anchor read only `modal`,
+    // and 'ocr' is a LaunchableId. The rail used to sit on the anchor chapter instead.
+    openOcr()
+    expect(screen.getByText('Read the DVR clock')).toBeInTheDocument()
+  })
+
+  it('an open modal still outranks the launchable — the anchor stays most-specific first', () => {
+    const store = openOcr()
+    act(() => store.getState().openModal('newCase'))
+    expect(screen.getByText('Create a case')).toBeInTheDocument()
+    expect(screen.queryByText('Read the DVR clock')).not.toBeInTheDocument()
+  })
+
+  it('launchables without narration entries still fall through to the anchor chapter (§59e)', () => {
+    const store = openOcr()
+    act(() => {
+      store.getState().setView('dvrInfo')
+      store.getState().launch('mediaCapture')
+    })
+    // No `mediaCapture` entry in MODAL_NARRATION — the rail stays on the chapter's copy.
+    expect(screen.getByText('DVR information')).toBeInTheDocument()
+  })
+})
+
 describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
   it('commits the read when the operator accepts it, and calculates the offset', () => {
     const store = openOcr()
@@ -114,9 +140,12 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
     expect(screen.queryByText('Use this & calculate')).not.toBeInTheDocument()
   })
 
-  it('the shutter runs the same clean sample frame as the sample button', () => {
+  it('the no-camera shutter SAYS it attaches a sample, and runs the same clean frame', () => {
+    // P4.3's honesty rule applied here: with no live stream the shutter's accessible name is
+    // 'Capture sample frame', never a bare 'Capture' over a bundled string.
     const store = openOcr()
-    fireEvent.click(screen.getByLabelText('Capture'))
+    expect(screen.queryByLabelText('Capture')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Capture sample frame'))
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(store.getState().capture.dvrDateTime).toBe('2025-03-08 12:05:30')
   })
@@ -169,6 +198,26 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
       parsedDateTime: '2025-03-08 12:05:30',
       confidence: 0.93,
     })
+  })
+
+  it('a LIVE proof keeps its strip image through the persistence schema (no version bump needed)', () => {
+    // P4.7's decision (§64): `imageDataUrl` was in `ocrProofSchema` (optional string) since
+    // the field was typed, so a data-URL-carrying proof persists under SNAPSHOT_VERSION 6 —
+    // a data URL is self-contained, unlike the blob: URLs `snapshotOf` strips from media.
+    // Its size is bounded at CAPTURE (grabVideoFrame targetWidth), not policed here.
+    const store = createDemoStore()
+    const proof = {
+      rawText: '2025-03-08 12:05:30',
+      cleanedText: '2025-03-08 12:05:30',
+      parsedDateTime: '2025-03-08 12:05:30',
+      confidence: 0.91,
+      imageDataUrl: 'data:image/jpeg;base64,STRIP',
+    }
+    act(() => store.getState().updateField('capture.ocr', proof))
+
+    const raw = JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) })
+    const storage: StorageLike = { getItem: () => raw, setItem: () => {}, removeItem: () => {} }
+    expect(loadSnapshot(storage, { enabled: true })?.capture.ocr).toEqual(proof)
   })
 
   // R-4: `confirmOcr` → `calcOffset` → `generateExtractedScopes` replaces the extracted-scope
@@ -242,6 +291,43 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
       expect(store.getState().capture.dvrDateTime).toBe('2025-03-08 12:05:30')
     })
+  })
+
+  // P4.7: the Time-Offset report's OCR block was always empty — the bridge mapped none of the
+  // proof fields into generateTimeOffsetDoc, so `captureMethod: 'ocr'` rendered the
+  // methodology box with no evidence under it.
+  it('carries the committed proof — raw, cleaned, parsed AND the strip image — into the PDF', () => {
+    const store = openOcr()
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    fireEvent.click(screen.getByText('Use this & calculate'))
+
+    // The sample path stages no image; a live capture does. Attach one to the committed
+    // proof exactly as `runOcrLive` would have, and recommit the offset.
+    act(() => {
+      const st = store.getState()
+      st.updateField('capture.ocr', { ...st.capture.ocr!, imageDataUrl: 'data:image/jpeg;base64,STRIP' })
+      st.calculateOffset()
+      st.setView('completion')
+    })
+    fireEvent.click(screen.getByText('Preview Time-Offset Calibration'))
+
+    const html = screen.getByTitle('Time-Offset Calibration').getAttribute('srcdoc') ?? ''
+    expect(html).toContain('Raw OCR Output')
+    expect(html).toContain('2025-03-08 12:05:30') // raw/cleaned/parsed all carry the read
+    expect(html).toContain('Captured DVR Display')
+    expect(html).toContain('data:image/jpeg;base64,STRIP')
+  })
+
+  it('an image-less (sample) proof still fills the text evidence, with no empty image block', () => {
+    const store = openOcr()
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    fireEvent.click(screen.getByText('Use this & calculate'))
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Preview Time-Offset Calibration'))
+
+    const html = screen.getByTitle('Time-Offset Calibration').getAttribute('srcdoc') ?? ''
+    expect(html).toContain('Raw OCR Output')
+    expect(html).not.toContain('Captured DVR Display')
   })
 
   it('a dateless read can be committed by correcting the date instead of confirming it', async () => {
