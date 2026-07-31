@@ -65,6 +65,7 @@ export {
 } from '@/features/demo/engine/logic/media/recording'
 
 export {
+  MAX_CAPTION_LENGTH,
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
   buildMediaItem,
@@ -85,6 +86,7 @@ export {
   SAMPLE_MEDIA_BASE,
   SAMPLE_MEDIA_NOTICE,
   facilityForKind,
+  suggestedFilenameBase,
   toSampleCapture,
   type SampleMediaAsset,
 } from '@/features/demo/engine/logic/media/samples'

@@ -5,14 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CAPTURE_PERMISSION_COPY,
   NO_RECORDER_NOTICE,
-  SAMPLE_MEDIA,
   SAMPLE_MEDIA_NOTICE,
   channelLabel,
   codecLabel,
   formatSampleRate,
-  mediaFilename,
   pickRecorderMimeType,
   recorderMimeCandidates,
+  suggestedFilenameBase,
   timeOfDay,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media'
@@ -27,6 +26,7 @@ import type { ObjectUrlIo } from '@/features/demo/ui/inputs/object-urls'
 import { readAudioTrackFormat, type AnalyserIo } from '@/features/demo/ui/inputs/audio-analyser'
 import { useAudioAnalyser } from '@/features/demo/ui/inputs/useAudioAnalyser'
 import { useMediaCapture } from '@/features/demo/ui/inputs/useMediaCapture'
+import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
 import { AudioRecorderScreen, type RecorderMode } from '@/features/demo/ui/screens/AudioRecorderScreen'
 
@@ -63,14 +63,15 @@ export interface AudioRecordingFlowDeps {
 
 export interface AudioRecordingFlowProps {
   /**
-   * Filename base (no extension) the INTERIM accept path stores under.
-   * SEAM(P4.4): MetadataForm inserts between preview-accept and addMedia — once it lands, the
-   * visitor's input replaces this and the prop goes away.
+   * Filename base (no extension) the metadata form opens pre-filled with for a LIVE take. The
+   * bridge supplies it because it is scoped to the open location (`audio-note-N`), which is
+   * knowledge this flow does not have; a SAMPLE take overrides it with the bundled asset's own
+   * name through `suggestedFilenameBase`.
    */
   defaultFilenameBase: string
   /** Hand the finished capture to the bridge. Must be synchronous: `handOff()` runs straight
    *  after, and the store has to own the URL by then. */
-  onSave(captured: CapturedMedia, meta: { filename: string; caption: string }): void
+  onSave(captured: CapturedMedia, meta: MetadataFormValue): void
   /** Leave the launch surface (the bridge's `closeLaunch`). */
   onClose(): void
   deps?: AudioRecordingFlowDeps
@@ -170,22 +171,18 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     void capture.open()
   }, [capture])
 
-  /** ONE base name, used for both the line the visitor reads and the record that is written —
-   *  a preview that promised `sample-note.m4a` and a library row that says `audio-note-3.m4a`
-   *  would be two answers to the same question. */
-  const filenameBase = captured === null ? defaultFilenameBase : sampleAwareBase(defaultFilenameBase, captured)
-
-  const handleSave = useCallback(() => {
-    if (captured === null) return
-    // SEAM(P4.4): MetadataForm inserts between preview-accept and addMedia. Today the base name
-    // is supplied by the bridge and the caption is empty; P4.4 replaces this object with the
-    // form's value and gates the Save button on its validity. `buildMediaItem` (bridge side)
-    // owns the extension via `mediaFilename`, so nothing here appends one (§58c).
-    onSave(captured, { filename: filenameBase, caption: '' })
-    // P4.1 rule 1: the store owns the object URL from this point, so the registry must forget
-    // it. Skipping this revokes it on unmount and the saved note blanks.
-    capture.handOff()
-  }, [captured, capture, filenameBase, onSave])
+  const handleSave = useCallback(
+    (meta: MetadataFormValue) => {
+      if (captured === null) return
+      // The form supplies a BASE; `buildMediaItem` (bridge side) owns the extension via
+      // `mediaFilename`, so nothing here appends one (§58c).
+      onSave(captured, meta)
+      // P4.1 rule 1: the store owns the object URL from this point, so the registry must forget
+      // it. Skipping this revokes it on unmount and the saved note blanks.
+      capture.handOff()
+    },
+    [captured, capture, onSave],
+  )
 
   const handleCancel = useCallback(() => {
     capture.abortRecording()
@@ -197,7 +194,7 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     return (
       <AudioPreviewScreen
         captured={captured}
-        filename={mediaFilename(filenameBase, captured)}
+        defaultFilenameBase={suggestedFilenameBase(captured, defaultFilenameBase)}
         notice={notice}
         onSave={handleSave}
         onRecordAgain={handleRecordAgain}
@@ -238,9 +235,3 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
   )
 }
 
-/** A sample take carries the bundled asset's own suggested name rather than the location's
- *  next `audio-note-N`: the file IS `sample-note.m4a`, and naming it like a recording the
- *  visitor made would hide what it is in the media library's filename column. */
-function sampleAwareBase(base: string, captured: CapturedMedia): string {
-  return captured.sample ? SAMPLE_MEDIA.audio.suggestedFilename : base
-}

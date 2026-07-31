@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MAX_CAPTION_LENGTH,
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
   buildMediaItem,
@@ -62,6 +63,19 @@ describe('isValidFilename (phone 1–100 trimmed)', () => {
   })
 })
 
+describe('the phone’s field caps', () => {
+  it('matches the phone’s two maxLength constants (MetadataForm.tsx:27-28)', () => {
+    expect(MAX_FILENAME_LENGTH).toBe(100)
+    expect(MAX_CAPTION_LENGTH).toBe(500)
+  })
+
+  it('leaves the caption cap OUT of the validity rule — the phone validates the filename only', () => {
+    // A caption longer than the cap cannot be typed (the field refuses the keystroke), so it is
+    // not a validity state; only the filename gates Save.
+    expect(isValidFilename('a')).toBe(true)
+  })
+})
+
 describe('mediaFilename', () => {
   it('appends the extension for the container that was actually produced', () => {
     expect(mediaFilename('rack front', captured({ kind: 'video', mimeType: 'video/webm' }))).toBe(
@@ -75,7 +89,7 @@ describe('mediaFilename', () => {
   })
 })
 
-describe('defaultCaptureBasename (P4.3 interim, until P4.4 gives the visitor a field)', () => {
+describe('defaultCaptureBasename (the live camera capture’s metadata-form pre-fill)', () => {
   it('names the kind and the capture instant, from the capture’s own timestamp', () => {
     expect(defaultCaptureBasename(captured())).toBe('photo-20260730-140506')
     expect(defaultCaptureBasename(captured({ kind: 'video', capturedAt: '2026-01-02 03:04:05' }))).toBe(

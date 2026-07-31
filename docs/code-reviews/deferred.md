@@ -2924,3 +2924,143 @@ The phone fires an info toast (`RecorderScreen.tsx:186-190`). The demo shows the
 auto-stop also MOVES them to review, and a screen that changes by itself with no explanation is
 a silent event. Both screens therefore take a `notice` prop; it is neutral-styled, never the red
 failure treatment.
+
+## 62. P4.4 (parity/p4-metadata) — the shared MetadataForm: refutations, deviations & residuals
+
+**Source:** P4.4 MetadataForm + wiring (plan §5 P4.4; matrix row 56; ui-mapping `09-media.md`
+§ MetadataForm and `10-audio.md:139`; phone `src/features/media/shared/components/MetadataForm.tsx`
+and its two call sites). Component in `features/demo/ui/inputs/MetadataForm.tsx`, the pre-fill
+rule in `engine/logic/media/samples.ts`, the two callers in `ui/screens/MediaCaptureScreen.tsx`
+(`ReviewStage`) and `ui/screens/AudioPreviewScreen.tsx`.
+
+### 62a. REFUTATION — the plan's `{user}.jpg/.mp4/.m4a` means user-TYPED, not the analyst profile
+
+The plan row and the brief both raised the possibility that the phone's filename convention is
+derived from the User Profile, which would have made P4.4 depend on P7.2. It does not. The phone's
+form opens **empty** — `useState<MetadataFormValue>({ filename: '', caption: '' })` at
+`PhotoPreview.tsx:57-60` and `AudioPreview.tsx:92-95` — and the extension is appended by the route
+wrapper from the visitor's own text: `` const filename = `${result.userFilename}.${extension}` ``
+(`app/(form)/media-capture.tsx:133-134`) and `` `${result.userFilename}.m4a` ``
+(`app/(form)/audio-recording.tsx:128`). `userFilename` is `metadata.filename` straight off the form
+(`MediaCaptureFlow.tsx:160`, `AudioRecordingFlow.tsx:114`); no profile field is read anywhere on
+the path. `{user}` is the user's typing.
+
+**Consequence:** there is NO P7 hook to file here and nothing to un-defer. The demo's defaults are
+not standing in for an identity the demo lacks — they are a convenience the phone does not offer
+(see 62c).
+
+### 62b. REFUTATION — `SAMPLE_MEDIA[kind].suggestedFilename` was not uncalled
+
+The brief described it as "currently uncalled and intended as the sample's pre-fill". Half right:
+it was already called, at `AudioRecordingFlow.tsx:245` (pre-P4.4), through a flow-local
+`sampleAwareBase` that P4.6 added for audio only. P4.4 lifted that function into the engine as
+`suggestedFilenameBase` and generalised it over all three kinds, so the flow's copy is gone and
+photo/video now get the treatment audio already had.
+
+### 62c. DEVIATION — the filename field is PRE-FILLED; the phone's opens empty
+
+The phone requires the analyst to type a name from nothing, with Save grey until they do. The demo
+opens the field with a real value and lets them change it:
+
+- a live camera capture → `defaultCaptureBasename` (its OWN timestamp, e.g. `photo-20260730-140506`);
+- a live audio take → the bridge's location-scoped `audio-note-{n}`;
+- ANY sample take → the bundled asset's own name (`sample-photo` / `sample-clip` / `sample-note`).
+
+Reasoning: the phone's user is a trained analyst working a scene inside a workflow that expects
+them to name evidence; the demo's is a stranger evaluating a product, and a grey button over an
+empty required field with no starting point reads as a broken demo rather than as discipline.
+Every value offered is honest — a real timestamp or the real name of a real bundled file — so the
+pre-fill states a fact rather than inventing one.
+
+The gate itself is **ported, not softened**: clearing the field disables Save exactly as the phone
+does, and both capture suites pin that path.
+
+### 62d. DEVIATION — `onValidChange` is not ported; validity is derived at the point of use
+
+The phone pushes validity out of the form through a mount effect
+(`MetadataForm.tsx:64-68`) because the rule lives inside the component. In the demo the rule is
+already a pure engine predicate — `isValidFilename` (`captured.ts:63`) — which P4.1 wrote and which
+`mediaFilename` also depends on. So a parent gates its own Save button by CALLING it, and the form
+exposes no validity channel at all.
+
+One fact derived where it is needed beats a second copy kept in sync by an effect, and it removes
+the phone's own hazard, which its README records as pitfall #2: a consumer that forgets to wire
+`onValidChange` never learns the filename is empty. A caller here cannot forget, because there is
+nothing to wire — it either calls the predicate or it does not gate.
+**Trigger:** none. Re-open only if a third caller genuinely cannot reach the predicate.
+
+### 62e. DEVIATION — an unsaveable filename says why; the phone's is silent
+
+`MetadataForm` never passes its `TextInput`'s `error` prop, so on the phone an empty filename
+renders no message whatsoever and the Save button is simply grey — ui-mapping 09:268 calls this out
+explicitly as a deliberate observation, not an oversight in the mapping. The demo uses that same
+mechanism the phone has and declines to use: the field reddens, `aria-invalid` is set, and the
+helper line is replaced by a `role="alert"` reason (`FILENAME_REQUIRED_MESSAGE`).
+
+The Save control itself uses the house `aria-disabled` + guarded-handler shape (§44b / R-15 /
+§61b) rather than a truly `disabled` button, so it stays focusable and reachable; the reason is on
+screen immediately above it, which is why no separate `role="status"` line was added.
+
+### 62f. The "Saving as" line moved INTO the form
+
+P4.3 and P4.6 each rendered the resolved filename their own way — a bordered card reading "Saving
+as" over a mono line (`MediaCaptureScreen`) and an inline "Saves as `<name>`" (`AudioPreviewScreen`).
+Both are now the form's optional `savingAs` prop, one spelling, updating live as the visitor types.
+It **hides while the name is invalid** rather than rendering a bare `.jpg` as though that were a
+file the visitor would get (mutation-probed).
+
+The caller resolves the string (`mediaFilename(value.filename, captured)`) instead of the form
+taking a `CapturedMedia`, deliberately: P4.5's library caller will be editing an item that was
+saved a while ago and has no capture object to hand.
+
+### 62g. `Field` gained `maxLength` and `autoCorrect`
+
+Two additive optional props on the shared chrome (`ui/screens/_shared.tsx`), because the phone's
+`TextInput` has both behaviours and re-rolling an input would have violated the "reuse `_shared`"
+rule:
+
+- `maxLength` — the phone's own prop (100 / 500 here). A refused keystroke, not a validation state.
+- `autoCorrect={false}` — turns `autocorrect`, `autocapitalize` and `spellcheck` off TOGETHER,
+  because they are one decision (does this field hold prose, or a machine-facing value?) and
+  leaving any of the three on re-introduces the same class of problem. The phone spells it
+  `autoCapitalize="none"` + `autoCorrect={false}` (`MetadataForm.tsx:99-100`); the demo's import
+  paste step already spelled it with all three (`import/PasteStage.tsx:71-73`).
+
+### 62h. RESIDUAL — no filename-uniqueness check, on purpose
+
+Two captures can be saved under the same name, and two captures inside the same second even
+pre-fill with the same one. The phone enforces no uniqueness either — an analyst is free to save
+two `front door` photos — and `MediaItem.id`, not the filename, is what identifies a row
+(`captured.ts:90-93` already recorded this for the default).
+**Trigger:** only if P4.5's library list shows the ambiguity is genuinely confusing in a column of
+identical names; the fix would be a suffix on the PRE-FILL, never a refusal to save.
+
+### 62i. RESIDUAL — both caps refuse silently at the boundary
+
+Typing past 100 filename characters or 500 caption characters does nothing at all — no counter, no
+message. That is the phone's behaviour (`maxLength` on both fields, no character count anywhere)
+and it is why the form has exactly one error message: an over-length name is impossible rather
+than invalid, so there is no second state to describe.
+**Trigger:** if a reviewer wants a character counter it belongs on `Field` (shared chrome) and
+should land with the caption cap's first real user, not here.
+
+### 62j. NOTE for P4.5 — the form's contract, so the third caller does not re-derive it
+
+```ts
+interface MetadataFormValue { filename: string; caption: string }   // filename = BASE, no extension
+interface MetadataFormProps {
+  value: MetadataFormValue
+  onChange(value: MetadataFormValue): void
+  mediaType: MediaKind          // drives placeholder + helper copy ONLY
+  savingAs?: string             // resolved filename to display; omit and the line is not rendered
+}
+```
+
+- Controlled — the caller owns the state, and should own it in a component that **remounts per
+  item**, which is how both current callers guarantee a discarded take's name cannot leak onto the
+  next one.
+- Validity: call `isValidFilename(value.filename)` from `@/features/demo/engine/logic/media`
+  (trimmed 1–100). The form reports nothing; it only renders the reason.
+- Sanitization is the form's, on every keystroke — the illegal set never reaches `value`.
+- Never append an extension. `mediaFilename` / `buildMediaItem` are the only extension authors
+  (§58c).

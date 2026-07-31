@@ -64,11 +64,29 @@ describe('DemoExperience — media capture bridge', () => {
     const [photo] = media.photos
     expect(photo.kind).toBe('photo')
     // `.jpg` because the bundled sample IS a JPEG — derived from the mime type, not stamped on
-    // from the phone's extension table (§58c).
-    expect(photo.filename).toMatch(/^photo-\d{8}-\d{6}\.jpg$/)
+    // from the phone's extension table (§58c). The base is the sample's own name, which is what
+    // the metadata form (P4.4) opens pre-filled with for a bundled asset.
+    expect(photo.filename).toBe(`${SAMPLE_MEDIA.photo.suggestedFilename}.jpg`)
     expect(photo.url).toBe(SAMPLE_MEDIA.photo.url)
     expect(photo.sample).toBe(true)
     expect(photo.caption).toBe('')
+  })
+
+  it('stores the filename and notes the visitor actually typed', () => {
+    // Row 56's four field keys, end to end: the form's two values survive the bridge.
+    const store = seed()
+    render(<DemoExperience store={store} />)
+    openCapture(store)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach sample photo' }))
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'rack front' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'north wall, 3rd shelf' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save image' }))
+
+    expect(mediaOf(store).photos[0]).toMatchObject({
+      filename: 'rack front.jpg',
+      caption: 'north wall, 3rd shelf',
+    })
   })
 
   it('files a saved clip in the videos bucket, duration and all', () => {
@@ -100,7 +118,7 @@ describe('DemoExperience — media capture bridge', () => {
     expect(store.getState().view).toBe('dvrInfo')
     // Phone verbatim (`media-capture.tsx:192-193`), joined into the demo's one-line banner. The
     // filename is the user's, WITHOUT the extension, exactly as the phone's toast reports it.
-    expect(screen.getByText(/^Photo Saved — photo-\d{8}-\d{6} saved to case$/)).toBeInTheDocument()
+    expect(screen.getByText(`Photo Saved — ${SAMPLE_MEDIA.photo.suggestedFilename} saved to case`)).toBeInTheDocument()
   })
 
   it('mints an id per capture, so two saves are two rows', () => {

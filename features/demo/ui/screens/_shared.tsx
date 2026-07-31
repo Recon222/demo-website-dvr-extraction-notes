@@ -165,6 +165,8 @@ export function Field({
   error,
   readOnly,
   multiline,
+  maxLength,
+  autoCorrect,
 }: {
   label: string
   required?: boolean
@@ -198,11 +200,30 @@ export function Field({
    *  can be read and copied; `disabled` would take it out of the tab order entirely. */
   readOnly?: boolean
   multiline?: boolean
+  /** Hard cap on typed length — the phone's `TextInput` `maxLength` (`MetadataForm.tsx:101`,
+   *  `:113`). A refused keystroke, not a validation state: the value can never exceed it. */
+  maxLength?: number
+  /**
+   * `false` for a field holding a machine-facing value rather than prose — a filename, an
+   * identifier, pasted evidence text. Turns off the browser's three text-assist behaviours
+   * TOGETHER, because they are one decision and leaving any of them on re-introduces the same
+   * problem: autocorrect rewriting a name, autocapitalize changing its first letter, the
+   * spellcheck underline claiming a correct value is wrong.
+   *
+   * The phone spells the same decision `autoCapitalize="none"` + `autoCorrect={false}`
+   * (`MetadataForm.tsx:99-100`); the demo's import paste step spells it with all three
+   * (`import/PasteStage.tsx:71-73`).
+   */
+  autoCorrect?: boolean
 }) {
   const errorId = `${useId()}-error`
   const describedBy = error ? errorId : undefined
   const invalid = error ? true : undefined
   const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
+  const assist =
+    autoCorrect === false
+      ? ({ autoCorrect: 'off', autoCapitalize: 'off', spellCheck: false } as const)
+      : {}
   return (
     <div style={readOnly ? { marginBottom: 14, opacity: 0.6 } : { marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
@@ -219,6 +240,8 @@ export function Field({
           aria-describedby={describedBy}
           readOnly={readOnly}
           rows={3}
+          maxLength={maxLength}
+          {...assist}
           style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
@@ -230,6 +253,8 @@ export function Field({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           readOnly={readOnly}
+          maxLength={maxLength}
+          {...assist}
           style={boxStyle}
         />
       )}
