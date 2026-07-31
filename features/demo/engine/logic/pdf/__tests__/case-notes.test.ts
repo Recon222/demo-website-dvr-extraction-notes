@@ -31,7 +31,12 @@ const full: CaseNotesData = {
   },
   cameras: [{ name: 'Till', resolution: '1920x1080', fps: '15' }],
   export: { exportMedia: 'USB Drive', fileType: 'MP4', sizeGb: '12', mediaPlayerIncluded: true, mediaProvidedVia: 'Hand Delivered' },
-  notes: 'All footage recovered.',
+  // SECTIONED notes input (P2.1): the generator assembles the flat body itself.
+  notesSections: [
+    { id: 'scopes', content: '• Recovered 3, 4, 7 from 2025-03-08 23:50:00 to 2025-03-09 01:40:00 (DVR time)', generatedContent: '• Recovered 3, 4, 7 from 2025-03-08 23:50:00 to 2025-03-09 01:40:00 (DVR time)', manuallyEdited: false },
+    { id: 'address', content: '• Attended to recover requested video evidence.', generatedContent: '• Attended to recover requested video evidence.', manuallyEdited: false, userAddendum: 'manager present' },
+  ],
+  notesFreeText: 'All footage recovered.',
   arrivalDepartures: [{ arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:00:00' }],
   generatedAt: '2025-03-09 10:00:00',
 }
@@ -53,6 +58,21 @@ describe('generateCaseNotesDoc', () => {
     expect(html).toContain('All footage recovered.')
   })
 
+  it('assembles the notes body from the SECTIONED input in registry order (address before scopes, addendum inline, free text last)', () => {
+    const html = generateCaseNotesDoc(full)
+    // canonical assembly: address block (content + addendum) → scopes block → free text
+    expect(html).toContain(
+      '• Attended to recover requested video evidence.\nmanager present' +
+        '\n\n• Recovered 3, 4, 7 from 2025-03-08 23:50:00 to 2025-03-09 01:40:00 (DVR time)' +
+        '\n\nAll footage recovered.',
+    )
+  })
+
+  it('omits the Case Notes section when sections and free text are empty', () => {
+    const html = generateCaseNotesDoc({ ...full, notesSections: [], notesFreeText: '' })
+    expect(html).not.toContain('Case Notes</div>')
+  })
+
   it('shows the offset section when timeOffset is present and omits it otherwise', () => {
     expect(generateCaseNotesDoc(full)).toContain('DVR Time Offset')
     expect(generateCaseNotesDoc({ ...full, timeOffset: null })).not.toContain('DVR Time Offset')
@@ -62,10 +82,15 @@ describe('generateCaseNotesDoc', () => {
     expect(generateCaseNotesDoc({ ...full, scopes: [] })).toContain('No extraction scopes entered.')
   })
 
-  it('escapes HTML in user-supplied fields', () => {
-    const html = generateCaseNotesDoc({ ...full, notes: '<script>alert(1)</script>' })
+  it('escapes HTML in user-supplied fields (section content and free text alike)', () => {
+    const html = generateCaseNotesDoc({
+      ...full,
+      notesSections: [{ id: 'address', content: '<script>alert(1)</script>', generatedContent: '', manuallyEdited: true }],
+      notesFreeText: '<img onerror=x>',
+    })
     expect(html).not.toContain('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<img onerror=x>')
   })
 
   it('omits every optional section when given only a case number', () => {

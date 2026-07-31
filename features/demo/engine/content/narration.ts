@@ -145,14 +145,14 @@ export const NARRATION: Record<ChapterId, ChapterNarration> = {
     eyebrow: 'Auto notes',
     title: 'Case notes',
     paras: [
-      'The app assembles bullet-point notes from everything you captured — occurrence, location, offset, scopes, export. Edit freely; regenerate to rebuild from the data.',
+      'Seven auto-generated sections — attendance, time offset, recovered footage, retention, export, time on scene — each tracked independently. Rewrite any section and it stays yours; the rest keep regenerating from your data.',
     ],
     bullets: [
-      'Auto-generated from all form data',
-      'Editable, with a one-tap regenerate',
+      'Sections regenerate from the wizard data',
+      'Your edits are never overwritten',
       'Becomes the body of the court PDF',
     ],
-    tip: 'Press "Regenerate" to rebuild from the latest data.',
+    tip: 'Tap any paragraph to edit it. If the data changes under an edited section, a reset offer appears.',
   },
   completion: {
     eyebrow: 'Review + export',

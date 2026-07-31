@@ -106,8 +106,21 @@ describe('selectDrawerStatus', () => {
     expect(selectDrawerStatus(loc()).timeOffset).toBe('empty')
   })
 
-  it('notes is two-state: text → complete; blank → empty (never partial)', () => {
-    expect(selectDrawerStatus(loc({}, { notesText: 'Some notes' })).notes).toBe('complete')
+  it('notes is two-state: section content, an addendum, or free text → complete; blank → empty (never partial)', () => {
+    const section = (over: Partial<import('@/features/demo/engine/types').NoteSection> = {}) => ({
+      id: 'address' as const,
+      content: '',
+      generatedContent: '',
+      manuallyEdited: false,
+      ...over,
+    })
+    expect(selectDrawerStatus(loc({}, { notesFreeText: 'Some notes' })).notes).toBe('complete')
+    expect(selectDrawerStatus(loc({}, { notesSections: [section({ content: '• line' })] })).notes).toBe('complete')
+    // a deleted section carrying only an addendum still counts (it renders in the assembly)
+    expect(
+      selectDrawerStatus(loc({}, { notesSections: [section({ userAddendum: 'kept note', manuallyEdited: true })] })).notes,
+    ).toBe('complete')
+    expect(selectDrawerStatus(loc({}, { notesSections: [section()] })).notes).toBe('empty')
     expect(selectDrawerStatus(loc()).notes).toBe('empty')
   })
 

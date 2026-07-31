@@ -124,9 +124,9 @@ describe('round-trip (refresh survival — G1/D2)', () => {
 describe('maximal round-trip (R-4b runtime pin)', () => {
   // Every optional in the persisted graph populated: DemoCase.incidentCoordinates,
   // DemoLocation.gps, CameraEntry.gps, MediaItem.poster/durationSec/sample, SyncResult's
-  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr. The plain
-  // round-trip can't catch a silently-dropped optional (newCaseInput fills 3 of 16 fields);
-  // this one fails on ANY dropped key.
+  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr,
+  // NoteSection.userAddendum (v3). The plain round-trip can't catch a silently-dropped
+  // optional (newCaseInput fills 3 of 16 fields); this one fails on ANY dropped key.
   it('a state with every optional populated survives the round-trip in full', () => {
     const storage = new FakeStorage()
     const store = freshStore()
@@ -177,6 +177,12 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     store.getState().updateField('form.cameras', [
       { id: 'cam1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15', gps: { lat: 43.6, lng: -79.6, accuracyM: 4 } },
     ])
+    // Sectioned notes (v3): an edited section carrying the optional userAddendum,
+    // plus the free-text tail — pins the deepest new optional through the round-trip.
+    store.getState().reconcileNotes()
+    store.getState().commitNoteSection('address', 'my own account of attendance')
+    store.getState().commitNoteAddendum('address', 'manager was present')
+    store.getState().commitNotesFreeText('additional observations')
     store.getState().addMedia('photo', {
       id: 'm1',
       kind: 'photo',
@@ -200,6 +206,12 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     expect(loc.form.timeOffset?.sync?.stratum).toBe(2)
     expect(loc.form.cameras[0].gps).toEqual({ lat: 43.6, lng: -79.6, accuracyM: 4 })
     expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    const address = loc.form.notesSections.find((sec) => sec.id === 'address')
+    expect(address?.content).toBe('my own account of attendance')
+    expect(address?.userAddendum).toBe('manager was present')
+    expect(address?.manuallyEdited).toBe(true)
+    expect(address?.generatedContent).toContain('• Attended') // frozen baseline survives
+    expect(loc.form.notesFreeText).toBe('additional observations')
     expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
   })
 })

@@ -86,6 +86,20 @@ export {
   type GpsFix,
   type GpsSample,
 } from '@/features/demo/engine/logic/gps'
+// Notes generation (P2.1 — the phone's seven-section registry port)
+export {
+  SECTION_DEFINITIONS,
+  sectionLabel,
+  freshSectionContent,
+  isSectionStale,
+  reconcileSections,
+  assembleNotesString,
+  extractNotesRelevantData,
+  buildNotesSectionMeta,
+  type NoteSectionMeta,
+  type NotesRelevantFormData,
+  type SectionDefinition,
+} from '@/features/demo/engine/logic/notes'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
@@ -99,6 +113,8 @@ export {
   type NewCaseInput,
   type NewLocationInput,
   type PersistedState,
+  type ScrapAllMode,
+  type RestoreAllMode,
 } from '@/features/demo/engine/store/create-store'
 export {
   PERSISTENCE_ENABLED,

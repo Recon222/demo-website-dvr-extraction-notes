@@ -43,7 +43,14 @@ export function calculateTimeDifference(dvrDateTime: string, actualDateTime: str
   }
 }
 
-export function isDvrTimeCorrect(diff: TimeDifference): boolean {
+/**
+ * "Correct" = the displayed offset is 00:00:00 — keyed off the DISPLAYED string, never
+ * `differenceMs` (phone parity: bidirectional-time.ts:49 — persistence/import paths can
+ * reconstruct `differenceMs` as 0 while `formattedDifference` stays faithful). Accepts
+ * the narrowest sufficient input (`Pick`) so render surfaces that carry only the display
+ * string — the notes time-offset formatter — can call it with no type widening.
+ */
+export function isDvrTimeCorrect(diff: Pick<TimeDifference, 'formattedDifference'>): boolean {
   return diff.formattedDifference === '00:00:00'
 }
 

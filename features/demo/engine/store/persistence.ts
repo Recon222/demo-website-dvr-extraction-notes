@@ -19,6 +19,7 @@ import type {
   LocationForm,
   MediaItem,
   ModalId,
+  NoteSection,
   OcrProof,
   ScopeEntry,
   SyncResult,
@@ -30,6 +31,7 @@ import {
   COORD_SOURCES,
   GPS_SOURCES,
   MEDIA_KINDS,
+  NOTE_SECTION_IDS,
   OFFSET_DIRECTIONS,
   PROFILES,
   SYNC_METHODS,
@@ -60,9 +62,12 @@ export const PERSISTENCE_ENABLED = true
  *  `PersistedState` shape change: older snapshots are then discarded silently at boot.
  *  v2: `LocationForm.completed` (R-1 — location-scoped completion gate).
  *  v3: `GpsCoordinates.accuracyM` optional (P2.3 — a coordinate whose accuracy nobody
- *      measured no longer carries a fabricated `0`). */
-export const SNAPSHOT_VERSION = 3
-export const SNAPSHOT_KEY = 'dvr-demo-state-v3'
+ *      measured no longer carries a fabricated `0`).
+ *  v4: sectioned notes — `notesText`/`notesEdited` → `notesSections`/`notesFreeText`
+ *      (P2.1, the phone notes-generator port; pre-release = free wipe). v3 and v4 landed
+ *      in the same phase from parallel branches — v4 is the union of both shapes. */
+export const SNAPSHOT_VERSION = 4
+export const SNAPSHOT_KEY = 'dvr-demo-state-v4'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -211,6 +216,14 @@ const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   sample: z.boolean().optional(),
 } satisfies FullShape<MediaItem>)
 
+const noteSectionSchema: z.ZodType<NoteSection> = z.object({
+  id: z.enum(NOTE_SECTION_IDS), // device 3: the domain's own tuple, never re-typed by hand
+  content: z.string(),
+  generatedContent: z.string(),
+  userAddendum: z.string().optional(),
+  manuallyEdited: z.boolean(),
+} satisfies FullShape<NoteSection>)
+
 const locationFormSchema: z.ZodType<LocationForm> = z.object({
   scopes: z.array(scopeEntrySchema),
   extractedScopes: z.array(scopeEntrySchema),
@@ -220,8 +233,8 @@ const locationFormSchema: z.ZodType<LocationForm> = z.object({
   dvr: dvrInformationSchema,
   cameras: z.array(cameraEntrySchema),
   export: exportInformationSchema,
-  notesText: z.string(),
-  notesEdited: z.boolean(),
+  notesSections: z.array(noteSectionSchema),
+  notesFreeText: z.string(),
   dateTimeCompleted: z.string(),
   completedBy: z.string(),
   completed: z.boolean(),
