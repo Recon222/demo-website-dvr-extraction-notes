@@ -357,3 +357,25 @@ describe('Submission — capture button keeps keyboard focus (R-7)', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Use Current Location' }))
   })
 })
+
+describe('Submission — malformed provider reading (R-13)', () => {
+  it('shows a failure line instead of a dead button when the timestamp is unusable', async () => {
+    const malformed: GeolocationLike = {
+      getCurrentPosition: (onSuccess) =>
+        onSuccess({
+          coords: { latitude: 43.6, longitude: -79.65, accuracy: 4, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+          timestamp: Number.NaN,
+        } as GeolocationPosition),
+    }
+    const onCoordinates = vi.fn()
+    renderSubmission({ geolocation: malformed, onCoordinates })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    expect(screen.getByTestId('gps-capture-error')).toHaveTextContent('Invalid timestamp reported by the location service.')
+    expect(onCoordinates).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
+  })
+})

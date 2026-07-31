@@ -197,6 +197,16 @@ export function toGpsFix(samples: readonly GpsSample[]): GpsCaptureOutcome {
   }
   const invalid = validateCoordinates(best.lat, best.lng)
   if (invalid) return { ok: false, failure: invalid }
+  // R-13: `new Date(NaN).toISOString()` THROWS. Unguarded, a non-conformant provider (spoofing
+  // extension, old WebView, a hand-stubbed seam) turned a capture into an unhandled rejection —
+  // the button returned to idle with no fix and no failure line. `INVALID_COORDINATES` is the
+  // phone's code for "this reading cannot be trusted"; the message names the actual defect.
+  if (!Number.isFinite(best.timestampMs)) {
+    return {
+      ok: false,
+      failure: { code: 'INVALID_COORDINATES', message: 'Invalid timestamp reported by the location service.' },
+    }
+  }
 
   return {
     ok: true,

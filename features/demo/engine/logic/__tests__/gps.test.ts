@@ -143,6 +143,16 @@ describe('toGpsFix', () => {
     expect(out.ok === false && out.failure.code).toBe('INVALID_COORDINATES')
   })
 
+  it('fails with a typed error rather than throwing on a malformed timestamp (R-13)', () => {
+    // new Date(NaN).toISOString() throws; unguarded that became an unhandled rejection and a
+    // dead capture button with no failure line.
+    const out = toGpsFix([sample({ accuracyM: 5, timestampMs: Number.NaN })])
+    expect(out).toEqual({
+      ok: false,
+      failure: { code: 'INVALID_COORDINATES', message: 'Invalid timestamp reported by the location service.' },
+    })
+  })
+
   it('counts every reading taken, not just the winner', () => {
     const out = toGpsFix([sample({ accuracyM: 9 }), sample({ accuracyM: 9 }), sample({ accuracyM: 9 })])
     expect(out.ok === true && out.fix.sampleCount).toBe(3)

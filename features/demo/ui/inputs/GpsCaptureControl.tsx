@@ -132,9 +132,17 @@ export function GpsCaptureControl({
     // stronger form of PickerStage's re-focus-on-failure idiom (:171-192): focus is never
     // dropped at all, on the success path either.
     if (busy || disabled) return
-    void capture().then((fix) => {
-      if (fix) onCapture(fix)
-    })
+    capture()
+      .then((fix) => {
+        if (fix) onCapture(fix)
+      })
+      .catch((e: unknown) => {
+        // R-13 backstop. `capture()` classifies every failure it can see, and `onCapture`'s
+        // consumers guard their own awaits — so reaching here means a genuinely unexpected
+        // throw. Swallowing it silently would leave the dead-button shape (idle, no fix, no
+        // message); the breadcrumb is the repo's console.warn convention for soft-failed I/O.
+        console.warn('[demo/gps] capture chain threw unexpectedly:', e)
+      })
   }
 
   return (
