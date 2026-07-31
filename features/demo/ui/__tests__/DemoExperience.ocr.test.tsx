@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
+import { SNAPSHOT_VERSION, loadSnapshot, snapshotOf, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
@@ -125,6 +126,25 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
     fireEvent.click(screen.getByText('The date is correct'))
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(store.getState().capture.dvrDateTime).toBe('2026-07-31 12:05:30')
+  })
+
+  it('the committed OCR proof survives the persistence schema', () => {
+    // capture.ocr had never been populated before this package, so this is the first time a
+    // real OcrProof meets `ocrProofSchema` — a field the writer forgets fails validation and
+    // silently drops the whole snapshot on reload.
+    const store = openOcr()
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    fireEvent.click(screen.getByText('Use this & calculate'))
+
+    const raw = JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) })
+    const storage: StorageLike = { getItem: () => raw, setItem: () => {}, removeItem: () => {} }
+    const restored = loadSnapshot(storage, { enabled: true })
+    expect(restored?.capture.ocr).toEqual({
+      rawText: '2025-03-08 12:05:30',
+      cleanedText: '2025-03-08 12:05:30',
+      parsedDateTime: '2025-03-08 12:05:30',
+      confidence: 0.93,
+    })
   })
 
   it('a dateless read can be committed by correcting the date instead of confirming it', async () => {
