@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { captureFailureMessage } from '@/features/demo/engine/logic/media'
 import { OcrCaptureScreen, type OcrCaptureScreenProps, type OcrLiveRead, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import type { OcrRecognizeOutcome } from '@/features/demo/ui/inputs/ocr-recognize'
 import type { MediaDevicesLike } from '@/features/demo/ui/inputs/capture-media'
@@ -42,6 +43,7 @@ function harness(
     getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>
     recognize?: (image: Blob) => Promise<OcrRecognizeOutcome>
     devices?: MediaDeviceInfo[]
+    enumerateDevices?: () => Promise<MediaDeviceInfo[]>
     canvas?: ReturnType<typeof fakeCanvas>
   } = {},
 ): Harness {
@@ -56,7 +58,7 @@ function harness(
   )
   const mediaDevices: MediaDevicesLike = {
     getUserMedia,
-    enumerateDevices: async () => options.devices ?? [],
+    enumerateDevices: options.enumerateDevices ?? (async () => options.devices ?? []),
   }
   const recognize = vi.fn(
     options.recognize ?? (async (): Promise<OcrRecognizeOutcome> => ({ ok: true, text: '2025-03-08 12:05:30', confidence: 0.91 })),
@@ -447,5 +449,22 @@ describe('device picker', () => {
     })
     expect(many.getUserMedia).toHaveBeenCalledTimes(2)
     expect(many.getUserMedia.mock.calls[1][0]).toEqual({ video: { deviceId: { exact: 'cam-b' } }, audio: false })
+  })
+
+  // R-29 (T-6): an unreadable device list is NOT "there are no other cameras" — P4.1 keeps
+  // the two apart precisely so this line can explain the picker's absence. It was unpinned:
+  // deleting the render line left every suite green.
+  it('explains an UNREADABLE device list instead of silently hiding the picker', async () => {
+    const h = harness({
+      enumerateDevices: async () => {
+        throw new Error('enumeration blew up')
+      },
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
   })
 })
