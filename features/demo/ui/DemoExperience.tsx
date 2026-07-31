@@ -190,8 +190,18 @@ const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location co
 const NEW_ADDRESS_SUBTITLE = 'Submission info copied — enter the new address.'
 const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
   `Location Created — ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
-/** Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry. */
-const NEW_ADDRESS_FAILED_NOTICE = 'Failed to Create Location — a name and street address are required.'
+/**
+ * Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry.
+ *
+ * The copy names the only cause that can actually reach it. `duplicateToNewAddress` returns a
+ * bare `null` for three refusals — source gone, blank name, blank street — but the card's own
+ * `newLocationBlock` gate holds the last two upstream, so a null here means the source location
+ * went away. The old sentence ("a name and street address are required") described the two
+ * unreachable arms and would have told a visitor to fix a form that was already valid (review
+ * R-2's rider). If a cause is ever surfaced from the store (type-design's carried NIT: make the
+ * refusal a discriminated result), this splits back into three sentences.
+ */
+const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
 /**
  * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
  * location-level export entry point, and hiding the section would misrepresent the surface —
