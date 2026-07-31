@@ -124,6 +124,23 @@ describe('CasesScreen row actions — reveal', () => {
     expect(onOpenLocation).toHaveBeenCalledWith('l1')
   })
 
+  it('does not eat a later tap when the hold ended off the row', () => {
+    // The hold fires, the pointer is released elsewhere, so no click ever consumes the swallow
+    // flag. The next gesture must start clean or the row would silently ignore a real tap.
+    const { onOpenLocation } = renderScreen({ expandedId: 'c1' })
+    const row = locationRow('Rear Alley')
+    fireEvent.pointerDown(row, { button: 0 })
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS)
+    })
+    fireEvent.pointerLeave(row) // released off the row — no click follows
+
+    fireEvent.pointerDown(row, { button: 0 })
+    fireEvent.pointerUp(row)
+    fireEvent.click(row)
+    expect(onOpenLocation).toHaveBeenCalledWith('l2')
+  })
+
   it('exposes the same tray through a keyboard-reachable trigger', () => {
     // The phone needs a screen-reader-only accessibilityAction because its gesture is
     // invisible; the web answer is a real focusable control.

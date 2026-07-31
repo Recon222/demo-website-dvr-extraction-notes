@@ -63,6 +63,11 @@ export function useLongPress(
     onPointerDown: (e) => {
       if (!enabled) return
       if (e.button !== 0) return // primary button only; a right-click is not a long press
+      // A new gesture starts with a clean slate. Without this, a hold whose pointer was
+      // released OFF the row (no click follows, so nothing consumes the flag) would leave it
+      // armed and eat the row's next genuine tap. The timer below re-arms it if this gesture
+      // also turns into a hold, so the swallow itself is unaffected.
+      swallowNextClick.current = false
       clear()
       timer.current = setTimeout(() => {
         timer.current = null
