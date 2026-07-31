@@ -136,6 +136,19 @@ describe('NotesScreen — addendum', () => {
 })
 
 describe('NotesScreen — footer + banner', () => {
+  it('confirmations use the shared AlertDialog contract: focus moves in, body copy is described-by (R-5)', () => {
+    render(<NotesScreen {...props()} />)
+    fireEvent.click(screen.getByText('Write my own notes…'))
+    const dialog = screen.getByRole('alertdialog')
+    // focus entered the dialog (the R-17 idiom) — a screen reader hears title AND body
+    expect(dialog).toHaveFocus()
+    const describedBy = dialog.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy!)?.textContent).toContain(
+      'Auto-generation stops for every section',
+    )
+  })
+
   it('scrap-all dialog carries the exact phone copy and routes both modes', () => {
     const onScrapAll = vi.fn()
     render(<NotesScreen {...props({ onScrapAll })} />)

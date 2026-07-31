@@ -101,7 +101,10 @@ export function AlertDialog({ title, message, actions, onDismiss }: AlertDialogP
         >
           {message}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Like the OS alert this mirrors, 3+ buttons stack into full-width rows (the
+            iOS multi-option shape — the phone's three-arm Notes/OCR confirms render this
+            way); 1–2 keep the side-by-side row. */}
+        <div style={{ display: 'flex', gap: 8, ...(actions.length > 2 ? { flexDirection: 'column' as const } : {}) }}>
           {actions.map((a) => (
             <button
               key={a.label}

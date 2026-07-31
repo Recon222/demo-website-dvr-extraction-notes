@@ -1,11 +1,11 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { NoteSectionId } from '@/features/demo/engine/types'
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import { WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 
 /**
  * The Notes screen — the phone's seven-section notes editor (P2.1, ui-mapping 08
@@ -83,76 +83,6 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }, [ref, value])
-}
-
-// ---- Confirm dialogs (exact phone copy — ui-mapping 08 Confirmation Alerts) --------
-
-interface DialogAction {
-  label: string
-  destructive?: boolean
-  onPress?: () => void
-}
-
-function ConfirmDialog({
-  title,
-  body,
-  actions,
-  onCancel,
-}: {
-  title: string
-  body: string
-  actions: DialogAction[]
-  onCancel(): void
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
-  return (
-    <PhoneOverlayPortal>
-      <div
-        data-notes-dialog-scrim
-        onClick={onCancel}
-        style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(4,8,14,0.62)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28, pointerEvents: 'auto' }}
-      >
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label={title}
-          onClick={(e) => e.stopPropagation()}
-          style={{ width: '100%', maxWidth: 320, borderRadius: 14, border: '1px solid rgba(30,58,95,0.6)', background: '#0d1b2a', boxShadow: '0 24px 60px rgba(0,0,0,0.55)', padding: '18px 18px 10px' }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f4f8', marginBottom: 8 }}>{title}</div>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: '#bcccde', marginBottom: 14 }}>{body}</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {actions.map((a) => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={() => {
-                  onCancel()
-                  a.onPress?.()
-                }}
-                style={{ cursor: 'pointer', background: 'transparent', border: 'none', borderTop: '1px solid rgba(30,58,95,0.45)', padding: '11px 4px', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', color: a.destructive ? '#ff4757' : PRIMARY, textAlign: 'center' }}
-              >
-                {a.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={onCancel}
-              style={{ cursor: 'pointer', background: 'transparent', border: 'none', borderTop: '1px solid rgba(30,58,95,0.45)', padding: '11px 4px', fontSize: 14, fontWeight: 500, fontFamily: 'inherit', color: '#99badd', textAlign: 'center' }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </PhoneOverlayPortal>
-  )
 }
 
 // ---- Section block -----------------------------------------------------------------
@@ -350,56 +280,77 @@ export function NotesScreen({
     setTimeout(() => setCopied('idle'), 1600)
   }
 
+  // All six Notes confirmations route through the shared AlertDialog primitive (R-5 —
+  // the §39.1 consolidation): full a11y contract (labelledby + describedby, focus
+  // in/out) and the demo's blocking-dialog semantics (inert scrim, Escape cancels) come
+  // from the primitive. Copy and button order stay phone-verbatim (ui-mapping 08);
+  // Cancel is an explicit action, as the phone's Alert.alert declares it.
+  const closeDialog = useCallback(() => setDialog(null), [])
+  const act = (fn: () => void) => () => {
+    setDialog(null)
+    fn()
+  }
   let dialogNode: ReactNode = null
   if (dialog?.kind === 'reset') {
     dialogNode = (
-      <ConfirmDialog
+      <AlertDialog
         title="Reset to auto-generated?"
-        body={`Your text for "${dialog.label}" will be replaced by the current auto-generated version. A note you added is kept.`}
-        actions={[{ label: 'Reset', destructive: true, onPress: () => onResetSection(dialog.id) }]}
-        onCancel={() => setDialog(null)}
+        message={`Your text for "${dialog.label}" will be replaced by the current auto-generated version. A note you added is kept.`}
+        actions={[
+          { label: 'Cancel', style: 'cancel', onPress: closeDialog },
+          { label: 'Reset', style: 'destructive', onPress: act(() => onResetSection(dialog.id)) },
+        ]}
+        onDismiss={closeDialog}
       />
     )
   } else if (dialog?.kind === 'restoreSection') {
     dialogNode = (
-      <ConfirmDialog
+      <AlertDialog
         title="Restore this section?"
-        body={`"${dialog.label}" will return to auto-generated content.`}
-        actions={[{ label: 'Restore', onPress: () => onResetSection(dialog.id) }]}
-        onCancel={() => setDialog(null)}
+        message={`"${dialog.label}" will return to auto-generated content.`}
+        actions={[
+          { label: 'Cancel', style: 'cancel', onPress: closeDialog },
+          { label: 'Restore', onPress: act(() => onResetSection(dialog.id)) },
+        ]}
+        onDismiss={closeDialog}
       />
     )
   } else if (dialog?.kind === 'restoreAll') {
     // The phone branches on the free-text DRAFT (ui-mapping 08): with text present the
     // restore offers keep-vs-clear; empty free text restores directly ('keep').
     dialogNode = freeDraft.trim() !== '' ? (
-      <ConfirmDialog
+      <AlertDialog
         title="Restore auto-generated notes?"
-        body="Every section returns to auto-generated content; sections you rewrote will be replaced. If you started from your current notes, keeping Additional Notes may repeat the restored sections."
+        message="Every section returns to auto-generated content; sections you rewrote will be replaced. If you started from your current notes, keeping Additional Notes may repeat the restored sections."
         actions={[
-          { label: 'Restore & keep my notes', onPress: () => onRestoreAll('keep') },
-          { label: 'Restore & clear additional notes', destructive: true, onPress: () => onRestoreAll('clear') },
+          { label: 'Restore & keep my notes', onPress: act(() => onRestoreAll('keep')) },
+          { label: 'Restore & clear additional notes', style: 'destructive', onPress: act(() => onRestoreAll('clear')) },
+          { label: 'Cancel', style: 'cancel', onPress: closeDialog },
         ]}
-        onCancel={() => setDialog(null)}
+        onDismiss={closeDialog}
       />
     ) : (
-      <ConfirmDialog
+      <AlertDialog
         title="Restore auto-generated notes?"
-        body="Every section returns to auto-generated content. Sections you rewrote will be replaced."
-        actions={[{ label: 'Restore', onPress: () => onRestoreAll('keep') }]}
-        onCancel={() => setDialog(null)}
+        message="Every section returns to auto-generated content. Sections you rewrote will be replaced."
+        actions={[
+          { label: 'Cancel', style: 'cancel', onPress: closeDialog },
+          { label: 'Restore', onPress: act(() => onRestoreAll('keep')) },
+        ]}
+        onDismiss={closeDialog}
       />
     )
   } else if (dialog?.kind === 'scrapAll') {
     dialogNode = (
-      <ConfirmDialog
+      <AlertDialog
         title="Write your own notes?"
-        body="Auto-generation stops for every section. You can restore the auto-generated notes at any time."
+        message="Auto-generation stops for every section. You can restore the auto-generated notes at any time."
         actions={[
-          { label: 'Start from current notes', onPress: () => onScrapAll('current') },
-          { label: 'Start blank', destructive: true, onPress: () => onScrapAll('blank') },
+          { label: 'Start from current notes', onPress: act(() => onScrapAll('current')) },
+          { label: 'Start blank', style: 'destructive', onPress: act(() => onScrapAll('blank')) },
+          { label: 'Cancel', style: 'cancel', onPress: closeDialog },
         ]}
-        onCancel={() => setDialog(null)}
+        onDismiss={closeDialog}
       />
     )
   }
