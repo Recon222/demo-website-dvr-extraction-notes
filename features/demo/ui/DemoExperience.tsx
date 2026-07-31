@@ -28,7 +28,7 @@ import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
-import { computeImportStage } from '@/features/demo/ui/screens/import/import-flow-mode'
+import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
@@ -93,7 +93,8 @@ const blankCaseForm: NewCaseFields = {
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
 interface ImportState {
-  stage: 'picker' | 'paste' | 'progress' | 'result'
+  /** The stored (driven) stage — displayed through computeImportStage (single union, R-31). */
+  stage: ImportUiStage
   text: string
   result: ImportResult | null
   lastLocId: string | null

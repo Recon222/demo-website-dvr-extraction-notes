@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeImportStage } from '@/features/demo/ui/screens/import/import-flow-mode'
+import { computeImportStage } from '@/features/demo/engine/logic/import-flow-mode'
 
 describe('computeImportStage (P1.5, matrix row 73 — the phone computeImportFlowMode port)', () => {
   it('picker/paste pass through untouched', () => {

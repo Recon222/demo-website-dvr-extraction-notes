@@ -17,6 +17,7 @@ import type {
   ImportPartialData,
 } from '@/features/demo/ui/import/run-import'
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
+import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportFailure {
@@ -62,10 +63,13 @@ export const ERROR_MESSAGES: Partial<Record<ImportErrorCode, string>> = {
   MODEL_OUTPUT_UNPARSEABLE: "The model's reply couldn't be read as form data. Please try the import again.",
 }
 
-export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
-
 export interface ImportModalProps {
-  stage: ImportStageId
+  /**
+   * The DISPLAYED flow stage. Single source of the union: the mode machine that
+   * derives it (engine/logic/import-flow-mode — p1-review R-31; this file's own
+   * re-declaration also collided in name with run-import's pipeline ImportStageId).
+   */
+  stage: ImportUiStage
   text: string
   /** The pipeline's coarse stage (run-import onStage) — drives the terminal's headline/bar. */
   activeStage: RunStageId | null
@@ -105,6 +109,10 @@ export interface ImportModalProps {
  * P1.5 dwell: computeImportStage keeps the modal on 'progress' after the result
  * lands, so this derivation is what morphs the badge into the outcome CTA the
  * visitor must tap to reach the result view.
+ *
+ * Deliberately colocated with the UI `ImportResult` type it maps (outside the
+ * engine coverage gate — R-21): moving it to engine/ would drag the whole
+ * result-view model along; its unit tests below fully cover it regardless.
  */
 export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutcome | null {
   if (result === null) return null

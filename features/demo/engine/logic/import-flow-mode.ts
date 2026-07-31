@@ -15,6 +15,12 @@
  * also passes through — that is the pre-pipeline guard path ('Select a case first.' /
  * 'Paste the request text first.'), which never started a run, has no log, and therefore
  * has nothing to dwell on (the phone's equivalent guards live before its pipeline too).
+ *
+ * Lives in engine/logic (p1-review R-21/R-31): pure, React-free, inside the coverage
+ * gate like its sibling import-log, and the SINGLE declaration of {@link ImportUiStage}
+ * — ImportModal's prop and DemoExperience's ImportState both consume it from here.
+ * (`deriveTerminalOutcome` stays colocated with the UI ImportResult type it maps —
+ * the deliberate remainder outside the gate, noted at its definition.)
  */
 
 export type ImportUiStage = 'picker' | 'paste' | 'progress' | 'result'
