@@ -1381,10 +1381,12 @@ LOSES a field). Corrected to key-exhaustiveness, matching `persistence.ts`'s `Fu
 keeping in mind for future type guards in this repo: assignability-to-a-looser-type never catches
 missing members, which is the direction real drift runs.
 
-**45i. Still open, P2.3-owned, deliberately out of round-3 scope:** R-39 (`LookupNotice` consumed
-by a binary ternary in `LocationFields`, so a fourth member would silently render the
-partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
-`never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+**45i. ~~Still open, P2.3-owned, deliberately out of round-3 scope:~~ RESOLVED — see §55c.**
+R-39 (`LookupNotice` consumed by a binary ternary in `LocationFields`, so a fourth member would
+silently render the partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34;
+R-39 needs the same `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next
+touch of this file. **Closed on `parity/p3-riders` with a total copy map rather than the `never`
+arm — same guarantee, no unreachable default; rationale in §55c.**
 
 ## 55. P2 residual-minor rider (R-35/R-36/R-37/R-38/R-39) — choices made, nothing deferred
 
