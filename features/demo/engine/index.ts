@@ -119,6 +119,7 @@ export {
   type DemoState,
   type DemoActions,
   type CaptureState,
+  type NewAddressOverrides,
   type NewCaseInput,
   type NewLocationInput,
   type PersistedState,
