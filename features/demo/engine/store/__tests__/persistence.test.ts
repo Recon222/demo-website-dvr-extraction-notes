@@ -334,6 +334,27 @@ describe('shape guard (never crash boot)', () => {
     expect(snap?.currentCaseId).toBe(caseA) // derived from the location — B never gets A's data under its OCC number
   })
 
+  it('R-9: an ORPHANED open location (caseId resolving to no case) drops entirely — coherent pair or empty, never half-live', () => {
+    const storage = new FakeStorage()
+    const { store } = workedStore() // view/currentChapter: dvrInfo, one case + one location
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { locations: Array<{ caseId: string }> }
+    }
+    parsed.state.locations[0].caseId = 'ghost-case' // orphan the open location
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    const snap = loadSnapshot(storage)
+    // Half-live rehydration ('—' OCC header, Complete & Save stamping a location while
+    // greening nothing) must be impossible: the orphaned location drops and the wizard
+    // falls back. The snapshot's own currentCaseId still resolves, so the fallback branch
+    // keeps it — a case-only selection is a legal store state (createCase produces it).
+    expect(snap?.currentLocationId).toBeNull()
+    expect(snap?.currentCaseId).toBe(store.getState().currentCaseId)
+    expect(snap?.view).toBe('cases')
+    expect(snap?.currentChapter).toBe('cases')
+    expect(snap?.locations).toHaveLength(1) // the DATA still survives — only the selection is repaired
+  })
+
   it('R-32: with NO live location, a dangling currentCaseId still drops to null', () => {
     const storage = new FakeStorage()
     const store = freshStore()

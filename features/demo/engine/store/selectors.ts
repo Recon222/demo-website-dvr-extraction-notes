@@ -78,9 +78,13 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       // Non-canonical requested time — adjusted stays blank; the document surfaces it via
       // adjustedScopesPartial. DELIBERATELY silent here (R-33): this selector runs in the
       // bridge's render body (per keystroke, doubled under StrictMode), so the §15/R-27
-      // breadcrumb is emitted once per EVENT at the boundaries that create the condition —
-      // generateExtractedScopes (Calculate) and applyImport (post-offset import) — matching
-      // how the generateExtractedScopes sibling warns from its action, not from render.
+      // breadcrumb is emitted once per EVENT at TWO of the three creating boundaries —
+      // generateExtractedScopes (Calculate) and applyImport (post-offset import). The third
+      // — editing/adding a requested-scope row after an offset exists — deliberately does
+      // NOT warn (P1 review R-26, logged in deferred §15): scope rows write through
+      // updateField per keystroke, so an "event" warn there degenerates into the same
+      // per-keystroke spam R-33 removed. Operator-only gap; the visitor surface stays
+      // annotated either way.
     }
     return {
       id: sc.id,

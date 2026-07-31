@@ -415,9 +415,15 @@ export function loadSnapshot(
   // writer leaves the pair pointing across cases"). When a location is open, IT owns the
   // case — currentCaseId is derived from it, never trusted independently, so a snapshot
   // pairing case B with case A's location can't misattribute an OCC number in the PDF header.
+  // An ORPHANED open location (its caseId resolving to no case — P1 review R-9) is dropped
+  // with its case: the restored pair is fully coherent or fully empty, never half-live (a
+  // caseless wizard would render '—' OCC headers and let Complete & Save stamp a location
+  // while greening nothing).
   const caseIds = new Set(d.cases.map((c) => c.id))
   const openLocation =
-    d.currentLocationId !== null ? d.locations.find((l) => l.id === d.currentLocationId) : undefined
+    d.currentLocationId !== null
+      ? d.locations.find((l) => l.id === d.currentLocationId && caseIds.has(l.caseId))
+      : undefined
   const currentLocationId = openLocation ? openLocation.id : null
   const currentCaseId = openLocation
     ? openLocation.caseId
