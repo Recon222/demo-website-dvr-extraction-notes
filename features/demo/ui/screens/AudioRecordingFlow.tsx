@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   CAPTURE_PERMISSION_COPY,
-  NO_RECORDER_NOTICE,
-  SAMPLE_MEDIA_NOTICE,
   channelLabel,
   codecLabel,
   formatSampleRate,
@@ -110,8 +108,18 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
   })
 
   const { captured, permission, phase, stream } = capture
-  const canRecord = capture.capability.record
-  const canStream = capture.capability.stream
+  /**
+   * Whether an audio note can be made for real HERE — asked of the engine, never re-derived
+   * (review R-3, then FD-2 for this surface).
+   *
+   * The flow used to spell the rule itself as `!capability.stream || !capability.record`, which
+   * silently dropped the third fact: on a browser with `getUserMedia` and `MediaRecorder` but no
+   * `URL.createObjectURL`, that read `live`, so the visitor got the full recorder — open mic,
+   * moving meter — and then a completed take answered "This browser doesn't expose a microphone
+   * to this page". `modeFor('audio')` is the single site for the rule, closed with `assertNever`
+   * over `MediaKind` so a fourth kind cannot inherit the wrong one.
+   */
+  const canCaptureLive = capture.capability.modeFor('audio') === 'live'
 
   // The container this browser will actually produce, probed once. Before a take exists there
   // is nothing else to read — `MediaRecorder.mimeType` only becomes meaningful once one is
@@ -150,10 +158,10 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
   const openedRef = useRef(false)
   const openStream = capture.open
   useEffect(() => {
-    if (openedRef.current || !canStream || !canRecord || permission !== 'prompt') return
+    if (openedRef.current || !canCaptureLive || permission !== 'prompt') return
     openedRef.current = true
     void openStream()
-  }, [canStream, canRecord, permission, openStream])
+  }, [canCaptureLive, permission, openStream])
 
   /**
    * The ONE microphone-release path (review R-21).
@@ -176,7 +184,7 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     closeStream()
   }, [captured, stream, closeStream])
 
-  const mode: RecorderMode = !canStream || !canRecord
+  const mode: RecorderMode = !canCaptureLive
     ? 'sample'
     : permission === 'denied'
       ? 'denied'
@@ -252,7 +260,10 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
       reduceMotion={reduceMotion}
       deniedTitle={CAPTURE_PERMISSION_COPY.microphone.title}
       deniedBody={CAPTURE_PERMISSION_COPY.microphone.deniedBody}
-      sampleNotice={canStream ? NO_RECORDER_NOTICE.microphone : SAMPLE_MEDIA_NOTICE.microphone}
+      // The sentence is chosen by the BINDING reason, in priority order (no device > no storage
+      // > no recorder). The ternary this replaces could not produce NO_CAPTURE_STORAGE_NOTICE at
+      // all — §65b added that sentence for a state this surface had no way to name.
+      sampleNotice={capture.capability.sampleNotice}
       notice={notice}
       failure={capture.failure?.message ?? null}
       onDismissFailure={capture.clearFailure}

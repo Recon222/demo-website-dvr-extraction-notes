@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 
-import { SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import {
+  NO_CAPTURE_STORAGE_NOTICE,
+  SAMPLE_MEDIA,
+  SAMPLE_MEDIA_NOTICE,
+  type CapturedMedia,
+} from '@/features/demo/engine/logic/media'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import {
   AudioRecordingFlow,
@@ -149,6 +154,30 @@ describe('AudioRecordingFlow — the sample path (no capture API, the suite defa
     mount({ deps })
     expect(screen.getByText(/cannot record audio to a file/)).toBeInTheDocument()
     expect(screen.queryByText(SAMPLE_MEDIA_NOTICE.microphone)).not.toBeInTheDocument()
+  })
+
+  it('takes the sample path when the page cannot HOLD a captured file (FD-2)', async () => {
+    // `{ stream: true, record: true, objectUrls: false }` — a hardened or embedded WebView. The
+    // flow used to spell the rule as `!stream || !record`, so this browser read `live`: the
+    // visitor got the full recorder with an open microphone and a moving meter, and a COMPLETED
+    // take then answered "This browser doesn't expose a microphone to this page".
+    const { deps, mediaDevices } = liveDeps({ objectUrls: null })
+    mount({ deps })
+    await settle()
+
+    expect(screen.queryByRole('button', { name: 'Start recording' })).not.toBeInTheDocument()
+    // The microphone is never opened for a recorder that could not keep what it caught.
+    expect(mediaDevices.getUserMedia).not.toHaveBeenCalled()
+    // The sentence names the BINDING reason. Both device sentences would be false here — the
+    // device is open and the recorder works — and the old ternary could not produce this one at
+    // all, structurally.
+    expect(screen.getByText(NO_CAPTURE_STORAGE_NOTICE)).toBeInTheDocument()
+    expect(screen.queryByText(SAMPLE_MEDIA_NOTICE.microphone)).not.toBeInTheDocument()
+    expect(screen.queryByText(/cannot record audio to a file/)).not.toBeInTheDocument()
+
+    // And the flow still works: the sample is reachable and reviewable.
+    fireEvent.click(screen.getByRole('button', { name: 'Attach a sample audio note' }))
+    expect(screen.getByText('Review Audio')).toBeInTheDocument()
   })
 })
 
