@@ -36,15 +36,20 @@ export type ImportLogLevel =
   | 'DONE' // run completion
   | 'ERR' // failure
 
+/**
+ * One log line. All fields are readonly (R-34): the SAME object identity is shared by the
+ * retained ring, every subscriber, replays, and React state — one consumer mutation would
+ * corrupt the run for everyone, so the type forbids it.
+ */
 export interface ImportLogLine {
   /** 1-based within the run; keeps counting past cap eviction (stable React key). */
-  seq: number
+  readonly seq: number
   /** Milliseconds since the run began, from the injected clock — never `Date.now()`. */
-  elapsedMs: number
-  level: ImportLogLevel
-  text: string
+  readonly elapsedMs: number
+  readonly level: ImportLogLevel
+  readonly text: string
   /** Optional expandable detail block (clipped at the emit site). */
-  detail?: string
+  readonly detail?: string
 }
 
 export type ImportLogEvent =
@@ -81,8 +86,8 @@ export interface ImportLogBus {
   reset(): void
   /** Replays the retained run to `listener` synchronously, then live events. Returns unsubscribe. */
   subscribe(listener: ImportLogListener): () => void
-  /** Snapshot copy of the retained lines. */
-  getLines(): ImportLogLine[]
+  /** Fresh readonly snapshot of the retained lines — never the live ring array. */
+  getLines(): readonly ImportLogLine[]
   /** Increments on every `beginRun`/`reset` — the UI's stable reset signal. */
   getEpoch(): number
 }
