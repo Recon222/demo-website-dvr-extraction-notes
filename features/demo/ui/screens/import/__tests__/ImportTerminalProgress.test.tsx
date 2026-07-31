@@ -211,12 +211,18 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.queryByTestId('terminal-cursor')).not.toBeInTheDocument()
   })
 
-  it('reduced motion (motion/react hook, R-18): cursor stays visible but static, CTA morph does not animate', () => {
+  it('reduced motion (motion/react hook, R-18): cursor static, spinner static (R-14), CTA morph unanimated', () => {
     motionState.reduce = true
     const { rerenderWith } = setup()
     expect(screen.getByTestId('terminal-cursor').style.animation).toBe('')
+    expect(screen.getByTestId('terminal-spinner').style.animation).toBe('') // R-14: processing spinner gated too
     rerenderWith({ outcome: SUCCESS })
     expect(screen.getByTestId('terminal-review-cta').style.animation).toBe('')
+  })
+
+  it('with motion allowed, the spinner spins (the gate must not kill motion for everyone)', () => {
+    setup()
+    expect(screen.getByTestId('terminal-spinner').style.animation).toContain('spin')
   })
 
   // ---- auto-follow / pin ----

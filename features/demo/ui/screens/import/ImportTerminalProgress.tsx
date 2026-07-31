@@ -288,9 +288,20 @@ function Icon({ path, size, color, circle }: { path: string; size: number; color
   )
 }
 
-function Spinner() {
+/** Reduced-motion gated (p1-review R-14): inline-styled motion must gate in JS. */
+function Spinner({ reduce }: { reduce: boolean | null }) {
   return (
-    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={C.primary}
+      strokeWidth="2.5"
+      data-testid="terminal-spinner"
+      style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite', flexShrink: 0 }}
+    >
       <path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" />
     </svg>
   )
@@ -600,7 +611,7 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
           data-testid="terminal-processing-badge"
           style={{ ...badgeBase, border: '1px solid rgba(43,140,193,0.32)', background: 'rgba(26,45,68,0.55)' }}
         >
-          <Spinner />
+          <Spinner reduce={reduce} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <span style={{ ...badgeTitleStyle, color: C.text }}>
               {isBatchRun ? 'Processing recovery requests' : 'Processing recovery request'}
