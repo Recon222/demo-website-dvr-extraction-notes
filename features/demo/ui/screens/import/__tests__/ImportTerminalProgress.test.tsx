@@ -86,6 +86,31 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.queryByTestId('terminal-detail-1')).not.toBeInTheDocument()
   })
 
+  it('appending lines never remounts existing rows (R-27) — the stated no-virtualization justification', () => {
+    // Behavioural pin, not a $$typeof check: keyed-by-seq + stable line objects +
+    // stable callback must keep history's DOM nodes as the SAME element instances on
+    // append. A broken key scheme or a re-created subtree type (the failure modes that
+    // would make 400 rows expensive) remounts fresh nodes and sheds the sentinel.
+    const { emitter } = setup()
+    nextFrame()
+    act(() => {
+      emitter.log('INIT', 'a')
+      emitter.log('OK', 'b')
+      emitter.log('OK', 'c')
+    })
+    nextFrame()
+    const before = [1, 2, 3].map((s) => screen.getByTestId(`terminal-line-${s}`))
+    before.forEach((el, i) => el.setAttribute('data-render-sentinel', String(i)))
+    act(() => emitter.log('OK', 'd'))
+    nextFrame()
+    ;[1, 2, 3].forEach((s, i) => {
+      const el = screen.getByTestId(`terminal-line-${s}`)
+      expect(el).toBe(before[i]) // same DOM node instance — not remounted
+      expect(el.getAttribute('data-render-sentinel')).toBe(String(i))
+    })
+    expect(screen.getByTestId('terminal-line-4')).toBeInTheDocument()
+  })
+
   // ---- headline + progress track ----
 
   it('maps each pipeline stage to the phone headline + percent band (orchestrator.ts:288/428/459 · PROGRESS_STAGES)', () => {
