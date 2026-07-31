@@ -3064,3 +3064,127 @@ interface MetadataFormProps {
 - Sanitization is the form's, on every keystroke — the illegal set never reaches `value`.
 - Never append an extension. `mediaFilename` / `buildMediaItem` are the only extension authors
   (§58c).
+
+---
+
+## 63. P4.5 (parity/p4-library) — the media library: refutations, deviations & residuals
+
+**Source:** P4.5 media library (plan §5 P4.5; matrix rows 57–66; ui-mapping `09-media.md`
+§§ Media Library Sheet → Delete Media; phone `src/features/media/media-library/`). Engine core in
+`features/demo/engine/logic/media/library.ts`, the sheet in
+`features/demo/ui/screens/MediaLibrarySheet.tsx`, the delete bridge in `ui/DemoExperience.tsx`
+(`deleteMediaItem`).
+
+### 63a. REFUTATION — the phone's library does NOT edit metadata, so P4.4's form has no third caller
+
+The brief asked P4.5 to verify whether the library edits metadata, since it would then be
+`MetadataForm`'s third caller. It does not, and the phone is unambiguous about it in three
+independent places:
+
+- `MediaItemInfo` is display-only — every field is a bare `<Text>`, there is no input, no
+  `onChange`, no save (`MediaItemInfo.tsx:88-147`). Its ui-mapping surface entry says so in as
+  many words: "**Inputs / Buttons** — None — display-only panel" (`09-media.md:513`).
+- `MediaPreview`'s whole prop surface is `{ media, onFullscreen, onClose }`
+  (`MediaPreview.tsx:239`) — no change callback exists to thread edits back through.
+- `grep -rn "MetadataForm\|updateMedia\|editMetadata" src/features/media/media-library/` returns
+  **nothing**. The form's only callers are the two capture-side previews (`PhotoPreview`,
+  `VideoPreview`) plus the audio preview, all outside `media-library/`.
+
+**Consequence:** the demo's library likewise displays and never edits, and a test pins the absence
+(`queryByRole('textbox')` inside the info panel). §62j's contract note stands unused by this
+package — correctly.
+**Trigger:** if the owner ever wants rename-in-library as a demo-better divergence, `MetadataForm`
+is ready for it (controlled, remount-per-item) and the store needs one new `updateMedia` writer.
+
+### 63b. DEVIATION — the phone's category badge slot carries `Sample` here
+
+The phone's row and info-panel badge is an `ImageCategory` (`DVR` / `Crop` / `Camera`, from
+`CATEGORY_BADGES`, `constants.ts:63-69`). `MediaItem` in the demo has no `category` — nothing in
+the demo's capture flows ever assigns one, and the type is off-limits to this package — so there is
+no value to port. The slot instead carries `Sample`, which is the fact a visitor here actually
+needs: whether the bytes came from hardware or from a bundled asset. It is the same badge the two
+capture screens already show, so a sample is labelled everywhere it appears rather than only where
+it was made.
+**Trigger:** if a future package adds `category` to `MediaItem` (it would need a capture-side
+picker to set it), port `CATEGORY_BADGES` into `library.ts` and render both badges.
+
+### 63c. DEVIATION — the row meta line is `duration · date`, not the phone's `size · date`
+
+`MediaItem` carries no `sizeBytes`. `CapturedMedia` has one, but `buildMediaItem` deliberately
+does not copy it (`captured.ts:116-135`), and the sample assets never had one to begin with
+(`samples.ts:127` — "the demo has not measured these files at runtime"). Constraint: `MediaItem`
+and `SNAPSHOT_VERSION` are off-limits to this package. So the row shows what it can stand behind:
+duration for the timed kinds, the capture date for all three. Inventing or estimating a byte count
+is exactly the class of lie this app exists to prevent.
+**Trigger:** if a package that may touch `MediaItem` adds `sizeBytes` (bumping `SNAPSHOT_VERSION`),
+add `formatFileSize(item.sizeBytes)` to the row's meta line and to `MediaItemInfo`'s, restoring the
+phone's `size · date` exactly — the formatter is already in `engine/logic/media/recording.ts`.
+
+### 63d. DECISION — zone-1 playback uses the browser's native `<video>` / `<audio>` controls
+
+The phone's inline preview hand-rolls a play/pause button, a seekable bar and elapsed/total times
+for audio (`MediaPreview.tsx:121-235`) and uses `VideoView`'s `nativeControls` for video. On the
+web a native `controls` attribute IS that transport — play/pause, scrub, times, keyboard operation
+and screen-reader announcement, none of it re-implemented. It is also already this codebase's
+treatment for video playback (`MediaCaptureScreen`'s `ReviewStage`, `<video ... controls />`).
+
+The alternative was a second copy of P4.6's `AudioPreviewScreen` player (72px button + range input
++ time row). That is the shape of mistake §57a exists to remember: `useLongPress` shipped three
+times at three paths before anyone noticed. A second bespoke transport, entangled with a different
+item type, would be the same trap in miniature.
+**Trigger:** if a package extracts P4.6's player into a shared `ui/primitives` scrubber, this panel
+is its natural second caller — swap it in then, not before.
+
+### 63e. RESIDUAL — Escape inside the sheet closes the SHEET, not just the overlay above it
+
+`ModalShell` registers a document-level Escape listener on mount (`_shared.tsx:61-67`). While the
+delete confirmation or the fullscreen layer is up, Escape therefore dismisses that overlay *and*
+closes the whole sheet. This is pre-existing shared-chrome behaviour and it is not fixable from a
+call site: `AlertDialog`'s own listener is registered later, and a later document-level listener
+cannot suppress an earlier one. `NewCaseModal` has exactly the same shape (an `AlertDialog` inside
+a `ModalShell`, `NewCaseModal.tsx:301`) and behaves the same way — there, with a filled-in form
+behind it, the cost is higher than it is here, where the worst outcome is a cancelled delete and a
+closed library.
+**Trigger:** fix in `ModalShell` when the alert-inside-shell pattern gets a third caller — an
+opt-out prop (`escapeEnabled`) or a shared "topmost overlay owns Escape" register, applied to
+`NewCaseModal` and this sheet together.
+
+### 63f. RESIDUAL — "1 items" in the header, because it is the phone's string
+
+The subtitle is `` `${total} items` `` verbatim (`MediaLibrarySheet.tsx:251-258`), which reads
+wrong at one. The plan's binding convention is to lift quoted phone copy verbatim (§4, "Copy &
+pixel fidelity"), and a grammar divergence is a copy divergence a reviewer would have to re-derive.
+A test pins `1 items` explicitly so the choice is visible rather than looking like an oversight.
+**Trigger:** if the owner wants demo-grade polish over phone-copy fidelity here, singularize in
+`mediaLibrarySubtitle` — one function, one test line — and note it as a DEMO-BETTER row.
+
+### 63g. RESIDUAL — the library is not in `EXPLORE_ITEMS`
+
+The rail's exploration checklist still has no entry for the media surfaces; `explore.ts:16` records
+that as pending ("the media screens join when built"), and P4.3 and P4.6 both shipped their screens
+without adding one. Adding only the library would leave the accordion's other two rows
+unrepresented, which is worse than the current uniform gap.
+**Trigger:** one commit at the end of P4 adding all three media entries (`mediaCapture`,
+`audioRecording`, `mediaLibrary`) together, after P4.7 — the checklist's ordering is registry-derived,
+so they must land as a group to read sensibly.
+
+### 63h. RESIDUAL — `deleteMedia` rebuilds `locations` even for an id that is not there
+
+`create-store.ts:1080-1095` maps over `locations` unconditionally, so calling it with an unknown
+media id produces a fresh `locations` array with identical contents. It is unreachable from this
+package — the confirmation is armed on a derived, currently-visible item — and the store action
+predates P4.5, so it is left alone rather than changed under a UI package.
+**Trigger:** if a later package gains a delete path that can fire on a stale id (an undo, a sync
+reconciliation), add the `find`-first guard and pin it with the house
+`expect(store.getState()).toBe(before)` idiom.
+
+### 63i. NOTE — the auto-select machinery is deliberately three lines, not three effects
+
+The phone arms a ref and runs three `useEffect`s to re-select the first item
+(`MediaLibrarySheet.tsx:79-104`). Both of the conditions that machinery exists for are absent here:
+there is no async fetch (the media are already in the store) and no `visible` prop that toggles
+without unmounting (closing the sheet unmounts it, so a reopen re-runs the state initialiser).
+Selection, fullscreen and the pending delete are all held as IDs and RESOLVED against the visible
+list each render, which is what gives the phone's `onDeleted → closePreview` behaviour for free.
+**Trigger:** none — this is a note for whoever next reads the two files side by side and wonders
+where the effects went.
