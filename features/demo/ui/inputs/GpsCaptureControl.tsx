@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react'
 
-import { formatAccuracy, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
+import { buildGpsConfig, formatAccuracy, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
 import { useGpsCapture, type UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
@@ -114,7 +114,11 @@ export function GpsCaptureControl({
   disabled = false,
   deps,
 }: GpsCaptureControlProps) {
-  const { isCapturing, progress, failure, capture } = useGpsCapture({ config, deps })
+  // Resolve the config ONCE and hand the same object to the hook and the readout (R-10): a
+  // second `?? 10` default here would drift the moment `GPS_CONFIG_STATIC.maxAttempts` changes,
+  // and this component's docblock promises every number on that line is measured.
+  const resolvedConfig = config ?? buildGpsConfig()
+  const { isCapturing, progress, failure, capture } = useGpsCapture({ config: resolvedConfig, deps })
 
   const busy = isCapturing || reverseGeocoding
   const busyText = isCapturing ? GPS_CONTROL_LABELS.capturing : GPS_CONTROL_LABELS.lookingUp
@@ -170,7 +174,7 @@ export function GpsCaptureControl({
       {/* Live sample readout — demo-only (see the header note); every value is measured. */}
       {isCapturing && progress && (
         <div role="status" data-testid="gps-capture-progress" style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>
-          {`Sample ${progress.samplesTaken} of ${config?.maxAttempts ?? 10} · best ${formatAccuracy(progress.bestAccuracyM)}`}
+          {`Sample ${progress.samplesTaken} of ${resolvedConfig.maxAttempts} · best ${formatAccuracy(progress.bestAccuracyM)}`}
         </div>
       )}
 

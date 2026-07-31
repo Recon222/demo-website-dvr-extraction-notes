@@ -138,12 +138,15 @@ export function buildGpsConfig(
 }
 
 /** constants/index.ts:75-80 — the forced-precise config used by incident + per-camera capture
- *  (P3.6/P3.7 consume this; it bypasses the settings default exactly as the phone's does). */
+ *  (P3.6/P3.7 consume this; it bypasses the settings default exactly as the phone's does).
+ *  Composed from the constants above rather than re-typing them (R-10): only the 2-minute
+ *  budget is genuinely its own value. `gps.test.ts` pins the resulting literals, so a change
+ *  to a shared constant that should NOT reach this config still fails loudly. */
 export const PRECISE_GPS_CONFIG: GpsConfig = Object.freeze({
-  targetAccuracyM: 10,
-  maxAttempts: 10,
+  targetAccuracyM: ACCURACY_MODE_TARGET_M.precise,
+  maxAttempts: GPS_CONFIG_STATIC.maxAttempts,
   timeoutMs: 120_000,
-  retryDelayMs: 500,
+  retryDelayMs: GPS_CONFIG_STATIC.retryDelayMs,
 })
 
 // ---- Sample aggregation ---------------------------------------------------
