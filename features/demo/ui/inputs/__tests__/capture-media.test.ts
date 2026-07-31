@@ -568,3 +568,66 @@ describe('startStreamRecording', () => {
     })
   })
 })
+
+
+describe('a recorder the browser stops by itself (R-13)', () => {
+  it('signals onEnded when `stop` arrives with nobody waiting on it', () => {
+    // Tracks end for reasons nobody asked for: the camera is unplugged, the permission is
+    // revoked mid-take, a screen share is stopped from the browser's own bar.
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    recorder.emitStop()
+    expect(onEnded).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT signal when the stop was ours', async () => {
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    const pending = started.handle.stop()
+    recorder.emitStop()
+    await pending
+    expect(onEnded).not.toHaveBeenCalled()
+  })
+
+  it('does NOT signal for an abandoned take — it has no outcome by definition', () => {
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    started.handle.abort()
+    recorder.emitStop()
+    expect(onEnded).not.toHaveBeenCalled()
+  })
+
+  it('still hands the assembled bytes to a later stop()', async () => {
+    const recorder = fakeRecorder('video/webm')
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded: () => {},
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    recorder.emitStop()
+    expect(await started.handle.stop()).toMatchObject({ ok: true })
+  })
+})

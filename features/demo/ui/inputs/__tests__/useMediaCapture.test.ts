@@ -527,3 +527,89 @@ describe('the 1-hour auto-stop', () => {
     expect(result.current.elapsedMs).toBe(pausedAt)
   })
 })
+
+
+describe('the browser ending a take on its own (R-13)', () => {
+  /** Open a stream and start a take, returning the driving fake recorder. */
+  async function rolling() {
+    const recorder = fakeRecorder('audio/webm')
+    const harness = mount({ facility: 'microphone' }, fakeRecorderIo(recorder))
+    await act(async () => {
+      await harness.result.current.open()
+    })
+    act(() => {
+      harness.result.current.startRecording()
+      recorder.emitData('bytes')
+    })
+    return { ...harness, recorder }
+  }
+
+  it('stamps the RECORDED length, not the visitor\'s reaction time', async () => {
+    // The defect: a take the browser ended at 10s, noticed at 30s, claimed 30s — an
+    // unmeasured number rendered as fact in review, in the library row and in the info panel.
+    const { result, recorder, advance } = await rolling()
+    advance(10_000)
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    advance(20_000)
+
+    expect(result.current.captured?.durationSec).toBe(10)
+  })
+
+  it('freezes the elapsed readout at the real end instead of counting on', async () => {
+    const { result, recorder, advance } = await rolling()
+    advance(10_000)
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    const atEnd = result.current.elapsedMs
+    advance(20_000)
+
+    expect(atEnd).toBe(10_000)
+    expect(result.current.elapsedMs).toBe(10_000)
+    expect(result.current.phase).toBe('stopped')
+  })
+
+  it('assembles the take rather than dropping it', async () => {
+    const { result, recorder } = await rolling()
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    expect(result.current.captured).toMatchObject({ kind: 'audio', url: 'blob:mint/1', sample: false })
+  })
+
+  it('a Stop pressed afterwards is a no-op, not a second assemble', async () => {
+    const { result, recorder, revoked } = await rolling()
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    const captured = result.current.captured
+    await act(async () => {
+      expect(await result.current.stopRecording()).toBeNull()
+    })
+    expect(result.current.captured).toBe(captured)
+    expect(revoked).toEqual([])
+  })
+
+  it('reports a self-ended take that produced nothing as a failure', async () => {
+    const recorder = fakeRecorder('audio/webm')
+    const { result } = mount({ facility: 'microphone' }, fakeRecorderIo(recorder))
+    await act(async () => {
+      await result.current.open()
+    })
+    act(() => {
+      result.current.startRecording()
+    })
+    await act(async () => {
+      recorder.emitStop() // no data ever arrived
+      await Promise.resolve()
+    })
+    expect(result.current.captured).toBeNull()
+    expect(result.current.failure).toMatchObject({ code: 'RECORDING_FAILED' })
+  })
+})

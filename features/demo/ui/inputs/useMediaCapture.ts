@@ -194,6 +194,9 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
   // Declared before the tick effect that calls it (hook order is what matters, but reading
   // top-down should not require knowing that); assigned from `stopRecording` below.
   const stopRecordingRef = useRef<() => Promise<CapturedMedia | null>>(() => Promise.resolve(null))
+  // Same shape for the self-end signal: `startStreamRecording` captures the callback once, so
+  // it must not close over a stale `onRecorderEnded`.
+  const onRecorderEndedRef = useRef<() => void>(() => {})
 
   const now = useCallback((): number => optionsRef.current.deps?.now?.() ?? clock.now().getTime(), [])
   const capturedAt = useCallback(
@@ -308,7 +311,10 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
       return false
     }
 
-    const started = startStreamRecording(stream, kind, { recorder: recorderIo })
+    const started = startStreamRecording(stream, kind, {
+      recorder: recorderIo,
+      onEnded: () => onRecorderEndedRef.current(),
+    })
     if (!started.ok) {
       setOwnFailure(started.failure)
       return false
@@ -336,49 +342,84 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
     applyRecording(next, atMs)
   }, [applyRecording, now])
 
+  /**
+   * Assemble a finished take into a capture. Shared by the visitor pressing Stop and by the
+   * recorder ending on its own (R-13), so a self-ended take is not silently dropped — and,
+   * more importantly, so BOTH stamp `durationSec` from the state banked at the moment the
+   * recording actually ended rather than from whenever anyone got round to asking.
+   */
+  const finishTake = useCallback(
+    async (stopped: RecordingState, atMs: number): Promise<CapturedMedia | null> => {
+      const handle = handleRef.current
+      if (!handle) return null
+      handleRef.current = null
+
+      const outcome = await handle.stop()
+      if (abortedRef.current) return null
+
+      // `null` is an abandoned take: neither a result nor a failure the operator should see.
+      if (outcome === null) return null
+      if (!outcome.ok) {
+        setOwnFailure(outcome.failure)
+        return null
+      }
+
+      const registry = registryRef.current
+      if (!registry) {
+        setOwnFailure(captureFailure('UNSUPPORTED', optionsRef.current.facility))
+        return null
+      }
+
+      const media: CapturedMedia = {
+        kind: optionsRef.current.facility === 'microphone' ? 'audio' : 'video',
+        url: registry.create(outcome.blob),
+        mimeType: outcome.mimeType,
+        sizeBytes: outcome.blob.size,
+        durationSec: Math.round(recordedMs(stopped, atMs) / 1000),
+        capturedAt: capturedAt(),
+        sample: false,
+      }
+      setOwnFailure(null)
+      replaceCaptured(media)
+      return media
+    },
+    [capturedAt, replaceCaptured],
+  )
+
   const stopRecording = useCallback(async (): Promise<CapturedMedia | null> => {
-    const handle = handleRef.current
     const atMs = now()
     const next = stopRecordingState(recordingRef.current, atMs)
-    if (next === recordingRef.current || !handle) return null
+    // Already stopped — by the visitor a moment ago, or by the browser ending the take itself
+    // (in which case `onRecorderEnded` has assembled it and `captured` is already set).
+    if (next === recordingRef.current) return null
     applyRecording(next, atMs)
+    return finishTake(next, atMs)
+  }, [applyRecording, finishTake, now])
 
-    const outcome = await handle.stop()
-    handleRef.current = null
-    if (abortedRef.current) return null
-
-    // `null` is an abandoned take: neither a result nor a failure the operator should see.
-    if (outcome === null) return null
-    if (!outcome.ok) {
-      setOwnFailure(outcome.failure)
-      return null
-    }
-
-    const registry = registryRef.current
-    if (!registry) {
-      setOwnFailure(captureFailure('UNSUPPORTED', optionsRef.current.facility))
-      return null
-    }
-
-    const media: CapturedMedia = {
-      kind: optionsRef.current.facility === 'microphone' ? 'audio' : 'video',
-      url: registry.create(outcome.blob),
-      mimeType: outcome.mimeType,
-      sizeBytes: outcome.blob.size,
-      durationSec: Math.round(recordedMs(next, atMs) / 1000),
-      capturedAt: capturedAt(),
-      sample: false,
-    }
-    setOwnFailure(null)
-    replaceCaptured(media)
-    return media
-  }, [applyRecording, capturedAt, now, replaceCaptured])
+  /**
+   * The browser ended the take without being asked — the camera was unplugged, the permission
+   * was revoked, a screen share was stopped from the browser's own bar.
+   *
+   * Banking the state HERE is the whole point: the elapsed readout freezes at the real end
+   * instead of counting a recorder that stopped minutes ago, the tick effect unmounts with the
+   * phase, and `durationSec` describes the file rather than the visitor's reaction time.
+   */
+  const onRecorderEnded = useCallback(() => {
+    const atMs = now()
+    const next = stopRecordingState(recordingRef.current, atMs)
+    if (next === recordingRef.current) return
+    applyRecording(next, atMs)
+    void finishTake(next, atMs)
+  }, [applyRecording, finishTake, now])
 
   // The tick effect closes over `stopRecording`; the ref keeps that closure current without
   // re-creating the interval on every identity change.
   useEffect(() => {
     stopRecordingRef.current = stopRecording
   }, [stopRecording])
+  useEffect(() => {
+    onRecorderEndedRef.current = onRecorderEnded
+  }, [onRecorderEnded])
 
   const abortRecording = useCallback(() => {
     handleRef.current?.abort()

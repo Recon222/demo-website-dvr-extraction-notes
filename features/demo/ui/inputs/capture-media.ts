@@ -336,6 +336,18 @@ export type StartRecordingOutcome =
 export interface RecorderDeps {
   /** `null` means "no MediaRecorder on this page" → an `UNSUPPORTED` failure. */
   recorder: RecorderIo | null
+  /**
+   * The recorder stopped ON ITS OWN — nobody called `stop()` (R-13).
+   *
+   * A `MediaRecorder` ends when its tracks do: the camera is unplugged, the OS revokes the
+   * permission mid-take, a screen share is stopped from the browser's own bar. Without this
+   * signal the surface never learns, so its timer keeps counting a recorder that stopped
+   * minutes ago and the duration it finally stamps on the file is wall-clock, not recorded
+   * length — an unmeasured number rendered as fact in the review screen, the library row and
+   * the info panel. Fires exactly once, and never for an aborted take (which has no outcome
+   * by definition).
+   */
+  onEnded?(): void
 }
 
 /**
@@ -411,7 +423,11 @@ export function startStreamRecording(
     if (event.data && event.data.size > 0) chunks.push(event.data)
   }
   instance.onstop = () => {
+    // Nobody was waiting on a `stop()` we issued, so the browser ended this take itself.
+    // Read before `settle`, which flips the flag it depends on.
+    const selfEnded = !settled && !aborted && resolvePending === null
     settle(assemble())
+    if (selfEnded) deps.onEnded?.()
   }
   instance.onerror = () => {
     errored = true
