@@ -5,9 +5,12 @@ import { useCallback, useRef, useState, type CSSProperties } from 'react'
 import {
   formatDuration,
   formatFileSize,
+  isValidFilename,
+  mediaFilename,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media'
 import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCard } from '@/features/demo/ui/glass-tokens'
+import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 
 /**
  * Review Audio (parity P4.6, matrix row 69) — the phone's `AudioPreview.tsx`: a player card
@@ -37,24 +40,29 @@ const END_TOLERANCE_SEC = 0.1
 
 export interface AudioPreviewScreenProps {
   captured: CapturedMedia
-  /** The filename this take will be stored under, extension included. Displayed so the
-   *  visitor can see what is being written — P4.4 replaces it with an editable field. */
-  filename: string
+  /** The filename BASE the metadata form opens pre-filled with — no extension; the form's
+   *  `savingAs` line adds the real container's (§58c). */
+  defaultFilenameBase: string
   /** An informational line carried over from the recorder (today: the 1-hour auto-stop, which
    *  lands the visitor HERE without them pressing anything — an unexplained screen change is a
    *  silent event). Not a failure; never the red treatment. */
   notice: string | null
-  onSave(): void
+  onSave(meta: MetadataFormValue): void
   onRecordAgain(): void
   onCancel(): void
 }
 
-export function AudioPreviewScreen({ captured, filename, notice, onSave, onRecordAgain, onCancel }: AudioPreviewScreenProps) {
+export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSave, onRecordAgain, onCancel }: AudioPreviewScreenProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [elementDuration, setElementDuration] = useState<number | null>(null)
   const [playbackBlocked, setPlaybackBlocked] = useState(false)
+  // Owned here, as the phone's `AudioPreview` owns it (`AudioPreview.tsx:92-96`): this screen
+  // mounts once per take and unmounts on Record Again, so a discarded take's name cannot
+  // survive onto the next one.
+  const [meta, setMeta] = useState<MetadataFormValue>(() => ({ filename: defaultFilenameBase, caption: '' }))
+  const canSave = isValidFilename(meta.filename)
 
   /**
    * Total length. The RECORDED figure leads and the element's own `duration` is the fallback,
@@ -207,21 +215,40 @@ export function AudioPreviewScreen({ captured, filename, notice, onSave, onRecor
         </div>
       )}
 
-      {/* SEAM(P4.4): MetadataForm inserts between preview-accept and addMedia — the filename +
-          notes fields belong HERE, between the player card and the action row (phone content
-          order, ui-mapping 10-audio.md:139). Until then the flow supplies a default base name
-          and an empty caption, and the line below shows what will actually be written. Save is
-          ungated because there is nothing yet for the visitor to get wrong; P4.4 restores the
-          phone's "Save Audio disabled until the filename is valid" gate along with the form. */}
-      <div style={{ fontSize: 11, color: '#7a9fc4', marginBottom: 14 }}>
-        Saves as <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", color: '#cdd9e6' }}>{filename}</span>
-      </div>
+      {/* Between the player card and the action row — the phone's content order
+          (ui-mapping 10-audio.md:139, `AudioPreview.tsx:271-278`). */}
+      <MetadataForm
+        value={meta}
+        onChange={setMeta}
+        mediaType="audio"
+        savingAs={mediaFilename(meta.filename, captured)}
+      />
 
       <div style={{ display: 'flex', gap: 12, marginTop: 'auto' }}>
         <button type="button" onClick={onRecordAgain} style={{ flex: 1, padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
           Record Again
         </button>
-        <button type="button" onClick={onSave} style={{ flex: 1, padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+        {/* The phone's gate (`AudioPreview.tsx:294` — `disabled={!isFormValid || isSaving}`),
+            restored with the house `aria-disabled` + guarded-handler idiom (§44b / R-15 /
+            §61b): the control stays focusable and the reason is already announced by the
+            filename field's `role="alert"`. */}
+        <button
+          type="button"
+          aria-disabled={canSave ? undefined : true}
+          onClick={() => {
+            if (!canSave) return
+            onSave(meta)
+          }}
+          style={{
+            flex: 1,
+            padding: 14,
+            ...glassBtnPrimary,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: canSave ? 'pointer' : 'default',
+            opacity: canSave ? 1 : 0.5,
+          }}
+        >
           Save Audio
         </button>
       </div>

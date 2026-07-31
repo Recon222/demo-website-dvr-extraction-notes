@@ -56,6 +56,24 @@ describe('audio recording — the bridge', () => {
     expect(store.getState().currentChapter).toBe('dvrInfo')
   })
 
+  it('stores the filename and notes the visitor typed into the metadata form', () => {
+    // Row 56's audio field keys, end to end through the bridge.
+    const store = seed()
+    render(<DemoExperience store={store} />)
+    openRecorder(store)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach a sample audio note' }))
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'manager statement' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'retention period, 30 days' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
+
+    expect(audios(store)[0]).toMatchObject({
+      // The base is the visitor's; the extension is still the container's (§58c).
+      filename: 'manager statement.m4a',
+      caption: 'retention period, 30 days',
+    })
+  })
+
   it('mints an id that a rehydrated session cannot collide with', () => {
     const store = seed()
     render(<DemoExperience store={store} />)

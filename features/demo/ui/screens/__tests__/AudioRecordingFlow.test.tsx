@@ -224,6 +224,41 @@ describe('AudioRecordingFlow — the live path', () => {
     expect(revoked).not.toContain(savedUrl)
   })
 
+  it('carries the visitor’s filename and notes up to the bridge, not the default', async () => {
+    // Row 56's audio half. The default is a PRE-FILL — what gets stored is what is in the field.
+    const { deps, recorder, advance } = liveDeps()
+    const { onSave } = mount({ deps })
+    await settle()
+    await recordAndStop(recorder, advance)
+
+    expect(screen.getByLabelText('Filename')).toHaveValue('audio-note-1')
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'manager statement' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'retention period, 30 days' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
+
+    expect(onSave.mock.calls[0][1]).toEqual({
+      filename: 'manager statement',
+      caption: 'retention period, 30 days',
+    })
+  })
+
+  it('starts a re-recorded take from the default, never the discarded take’s name', async () => {
+    // The metadata state lives INSIDE the preview screen, which unmounts on Record Again.
+    // Lifting it into this flow (or into a ref that outlives the take) is the regression this
+    // pins: an abandoned take's name would silently ride onto the next recording.
+    const { deps, recorder, advance } = liveDeps()
+    mount({ deps })
+    await settle()
+    await recordAndStop(recorder, advance)
+
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: 'wrong take' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record Again' }))
+    await settle()
+    await recordAndStop(recorder, advance)
+
+    expect(screen.getByLabelText('Filename')).toHaveValue('audio-note-1')
+  })
+
   it('revokes the discarded take on Record Again and returns to a live recorder', async () => {
     const { deps, recorder, revoked, advance, mediaDevices } = liveDeps()
     mount({ deps })

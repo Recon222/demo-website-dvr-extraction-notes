@@ -34,7 +34,7 @@ function view(over: Partial<React.ComponentProps<typeof AudioPreviewScreen>> = {
     onRecordAgain: vi.fn(),
     onCancel: vi.fn(),
   }
-  render(<AudioPreviewScreen captured={LIVE} filename="audio-note-1.webm" notice={null} {...handlers} {...over} />)
+  render(<AudioPreviewScreen captured={LIVE} defaultFilenameBase="audio-note-1" notice={null} {...handlers} {...over} />)
   return handlers
 }
 
@@ -79,23 +79,41 @@ describe('AudioPreviewScreen — the phone surface', () => {
     expect(screen.getByText('8.0 KB')).toBeInTheDocument()
   })
 
-  it('names the file it is about to write (the P4.4 seam’s stand-in)', () => {
-    view({ filename: 'audio-note-2.webm' })
+  it('opens the metadata form pre-filled and names the file it will write', () => {
+    view({ defaultFilenameBase: 'audio-note-2' })
+    expect(screen.getByLabelText('Filename')).toHaveValue('audio-note-2')
+    // The base plus the container the browser really produced (§58c) — not `.m4a`.
     expect(screen.getByText('audio-note-2.webm')).toBeInTheDocument()
   })
 
-  it('routes save, retake and exit to their callbacks', () => {
+  it('routes save, retake and exit to their callbacks, carrying the form’s value', () => {
     const handlers = view()
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'rear office' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
     fireEvent.click(screen.getByRole('button', { name: 'Record Again' }))
     fireEvent.click(screen.getByRole('button', { name: 'Exit audio recording' }))
     expect(handlers.onSave).toHaveBeenCalledTimes(1)
+    expect(handlers.onSave).toHaveBeenCalledWith({ filename: 'audio-note-1', caption: 'rear office' })
     expect(handlers.onRecordAgain).toHaveBeenCalledTimes(1)
     expect(handlers.onCancel).toHaveBeenCalledTimes(1)
   })
 
+  it('refuses to save an unnamed note — the phone’s gate, restored (P4.4)', () => {
+    // Mutation probe for `if (!canSave) return`: drop it and `onSave` fires with an empty base,
+    // which `mediaFilename` would turn into a file called `.webm`.
+    const handlers = view()
+    fireEvent.change(screen.getByLabelText('Filename'), { target: { value: '  ' } })
+
+    const save = screen.getByRole('button', { name: 'Save Audio' })
+    expect(save).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(save)
+
+    expect(handlers.onSave).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a file name')
+  })
+
   it('labels a sample take as one and does not print a size it never measured (§58f)', () => {
-    view({ captured: SAMPLE, filename: 'sample-note.m4a' })
+    view({ captured: SAMPLE, defaultFilenameBase: 'sample-note' })
     expect(screen.getByText('Sample')).toBeInTheDocument()
     expect(screen.getByText(/no microphone was used/i)).toBeInTheDocument()
     expect(screen.getByText('Size not measured')).toBeInTheDocument()

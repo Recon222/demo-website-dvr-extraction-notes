@@ -68,6 +68,7 @@ import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
 import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
 import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
+import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { buildMediaItem, type CapturedMedia } from '@/features/demo/engine/logic/media'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
@@ -643,10 +644,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * screen's object-URL hand-off hangs on the answer: a refused save must leave the `blob:`
    * URL owned by the capture hook so its unmount sweep frees it (deferred §58 carry-rule 1).
    *
-   * INTERIM (P4.4): the filename and caption arrive as defaults — `MetadataForm` has not been
-   * built yet, so nothing has asked the visitor for either. `buildMediaItem` is what turns the
-   * base into a real filename, using `mediaFilename`, so the extension names the container the
-   * browser actually produced rather than the phone's `.jpg`/`.mp4` (§58c).
+   * The filename and caption are the metadata form's (P4.4) — a BASE name, never a finished
+   * filename. `buildMediaItem` is what turns it into one, using `mediaFilename`, so the
+   * extension names the container the browser actually produced rather than the phone's
+   * `.jpg`/`.mp4` (§58c).
    */
   const saveCapturedMedia = ({ captured, filename, caption }: SaveMediaRequest): boolean => {
     const st = store.getState()
@@ -685,12 +686,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * Commit a finished audio note (P4.6). The ONLY store write in the audio flow — the flow and
    * both of its screens are pure, per the store-bridge rule.
    *
-   * SEAM(P4.4): MetadataForm inserts between preview-accept and addMedia. `meta` is where its
-   * value arrives; today the flow synthesizes `{ filename: defaultFilenameBase, caption: '' }`
-   * and this handler is what P4.4 will feed instead — unchanged. The extension is `buildMediaItem`'s
-   * (via `mediaFilename`), never appended here (§58c).
+   * `meta` is the metadata form's value (P4.4): a filename BASE plus the visitor's notes. The
+   * extension is `buildMediaItem`'s (via `mediaFilename`), never appended here (§58c).
    */
-  const saveAudioNote = (captured: CapturedMedia, meta: { filename: string; caption: string }) => {
+  const saveAudioNote = (captured: CapturedMedia, meta: MetadataFormValue) => {
     const st = store.getState()
     // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
     // restored session cannot collide with them.
@@ -1759,8 +1758,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // wizard step the visitor came from — `currentChapter` was never touched.
         return (
           <AudioRecordingFlow
-            // SEAM(P4.4): the MetadataForm replaces this default with the visitor's filename.
-            // Numbered off the location's existing notes so two takes don't share a name.
+            // What the metadata form opens PRE-FILLED with for a live take — numbered off the
+            // location's existing notes so two takes don't arrive with the same name. The
+            // visitor is free to replace it; a sample take overrides it with the bundled
+            // asset's own name (`suggestedFilenameBase`).
             defaultFilenameBase={`audio-note-${(currentLocation?.form.media.audios.length ?? 0) + 1}`}
             onSave={saveAudioNote}
             onClose={() => store.getState().closeLaunch()}
