@@ -2,445 +2,287 @@
 
 **Lane:** `web-reviewer` (render + bundle performance, browser-API correctness, resource leaks,
 accessibility, CSS/style discipline, marketing↔demo isolation).
-**Branch:** `feat/parity-p3` · **Base:** `master` · **Round 1 (initial) @ `4e60680`.**
-**Counts:** 0 BLOCKER · 1 MAJOR · 4 MEDIUM · 3 MINOR.
+**Branch:** `feat/parity-p3` · **Base:** `master`
+**Round 1 (initial):** @ `4e60680` — 1 MAJOR · 4 MEDIUM · 3 MINOR · 0 BLOCKER.
+**Round 2 (fix-delta):** @ `3cecfcc` (fix commits after `b678a8d`) — **all 8 findings FIXED**,
+0 PARTIAL, 0 UNFIXED. 1 new MINOR raised (a narrow residual of R-1's own fix mechanism).
 
-Scope read: full `git diff master...feat/parity-p3` (91 files, +11321/−317), plus the render
-parents of every changed surface (`DemoExperience.tsx`, `PhoneFrame.tsx`, `phone-overlay.tsx`,
-`_shared.tsx`) and the pre-existing siblings each new component claims parity with
-(`GpsCaptureControl`, `LocationFields`, `AlertDialog`, `PdfPreview`).
+WEB-n → R-n mapping taken from the vetted doc's routing table
+(`docs/code-reviews/parity/p3/p3-review.md:504-511`).
 
-**Three findings below are empirically proven**, not reasoned: WEB-1, WEB-2 and WEB-5 were each
-reproduced with a throwaway vitest probe against the real components in this worktree. The probe
-files were deleted; the tree is clean apart from this document. Each finding quotes its probe.
+| Lane finding | Vetted as | Status | Pinned by |
+|---|---|---|---|
+| WEB-1 MAJOR — shared `useLongPress` double-fires on touch | R-1 (MAJOR, merged) | **FIXED** | `useLongPress.test.tsx:170` + `CasesScreen.row-actions.test.tsx` "a TOUCH hold leaves the tray open…" |
+| WEB-2 MEDIUM — dashboard's private hook, latch armed by a mouse hold | R-1 (MAJOR, merged) | **FIXED** | `useLongPress.test.tsx:190` "a MOUSE hold does not leave a latch…"; private hook deleted |
+| WEB-3 MEDIUM — `DuplicateLocationModal` hard `disabled`, silent empty-name arm | R-3 (MAJOR, **promoted**) | **FIXED** (exceeded) | `DuplicateLocationModal.test.tsx` (+57/−13); gate routed through `newLocationBlock` |
+| WEB-4 MEDIUM — `DemoNotification` not a live region | R-9 (MINOR, demoted) | **FIXED** | new `DemoNotification.test.tsx` "is a live region…[R-9]" |
+| WEB-5 MEDIUM — delete dialog's focus-return a no-op at its call path | R-10 (MINOR, demoted) | **FIXED** | `triggerRef` anchor; probe-verified below |
+| WEB-6 MINOR — incident `CoordinateField` errors unassociated | R-16 (MINOR) | **FIXED** | `IncidentLocationFields.test.tsx` (+17) |
+| WEB-7 MINOR — `NewCaseModal` `submitBlocked` w/o `submitDescribedBy` | Appendix A (NIT) | **ADDRESSED** as documented-deliberate | call-site comment `NewCaseModal.tsx:279-285` + `§57i` |
+| WEB-8 MINOR — Cases rows select text mid-hold | folded into R-1 (rider) | **FIXED** | `LONG_PRESS_SURFACE_STYLE` on both row surfaces |
+
+**Gate re-checks.** `tsc --noEmit` **exit 0**. Ten blast-radius suites (`ui/primitives`,
+`CasesScreen.row-actions`, `DashboardScreen`, `DuplicateLocationModal`, `DemoNotification`,
+`IncidentLocationFields`, `DeleteConfirmationModal`, `DemoExperience.crud`,
+`DemoExperience.duplicate`) — **107/107 pass** in 8.0 s. Boundary re-grepped: the entire fix range
+touches only `features/demo/**` plus `docs/code-reviews/deferred.md`; `git diff b678a8d..HEAD --stat`
+over `package.json`, `pnpm-lock.yaml`, `next.config.js`, `postcss.config.js`, `app/`, `components/`,
+`lib/` is **empty**, and the wall still returns only the documented comment in
+`components/marketing/phone-frame.tsx:7`. No new listener, timer or observer in the range —
+R-8's change is a dep-array correction on an existing, already-cleaned-up `setTimeout`.
+
+**Verification method.** Every round-1 finding was re-run with the same probe shape that proved it
+originally, against the fixed components; the R-1/R-10 probes additionally ran against the real
+`CasesScreen` rather than a synthetic probe. A separate 4-arm regression sweep exercised the moved
+gesture surfaces' keyboard/AT paths. All probe files were deleted; the tree is clean apart from this
+document.
 
 ---
 
-## Structural gates (all clean)
+## WEB-1 + WEB-2 → R-1 — **FIXED**
 
-| Gate | Result |
-|---|---|
-| **Marketing↔demo wall** | **Preserved.** `grep -rn "features/demo" components app/\(default\) lib` returns exactly one hit — the documented comment in `components/marketing/phone-frame.tsx:7`. No import form anywhere. |
-| **Chrome scope** | Untouched — `app/layout.tsx` and `app/(default)/layout.tsx` are not in the diff. |
-| **Bundle** | **No impact.** `git diff --stat` over `package.json`, `pnpm-lock.yaml`, `next.config.js`, `postcss.config.js`, `app/`, `components/`, `lib/` is **empty**. No new dependency, no import-shape change, no lazy→static conversion. `mapbox-gl` / `pdfjs-dist` remain `await import`ed inside their effects/functions. `pnpm build` deliberately not run — the lane rule scopes it to dependency or import-shape changes, and there are none. |
-| **Browser-resource cleanup** | **Complete.** Every new listener/observer/timer in the diff tears down: `useLongPress` (`clearTimeout` on the `enabled` flip *and* on unmount, `useLongPress.ts:82-85`); `CaseActionsSheet`'s `ResizeObserver` (`ro.disconnect()`, `CaseActionsSheet.tsx:125`, with a `typeof ResizeObserver === 'undefined'` capability guard at `:121`); `ModalShell` / `DeleteConfirmationModal` Escape listeners (both `removeEventListener` in cleanup); `DemoNotification`'s auto-dismiss `setTimeout` (pre-existing, cleared). `useGpsCapture`'s abort ref covers the 50 new per-camera capture controls — no listener or timer is created at mount, so a 50-row camera list adds no standing browser resources. |
-| **Browser globals** | No module-scope `window`/`document`/`navigator` reads added. `CameraGpsCapture`'s `Spinner` reads `window.matchMedia` in render behind `typeof window !== 'undefined'` + `?.` — identical to the accepted `GpsCaptureControl` precedent (P1.2 R-14), and the demo is `ssr: false`. Not flagged. |
-| **Store-subscription discipline** | Every new `useStore` call in the bridge is single-selector (`DemoExperience.tsx:292-301`). No whole-state subscription, no selector returning a fresh object/array. |
+One hook (`features/demo/ui/primitives/useLongPress.ts`), both latches, **reset first, guard
+second**. `DashboardScreen`'s private copy is deleted (−67 lines) along with its duplicate
+`LONG_PRESS_MS`.
+
+The two defects are fixed by the two halves of that ordering:
+
+- **Touch double-fire (WEB-1)** — a `fired` ref is set when the timer fires (`:158`) and *consumed*
+  by the trailing `contextmenu` (`:179-182`) instead of the callback running a second time.
+- **Armed latch (WEB-2)** — both latches are cleared at the top of `onPointerDown` **before** the
+  `e.button !== 0` return (`:148-152`), so a right-click's own pointerdown clears a latch no
+  `contextmenu` came to consume. This is precisely what P3.2's copy could not do.
+
+Re-ran both original probes plus two new arms:
+
+```
+✓ WEB-1: touch hold + trailing contextmenu leaves the tray OPEN
+✓ WEB-1b: a genuine right-click AFTER the touch gesture still toggles
+✓ WEB-2: mouse hold does NOT eat the next right-click
+✓ nested control does not arm; the surface itself does
+```
+
+and against the real component:
+
+```
+>>> R-1 tray open on real row: true
+```
+
+**The refutation in `§57a` / commit `ec20686` is correct, and the delivered shape is better than
+what I proposed.** I asked to lift `e.target.closest('button')` into the shared hook. On the Cases
+layout the handlers rode a wrapper `<div>` whose every descendant is a `<button>`, so that bail
+would have matched on every press and killed the gesture outright — I did not check that, and the
+refutation's layout evidence is sound. Their replacement is strictly stronger: compare against the
+surface (`closest(control) !== e.currentTarget`, `:196-200`) **and** move each caller's hook onto the
+element that *is* the gesture surface. That also resolves the sub-claim I raised without a fix — the
+⋯ trigger is now a sibling outside the gesture, so holding it no longer double-toggles its own tray
+(pinned by a new arm in `CasesScreen.row-actions.test.tsx`).
+
+`§57b` generalises the root cause into a reusable rule (a `useX` defined inside a screen file is a
+consolidation candidate by default), which is the right place to land it — this was the guard rail's
+third strike.
+
+**WEB-8 rider:** `LONG_PRESS_SURFACE_STYLE` (`:99`) carries `userSelect: 'none'` to both Cases row
+surfaces. Exported as a style token rather than folded into the returned handlers, because callers
+spread those alongside their own `style` prop and a `style` key inside would win or lose by attribute
+order — a correct call.
 
 ---
 
-## WEB-1 — [MAJOR] The unified `useLongPress` lost P3.2's touch double-fire latch: a touch long-press on a Cases row opens the tray and immediately closes it again
+## WEB-3 → R-3 — **FIXED (exceeded)**
 
-**File:** `features/demo/ui/primitives/useLongPress.ts:114-120` (consumers:
-`features/demo/ui/screens/CasesScreen.tsx:129` and `:210`)
+`ActionButton`'s `disabled` prop became `blocked` → `aria-disabled` + `aria-describedby`, with
+enforcement moved into the `duplicate()` guard (`:139`). Both halves of my finding are closed, and
+the fix went past what I asked for: rather than adding a local reason string, it **retired the
+component's private re-derivation of the two name rules** and routes through the shared
+`newLocationBlock({ …, requireAddress: false })`. `NAME_TAKEN_ERROR` is now a re-export of
+`NEW_LOCATION_BLOCK_MESSAGES.duplicateName`, so the two surfaces cannot drift on copy — and the
+module's evaluation order comes with it, so a blank name reports `nameRequired`, never
+`duplicateName`, even when a blank-named sibling exists.
+
+That closes the empty-name silence I flagged, with the phone's verbatim copy rather than an invented
+string:
+
+```
+>>> blank-name reason announced: "Location name is required"
+>>> four un-gated actions remain actionable: true
+```
+
+Probe confirms the blocked action keeps `aria-disabled="true"`, carries **no** `disabled` attribute,
+points `aria-describedby` at the live reason node, and still refuses to act. `§57c` records the
+consequence worth knowing: under the old `disabled` attribute the click never reached the handler, so
+the commit-path guard was never actually exercised by its own test — the arm now pins the mechanism,
+not just the outcome.
+
+---
+
+## WEB-4 → R-9 — **FIXED**, and R-8 caught a defect I missed
+
+`role="status"` added to the banner (`DemoNotification.tsx:54`), inherited by both call sites.
+
+R-8, raised alongside it, is a genuine bug in the same component that **my finding did not catch**:
+`message` was absent from the auto-dismiss effect's deps, and the bridge renders the element
+positionally, so a second notice inside the 2.6 s window re-used the same instance — text swapped,
+timer not restarted. A notice raised at t≈2.4 s lived ~200 ms. That matters most on exactly the arms
+I argued about: for Export ZIP/GeoJSON and the failure notices the banner is the entire outcome, so a
+sub-perceptual flash reads as a dead button. Worth noting the two fixes compose — with `message` in
+the deps a content change now both restarts the dwell and re-announces through the live region.
+
+Pinned by a new `DemoNotification.test.tsx` whose R-8 arm asserts the second notice survives past the
+first one's deadline and dismisses on its own — a real behavioural pin, not a shape check.
+
+---
+
+## WEB-5 → R-10 — **FIXED**
+
+Neither shape I proposed was used, and `§57f` argues why: keeping the tray mounted would drop §48a's
+ported tray-closes-on-handoff behaviour, and threading a `returnFocusTo` ref up to the bridge would
+cross the callback-isolation boundary for chrome state. Both objections are correct.
+
+The delivered fix moves focus to the row's own ⋯ trigger *before* the tray unmounts
+(`CasesScreen.tsx:172`, `:253-254`), so the dialog's existing `document.activeElement` capture finds a
+live element. The trigger is a better anchor than the one I implied: it is the affordance that led
+there, and unlike the tray's buttons it survives the tray closing. Probe against the real
+`CasesScreen` + `DeleteConfirmationModal`:
+
+```
+>>> R-10 dialog focused on open: true
+>>> R-10 focus after Cancel — is <body>? false | is the ⋯ trigger? true
+```
+
+The delete-the-case path still degrades correctly: the row unmounts, `opener.isConnected` is false,
+and the restore is skipped rather than throwing.
+
+---
+
+## WEB-6 → R-16 — **FIXED**, private twin correctly deferred
+
+`useId()` + `aria-describedby` + `role="alert"` on `IncidentLocationFields`' `CoordinateField`
+(`:115`, `:126`, `:136-140`) — the treatment the shared `Field` gained in this phase (§56e), applied
+to the input that missed it.
+
+`NewCaseModal`'s private `CoordinateField` twin still has the gap, and `§57h` books it against
+§53d's full fold with a stated trigger, on the reasoning that fixing a component slated for deletion
+would make the duplication harder to see rather than easier. **That matches my own round-1 framing**
+(I recorded the twin as pre-existing and as the completeness sweep for when the shared fix lands), so
+it is correctly deferred, not unfixed.
+
+---
+
+## WEB-7 → Appendix A — **ADDRESSED as documented-deliberate**
+
+Exactly the disposition I suggested: a call-site comment (`NewCaseModal.tsx:279-285`) recording that
+the omission is the §50a/§56d design — the click reaches `handleSubmit`, which writes the phone's
+verbatim per-field messages into the fields' own `role="alert"` nodes — so a later a11y sweep does not
+"fix" it into a swallow. `§57i` carries the same reasoning. Closed.
+
+---
+
+# NEW FINDINGS (round 2)
+
+## NEW-WEB-1 — [MINOR] R-1's latch survives a `contextmenu` that has no preceding `pointerdown` — the keyboard menu key after a mouse hold
+
+**File:** `features/demo/ui/primitives/useLongPress.ts:143-160`
 
 ### Issue
 
-On touch, one long-press gesture raises **two** signals: our own 500 ms `setTimeout`, and the
-OS/browser `contextmenu` that the same hold produces a moment later. The merged hook's
-`onContextMenu` fires the callback unconditionally:
+R-1 clears the `fired` latch at the top of `onPointerDown`, which is what lets a right-click's own
+pointerdown clear a latch that no `contextmenu` came to consume. That mechanism cannot cover a
+`contextmenu` raised **without** any pointer event — the keyboard context-menu key / **Shift+F10**,
+which fires on the focused element directly.
 
-```ts
-onContextMenu: (e) => {
-  if (!enabled) return
-  e.preventDefault() // and with it the touch-hold menu that would cover the tray
-  clear()
-  // No swallow flag: a context-menu gesture produces no follow-up click to eat.
-  cb.current()
-},
-```
-
-`clear()` only clears the *pending* timer. If the timer has already fired (`timer.current === null`),
-`clear()` is a no-op and `cb.current()` runs a **second** time for the same gesture. Both consumers
-pass a **toggle** — `toggleActions = (key) => setOpenActionsKey(prev => prev === key ? null : key)`
-(`CasesScreen.tsx:50`) — so the two fires are open-then-close. The visitor holds the row for half a
-second and nothing happens.
-
-The comment quoted above is answering the wrong question: it reasons about the trailing *click*
-(correctly — there is none), not about the callback firing twice.
+The Cases gesture surface is now a real `<button>` (that is R-1's own improvement), so it is
+focusable and Shift+F10 targets it. A completed desktop **mouse** hold leaves `fired` set — the
+trailing click consumes `swallowNextClick` but nothing consumes `fired` — so the next Shift+F10 on
+that row is swallowed, and `preventDefault()` has already suppressed the browser menu.
 
 ### Evidence
 
-**1. In-repo proof that the timer-first ordering is real.** `DashboardScreen.tsx:46-48` states it as
-observed fact and carries a latch specifically for it:
-
-```ts
-// A touch hold fires our timer at 500ms AND raises the OS `contextmenu` a moment later.
-// Without this latch that one gesture would open the sheet twice.
-const firedRef = useRef(false)
-```
-
-Shipped by commit `048ee1f`, *"fix(demo): measure the report's CONTENT box, and **latch the touch
-double-fire**"*, and pinned by `DashboardScreen.test.tsx` — *"a touch hold that also raises
-contextmenu opens the sheet ONCE"*. So the phase already found this bug once and fixed it — in the
-copy that did not need it most.
-
-**2. Why the merged hook does not have it.** `deferred.md §56f` enumerates the union exactly:
-
-> Merged at P3.1's path … as a genuine union: P3.1's `enabled` gate and capture-phase swallow,
-> P3.5's context-menu gesture, movement tolerance and keyboard-safe `detail === 0` exemption.
-
-There were **three** long-press hooks in this PR, not two. §56f reconciled P3.1 ∪ P3.5;
-`DashboardScreen`'s private third copy — the only one carrying the latch — was never in scope, so
-the latch never crossed. `useLongPress.test.tsx` inherited P3.5's suite, which has no
-touch-double-fire arm, so nothing caught it.
-
-**3. Reproduced.** Probe against the real hook, and against the CasesScreen toggle shape:
+Probe against the real `CasesScreen` — mouse hold, pointerup, click, then a bare `contextMenu`:
 
 ```
-× counts the callback fires for ONE touch hold gesture
-  AssertionError: expected "vi.fn()" to be called 1 times, but got 2 times
-
-× CasesScreen shape: does the tray stay open after a touch hold?
-  >>> tray present after trailing contextmenu: false
+>>> RESIDUAL tray still open after Shift+F10 (should have toggled shut): true
 ```
 
-### Failure scenario
+The dashboard card is unaffected: it is a non-focusable `<div>`, so the keyboard menu key cannot
+target it.
 
-`/demo` on any touch device (the demo's own framing calls the hold the phone-parity gesture).
-Cases tab → hold a case card or a location row for 500 ms → the tray flickers open and closes; the
-Delete / `Duplicate…` actions are unreachable by the documented gesture. Desktop mouse is
-unaffected (a left-button hold raises no `contextmenu`), which is why every existing test passes.
-The always-visible ⋯ trigger still works, so this is a broken accelerator rather than a dead end —
-but it is the affordance `RowActions.tsx:13-15` and `deferred.md §48a` are both written around.
+### Assessment
+
+This is a **residual of the fix's chosen mechanism, not a regression** — round-1 WEB-2 was "any
+right-click after a mouse hold", and R-1 narrowed it to "a keyboard context-menu key, on the Cases
+rows only, with no intervening pointerdown". Mixed-modality (mouse hold then keyboard menu key on the
+same row), and self-clearing: the swallow resets `fired`, so the second press works. Hence MINOR
+rather than a re-raise.
 
 ### Fix
 
-Port `DashboardScreen`'s latch into the shared hook — set a `firedRef` when the timer fires, and
-have `onContextMenu` consume-and-return instead of calling `cb.current()` when it is set. Reset it
-on `pointerdown` alongside `swallowNextClick` (see WEB-2 for the reset's own trap). Then add the
-missing arm to `useLongPress.test.tsx`, mirroring
-`DashboardScreen.test.tsx`'s *"a touch hold that also raises contextmenu opens the sheet ONCE"*.
+Set the latch only when it can actually be needed — `fired.current = e.pointerType === 'touch'` at
+the timer body, capturing `pointerType` at pointerdown. A mouse hold raises no trailing `contextmenu`,
+so it never needs the latch; a touch hold does. That removes the residual class entirely rather than
+adding a second clearing path. One arm to pin: mouse hold → bare `contextMenu` (no pointerdown) still
+fires.
 
 ---
 
-## WEB-2 — [MEDIUM] Third long-press hook still lives in `DashboardScreen`, and its latch is left armed by a desktop mouse hold — eating the next right-click
+## Regression sweep — moved gesture surfaces (clean)
 
-**File:** `features/demo/ui/screens/DashboardScreen.tsx:44-83`
-
-### Issue
-
-The assembly's stated outcome was **one** hook (`useLongPress.ts:14-19`, "ONE HOOK (P3 assembly)").
-`DashboardScreen` still defines its own, with divergent semantics: it has the `firedRef` latch and a
-nested-control bail that the shared hook lacks; it lacks the shared hook's movement tolerance,
-`enabled` gate and capture-phase swallow.
-
-Its latch has the mirror-image defect of WEB-1. `firedRef` is only reset inside `onPointerDown`,
-which returns early for non-primary buttons (`if (e.button !== 0) return`, `:60`). A **desktop mouse**
-hold fires the timer and sets `firedRef = true`, and no `contextmenu` ever follows to consume it. The
-flag stays armed for the life of the card. The visitor's *next* right-click on that card is then
-swallowed — and because `onContextMenu` calls `e.preventDefault()` before checking the latch, they
-get neither the actions sheet nor the browser's own menu.
-
-```ts
-onContextMenu: (e) => {
-  e.preventDefault()
-  clear()
-  if (firedRef.current) {
-    firedRef.current = false // the hold already opened it — swallow the trailing event
-    return
-  }
-  onLongPress()
-},
-```
-
-### Evidence
-
-Reproduced against the real `DashboardScreen`:
+R-1 relocated the hook from the wrapper strip onto the row/header buttons, which is the change most
+likely to have collateral. Four arms, all passing:
 
 ```
->>> right-click after a mouse hold — sheet opened? 0 | browser menu suppressed? true
+>>> Enter on case header toggles: true
+>>> Enter on location row opens: true
+>>> location ⋯ reachable: true | case ⋯ hidden while expanded (actionsAllowed=!expanded): true
+>>> expanded header: no tray, click still collapses: true
+>>> location tray open after touch hold: true
 ```
 
-This is the same defect class the phase already fixed once for the *other* hook — commit `2b18a0a`,
-*"fix(demo): a long-press released off the row must not eat the next tap"* — whose fix was to reset
-the flag at the **start of every new gesture** (`useLongPress.ts:95`). That reset is exactly what
-`DashboardScreen`'s copy cannot do, because the gesture that consumes its flag (right-click) never
-reaches `onPointerDown`.
+- **Keyboard activation is not swallowed** on either row surface — `onClickCapture` resets
+  `swallowNextClick` *before* the `detail === 0` check (`:186-188`), so Enter both clears the flag and
+  activates.
+- **The `enabled` gate still holds** on an expanded case: the hold is inert, no tray appears, and the
+  header's own click still collapses the card.
+- **Both ⋯ triggers remain reachable by role + accessible name**, and the case trigger is still
+  correctly gated off while expanded (phone parity, `actionsAllowed = !expanded`).
+- The four un-gated chooser actions (`New Location w/ Sub Info`, `Export ZIP`, `Export GeoJSON`,
+  `Cancel`) are never blocked by the name gate.
 
-`DashboardScreen.test.tsx`'s *"…and the latch does not swallow a genuine right-click afterwards"*
-does not cover this: it exercises `contextmenu` #1 as the touch-trailing event and #2 as the genuine
-one. In the mouse path, #1 *is* the genuine one.
-
-### Failure scenario
-
-`/demo` dashboard on a desktop pointer. Hold a case card → sheet opens (the documented mouse path,
-`DashboardScreen.tsx:36-38`). Close it. Right-click the same card expecting the same menu → nothing
-happens at all. A second right-click works. Recoverable, one wasted interaction, hence MEDIUM.
-
-### Fix
-
-Delete the private hook and consume `@/features/demo/ui/primitives/useLongPress` once WEB-1's latch
-lands there, moving the nested-control bail (`e.target.closest('button')`, `:61`) into the shared hook
-— `CasesScreen` needs it too (its wrapper spans the row button *and* the ⋯ trigger). Reset the latch
-on `pointerdown` **and** at the point the context-menu path consumes it, so a mouse-only hold cannot
-leave it standing.
+**One observation, not a finding.** `Duplicate…` now focuses the ⋯ trigger before opening the
+chooser, which is a `ModalShell` and does not take focus — so focus rests on a background control
+behind the scrim. That is strictly better than round 1 (`<body>`) and sits inside `deferred.md §7`'s
+still-open "focus trap + focus return for `ModalShell`" scope, which owns it. The `Delete` path is
+unaffected: `DeleteConfirmationModal` takes focus itself and consumes the anchor correctly.
 
 ---
 
-## WEB-3 — [MEDIUM] `DuplicateLocationModal` uses the hard `disabled` attribute the assembly explicitly rejected — and its empty-name arm gives no reason at all
+## Web Reviewer Summary — round 2
 
-**File:** `features/demo/ui/screens/DuplicateLocationModal.tsx:63-89` (`ActionButton`), used at
-`:138-143`; gate at `:111-113`
-
-### Issue
-
-`deferred.md §56d` reconciled three spellings of the submit gate and named the loser:
-
-> Three spellings landed in parallel — P3.4's `submitDisabled` …, P3.3's `submitBlocked` …,
-> **P3.5's `submitDisabled` (the hard `disabled` attribute)**. The union keeps BOTH live semantics:
-> the button dims and reads `aria-disabled` …
-
-and `_shared.tsx:280-283` states the house rule:
-
-> Never the `disabled` attribute: it drops keyboard focus to `<body>`, and a gate that flips on a
-> keystroke would strand the visitor mid-form (the R-7/R-15 house choice, and §45a's
-> `aria-disabled`-over-`disabled` precedent on the GPS capture button).
-
-The reconciliation covered `ModalActions`. P3.5's **own** `ActionButton` was not part of it and still
-renders `disabled={disabled}` (`:76`) off a gate that recomputes on every keystroke
-(`isNameEmpty || isNameTaken`, `:111-113`).
-
-Two consequences, one of them not merely stylistic:
-
-1. **The two duplicate actions leave the tab order and the actionable a11y tree** while the name is
-   empty or colliding. A keyboard/screen-reader visitor tabbing the chooser finds the "Copy info to a
-   new address" and "Export this location" sections but no duplicate buttons — the chooser silently
-   changes shape.
-2. **On the empty-name arm there is no message anywhere.** `error={isNameTaken ? NAME_TAKEN_ERROR : undefined}`
-   (`:134`) — a *collision* announces via the `Field`'s `role="alert"`, but clearing the name produces
-   a chooser with two vanished primary actions and nothing said about why.
-
-The sibling modal three files away handles the same predicate correctly:
-`NewLocationModal.tsx:204-224` renders `newLocationBlock`'s reason in a `role="status"` region,
-marks the button `aria-disabled`, and points `aria-describedby` at the reason — including an
-`emptyName` arm with real copy.
-
-### Fix
-
-Give `ActionButton` the house treatment: `aria-disabled` + a guarded `onClick` (the guard already
-exists at `:117-120`) + `aria-describedby` pointed at a reason node, and add the empty-name message
-so both blocked arms say why. `NewLocationModal.tsx:200-224` is the in-repo shape to copy.
-
----
-
-## WEB-4 — [MEDIUM] The demo's toast is not a live region, and P3.5 made it the only feedback for three actions
-
-**Files:** `features/demo/ui/screens/map/DemoNotification.tsx:38-42`;
-`features/demo/ui/DemoExperience.tsx:1811-1815` (six new messages at `:185-202`)
-
-### Issue
-
-`DemoNotification` renders a plain `<div>` — no `role="status"`, no `aria-live` — and auto-dismisses
-after 2600 ms:
-
-```tsx
-return (
-  <div data-testid="demo-notification" style={banner}>
-    {message}
-  </div>
-)
-```
-
-It was previously the map's honest-notice idiom (Call/Email), where the visitor had just pressed a
-row and the notice was a courtesy. P3.5 routes **six** new messages through it, and for three of them
-the banner is the **entire** outcome of the interaction:
-
-| Message | The only feedback for |
-|---|---|
-| `EXPORT_ZIP_NOTICE` / `EXPORT_GEOJSON_NOTICE` (`:201-202`) | pressing Export ZIP / Export GeoJSON — the chooser closes and nothing else changes |
-| `LOCATION_NOT_FOUND_NOTICE` (`:185`) | a long-press / ⋯ on a location whose source no longer resolves — no modal opens at all |
-| `DUPLICATION_FAILED_NOTICE` (`:189`), `NEW_ADDRESS_FAILED_NOTICE` (`:194`) | a refused duplicate / create |
-
-For a screen-reader visitor, pressing "Export ZIP" is: the dialog disappears, focus lands on `<body>`
-(see WEB-5), and **nothing is announced**. That is indistinguishable from a broken button — which is
-precisely what the demo's honesty convention exists to prevent (`deferred.md §52.2`: "tells the truth
-on press instead of faking a download"). The truth is being told to sighted visitors only.
-
-The lane's own rule: *"New async status that only appears visually is a finding."* The repo already
-holds the correct idiom in eight places — `role="status"` on `GpsCaptureControl`'s progress,
-`LocationFields`' lookup notice, `NewLocationModal`'s blocked reason, `CameraGpsCapture`'s progress,
-`IncidentLocationFields`' lookup status.
-
-**Not a re-file of `deferred.md §52.6.** That entry documents the *two-line-Toast → one-line-banner*
-copy compromise and the portalling; it says nothing about the live region, and its trigger ("if a
-package builds a real toast component") does not cover this.
-
-### Fix
-
-Add `role="status"` to the banner element in `DemoNotification` (one attribute; it is already
-rendered conditionally from a parent, which is the announcement-on-insert shape `role="status"`
-handles well for short-lived banners — or wrap it in a permanently-mounted `role="status"` region,
-matching `NewLocationModal.tsx:204`'s stated reasoning). Both call sites (`DemoExperience` and
-`MapScreen.tsx:141`) inherit it.
-
----
-
-## WEB-5 — [MEDIUM] The delete dialog's documented focus-return is a no-op at its only real call path — focus lands on `<body>`
-
-**Files:** `features/demo/ui/screens/DeleteConfirmationModal.tsx:81-87`;
-call path `features/demo/ui/screens/CasesScreen.tsx:158` and `:236`
-
-### Issue
-
-The component's header (`:28-29`) and `deferred.md §48c` both claim:
-
-> focus moved onto the dialog on mount and handed back to the opener on unmount
-
-The implementation reads the opener at mount:
-
-```ts
-useEffect(() => {
-  const opener = document.activeElement
-  dialogRef.current?.focus()
-  return () => {
-    if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-  }
-}, [])
-```
-
-At the only path that opens it, the opener has **already been unmounted in the same handler**:
-
-```tsx
-actions={[{ label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteCase(c.id) } }]}
-```
-
-`onCloseActions()` and `onDeleteCase()` are both `setState` calls in one event — React batches them,
-so by the time the dialog's mount effect runs the tray (and its Delete button) is detached and
-`document.activeElement` is `<body>`. `body.isConnected` is `true` and `body instanceof HTMLElement`
-is `true`, so the guard passes and the cleanup calls `document.body.focus()` — a no-op on a
-non-tabbable body. The visitor lands nowhere and must Tab from the top of the document.
-
-### Evidence
-
-Probe wiring the real `CasesScreen` tray to the real `DeleteConfirmationModal` through the bridge's
-own handler shape:
-
-```
-× where does focus land after Cancel?
-  AssertionError: expected <body>…</body> not to be <body>…</body>
-```
-
-i.e. `document.activeElement === document.body` after Cancel.
-
-**Not a re-file of `deferred.md §7`.** §7 defers ModalShell's *focus trap and focus return* as a
-known gap. This is the opposite situation: a component that deliberately implemented focus return,
-whose implementation cannot fire at its shipped call path, and whose header + `§48c` assert the
-behaviour as a settled fact a future reviewer will trust.
-
-### Fix
-
-Capture the opener above the unmount — e.g. have `CasesScreen` remember the ⋯ trigger (or the row) and
-have the bridge pass a `returnFocusTo` ref, or defer `onCloseActions()` so the tray outlives the
-dialog's mount effect. Simplest in-repo shape: keep the tray mounted while `pendingDelete` is armed and
-close it on the dialog's unmount instead of on the click. Then pin it — no current test asserts focus
-return (`DeleteConfirmationModal.test.tsx:92` only asserts focus **on mount**).
-
----
-
-## WEB-6 — [MINOR] `IncidentLocationFields`' coordinate errors are unassociated and unannounced, while the shared `Field` gained exactly that treatment in the same diff
-
-**File:** `features/demo/ui/inputs/IncidentLocationFields.tsx:100-132`
-
-`CoordinateField` renders its validation message as a bare `<div>` with no `id`, no
-`aria-describedby` from the input, and no `role="alert"` — only `aria-invalid`:
-
-```tsx
-aria-invalid={error !== undefined}
-…
-{error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
-```
-
-A screen-reader visitor blurring Latitude with `999` hears "invalid entry" and never hears *why*
-(`parseCoordinate`'s "Latitude must be between -90 and 90"). This diff's own `Field`
-(`_shared.tsx:202-243`, `deferred.md §56e`) does the correct thing for the same class of message —
-`errorId` + `aria-describedby` + `role="alert"` — and this new component sits directly beside it,
-using `Field` for three of its five inputs and re-rolling the other two.
-
-`NewCaseModal`'s local `CoordinateField` (`:61-87`) has the same gap but is **pre-existing**
-(present at `master`), so it is not this diff's; folding it in when the shared fix lands is the
-completeness sweep.
-
-**Fix:** thread `useId()` + `aria-describedby` + `role="alert"` through `CoordinateField`, or extract
-one coordinate input both modals use.
-
----
-
-## WEB-7 — [MINOR] `NewCaseModal` marks the primary action `aria-disabled` with no `submitDescribedBy`
-
-**File:** `features/demo/ui/screens/NewCaseModal.tsx:276`
-
-```tsx
-<ModalActions submitLabel={…} onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
-```
-
-`ModalActions` only sets `aria-describedby` when `submitDescribedBy` is supplied
-(`_shared.tsx:310`), so a keyboard visitor landing on a dimmed "Create Case" hears
-"Create Case, dimmed" with no reason. `NewLocationModal.tsx:223` — the sibling adopter of the same
-unified API — passes it.
-
-Mitigated by design, which is why this is MINOR: `§50a`/`§56d` deliberately let the click through so
-`validateRequired`'s verbatim phone messages fire as `role="alert"` on the fields. The reason is
-reachable, just only *after* activating a control that reads as unavailable. Either point
-`submitDescribedBy` at a rendered hint, or add a note at the call site recording that the omission is
-deliberate so a future sweep does not "fix" it into a swallow.
-
----
-
-## WEB-8 — [MINOR] Long-press on Cases rows selects text mid-hold; the dashboard card guards against it and the rows do not
-
-**Files:** `features/demo/ui/screens/CasesScreen.tsx:133`, `:214` (vs `DashboardScreen.tsx:161`)
-
-`DashboardScreen`'s card sets `userSelect: 'none'` with a stated reason — *"A hold that selects the
-card's text reads as a broken gesture, not a menu."* The `CasesScreen` rows that took the same
-gesture in P3.1 do not, so a desktop hold on a case number or a location name begins a text
-selection under the tray it opens. Cosmetic; the 10 px movement tolerance already cancels the hold if
-the pointer actually drags.
-
-**Fix:** add `userSelect: 'none'` to the two `{...longPress}` wrappers, or move it into the hook's
-returned style contract so future adopters inherit it.
-
----
-
-## Considered and deliberately NOT flagged
-
-| Item | Why |
-|---|---|
-| **Long-press as an accelerator; ⋯ as the real control** | Phase context — `deferred.md §48a`, PR body. Correct design, and better than the phone's a11y-only parallel path. |
-| **Honest export / fallback notices** | Phase context, `§52.2`. |
-| **`DeleteConfirmationModal`'s dismissing scrim vs `AlertDialog`'s inert one** | Deliberate, `§48`. |
-| **No GPS capture on the incident form** | Deliberate, `§53a`. |
-| **Inline `CSSProperties` everywhere in `features/demo/ui/**`** | That *is* the convention. All new components comply; no Tailwind `className` appears in the diff. |
-| **`ModalShell` has no focus trap / focus return** | Pre-existing, tracked at `§7` with a stated trigger. WEB-5 is a distinct defect (a return that *is* implemented and cannot fire), not a re-file. |
-| **`screenIn` animation ungated by reduced motion on `DeleteConfirmationModal`** | Established pattern — `ModalShell:89`, `AlertDialog:92`, `PdfPreview:136` all do the same and are unflagged. The new `slideBack` timeline animation *is* correctly gated (`DashboardScreen.tsx:139`, `useReducedMotion` from `motion/react`). Re-filing the modal family here would be noise; fold it into the next motion sweep. |
-| **`role="status"` regions mounted together with their content** (`CameraGpsCapture.tsx:157`, `IncidentLocationFields.tsx:286`) | Both mirror `GpsCaptureControl.tsx:187`, the reviewed P1.2/P2 precedent. `NewLocationModal`'s unconditional-wrapper note was a targeted R-15 fix for the blocked-reason region, not a general rule. |
-| **New bridge state with a single consumer** (`dupName`, `incidentForm`, `newAddrState`) | The store-bridge rule (`features/demo/CLAUDE.md`) requires modal working values to live in `DemoExperience`; `caseForm`/`locForm` set the precedent. Flagging it would re-litigate the architecture. |
-| **⋯ trigger is ~42 px wide** (`RowActions.tsx:57-66`: 18 px glyph + 12 px padding each side) | Passes WCAG 2.2 AA 2.5.8 (24×24); 2 px shy of AAA 2.5.5. Height is inherited from the stretched row (~50–70 px). Not worth a finding. |
-| **`CaseActionsSheet` measure loop** | `useLayoutEffect` + `ResizeObserver` with a reference-preserving `setMetrics` and a `disconnect()` cleanup; the observed node is the *uncapped* content wrapper, so the `maxHeight` it feeds cannot drive the observation. Measured before first paint, so no unscrolled flash. Correct. |
-| **50 `useGpsCapture` instances on a full camera list** | The hook creates no listener, timer or subscription at mount — four `useState`, three `useRef`, two effects. No standing cost. |
-
----
-
-## Web Reviewer Summary
-
-| Severity | Count |
+| Severity | Count (new this round) |
 |---|---|
 | BLOCKER / CRITICAL | 0 |
-| MAJOR / HIGH | 1 |
-| MEDIUM | 4 |
-| MINOR / LOW | 3 |
+| MAJOR / HIGH | 0 |
+| MEDIUM | 0 |
+| MINOR / LOW | 1 |
 
-Marketing↔demo isolation: **preserved**
-Bundle impact: **none** (no dependency, config, or import-shape change; wall re-grepped clean)
-Browser-resource cleanup: **complete**
-Accessibility: **gaps found** (WEB-3, WEB-4, WEB-5, WEB-6, WEB-7)
-Style-convention adherence: **correct half** — inline `CSSProperties` throughout, lifted rules and
-device math untouched, no new global CSS, no keyframe duplication
+Round-1 disposition: **8 FIXED · 0 PARTIAL · 0 UNFIXED**
 
-**Verdict: REVISE**
+Marketing↔demo isolation: **preserved** (re-grepped at `3cecfcc`)
+Bundle impact: **none** (fix range touches `features/demo/**` + `deferred.md` only)
+Browser-resource cleanup: **complete** (no new listener/timer/observer; R-8 is a dep-array fix on an
+already-cleaned-up timer)
+Accessibility: **round-1 gaps closed** — `aria-disabled` + `aria-describedby` now uniform across every
+adopter of the unified gate; live region on the toast; coordinate errors associated and announced;
+focus return anchored to a surviving control
+Style-convention adherence: **correct half** — inline `CSSProperties` throughout, `LONG_PRESS_SURFACE_STYLE`
+added as a style token, lifted rules and device math untouched
 
-**Notes:** The P3 assembly reconciled three parallel spellings each of the submit gate, `Field.error`
-and the long-press hook (`§56d`–`§56f`) — and the three MAJOR/MEDIUM findings here are all the same
-shape: a semantic that *one* package got right and the union dropped or never saw (WEB-1's touch
-latch, WEB-2's third hook, WEB-3's hard `disabled`). A fix round should treat the consolidation
-itself as the unit of work rather than patching the three sites independently.
+**Verdict: APPROVE** (was REVISE)
+
+**Notes:** The fix round beat the review on three counts — R-3 retired a duplicated gate I had only
+asked to re-label, R-8 caught a dwell-timer defect in `DemoNotification` that my WEB-4 missed
+entirely, and `§57a`'s refutation of my nested-control fix shape is correct with layout evidence I
+had not checked. The one new MINOR is a residual of R-1's clearing mechanism on a mixed-modality
+keyboard path, not a regression; `§57h`'s three deferrals all carry triggers and the
+`NewCaseModal` `CoordinateField` twin is correctly booked against §53d's fold rather than patched
+in place.

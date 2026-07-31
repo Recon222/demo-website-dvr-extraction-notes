@@ -1,131 +1,58 @@
-# Lane: type-design — phase review `p3` (PR #32) — INITIAL PASS
+# Lane: type-design — phase review `p3` (PR #32) — FIX-DELTA
 
-**Mode:** initial (resumable — this lane verifies its own findings in the fix-delta round).
-**Diff under review:** `git diff master...feat/parity-p3` @ `4e60680` — 91 files, +11321/−317.
-**Refs read:** `.claude/agents/type-design-analyzer.md` (lane definition) · `features/demo/CLAUDE.md` (binding contract, read first) · `docs/code-reviews/deferred.md` §4/§5/§16/§27 (tracked type gaps) and §48–§56 (this wave's own ledger) · the orchestrator's deliberate-choices list.
-**Pre-flight (run in this worktree):** `npx tsc --noEmit` → **clean, exit 0**.
-**Scope discipline:** the phase's stated deliberate choices are honoured and not re-flagged — the case-number/location-name case-sensitivity split (§50b/§56i), the `setCaseStatus` ∕ `updateCase` separation (§56b/§56c), `duplicated_from` left unmodelled (§52.3), and every prior-phase decision. Where a finding touches a tracked deferred item, the item is named and the trigger status is stated explicitly.
+**Mode:** FIX-DELTA — re-review of the fix commits only (`b678a8d..HEAD`, `ec20686`…`3cecfcc`, 15 commits / 35 files / +955−257). Supersedes this lane's initial pass, whose disposition is tabled below for traceability.
+**Diff under review:** `git diff master...feat/parity-p3` (full PR); delta read as `b678a8d..HEAD`.
+**Refs read:** `.claude/agents/type-design-analyzer.md` · `features/demo/CLAUDE.md` · `docs/code-reviews/parity/p3/p3-review.md` (vetted aggregate, R-1…R-17 + Appendix A) · `docs/code-reviews/deferred.md` §53d, §56b/c/d/f/h/j, and the new §57 (a–i) · the prior version of this lane file (TYPE-DESIGN-1…7).
+**Lane's prior findings → routing:** TYPE-DESIGN-1 → **R-13** · TYPE-DESIGN-2 → **R-5** · TYPE-DESIGN-3 → **R-1** (merged, escalated to MAJOR) · the routed cross-lane observation → **R-4** · TYPE-DESIGN-4…7 → Appendix A (carried NITs).
+**Pre-flight (re-run in this worktree):** `npx tsc --noEmit` → **clean, exit 0**. Working tree clean after verification (all probe files removed; `git status` empty).
 
-**Verdict: APPROVE with comments. 0 BLOCKER · 0 MAJOR · 3 MINOR · 4 NIT.**
+**Verdict: APPROVE. 3 of 3 lane findings FIXED · routed observation FIXED · 4 NITs carried by disposition · 0 UNFIXED · 0 PARTIAL.**
+**New this round: 0 BLOCKER · 0 MAJOR · 0 MINOR · 2 NIT.**
 
-This is a large diff whose type work is, on the whole, better than the phase brief asked for: the `CaseEdits` immutability probe is genuinely load-bearing, `CameraGpsFix` is linked to its canonical union rather than copied out of it, the snapshot v5 bump is correctly scoped to a value-shape move (and correctly *not* taken for the `ModalId` widening), and every one of the three prop-shape collisions the assembly had to reconcile landed on the stronger semantic rather than the average. The three MINORs are all defence-in-depth gaps with a single correct producer today; none is a shipped defect.
-
----
-
-## Pre-report verification of the surfaces the brief named
-
-Recorded because a fix-delta round should not re-derive them.
-
-### `CaseEdits` + the `@ts-expect-error` immutability pins — **verified enforced**
-
-`CaseEdits = Omit<NewCaseInput, 'caseNumber'>` (`features/demo/engine/store/create-store.ts:92`), probed at `features/demo/engine/store/__tests__/crud-actions.test.ts:80-96` with four `@ts-expect-error` lines rejecting `caseNumber` / `status` / `locationIds` / `id`.
-
-The pins are real, and the mechanism is the right one:
-
-- `tsconfig.json` `include` is `["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"]`, so `crud-actions.test.ts` is inside the program `tsc --noEmit` checks. Confirmed by path match, not assumed.
-- TypeScript reports an **unused** `@ts-expect-error` as an error. `npx tsc --noEmit` is clean *with the four directives present*, which is positive proof that each probe line errors today — i.e. `CaseEdits` currently rejects all four keys, and any loosening flips the same run to "Unused '@ts-expect-error' directive". The probe cannot rot silently.
-- Each probe spreads a valid base (`{ ...base, status: 'archived' }`), so the only thing TS can object to is the extra key — excess-property checking on a fresh object literal. That is the correct construction for this pin; a bare variable would have been assignment-compatible and the probe would have been theatre.
-
-One nuance for the record, not a finding: there is **no CI workflow in the repo** (`.github/workflows` does not exist), so the gate is `pnpm typecheck` / `next build` run by a human. That is the pre-existing state of every `@ts-expect-error` pin here (`import-log.test.ts:148-152` predates this diff), not something P3 introduced.
-
-The writer matches the type's "TOTAL, not a patch" claim: `updateCase` (`create-store.ts:453-480`) enumerates all eleven `CaseEdits` keys with `?? ''` defaults and assigns `incidentCoordinates` unconditionally, so an omitted optional key **clears** rather than preserves. §56c's rationale ("a caller sending `{ displayName }` would expect the rest preserved and get them blanked") is true of this writer as written. Contrast TYPE-DESIGN-2 below, where the sibling patch type has the same intent and a writer that does *not* hold it.
-
-### `UpdateCaseInput` immutability-in-the-type — **verified as designed**
-
-`status` is unreachable through `CaseEdits`, and `setCaseStatus(caseId, status: CaseStatus)` is the single writer (`create-store.ts:493-505`). §49b's "fold the status into `updateCase`" trigger is correctly refuted, and the refutation is itself pinned by the probe. No finding.
-
-### `DuplicateMode` — **verified**
-
-`'submission-only' | 'with-scopes'` (`engine/types/index.ts:59`), consumed by a ternary in `duplicatedForm` (`create-store.ts:396`) and by `DuplicateLocationModal`'s two buttons. A ternary over a closed two-member union is the established shape here (`mediaBucket` does the same over three-member `MediaKind`), and the type is deliberately a plain union rather than an `as const` tuple because it is never persisted — stated at the declaration and correct: the tuple device exists only to share a closed union with the snapshot shape guard. No finding.
-
-### The two new `ModalId`s (three, actually) through `MODAL_IDS` — **verified**
-
-`ModalId` goes 4 → 7 (`editIncident`, `duplicateLocation`, `newAddressLocation`). `MODAL_IDS: Record<ModalId, true>` (`store/persistence.ts:330-338`) is exhaustive by construction and was updated for all three — a miss would not compile. `EXPLORE_ITEMS.covers` (`readonly (AppView | ModalId)[]`) and `MODAL_NARRATION` (`Partial<Record<ModalId | LaunchableId, …>>`) both accept the new members; all three received narration. §56l's reasoning for *not* bumping `SNAPSHOT_VERSION` on this widening is correct: `MODAL_IDS` is an allow-list `loadSnapshot` filters `visited` keys **through**, every stored snapshot's key set is a subset of the widened one, so no stored value becomes unreadable. Nothing owed. (One residual, TYPE-DESIGN-7 below, about the consumer side of the same widening.)
-
-### `CameraGpsFix` + `Extract<GpsSource, 'gps'>` — **verified, and the guard device holds**
-
-`CameraGpsFix extends GpsCoordinates { source: Extract<GpsSource, 'gps'>; capturedAt: string }` (`engine/types/index.ts:157-160`). Writing the provenance as `Extract<…>` rather than a bare `'gps'` literal is the R-24/R-25 discipline applied correctly: it keeps the member linked to `GPS_SOURCES`, so removing `'gps'` from the tuple collapses this to `never` and breaks every producer instead of stamping a dead provenance.
-
-The persistence side composes with it exactly as the comment claims (`store/persistence.ts:176-193`): `z.literal('gps')` under `satisfies FullShape<NonNullable<CameraEntry['gps']>>`. `FullShape<T>` maps to `z.ZodType<Required<T>[K] | undefined>`, and zod's `Output` is covariant, so `z.enum(GPS_SOURCES)` (output `GpsSource`) would **not** satisfy `ZodType<'gps' | undefined>` — the schema cannot widen past the domain type. Key-exhaustiveness is enforced by the same device, so a sixth camera-GPS key is a compile error here. Verified by construction and by the clean `tsc` run.
-
-`toCameraGpsFix` (`engine/logic/gps.ts:254-262`) is the single producer, and it drops `sampleCount` deliberately rather than storing a value nothing renders — consistent with precedent 4 (derived/unrendered state is not stored).
-
-### `IncidentCoordSource` — **verified as a type, but under-consumed** → see TYPE-DESIGN-1
-
-`IncidentCoordSource = (typeof COORD_SOURCES)[number]` (`engine/types/index.ts:305`) is declared for the stated R-25 reason ("the incident form and its mappers annotate with this rather than re-typing `'geocoded' | 'manual'`"). The engine-side form value model does annotate with it (`IncidentLocationValues.coordinateSource: IncidentCoordSource | ''`, `engine/logic/incident-location.ts:34`). The UI-side form value model for the *same* field set does not — TYPE-DESIGN-1.
-
-### Snapshot v5 guard-device compliance across the new persisted shapes — **verified complete**
-
-The only persisted **value** shape this phase moves is `CameraEntry.gps`, which is what v5 is for; the version note at `store/persistence.ts:65-73` states that accurately. I swept the other candidates:
-
-- `DemoCase.incidentCoordinates` — unchanged this phase (`source` was already `(typeof COORD_SOURCES)[number]` on master); `updateIncidentLocation` writes the same shape the create path already wrote.
-- `DemoLocation.gps` — already `GpsCoordinates & { source: GpsSource }` on master; P3.4's widening was of the *input* type (`NewLocationInput.gps`, `NewAddressOverrides.gps`), which now matches the stored shape rather than being narrower than it. No schema move owed; §56h's widening is a narrowing-removal, which is the safe direction.
-- `ScopeEntry` clones (`cloneScopesWithNewIds`) — same shape, fresh ids.
-- `visited` — key-space widening only, see above.
-
-No unguarded new persisted shape found.
-
-### The unified `submitBlocked` / `Field.error` prop typing — **verified**
-
-`ModalActions.submitBlocked?: boolean` + `submitDescribedBy?: string` (`ui/screens/_shared.tsx:263-303`) and `Field.error?: string` + `readOnly?: boolean` (`:158-200`). Both are the union of the three parallel spellings, both document the semantic that survived, and — importantly for this lane — **the doc comment states the enforcement contract the type cannot** ("this prop is presentation + a11y only; the caller MUST guard"). Both callers do guard (`NewCaseModal.handleSubmit` validate-and-return; `NewLocationModal`'s `if (block !== null) return`). Modelling the caller-guard obligation in the type would need a shape the codebase does not use, and §50a's reason for not swallowing the click (it would make the phone's own copy unreachable, as on the phone) is sound. `Field.error` correctly **replaces** `hint` rather than stacking, matching the phone's `{error && …}` / `{!error && helperText && …}`. No finding.
-
-### `useLongPress`'s option surface — **verified for the consolidated hook** → but see TYPE-DESIGN-3
-
-`useLongPress(onLongPress, { enabled?, delayMs? })` returning the named `LongPressHandlers` (`ui/primitives/useLongPress.ts:49-62`) is a clean option surface: both options defaulted, the return type named and exported so a caller spreading it onto a row gets a checked handler set. §56f's consolidation of P3.1's and P3.5's copies is correct and the union kept the stronger half of each. The problem is that it is not, in fact, the only copy — TYPE-DESIGN-3.
+Two of the three fixes went further than this lane asked. R-1 did not merely delete the third hook — it found that both surviving copies were *wrong in complementary ways* about the same platform fact and shipped the union, so the consolidation this lane argued for on drift grounds also closed two live gesture defects. R-13 correctly diagnosed that the fix this lane proposed (narrow the field) **would not have caught anything on its own**, and hardened the setter as well; I verified that claim by compile probe in both directions rather than taking it. The two new NITs are both residuals of otherwise-clean fixes.
 
 ---
 
-# Findings
+## Disposition of the initial-pass findings
 
-## TYPE-DESIGN-1 [MINOR] `features/demo/ui/screens/caseFormData.ts:34` — the New Case form's coordinate provenance is `string`, while its engine twin is `IncidentCoordSource | ''`; deferred §53d's trigger has fired
-
-**Type.** `NewCaseFields.incidentCoordinateSource: string` (`ui/screens/caseFormData.ts:34`), with the union spelled only in prose on the line above: `/** '' | 'geocoded' (filled by an address pick) | 'manual' (typed by hand). */`.
-
-**Permitted invalid state.** Any string. The field is written through the bridge's untyped setter — `onChange(f: keyof NewCaseFields, v: string)` → `setCaseForm((s) => ({ ...s, [f]: v }))` (`ui/DemoExperience.tsx:1603`) — so `'Geocoded'`, `'gps'`, or a typo are all constructible without a compile error.
-
-**Construction site + downstream.** `NewCaseModal` stamps the value at two places: `onChange('incidentCoordinateSource', 'geocoded')` on an address pick (`NewCaseModal.tsx:236`) and `'manual'` on each coordinate keystroke (`:252`, `:261`). Both are correct today. A typo at `:236` would not fail to compile; it would flow into `caseFormData.toIncidentCoordinates`, whose coercion is `form.incidentCoordinateSource === 'geocoded' ? 'geocoded' : 'manual'` (`caseFormData.ts:96`) — i.e. **anything that is not exactly `'geocoded'` is silently recorded as hand-typed provenance**. That value is persisted on the case, rendered by the modal's own chip (`NewCaseModal.tsx:116`), and printed as the `Coordinates` row of the read-only case report (`screenData.ts` `toCaseSheet`). Provenance is the whole reason the field exists; a silent mislabel is the failure it is meant to prevent.
-
-The same coercion, on a properly typed field, exists nine lines away in the engine: `incidentValuesToPatch` (`engine/logic/incident-location.ts:81`) over `IncidentLocationValues.coordinateSource: IncidentCoordSource | ''`. There the typo *is* a compile error.
-
-**Tracked-item status — the trigger has fired, stated explicitly.** deferred.md **§53d** logs exactly this duplication ("`NewCaseModal`'s private `CoordinateField`, its inline coordinate chip, and its `incidentLatitude`/`incidentLongitude`/`incidentCoordinateSource` flat fields duplicate what `IncidentLocationFields` + `IncidentLocationValues` now express once") and names its trigger: *"the next agent to touch `NewCaseModal`'s incident section — most likely P3.3's edit-mode work"*. P3.3 landed in this PR and rewrote that component substantially (edit mode, `readOnly` number, required-field errors, the submit-failure banner, and the extraction of the flat fields into the new `caseFormData.ts`). The fold did not happen and §56 does not re-defer it. Per the lane rules I am re-filing it because its own trigger fired, not re-litigating a live deferral.
-
-**Fix.** Two sizes; either closes the invalid state.
-
-1. *Minimum (one line):* `incidentCoordinateSource: IncidentCoordSource | ''`. `caseToCaseForm` already produces exactly that (`c.incidentCoordinates?.source ?? ''`, `:78`), and both `NewCaseModal` write sites already pass legal members, so nothing else moves. This is precedent 5 (typed id spaces) applied to the union **this diff introduced for the purpose**.
-2. *What §53d actually asked for:* back the three flat fields with `IncidentLocationValues`, mount `<IncidentLocationFields values onChange />` in place of the inline block, and delete `NewCaseModal`'s private `CoordinateField` (`:61-87`) and inline chip (`:265-271`). That also retires the second copy of the coercion rule and the two copy divergences §53d records.
-
-Note the fix has a phase-honesty side: `IncidentLocationFields` is the "one form, two modes" surface the parity matrix (row 23) asked for, and it currently has one caller.
+| Initial | Routed | Sev | Status | One-line verdict |
+|---|---|---|---|---|
+| TYPE-DESIGN-1 | R-13 | MINOR | **FIXED** | Field narrowed to `IncidentCoordSource \| ''` **and** the setter made generic per key — probe-verified in both directions. Residual → NIT-N1. |
+| TYPE-DESIGN-2 | R-5 | MINOR | **FIXED** | `incidentCoordinates` is now required-but-nullable on the patch; exactly the shape proposed, derivation from `DemoCase` preserved. |
+| TYPE-DESIGN-3 | R-1 | MAJOR (merged) | **FIXED (stronger)** | Third hook deleted, nested-control rule generalised, and both latch bugs the duplication was hiding closed. |
+| routed observation | R-4 | MINOR | **FIXED** | `updateIncidentLocation` has the `get()`-first early return its own JSDoc claimed; the test that passed either way was strengthened. |
+| TYPE-DESIGN-4…7 | Appendix A | NIT ×4 | **CARRIED** (by disposition) | Verified untouched; recorded with triggers in §57h. |
 
 ---
 
-## TYPE-DESIGN-2 [MINOR] `features/demo/engine/logic/incident-location.ts:43` — `IncidentLocationPatch` is spread onto the case, but its coordinate key is optional, so an omitting producer silently preserves a stale forensic coordinate
+## TYPE-DESIGN-1 → R-13 — **FIXED** (`0618c7d`)
 
-**Type.**
+Two halves landed, and the second is the one that matters.
+
+**The field** (`ui/screens/caseFormData.ts:33-44`): `incidentCoordinateSource: IncidentCoordSource | ''`, replacing bare `string`, with the rationale and the §53d trigger-fired history recorded at the declaration.
+
+**The setter** (`ui/screens/NewCaseModal.tsx:19-22`):
 
 ```ts
-export type IncidentLocationPatch = Pick<
-  DemoCase,
-  'incidentBusinessName' | 'incidentStreetAddress' | 'incidentCity' | 'incidentCoordinates'
->
+onChange<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K]): void
 ```
 
-`Pick` preserves optionality, and `DemoCase.incidentCoordinates` is optional (`engine/types/index.ts:323`), so `incidentCoordinates?: {...}` is optional on the patch. With no `exactOptionalPropertyTypes` in `tsconfig.json`, `{ incidentCoordinates: undefined }` and `{}` are both legal values of this type — and they mean **opposite things** to the writer.
+§57g claims the field narrowing alone would have caught nothing, because the old `onChange(field: keyof NewCaseFields, value: string)` accepts any string for any key. **I did not take that on trust — I compiled it, both directions:**
 
-**Permitted invalid state / the writer that makes it matter.**
+- *Probe A (post-fix signature).* A temp module declaring the shipped generic signature, with `@ts-expect-error` on `onChange('incidentCoordinateSource', 'manaul')` and on `onChange('incidentCoordinateSource', 'gps')`, plus the four legal write forms. `npx tsc --noEmit` → **exit 0**. Since TypeScript errors on an *unused* `@ts-expect-error`, a clean run with both directives present is positive proof that both typos are compile errors today.
+- *Probe B (pre-fix signature, control).* The same typo under `(field: keyof NewCaseFields, value: string)`. `npx tsc --noEmit` → **`error TS2578: Unused '@ts-expect-error' directive`**, i.e. the typo **type-checked** before the fix.
 
-```ts
-updateIncidentLocation: (caseId, patch) =>
-  set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)) })),
-```
-(`create-store.ts:506-510`)
+So the generic is load-bearing and §57g's generalised rule ("if a form field's type is load-bearing, the setter has to be generic") is earned, not asserted. Both probe files were removed; the tree is clean.
 
-A **spread** writer, unlike `updateCase`'s enumerate-and-default writer, is key-presence sensitive. `incidentValuesToPatch` always emits the key explicitly — `incidentCoordinates: lat.ok && lng.ok ? {...} : undefined` (`incident-location.ts:74-83`) — so the documented guarantee holds today: *"a half-pair, or a half-typed number, is meaningless, so the result is `undefined` and the save CLEARS the stored pair rather than keeping a stale one."* That guarantee rests entirely on the mapper's discipline, **not on the type**.
+The construction site this lane named — `NewCaseModal.tsx:239` (`'geocoded'` on address pick) and `:255`/`:264` (`'manual'` on coordinate keystroke) — is now compile-checked. The union also immediately caught a hand-rolled `blankCase` literal in `modals.test.tsx`, which is the fixture drift it exists to catch.
 
-**Downstream if a second producer appears.** Any producer that builds the patch conditionally (`...(coords ? { incidentCoordinates: coords } : {})` — the idiom used four times elsewhere in this same store file, e.g. `create-store.ts:543`, `:567`) type-checks perfectly and silently **preserves** the previous coordinates. The visitor clears the lat/lng fields, presses Save Changes, the map pin and the case sheet's `Coordinates` row keep pointing at the old scene. That is the exact class of defect `hasCapturedCoordinates` and BUG-008 parity exist to prevent, arriving through the write path instead of the display path.
+**Scope honesty:** §53d's *full* fold (mount `IncidentLocationFields`, delete the private `CoordinateField` + chip) was deliberately not done and is re-deferred in §57h with a sharpened trigger ("and this time the fold, not another type patch"), including the honest consequence that the private twin still carries R-16's a11y gap. That is a defensible call for a fix round and it is written down; this lane's finding was the *type* half and the type half is closed. One residual → **NIT-N1**.
 
-**Why this is worth a MINOR rather than a NIT.** The phase reasoned about precisely this hazard one type over and closed it: `CaseEdits`' doc says a partial payload "would invite a caller to send `{ displayName }` and silently keep the rest, which the total writer below would NOT honour" (§56c). `IncidentLocationPatch` has the same total-payload intent, states it less explicitly, and — because its writer spreads — actually *would* honour a partial in the wrong direction. The reasoning was applied to one sibling and not the other.
+---
 
-**Fix.** Make the key required-but-nullable so every producer must decide:
+## TYPE-DESIGN-2 → R-5 — **FIXED** (`76abf1c`)
+
+`engine/logic/incident-location.ts:42-61` is now:
 
 ```ts
 export type IncidentLocationPatch = Pick<
@@ -134,92 +61,109 @@ export type IncidentLocationPatch = Pick<
 > & { incidentCoordinates: DemoCase['incidentCoordinates'] }
 ```
 
-`incidentValuesToPatch` already satisfies this unchanged. The derivation from `DemoCase` — which is the good half of this type and the reason it is `Pick` rather than a hand-declared interface — is preserved. (An alternative that also closes it: give `updateIncidentLocation` the same enumerating writer `updateCase` has. The type fix is cheaper and travels with future producers.)
+Exactly the shape proposed, including the property this lane cared most about: **the derivation from `DemoCase` survives**. Widening what an incident edit may touch is still an explicit edit to a key list, and the coordinate key's *type* is still `DemoCase['incidentCoordinates']` rather than a re-typed literal — so it tracks the entity. `incidentValuesToPatch` satisfies it unchanged (it always emitted the key), and the conditional-spread producer that would previously have type-checked while silently preserving a stale forensic coordinate is now a compile error. The doc comment records the reasoning and names §56c's `CaseEdits` precedent as its parent. No residual.
 
 ---
 
-## TYPE-DESIGN-3 [MINOR] `features/demo/ui/screens/DashboardScreen.tsx:44-83` — a **third** `useLongPress` declaration, added in the same wave that consolidated the other two; the copies already encode different knowledge
+## TYPE-DESIGN-3 → R-1 — **FIXED, and stronger than filed** (`ec20686`)
 
-**Types.** `ui/primitives/useLongPress.ts:59-62` — `useLongPress(onLongPress: () => void, { enabled?, delayMs? }): LongPressHandlers`, the named, exported, option-bearing surface §56f consolidated P3.1's and P3.5's copies onto. Versus `DashboardScreen.tsx:44` — a module-private `function useLongPress(onLongPress: () => void)` with **no option object** and an anonymous inline return type whose handlers are pinned to `HTMLDivElement`.
+`DashboardScreen.tsx` loses its private hook (−67 lines net across the commit) and imports `@/features/demo/ui/primitives/useLongPress`; its duplicate `LONG_PRESS_MS` is gone, so the shared beat can no longer be changed with the card left behind. Three call sites (two in `CasesScreen`, one in `DashboardScreen`) now consume one hook with one option surface.
 
-**This is new in this diff.** `git show master:features/demo/ui/screens/DashboardScreen.tsx` contains no `useLongPress` and no `onLongPress`; P3.2 added it. So at the moment §56f was writing *"ONE `useLongPress`"* and a guard rail (*"a shared primitive added at a new path will not conflict with the same primitive at an old one"*), a third copy was already on the branch, invisible to the same class of merge because it is a private function rather than a module.
+Three things beyond what this lane asked for, all worth recording:
 
-**The two copies do not agree, in both directions.** This is the drift, present at birth rather than predicted:
+1. **The drift argument was cashed as two real defects.** This lane flagged the divergence table as evidence that the copies encoded different knowledge; the fix verified both halves at source and found each copy broken where the other was correct. The shared hook double-fired on **touch** (`onContextMenu` ran `clear(); cb.current()` unconditionally, and `clear()` is a no-op once the timer has already nulled itself) — and since both Cases consumers pass a *toggle*, the two fires read as open-then-close, i.e. a hold that appeared to do nothing. The dashboard copy inverted it: `firedRef` was reset *after* the `e.button !== 0` early return, so a mouse hold left the latch standing and ate the next genuine right-click. Fixed by **reset first, guard second** (`useLongPress.ts:143-148`), with both latches (`swallowNextClick`, `fired`) cleared at the top of every pointerdown whatever its button.
+2. **The nested-control rule was generalised rather than lifted.** The review's proposed fix shape (lift `e.target.closest('button')` into the shared hook) is **refuted in the commit and in §57a**, correctly: the Cases handlers rode a wrapper `<div>` whose every descendant is a `<button>`, so lifting it verbatim would have killed that gesture outright. The shipped rule is `closest(NESTED_CONTROL_SELECTOR) !== e.currentTarget` (`useLongPress.ts:196-201`), which serves both layouts *because each caller now attaches the hook to the element that IS the gesture surface* — Cases moved its handlers from the wrapper strip onto the row/header button. A refutation with a demonstrated failure mode beats compliance.
+3. **The lesson was generalised in the ledger.** §57b restates §56f's guard rail as a rule with a reviewer counterpart ("a `useX` defined in a screen file is a consolidation candidate by default"), and names why the assembly missed this one: it was not at a new path, it was *not a module at all*.
 
-| Behaviour | `primitives/useLongPress` | `DashboardScreen`'s copy |
+One new export came with the fix (`LONG_PRESS_SURFACE_STYLE`) → **NIT-N2**.
+
+---
+
+## Routed cross-lane observation → R-4 — **FIXED** (`76abf1c`)
+
+`create-store.ts:506-513` now opens with `if (!get().cases.some((c) => c.id === caseId)) return`, making `updateIncidentLocation` the no-op its JSDoc always claimed and closing the §56b defect class (fresh `cases` array + fresh state object → every selector re-runs → a snapshot write for a write that changed nothing). The commit also records *why* the existing test did not catch it — a value-level assertion ("a ghost name is absent") true with or without the guard, the same shape §56b describes on `setCaseStatus` — and strengthens it to the house whole-state pin, mutation-verified. The one thing deliberately **not** done (no-change deep comparison for a *known* id) is correctly argued as a would-be new divergence, since `updateCase` has the identical property and no sibling does it.
+
+---
+
+## Carried NITs — verified untouched, dispositions intact
+
+All four are recorded in the aggregate's Appendix A and re-stated with triggers in §57h. I re-checked each site in the delta:
+
+| NIT | Site | State |
 |---|---|---|
-| `enabled` gate / `delayMs` option | yes | absent (`LONG_PRESS_MS` re-declared locally at `:23`) |
-| Movement tolerance (a drag is not a hold) | yes (`MOVE_TOLERANCE_PX`) | absent |
-| Swallows the hold's trailing click | yes (`onClickCapture`, capture-phase) | absent |
-| Does not arm on a nested control | absent | yes (`e.target.closest('button')`, `:61`) |
-| Latches the timer-fire so the OS `contextmenu` that follows a touch hold does not re-fire | **absent** | yes (`firedRef`, `:48`, with the reason written out: *"Without this latch that one gesture would open the sheet twice."*) |
-
-The last row is the sharp one. In the consolidated hook, `onContextMenu` calls `cb.current()` unconditionally when enabled (`useLongPress.ts:114-120`) with no check that the 500 ms timer already fired — and `useLongPress.test.tsx` has no hold-then-`contextMenu` arm (its context-menu tests at `:138` and `:159` both start from a fresh gesture). The knowledge that a touch hold raises **both** signals lives only in the copy that is not the shared one.
-
-**Why this is a type-design finding and not just DRY.** The lane brief names `useLongPress`'s option surface as a high-value surface, and what is actually wrong is that there are two *declarations* of that surface with different shapes: one that a caller can configure and whose handler set is a named exported type, and one that cannot be configured and whose handler type is structural and element-bound. A future package reading `primitives/useLongPress.ts` as "the" long-press primitive will not find the dashboard's guards, and a change to either is invisible to the other.
-
-**Fix.** Delete `DashboardScreen`'s private copy and consume `ui/primitives/useLongPress`, carrying its two guards into the shared hook first (a `closest('button')` bail in `onPointerDown`, and a fired-latch consulted by `onContextMenu`). Both are additive and neither breaks the existing callers. Also delete `DashboardScreen.tsx:23`'s duplicate `LONG_PRESS_MS` in favour of the exported one — `appChapters.test.tsx` already imports the shared constant, so the two are one rename away from disagreeing. This is §56f's own guard rail, executed.
+| TYPE-DESIGN-4 — three refusals collapse to one `null` | `create-store.ts:249`, `:265` | Unchanged. §57h adds a live consequence worth knowing: `NEW_ADDRESS_FAILED_NOTICE`'s copy had to name a single cause *because* the store collapses three, so a discriminated result would split it back into three sentences. That strengthens the finding without changing its severity. |
+| TYPE-DESIGN-5 — `IncidentSheetItem.id` is a case id | `map/mapData.ts:50` | Unchanged. `toMapData` was edited by R-7 (plotting gate) but the id field was not touched. |
+| TYPE-DESIGN-6 — `CaseNotesCamera.gps` widens `CameraGpsFix` | `logic/pdf/case-notes.ts:28` | Unchanged — file not in the delta. |
+| TYPE-DESIGN-7 — `activeModal()`'s `default` over 7 `ModalId`s | `DemoExperience.tsx:1741` | Unchanged. |
 
 ---
 
-## TYPE-DESIGN-4 [NIT] `features/demo/engine/store/create-store.ts:249,261` — `duplicateLocation` / `duplicateToNewAddress` collapse three distinct refusals into one `null`
+# New findings (fix-round)
 
-`duplicateLocation(...): string | null` and `duplicateToNewAddress(...): string | null` each return `null` for causes the doc comments enumerate as three different phone `ValidationError`s: source gone, blank name, and (for the second) blank street address (`create-store.ts:605-607`, `:632-635`). The house pattern for exactly this is a discriminated result union — `ImportRunResult`, `ExtractClientResult`, `OcrResult`, and in this very diff's neighbourhood `GpsCaptureOutcome` (`engine/logic/gps.ts:81`).
+## TYPE-DESIGN-N1 [NIT] `features/demo/ui/screens/NewCaseModal.tsx:184` (and `ui/DemoExperience.tsx:1636`) — two setters in the same chain still erase the per-key typing R-13 just installed
 
-Not raised higher because the consumers cope honestly rather than accidentally: the bridge maps `null` to one generic notice each (`DUPLICATION_FAILED_NOTICE` / `NEW_ADDRESS_FAILED_NOTICE`, `DemoExperience.tsx:713`, `:781`) rather than guessing a cause, and both call sites are gated upstream (the chooser disables both duplicate buttons on a blank/taken name; the card's `newLocationBlock` guard refuses a blank street). So there is no reachable wrong-message path today. If a cause is ever surfaced to the visitor, the union is the shape to reach for.
+R-13 hardened the **prop**. Two links of the same chain kept the old shape:
 
----
+- `NewCaseModal.tsx:184` — the component's own error-clearing wrapper, `const change = (field: keyof NewCaseFields, value: string) => { …; onChange(field, value) }`;
+- `DemoExperience.tsx:1636` — the bridge's handler, `const onChange = (f: keyof NewCaseFields, v: string) => setCaseForm((s) => ({ ...s, [f]: v }))`.
 
-## TYPE-DESIGN-5 [NIT] `features/demo/ui/screens/map/mapData.ts:47` — `IncidentSheetItem.id` is a **case** id under the field name its sibling arm uses for a **location** id
+Both compile against the generic prop, because instantiating `K` at its constraint gives `NewCaseFields[keyof NewCaseFields]` = `string`.
 
-`SheetItem = LocationSheetItem | IncidentSheetItem` is properly discriminated on `kind`, but both arms name their identifier `id: string`, and they are different id spaces: `LocationSheetItem.id = l.id` (a location, `mapData.ts:110`) while `IncidentSheetItem.id = viewerCase.id` (a case, `:97`).
+**Probe-verified**, same technique as above: a temp module reproducing `change` verbatim over the shipped generic signature, with `@ts-expect-error` on `change('incidentCoordinateSource', 'manaul')` → `error TS2578: Unused '@ts-expect-error' directive`, i.e. **the wrapper accepts the typo**. Probe removed; tree clean.
 
-This diff adds the first consumer that reads the incident arm's `id` as a case id — `onEditIncident(item.id)` (`map/LocationDetailCard.tsx:70`) — and has to explain the id-space change in prose on the prop (`/** … The id is the CASE id (incident items carry it). */`, `:14-16`). Its sibling one branch up passes the *other* arm's `id` to `onGoToLocation`. Nothing is mis-wired today (the component branches on `item.kind` first), and the counter-string ids (`c1` vs `l1`) make an accidental collision impossible, so this is a naming fix rather than an invariant gap: rename the incident arm's field to `caseId`. The union is already discriminated, so the change is compile-checked and free. Explicitly **not** a request for a branded type — the lane's own false-positive list rules that out absent a demonstrated mix-up, and there is none.
+Nothing is wrong today: all three provenance write sites (`:239`, `:255`, `:264`) call `onChange` directly, and `change` is used for exactly two fields (`caseNumber`, `unit`), both plain `string`. But `change` exists precisely to clear a field's error as the visitor types, which is one product decision away from being what the provenance field needs — and it is *in the same file the fix hardened*, standing as a counter-example to the rule §57g generalises from that fix ("a keyed setter typed on the union of keys but a single value type erases every field's type"). The bridge handler is the same shape one layer up, where the value physically lands in state via an unchecked computed-key spread.
 
----
-
-## TYPE-DESIGN-6 [NIT] `features/demo/engine/logic/pdf/case-notes.ts:26-28` — the document-facing camera type widens `CameraGpsFix` back to `GpsCoordinates`
-
-`CaseNotesCamera.gps?: GpsCoordinates`, fed from `selectCaseNotesData`'s `gps: c.gps` (`store/selectors.ts:273`), which is a `CameraGpsFix`. The document prints the row under a hard-coded `GPS Location` label (`case-notes.ts:220`), and `GpsCoordinates` admits a geocoded or hand-entered pair, which by construction a camera fix can never be — that is the entire point of `Extract<GpsSource, 'gps'>` on `CameraGpsFix`.
-
-No invalid state is constructible today (one producer, and it is the camera list). Typing the field `CameraGpsFix` costs nothing — the renderer reads only `lat`/`lng`/`accuracyM` — and keeps the court-facing label honest by construction if a second producer ever appears. Filed as a NIT precisely because the boundary is currently closed by having exactly one producer.
+**Fix (one line each).** Give both the same signature the prop now has: `<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K])`. `change`'s body already narrows `field` before use, and the bridge's `{ ...s, [f]: v }` is unaffected. NIT because no current call site reaches it — but it is the cheapest possible way to stop R-13 from being re-openable by a one-line edit that type-checks.
 
 ---
 
-## TYPE-DESIGN-7 [NIT] `features/demo/ui/DemoExperience.tsx:1600-1710` — `activeModal()`'s `default: return null` now covers a seven-member `ModalId`, and `assertNever` exists in-repo as of this diff
+## TYPE-DESIGN-N2 [NIT] `features/demo/ui/primitives/useLongPress.ts:99` — the new shared style token is the only exported `CSSProperties` const in the UI that is not `as const satisfies CSSProperties`
 
-The `switch (modal)` gained three arms this phase; its `default: return null` is pre-existing and load-bearing for `modal === null`. But the union it switches over grew 75% in one diff, and the arm that catches a *missing* case is the same arm that catches "no modal open" — so a future `ModalId` added without a render arm opens a modal that renders nothing, with the store's `modal` set and `visited` recorded. `mediaLibrary` already sits in that state (deliberately — an unbuilt fast-follow, consistent with `activeScreen()`'s documented `placeholder(view)` fallback), which is why this is a NIT and not more.
+```ts
+export const LONG_PRESS_SURFACE_STYLE: CSSProperties = { userSelect: 'none' }
+```
 
-Worth noting only because this diff **introduces `assertNever`** (`engine/logic/assert-never.ts`) and exports it from the engine barrel, so the shape is now available and cheap: `case null: return null` … `default: return assertNever(modal)`. `mediaLibrary` would need an explicit arm — which is arguably the honest outcome, since it is currently a modal id that can be opened and cannot be seen.
+The decision to export this as a style token rather than fold it into the returned handler object is **right and well-argued** (callers spread the handlers alongside their own `style` prop, so a `style` key inside would win or lose by attribute order — stated at the declaration and in §57a). The nit is only its shape: every other exported style token in this feature is `as const satisfies CSSProperties` (`glass-tokens.ts:47`, `:54`, `:62`; `GLASS` itself is `as const`), which makes them deeply readonly. A `grep` for `^export const [A-Z_]*: CSSProperties` across `features/demo/ui/` returns this one line and nothing else — it is the sole divergence.
+
+It is now module-level shared data spread into three call sites, which is precedent 7's exact subject ("new module-level registries must be `readonly`"; the PR #8 shared-catalog fix). `LONG_PRESS_SURFACE_STYLE.userSelect = 'auto'` currently compiles and would silently change the gesture surface everywhere. **Fix:** `= { userSelect: 'none' } as const satisfies CSSProperties`.
 
 ---
 
-## Cross-lane observation (not a type-design finding — routed, not scored)
+## New type surfaces the fix round introduced — assessed, no findings
 
-**`updateIncidentLocation` has no unknown-id guard, though its own doc comment says it does.** `create-store.ts:220-225` documents the action as *"A no-op for an unknown id, like every other case-keyed writer here"*, but the implementation (`:506-510`) is a bare `set((s) => ({ cases: s.cases.map(...) }))` with no `get()`-first early return — unlike `updateCase` (`:455`), `setCaseStatus` (`:503`), `deleteCase` (`:530`) and `deleteLocation` (`:558`), all of which have one. For an unknown id it allocates a fresh `cases` array and a fresh state object, waking every subscriber and triggering a snapshot write for a change that did not happen. That is the same defect §56b describes catching in `setCaseStatus` at the assembly merge, still standing in the sibling written in the same wave. Not scored here because it is an implementation/consistency defect rather than a type gap — flagging it for the TypeScript or silent-failure lane, and noting that a doc comment asserting a guard the code does not have is worse than no comment.
+Recorded so the next round does not re-derive them.
+
+- **The generic setter's signature** (`NewCaseModal.tsx:19-22`) — sound, probe-verified in both directions (above). Inference is unambiguous: `K` is fixed from the `field` argument and the indexed-access `NewCaseFields[K]` is checked against it, so no reverse-inference widening occurs. The bridge's non-generic implementation remains assignable (constraint instantiation yields `string`), which is why it type-checks — that is NIT-N1, not a soundness problem with the signature. **No committed compile-time pin exists for it**, unlike `CaseEdits`' `@ts-expect-error` probe (`crud-actions.test.ts:80-96`); the two probes in this review were ad-hoc. Folding one `@ts-expect-error` line into an existing suite would make the guarantee self-defending — noted, not filed, since the closest suite (`NewCaseModal.gate.test.tsx`) is behavioural.
+- **Entity factories** `demoCase` / `demoLocation` (`engine/store/__tests__/test-utils.ts:33-87`) — correct on every axis this lane cares about: they live in the canonical test-utils beside the existing input factories, take `Partial<DemoCase>` / `Partial<DemoLocation>` overrides, return the full entity, build a fresh object per call (no shared mutable default), and default `form` to `blankLocationForm()` exactly as `addLocation` does. This closes the parallel-fixture surface CLAUDE.md's "Adding a Field to the Case Entity" rule warns about (its phone counterpart is `createMockCase`/BUG-007), and a future **required** field is a compile error in one file. The residual — a future **optional** field still slips past `tsc` — is inherent to the pattern, stated at the factory, and tracked in §57h with the right trigger ("the next `DemoCase` field add — update the factory first"). No finding.
+- **`NAME_TAKEN_ERROR` re-export** (`DuplicateLocationModal.tsx:30-32`) — now `NEW_LOCATION_BLOCK_MESSAGES.duplicateName`, so the chooser and the create card cannot drift on copy. The export's type widens from the string literal it used to infer to `string` (the record's value type); nothing consumes the literal type — the suite compares values — so this is free. The larger part of R-3 is a type-design improvement in its own right: the chooser's private re-derivation of the two name rules is gone in favour of `newLocationBlock({ …, requireAddress: false })`, which brings the module's evaluation *order* with it (blank reports "required", never "duplicate"). One rule, one owner — §56's `location-name.ts` reasoning applied to the sibling that had a copy. No finding.
+- **`ActionButton`'s `blocked` / `describedBy`** (`DuplicateLocationModal.tsx:65-101`) — the native `disabled` attribute is gone, bringing the third submit gate onto §56d's reconciled semantic (`aria-disabled` + caller-side enforcement). Prop names are local to a private component and read fine beside `ModalActions`' `submitBlocked` / `submitDescribedBy`. No finding.
+- **`MapScreen.onEditIncident` made required** (`map/MapScreen.tsx:26-38`) — a props-honesty improvement of exactly the kind this lane grades: the CTA renders unconditionally, so an optional handler meant a mount could ship a button that swallows every press. Requiring the prop is the correct half of §49a's precedent for a surface with no honest half-state, and `tsc` found the four unwired test renders — the change paying for itself. Its two optional neighbours are correctly left alone (they gate their own affordances). No finding.
+- **`editingCase` derived once** (`DemoExperience.tsx:801-813`) — R-11 collapses two independent discriminators (`cases.find(caseEditId)` in the render arm, bare `caseEditId !== null` in `submitCase`) into one binding both halves read. This is the correlated-state precedent applied to bridge state: the sheet can no longer present one mode and commit the other. Alongside `closeIncidentModal` (R-12, §56j's hardening applied to the sibling it missed), both are improvements to invariant expression at the bridge. No finding.
+- **`IncidentLocationPatch` as an intersection rather than a pure `Pick`** — checked that the derivation is still machine-checked end to end; the added member's type is `DemoCase['incidentCoordinates']`, not a re-typed literal. No finding.
+- **`toMapData`'s plotting gate** (`map/mapData.ts:79-97`, R-7) — `hasCapturedCoordinates` now gates both the incident pin and the located-locations filter, so the four consumers of one stored record (case sheet, PDF camera row, notes formatter, map) finally agree. Narrowing is correct: the predicate's structural param type filters `undefined` out of the incident union while keeping `source`, so `ic.lng` still resolves; the surviving `l.gps!` assertions are guarded by the same predicate. §49g's fired trigger is discharged rather than re-deferred. No finding.
 
 ---
 
 ## Type Design Summary
 
-| Severity | Count |
+| Severity | Count (new this round) |
 |---|---|
 | BLOCKER | 0 |
 | MAJOR | 0 |
-| MINOR | 3 |
-| NIT | 4 |
+| MINOR | 0 |
+| NIT | 2 |
 
 | Check | Result |
 |---|---|
-| Canonical homes preserved (no parallel entity declarations) | **partial** — no domain entity is re-declared; two *form value models* for the incident field set coexist (TYPE-DESIGN-1, deferred §53d's trigger fired), and a UI primitive's surface is declared twice (TYPE-DESIGN-3) |
-| Discriminated unions well-formed | yes — `NewCaseModalProps` (mode/existingCase correlation unconstructable), `DeleteTarget`, `GpsCaptureOutcome`, `SheetItem`, `PendingDelete` |
-| Exhaustiveness enforced (never-checked switches) | yes for new unions — `actionsForStatus` uses `assertNever`; `gpsSourceLabel` keeps its `case undefined` + `never`; `LOOKUP_NOTICE_COPY` converts a binary ternary into a total map. One pre-existing `default:` noted (NIT-7) |
-| Correlated state modelled as a union | yes — `NewLocationFields.coordinates?: NewLocationCoordinates` collapses the lat/lng/accuracy/source quartet; the bridge's modal payloads are null-guarded at every render site, no `!` assertions |
-| Id spaces typed (no bare-string registries/keys) | **regression found** — `NewCaseFields.incidentCoordinateSource: string` (TYPE-DESIGN-1), against the `IncidentCoordSource` this same diff introduced |
-| `readonly` discipline on shared data | yes — `cloneScopesWithNewIds(scopes: readonly ScopeEntry[])`, `existingNames: readonly string[]` throughout, `NEW_LOCATION_BLOCK_MESSAGES` frozen `Readonly<Record<…>>`, `PRECISE_GPS_CONFIG` frozen, all new copy objects `as const` |
-| Boundary types honest about untrusted input | yes — the snapshot guard is the only untrusted boundary this phase moves, and v5's `CameraGpsFix` schema is key-exhaustive (`FullShape`) and provenance-pinned (`z.literal`) |
-| Derived-vs-stored | yes — `toCameraGpsFix` drops `sampleCount`; `CaseSheetData.statusLabel` is a display-mapper convenience alongside the raw `status` its consumer also needs, consistent with `screenData.ts`'s own `caseStatusTheme` precedent |
-| Props-type honesty (store-bridge rule) | yes — every new component takes data + callbacks; no store, setter, or `Record<string, unknown>` bag in any new prop type |
-| `isolatedModules` correctness | yes — every new type re-export in `engine/index.ts` uses `export type` / a `type` specifier |
+| Prior lane findings resolved | **3/3 FIXED**, plus the routed observation FIXED — zero partial, zero unfixed |
+| Canonical homes preserved | **improved** — the third `useLongPress` is gone (one primitive, one home); `demoCase`/`demoLocation` give `DemoCase` a canonical test factory it lacked. The one remaining parallel form model (`NewCaseFields` vs `IncidentLocationValues`) is type-hardened and explicitly re-deferred with a sharpened trigger (§57h) |
+| Discriminated unions well-formed | yes — unchanged, plus `editingCase` collapses a two-discriminator divergence at the bridge |
+| Exhaustiveness enforced | yes for new unions; the one pre-existing `default:` is a carried NIT with a trigger |
+| Correlated state modelled as a union | yes |
+| Id spaces typed | **regression closed** — `incidentCoordinateSource` is the union, and the setter that writes it discriminates per key (probe-verified) |
+| `readonly` discipline on shared data | one new gap → NIT-N2 (`LONG_PRESS_SURFACE_STYLE`), the sole exported style token not `as const satisfies CSSProperties` |
+| Boundary types honest about untrusted input | yes — unchanged; no persisted shape moved this round |
+| Props-type honesty | **improved** — `MapScreen.onEditIncident` required; the chooser's gate on the house `aria-disabled` semantic |
+| Fix-introduced regressions | **none.** `tsc --noEmit` clean; every changed type surface read; the two new NITs are residuals, not regressions |
 
-**Verdict: APPROVE with comments.** No CRITICAL/BLOCKER, no HIGH/MAJOR. The three MINORs are defence-in-depth gaps with a single correct producer each; TYPE-DESIGN-1 is the one I would land before merge, because its trigger is already logged in the ledger and because it is a one-line change if the full §53d fold is not in scope for this phase. TYPE-DESIGN-2 and TYPE-DESIGN-3 are both small and both prevent a class of future silent drift the phase has already paid to reason about once.
+**Verdict: APPROVE.** Nothing in this round blocks merge from this lane. Both new items are one-line changes that can land opportunistically or be folded into §57h — NIT-N1 is the one I would take, because it keeps R-13's guarantee from being re-openable by an edit that type-checks, in the same file the fix hardened.
