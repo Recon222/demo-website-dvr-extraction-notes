@@ -67,7 +67,7 @@ function renderSubmission(o: {
 describe('Submission — location section shape (ui-mapping 05)', () => {
   it('renders the phone render order: business → street → city → GPS → contacts', () => {
     const { container } = renderSubmission()
-    const order = [...container.querySelectorAll('input, [data-testid="gps-capture-control"]')].map(
+    const order = Array.from(container.querySelectorAll('input, [data-testid="gps-capture-control"]')).map(
       (el) => el.getAttribute('aria-label') ?? el.getAttribute('data-testid'),
     )
     const idx = (needle: string) => order.indexOf(needle)
