@@ -204,6 +204,28 @@ describe('the live shutter', () => {
     expect(h.recognize).toHaveBeenCalledTimes(1)
   })
 
+  // R-10 (T-4): the 1280 px bound is what §64a's persist-the-proof decision rests on — an
+  // unbounded 4K strip is ~an order of magnitude more base64, and a quota overflow CLEARS the
+  // whole snapshot. The two smaller-resolution tests above never reach the cap, so this is
+  // the only case that fails if `targetWidth` is dropped from the screen's grab call.
+  it('caps a 4K strip at 1280 px — full-res source rect, downscaled output, aspect preserved', async () => {
+    const h = harness()
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(3840, 2160)
+
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    // Source rect stays the full-res strip (crop math), the destination is the bound:
+    // 3456 × 367 → 1280 × 136 (the numbers capture-media.test.ts derives at unit level).
+    expect(h.canvas.drawCalls[0].slice(1)).toEqual([192, 896, 3456, 367, 0, 0, 1280, 136])
+    expect(h.canvas.width).toBe(1280)
+    expect(h.canvas.height).toBe(136)
+    expect(h.reads).toHaveLength(1)
+  })
+
   // R-4 (S-2): the belt half — a slow first recognition must not leave the sample paths open
   // to land a SECOND result while the first is still in flight.
   it('holds the sample paths while a live read is in flight, and releases them after', async () => {
