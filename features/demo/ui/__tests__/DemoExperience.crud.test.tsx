@@ -36,6 +36,40 @@ function expandCase(caseNumber: string) {
   fireEvent.click(screen.getByText(caseNumber).closest('button') as HTMLElement)
 }
 
+describe('DemoExperience — the delete dialog hands focus back (R-10)', () => {
+  it('returns focus to the row\'s ⋯ trigger on Cancel, not to <body>', () => {
+    // The dialog captures `document.activeElement` on mount to restore it on close, and its
+    // header and §48c both assert focus-return as settled fact — but the tray action ran
+    // `onCloseActions(); onDeleteCase(id)` in one batched handler, so the button it was
+    // activated from was already detached and the capture was `<body>`. The cleanup's
+    // `isConnected` guard then passed and called `document.body.focus()`, a no-op. The row's
+    // ⋯ trigger is the stable anchor: it survives the tray closing, and it is the affordance
+    // that led here.
+    const store = seed()
+    render(<DemoExperience store={store} />)
+    const trigger = screen.getByRole('button', { name: 'Actions for case PR25-A' })
+
+    pressDelete('Actions for case PR25-A')
+    expect(screen.getByRole('alertdialog')).toHaveFocus()
+
+    fireEvent.click(screen.getByTestId('delete-modal-cancel'))
+    expect(document.activeElement).toBe(trigger)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('returns focus to the LOCATION row\'s trigger too', () => {
+    const store = seed()
+    render(<DemoExperience store={store} />)
+    expandCase('PR25-A')
+    const trigger = screen.getByRole('button', { name: "Actions for location Kim's Convenience" })
+
+    pressDelete("Actions for location Kim's Convenience")
+    fireEvent.click(screen.getByTestId('delete-modal-cancel'))
+
+    expect(document.activeElement).toBe(trigger)
+  })
+})
+
 describe('DemoExperience — delete a case', () => {
   it('confirms with the case number and the locations that go with it, then deletes', () => {
     const store = seed()
