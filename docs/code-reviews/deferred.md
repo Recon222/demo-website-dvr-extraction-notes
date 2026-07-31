@@ -1385,3 +1385,54 @@ missing members, which is the direction real drift runs.
 by a binary ternary in `LocationFields`, so a fourth member would silently render the
 partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
 `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+## 55. P2 residual-minor rider (R-35/R-36/R-37/R-38/R-39) — choices made, nothing deferred
+
+**Source:** `docs/code-reviews/parity/p2/p2-review-fixdelta.md` §R-35…R-39 — the five
+non-gating minors the P2 fix-delta left open when round 3 was scoped to R-32/R-33/R-34.
+All five verified live at `ac1a0a9` before work (none was incidentally fixed in round 3)
+and **all five are now closed on `parity/p3-riders`**; nothing here is deferred. This entry
+records the judgement calls so a fix-delta pass does not have to re-derive them, and
+**closes §45i**, which parked R-39 for "the next touch of this file".
+
+**55a. R-35 took the guard, not the deletion.** The review offered `aria-disabled` + an early
+return **or** dropping the disabling entirely ("re-confirming is idempotent"). Chose the
+guarded `aria-disabled` so the confirm button and the commit CTA twenty lines below it read
+the same way — one idiom on one screen, both explained by §44b — and so the button still
+*says* it has been answered. Consequence to know: unlike the CTA's, this guard is **not**
+load-bearing (a repeat `onConfirmDate()` is a no-op in the bridge); it is there to keep the
+two buttons symmetrical. Deleting it is safe; deleting the `aria-disabled` is not.
+
+**55b. R-37 also changed the render site.** `AlertState = Omit<AlertDialogProps,'onDismiss'>`
+would still have compiled with the hand-listed `title/message/actions` at the `<AlertDialog>`
+call, but a prop added to the primitive would then have needed two edits instead of none. The
+render spreads (`{...alert}`) so the derivation is actually load-bearing end to end.
+Mutation-verified: a required prop added to `AlertDialogProps` errors at all three `setAlert`
+call sites. The one thing this does NOT catch is a prop added with a default — same limitation
+every `Omit`-derived state has.
+
+**55c. R-39 used the copy map, not the `never` arm.** §45i asked for "the same `never`-check
+treatment R-25 gave `gpsSourceLabel`"; the fix-delta's own suggestion was a
+`Record<Exclude<LookupNotice,'none'>, string>`. Took the Record: identical compile-time
+guarantee (adding a member is TS2741 at the literal — verified), no unreachable `default` arm
+to carry, and it keeps the "which copy" decision in one place next to the two exported strings.
+`'none'` stays excluded because it has no copy — the notice element is not rendered in that
+state, and the existing `lookupNotice !== 'none'` guard is what narrows the index.
+
+**55d. R-36's probe instruments a prop, because `SectionBlock` is not a module.** The repo's
+established render-counter (`ImportTerminalProgress.memo.test.tsx`) swaps a child MODULE for a
+memo-wrapped counting delegate. `SectionBlock` lives inside `NotesScreen.tsx`, so that trick
+needs a production extraction — reshaping a court-document screen for a test. Instead
+`meta.label` is a counting getter: `NotesScreen` never reads it (it reads `manuallyEdited` for
+the banner and nothing else), `SectionBlock` reads it every render for two `aria-label`s. If a
+future change makes the PARENT read `label`, this probe silently over-counts and the test
+starts failing honestly-but-confusingly — re-point it at another SectionBlock-only field
+(`content`, `freshContent`) rather than loosening the assertion.
+
+**55e. What the R-36 guard does and does not cover.** It pins the memo through the props that
+exist today. A **seventh** prop added to `SectionBlock` from the bridge without a `useCallback`
+is caught (the bridge half asserts zero block re-renders on an unrelated store write). A prop
+added with a stable identity but a changing VALUE is not, and nor is `copyAllText` — the second
+memoised derivation — which no block consumes; it is covered only by `assembleNotesString`'s own
+suite. Its `useMemo` shares `[currentLocation]` with `notesMeta`, so the bridge-half assertion
+does move together with it in practice.
