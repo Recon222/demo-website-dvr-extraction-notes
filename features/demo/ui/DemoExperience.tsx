@@ -240,6 +240,10 @@ const caseMapExportedNotice = ({ hasSites, hasToken }: { hasSites: boolean; hasT
 /** Phone title (`Export Error`, useExportFlow.ts:301-305) with the only body this arm can have:
  *  its message is the thrown error's, and the browser's refusal is not one of those. */
 const CASE_MAP_EXPORT_FAILED_NOTICE = "Export Error — this browser wouldn't save the Case Map file."
+/** Same phone title, the other cause this arm can have: the lazily-loaded builder never
+ *  arrived (offline, or a stale chunk hash after a deploy). */
+const CASE_MAP_MODULE_FAILED_NOTICE =
+  "Export Error — the Case Map builder couldn't be loaded. Check your connection and try again."
 /** Phone verbatim (`useExportFlow.ts:918-924`). */
 const NO_CASE_SELECTED_NOTICE = 'No Case Selected — Please select a case before exporting its map.'
 /**
@@ -1094,7 +1098,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return
     }
     void (async () => {
-      const caseMap = await import('@/features/demo/engine/logic/case-map')
+      let caseMap: typeof import('@/features/demo/engine/logic/case-map')
+      try {
+        caseMap = await import('@/features/demo/engine/logic/case-map')
+      } catch (e) {
+        // A lazy chunk can genuinely fail to arrive — offline, or a stale chunk hash requested
+        // after a deploy. Unhandled, that rejection is a button that does nothing, silently,
+        // which is the failure mode every honest-notice in this file exists to prevent.
+        console.warn('[demo/case-map] the export module failed to load — nothing was saved:', e)
+        setNotice(CASE_MAP_MODULE_FAILED_NOTICE)
+        return
+      }
       const locations = store.getState().locations.filter((l) => l.caseId === target.id)
       const geojson = caseMap.buildCaseMapGeoJson(target, locations)
       const html = caseMap.buildCaseMapHtml(
