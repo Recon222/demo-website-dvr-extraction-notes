@@ -41,6 +41,7 @@ export {
 
 // ---- Logic: time / OCR / import / PDF ----
 export * from '@/features/demo/engine/logic/time'
+export * from '@/features/demo/engine/logic/dst-advisory'
 export * from '@/features/demo/engine/logic/ocr'
 export * from '@/features/demo/engine/logic/import'
 // NOTE (review R-10): engine/logic/import-log is deliberately NOT re-exported here. Every
