@@ -167,21 +167,36 @@ const YEAR_FIRST_DATE = /(?:^|\D)\d{4}[-/]\d{1,2}[-/]\d{1,2}/
 /** A year-last numeric date (`06/07/2024`, `13-03-25`) — the only shape that can be ambiguous. */
 const YEAR_LAST_DATE = /(?:^|\D)(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})(?!\d)/
 
+/**
+ * How much the reader had to assume to produce a date — exactly one of three, never two.
+ *
+ * A discriminated union rather than a bag of nullables: `assumedDate` and `ambiguity` describe
+ * mutually-exclusive situations (a frame with no date has no date digits to disambiguate), and
+ * as independent nullables the both-set state was representable. The confirm step branches on
+ * each field separately, so that state would have rendered a "no date on the display" blocker
+ * and a "which reading of the date" warning about the same frame at once.
+ */
+export type DvrDateResolution =
+  /** The frame carried an unambiguous date. Nothing to challenge. */
+  | { kind: 'exact' }
+  /**
+   * The frame carried a time but NO date; `assumedDate` is the `'YYYY-MM-DD'` taken from
+   * `currentTimeMs` to make `dvrTime` well-formed. The confirm step must block the commit
+   * until the operator confirms or corrects it.
+   */
+  | { kind: 'assumed-date'; assumedDate: string }
+  /**
+   * The date digits read either MM/DD or DD/MM. `dvrTime` already carries the resolver's
+   * `chosenDate`, so the pre-filled field and the warning can never disagree.
+   */
+  | { kind: 'ambiguous'; ambiguity: DateDisambiguationResult }
+
 /** Everything the confirmation step needs to show — and to challenge — an OCR read. */
 export interface DvrTimestampReading {
   /** The DVR date/time the confirm field is pre-filled with, `'YYYY-MM-DD HH:MM:SS'`. */
   dvrTime: string
-  /**
-   * Set ONLY when the frame carried a time but no date: the `'YYYY-MM-DD'` that was assumed
-   * (today, off `currentTimeMs`) to make `dvrTime` well-formed. Its presence is the confirm
-   * step's instruction to block the commit until the operator confirms or corrects the date.
-   */
-  assumedDate: string | null
-  /**
-   * Set when the date digits were MM/DD-vs-DD/MM ambiguous. `dvrTime` already carries the
-   * resolver's `chosenDate`, so the field and the warning can never disagree.
-   */
-  ambiguity: DateDisambiguationResult | null
+  /** What had to be assumed to get there. */
+  resolution: DvrDateResolution
 }
 
 /**
@@ -211,20 +226,20 @@ export function readDvrTimestamp(text: string, currentTimeMs: number): DvrTimest
     const n = new Date(currentTimeMs)
     const p = (x: number) => String(x).padStart(2, '0')
     const assumedDate = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`
-    return { dvrTime: `${assumedDate} ${parse.time}`, assumedDate, ambiguity: null }
+    return { dvrTime: `${assumedDate} ${parse.time}`, resolution: { kind: 'assumed-date', assumedDate } }
   }
 
-  const plain = { dvrTime: parse.value, assumedDate: null, ambiguity: null }
-  if (YEAR_FIRST_DATE.test(text)) return plain
+  const exact: DvrTimestampReading = { dvrTime: parse.value, resolution: { kind: 'exact' } }
+  if (YEAR_FIRST_DATE.test(text)) return exact
   const m = text.match(YEAR_LAST_DATE)
-  if (!m) return plain
+  if (!m) return exact
   const first = parseInt(m[1], 10)
   const second = parseInt(m[2], 10)
-  if (!needsDisambiguation(first, second)) return plain
+  if (!needsDisambiguation(first, second)) return exact
 
   const ambiguity = disambiguateDateFormat(first, second, parseInt(normalizeYear(m[3]), 10), currentTimeMs)
   // parse.value is always 'YYYY-MM-DD HH:MM:SS' — swap the 10-char date, keep the time.
-  return { dvrTime: `${ambiguity.chosenDate}${parse.value.slice(10)}`, assumedDate: null, ambiguity }
+  return { dvrTime: `${ambiguity.chosenDate}${parse.value.slice(10)}`, resolution: { kind: 'ambiguous', ambiguity } }
 }
 
 /**
@@ -241,10 +256,14 @@ export function readDvrTimestamp(text: string, currentTimeMs: number): DvrTimest
  * Lives here, not in the screen, so the bridge can refuse the same commit the button disables —
  * a gate enforced only by a disabled button is enforced only by the UI.
  */
-export function isDvrDraftCommittable(draft: string, assumedDate: string | null, dateConfirmed: boolean): boolean {
+export function isDvrDraftCommittable(
+  draft: string,
+  resolution: DvrDateResolution,
+  dateConfirmed: boolean,
+): boolean {
   if (!draft) return false
-  if (assumedDate === null || dateConfirmed) return true
-  return draft.slice(0, 10) !== assumedDate
+  if (resolution.kind !== 'assumed-date' || dateConfirmed) return true
+  return draft.slice(0, 10) !== resolution.assumedDate
 }
 
 export interface ConfidenceTier {

@@ -5,11 +5,19 @@ import {
   getConfidenceLevel,
   readDvrTimestamp,
   isDvrDraftCommittable,
+  type DvrDateResolution,
+  type DvrTimestampReading,
 } from '@/features/demo/engine/logic/ocr'
 import { OCR_SAMPLE_FRAMES, SAMPLE_ACTUAL_TIME } from '@/features/demo/engine/content/seed'
 
 /** Fixed "today" for every clock-sensitive assertion: 2026-07-31 12:00 local. */
 const NOW = new Date(2026, 6, 31, 12, 0, 0).getTime()
+
+const EXACT: DvrDateResolution = { kind: 'exact' }
+const assumed = (assumedDate: string): DvrDateResolution => ({ kind: 'assumed-date', assumedDate })
+/** The resolver result of an ambiguous reading, or undefined for any other resolution. */
+const ambiguityOf = (r: DvrTimestampReading | null | undefined) =>
+  r?.resolution.kind === 'ambiguous' ? r.resolution.ambiguity : undefined
 
 /** The datetime string of a successful parse, or null. Keeps the format assertions readable. */
 const dt = (text: string) => {
@@ -113,8 +121,7 @@ describe('readDvrTimestamp', () => {
   it('passes an unambiguous year-first read straight through', () => {
     expect(readDvrTimestamp('2025-03-08 12:05:30', NOW)).toEqual({
       dvrTime: '2025-03-08 12:05:30',
-      assumedDate: null,
-      ambiguity: null,
+      resolution: { kind: 'exact' },
     })
   })
 
@@ -125,32 +132,32 @@ describe('readDvrTimestamp', () => {
   it('flags a dateless frame with the assumed date rather than committing it silently', () => {
     expect(readDvrTimestamp('12:05:30', NOW)).toEqual({
       dvrTime: '2026-07-31 12:05:30',
-      assumedDate: '2026-07-31',
-      ambiguity: null,
+      resolution: { kind: 'assumed-date', assumedDate: '2026-07-31' },
     })
   })
 
   it('derives the assumed date from the injected clock, not the host clock', () => {
     const reading = readDvrTimestamp('12:05:30', new Date(2027, 0, 2, 3, 0, 0).getTime())
-    expect(reading?.assumedDate).toBe('2027-01-02')
+    expect(reading?.resolution).toEqual({ kind: 'assumed-date', assumedDate: '2027-01-02' })
     expect(reading?.dvrTime).toBe('2027-01-02 12:05:30')
   })
 
   it('resolves an ambiguous year-last date and reports the resolution', () => {
     const reading = readDvrTimestamp('06/07/2024 23:45:30', NOW)
-    expect(reading?.ambiguity?.chosenFormat).toBe('MM-DD')
-    expect(reading?.ambiguity?.chosenDate).toBe('2024-06-07')
-    expect(reading?.ambiguity?.alternativeDate).toBe('2024-07-06')
-    expect(reading?.ambiguity?.confidence).toBe('low')
-    expect(reading?.assumedDate).toBeNull()
+    expect(ambiguityOf(reading)?.chosenFormat).toBe('MM-DD')
+    expect(ambiguityOf(reading)?.chosenDate).toBe('2024-06-07')
+    expect(ambiguityOf(reading)?.alternativeDate).toBe('2024-07-06')
+    expect(ambiguityOf(reading)?.confidence).toBe('low')
+    // the union makes the both-set state unrepresentable — no assumed date rides along
+    expect(reading?.resolution.kind).toBe('ambiguous')
   })
 
   it('rewrites dvrTime to the resolver choice so the field can never disagree with the warning', () => {
     // 07/10 with today = 2026-07-31: DD-MM (Oct 7) is 297d away, MM-DD (Jul 10) is 386d —
     // the resolver picks DD-MM, i.e. the OPPOSITE of the parser's MM-DD default.
     const reading = readDvrTimestamp('07/10/2025 23:45:30', NOW)
-    expect(reading?.ambiguity?.chosenFormat).toBe('DD-MM')
-    expect(reading?.ambiguity?.chosenDate).toBe('2025-10-07')
+    expect(ambiguityOf(reading)?.chosenFormat).toBe('DD-MM')
+    expect(ambiguityOf(reading)?.chosenDate).toBe('2025-10-07')
     expect(reading?.dvrTime).toBe('2025-10-07 23:45:30')
     // the parse on its own would have said MM-DD
     expect(dt('07/10/2025 23:45:30')).toBe('2025-07-10 23:45:30')
@@ -159,19 +166,45 @@ describe('readDvrTimestamp', () => {
   it('does not disambiguate when a component settles the order (day > 12)', () => {
     expect(readDvrTimestamp('13-03-2025 23:45', NOW)).toEqual({
       dvrTime: '2025-03-13 23:45:00',
-      assumedDate: null,
-      ambiguity: null,
+      resolution: { kind: 'exact' },
     })
   })
 
   it('does not disambiguate a compressed 14-digit stamp (year-first by construction)', () => {
-    expect(readDvrTimestamp('20250308234530', NOW)?.ambiguity).toBeNull()
+    expect(readDvrTimestamp('20250308234530', NOW)?.resolution.kind).toBe('exact')
   })
 
   it('normalises a 2-digit year before resolving', () => {
     const reading = readDvrTimestamp('06-07-24 23:45:30', NOW)
-    expect(reading?.ambiguity?.chosenDate).toBe('2024-06-07')
+    expect(ambiguityOf(reading)?.chosenDate).toBe('2024-06-07')
     expect(reading?.dvrTime).toBe('2024-06-07 23:45:30')
+  })
+
+  // R-23: `assumedDate` and `ambiguity` used to be independent nullables, so "no date on the
+  // display" AND "which reading of the date?" could describe the same frame at once — the
+  // confirm step branches on them separately and would have rendered both blockers together.
+  // The union makes that unrepresentable; this pins that the producer stays total.
+  it('reports exactly one resolution per read, never two, across every shape it handles', () => {
+    const corpus = [
+      '2025-03-08 12:05:30', // ISO
+      '2025-03-08 11:45:30 PM', // ISO + meridiem
+      '03/08/2025 23:45:30', // slash, ambiguous digits
+      '06/07/2024 23:45:30', // slash, stale year
+      '13-03-2025 23:45', // dash, day settles the order
+      '06-07-24 23:45:30', // dash, 2-digit year
+      '20250308234530', // compressed
+      '12:05:30', // dateless
+    ]
+    for (const text of corpus) {
+      const reading = readDvrTimestamp(text, NOW)
+      expect(reading, text).not.toBeNull()
+      const r = reading!.resolution
+      expect(['exact', 'assumed-date', 'ambiguous'], text).toContain(r.kind)
+      // exactly the discriminant plus that arm's own payload — never a second arm's
+      expect(Object.keys(r).sort(), text).toEqual(
+        r.kind === 'exact' ? ['kind'] : r.kind === 'assumed-date' ? ['assumedDate', 'kind'] : ['ambiguity', 'kind'],
+      )
+    }
   })
 })
 
@@ -182,8 +215,19 @@ describe('OCR sample frames reach the case each was chosen for', () => {
   const read = (frame: keyof typeof OCR_SAMPLE_FRAMES, nowMs = NOW) =>
     readDvrTimestamp(cleanOcrText(OCR_SAMPLE_FRAMES[frame]), nowMs)
 
+  it('the registry is frozen — a frame cannot be reassigned at runtime', () => {
+    // Sibling keyed registries (ACCURACY_MODE_TARGET_M, STREET_TYPE_ABBREVIATIONS) freeze;
+    // these strings are the only route into each arm of the confirm step, so a stray write
+    // would silently retarget a whole surface.
+    expect(Object.isFrozen(OCR_SAMPLE_FRAMES)).toBe(true)
+    expect(() => {
+      ;(OCR_SAMPLE_FRAMES as Record<string, string>).clean = 'tampered'
+    }).toThrow(TypeError)
+    expect(OCR_SAMPLE_FRAMES.clean).toBe('2025-03-08 12:05:30')
+  })
+
   it('clean: parses cleanly, no warning, no assumption', () => {
-    expect(read('clean')).toEqual({ dvrTime: '2025-03-08 12:05:30', assumedDate: null, ambiguity: null })
+    expect(read('clean')).toEqual({ dvrTime: '2025-03-08 12:05:30', resolution: { kind: 'exact' } })
   })
 
   it('clean: is the 00:05:30 the marquee offset depends on', () => {
@@ -193,42 +237,42 @@ describe('OCR sample frames reach the case each was chosen for', () => {
   })
 
   it('ambiguous: resolves at LOW confidence, so the warning actually renders', () => {
-    expect(read('ambiguous')?.ambiguity?.confidence).toBe('low')
+    expect(ambiguityOf(read('ambiguous'))?.confidence).toBe('low')
   })
 
   it('ambiguous: stays low-confidence as the visitor’s clock moves further forward', () => {
     const in2030 = new Date(2030, 0, 1).getTime()
-    expect(read('ambiguous', in2030)?.ambiguity?.confidence).toBe('low')
+    expect(ambiguityOf(read('ambiguous', in2030))?.confidence).toBe('low')
   })
 
   it('timeOnly: carries no date, so the assumed-date gate engages', () => {
-    expect(read('timeOnly')?.assumedDate).toBe('2026-07-31')
+    expect(read('timeOnly')?.resolution).toEqual({ kind: 'assumed-date', assumedDate: '2026-07-31' })
   })
 })
 
 describe('isDvrDraftCommittable', () => {
   it('refuses an empty draft, whatever else is true', () => {
-    expect(isDvrDraftCommittable('', null, false)).toBe(false)
-    expect(isDvrDraftCommittable('', '2026-07-31', true)).toBe(false)
+    expect(isDvrDraftCommittable('', EXACT, false)).toBe(false)
+    expect(isDvrDraftCommittable('', assumed('2026-07-31'), true)).toBe(false)
   })
 
   it('allows a read that carried its own date', () => {
-    expect(isDvrDraftCommittable('2025-03-08 12:05:30', null, false)).toBe(true)
+    expect(isDvrDraftCommittable('2025-03-08 12:05:30', EXACT, false)).toBe(true)
   })
 
   it('holds an unconfirmed assumed date', () => {
-    expect(isDvrDraftCommittable('2026-07-31 12:05:30', '2026-07-31', false)).toBe(false)
+    expect(isDvrDraftCommittable('2026-07-31 12:05:30', assumed('2026-07-31'), false)).toBe(false)
   })
 
   it('releases on an explicit confirmation', () => {
-    expect(isDvrDraftCommittable('2026-07-31 12:05:30', '2026-07-31', true)).toBe(true)
+    expect(isDvrDraftCommittable('2026-07-31 12:05:30', assumed('2026-07-31'), true)).toBe(true)
   })
 
   it('releases when the assumed date has been corrected, without a confirmation', () => {
-    expect(isDvrDraftCommittable('2025-03-08 12:05:30', '2026-07-31', false)).toBe(true)
+    expect(isDvrDraftCommittable('2025-03-08 12:05:30', assumed('2026-07-31'), false)).toBe(true)
   })
 
   it('keeps holding when only the TIME was edited — the date is still the assumption', () => {
-    expect(isDvrDraftCommittable('2026-07-31 09:00:00', '2026-07-31', false)).toBe(false)
+    expect(isDvrDraftCommittable('2026-07-31 09:00:00', assumed('2026-07-31'), false)).toBe(false)
   })
 })

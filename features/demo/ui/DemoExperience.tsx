@@ -812,9 +812,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const runPasteImport = () => runTextImportFlow(imp.text)
 
   // ---- time offset + OCR (the marquee) ----
-  const calcOffset = () => {
+  // `regenerate: false` is the phone's "Keep My Edits" arm (`performOcrCalculation(result, false)`,
+  // phone `ocr-capture.tsx:225-230`): recompute the offset, leave the edited extracted-scope list
+  // alone. Defaults to true — the Time Offset screen's Calculate always regenerates, behind its
+  // own confirmation.
+  const calcOffset = (regenerate = true) => {
     store.getState().calculateOffset()
-    store.getState().generateExtractedScopes()
+    if (regenerate) store.getState().generateExtractedScopes()
   }
   // "Use Current Time": simulated atomic-clock sync — stamps ONLY the real-time field with the
   // calibrated device time and records the sync metadata. Never touches the DVR time.
@@ -854,17 +858,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             dvrTime: reading.dvrTime,
             confidence: { label: conf.message, color: conf.color },
             actual,
-            assumedDate: reading.assumedDate,
-            ambiguity: reading.ambiguity,
+            resolution: reading.resolution,
           }
         : { ok: false, rawText: cleaned },
     )
   }
-  /** "Use this & calculate": the operator's (possibly corrected) value is what gets committed. */
-  const confirmOcr = () => {
+  /**
+   * "Use this & calculate": the operator's (possibly corrected) value is what gets committed.
+   * `regenerate` carries the answer to the phone's recalculate prompt — false is "Keep My Edits".
+   */
+  const confirmOcr = (regenerate: boolean) => {
     // Same gate the CTA is disabled by — enforced here too so the commit path, not just the
     // button, is what refuses an empty draft or an unconfirmed assumed date.
-    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.assumedDate, ocrDateConfirmed)) return
+    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.resolution, ocrDateConfirmed)) return
     const st = store.getState()
     st.updateField('capture.method', 'ocr')
     if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', ocrResult.actual)
@@ -874,7 +880,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       // COMMITTED. When they differ, the offset report can show the correction.
       st.updateField('capture.ocr', { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime })
     }
-    calcOffset()
+    calcOffset(regenerate)
     store.getState().closeLaunch()
     resetOcr()
   }
@@ -1114,6 +1120,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChangeDvrDraft={setOcrDraft}
             dateConfirmed={ocrDateConfirmed}
             onConfirmDate={() => setOcrDateConfirmed(true)}
+            hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onUseSample={runOcrSample}
             onCapture={() => runOcrSample('clean')}
             onCancel={cancelOcr}
