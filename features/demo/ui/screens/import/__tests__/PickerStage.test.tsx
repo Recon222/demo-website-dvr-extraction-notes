@@ -140,6 +140,28 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     expect(cardOf('Paste from Clipboard')).not.toHaveAttribute('aria-busy')
   })
 
+  it('a rejecting onPdfFilesSelected surfaces the file-read backstop and re-enables the cards (R-22)', async () => {
+    const { fileInput } = renderStage({ onPdfFilesSelected: vi.fn().mockRejectedValue(new Error('pipeline boom')) })
+    fireEvent.change(fileInput(), { target: { files: [pdf()] } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to read file. Please try again.')
+    // The finally must release the busy lock — dropping it would leave every card disabled.
+    expect(screen.getByText('Pick File').closest('button')).not.toBeDisabled()
+    expect(screen.getByText('Paste from Clipboard').closest('button')).not.toBeDisabled()
+    expect(screen.getByText('Paste Text').closest('button')).not.toBeDisabled()
+  })
+
+  it('a rejecting onClipboardText surfaces the text-import backstop and re-enables the cards (R-22)', async () => {
+    renderStage({
+      readClipboardText: () => Promise.resolve('copied request'),
+      onClipboardText: vi.fn().mockRejectedValue(new Error('pipeline boom')),
+    })
+    fireEvent.click(screen.getByText('Paste from Clipboard'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to start text import. Please try again.')
+    expect(screen.getByText('Pick File').closest('button')).not.toBeDisabled()
+    expect(screen.getByText('Paste from Clipboard').closest('button')).not.toBeDisabled()
+    expect(screen.getByText('Paste Text').closest('button')).not.toBeDisabled()
+  })
+
   it(`>${BATCH_SIZE_WARNING_THRESHOLD} files: shows the Large Batch Import confirm; Continue hands the batch up`, async () => {
     const { props, fileInput } = renderStage()
     const files = Array.from({ length: BATCH_SIZE_WARNING_THRESHOLD + 1 }, (_, i) => pdf(`r${i}.pdf`))
