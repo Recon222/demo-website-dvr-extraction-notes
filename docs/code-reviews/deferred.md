@@ -3346,3 +3346,75 @@ closed. If that reopen fails — device unplugged mid-confirm — the viewfinder
 "Restart camera" control rather than retrying in a loop. Deliberate: an auto-retry against a
 `NO_DEVICE` failure whose permission state stays `granted` would spin.
 **Trigger:** none — behaviour note.
+
+## 68. P4.6 review-r1 fix round — the audio recorder: dispositions, a grouped commit, and what stayed
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, findings owned by P4.6 —
+R-1 (BLOCKER), R-12, R-17, R-20, R-21, R-27. All six FIXED; nothing deferred out of the round.
+This section records the calls that are not obvious from the diff.
+
+### 68a. R-1 — the guard, and why the return type had to change with it
+
+The blocker was not "a missing `if`". `addMedia`'s silent early-return is the mechanism, but the
+damage came from three things agreeing to look like a success: the store dropped the note,
+`closeLaunch()` returned the visitor to the anchor exactly as a real save does, and `handOff()`
+released the object URL so the bytes were pinned with nothing left holding a reference to
+revoke them. Any two of those fixed alone still leaves a lie or a leak — which is why the fix is
+P4.3's whole `boolean` contract (§60c) rather than a guard: `saveAudioNote` reports whether the
+store TOOK the note, and `handleSave` gates the hand-off on the answer.
+
+Both notices are phone verbatim. The success one had no pin at all before this round, so the
+round added one: `Audio Saved — {base} saved to case`, where `base` is the filename WITHOUT the
+extension, because the phone builds its toast from `result.userFilename` and appends `.m4a`
+separately (`audio-recording.tsx:127` vs `:184-189`) — the same asymmetry `mediaSavedNotice`
+already carried a note about.
+
+### 68b. R-21 — fixed in the flow, deliberately NOT in `useMediaCapture`
+
+The finding's own fix shape offers both; the flow is the right one here. `useMediaCapture` is
+P4.1's shared hook and P4.3's capture screen mounts it too, so a release added inside it would
+change the video surface's hardware lifetime as a side effect of an audio fix — and R-7 is that
+surface's own sibling finding, owned elsewhere. A cross-surface behaviour change smuggled in
+under a different finding's number is the kind of thing a fix-delta review cannot see.
+
+What went in instead is stronger than the finding asked for: the release is no longer an action
+on the Stop handler at all but a REACTION to a take existing (`[captured, stream]`). "A take
+exists ⇒ the microphone is no longer needed" is true however the recorder got there, so the
+1-hour auto-stop — which fires inside the hook's tick and never passes through `handleStop` — is
+correct by construction rather than by a second copy of the release. Probe: gutting the effect
+reddens both arms.
+
+### 68c. R-17 — threaded as a prop, not `useReducedMotion()` inside the screen
+
+`MediaCaptureScreen.tsx:183` calls the hook in the component; `AudioRecorderScreen` takes a
+`reduceMotion` prop instead. Deliberate, two reasons: the screen is prop-driven end to end (that
+is what lets every one of its states — denied, no-analyser, sub-500ms, and now reduced-motion —
+be rendered in a test without stubbing a media query), and the flow already has to resolve the
+same preference for the meter's tick rate. `prefersReducedMotion` therefore moved out of
+`useAudioAnalyser` into `audio-analyser.ts` beside the other browser reads, so there is exactly
+one reading of the query. Two readers of one preference that could disagree is a bug waiting for
+a slow tick.
+
+### 68d. R-20 — the bar geometry is unchanged, and that is checked
+
+`scaleY` replaces the animated `height`, and the scale factors are the previous percentages over
+the same half-box (0.46 / 0.18). This is a rendering change, not a restyle — the demo's "do not
+restyle lifted rules" line applies, so the exact factor is pinned (`scaleY(0.46)` at full level)
+rather than left to look right.
+
+### 68e. R-27 — the `RecorderMode` else-chain is left as an else-chain
+
+The finding names it as "same class, recorded". It stays. `assertNever` earns its keep in a
+value switch whose result is a claim about the hardware (`recorderStatusLabel` renders READY
+beside a live microphone — that one is now exhaustive and has a runtime arm). The `RecorderMode`
+chain is a JSX branch over a union computed three lines above it by the flow, in a component
+that renders nothing at all if the union widens without it. Converting it would mean an
+`assertNever` in render position for a union that is already closed at its only producer.
+**Trigger:** if `RecorderMode` ever gains a member set by something other than the flow's own
+ternary, close it then.
+
+### 68f. §61g was corrected in place, not silently edited
+
+See §61g. Its "both directions are pinned" sentence was false when written, and the correction
+stays visible with the lesson attached: that is a claim about TESTS, and the only way to earn it
+is to run the mutation. The arm now carries the two assertions that survive nothing.

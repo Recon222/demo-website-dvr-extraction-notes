@@ -236,7 +236,6 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     )
   }
 
-
   return (
     <AudioRecorderScreen
       mode={mode}
