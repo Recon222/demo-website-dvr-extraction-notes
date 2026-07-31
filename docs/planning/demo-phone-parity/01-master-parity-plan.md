@@ -220,11 +220,11 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P1 | P1.4 live terminal | ✅ | #30 | phone-cited terminal; dual trust scopes (segment + run); Level-A a11y |
 | P1 | P1.5 flow modes + dwell | ✅ | #30 | computeImportFlowMode port; CTA sole exit; ERROR_MESSAGES enrichment |
 | P1 | P1.6 pdf preview save | ✅ | #30 | real window.print (pinned sandbox), beforeprint success signal; html2pdf no-ship (§34) |
-| P2 | P2.1 notes generator | ☐ | | |
-| P2 | P2.2 OCR confirm depth | ☐ | | |
-| P2 | P2.3 submission depth | ☐ | | |
-| P2 | P2.4 final gate + G8 | ☐ | | |
-| P2 | P2.5 offset advisories | ☐ | | |
+| P2 | P2.1 notes generator | ✅ | #31 | 7-section engine, sectioned persistence v4, PDF consumes sections |
+| P2 | P2.2 OCR confirm depth | ✅ | #31 | editable confirm, disambiguation UI, Keep-My-Edits prompt |
+| P2 | P2.3 submission depth | ✅ | #31 | reusable GPS capability (§M13 2σ refuted), formatAddress |
+| P2 | P2.4 final gate + G8 | ✅ | #31 | finalSubmissionSchema ×3 sites, AlertDialog, isLive() honesty |
+| P2 | P2.5 offset advisories | ✅ | #31 | 4 DST branches, recalc guard, D10 passthrough fix rider |
 | P3 | P3.1 cases CRUD | ☐ | | |
 | P3 | P3.2 dashboard actions | ☐ | | |
 | P3 | P3.3 NewCaseModal | ☐ | | |
