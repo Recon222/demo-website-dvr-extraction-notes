@@ -494,6 +494,10 @@ describe('video recording', () => {
 
     const badge = screen.getByRole('timer')
     expect(badge).toHaveAccessibleName('Recording 00:00')
+    // R-16: the badge is readable on demand, not announced once a second for up to an hour.
+    // `role="timer"` defaults to `aria-live="off"`; overriding it would bury every genuine
+    // status change (a capture failure, the stop-gate reason) behind 3600 queued readings.
+    expect(badge).not.toHaveAttribute('aria-live')
 
     // The wall clock moves; the tick is what reads it.
     act(() => {

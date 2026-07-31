@@ -422,10 +422,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
         />
       )}
 
+      {/* No `aria-live` on the badge (review R-16). The phone's `RecordingIndicator` sets
+          `accessibilityLiveRegion="polite"`, but a web `role="timer"` already defaults to
+          `aria-live="off"` DELIBERATELY — overriding it queues one announcement per second, up
+          to 3600 of them on a take that runs to the ceiling, and every genuine status change (a
+          capture failure, the stop-gate reason) waits its turn behind them. The role plus a
+          live `aria-label` still lets a screen-reader user read the elapsed time on demand,
+          which is what the badge is for. The sibling audio timer ships silent too. */}
       {isRecording && (
         <div
           role="timer"
-          aria-live="polite"
           aria-label={`Recording ${formatDuration(elapsedMs)}`}
           style={{ position: 'absolute', top: 54, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 5 }}
         >
