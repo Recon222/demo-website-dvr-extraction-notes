@@ -33,6 +33,12 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
+import { EditIncidentLocationModal } from '@/features/demo/ui/screens/EditIncidentLocationModal'
+import {
+  caseToIncidentValues,
+  incidentValuesToPatch,
+  type IncidentLocationValues,
+} from '@/features/demo/engine/logic/incident-location'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -102,6 +108,8 @@ const blankCaseForm: NewCaseFields = {
   notes: '',
 }
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
+/** Only ever a placeholder: `editIncident` seeds the real values from the case before opening. */
+const blankIncidentForm: IncidentLocationValues = { businessName: '', streetAddress: '', city: '', latitude: '', longitude: '', coordinateSource: '' }
 
 interface ImportState {
   /** The stored (driven) stage — displayed through computeImportStage (single union, R-31). */
@@ -280,6 +288,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
+  // Incident-location editor (matrix row 23). `incidentForm` is SEEDED ONCE per open, in
+  // `editIncident` — the phone's `useState(() => caseToIncidentValues(initialCase))` semantics
+  // lifted to the bridge so the modal itself stays store-free. `incidentCaseId` is the case the
+  // seed came from; the save writes to THAT id, never to a separately-tracked selection.
+  const [incidentCaseId, setIncidentCaseId] = useState<string | null>(null)
+  const [incidentForm, setIncidentForm] = useState<IncidentLocationValues>(blankIncidentForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
@@ -544,6 +558,30 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         : undefined
     const id = store.getState().createCase({ ...caseForm, incidentCoordinates })
     setExpandedCaseId(id)
+    store.getState().closeModal()
+  }
+  /** Map incident card → the incident-only editor, seeded from the case (matrix rows 22 → 23).
+   *  A missing case is a no-op rather than an empty modal — the phone's `handleEditCase` makes
+   *  the same call (it toasts "Case Not Found"; the demo reads from the store it just rendered
+   *  the pin from, so the miss is unreachable rather than merely handled). */
+  const editIncident = (caseId: string) => {
+    const target = store.getState().cases.find((c) => c.id === caseId)
+    if (!target) return
+    setIncidentCaseId(caseId)
+    setIncidentForm(caseToIncidentValues(target))
+    store.getState().openModal('editIncident')
+  }
+  /**
+   * Persist the incident edit. The editor emits ONLY the incident fields, so the rest of the
+   * case is untouched (phone map.tsx:163-176).
+   *
+   * The phone follows this with a `reloadToken` bump, because its MapHost re-reads SQLite. The
+   * demo has no such indirection: `mapData` is a `useMemo` over the store's `cases`/`locations`,
+   * and `updateIncidentLocation` produces a new `cases` array — so the store write IS the
+   * refresh, and the incident pin, the sheet row and the open detail card all re-render from it.
+   */
+  const submitIncidentLocation = () => {
+    if (incidentCaseId) store.getState().updateIncidentLocation(incidentCaseId, incidentValuesToPatch(incidentForm))
     store.getState().closeModal()
   }
   const submitLocation = () => {
@@ -1251,7 +1289,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
       default:
         return placeholder(view)
     }
@@ -1263,6 +1301,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
       case 'newLocation':
         return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
+      case 'editIncident':
+        return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={() => store.getState().closeModal()} />
       case 'import':
         return (
           <ImportModal

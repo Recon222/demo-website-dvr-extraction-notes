@@ -212,6 +212,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Press "Paste text" then "Extract & import" — or drop your own PDF.',
   },
+  editIncident: {
+    eyebrow: 'Case map',
+    title: 'Move the incident pin',
+    paras: [
+      'The red marker is the occurrence scene, held on the case rather than on any one recovery location. This editor is the only place it can be corrected from the map — and it writes back nothing else: the case number, the officers and the notes stay exactly as they were.',
+      'Type coordinates and the address is looked up for you; pick an address and the coordinates come with it. Either way the pin carries where the number came from.',
+    ],
+    bullets: [
+      'Incident-only edit — the rest of the case is out of reach here',
+      'Address lookup from typed coordinates, and coordinates from a picked address',
+      'The pin, the sheet row and the card refresh the moment you save',
+    ],
+    tip: 'Try typing a latitude and longitude, then tab out of the field.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',

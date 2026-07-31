@@ -475,7 +475,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       for (const item of EXPLORE_ITEMS) {
         for (const id of item.covers) {
           if (id === 'import') store.getState().openModal(id)
-          else store.getState().setView(id as Exclude<typeof id, 'import' | 'newCase' | 'newLocation' | 'mediaLibrary'>)
+          else store.getState().setView(id as Exclude<typeof id, 'import' | 'newCase' | 'newLocation' | 'mediaLibrary' | 'editIncident'>)
         }
       }
       store.getState().closeModal()

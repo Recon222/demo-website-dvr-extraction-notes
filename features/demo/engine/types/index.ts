@@ -36,7 +36,7 @@ export type ChapterId = 'splash' | 'dashboard' | 'cases' | WizardScreenId
 export type LaunchableId = 'ocr' | 'mediaCapture' | 'audioRecording'
 
 /** Overlay modals. */
-export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary'
+export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary' | 'editIncident'
 
 // ---- Content / form value types --------------------------------------------
 export interface ScopeEntry {
