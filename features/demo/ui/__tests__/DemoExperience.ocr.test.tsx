@@ -27,6 +27,30 @@ function openOcr(): DemoStore {
   return store
 }
 
+/**
+ * Put the location in the state the recalculate guard exists for: a requested scope, an offset
+ * already calculated, and the resulting extracted scope hand-edited on the Extracted Scope
+ * screen. Returns the edited camera string so the assertion can name what would be destroyed.
+ */
+function seedEditedExtractedScope(store: DemoStore): string {
+  act(() => {
+    const st = store.getState()
+    st.updateField('form.scopes', [
+      { id: 'sc1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3, 4, 7' },
+    ])
+    st.updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    st.calculateOffset()
+    st.generateExtractedScopes()
+  })
+  const generated = store.getState().locations[0].form.extractedScopes
+  expect(generated).toHaveLength(1)
+  act(() => {
+    store.getState().updateField('form.extractedScopes', [{ ...generated[0], cameras: 'HAND-EDITED 9' }])
+  })
+  return 'HAND-EDITED 9'
+}
+
 beforeEach(() => stubClock(NOW))
 afterEach(() => vi.restoreAllMocks())
 
@@ -144,6 +168,79 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
       cleanedText: '2025-03-08 12:05:30',
       parsedDateTime: '2025-03-08 12:05:30',
       confidence: 0.93,
+    })
+  })
+
+  // R-4: `confirmOcr` → `calcOffset` → `generateExtractedScopes` replaces the extracted-scope
+  // list wholesale. The phone stops and asks on exactly this path
+  // (`app/(form)/ocr-capture.tsx:288-317`); the demo used to destroy the edits silently.
+  describe('recalculate guard end to end', () => {
+    it('does not touch edited scopes until the operator answers the prompt', () => {
+      const store = openOcr()
+      const edited = seedEditedExtractedScope(store)
+
+      fireEvent.click(screen.getByText('Use sample DVR clock'))
+      fireEvent.click(screen.getByText('Use this & calculate'))
+
+      // still on the OCR screen, still asking, nothing committed
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+      expect(store.getState().view).toBe('ocr')
+      expect(store.getState().locations[0].form.extractedScopes[0].cameras).toBe(edited)
+    })
+
+    it('“Keep My Edits” recalculates the offset and leaves the edited scopes standing', () => {
+      const store = openOcr()
+      const edited = seedEditedExtractedScope(store)
+      const before = store.getState().locations[0].form.timeOffset?.dvrDateTime
+
+      fireEvent.click(screen.getByText('Time only')) // a read that differs from the seeded offset
+      fireEvent.click(screen.getByText('The date is correct'))
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Keep My Edits'))
+
+      const loc = store.getState().locations[0]
+      expect(loc.form.timeOffset?.dvrDateTime).toBe('2026-07-31 12:05:30')
+      expect(loc.form.timeOffset?.dvrDateTime).not.toBe(before) // the offset DID recalculate
+      expect(loc.form.extractedScopes[0].cameras).toBe(edited) // …and the edits survived
+      expect(store.getState().view).not.toBe('ocr')
+    })
+
+    it('“Regenerate Scopes” rebuilds the list, dropping the edits the operator agreed to lose', () => {
+      const store = openOcr()
+      const edited = seedEditedExtractedScope(store)
+
+      fireEvent.click(screen.getByText('Use sample DVR clock'))
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Regenerate Scopes'))
+
+      const loc = store.getState().locations[0]
+      expect(loc.form.extractedScopes).toHaveLength(1)
+      expect(loc.form.extractedScopes[0].cameras).not.toBe(edited)
+      expect(loc.form.extractedScopes[0].cameras).toBe('3, 4, 7') // regenerated from the request
+    })
+
+    it('“Cancel” discards the read and commits nothing', () => {
+      const store = openOcr()
+      const edited = seedEditedExtractedScope(store)
+      const before = store.getState().capture.dvrDateTime
+
+      fireEvent.click(screen.getByText('Time only'))
+      fireEvent.click(screen.getByText('The date is correct'))
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Cancel'))
+
+      expect(store.getState().capture.dvrDateTime).toBe(before)
+      expect(store.getState().locations[0].form.extractedScopes[0].cameras).toBe(edited)
+      expect(store.getState().view).not.toBe('ocr')
+    })
+
+    it('no prompt when there is nothing to lose — the phone regenerates directly', () => {
+      const store = openOcr()
+      fireEvent.click(screen.getByText('Use sample DVR clock'))
+      fireEvent.click(screen.getByText('Use this & calculate'))
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(store.getState().capture.dvrDateTime).toBe('2025-03-08 12:05:30')
     })
   })
 

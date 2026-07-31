@@ -1,7 +1,8 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useCallback, useState, type CSSProperties } from 'react'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
 import { isDvrDraftCommittable, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
@@ -28,11 +29,17 @@ export interface OcrCaptureScreenProps {
   /** True once the operator has accepted the assumed date (only meaningful when `assumedDate` is set). */
   dateConfirmed: boolean
   onConfirmDate(): void
+  /**
+   * True when extracted video scopes already exist, so committing would regenerate — and
+   * discard any manual edits to — the whole list. Gates the phone's recalculate prompt.
+   */
+  hasExtractedScopes: boolean
   onUseSample(frame: OcrSampleFrame): void
   onCapture(): void
   onCancel(): void
   onRetake(): void
-  onConfirm(): void
+  /** `regenerate: false` = the phone's "Keep My Edits" — recalculate without rebuilding scopes. */
+  onConfirm(regenerate: boolean): void
 }
 
 const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', width: 30, height: 30, ...pos })
@@ -49,17 +56,29 @@ export function OcrCaptureScreen({
   onChangeDvrDraft,
   dateConfirmed,
   onConfirmDate,
+  hasExtractedScopes,
   onUseSample,
   onCapture,
   onCancel,
   onRetake,
   onConfirm,
 }: OcrCaptureScreenProps) {
+  const [confirmRecalc, setConfirmRecalc] = useState(false)
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear the listener down and re-add it on every parent update.
+  const closeRecalc = useCallback(() => setConfirmRecalc(false), [])
+
   if (result) {
     // The commit gate is the engine's (`isDvrDraftCommittable`) — this screen only reflects it.
     const canCommit = result.ok && isDvrDraftCommittable(dvrDraft, result.resolution, dateConfirmed)
     const dateNeedsConfirming = result.ok && Boolean(dvrDraft) && !canCommit
     const edited = result.ok && dvrDraft !== result.dvrTime
+    // Committing runs `generateExtractedScopes`, which replaces the editable extracted-scope
+    // list wholesale. The phone stops here and asks (ocr-capture.tsx:282-317); so do we.
+    const onCommitClick = () => {
+      if (hasExtractedScopes) setConfirmRecalc(true)
+      else onConfirm(true)
+    }
 
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -123,7 +142,7 @@ export function OcrCaptureScreen({
                 <button type="button" onClick={onRetake} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
                 <button
                   type="button"
-                  onClick={onConfirm}
+                  onClick={onCommitClick}
                   disabled={!canCommit}
                   style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: canCommit ? 'pointer' : 'not-allowed', opacity: canCommit ? 1 : 0.45 }}
                 >
@@ -131,6 +150,27 @@ export function OcrCaptureScreen({
                 </button>
               </div>
             </div>
+
+            {/* The phone's `Recalculate Time Offset` Alert (`app/(form)/ocr-capture.tsx:288-317`,
+                spec `docs/ui-mapping/06-wizard-b-time.md:145-155`) on the shared blocking-dialog
+                primitive: title, message and all three button labels verbatim, `Cancel` carrying
+                the phone's `style: 'cancel'` and `Regenerate Scopes` its `destructive`. */}
+            {confirmRecalc && (
+              <AlertDialog
+                title="Recalculate Time Offset"
+                message="Recalculating will update the time offset. What would you like to do with your extracted video scopes?"
+                actions={[
+                  // Phone: `router.push(TIME_OFFSET)` — leaves the OCR flow, discarding the read.
+                  { label: 'Cancel', style: 'cancel', onPress: onCancel },
+                  { label: 'Keep My Edits', onPress: () => onConfirm(false) },
+                  { label: 'Regenerate Scopes', style: 'destructive', onPress: () => onConfirm(true) },
+                ]}
+                // Escape takes the least-destructive route — back to the confirm step with the
+                // read intact. It deliberately is NOT the `Cancel` arm, which discards the read:
+                // a stray keypress must not be able to throw away a capture.
+                onDismiss={closeRecalc}
+              />
+            )}
           </>
         ) : (
           <>

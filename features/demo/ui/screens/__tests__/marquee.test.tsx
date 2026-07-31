@@ -71,6 +71,7 @@ describe('OcrCaptureScreen', () => {
     onChangeDvrDraft: vi.fn(),
     dateConfirmed: false,
     onConfirmDate: vi.fn(),
+    hasExtractedScopes: false,
     onUseSample: vi.fn(),
     onCapture: vi.fn(),
     onCancel: vi.fn(),
@@ -111,12 +112,80 @@ describe('OcrCaptureScreen', () => {
     expect(onUseSample).toHaveBeenLastCalledWith('timeOnly')
   })
 
-  it('confirms a parsed result', () => {
+  it('confirms a parsed result — regenerating scopes, since there are none to lose', () => {
     const onConfirm = vi.fn()
     render(<OcrCaptureScreen {...ocrBase} result={parsed} onConfirm={onConfirm} />)
     expect(screen.getByText('2025-03-08 12:05:30')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Use this & calculate'))
-    expect(onConfirm).toHaveBeenCalledOnce()
+    // Phone: no scopes ⇒ `performOcrCalculation(result, true)` runs with no dialog.
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  // R-4: committing runs `generateExtractedScopes`, which replaces the editable list wholesale.
+  // The phone asks first (`app/(form)/ocr-capture.tsx:288-317`); the demo used to just do it.
+  describe('recalculate guard (extracted scopes exist)', () => {
+    const withScopes = { ...ocrBase, result: parsed, hasExtractedScopes: true }
+
+    it('asks instead of committing, with the phone’s title and message verbatim', () => {
+      const onConfirm = vi.fn()
+      render(<OcrCaptureScreen {...withScopes} onConfirm={onConfirm} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+      expect(screen.getByText('Recalculate Time Offset')).toBeInTheDocument()
+      expect(
+        screen.getByText('Recalculating will update the time offset. What would you like to do with your extracted video scopes?'),
+      ).toBeInTheDocument()
+    })
+
+    it('offers all three phone arms', () => {
+      render(<OcrCaptureScreen {...withScopes} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      for (const label of ['Cancel', 'Keep My Edits', 'Regenerate Scopes']) {
+        expect(screen.getByText(label)).toBeInTheDocument()
+      }
+    })
+
+    it('“Keep My Edits” commits WITHOUT regenerating', () => {
+      const onConfirm = vi.fn()
+      render(<OcrCaptureScreen {...withScopes} onConfirm={onConfirm} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Keep My Edits'))
+      expect(onConfirm).toHaveBeenCalledExactlyOnceWith(false)
+    })
+
+    it('“Regenerate Scopes” commits WITH regeneration', () => {
+      const onConfirm = vi.fn()
+      render(<OcrCaptureScreen {...withScopes} onConfirm={onConfirm} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Regenerate Scopes'))
+      expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true)
+    })
+
+    it('“Cancel” leaves the OCR flow without committing (the phone’s cancel arm)', () => {
+      const onConfirm = vi.fn()
+      const onCancel = vi.fn()
+      render(<OcrCaptureScreen {...withScopes} onConfirm={onConfirm} onCancel={onCancel} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.click(screen.getByText('Cancel'))
+      expect(onCancel).toHaveBeenCalledOnce()
+      expect(onConfirm).not.toHaveBeenCalled()
+    })
+
+    it('Escape backs out to the confirm step with the read intact — it is not the Cancel arm', () => {
+      const onConfirm = vi.fn()
+      const onCancel = vi.fn()
+      render(<OcrCaptureScreen {...withScopes} onConfirm={onConfirm} onCancel={onCancel} />)
+      fireEvent.click(screen.getByText('Use this & calculate'))
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(onCancel).not.toHaveBeenCalled()
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByText('Use this & calculate')).toBeInTheDocument()
+    })
   })
 
   it('shows the failed-parse branch and retakes', () => {
