@@ -53,6 +53,35 @@ describe('TimeOffsetScreen — DST advisory surface', () => {
   })
 })
 
+describe('TimeOffsetScreen — adjusted-range domain labels', () => {
+  // Phone parity: REQUESTED and ADJUSTED carry INVERSE domain labels
+  // (`app/(form)/time-offset.tsx:556` vs `:578`; spec `docs/ui-mapping/06-wizard-b-time.md:69-70`).
+  const row = (o: Partial<TimeOffsetScreenProps['correctedScopes'][number]>) => ({
+    id: 'a',
+    reqLabel: 'real time',
+    adjLabel: 'DVR time',
+    reqStart: '2025-03-08 23:47:30',
+    reqEnd: '2025-03-09 01:32:30',
+    adjStart: '2025-03-08 23:53:00',
+    adjEnd: '2025-03-09 01:38:00',
+    cameras: '',
+    ...o,
+  })
+
+  it('labels a real-time request "Adjusted (DVR time)"', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[row({})]} />)
+    expect(screen.getByText('Requested (real time)')).toBeInTheDocument()
+    expect(screen.getByText('Adjusted (DVR time)')).toBeInTheDocument()
+  })
+
+  it('labels a DVR-time request "Adjusted (real time)" — not hardcoded to DVR', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[row({ reqLabel: 'DVR time', adjLabel: 'real time' })]} />)
+    expect(screen.getByText('Requested (DVR time)')).toBeInTheDocument()
+    expect(screen.getByText('Adjusted (real time)')).toBeInTheDocument()
+    expect(screen.queryByText('Adjusted (DVR time)')).toBeNull()
+  })
+})
+
 describe('TimeOffsetScreen — recalculate guard', () => {
   it('calculates straight through when there is nothing to overwrite', () => {
     const onCalculate = vi.fn()

@@ -52,6 +52,8 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
 export interface AdjustedScopeRow {
   id: string
   reqLabel: string
+  /** The domain the adjusted times are IN — always the inverse of `reqLabel`. */
+  adjLabel: string
   reqStart: string
   reqEnd: string
   adjStart: string
@@ -64,6 +66,15 @@ export interface AdjustedScopeRow {
  * NO rounding. The Time-Offset screen shows these (the actual difference calculation); the
  * Extracted-Scope screen rounds them to 5-minute boundaries separately (`generateExtractedScopes`).
  * A scope whose requested time isn't canonical yet leaves its adjusted fields blank.
+ *
+ * BOTH domains are converted here, DVR-time rows included — verified against the phone, which
+ * runs `calculateCorrectedTimeRange(..., scope.isActualTime)` over every scope with both
+ * endpoints in `performCalculation` (`app/(form)/time-offset.tsx:290-327`) and renders the
+ * result under an INVERSE label: `REQUESTED (<Real Time | DVR Time>)` at `:556` against
+ * `ADJUSTED (<DVR Time | Real Time>)` at `:578` (spec `docs/ui-mapping/06-wizard-b-time.md:69-70`).
+ * That is the informational read-across D10 describes: for a DVR-time request the adjusted row
+ * answers "what real-world time was that?", which is display only and never feeds the extracted
+ * window (see `generateExtractedScopes`, where DVR-time requests pass through untouched).
  */
 export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
   const loc = selectCurrentLocation(s)
@@ -91,6 +102,7 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
     return {
       id: sc.id,
       reqLabel: sc.isActualTime ? 'real time' : 'DVR time',
+      adjLabel: sc.isActualTime ? 'DVR time' : 'real time',
       reqStart: sc.startDateTime,
       reqEnd: sc.endDateTime,
       adjStart,
