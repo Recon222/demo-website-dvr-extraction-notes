@@ -29,12 +29,17 @@ export interface TimeOffsetScreenProps {
   correctedScopes: CorrectedScope[]
   dvrAppliesDST: boolean
   onToggleDst(): void
+  /** The phone's DST scenario message for the current calibration, or null. */
+  dstAdvisory: string | null
   onNext(): void
   onBack(): void
   onMenu(): void
 }
 
 const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" })
+
+/** The demo's warning amber — the same `colors.warning` stop the import terminal uses. */
+const WARNING = '#ffd93d'
 
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
@@ -99,6 +104,18 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
                 <div style={{ position: 'absolute', top: 3, [p.dvrAppliesDST ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: p.dvrAppliesDST ? '#fff' : '#7a9fc4' }} />
               </div>
             </div>
+            <div style={{ fontSize: 12.5, color: '#7a9fc4', marginTop: 2, marginBottom: 10 }}>
+              Enable if the DVR clock adjusts for Daylight Saving Time
+            </div>
+
+            {p.dstAdvisory && (
+              <div
+                role="status"
+                style={{ marginTop: 4, padding: 12, borderRadius: 10, border: `1px dashed ${WARNING}`, background: 'rgba(255,217,61,0.07)', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic', textAlign: 'center', color: WARNING }}
+              >
+                {p.dstAdvisory}
+              </div>
+            )}
           </>
         )}
 

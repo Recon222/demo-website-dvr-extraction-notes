@@ -18,6 +18,7 @@ const toBase = {
   correctedScopes: [],
   dvrAppliesDST: true,
   onToggleDst: vi.fn(),
+  dstAdvisory: null,
   onNext: vi.fn(),
   onBack: vi.fn(),
   onMenu: vi.fn(),
