@@ -147,6 +147,27 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     void openStream()
   }, [canStream, canRecord, permission, openStream])
 
+  /**
+   * The ONE microphone-release path (review R-21).
+   *
+   * The rule is "a take exists ⇒ the microphone is no longer needed", and it is true however
+   * the recorder got there. Expressing it as a REACTION to the take rather than as an action on
+   * the Stop button is what makes the phone's 1-hour ceiling correct by construction: that
+   * auto-stop fires inside `useMediaCapture`'s own tick and calls `stopRecording()` directly,
+   * so it never passes through `handleStop` — and the release used to live there, leaving the
+   * browser's recording indicator asserting a live microphone over a finished take. That is
+   * precisely the false statement §61g exists to prevent, on the one path that skipped it.
+   *
+   * A FAILED stop produces no take, so this deliberately does not fire: the visitor is still on
+   * the recorder with the microphone open, which is exactly what they need to retry (§61g,
+   * pinned by the zero-byte arm).
+   */
+  const closeStream = capture.close
+  useEffect(() => {
+    if (captured === null || stream === null) return
+    closeStream()
+  }, [captured, stream, closeStream])
+
   const mode: RecorderMode = !canStream || !canRecord
     ? 'sample'
     : permission === 'denied'
@@ -163,10 +184,9 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
   }, [capture])
 
   const handleStop = useCallback(async () => {
-    const result = await capture.stopRecording()
-    // Release the hardware only once a take exists. A failed stop leaves the visitor on the
-    // recorder with the microphone still open, which is exactly what they need to try again.
-    if (result !== null) capture.close()
+    // Releasing the hardware is NOT this handler's job — the effect above owns it, so the
+    // capability layer's auto-stop gets the same treatment as this press (R-21).
+    await capture.stopRecording()
   }, [capture])
 
   const handleRecordAgain = useCallback(() => {

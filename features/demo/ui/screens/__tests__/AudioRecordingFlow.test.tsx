@@ -371,8 +371,8 @@ describe('AudioRecordingFlow — the live path', () => {
 })
 
 describe('AudioRecordingFlow — the 1-hour ceiling', () => {
-  it('explains the auto-stop that moved the visitor to review on its own', async () => {
-    const { deps, recorder, advance } = liveDeps()
+  it('explains the auto-stop that moved the visitor to review on its own, and releases the mic', async () => {
+    const { deps, recorder, stream, advance } = liveDeps()
     mount({ deps })
     await settle()
 
@@ -389,5 +389,10 @@ describe('AudioRecordingFlow — the 1-hour ceiling', () => {
 
     expect(screen.getByText('Review Audio')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Maximum Duration Reached')
+    // R-21: the auto-stop fires inside useMediaCapture's tick and never passes through
+    // `handleStop`, so a release that lived there left the browser's recording indicator
+    // asserting a live microphone over a finished take. The release is now a reaction to the
+    // take existing, which covers both paths.
+    for (const track of stream.tracks) expect(track.stop).toHaveBeenCalled()
   })
 })
