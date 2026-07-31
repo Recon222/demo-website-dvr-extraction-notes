@@ -23,6 +23,7 @@ const PRINT_BLOCKED_NOTICE =
  */
 export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
+  const saveBtnRef = useRef<HTMLButtonElement | null>(null)
   const [printNotice, setPrintNotice] = useState<string | null>(null)
 
   const printDocument = () => {
@@ -50,6 +51,12 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
         win.print()
       } finally {
         win.removeEventListener('beforeprint', markOpened)
+        // R-16: win.focus() moved keyboard focus INTO the sandboxed frame — a scriptless
+        // document where nothing forwards keys, so the parent document's Escape listener
+        // (deferred §21) would go deaf after a save. Whatever the print attempt did (dialog,
+        // throw, silent ignore), hand focus back to the parent chrome.
+        window.focus()
+        saveBtnRef.current?.focus()
       }
       setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
     } catch {
@@ -111,7 +118,7 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
       )}
       <div style={{ padding: '14px 18px 24px', borderTop: '1px solid #2a3340', display: 'flex', gap: 10 }}>
         <button type="button" onClick={onClose} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
-        <button type="button" onClick={printDocument} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
+        <button type="button" ref={saveBtnRef} onClick={printDocument} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
       </div>
     </div>
   )

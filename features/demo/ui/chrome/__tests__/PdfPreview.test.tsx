@@ -136,6 +136,30 @@ describe('PdfPreview', () => {
       expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
     })
 
+    it('returns focus to the Save button after printing — Escape-to-close must survive a save — R-16', () => {
+      // win.focus() hands keyboard focus to the sandboxed frame (needed so the right document
+      // prints). Nothing in that scriptless document forwards keys, so unless focus comes back
+      // to the parent chrome, the document-level Escape listener goes deaf after a save.
+      const onClose = vi.fn()
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={onClose} />)
+      stubDialogPrint(frameWindow(container))
+      const saveBtn = screen.getByRole('button', { name: 'Save as PDF' })
+      fireEvent.click(saveBtn)
+      expect(document.activeElement).toBe(saveBtn) // not stranded inside the frame
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('recovers focus to the Save button even when print throws (the frame already took focus) — R-16', () => {
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      frameWindow(container).print = () => {
+        throw new Error('blocked')
+      }
+      const saveBtn = screen.getByRole('button', { name: 'Save as PDF' })
+      fireEvent.click(saveBtn)
+      expect(document.activeElement).toBe(saveBtn)
+    })
+
     it('a silently-ignored retry does NOT clear a prior failure notice (never a fake success) — R-12', () => {
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
       const win = frameWindow(container)
