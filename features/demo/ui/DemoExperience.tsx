@@ -30,6 +30,7 @@ import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { AlertDialog, type AlertAction } from '@/features/demo/ui/controls/AlertDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
+import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
@@ -73,8 +74,8 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
-import { toCaseCards } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
+import type { CameraEntry, CaseStatus, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -273,6 +274,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
+  // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by
+  // ID, not by the mapped object: the sheet then re-derives from live store data, so a case
+  // edited or re-statused underneath it can never show a stale report.
+  const [actionSheetCaseId, setActionSheetCaseId] = useState<string | null>(null)
   // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
   const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
@@ -359,6 +364,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+  // The open sheet's read-only report. Recomputed from the store, so a status action's
+  // result is visible the instant it lands (the phone needs a refetch + toast for this).
+  const actionSheetCase = useMemo(() => {
+    const c = cases.find((x) => x.id === actionSheetCaseId)
+    return c ? toCaseSheet(c, locations) : null
+  }, [cases, locations, actionSheetCaseId])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
   const mapViewerCase = useMemo(() => cases.find((c) => c.id === mapViewerCaseId) ?? null, [cases, mapViewerCaseId])
@@ -430,6 +441,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => {
     if (view !== 'completion') setAlert(null)
   }, [view])
+  // Same rule for the dashboard's actions sheet (the phone presents it as a pageSheet, under
+  // which nothing can navigate): a sheet naming a case, left standing over the Map or the
+  // wizard, would claim to be acting on a screen it has nothing to do with.
+  useEffect(() => {
+    if (view !== 'dashboard') setActionSheetCaseId(null)
+  }, [view])
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
   // recorded date + scopes. Clock is read here (never at render). The persisted
@@ -495,6 +512,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setPdf(null)
     resetOcr()
     setMapPickerOpen(false)
+    setActionSheetCaseId(null)
     const st = store.getState()
     st.setDrawerOpen(false)
     st.closeModal()
@@ -522,6 +540,26 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const newCase = () => {
     setCaseForm(blankCaseForm)
     store.getState().openModal('newCase')
+  }
+
+  // ---- dashboard case actions (P3.2, rows 8/9) ----
+  const openCaseActions = (caseId: string) => setActionSheetCaseId(caseId)
+  const closeCaseActions = () => setActionSheetCaseId(null)
+  /**
+   * Close the sheet, then act — the phone's `handleSheetComplete/Reopen/Archive` shape
+   * (home.tsx:142-161), which captures the case into a local first for exactly this reason.
+   *
+   * No success/failure toast, unlike the phone: its write is an async SQLite round-trip
+   * followed by a refetch, so the toast is the only confirmation the row will change. Here
+   * the write is synchronous and the card behind the sheet re-renders green/grey on the same
+   * tick — a toast would announce something the visitor is already looking at. There is no
+   * failure arm to report either; an in-memory status write cannot fail.
+   */
+  const runCaseAction = (status: CaseStatus) => {
+    const id = actionSheetCaseId
+    if (!id) return
+    setActionSheetCaseId(null)
+    store.getState().setCaseStatus(id, status)
   }
   const addLocation = (caseId: string) => {
     setTargetCaseId(caseId)
@@ -1027,7 +1065,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'splash':
         return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
       case 'dashboard':
-        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} />
+        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} />
       case 'cases':
         return (
           <CasesScreen
@@ -1378,6 +1416,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               store.getState().setDrawerOpen(false)
             }}
           />
+          {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
+              the demo has no always-mounted screen to hold it, so the phone's caseData=null
+              idle state (and its measure-reset guard) has no equivalent here. */}
+          {actionSheetCase && (
+            <CaseActionsSheet
+              caseData={actionSheetCase}
+              // P3.3 SEAM — pass `onEdit={…}` here once NewCaseModal grows its edit mode.
+              // Until then the sheet renders no Edit Case button rather than a dead one.
+              onComplete={() => runCaseAction('complete')}
+              onReopen={() => runCaseAction('draft')}
+              onArchive={() => runCaseAction('archived')}
+              onClose={closeCaseActions}
+            />
+          )}
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
