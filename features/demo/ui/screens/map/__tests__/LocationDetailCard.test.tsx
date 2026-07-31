@@ -65,3 +65,52 @@ describe('LocationDetailCard', () => {
     expect(c.onBack).toHaveBeenCalled()
   })
 })
+
+// ---- cameras toggle (P6.1) ------------------------------------------------------------------
+describe('LocationDetailCard — cameras toggle', () => {
+  const cam = (id: string, name: string) => ({ id, locationId: 'l1', cameraName: name, lng: -79.61, lat: 43.61 })
+  const withCameras = { ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Rear')] }
+
+  it('is absent when the location has no geolocated cameras', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} onToggleCameras={vi.fn()} />)
+    expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
+  })
+
+  it('is absent when no handler can act on it — never a button that swallows the press', () => {
+    render(<LocationDetailCard item={withCameras} {...cb()} />)
+    expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
+  })
+
+  it('offers "Show cameras (N)" while hidden, with the phone accessibility label', () => {
+    render(<LocationDetailCard item={withCameras} {...cb()} onToggleCameras={vi.fn()} />)
+    const toggle = screen.getByTestId('detail-cameras-toggle')
+    expect(toggle).toHaveTextContent('Show cameras (2)')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveAccessibleName('Show 2 cameras on the map')
+  })
+
+  it('flips to "Hide cameras (N)" when shown', () => {
+    render(<LocationDetailCard item={withCameras} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
+    const toggle = screen.getByTestId('detail-cameras-toggle')
+    expect(toggle).toHaveTextContent('Hide cameras (2)')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAccessibleName('Hide 2 cameras on the map')
+  })
+
+  it('singularises a lone camera in the accessibility label', () => {
+    render(<LocationDetailCard item={{ ...fullLoc, cameras: [cam('l1:c1', 'Front')] }} {...cb()} onToggleCameras={vi.fn()} />)
+    expect(screen.getByTestId('detail-cameras-toggle')).toHaveAccessibleName('Show 1 camera on the map')
+  })
+
+  it('fires the toggle', () => {
+    const onToggleCameras = vi.fn()
+    render(<LocationDetailCard item={withCameras} {...cb()} onToggleCameras={onToggleCameras} />)
+    fireEvent.click(screen.getByTestId('detail-cameras-toggle'))
+    expect(onToggleCameras).toHaveBeenCalledTimes(1)
+  })
+
+  it('never appears on the incident variant', () => {
+    render(<LocationDetailCard item={incItem} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
+    expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
+  })
+})

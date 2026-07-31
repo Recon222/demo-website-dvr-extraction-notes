@@ -14,6 +14,15 @@ export interface LocationDetailCardProps {
   /** Incident variant only — opens the incident-location editor for the case (matrix row 22:
    *  this CTA is the sole entry to row 23). The id is the CASE id (incident items carry it). */
   onEditIncident(caseId: string): void
+  /**
+   * Location variant only — whether THIS location's cameras are currently plotted on the map.
+   * Drives the toggle's label + expanded state; defaults to hidden, exactly as the phone's
+   * `camerasShown` does (LocationDetailCard.tsx:119-123, 348).
+   */
+  camerasShown?: boolean
+  /** Location variant only — flips the cameras on/off. The row is only rendered when the
+   *  location has geolocated cameras AND a handler exists to act on the press. */
+  onToggleCameras?(): void
 }
 
 const container: CSSProperties = { padding: '14px 16px 24px' }
@@ -28,6 +37,46 @@ const cta: CSSProperties = { width: '100%', height: 48, borderRadius: 14, border
 /** Phone copy, verbatim (ui-mapping 03:256/262 — `IncidentDetailCard`'s only CTA). */
 export const EDIT_INCIDENT_LABEL = 'Edit Incident Location'
 const chip = (color: string): CSSProperties => ({ fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.4, padding: '4px 10px', borderRadius: 10, background: `${color}25`, marginTop: 2, whiteSpace: 'nowrap' })
+
+/** The cameras toggle row — a bordered, tappable card between the address and the requester
+ *  cards, matching the phone's placement (LocationDetailCard.tsx:503-540). */
+const camerasToggle = (active: boolean): CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  padding: '11px 13px',
+  marginBottom: 12,
+  borderRadius: 12,
+  border: `1px solid ${active ? 'rgba(43,140,193,0.5)' : SHEET_COLORS.divider}`,
+  background: active ? 'rgba(43,140,193,0.12)' : SHEET_COLORS.infoBg,
+  color: SHEET_COLORS.text,
+  fontSize: 14,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
+})
+
+/** Stand-in for the phone's Ionicons `videocam` / `videocam-outline`: the demo has no icon font,
+ *  so the camcorder is drawn inline — filled when the cameras are shown, outlined when hidden. */
+function CamcorderGlyph({ filled }: { filled: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <rect
+        x="2.5"
+        y="6.5"
+        width="12"
+        height="11"
+        rx="2.5"
+        fill={filled ? '#2B8CC1' : 'none'}
+        stroke="#2B8CC1"
+        strokeWidth="1.6"
+      />
+      <path d="M15.5 10.5 20.5 7.6v8.8l-5-2.9z" fill={filled ? '#2B8CC1' : 'none'} stroke="#2B8CC1" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 function AddressCard({ businessName, street, city, address, coord }: { businessName: string; street: string; city: string; address: string; coord: [number, number] }) {
   return (
@@ -50,7 +99,16 @@ function AddressCard({ businessName, street, city, address, coord }: { businessN
  *  chip + address + "Edit Incident Location" (no requester/contact and no wizard hand-off — the
  *  incident is a case-level scene, not a recovery site; its only action is editing itself,
  *  phone IncidentDetailCard, ui-mapping 03:250-262). */
-export function LocationDetailCard({ item, onBack, onCall, onEmail, onGoToLocation, onEditIncident }: LocationDetailCardProps) {
+export function LocationDetailCard({
+  item,
+  onBack,
+  onCall,
+  onEmail,
+  onGoToLocation,
+  onEditIncident,
+  camerasShown = false,
+  onToggleCameras,
+}: LocationDetailCardProps) {
   const back = (
     <button type="button" onClick={onBack} style={backBtn}>
       {'‹'} All Locations
@@ -93,6 +151,26 @@ export function LocationDetailCard({ item, onBack, onCall, onEmail, onGoToLocati
         <span style={chip(color)}>{STATUS_LABEL[item.status]}</span>
       </div>
       <AddressCard businessName={item.businessName} street={item.streetAddress} city={item.city} address={item.address} coord={item.coord} />
+
+      {/* Cameras toggle — reveals/hides THIS location's geolocated cameras on the map. Rendered
+          only when the location HAS geolocated cameras (phone: `cameraCount > 0`,
+          LocationDetailCard.tsx:509) and a handler exists to act on the press — a button that
+          cannot do what it says is the demo's honesty rule (§49a). */}
+      {item.cameras.length > 0 && onToggleCameras && (
+        <button
+          type="button"
+          data-testid="detail-cameras-toggle"
+          onClick={onToggleCameras}
+          aria-expanded={camerasShown}
+          aria-label={`${camerasShown ? 'Hide' : 'Show'} ${item.cameras.length} camera${item.cameras.length === 1 ? '' : 's'} on the map`}
+          style={camerasToggle(camerasShown)}
+        >
+          <CamcorderGlyph filled={camerasShown} />
+          <span>
+            {camerasShown ? `Hide cameras (${item.cameras.length})` : `Show cameras (${item.cameras.length})`}
+          </span>
+        </button>
+      )}
 
       {hasRequester && (
         <div style={card}>
