@@ -37,7 +37,7 @@ import {
   SYNC_METHODS,
 } from '@/features/demo/engine/types'
 import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
-import { withoutEphemeralMedia } from '@/features/demo/engine/logic/media/captured'
+import { withoutEphemeralMedia } from '@/features/demo/engine/logic/media'
 
 /**
  * sessionStorage persistence for the demo store (P0.4, owner decision D2).

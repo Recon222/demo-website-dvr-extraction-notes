@@ -4,9 +4,15 @@
  * fallback. Browser I/O lives one layer up in `ui/inputs/capture-media.ts`; the hooks the
  * P4 screens actually mount are `ui/inputs/useMediaCapture.ts`.
  *
- * Internal barrel, mirroring `engine/logic/notes/`. Consumers inside the feature may import
- * either from here or from the specific module; nothing outside `features/demo` imports any
- * of it (the feature's only public export is `DemoExperience`).
+ * Internal barrel, mirroring `engine/logic/notes/`: source consumers import from HERE
+ * (`snapshotOf`'s media sweep, the three `ui/inputs` modules); the co-located unit tests
+ * import the specific module they exercise. Nothing outside `features/demo` imports any of
+ * it — the feature's only public export is `DemoExperience`.
+ *
+ * Deliberately NOT re-exported from `engine/index.ts`, following the `import-log` precedent
+ * (review R-10): every consumer already reaches it by its module path, and advertising a
+ * second surface with no callers is exactly the orphaned-barrel drift that convention exists
+ * to prevent. Add it there alongside a consumer that needs it, not before.
  */
 
 export {
@@ -41,6 +47,7 @@ export {
   PHONE_MEDIA_EXTENSIONS,
   VIDEO_MIME_CANDIDATES,
   beginRecording,
+  canStopAtElapsed,
   canStopRecording,
   extensionForMimeType,
   formatDuration,

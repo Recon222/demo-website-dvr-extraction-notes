@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   permissionAfterFailure,
+  selectCaptureDevice,
+  type CaptureDevice,
   type CaptureFacility,
   type CaptureFailure,
   type CapturePermission,
-} from '@/features/demo/engine/logic/media/permissions'
-import { selectCaptureDevice, type CaptureDevice } from '@/features/demo/engine/logic/media/devices'
+} from '@/features/demo/engine/logic/media'
 import {
   listCaptureDevices,
   openCaptureStream,

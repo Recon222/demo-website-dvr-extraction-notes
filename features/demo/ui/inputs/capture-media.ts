@@ -20,14 +20,13 @@
 import {
   captureFailure,
   classifyCaptureError,
-  type CaptureFacility,
-  type CaptureFailure,
-} from '@/features/demo/engine/logic/media/permissions'
-import { toCaptureDevices, type CaptureDevice } from '@/features/demo/engine/logic/media/devices'
-import {
   pickRecorderMimeType,
   recorderMimeCandidates,
-} from '@/features/demo/engine/logic/media/recording'
+  toCaptureDevices,
+  type CaptureDevice,
+  type CaptureFacility,
+  type CaptureFailure,
+} from '@/features/demo/engine/logic/media'
 
 // ---- Injection seams ------------------------------------------------------
 
