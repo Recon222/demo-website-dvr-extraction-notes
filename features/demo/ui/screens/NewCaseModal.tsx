@@ -276,6 +276,13 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
       <Field label="Notes" multiline value={form.notes} onChange={(v) => onChange('notes', v)} placeholder="Case notes…" />
 
       <div style={{ marginTop: 4 }}>
+        {/* No `submitDescribedBy`, deliberately — do not "fix" this into a swallow or a reason
+            region (review appendix, WEB-7). §50a/§56d's whole design here is that the click
+            REACHES `handleSubmit`, which then writes the phone's verbatim per-field messages
+            ("Case number is required" / "Unit is required") into the fields' own `role="alert"`
+            nodes. The reason is reachable by activation rather than pre-stated, which is what
+            makes that copy live instead of dead. The New Location card is the other shape — its
+            reason is on screen before the press — and the two are meant to differ. */}
         <ModalActions submitLabel={isEdit ? 'Save Changes' : 'Create Case'} onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
       </div>
 

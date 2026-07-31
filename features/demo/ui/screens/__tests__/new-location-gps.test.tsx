@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 
 // Same faithful stand-in the Submission suite uses: it renders the real labelled input and lets a
@@ -89,6 +89,13 @@ const modal = (o: Options = {}) => (
 )
 
 const renderModal = (o: Options = {}) => render(modal(o))
+
+// `pickHarness` is module-level mutable state shared by every arm (review R-17). Two consumers
+// null it by hand today; a third that forgot would silently inherit the previous arm's captured
+// `onPick` closure and become order-dependent. Reset centrally instead.
+beforeEach(() => {
+  pickHarness.release = null
+})
 
 describe('NewLocationModal — phone render order (ui-mapping 11:79-85)', () => {
   it('puts the address block (incl. GPS) between the name and the contact pair', () => {
@@ -288,8 +295,9 @@ describe('NewLocationModal — the draft is the write-guard identity (deferred �
     })
 
     expect(onChange).not.toHaveBeenCalled()
-    // Nor a stale notice attributed to the draft now on screen.
-    expect(screen.queryByTestId('reverse-geocode-notice')).not.toBeInTheDocument()
+    // The notice half of this assertion was decorative and is gone (review R-17):
+    // `LocationFields` resets `lookupNotice` on every draft change, so it held whether or not
+    // the write guard worked. `onChange` above is the load-bearing half — probe-verified.
   })
 
   it('accepts a pick issued AFTER the draft changed — the guard tracks identity, not staleness', async () => {
