@@ -10,7 +10,7 @@ import {
 import { useImportLog } from '@/features/demo/ui/import/useImportLog'
 import type { ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
-import { TerminalLine, TERM_ROW } from '@/features/demo/ui/screens/import/TerminalLine'
+import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
 
 /**
  * ImportTerminalProgress — the live import terminal (parity P1.4, matrix row 74).
