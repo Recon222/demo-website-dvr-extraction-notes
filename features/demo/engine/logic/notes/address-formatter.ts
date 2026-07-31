@@ -9,7 +9,10 @@
  */
 
 import { formatTimestamp } from '@/features/demo/engine/logic/notes/format-timestamp'
-import { formatAddress } from '@/features/demo/engine/logic/notes/address-formatting'
+// The canonical shared port of the phone's address-formatting.ts (P2.3, matrix row 29).
+// The notes body and every other composed-address surface (PDF header, list rows, map
+// sheet) abbreviate through this ONE module — byte-identical output everywhere.
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import type { NotesRelevantFormData, NotesScope } from '@/features/demo/engine/logic/notes/types'
 
 /**
