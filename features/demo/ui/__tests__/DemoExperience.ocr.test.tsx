@@ -293,6 +293,43 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
     })
   })
 
+  // P4.7: the Time-Offset report's OCR block was always empty — the bridge mapped none of the
+  // proof fields into generateTimeOffsetDoc, so `captureMethod: 'ocr'` rendered the
+  // methodology box with no evidence under it.
+  it('carries the committed proof — raw, cleaned, parsed AND the strip image — into the PDF', () => {
+    const store = openOcr()
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    fireEvent.click(screen.getByText('Use this & calculate'))
+
+    // The sample path stages no image; a live capture does. Attach one to the committed
+    // proof exactly as `runOcrLive` would have, and recommit the offset.
+    act(() => {
+      const st = store.getState()
+      st.updateField('capture.ocr', { ...st.capture.ocr!, imageDataUrl: 'data:image/jpeg;base64,STRIP' })
+      st.calculateOffset()
+      st.setView('completion')
+    })
+    fireEvent.click(screen.getByText('Preview Time-Offset Calibration'))
+
+    const html = screen.getByTitle('Time-Offset Calibration').getAttribute('srcdoc') ?? ''
+    expect(html).toContain('Raw OCR Output')
+    expect(html).toContain('2025-03-08 12:05:30') // raw/cleaned/parsed all carry the read
+    expect(html).toContain('Captured DVR Display')
+    expect(html).toContain('data:image/jpeg;base64,STRIP')
+  })
+
+  it('an image-less (sample) proof still fills the text evidence, with no empty image block', () => {
+    const store = openOcr()
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    fireEvent.click(screen.getByText('Use this & calculate'))
+    act(() => store.getState().setView('completion'))
+    fireEvent.click(screen.getByText('Preview Time-Offset Calibration'))
+
+    const html = screen.getByTitle('Time-Offset Calibration').getAttribute('srcdoc') ?? ''
+    expect(html).toContain('Raw OCR Output')
+    expect(html).not.toContain('Captured DVR Display')
+  })
+
   it('a dateless read can be committed by correcting the date instead of confirming it', async () => {
     const user = userEvent.setup()
     const store = openOcr()

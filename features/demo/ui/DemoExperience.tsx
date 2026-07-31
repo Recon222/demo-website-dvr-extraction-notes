@@ -1545,6 +1545,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         dvrDateTime: off?.dvrDateTime,
         actualDateTime: off?.actualDateTime,
         captureMethod: off?.captureMethod,
+        // The OCR evidence block (P4.7): raw/cleaned/parsed always travel with an OCR-method
+        // offset; the strip image exists only for a live camera read — the template renders
+        // no image block without it, which is the honest shape for a sample commit.
+        ocrImageDataUrl: off?.ocr?.imageDataUrl,
+        ocrRawText: off?.ocr?.rawText,
+        ocrCleanedText: off?.ocr?.cleanedText,
+        ocrParsedDateTime: off?.ocr?.parsedDateTime,
         dvrAppliesDST: off?.dvrAppliesDST,
         sync: off?.sync ?? null,
       }),
