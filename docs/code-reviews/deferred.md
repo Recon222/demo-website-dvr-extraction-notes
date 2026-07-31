@@ -1202,3 +1202,69 @@ the P2.1 follow-up executed both resolutions:
    attendance line carry the identical abbreviated string; the full street word
    never reaches the document). Remaining hand-join sites OUTSIDE the PDF path
    (Completion summary, screenData rows) are P2.4's §37 table — not re-tracked here.
+
+---
+
+## 44. P2.2 fix round (parity/p2-fix-ocr) — OCR confirm: decisions taken while closing R-4/R-15/R-16/R-23/R-26
+
+All five P2.2 findings from `docs/code-reviews/parity/p2/p2-review.md` were **fixed**, not
+deferred. This section records the choices inside those fixes that a future reader would
+otherwise have to reverse-engineer, plus the one §40 entry they partially overtake.
+
+### 44a. Escape on the OCR recalculate prompt is deliberately NOT the Cancel arm
+
+`AlertDialog`'s docblock says the caller should "wire `onDismiss` to whatever cancel means for
+that alert." The OCR recalculate prompt breaks that rule on purpose.
+
+The phone's `Cancel` on this alert is not a "close the dialog" — it is
+`router.push(ROUTES.FORM.TIME_OFFSET)`, which **leaves the OCR flow and discards the capture**
+(phone `app/(form)/ocr-capture.tsx:293-296`; ui-mapping 06:152). Wiring Escape to that would
+mean a stray keypress throws away a read the operator just took. Escape instead closes the
+prompt back to the confirmation step with the read, the draft, and the date-confirmation state
+all intact — the least-destructive route, and the one every other Escape in this feature takes.
+
+The sibling guard on `TimeOffsetScreen` does not face this: its `Cancel` genuinely is "close and
+stay", so there Escape and Cancel coincide.
+
+**Trigger to revisit:** if `AlertDialog` ever grows a documented "dismiss ≠ cancel" affordance
+(a distinct `onEscape`, say), fold this in rather than keeping the local reasoning.
+
+### 44b. The commit CTA is `aria-disabled`, not `disabled`
+
+Closing R-15 swapped the confirmation step's primary CTA from `disabled` to `aria-disabled` with
+a guarded click handler. Two reasons, only the first of which R-15 names: a `disabled` button
+takes no focus, so nothing leads a keyboard user to the reason it is blocked; and this
+particular button's state flips *while the operator is working on the screen* (confirming or
+correcting the assumed date re-enables it), so `disabled` would drop focus to `<body>` at the
+exact moment the operator wants to press it — the failure shape R-7 documents on the GPS
+capture button.
+
+The commit is now refused at three layers: the guarded click, the screen's `canCommit`, and
+`isDvrDraftCommittable` inside `confirmOcr` on the bridge. That last one is the real gate; the
+other two are UI.
+
+### 44c. `calcOffset` gained a defaulted `regenerate` parameter (shared bridge helper)
+
+R-4's fix split `generateExtractedScopes` off the offset calculation via
+`calcOffset(regenerate = true)`, mirroring the phone's `performOcrCalculation(result, boolean)`.
+The default is `true` **specifically** so the Time Offset screen's Calculate path — which has
+its own confirmation, owned by P2.5 — keeps its exact previous behaviour. `TimeOffsetScreen.tsx`
+was not touched. Anyone adding a third caller must decide the regenerate answer explicitly
+rather than leaning on the default.
+
+### 44d. Refines §40e — the confirm stage now has a Cancel, but only inside the prompt
+
+§40e recorded that the confirmation stage offers no one-tap exit (only `Retake` → `Cancel`).
+Still true in the general case. The R-4 prompt adds a `Cancel` that *does* leave the flow in one
+tap, but only on the path where extracted scopes exist and the operator has already pressed
+"Use this & calculate". §40e stands for every other path.
+
+### 44e. R-16 was closed by labelling, not by suppressing or deferring
+
+The finding offered three dispositions for the fabricated confidence chip. Chose labelling (the
+`Sample` pill + a note stating the score is fixed and rates character legibility, not date
+interpretation) over suppressing it on the ambiguous/time-only frames, because suppression hides
+a value instead of telling the truth about it — the inverse of how this demo handles everything
+else it cannot really do — and would make the confidence tiers unreachable on two of three
+frames. If a real recogniser ever lands (P4), the badge and its note must be removed with the
+constant; `OCR_SAMPLE_CONFIDENCE`'s docblock carries that instruction.
