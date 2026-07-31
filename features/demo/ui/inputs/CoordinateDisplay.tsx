@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
@@ -25,6 +25,12 @@ const TONE_COLOR: Record<AccuracyTone, string> = {
   warning: '#ffd93d',
   error: '#ff4757',
 }
+
+/** How long the copy confirmation stays up, matching NotesScreen's "Copy all" (R-31). The
+ *  phone's equivalent is an auto-dismissing toast; a confirmation that never clears would still
+ *  be claiming "Coordinates Copied" minutes later, and a failure line that never clears would
+ *  outlive the condition that caused it. */
+export const COPY_RESET_MS = 1600
 
 /** Phone toast copy, reused as the card's inline confirmation (CoordinateDisplay.tsx:81,103). */
 export const COPY_LABELS = {
@@ -61,6 +67,24 @@ export interface CoordinateDisplayProps extends GpsCoordinates {
 
 export function CoordinateDisplay({ lat, lng, accuracyM, source, writeClipboard }: CoordinateDisplayProps) {
   const [copied, setCopied] = useState<'idle' | 'ok' | 'failed'>('idle')
+  // Tracked handle, cleared on re-arm and on unmount (R-31, the R-12 idiom): an untracked
+  // timer lets a first copy's reset wipe a second confirmation mid-display, and outlives the
+  // component.
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    },
+    [],
+  )
+
+  const armReset = () => {
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    resetTimer.current = setTimeout(() => {
+      resetTimer.current = null
+      setCopied('idle')
+    }, COPY_RESET_MS)
+  }
   const coordinates = formatCoordinate(lat, lng)
   const rating = accuracyM !== undefined ? getAccuracyRating(accuracyM) : null
   const sourceLabel = gpsSourceLabel(source)
@@ -70,10 +94,12 @@ export function CoordinateDisplay({ lat, lng, accuracyM, source, writeClipboard 
     try {
       await write(coordinates)
       setCopied('ok')
+      armReset()
     } catch {
       // Honest, visible failure — a locked-down or permission-denied clipboard must not look
       // like a successful copy (the phone shows its "Copy Failed" toast for the same reason).
       setCopied('failed')
+      armReset()
     }
   }
 

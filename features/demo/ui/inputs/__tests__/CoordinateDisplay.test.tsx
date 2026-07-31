@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
-import { CoordinateDisplay, COPY_LABELS } from '@/features/demo/ui/inputs/CoordinateDisplay'
+import { CoordinateDisplay, COPY_LABELS, COPY_RESET_MS } from '@/features/demo/ui/inputs/CoordinateDisplay'
 import { pickFromReverseFeature } from '@/features/demo/ui/inputs/reverse-geocode'
 
 describe('CoordinateDisplay', () => {
@@ -88,6 +88,63 @@ describe('CoordinateDisplay', () => {
     })
 
     expect(screen.getByRole('status')).toHaveTextContent(COPY_LABELS.failure)
+  })
+})
+
+describe('CoordinateDisplay — copy confirmation resets (R-31)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns to idle after the reset window instead of claiming "Copied" forever', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    render(<CoordinateDisplay lat={43.6} lng={-79.65} writeClipboard={async () => undefined} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('coordinate-display'))
+    })
+    expect(screen.getByRole('status')).toHaveTextContent(COPY_LABELS.success)
+
+    await act(async () => {
+      vi.advanceTimersByTime(COPY_RESET_MS)
+    })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('a second copy is not cut short by the first copy\'s timer', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    render(<CoordinateDisplay lat={43.6} lng={-79.65} writeClipboard={async () => undefined} />)
+    const card = screen.getByTestId('coordinate-display')
+
+    await act(async () => {
+      fireEvent.click(card)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(COPY_RESET_MS - 200) // nearly expired
+    })
+    await act(async () => {
+      fireEvent.click(card) // re-arm
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(300) // the FIRST timer's deadline passes here
+    })
+
+    // Untracked, the stale timer would have wiped this confirmation mid-display.
+    expect(screen.getByRole('status')).toHaveTextContent(COPY_LABELS.success)
+  })
+
+  it('clears its timer on unmount', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout')
+    const { unmount } = render(<CoordinateDisplay lat={43.6} lng={-79.65} writeClipboard={async () => undefined} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('coordinate-display'))
+    })
+    unmount()
+
+    expect(clearSpy).toHaveBeenCalled()
+    clearSpy.mockRestore()
   })
 })
 
