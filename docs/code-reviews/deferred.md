@@ -2698,12 +2698,24 @@ explained rather than just happen.
 ### 60f. Stop is gated on the shared 500 ms `canStop`, which the phone's VIDEO path does not have
 
 `canStopAtElapsed` is documented as the phone's AUDIO recorder gate (ui-mapping 10);
-`VisionCameraScreen`'s video Stop is always live. The demo applies it to video anyway, and the
-shutter renders disabled for that sub-second window. Reason: a browser `MediaRecorder` stopped
-before its first `dataavailable` assembles **zero bytes**, which P4.1 correctly reports as
-`RECORDING_FAILED` — so the ungated button's only effect in that window is to hand the visitor
-an error they could not have avoided. Mutation-probed ("refuses Stop until the take can produce
-bytes").
+`VisionCameraScreen`'s video Stop is always live. The demo applies it to video anyway. Reason: a
+browser `MediaRecorder` stopped before its first `dataavailable` assembles **zero bytes**, which
+P4.1 correctly reports as `RECORDING_FAILED` — so the ungated button's only effect in that window
+is to hand the visitor an error they could not have avoided. Mutation-probed ("refuses Stop until
+the take can produce bytes").
+
+**AMENDED (review R-9, P4 round 1).** This entry originally read "the shutter renders disabled
+for that sub-second window", which described the first implementation: a native `disabled`
+attribute. That was wrong on its own terms — a `disabled` applied to the control the visitor JUST
+pressed drops focus to `<body>` and re-enables 500 ms later with focus lost, so the gate refused
+silently and unfocusably. The shutter now uses the house idiom (`aria-disabled` + guarded handler
+in `onShutter` + a `role="status"` reason line, `aria-describedby`-linked), matching
+`AudioRecorderScreen`'s two stop affordances. The DECISION recorded above (gate video Stop at
+500 ms) is unchanged; only the mechanism was wrong. §61b's claim that the demo gates "using the
+established `aria-disabled` + guarded-handler + `role='status'` reason idiom" was accurate for the
+audio surface and is now accurate for this one too — no amendment needed there.
+The same pass converted this file's other native-`disabled` site, the permission stage's Grant
+button (`disabled={isOpening}`, which spanned the whole browser permission prompt).
 **Trigger:** if a reviewer wants phone-exact behaviour, the honest alternative is a `timeslice`
 argument to `MediaRecorder.start()` small enough to guarantee a chunk — that changes P4.1's
 `startStreamRecording`, not this screen.

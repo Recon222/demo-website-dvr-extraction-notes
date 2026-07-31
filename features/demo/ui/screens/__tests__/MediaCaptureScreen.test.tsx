@@ -335,6 +335,36 @@ describe('permission stages (phone PermissionsView, browser-corrected)', () => {
     expect(shutter('Take photo')).toBeInTheDocument()
   })
 
+  it('keeps Grant focusable while the browser’s permission sheet is up, and says what it waits on', async () => {
+    // R-9's second site. `disabled={isOpening}` spanned the whole permission prompt — which on
+    // a cold browser is however long the visitor takes to read it — with the just-pressed
+    // control removed from the tab order and nothing saying why.
+    let release!: (stream: MediaStream) => void
+    const h = harness({
+      live: true,
+      getUserMedia: () =>
+        new Promise<MediaStream>((resolve) => {
+          release = resolve
+        }),
+    })
+    mount(h)
+
+    const grantButton = screen.getByRole('button', { name: 'Grant' })
+    fireEvent.click(grantButton)
+
+    const opening = screen.getByRole('button', { name: 'Opening…' })
+    expect(opening).toHaveAttribute('aria-disabled', 'true')
+    expect(opening).toBeEnabled()
+    expect(opening).toHaveAccessibleDescription(/Waiting for your browser.s camera permission/)
+    opening.focus()
+    expect(document.activeElement).toBe(opening)
+
+    await act(async () => {
+      release(fakeStream(['video', 'audio']))
+    })
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+  })
+
   it('a refusal is a refusal: denied copy, a retry, and no sample offered', async () => {
     const h = harness({
       live: true,
@@ -496,15 +526,26 @@ describe('video recording', () => {
     const h = harness({ live: true })
     await startRecording(h)
 
-    expect(shutter('Stop recording')).toBeDisabled()
-    fireEvent.click(shutter('Stop recording'))
+    // R-9: refused with `aria-disabled`, never the `disabled` attribute — the control stays in
+    // the tab order and keeps the focus the press that started the recording put on it.
+    const stop = shutter('Stop recording')
+    expect(stop).toHaveAttribute('aria-disabled', 'true')
+    expect(stop).toBeEnabled()
+    expect(stop).toHaveAccessibleDescription('Stop unlocks after half a second of recording.')
+    // The failure shape the idiom exists to prevent: a `disabled` attribute here would make the
+    // just-pressed control unfocusable, and the browser would drop focus to <body>.
+    stop.focus()
+    expect(document.activeElement).toBe(stop)
+
+    fireEvent.click(stop)
     expect(h.recorder.stopCalls).toBe(0)
 
     act(() => {
       h.advance(600)
       vi.advanceTimersByTime(400)
     })
-    expect(shutter('Stop recording')).toBeEnabled()
+    expect(shutter('Stop recording')).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.queryByText('Stop unlocks after half a second of recording.')).not.toBeInTheDocument()
 
     h.recorder.emitData('video-bytes')
     await act(async () => {
