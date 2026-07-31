@@ -48,6 +48,14 @@ export * from '@/features/demo/engine/logic/import'
 // convention — and the barrel should not advertise the mutable importLogBus singleton as
 // public surface with zero consumers. Import from '@/features/demo/engine/logic/import-log'.
 export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinateResult } from '@/features/demo/engine/logic/coordinates'
+export {
+  FINAL_SUBMISSION_MESSAGES,
+  finalSubmissionSchema,
+  toFinalSubmissionInput,
+  validateFinalSubmission,
+  type FinalSubmissionInput,
+  type FinalSubmissionOutcome,
+} from '@/features/demo/engine/logic/final-submission'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
