@@ -224,12 +224,12 @@ describe('the delete cascade revokes the captures it destroys (R-2)', () => {
     const store = seed()
     act(() => {
       store.getState().switchLocation(locIdOf(store, "Kim's Convenience"))
-      store.getState().addMedia('photo', photo('k1', 'blob:kim-1'))
-      store.getState().addMedia('video', photo('k2', 'blob:kim-2', { kind: 'video', poster: 'blob:kim-2-poster' }))
+      store.getState().addMedia(photo('k1', 'blob:kim-1'))
+      store.getState().addMedia(photo('k2', 'blob:kim-2', { kind: 'video', poster: 'blob:kim-2-poster' }))
       store.getState().switchLocation(locIdOf(store, 'Rear Alley'))
-      store.getState().addMedia('audio', photo('r1', 'blob:alley-1', { kind: 'audio' }))
+      store.getState().addMedia(photo('r1', 'blob:alley-1', { kind: 'audio' }))
       store.getState().switchLocation(locIdOf(store, 'Plaza Office'))
-      store.getState().addMedia('photo', photo('p1', 'blob:plaza-1'))
+      store.getState().addMedia(photo('p1', 'blob:plaza-1'))
       store.getState().setView('cases')
     })
     return store
@@ -272,7 +272,7 @@ describe('the delete cascade revokes the captures it destroys (R-2)', () => {
     const store = seed()
     act(() => {
       store.getState().switchLocation(locIdOf(store, 'Plaza Office'))
-      store.getState().addMedia('photo', photo('s1', '/demo-media/sample-photo.jpg', { sample: true }))
+      store.getState().addMedia(photo('s1', '/demo-media/sample-photo.jpg', { sample: true }))
       store.getState().setView('cases')
     })
     render(<DemoExperience store={store} />)

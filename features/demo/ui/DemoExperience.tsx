@@ -665,7 +665,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return false
     }
     const item = buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename, caption })
-    st.addMedia(captured.kind, item)
+    st.addMedia(item)
     setNotice(mediaSavedNotice(captured.kind, filename))
     st.closeLaunch()
     return true
@@ -699,7 +699,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const st = store.getState()
     // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
     // restored session cannot collide with them.
-    st.addMedia('audio', buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
+    st.addMedia(buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
     st.closeLaunch()
   }
   /**
@@ -718,7 +718,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // Absent wherever the API is (jsdom, a hardened browser) — nothing to revoke, and the store
     // write is what actually removes the row, so it must not be gated on the revocation.
     if (io !== null) revokeCapturedUrls(io, [item.url, item.poster])
-    store.getState().deleteMedia(item.kind, item.id)
+    store.getState().deleteMedia(item)
     setNotice(MEDIA_DELETED_NOTICE)
   }
 
