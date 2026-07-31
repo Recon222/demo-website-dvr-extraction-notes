@@ -1,11 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import {
-  TerminalLine,
-  LEVEL_ACCENT,
-  TERM_ROW,
-  DETAIL_AT_HIDE_THRESHOLD,
-} from '@/features/demo/ui/screens/import/TerminalLine'
+import { TerminalLine, LEVEL_ACCENT, TERM_ROW } from '@/features/demo/ui/screens/import/TerminalLine'
 import type { ImportLogLevel, ImportLogLine } from '@/features/demo/engine/logic/import-log'
 
 const mkLine = (over: Partial<ImportLogLine> = {}): ImportLogLine => ({
@@ -101,10 +96,15 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     expect(block).not.toHaveAttribute('aria-hidden')
   })
 
-  it(`hides a dump (> ${DETAIL_AT_HIDE_THRESHOLD} chars) from assistive tech — phone DETAIL_AT_HIDE_THRESHOLD parity`, () => {
-    expect(DETAIL_AT_HIDE_THRESHOLD).toBe(120) // TerminalLine.tsx:22
-    renderLine(mkLine({ detail: 'x'.repeat(DETAIL_AT_HIDE_THRESHOLD + 1) }), true)
-    expect(screen.getByTestId('terminal-detail-7')).toHaveAttribute('aria-hidden', 'true')
+  it('an expanded dump stays AT-readable — the disclosure must not reveal aria-hidden content (R-15)', () => {
+    // Deliberate divergence from the phone's DETAIL_AT_HIDE_THRESHOLD: the demo's blocks
+    // are collapsed behind an explicit disclosure and the log is not a live region, so
+    // opening a dump is user opt-in — hiding it would make aria-expanded/aria-controls
+    // advertise a toggle over content AT cannot see.
+    renderLine(mkLine({ detail: 'x'.repeat(500) }), true)
+    const block = screen.getByTestId('terminal-detail-7')
+    expect(block).not.toHaveAttribute('aria-hidden')
+    expect(screen.getByRole('button')).toHaveAttribute('aria-controls', 'terminal-detail-7')
   })
 
   it('is memoized so appends never re-render existing rows (keyed by seq in the parent)', () => {

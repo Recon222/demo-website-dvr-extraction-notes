@@ -8,9 +8,13 @@ import {
   type ImportLogLine,
 } from '@/features/demo/engine/logic/import-log'
 import { useImportLog } from '@/features/demo/ui/import/useImportLog'
-import type { ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
-import { TerminalLine, TERM_ROW } from '@/features/demo/ui/screens/import/TerminalLine'
+import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId, type ImportRealStageId } from '@/features/demo/ui/import/run-import'
+// The DEMO's reduced-motion hook (p1-review R-18): motion/react seeds from a global on
+// the FIRST render, so a reduced-motion visitor never gets one committed frame with
+// animations armed — the marketing hook (@/lib/hooks) starts false and corrects in an
+// effect. Same source ScreenStage / WizardDrawer / ExploreChecklist use.
+import { useReducedMotion } from 'motion/react'
+import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
 
 /**
  * ImportTerminalProgress — the live import terminal (parity P1.4, matrix row 74).
@@ -57,6 +61,14 @@ export type TerminalOutcome =
 export interface ImportTerminalProgressProps {
   /** The demo pipeline's coarse stage (run-import onStage); null before the run starts. */
   stage: RunStageId | null
+  /**
+   * The last real (non-error) stage, tracked by the bridge in its functional updater
+   * (p1-review R-11): React batches onStage('normalizing') with the following
+   * onStage('error'), so a component-side "last rendered stage" ref would never see
+   * stages that never rendered — a normalize failure froze the bar at 15%. When
+   * `stage` is 'error', the bar/headline freeze on THIS.
+   */
+  lastRealStage: ImportRealStageId | null
   /** null while running; set when the pipeline returns (the "done" signal). */
   outcome: TerminalOutcome | null
   /** 1-based batch position, shown in the processing badge ("File N of M · "). */
@@ -72,17 +84,27 @@ export interface ImportTerminalProgressProps {
 export type TerminalTrust = 'cloud' | 'sample'
 
 /**
- * The run's data-path truth, read from the log itself. run-import prefixes every
- * FallbackMode transition with `sample fallback:` (emitFallback, run-import.ts:70-86);
- * until one lands the demo is on its live path — extracted text leaves the browser
- * for the server proxy, so `cloud` is the honest default in both directions
- * (overclaiming exposure is safe; underclaiming never is).
+ * The run's data-path truth, read from the log itself. run-import marks every
+ * FallbackMode transition with {@link SAMPLE_FALLBACK_PREFIX} (emitFallback — the
+ * shared constant is the typed contract, p1-review R-32); until one lands the demo is
+ * on its live path — extracted text leaves the browser for the server proxy, so
+ * `cloud` is the honest default in both directions (overclaiming exposure is safe;
+ * underclaiming never is).
+ *
+ * SEGMENT-SCOPED, not run-scoped (p1-review R-1): a batch is ONE bus run, so a sticky
+ * latch would label files AFTER an early fallback as "in-browser" while their text
+ * goes to the cloud — an underclaim of exposure, the exact failure this line exists
+ * to prevent. Each `FILE` marker (emitted per batch file) resets the derivation to
+ * `cloud`, so the label always reflects the CURRENT file's mode. Single-file and
+ * paste runs have at most one segment — behaviour there is unchanged.
  */
 export function deriveTrust(lines: readonly ImportLogLine[]): TerminalTrust {
+  let trust: TerminalTrust = 'cloud'
   for (const line of lines) {
-    if (line.level === 'NORM' && line.text.startsWith('sample fallback:')) return 'sample'
+    if (line.level === 'FILE') trust = 'cloud'
+    else if (line.level === 'NORM' && line.text.startsWith(SAMPLE_FALLBACK_PREFIX)) trust = 'sample'
   }
-  return 'cloud'
+  return trust
 }
 
 /**
@@ -253,6 +275,15 @@ const badgeSubStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
+/** Visually hidden but AT-readable (the CTA's supplementary description, R-3). */
+const visuallyHidden: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+}
 
 // ==================== ICONS (Ionicons equivalents, house inline-SVG pattern) ====================
 
@@ -265,9 +296,20 @@ function Icon({ path, size, color, circle }: { path: string; size: number; color
   )
 }
 
-function Spinner() {
+/** Reduced-motion gated (p1-review R-14): inline-styled motion must gate in JS. */
+function Spinner({ reduce }: { reduce: boolean | null }) {
   return (
-    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={C.primary}
+      strokeWidth="2.5"
+      data-testid="terminal-spinner"
+      style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite', flexShrink: 0 }}
+    >
       <path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" />
     </svg>
   )
@@ -283,6 +325,7 @@ interface CtaView {
   headline: string
   title: string
   sub: string
+  subColor: string
   a11y: string
 }
 
@@ -290,8 +333,18 @@ interface CtaView {
  * Phone cta switch, copy + colours verbatim (ImportTerminalProgress.tsx:233-281).
  * Exhaustive: a future TerminalOutcome variant is a compile error, not a silent
  * fall-through to the failure treatment.
+ *
+ * Sample attribution (p1-review R-25): with the P1.5 dwell, the result notice +
+ * per-card badge only paint AFTER the CTA tap — Escape during the dwell used to
+ * discard a sample-substituted import with the substitution never marked on this
+ * surface. When the run's trust is 'sample', the success/partial sub carries the
+ * attribution in the amber warning colour, so the CTA moment itself says so.
  */
-function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
+function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, trust: TerminalTrust): CtaView {
+  const reviewSub =
+    trust === 'sample'
+      ? { sub: 'sample import — review →', subColor: C.warning }
+      : { sub: 'Review import →', subColor: C.textSecondary }
   switch (outcome.status) {
     case 'success': {
       const batch = outcome.totalFiles > 1
@@ -304,7 +357,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         title: batch
           ? `Batch complete — ${outcome.successCount} of ${outcome.totalFiles} location${outcome.totalFiles === 1 ? '' : 's'}`
           : 'Import ready for review',
-        sub: 'Review import →',
+        ...reviewSub,
         a11y: 'Review the import before it saves',
       }
     }
@@ -317,7 +370,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         bg: 'rgba(255,217,61,0.10)',
         headline: 'Batch partially failed',
         title: `Batch partially failed — ${outcome.successCount} of ${outcome.totalFiles}, ${failed} need${failed === 1 ? 's' : ''} attention`,
-        sub: 'Review import →',
+        ...reviewSub,
         a11y: 'Review the import — some files failed',
       }
     }
@@ -330,6 +383,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         headline: isBatchRun ? 'Batch failed' : 'Import failed',
         title: isBatchRun ? 'Batch failed' : 'Import failed',
         sub: 'See error details →',
+        subColor: C.textSecondary,
         a11y: 'See error details',
       }
     default: {
@@ -343,7 +397,10 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
 
 const EMPTY_SET: ReadonlySet<number> = new Set()
 
-export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = importLogBus }: ImportTerminalProgressProps) {
+/** Keys that scroll a focused scroll container — user intent for the pin (R-2). */
+const SCROLL_KEYS: ReadonlySet<string> = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '])
+
+export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, onReview, bus = importLogBus }: ImportTerminalProgressProps) {
   const { lines, epoch } = useImportLog(true, bus)
   const reduce = useReducedMotion()
   // Pin state renders the pill (state) AND gates the tail (ref). The tail effect must
@@ -368,16 +425,14 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
 
   // stage 'error' freezes the last real stage's headline/percent (the phone leaves
   // progress wherever the pipeline stopped; the outcome CTA then takes the headline).
-  const lastViewRef = useRef<{ message: string; percent: number } | null>(null)
-  const stageView = stage && stage !== 'error' ? STAGE_VIEW[stage] : null
-  useEffect(() => {
-    if (stageView) lastViewRef.current = stageView
-  }, [stageView])
-  const running = stageView ?? lastViewRef.current ?? PREPARING
+  // The freeze source is the bridge-tracked lastRealStage prop, not a rendered-stage
+  // ref — batching made intermediate stages unrenderable (R-11, see the prop's doc).
+  const effectiveStage = stage === 'error' ? lastRealStage : stage
+  const running = effectiveStage ? STAGE_VIEW[effectiveStage] : PREPARING
 
   const trust = useMemo(() => deriveTrust(lines), [lines])
   const isBatchRun = batch !== null && batch.total > 1
-  const cta = outcome === null ? null : ctaView(outcome, isBatchRun)
+  const cta = outcome === null ? null : ctaView(outcome, isBatchRun, trust)
   const headline = cta ? cta.headline : running.message
   // Success/partial land at 100 (the phone's complete band); failure keeps the bar
   // where the pipeline stopped — a full bar on a failed run would be a lie.
@@ -417,6 +472,20 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
   const markUserScroll = useCallback(() => {
     userScrollRef.current = true
   }, [])
+  /**
+   * Keyboard scrolling is user intent too (p1-review R-2, WCAG 2.1.1): scrollbars are
+   * hidden inside the phone frame and wheel/touch were the only pin producers, so a
+   * keyboard user could never unpin (the tail re-yanked them) and the jump pill never
+   * mounted for them. Scroll keys arm the same flag the wheel does; the resulting
+   * scroll event settles the pin exactly like every other user gesture. Pointer-down
+   * covers any future visible-scrollbar surface for free.
+   */
+  const handleKeyDown = useCallback(
+    (e: { key: string }) => {
+      if (SCROLL_KEYS.has(e.key)) markUserScroll()
+    },
+    [markUserScroll],
+  )
   const handleScroll = useCallback(() => {
     if (!userScrollRef.current) return // programmatic tail scroll — never flips the pin
     userScrollRef.current = false
@@ -481,9 +550,18 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
           data-testid="terminal-log"
           ref={logRef}
           style={logStyle}
+          // First-class keyboard target (R-2): focusable, named, and scroll keys count
+          // as user intent. role="log" is implicitly aria-live="polite" — explicitly
+          // off, so the terminal-status headline stays the sole polite region.
+          tabIndex={0}
+          role="log"
+          aria-live="off"
+          aria-label="Import log"
           onScroll={handleScroll}
           onWheel={markUserScroll}
           onTouchMove={markUserScroll}
+          onPointerDown={markUserScroll}
+          onKeyDown={handleKeyDown}
         >
           {lines.map((line) => (
             <TerminalLine key={line.seq} line={line} expanded={expandedSeqs.has(line.seq)} onToggleDetail={toggleDetail} />
@@ -514,34 +592,44 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
         )}
       </div>
 
-      {/* Morphing status badge → CTA. Fixed-height slot: zero reflow on morph. */}
+      {/* Morphing status badge → CTA. Fixed-height slot: zero reflow on morph.
+          Accessible name = the VISIBLE title + sub (R-3): the batch counts are the
+          load-bearing fact and must be announced; an aria-label would replace them
+          (accname override) and break Label-in-Name for voice control. cta.a11y
+          SUPPLEMENTS as the description via aria-describedby. */}
       {cta ? (
-        <button
-          type="button"
-          data-testid="terminal-review-cta"
-          aria-label={cta.a11y}
-          onClick={onReview}
-          style={{
-            ...badgeBase,
-            border: `1px solid ${cta.border}`,
-            background: cta.bg,
-            cursor: 'pointer',
-            animation: reduce ? undefined : 'termFadeIn 350ms ease both',
-          }}
-        >
-          {cta.icon}
-          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
-            <span style={badgeSubStyle}>{cta.sub}</span>
+        <>
+          <button
+            type="button"
+            data-testid="terminal-review-cta"
+            aria-describedby="terminal-cta-desc"
+            onClick={onReview}
+            style={{
+              ...badgeBase,
+              border: `1px solid ${cta.border}`,
+              background: cta.bg,
+              cursor: 'pointer',
+              animation: reduce ? undefined : 'termFadeIn 350ms ease both',
+            }}
+          >
+            {cta.icon}
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
+              <span style={{ ...badgeSubStyle, color: cta.subColor }}>{cta.sub}</span>
+            </span>
+            <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
+          </button>
+          {/* Sibling, NOT a child: inside the button it would join the accname. */}
+          <span id="terminal-cta-desc" style={visuallyHidden}>
+            {cta.a11y}
           </span>
-          <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
-        </button>
+        </>
       ) : (
         <div
           data-testid="terminal-processing-badge"
           style={{ ...badgeBase, border: '1px solid rgba(43,140,193,0.32)', background: 'rgba(26,45,68,0.55)' }}
         >
-          <Spinner />
+          <Spinner reduce={reduce} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <span style={{ ...badgeTitleStyle, color: C.text }}>
               {isBatchRun ? 'Processing recovery requests' : 'Processing recovery request'}

@@ -135,6 +135,22 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     expect(done.detail).toMatch(/^success: 2 · failed: 0 · \d+ms$/)
   })
 
+  it("a mixed batch's DONE line truthfully reports success: 1 · failed: 1 (R-6)", async () => {
+    pdfMock.mockResolvedValueOnce(DOC_TEXT).mockRejectedValueOnce(new Error('boom'))
+    reqMock.mockResolvedValue({ ok: false, notConfigured: true })
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    openImport(store, 'PR25-MIX')
+    pickPdf(container, ['good.pdf', 'bad.pdf'])
+    await releaseDwell() // the amber partial CTA
+    await screen.findByText('Import complete')
+
+    const done = importLogBus.getLines().at(-1)!
+    expect(done.level).toBe('DONE')
+    expect(done.text).toBe('batch complete')
+    expect(done.detail).toMatch(/^success: 1 · failed: 1 · \d+ms$/)
+  })
+
   it('an all-failed run ends on ERR — no DONE line pretends success', async () => {
     pdfMock.mockRejectedValue(new Error('boom'))
     const store = createDemoStore()

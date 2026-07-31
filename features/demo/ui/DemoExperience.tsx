@@ -9,6 +9,7 @@ import {
   runImport as runTextImport,
   runPdfImport,
   type ImportStageId as RunStageId,
+  type ImportRealStageId,
   type ImportRunResult,
   type FallbackMode,
   type ImportErrorCode,
@@ -27,7 +28,7 @@ import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
-import { computeImportStage } from '@/features/demo/ui/screens/import/import-flow-mode'
+import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
@@ -92,11 +93,21 @@ const blankCaseForm: NewCaseFields = {
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
 interface ImportState {
-  stage: 'picker' | 'paste' | 'progress' | 'result'
+  /** The stored (driven) stage — displayed through computeImportStage (single union, R-31). */
+  stage: ImportUiStage
   text: string
   result: ImportResult | null
   lastLocId: string | null
   activeStage: RunStageId | null
+  /**
+   * The last REAL stage the pipeline reached (never 'error') — tracked here, in the
+   * functional updater, because React batches onStage('normalizing') with the
+   * following onStage('error'|'done') from the same continuation: a stage that never
+   * RENDERS would be invisible to any component-side "last rendered stage" ref, and a
+   * normalize failure froze the bar at 15% (p1-review R-11). The terminal freezes its
+   * bar/headline on this when activeStage is 'error'.
+   */
+  lastRealStage: ImportRealStageId | null
   batch: { current: number; total: number } | null
   /**
    * The visitor tapped the terminal's outcome CTA (phone `pdfTerminalAcknowledged`).
@@ -105,7 +116,7 @@ interface ImportState {
    */
   acknowledged: boolean
 }
-const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, batch: null, acknowledged: false }
+const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -379,7 +390,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     store.getState().closeModal()
   }
-  const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
+  /**
+   * Per-run stage forwarder. Token-guarded (p1-review R-24): every other import
+   * checkpoint validates importGen, but the old bare setImp let a cancelled run's late
+   * onStage('normalizing'|'done') drive a NEWER run's headline/bar — and, post-P1.5,
+   * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11).
+   */
+  const importStageFor = (myGen: number) => (st: RunStageId) =>
+    setImp((s) => {
+      if (importGen.current !== myGen) return s // stale run — display writes drop too
+      return { ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }
+    })
 
   // Exhaustive by construction (review M2): every FallbackMode must decide its notice
   // here — a new variant is a compile error, not a silently-missing warning. Only
@@ -488,6 +509,35 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp((s) => ({ ...s, result, lastLocId: t.lastLocId }))
   }
 
+  /**
+   * Last-resort backstop for the whole run (p1-review R-23b). Nothing in the pipeline
+   * is EXPECTED to throw (every callee guards internally), but if something ever does,
+   * the old shape hung the dwell forever: PickerStage's catch is unmounted by the
+   * stage flip (its setError is discarded — R-23a, P1.2's half) and finishImport was
+   * the only result writer. Breadcrumb + ERR log line + a failure result — which also
+   * releases the dwell through the normal CTA path. Token-checked so a superseded
+   * run's throw cannot clobber a newer run's state.
+   */
+  const guardImportRun = async (myGen: number, emitter: ImportLogEmitter, run: () => Promise<void>) => {
+    try {
+      await run()
+    } catch (e) {
+      console.error('[demo/import] import run threw unexpectedly', e)
+      const detail = e instanceof Error ? e.message : String(e)
+      emitter.log('ERR', '✗ import run threw unexpectedly', detail) // no-op if superseded/reset
+      if (importGen.current !== myGen) return
+      setImp((s) => ({
+        ...s,
+        activeStage: 'error',
+        result: {
+          ok: false,
+          error: 'The import failed unexpectedly. Please try again.',
+          details: { stage: s.activeStage ?? 'extracting_text', detail },
+        },
+      }))
+    }
+  }
+
   // PickerStage validates the selection (all-PDF, batch confirm) and hands File[] up here.
   const processPdfFiles = async (files: File[]) => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
@@ -500,21 +550,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // One log run per import (a batch is ONE run, like the phone). beginRun clears the
     // previous run's retained lines; the emitter self-invalidates when superseded/reset.
     const emitter = importLogBus.beginRun(logClock)
-    const total = files.length
-    if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
-    else emitter.log('INIT', 'reading document…')
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    for (let i = 0; i < total; i++) {
-      if (importGen.current !== myGen) return // cancelled, or a newer run started
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', acknowledged: false }))
-      emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
-      const res = await runPdfImport(files[i], { live: true, onStage: onImportStage, emitter })
-      if (importGen.current !== myGen) return // cancelled while this file was processing
-      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-      else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
-    }
-    if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
-    finishImport(tally, emitter, total)
+    await guardImportRun(myGen, emitter, async () => {
+      const total = files.length
+      if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
+      else emitter.log('INIT', 'reading document…')
+      const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+      for (let i = 0; i < total; i++) {
+        if (importGen.current !== myGen) return // cancelled, or a newer run started
+        setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
+        emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
+        const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
+        if (importGen.current !== myGen) return // cancelled while this file was processing
+        if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
+        else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
+      }
+      if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
+      finishImport(tally, emitter, total)
+    })
   }
 
   // One text pipeline for both entry points: the paste stage's textarea AND the picker's
@@ -534,15 +586,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
     const emitter = importLogBus.beginRun(logClock)
-    emitter.log('INIT', 'reading pasted text…')
-    setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', acknowledged: false }))
-    const res = await runTextImport({ documentText, live: true, onStage: onImportStage, emitter })
-    if (importGen.current !== myGen) return // cancelled, or a newer run started
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
-    if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
-    else tally.failures.push({ filename: res.filename ?? 'request', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
-    if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
-    finishImport(tally, emitter, 1)
+    await guardImportRun(myGen, emitter, async () => {
+      emitter.log('INIT', 'reading pasted text…')
+      setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', lastRealStage: 'reading_model', acknowledged: false }))
+      const res = await runTextImport({ documentText, live: true, onStage: importStageFor(myGen), emitter })
+      if (importGen.current !== myGen) return // cancelled, or a newer run started
+      const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+      if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
+      else tally.failures.push({ filename: res.filename ?? 'request', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
+      if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
+      finishImport(tally, emitter, 1)
+    })
   }
 
   const runPasteImport = () => runTextImportFlow(imp.text)
@@ -838,6 +892,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             stage={computeImportStage(imp)}
             text={imp.text}
             activeStage={imp.activeStage}
+            lastRealStage={imp.lastRealStage}
             result={imp.result}
             batch={imp.batch}
             // The dwell's ONLY exit: acknowledging morphs the derived stage to 'result'.
@@ -852,7 +907,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onRetry={() => {
               // No token reset here: a retry simply starts a new run, which takes
               // its own generation. An untokened clear would revive stale runs (H1).
-              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null, acknowledged: false }))
+              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null, lastRealStage: null, acknowledged: false }))
             }}
             onOpenLocation={(locId) => {
               if (locId) openLocation(locId)

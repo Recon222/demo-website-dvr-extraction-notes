@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
+
+// Controlled seam for motion/react's useReducedMotion (R-18): the real hook latches a
+// module-global on first use, so a per-test matchMedia override cannot flip it. The mock
+// also pins WHICH hook the component consumes — reverting to the marketing hook would
+// bypass this mock and fail the reduced-motion test below.
+const motionState = vi.hoisted(() => ({ reduce: false as boolean | null }))
+vi.mock('motion/react', async (orig) => ({
+  ...(await orig<typeof import('motion/react')>()),
+  useReducedMotion: () => motionState.reduce,
+}))
 import {
   ImportTerminalProgress,
   isNearBottom,
@@ -12,9 +22,13 @@ import {
   type TerminalOutcome,
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
 import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
 
 // Fake timers drive the useImportLog coalescing frame (same rig as useImportLog.test.ts).
-beforeEach(() => vi.useFakeTimers())
+beforeEach(() => {
+  vi.useFakeTimers()
+  motionState.reduce = false
+})
 afterEach(() => vi.useRealTimers())
 
 const nextFrame = () => act(() => void vi.advanceTimersToNextFrame())
@@ -24,7 +38,7 @@ function setup(over: Partial<ImportTerminalProgressProps> = {}, preEmit?: (e: Im
   const emitter = bus.beginRun(() => 0)
   if (preEmit) preEmit(emitter)
   const onReview = vi.fn()
-  const props: ImportTerminalProgressProps = { stage: 'reading_model', outcome: null, batch: null, onReview, bus, ...over }
+  const props: ImportTerminalProgressProps = { stage: 'reading_model', lastRealStage: null, outcome: null, batch: null, onReview, bus, ...over }
   const utils = render(<ImportTerminalProgress {...props} />)
   const rerenderWith = (next: Partial<ImportTerminalProgressProps>) =>
     utils.rerender(<ImportTerminalProgress {...props} {...next} />)
@@ -72,6 +86,31 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.queryByTestId('terminal-detail-1')).not.toBeInTheDocument()
   })
 
+  it('appending lines never remounts existing rows (R-27) — the stated no-virtualization justification', () => {
+    // Behavioural pin, not a $$typeof check: keyed-by-seq + stable line objects +
+    // stable callback must keep history's DOM nodes as the SAME element instances on
+    // append. A broken key scheme or a re-created subtree type (the failure modes that
+    // would make 400 rows expensive) remounts fresh nodes and sheds the sentinel.
+    const { emitter } = setup()
+    nextFrame()
+    act(() => {
+      emitter.log('INIT', 'a')
+      emitter.log('OK', 'b')
+      emitter.log('OK', 'c')
+    })
+    nextFrame()
+    const before = [1, 2, 3].map((s) => screen.getByTestId(`terminal-line-${s}`))
+    before.forEach((el, i) => el.setAttribute('data-render-sentinel', String(i)))
+    act(() => emitter.log('OK', 'd'))
+    nextFrame()
+    ;[1, 2, 3].forEach((s, i) => {
+      const el = screen.getByTestId(`terminal-line-${s}`)
+      expect(el).toBe(before[i]) // same DOM node instance — not remounted
+      expect(el.getAttribute('data-render-sentinel')).toBe(String(i))
+    })
+    expect(screen.getByTestId('terminal-line-4')).toBeInTheDocument()
+  })
+
   // ---- headline + progress track ----
 
   it('maps each pipeline stage to the phone headline + percent band (orchestrator.ts:288/428/459 · PROGRESS_STAGES)', () => {
@@ -95,9 +134,11 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(width()).toBe('80%')
   })
 
-  it("stage 'error' freezes the last real stage's headline and percent", () => {
-    const { rerenderWith } = setup({ stage: 'normalizing' })
-    rerenderWith({ stage: 'error' })
+  it("stage 'error' freezes on the bridge-tracked lastRealStage — even one never rendered (R-11)", () => {
+    // lastRealStage arrives as a prop; the stage itself jumps straight to 'error'
+    // (the batched-commit shape production actually produces — 'normalizing' and
+    // 'error' land in one commit, so 'normalizing' never renders).
+    setup({ stage: 'error', lastRealStage: 'normalizing' })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Normalizing extracted data...')
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
   })
@@ -138,14 +179,52 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(deriveTrust([])).toBe('cloud')
     expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'AI', text: 'AI Request → /api/extract' }])).toBe('cloud')
     for (const text of [
-      'sample fallback: live import disabled — importing the sample request',
-      'sample fallback: live model not configured — importing the sample request',
-      "sample fallback: couldn't reach the live model — importing the sample request",
+      `${SAMPLE_FALLBACK_PREFIX} live import disabled — importing the sample request`,
+      `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`,
+      `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`,
     ]) {
       expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'NORM', text }])).toBe('sample')
     }
     // A NORM normalization-warning line is NOT a fallback signal.
     expect(deriveTrust([{ seq: 1, elapsedMs: 0, level: 'NORM', text: 'Assumed MM/DD format for ambiguous date' }])).toBe('cloud')
+    // The contract is the shared typed prefix, not re-declared prose (R-32).
+    expect(SAMPLE_FALLBACK_PREFIX).toBe('sample fallback:')
+  })
+
+  it('deriveTrust is SEGMENT-scoped in a batch (R-1): a FILE marker resets to cloud — no sticky sample latch', () => {
+    const l = (seq: number, level: 'FILE' | 'NORM' | 'AI', text: string) => ({ seq, elapsedMs: 0, level, text }) as const
+    // File 1 falls back to the sample; file 2 goes to the cloud model. The label must
+    // follow the CURRENT file — claiming "in-browser" for file 2 would underclaim exposure.
+    expect(
+      deriveTrust([
+        l(1, 'FILE', "▸ file 1/3 'a.pdf'"),
+        l(2, 'NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`),
+        l(3, 'FILE', "▸ file 2/3 'b.pdf'"),
+        l(4, 'AI', 'AI Request → /api/extract'),
+      ]),
+    ).toBe('cloud')
+    // …and the reverse still flips: the current file's own fallback reads sample.
+    expect(
+      deriveTrust([
+        l(1, 'FILE', "▸ file 1/2 'a.pdf'"),
+        l(2, 'AI', 'AI Request → /api/extract'),
+        l(3, 'FILE', "▸ file 2/2 'b.pdf'"),
+        l(4, 'NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`),
+      ]),
+    ).toBe('sample')
+  })
+
+  it('mid-batch, the badge and title bar re-label the CURRENT file after an earlier fallback (R-1)', () => {
+    const { emitter } = setup({ batch: { current: 2, total: 3 } })
+    act(() => {
+      emitter.log('FILE', "▸ file 1/3 'a.pdf'")
+      emitter.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`)
+      emitter.log('FILE', "▸ file 2/3 'b.pdf'")
+      emitter.log('AI', 'AI Request → /api/extract')
+    })
+    nextFrame()
+    expect(screen.getByTestId('terminal-trust-line')).toHaveTextContent(TRUST_LINE.cloud)
+    expect(screen.getByTestId('terminal-processing-badge')).toHaveTextContent(`File 2 of 3 · ${TRUST_LINE.cloud}`)
   })
 
   // ---- cursor ----
@@ -159,26 +238,18 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.queryByTestId('terminal-cursor')).not.toBeInTheDocument()
   })
 
-  it('reduced motion: the cursor stays visible but static, and the CTA morph does not animate', () => {
-    const original = window.matchMedia
-    window.matchMedia = ((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)',
-      media: query,
-      onchange: null,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia
-    try {
-      const { rerenderWith } = setup()
-      expect(screen.getByTestId('terminal-cursor').style.animation).toBe('')
-      rerenderWith({ outcome: SUCCESS })
-      expect(screen.getByTestId('terminal-review-cta').style.animation).toBe('')
-    } finally {
-      window.matchMedia = original
-    }
+  it('reduced motion (motion/react hook, R-18): cursor static, spinner static (R-14), CTA morph unanimated', () => {
+    motionState.reduce = true
+    const { rerenderWith } = setup()
+    expect(screen.getByTestId('terminal-cursor').style.animation).toBe('')
+    expect(screen.getByTestId('terminal-spinner').style.animation).toBe('') // R-14: processing spinner gated too
+    rerenderWith({ outcome: SUCCESS })
+    expect(screen.getByTestId('terminal-review-cta').style.animation).toBe('')
+  })
+
+  it('with motion allowed, the spinner spins (the gate must not kill motion for everyone)', () => {
+    setup()
+    expect(screen.getByTestId('terminal-spinner').style.animation).toContain('spin')
   })
 
   // ---- auto-follow / pin ----
@@ -216,6 +287,40 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     act(() => emitter.log('OK', 'c'))
     nextFrame()
     expect(el.scrollTop).toBe(100) // un-pinned: the tail must not fight the operator
+  })
+
+  it('keyboard scrolling unpins too (R-2, WCAG 2.1.1): the log is focusable and scroll keys arm the pin', () => {
+    const { emitter } = setup()
+    const el = mockLogMetrics(1000, 200)
+    nextFrame()
+    act(() => {
+      emitter.log('INIT', 'a')
+      emitter.log('OK', 'b')
+    })
+    nextFrame()
+    // A first-class keyboard target: reachable by Tab, named for AT, not a second live region.
+    expect(el).toHaveAttribute('tabindex', '0')
+    expect(el).toHaveAttribute('role', 'log')
+    expect(el).toHaveAttribute('aria-live', 'off')
+    expect(el).toHaveAttribute('aria-label', 'Import log')
+    // ArrowUp + the resulting scroll away from the bottom → unpin, pill appears.
+    fireEvent.keyDown(el, { key: 'ArrowUp' })
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    expect(screen.getByTestId('jump-to-latest-pill')).toBeInTheDocument()
+    act(() => emitter.log('OK', 'c'))
+    nextFrame()
+    expect(el.scrollTop).toBe(100) // un-pinned: the tail must not fight the keyboard user
+    // PageDown back near the bottom re-pins (same 80px threshold as every gesture).
+    fireEvent.keyDown(el, { key: 'PageDown' })
+    el.scrollTop = 750
+    fireEvent.scroll(el)
+    expect(screen.queryByTestId('jump-to-latest-pill')).not.toBeInTheDocument()
+    // A non-scroll key is NOT user scroll intent — it must not arm the pin gate.
+    fireEvent.keyDown(el, { key: 'a' })
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    expect(screen.queryByTestId('jump-to-latest-pill')).not.toBeInTheDocument()
   })
 
   it('programmatic scrolls never flip the pin (no wheel/touch preceding the scroll event)', () => {
@@ -329,7 +434,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const { rerenderWith, onReview } = setup()
     rerenderWith({ outcome: SUCCESS })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Import ready for review')
-    const cta = screen.getByRole('button', { name: 'Review the import before it saves' })
+    // R-3: the accessible NAME is the visible text (Label in Name); a11y framing is the description.
+    const cta = screen.getByRole('button', { name: /Import ready for review/ })
+    expect(cta).toHaveAccessibleDescription('Review the import before it saves')
     expect(cta).toHaveTextContent('Import ready for review')
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(16, 209, 119, 0.32)')
@@ -350,7 +457,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const { rerenderWith } = setup({ batch: { current: 3, total: 3 } })
     rerenderWith({ outcome: { status: 'partial', successCount: 2, totalFiles: 3 } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Batch partially failed')
-    const cta = screen.getByRole('button', { name: 'Review the import — some files failed' })
+    // R-3's load-bearing fact: the COUNTS are in the accessible name, not suppressed by a label.
+    const cta = screen.getByRole('button', { name: /Batch partially failed — 2 of 3, 1 needs attention/ })
+    expect(cta).toHaveAccessibleDescription('Review the import — some files failed')
     expect(cta).toHaveTextContent('Batch partially failed — 2 of 3, 1 needs attention')
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not green
@@ -364,18 +473,31 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
   })
 
   it('failure: red treatment, "See error details →", the log stays visible, and the bar does not claim 100%', () => {
-    const { emitter, rerenderWith } = setup({ stage: 'normalizing' })
+    const { emitter, rerenderWith } = setup({ stage: 'normalizing', lastRealStage: 'normalizing' })
     act(() => emitter.log('ERR', '✗ failed at normalizing'))
     nextFrame()
     rerenderWith({ stage: 'error', outcome: { status: 'failure' } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Import failed')
-    const cta = screen.getByRole('button', { name: 'See error details' })
+    const cta = screen.getByRole('button', { name: /See error details/ }) // visible text IS the name (R-3)
     expect(cta).toHaveTextContent('Import failed')
     expect(cta).toHaveTextContent('See error details →')
     expect(cta.style.border).toContain('rgba(255, 71, 87, 0.32)')
     // "The log is most valuable when something broke" — the failed run's lines stay up.
     expect(screen.getByText('✗ failed at normalizing')).toBeInTheDocument()
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
+  })
+
+  it('a sample-substituted run marks the CTA itself: amber "sample import — review →" sub (R-25)', () => {
+    // With the dwell, the notice + per-card badge only paint after the tap and Escape
+    // discards them — the CTA moment must carry the substitution on its own.
+    const { emitter, rerenderWith } = setup()
+    act(() => emitter.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`))
+    nextFrame()
+    rerenderWith({ outcome: SUCCESS })
+    const cta = screen.getByTestId('terminal-review-cta')
+    expect(cta).toHaveTextContent('sample import — review →')
+    expect(cta).not.toHaveTextContent('Review import →')
+    expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
   })
 
   it('failure in a batch run reads "Batch failed" (no counts — phone parity, outcome carries none)', () => {

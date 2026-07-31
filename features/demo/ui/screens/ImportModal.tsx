@@ -11,11 +11,13 @@ import type { ImportedLocationView } from '@/features/demo/ui/screens/importResu
 import { ImportTerminalProgress, type TerminalOutcome } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
 import type {
   ImportStageId as RunStageId,
+  ImportRealStageId,
   ImportErrorCode,
   ImportErrorDetails,
   ImportPartialData,
 } from '@/features/demo/ui/import/run-import'
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
+import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportFailure {
@@ -51,19 +53,28 @@ export type ImportResult =
  * `ERROR_MESSAGES[code] || error` renders them verbatim — the phone's own
  * precedent for PDF codes (§5.7.8). Render rule matches the phone exactly:
  * `ERROR_MESSAGES[result.error.code] || result.error.message` (:328-330).
+ *
+ * Keyed by the code union (p1-review R-8): a typo'd/renamed code is a compile
+ * error, and reads honestly type `string | undefined` — the `|| result.error`
+ * fallback is visibly load-bearing for the deliberately unmapped codes.
  */
-export const ERROR_MESSAGES: Record<string, string> = {
+export const ERROR_MESSAGES: Partial<Record<ImportErrorCode, string>> = {
   PDF_READ_FAILED: 'This PDF could not be read. It may be corrupted or password-protected.',
   MODEL_OUTPUT_UNPARSEABLE: "The model's reply couldn't be read as form data. Please try the import again.",
 }
 
-export type ImportStageId = 'picker' | 'paste' | 'progress' | 'result'
-
 export interface ImportModalProps {
-  stage: ImportStageId
+  /**
+   * The DISPLAYED flow stage. Single source of the union: the mode machine that
+   * derives it (engine/logic/import-flow-mode — p1-review R-31; this file's own
+   * re-declaration also collided in name with run-import's pipeline ImportStageId).
+   */
+  stage: ImportUiStage
   text: string
   /** The pipeline's coarse stage (run-import onStage) — drives the terminal's headline/bar. */
   activeStage: RunStageId | null
+  /** The last real (non-error) stage — the terminal freezes its bar here on failure (R-11). */
+  lastRealStage: ImportRealStageId | null
   result: ImportResult | null
   /** 1-based batch position, shown in the terminal's processing badge ("File 2 of 3 · …"). */
   batch: { current: number; total: number } | null
@@ -79,11 +90,12 @@ export interface ImportModalProps {
   onOpenLocation(locId: string | null): void
   onCancel(): void
   /**
-   * Fired by the terminal's outcome CTA. Pre-P1.5 the auto-flip to results still
-   * runs (an outcome never shows while stage is 'progress'), so this stays no-op-safe;
-   * P1.5's dwell makes it load-bearing.
+   * Fired by the terminal's outcome CTA — the dwell's ONLY exit (p1-review R-4):
+   * computeImportStage holds 'progress' until the acknowledge this callback writes,
+   * so an omitted/no-op handler would leave the CTA clicking into nothing forever.
+   * REQUIRED for exactly that reason.
    */
-  onReviewImport?(): void
+  onReviewImport(): void
   /** Test seam forwarded to the terminal — defaults to the singleton import log bus. */
   logBus?: ImportLogBus
   /** Test seam forwarded to PickerStage — defaults to navigator.clipboard.readText. */
@@ -93,10 +105,14 @@ export interface ImportModalProps {
 /**
  * ImportResult → the terminal's outcome union. null result = still running. The
  * counts follow the phone's derivation (cases.tsx:949-967): every file failed →
- * failure (no counts); some failed → amber partial; else success. Pre-P1.5 the
- * modal flips to 'result' the moment a result exists, so the terminal only ever
- * sees null here — the derivation becomes live when P1.5 holds the progress stage
- * through the dwell.
+ * failure (no counts); some failed → amber partial; else success. LIVE since the
+ * P1.5 dwell: computeImportStage keeps the modal on 'progress' after the result
+ * lands, so this derivation is what morphs the badge into the outcome CTA the
+ * visitor must tap to reach the result view.
+ *
+ * Deliberately colocated with the UI `ImportResult` type it maps (outside the
+ * engine coverage gate — R-21): moving it to engine/ would drag the whole
+ * result-view model along; its unit tests below fully cover it regardless.
  */
 export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutcome | null {
   if (result === null) return null
@@ -149,15 +165,16 @@ function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
 
 /**
  * "Data Found" — the phone's partial-extraction block (ImportFlowModal.tsx:353-368),
- * labels verbatim: what the pipeline honestly recovered before the run failed.
+ * label verbatim: what the pipeline honestly recovered before the run failed. The
+ * phone's second row ('Business:') is deliberately not ported — that value is
+ * structurally unreachable in the demo pipeline (R-30, see ImportPartialData's doc).
  */
 function DataFoundCard({ partial }: { partial: ImportPartialData }) {
-  if (!partial.caseNumber && !partial.businessName) return null
+  if (!partial.caseNumber) return null
   return (
     <div data-testid="import-data-found" style={{ width: '100%', textAlign: 'left', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(26,45,68,0.45)', padding: '10px 12px' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#99badd', marginBottom: 6 }}>Data Found</div>
-      {partial.caseNumber && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>}
-      {partial.businessName && <div style={{ fontSize: 13, color: '#f0f4f8' }}>Business: {partial.businessName}</div>}
+      <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>
     </div>
   )
 }
@@ -175,7 +192,7 @@ function FailuresCard({ failures }: { failures: ImportFailure[] }) {
 }
 
 export function ImportModal(props: ImportModalProps) {
-  const { stage, text, activeStage, result, batch } = props
+  const { stage, text, activeStage, lastRealStage, result, batch } = props
   const [openIndex, setOpenIndex] = useState(-1) // batch accordions, single-open (-1 = all collapsed)
   // Reset on a new result so a stale index can't pre-expand the wrong accordion after Retry (H1).
   useEffect(() => setOpenIndex(-1), [result])
@@ -205,9 +222,10 @@ export function ImportModal(props: ImportModalProps) {
         // it replaced the old 3-row checklist. It carries its own live region + progressbar.
         <ImportTerminalProgress
           stage={activeStage}
+          lastRealStage={lastRealStage}
           outcome={deriveTerminalOutcome(result)}
           batch={batch}
-          onReview={props.onReviewImport ?? (() => undefined)}
+          onReview={props.onReviewImport}
           bus={props.logBus}
         />
       )}

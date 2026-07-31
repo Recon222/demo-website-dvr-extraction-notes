@@ -29,6 +29,9 @@ import { extractPdfText, PdfExtractionError } from '@/features/demo/ui/import/pd
 
 export type ImportStageId = 'extracting_text' | 'reading_model' | 'normalizing' | 'done' | 'error'
 
+/** A stage the pipeline actually reached (excludes the terminal 'error' marker). */
+export type ImportRealStageId = Exclude<ImportStageId, 'error'>
+
 // Detail-dump clip sizes at the emit sites — same numbers as the phone (§5.7.4).
 const DUMP_DETAIL_CHARS = 1200
 const USER_PROMPT_DETAIL_CHARS = 800
@@ -75,13 +78,25 @@ export interface ImportErrorDetails {
   detail: string
 }
 
-/** Phone partialData parity (ImportFlowModal.tsx:353-368): what the pipeline DID find. */
+/**
+ * What the pipeline DID find before failing (the phone's partialData concept,
+ * ImportFlowModal.tsx:353-368). Only `caseNumber` (the model-read OCC#): the phone's
+ * second key, businessName, is structurally unreachable here — the sole partialData
+ * producer sits inside the `fieldCount === 0` gate and fieldCount counts businessName,
+ * so it is provably empty on that path (p1-review R-30; recorded in deferred.md §35).
+ */
 export interface ImportPartialData {
   caseNumber?: string
-  businessName?: string
 }
 
-/** Discriminated on `ok` — a success always carries the patch + counts; a failure carries the error. */
+/**
+ * Discriminated on `ok` — a success always carries the patch + counts; a failure
+ * carries the error. `code`/`details` are REQUIRED on the failure arm (p1-review
+ * R-29): every producer sets both, and optionality let a future failure path compile
+ * while silently dropping the row-79 enrichment (no friendly mapping, no Technical
+ * Details). The modal-level `ImportResult` keeps ITS optionality — DemoExperience
+ * legitimately builds code-less pre-pipeline guard failures there.
+ */
 export type ImportRunResult =
   | { ok: true; patch: MappedImport; fieldCount: number; timeFrameCount: number; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
   | {
@@ -90,14 +105,23 @@ export type ImportRunResult =
       warnings: ImportWarning[]
       fallbackMode: FallbackMode
       filename?: string
-      code?: ImportErrorCode
+      code: ImportErrorCode
       /** Raw failure context for the collapsible "Technical Details" block. */
-      details?: ImportErrorDetails
+      details: ImportErrorDetails
       /** Honest partial extraction results for the "Data Found" block. */
       partialData?: ImportPartialData
     }
 
 const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
+
+/**
+ * The machine-readable marker prefix on every sample-fallback log line. Exported as the
+ * SINGLE source of the contract between the emit sites below and the terminal's
+ * `deriveTrust` (p1-review R-32): a copy edit to the human sentence after the prefix
+ * can no longer silently break the trust derivation — both sides compile against this
+ * constant, and the tests pin it.
+ */
+export const SAMPLE_FALLBACK_PREFIX = 'sample fallback:'
 
 /**
  * Truthful log line for every FallbackMode transition — the honesty machinery's trace in
@@ -108,13 +132,13 @@ const SAMPLE_RAW = JSON.stringify(SAMPLE_EXTRACTION)
 function emitFallback(emitter: ImportLogEmitter | undefined, mode: Exclude<FallbackMode, 'none'>): void {
   switch (mode) {
     case 'sample':
-      emitter?.log('NORM', 'sample fallback: live import disabled — importing the sample request')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live import disabled — importing the sample request`)
       break
     case 'unavailable':
-      emitter?.log('NORM', 'sample fallback: live model not configured — importing the sample request', '/api/extract → 503 NOT_CONFIGURED')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`, '/api/extract → 503 NOT_CONFIGURED')
       break
     case 'error':
-      emitter?.log('NORM', "sample fallback: couldn't reach the live model — importing the sample request", '/api/extract failed (non-503 or network error)')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`, '/api/extract failed (non-503 or network error)')
       break
     default: {
       const exhaustive: never = mode

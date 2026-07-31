@@ -23,8 +23,12 @@ import type { ImportLogLevel, ImportLogLine } from '@/features/demo/engine/logic
  * frame's only theme (src/constants/Colors.ts:68-104).
  */
 
-/** Phone parity: detail longer than this is a dump — hidden from assistive tech (TerminalLine.tsx:22). */
-export const DETAIL_AT_HIDE_THRESHOLD = 120
+// NOTE (p1-review R-15): the phone hides >120-char dumps from assistive tech
+// (DETAIL_AT_HIDE_THRESHOLD, TerminalLine.tsx:22) because its always-open blocks
+// would flood a screen reader. That rationale does not transfer here: the demo's
+// blocks are collapsed behind a disclosure BUTTON and the log is not a live region
+// (aria-live='off'), so nothing auto-announces — opening a dump is an explicit
+// user opt-in, and the revealed content must be AT-readable. No aria-hidden.
 
 /**
  * Syntax-accent colour per level (phone ImportTerminalProgress.tsx:107-118, with the
@@ -128,8 +132,9 @@ export interface TerminalLineProps {
 }
 
 export const TerminalLine = memo(function TerminalLine({ line, expanded, onToggleDetail }: TerminalLineProps) {
-  const hasDetail = line.detail !== undefined
-  const isDump = hasDetail && (line.detail as string).length > DETAIL_AT_HIDE_THRESHOLD
+  // const local so the narrowing carries (no assertion needed — p1-review R-13).
+  const detail = line.detail
+  const hasDetail = detail !== undefined
   const detailId = `terminal-detail-${line.seq}`
 
   const rowContent = (
@@ -162,16 +167,10 @@ export const TerminalLine = memo(function TerminalLine({ line, expanded, onToggl
         <div style={rowStyle}>{rowContent}</div>
       )}
       {hasDetail && expanded && (
-        <div
-          id={detailId}
-          data-testid={detailId}
-          // Phone parity: an oversized dump is hidden from assistive tech so a screen
-          // reader isn't flooded (TerminalLine.tsx:55,69-70); the live status headline
-          // carries the meaningful progress instead.
-          aria-hidden={isDump || undefined}
-          style={blockStyle}
-        >
-          <pre style={blockTextStyle}>{line.detail}</pre>
+        // AT-readable by design (R-15): the disclosure advertises aria-expanded /
+        // aria-controls, so the revealed block must exist for assistive tech too.
+        <div id={detailId} data-testid={detailId} style={blockStyle}>
+          <pre style={blockTextStyle}>{detail}</pre>
         </div>
       )}
     </div>
