@@ -65,9 +65,13 @@ export const PERSISTENCE_ENABLED = true
  *      measured no longer carries a fabricated `0`).
  *  v4: sectioned notes — `notesText`/`notesEdited` → `notesSections`/`notesFreeText`
  *      (P2.1, the phone notes-generator port; pre-release = free wipe). v3 and v4 landed
- *      in the same phase from parallel branches — v4 is the union of both shapes. */
-export const SNAPSHOT_VERSION = 4
-export const SNAPSHOT_KEY = 'dvr-demo-state-v4'
+ *      in the same phase from parallel branches — v4 is the union of both shapes.
+ *  v5: `CameraEntry.gps` gains the required `source`/`capturedAt` members (P3.7 per-camera
+ *      GPS — the phone's five camera keys). A v4 snapshot holding a camera fix would fail
+ *      the shape guard and wipe the whole tab; the bump makes that discard explicit and
+ *      version-attributable rather than a mystery "corrupt snapshot" at boot. */
+export const SNAPSHOT_VERSION = 5
+export const SNAPSHOT_KEY = 'dvr-demo-state-v5'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -175,9 +179,16 @@ const cameraEntrySchema: z.ZodType<CameraEntry> = z.object({
   resolution: z.string(),
   recordingFps: z.string(),
   gps: z
-    .object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() } satisfies FullShape<
-      NonNullable<CameraEntry['gps']>
-    >)
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+      accuracyM: z.number().optional(),
+      // `z.literal`, not `z.enum(GPS_SOURCES)` — device 2 (`FullShape`) enforces it: the
+      // domain member is `Extract<GpsSource, 'gps'>`, so a schema whose output widened to the
+      // whole union would stop compiling here. A camera coordinate has one provenance.
+      source: z.literal('gps'),
+      capturedAt: z.string(),
+    } satisfies FullShape<NonNullable<CameraEntry['gps']>>)
     .optional(),
 } satisfies FullShape<CameraEntry>)
 
@@ -316,7 +327,15 @@ const APP_VIEWS: readonly AppView[] = [
 const isAppView = (v: string): v is AppView => (APP_VIEWS as readonly string[]).includes(v)
 const isChapterId = (v: string): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 /** Exhaustive by construction: gains/losses on `ModalId` are compile errors here. */
-const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true }
+const MODAL_IDS: Record<ModalId, true> = {
+  newCase: true,
+  newLocation: true,
+  import: true,
+  mediaLibrary: true,
+  editIncident: true,
+  duplicateLocation: true,
+  newAddressLocation: true,
+}
 /** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
  *  snapshot with `"toString": true` would pass the guard and defeat the documented
  *  "unknown visited keys are dropped" contract. */

@@ -49,7 +49,7 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('MapScreen — select + fly', () => {
   it('clicking a location row flies to it and opens detail mode', async () => {
-    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} />)
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0)) // map ready + markers added
     fireEvent.click(screen.getByText('Rear door'))
     expect(mapInstance.flyTo).toHaveBeenCalledWith(expect.objectContaining({ center: [-79.61, 43.61] }))
@@ -57,7 +57,7 @@ describe('MapScreen — select + fly', () => {
   })
 
   it('a marker click drives the same select path', async () => {
-    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} />)
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
     const locEl = markerInstances.find((m) => m._el.getAttribute('data-marker-kind') === 'location')!._el
     fireEvent.click(locEl)
@@ -66,7 +66,7 @@ describe('MapScreen — select + fly', () => {
   })
 
   it('back returns to the list', async () => {
-    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} />)
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
     fireEvent.click(screen.getByText('Rear door'))
     expect(screen.getByText('Location Details')).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('MapScreen — select + fly', () => {
 
 describe('MapScreen — call/email mock + Go to Location', () => {
   async function openDetail() {
-    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onGoToLocation={onGoTo} />)
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={vi.fn()} onGoToLocation={onGoTo} />)
     await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
     fireEvent.click(screen.getByText('Rear door'))
   }
@@ -111,5 +111,18 @@ describe('MapScreen — call/email mock + Go to Location', () => {
     await openDetail()
     fireEvent.click(screen.getByText('Go to Location'))
     expect(onGoTo).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MapScreen — incident edit affordance', () => {
+  it('selecting the incident pin exposes Edit Incident Location, forwarding the case id', async () => {
+    const onEditIncident = vi.fn()
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={onEditIncident} />)
+    await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
+    const incidentEl = markerInstances.find((m) => m._el.getAttribute('data-marker-kind') === 'incident')!._el
+    fireEvent.click(incidentEl)
+    fireEvent.click(screen.getByText('Edit Incident Location'))
+    // mapData's incident item carries the CASE id (mapData.ts:97) — that's what the editor needs.
+    expect(onEditIncident).toHaveBeenCalledWith(expect.stringMatching(/^c/))
   })
 })

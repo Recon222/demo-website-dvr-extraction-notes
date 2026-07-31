@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
@@ -27,20 +27,37 @@ const grid: CSSProperties = {
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals.
  *  `onBack` (optional) renders a chevron before the title for in-modal sub-steps — the
- *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661). */
+ *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661).
+ *
+ *  `subtitle` / `footer` / `fillBody` (all optional, added by P3.2) carry the phone's
+ *  pageSheet shape for the Case Actions Sheet: header lines under the title, an action row
+ *  PINNED below the body (never scrolled away), and a body that hands scrolling to its child
+ *  instead of owning it (the sheet's report panel measures its own overflow). Every default
+ *  reproduces the pre-P3.2 markup byte for byte, so the three existing callers are untouched. */
 export function ModalShell({
   title,
+  subtitle,
   onClose,
   onBack,
   backLabel = 'Back',
+  fillBody = false,
+  footer,
   children,
 }: {
   title: string
+  /** One-line header caption under the title, rendered only when passed (phone
+   *  NewLocationModal.tsx:212-219). It becomes the dialog's DESCRIPTION, never part of its
+   *  accessible name. ReactNode so richer captions (P3.2's sheet) fit; plain strings for the
+   *  phone-parity callers. */
+  subtitle?: ReactNode
   onClose(): void
   onBack?(): void
   backLabel?: string
+  fillBody?: boolean
+  footer?: ReactNode
   children: ReactNode
 }) {
+  const subtitleId = `${useId()}-subtitle`
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -55,6 +72,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={subtitle ? subtitleId : undefined}
         style={{
           position: 'absolute',
           left: 0,
@@ -74,7 +92,7 @@ export function ModalShell({
       >
         <div style={grid} />
         <div style={{ position: 'relative', padding: 18, borderBottom: GLASS.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {onBack && (
               <button type="button" aria-label={backLabel} onClick={onBack} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -82,7 +100,14 @@ export function ModalShell({
                 </svg>
               </button>
             )}
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+              {subtitle && (
+                <div id={subtitleId} data-testid="modal-subtitle" style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>
+                  {subtitle}
+                </div>
+              )}
+            </div>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
@@ -90,7 +115,28 @@ export function ModalShell({
             </svg>
           </button>
         </div>
-        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }}>{children}</div>
+        <div
+          style={
+            fillBody
+              ? // The child owns its own scrolling (and its own overflow measurement);
+                // `minHeight: 0` lets it shrink inside the flex column instead of pushing
+                // the pinned footer off the sheet. Column flex so the child can claim the
+                // remaining height with `flex: 1` and MEASURE it.
+                {
+                  position: 'relative',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  padding: 18,
+                  display: 'flex',
+                  flexDirection: 'column' as const,
+                }
+              : { position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }
+          }
+        >
+          {children}
+        </div>
+        {footer && <div style={{ position: 'relative', padding: 18, borderTop: GLASS.border }}>{footer}</div>}
       </div>
     </>
   )
@@ -116,6 +162,8 @@ export function Field({
   onChange,
   placeholder,
   hint,
+  error,
+  readOnly,
   multiline,
 }: {
   label: string
@@ -124,10 +172,39 @@ export function Field({
   onChange(value: string): void
   placeholder?: string
   hint?: string
+  /**
+   * Validation message for THIS field — the phone's shared `TextInput` `error` prop.
+   *
+   * Reddens the border, sets `aria-invalid`, and REPLACES `hint`: the phone renders the error
+   * line OR the helper line, never both (`src/components/common/TextInput.tsx:113-125` —
+   * `{error && …}` then `{!error && helperText && …}`).
+   *
+   * ONE treatment for both kinds of caller (P3 assembly; three spellings of this prop landed
+   * in parallel). The message carries BOTH `role="alert"` and an id the input's
+   * `aria-describedby` points at, which is a superset, not a compromise:
+   *  - `role="alert"` is what a SUBMIT-TIME message needs (P3.3's "Case number is required"
+   *    on a refused Create). Focus is on the button at that moment, so `aria-describedby` on
+   *    the input would announce nothing at all — a silently refused submit;
+   *  - `aria-describedby` is what a field-focused visitor needs, and it re-reads the message
+   *    on every return to the field.
+   * P3.4 dropped `role="alert"` for fear a LIVE per-keystroke check would interrupt
+   * continuously. It does not: the live callers pass a CONSTANT string from a conditionally
+   * mounted node (`NEW_LOCATION_BLOCK_MESSAGES.duplicateName`), so the region announces when
+   * the collision appears and stays silent while the visitor keeps typing into it.
+   */
+  error?: string
+  /** Displays the value but refuses edits — dimmed like the phone's `readOnlyField`
+   *  treatment (`NewCaseModal.tsx:494-498`). Still focusable and selectable, so the value
+   *  can be read and copied; `disabled` would take it out of the tab order entirely. */
+  readOnly?: boolean
   multiline?: boolean
 }) {
+  const errorId = `${useId()}-error`
+  const describedBy = error ? errorId : undefined
+  const invalid = error ? true : undefined
+  const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={readOnly ? { marginBottom: 14, opacity: 0.6 } : { marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
         {label}
         {required && <span style={{ color: '#ff4757' }}> *</span>}
@@ -138,13 +215,31 @@ export function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-label={label}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          readOnly={readOnly}
           rows={3}
-          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} style={fieldInput} />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          readOnly={readOnly}
+          style={boxStyle}
+        />
       )}
-      {hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
+      {error ? (
+        <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+          {error}
+        </div>
+      ) : (
+        hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>
+      )}
     </div>
   )
 }
@@ -170,18 +265,60 @@ export function ModalActions({
   submitLabel,
   onCancel,
   onSubmit,
+  submitBlocked = false,
+  submitDescribedBy,
 }: {
   cancelLabel?: string
   submitLabel: string
   onCancel(): void
   onSubmit(): void
+  /**
+   * The form's gate is unsatisfied: the primary action reads as unavailable (dimmed +
+   * `aria-disabled`) but STILL FIRES `onSubmit`. **The caller MUST guard** — this prop is
+   * presentation + a11y only, and deleting a caller's validate-and-return re-opens the submit.
+   *
+   * Never the `disabled` attribute: it drops keyboard focus to `<body>`, and a gate that flips
+   * on a keystroke would strand the visitor mid-form (the R-7/R-15 house choice, and §45a's
+   * `aria-disabled`-over-`disabled` precedent on the GPS capture button).
+   *
+   * WHY THE CLICK IS NOT SWALLOWED HERE (P3 assembly — three spellings of this gate landed in
+   * parallel and this is the union of their semantics): the phone hard-`disabled`s Create Case
+   * while Case Number or Unit is blank (`NewCaseModal.tsx:445`) using the SAME predicate as its
+   * `validateForm`, which makes that function's messages ("Case number is required" / "Unit is
+   * required") permanently unreachable. Letting the click through so the caller's handler can
+   * surface those verbatim messages ships the phone's copy live instead of dead (§50a). A
+   * caller whose reason is ALREADY on screen (a live region, per `submitDescribedBy`) simply
+   * returns from its guard and nothing further happens — the same user-visible behaviour a
+   * swallow gave it, with enforcement kept where it can be read.
+   */
+  submitBlocked?: boolean
+  /** Id of the element stating WHY the action is blocked; described from the button while
+   *  blocked so a keyboard user landing on it hears the reason without activating it. */
+  submitDescribedBy?: string
 }) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {cancelLabel}
       </button>
-      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button
+        type="button"
+        // Deliberately unguarded — the caller's handler is the enforcement point. See the
+        // `submitBlocked` doc above before "fixing" this.
+        onClick={onSubmit}
+        aria-disabled={submitBlocked}
+        aria-describedby={submitBlocked ? submitDescribedBy : undefined}
+        style={{
+          flex: 1,
+          textAlign: 'center',
+          padding: 13,
+          ...glassBtnPrimary,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: submitBlocked ? 'not-allowed' : 'pointer',
+          opacity: submitBlocked ? 0.45 : 1,
+        }}
+      >
         {submitLabel}
       </button>
     </div>

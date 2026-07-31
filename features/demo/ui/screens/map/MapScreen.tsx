@@ -23,6 +23,19 @@ export interface MapScreenProps {
   onChangeCase?(): void
   /** Hands off to the wizard for a location (switches the form's case/location). */
   onGoToLocation?(id: string): void
+  /**
+   * Opens the incident-location editor for the viewer case (matrix rows 22 → 23).
+   *
+   * REQUIRED, unlike its two neighbours (review R-14). Those gate their own affordances; this
+   * one's CTA — the full-size primary "Edit Incident Location" — rendered unconditionally, so a
+   * handler-less mount would have shipped a button that swallows every press. §49a chose the
+   * opposite shape one package earlier for exactly this reason ("a button that cannot do what
+   * it says would break the demo's honesty rule"), and gates `CaseActionsSheet`'s Edit Case on
+   * the prop's presence. This is the first contract added AFTER that precedent was written
+   * down; requiring the prop is the cheaper of the two ways to honour it, since the bridge
+   * already passes it and no caller wants the CTA hidden.
+   */
+  onEditIncident(caseId: string): void
 }
 
 const changeCasePill: CSSProperties = {
@@ -59,7 +72,7 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident }: MapScreenProps) {
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -97,6 +110,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation 
       onCall={(number) => setPendingCall(number)}
       onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
       onGoToLocation={(id) => onGoToLocation?.(id)}
+      onEditIncident={onEditIncident}
     />
   ) : null
 

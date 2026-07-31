@@ -26,7 +26,9 @@ export interface OcrCaptureScreenProps {
   /** The operator's working DVR date/time — pre-filled from the read, editable before commit. */
   dvrDraft: string
   onChangeDvrDraft(value: string): void
-  /** True once the operator has accepted the assumed date (only meaningful when `assumedDate` is set). */
+  /** True once the operator has accepted the assumed date (only meaningful when
+   *  `result.resolution.kind === 'assumed-date'` — R-23 replaced the flat `assumedDate` field
+   *  this once named with the three-arm union). */
   dateConfirmed: boolean
   onConfirmDate(): void
   /**
@@ -82,6 +84,12 @@ export function OcrCaptureScreen({
       if (hasExtractedScopes) setConfirmRecalc(true)
       else onConfirm(true)
     }
+    // Same idiom for the assumed-date confirm (R-35): aria-disabled keeps it focusable, so the
+    // refusal has to live here.
+    const onConfirmDateClick = () => {
+      if (dateConfirmed) return
+      onConfirmDate()
+    }
 
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -128,10 +136,17 @@ export function OcrCaptureScreen({
                   Only a time was read from this frame. The date below is <strong>assumed</strong> — today&apos;s date on this
                   device, not something OCR saw. Correct it, or confirm it, before it becomes a scope boundary.
                 </div>
+                {/* R-35: `aria-disabled`, not `disabled` — the §44b rule applied to the button
+                    that actually trips it. This one's state flips UNDER the operator's finger:
+                    pressing it sets `dateConfirmed`, a native `disabled` blurs the just-pressed
+                    element to <body>, and that lands at the exact moment the `role="status"`
+                    blocked-reason clears and the (aria-disabled) commit CTA below becomes the
+                    thing to press. The click is guarded in the handler instead — the same
+                    three-layer shape as the CTA, and re-confirming would be idempotent anyway. */}
                 <button
                   type="button"
-                  onClick={onConfirmDate}
-                  disabled={dateConfirmed}
+                  onClick={onConfirmDateClick}
+                  aria-disabled={dateConfirmed}
                   style={{
                     width: '100%',
                     textAlign: 'center',

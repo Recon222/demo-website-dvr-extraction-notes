@@ -1385,3 +1385,1049 @@ missing members, which is the direction real drift runs.
 by a binary ternary in `LocationFields`, so a fourth member would silently render the
 partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
 `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.
+
+---
+
+## 48. P3.1 (parity/p3-crud) — cases CRUD + delete: adaptations, refutations & residuals
+
+**Source:** P3.1 (matrix rows 10 CRUD, 15; plan §5). Spec: phone `docs/ui-mapping/02-tab-cases.md`
++ `11-case-modals.md`, phone `src/features/case-management/components/` (`CaseList`,
+`SwipeableCaseCard`, `SwipeDeleteAction`, `LocationItem`, `DeleteConfirmationModal`) and
+`services/case-service.ts`. Nothing here is unfinished work the package owes; each item is a
+decision a reviewer would otherwise have to re-derive.
+
+**48a. The swipe reveal became a hold + a visible trigger — and gained an a11y path the phone
+lacks.** The brief called for "pointer long-press + row action buttons — match intent, not
+gesture". A horizontal swipe on a pointer device is a scroll, so the reveal is a 500 ms hold
+(React Native's own `onLongPress` default, the beat `LocationItem.tsx:34-38` uses) OR an
+always-visible, keyboard-focusable ⋯ trigger. The phone carries a screen-reader-only
+`accessibilityActions` delete entry (`SwipeableCaseCard.tsx:147`) precisely BECAUSE its gesture
+is invisible to assistive tech; replicating an invisible gesture plus a parallel a11y-only path
+would have been copy-parity over intent. What IS ported: single-open across the list (keyed
+`case-${id}`/`location-${id}`, `CaseList.tsx:101-104`), the expanded gate on case rows only
+(`SwipeableCaseCard.tsx:99-100,162`), tray-closes-on-expand (`:67-73`), and tray-closes-on-handoff
+(`:75-78`).
+
+**48b. "Scrolling the list closes the open swipeable" (`CaseList.tsx:86-93`) deliberately NOT
+ported.** That rule protects against a stranded OVERLAY drawer. The web tray renders in flow,
+takes its own row's height, and hides nothing — there is nothing to strand, and closing it on
+scroll would make it feel like it had been dismissed by accident. Revisit only if the tray ever
+becomes an overlay.
+
+**48c. The delete confirmation is a port, not an `AlertDialog` consumer.** Plan §6 notes the
+blocking-dialog primitive is wanted by P3.1/P4.5/P5.3, so `AlertDialog` (P2.4) was tried first
+and judged against ui-mapping 11. It does not fit: (1) its body is one string, while this dialog's
+content is structured and the case arm needs a `maxHeight: 150` SCROLLING location list — a cap
+that is load-bearing, since a twenty-location case flattened into a `\n`-joined message pushes its
+own buttons off the 786px phone screen; (2) the scrims disagree by design — `AlertDialog` mirrors
+an OS alert whose scrim is deliberately inert, while this modal's scrim DOES dismiss (the phone's
+`handleOverlayPress`). The overlay MECHANICS are shared (phone-screen portal, Escape, focus onto
+the dialog and back to the opener). P5.3 should treat this as a second consumer-shaped datapoint:
+the "primitive" the three surfaces want is the mechanics, not one component.
+
+**48d. Refutation — the "shared destructive-warning line" is two different strings.** The brief
+(and ui-mapping 11's phrasing) reads as one shared line. It is not: the location arm says
+`All form data, photos, and PDFs for this location will be permanently deleted.`
+(`DeleteConfirmationModal.tsx:164`), the case arm drops the qualifier —
+`All form data, photos, and PDFs will be permanently deleted.` (`:226`). What is shared is the
+styled slot (italic, `colors.error`, same position). Both lifted verbatim; both pinned by test,
+including a negative assertion that the case arm does not carry the location wording.
+
+**48e. `isDeleting` not ported.** On the phone, delete is async SQLite + filesystem, so the
+component carries a pending flag (disabled buttons, spinner, backdrop no-op) and `cases.tsx` adds
+a synchronous double-submit ref guard (`isDeletePending`). The demo's delete is one synchronous
+store write; the dialog unmounts in the same tick. A permanently-false prop would be dead weight
+pretending at an in-flight window that does not exist. **Trigger:** if a future package makes the
+demo's delete asynchronous (an export/cleanup step, say), restore the prop and the guard together.
+
+**48f. The verbatim warning copy names PDFs the demo never stored.** "All form data, photos, and
+PDFs … will be permanently deleted" is lifted whole. Form data and captured media entries really
+are destroyed; the demo generates PDFs on demand and stores none, so that clause has nothing to
+over-promise — it is not a claim about a capability, and the deletion it warns about is entirely
+real. Recorded because the honesty rule makes verbatim copy worth a second look, not because the
+line needs softening.
+
+**48g. Row 10's remaining CRUD verbs are deliberately NOT on this screen.** Row 10 lists
+"edit / delete / duplicate / archive" as missing, but on the phone only DELETE is reachable from
+the Cases tab; Edit and complete/archive/reopen live on the dashboard's `CaseActionsSheet`
+(row 9 / P3.2) and duplicate lives in `DuplicateLocationModal` (row 14 / P3.5). Adding them to
+this screen's tray would have invented a surface the phone does not have. The store actions they
+need (`updateCase`, `archiveCase`, `reopenCase`) ARE built and tested here and are THE canonical
+ones — P3.2/P3.3 consume them rather than minting their own. ~~**Trigger:** P3.5 appends its `Duplicate…` action to the same location tray…~~ **DISCHARGED
+at the P3 assembly — see §56g.** Note also that `archiveCase`/`reopenCase` did NOT survive as the
+canonical status actions: they were reconciled onto P3.2's `setCaseStatus` (§56b).
+
+**48h. Status gating lives in the caller, not the store.** (Both actions were folded into
+`setCaseStatus` at the P3 assembly, §56b; the rule below is unchanged and now applies to it.)
+`archiveCase`/`reopenCase` will move
+any case to any of their statuses; the phone's services are equally unguarded
+(`case-service.ts:571-583`) and its `actionsForStatus` matrix gates the BUTTONS. P3.2 owns that
+matrix (with the `assertNever` the row-9 spec calls for). Do not push it down into the store —
+the sheet needs the matrix as data for rendering anyway.
+
+**48i. The tray's open key is screen-local state.** Unlike `expandedCaseId` (bridge state, because
+`submitCase` auto-expands the case it just created — the phone's `newlyCreatedCaseId`), nothing
+outside `CasesScreen` drives which row is showing a button. Kept local so the bridge does not grow
+a field for chrome. Consequence: it resets if the screen ever unmounts — which is what closing a
+swipeable on unmount does on the phone anyway.
+
+**48j. `capture` is blanked when the OPEN location is deleted.** Not cosmetic: `switchLocation`
+blanks the in-progress calibration on every switch but `addLocation` does not, so deleting the open
+location and then creating a new one would have opened Time Offset pre-filled with the deleted
+DVR's clock reading. Pinned by a regression test. If `addLocation` ever gains its own reset, this
+one stays — they cover different paths.
+
+---
+
+## 49. P3.2 (parity/p3-dashboard) — dashboard actions: seams, deliberate deviations, residuals
+
+**Source:** P3.2 Dashboard actions (matrix rows 8 + 9) — `CaseActionsSheet`, `actionsForStatus` +
+`assertNever`, the read-only case report with its measured-overflow scroll gate, complete /
+archive / reopen wiring, the 5-recent cap and `MoreLocationsPill` overflow.
+
+### 49a. `Edit Case` is wired as an OPTIONAL prop and currently absent (P3.3 seam)
+
+The phone's sheet renders `Edit Case` first, unconditionally, and it opens `NewCaseModal` in
+**edit mode** — which is package P3.3's deliverable, in a parallel worktree. `CaseActionsSheetProps.onEdit`
+is therefore optional and the button renders only when supplied; the bridge passes nothing, with a
+`P3.3 SEAM` comment at the JSX call site (`DemoExperience.tsx`, the `actionSheetCase &&` block).
+A button that cannot do what it says would break the demo's honesty rule, and a "coming soon"
+alert is the fake-success shape the rule exists to prevent.
+~~**Trigger (one line, do it at the P3 assembly merge):**~~ **DONE — see §56j.** Once
+`NewCaseModal` accepts `mode`/`initialCase`, add `onEdit={…}` to the `<CaseActionsSheet/>` props — closing the sheet
+first, then opening the editor (the phone additionally waits 350 ms for its pageSheet dismissal
+animation, `home.tsx:41,168-173`; the demo's overlays unmount synchronously, so no delay is
+needed). The component test `renders Edit Case FIRST when the bridge supplies onEdit` already
+pins the wired arm.
+
+### 49b. `setCaseStatus` may collapse into P3.1's `updateCase`
+
+P3.1 owns cases CRUD. P3.2 needed a status writer before that landed, so it added the minimal
+`setCaseStatus(caseId, status)` — deliberately NOT reusing the existing `completeCase`, which is
+the Completion screen's action and additionally stamps the open location's `form.completed` under
+the R-32 "the caseId must own the current location" precondition. The dashboard has no location
+context and must not invent one.
+~~**Trigger:** if P3.1 lands a general `updateCase(caseId, patch)`, fold `setCaseStatus` into it…~~
+**REFUTED and resolved the other way at the P3 assembly — see §56b.** P3.1's `updateCase` payload
+deliberately OMITS `status` (a `@ts-expect-error` probe pins the omission), so folding the status
+in would have deleted the invariant. `setCaseStatus` is instead THE single status writer and
+absorbed P3.1's `archiveCase`/`reopenCase`. The no-write-on-no-change behaviour named here turned
+out to be broken — it allocated a fresh state object — and is now pinned at whole-state
+granularity in both suites.
+
+### 49c. The sheet's `Status:` line copies a phone inconsistency verbatim
+
+`caseStatusSheetLabel` renders `Active` for a draft and the **raw lowercase enum value**
+(`complete` / `archived`) otherwise — the phone's `CaseActionsSheet.tsx:133`, which its own
+ui-mapping doc flags as inconsistent with the title-cased `CaseStatusBadge` labels. Lifted as-is:
+copy parity is the contract, and quietly "fixing" the demo would put the two apps' court-facing
+wording out of step over a cosmetic call that is the phone's to make.
+**Phone-repo follow-up (BUG-NNN ledger when the owner returns):** the status subtitle should
+almost certainly read `Complete` / `Archived`. Cosmetic, one line.
+
+### 49d. The dashboard card still labels a draft `DRAFT`, where the phone's says `ACTIVE`
+
+`getStatusDisplay` (phone `DashboardCaseCard.tsx:32-42`) maps DRAFT → the literal `ACTIVE`; the
+demo's `caseStatusTheme` (`ui/screens/screenData.ts`) maps `'draft'` → `Draft`. A genuine copy gap
+— but `caseStatusTheme` is shared by the Cases list (row 10, **P3.1's**) and the map case picker,
+so changing it inside P3.2 would silently restyle two surfaces another package owns and is
+concurrently editing. Not in row 8's Delta either.
+**Trigger:** P3.1, or whoever next touches `caseStatusTheme` — change the one label and re-run
+`screenData.test.ts` + `appChapters.test.tsx` + the map picker suite together.
+
+### 49e. No toast on a case action (deliberate; do not re-flag)
+
+The phone toasts `Case Updated · {caseNumber} completed|reopened|archived` on success and
+`Action Failed` on error (`home.tsx:100-126`) because its write is an async SQLite round-trip
+followed by a refetch — the toast is the only confirmation the row will change. The demo's write
+is synchronous: the card behind the sheet re-renders green/grey on the same tick, so a toast would
+announce something the visitor is already looking at, and there is no failure arm to report (an
+in-memory status write cannot fail). The demo has no toast primitive at all today.
+**Trigger:** if a later package introduces a toast/snackbar primitive AND a case action ever gains
+a failure mode (e.g. a persisted backend), revisit both halves together.
+
+### 49f. Phone behaviours the demo cannot have, and does not fake
+
+- **Focus refresh** (`useFocusEffect` → `refresh()`, `home.tsx:65-69`): exists because the phone's
+  tabs are `lazy:false` and its list is a snapshot of a database query. The demo's dashboard reads
+  the store through the bridge's subscription, so it is never stale — nothing to port.
+- **The phone's sheet never unmounts** (it sits mounted with `caseData=null`), which is why it
+  carries a measured-height reset keyed on `caseData.id` (`CaseActionsSheet.tsx:121-125`). The
+  demo mounts the sheet only while a case is open, so each open measures from scratch and the
+  guard has no equivalent. If the sheet is ever hoisted to an always-mounted slot, that guard must
+  come with it.
+- **Sheet dismissal animation delay** (`SHEET_DISMISS_ANIMATION_MS = 350`): an iOS pageSheet
+  constraint. See 49a.
+
+### 49g. Residuals worth a later pass
+
+- **Per-card expansion state resets when the dashboard unmounts.** The phone's tabs stay mounted,
+  so a card left expanded is still expanded on return; the demo's `ScreenStage` swaps screens, so
+  expansion is per-visit. Lifting it to the bridge (next to `expandedCaseId`, which the Cases tab
+  uses) would fix it. Cosmetic; deferred rather than adding bridge state for a nicety.
+- **`hasCapturedCoordinates` is consumed only by the sheet.** The port lives in
+  `engine/logic/coordinates.ts` and every demo surface that displays or plots a coordinate should
+  gate on it (the phone's rule). The map's `toMapData` and `CoordinateDisplay` were NOT audited in
+  this package. Low risk here — demo coordinates only ever arrive via `parseCoordinate`, a
+  geocode, or a real GPS fix, so the phone's zero-init artifact has no source — but the audit is
+  owed. **Trigger:** P3.7 (per-camera GPS) or P6.1 (map depth), whichever touches plotting first.
+- **The 5-recent cap is silent**, exactly as on the phone: a sixth case simply is not on the
+  dashboard, under a heading that says "Recent Activity", and every case remains on the Cases tab.
+  No "and N more" affordance was invented. **Trigger:** only an owner call that the demo should
+  lead the phone here.
+
+---
+
+## 50. P3.3 (parity/p3-newcase) — New Case create/edit completion: adaptations & residuals
+
+**Source:** P3.3 NewCaseModal completion (matrix rows 11 + 12) — required-field gate,
+duplicate-case-number detection, edit mode, confirm-on-create. Everything below is a decision
+taken inside the package, not work left undone; the two genuinely open items are 50f and 50g.
+
+### 50a. The primary action is `aria-disabled`, not `disabled` — on purpose
+
+The phone hard-disables Create Case while Case Number or Unit is blank
+(`NewCaseModal.tsx:445`). Its `validateForm` (`:135-150`) owns the messages "Case number is
+required" / "Unit is required" — and because the disabled predicate is the SAME expression,
+those messages are unreachable on the phone: `handleSubmit` cannot run while either field is
+blank. Shipping them as-is would have been shipping dead copy.
+
+The demo dims the button and marks it `aria-disabled`, lets the click reach `handleSubmit`,
+and validates there. Enforcement is identical (validate-and-return); what changes is that a
+visitor now learns *which* field is missing instead of only that the button is unavailable.
+Follows §45a's `aria-disabled`-over-`disabled` precedent. **Consequence to know:**
+`ModalActions.submitBlocked` does NOT swallow the click — the guard is the caller's, and
+deleting a caller's validate-and-return re-opens the submit. Its doc comment says so; P3.4's
+New Location gate must not assume the prop blocks. **This is the semantic that survived the P3
+assembly's three-way prop reconciliation (§56d); P3.4's New Location gate was given the
+caller-side guard it had been getting from the swallow.**
+
+### 50b. Duplicate detection lives at the store's write boundary, and its scope is honest
+
+The phone's uniqueness is a SQLite `UNIQUE` column; the narrowing to
+`DuplicateCaseNumberError` happens in the service catch. The demo has no database, so
+`createCase` calls `assertCaseNumberFree` before minting an id. Two truthful differences,
+both documented in `engine/logic/case-number.ts`: the demo's uniqueness is **session-scoped**
+(the phone's spans every case on the device), and the check is **proactive** rather than a
+caught constraint failure. No copy claims otherwise.
+
+Comparison is trimmed and **case-SENSITIVE** — SQLite's default collation is BINARY and the
+phone declares no `COLLATE NOCASE`, so `PR25-1` and `pr25-1` are two cases there too.
+**Do not harmonize this with `isLocationNameTaken`** (P3.4/P3.5), which is deliberately
+case-INsensitive because it is a proactive service check with no index behind it
+(`utils/errors.ts:204-213`). The two rules differ on the phone; they must differ here.
+
+### 50c. `createCase` now throws — a contract change for every caller
+
+Any code path that creates a case must either guarantee a free number or catch. Today the only
+caller is the bridge's `submitCase`, which deliberately does NOT catch: the modal's own
+try/catch renders the banner, and swallowing it in the bridge would lose the case silently.
+**Trigger:** P3.5's duplicate-location flows and any future seeded/imported case creation must
+decide their own answer (a generated name, or the banner) rather than inheriting an
+uncaught throw.
+
+### 50d. One modal id for two modes — the exploration manifest cannot tell them apart
+
+Edit mode reuses `ModalId 'newCase'` (the phone treats this component as one multi-caller
+surface, and matrix row 12 calls edit "a multi-caller config of #11"). Because `openModal`
+records the id in `visited`, opening the sheet to EDIT a case lights the rail's "Create a Case"
+row. Accepted: the alternative is a second `ModalId`, which widens the persisted `visited` key
+space and therefore drags in a `SNAPSHOT_VERSION` bump plus the union-tuple guards — a
+disproportionate cost for a checklist nuance, paid in the store/persistence hotspot several
+packages share. (**The bump half of that reasoning is wrong** — widening the `visited` allow-list
+needs no version move; see §56l. The rest of the trade-off stands.) **Trigger:** revisit if the manifest ever reports completion rather than mere
+exposure.
+
+### 50e. The edit seam is deliberately unwired in this package
+
+`DemoExperience.editCase(caseId)` seeds the form and opens the sheet in edit mode; nothing
+calls it yet. Its two callers belong to sibling packages — P3.2's dashboard `CaseActionsSheet`
+("Edit Case") and P3.1's Cases-row actions — and both pass it straight through as their edit
+callback. It lands here because the modal, the mapper (`caseFormData.ts`), the `updateCase`
+action and the immutability rule all land here; a second inlined copy is exactly the seed
+drift the mapper exists to prevent. ~~**Trigger:** P3.1/P3.2 wire it… **The first package to wire an entry owns adding that
+end-to-end test.**~~ **DONE at the P3 assembly — see §56j.** The dashboard sheet's `onEdit` is
+wired and the end-to-end arm lives in `DemoExperience.case-actions.test.tsx`.
+
+### 50f. Reverse-geocode errors have no banner path here yet
+
+The phone routes `IncidentLocationForm`'s `onReverseGeocodeError` into this modal's
+`submitError` banner (ui-mapping 11 § Conditional Behavior). The demo's incident block has no
+GPS capture and no reverse-geocode toggle yet (matrix row 11 delta; deferred §24), so there is
+no error to route. The banner state and its render are already in place. **Trigger:** whoever
+adds incident GPS capture (P3.6/P3.7 territory) wires the failure into `setSubmitError` rather
+than inventing a second error surface.
+
+### 50g. Edit mode does not re-seed if the underlying case changes while open
+
+The form is seeded once, when `editCase` opens the sheet — matching the phone, which mounts a
+fresh modal per edit precisely so its lazy initializers capture the right case
+(`app/(tabs)/home.tsx:371-374`). If a case were mutated by something else while its edit sheet
+was open, the sheet would keep the stale seed and overwrite on save. Nothing in the demo can do
+that today (there is no background writer). The bridge does handle the one reachable
+disappearance: a case deleted out from under an open edit sheet falls back to create mode
+rather than rendering an edit sheet with no case behind it. **Trigger:** P3.1's delete, or any
+future concurrent writer, should re-check this.
+
+---
+
+## 51. P3.4 (parity/p3-locgps) — New Location GPS + duplicate-name: deliberate choices & residuals
+
+**Source:** parity plan §5 P3.4, matrix row 13, phone `docs/ui-mapping/11-case-modals.md:64-112`.
+The package closes deferred **§24's location-modal half** (the no-op "Capture GPS coordinates"
+button) by mounting P2.3's `LocationFields` whole. This entry records the judgement calls so a
+review round does not have to re-derive them.
+
+**51a. The write-guard token is a per-open DRAFT id, not a location id.** §45f requires every
+`LocationFields` caller to pass its OWN identity; here the location does not exist yet, so the
+thing an in-flight lookup belongs to is the draft. `addLocation` mints `draft-l<n>` from the
+existing `uiSeq` counter on every open. Strictly, `mounted` alone would cover today's code — the
+modal is conditionally mounted and really unmounts on close — but the token is what (i) makes
+the guarantee expressible as a test at the component level, (ii) re-keys `GpsCaptureControl` per
+open (that `key` IS the capture half's abort), and (iii) survives the "always mounted, toggle
+`visible`" refactor the phone's own JSDoc warns about (`NewLocationModal.tsx:49-52`).
+**Trigger:** none — but a future refactor that drops `draftId` must first prove the modal is
+still remounted per open.
+
+**51b. `LocationFields` was NOT given the phone's `errors` prop.** The phone's `LocationForm`
+takes `errors?: { businessName?, streetAddress?, city? }` and `NewLocationModal` wires all three
+(`NewLocationModal.tsx:258-262`), but only one is ever produced there — `streetAddress` in the
+`requireAddress` flow. The demo states that message in the modal's blocked-reason region instead,
+which it needs regardless because its submit is `aria-disabled` + `aria-describedby` (the R-7/R-15
+house shape) rather than `disabled`. Adding a three-key prop with one live producer and two
+permanently-undefined keys would ship dead surface.
+**Trigger:** the first caller that genuinely needs a business-name or city error under its field
+(P3.6's `EditIncidentLocationModal` is the candidate) — port `LocationForm`'s `errors` shape onto
+`LocationFields` then, and move the address message under the field with it.
+
+**51c. The phone's silent reverse-geocode failure in THIS modal is deliberately not reproduced.**
+ui-mapping 11:386 records the fact-check finding that `NewLocationModal` passes no
+`onReverseGeocodeError`, so a failed lookup here reaches Sentry and nothing else — no banner, no
+inline message, coordinates saved. The demo's `LocationFields` always renders
+`REVERSE_GEOCODE_UNAVAILABLE` / `REVERSE_GEOCODE_PARTIAL` (P2.3's treatment). Copying a silent
+failure would break the honesty rule to gain nothing. **Trigger:** file it on the phone-repo
+follow-up ledger (HANDOFF §8.4) as a BUG-NNN when the owner returns.
+
+**51d. The duplicate message renders in two places when it blocks.** Inline under Location Name
+(phone parity — the phone's live check IS the field's `error`) and in the reason region the
+disabled submit describes. In a scrolling sheet the field error can be off-screen when the visitor
+reaches the button, and the region is what makes an `aria-disabled` control explain itself.
+**Trigger:** if a review prefers one site, give `Field` an `errorId` escape hatch and point
+`submitDescribedBy` at the field's error for the `duplicateName` arm only.
+
+**51e. `isSubmitting` is not part of the gate.** The phone's `disabled` condition has four terms;
+the demo's has three. `onSubmit` here is a synchronous in-memory store write, so there is no
+in-flight window — a fabricated spinner would be theatre. Recorded because a reviewer diffing the
+two conditions will notice the missing term.
+
+**51f. Only `isLocationNameTaken` was ported from the phone's `location-name.ts`.**
+`generateCopyName` and `ensureUniqueLocationName` are P3.5's per plan §5, and they belong in the
+same `engine/logic/location-name.ts`: both build on its `normalizeLocationName` and both need the
+phone's `LIMITS.MAX_LOCATION_NAME_LENGTH` (100, phone `case-management/constants/index.ts:64`),
+which this package had no use for and therefore did not port.
+
+**51g. §24 is only partly closed.** Its three halves are the incident coordinates (P3.6), the
+per-camera GPS (P3.7) and the New Location button (this package). Strike §24 when the last of the
+three lands — it was left untouched here deliberately, so three concurrent lanes do not each
+rewrite the same entry.
+
+**51h. R-39 (§45i) did NOT fire.** Its trigger is "the next touch of `LocationFields.tsx`", and
+this package deliberately touched nothing in that file — mounting the P2.3 capability unchanged
+was the point. It remains open and still cheap.
+
+**51i. Shared chrome grew three additive props, in `_shared.tsx`.** `Field.error` (phone
+`TextInput`'s), `ModalActions.submitDisabled` + `submitDescribedBy`, and `ModalShell.subtitle`
+(phone `NewLocationModal.tsx:212-219`, for P3.5's caller). P3.3 (NewCaseModal's required-field
+gate + duplicate-case-number banner) needs the first two for the same reasons; if both lanes add
+them, the merge should keep one copy rather than two spellings of the same prop.
+
+---
+
+## 52. P3.5 (parity/p3-duplicate) — the location action chooser: web adaptations, cross-package seams, residuals
+
+**Source:** P3.5 implementation (matrix row 14 — `DuplicateLocationModal`, the six-action
+chooser; phone `src/features/case-management/components/DuplicateLocationModal.tsx` +
+`services/duplicate-location-service.ts` + `utils/location-name.ts`).
+
+### 52.1 The long press is an accelerator; the "⋯" button is the affordance
+
+**What:** the phone opens this chooser with a long press on a location row and nothing else.
+The demo ships both: `useLongPress` (500ms hold — React Native's own `delayLongPress` — plus a
+context-menu gesture) AND a visible per-row "⋯" button.
+
+**Why not gesture-only:** a hold is undiscoverable on a web page, unreachable from a keyboard,
+and unannounced to a screen reader; the plan's own instruction for this class of surface is
+"match intent, not gesture" (§5, P3.1). Shipping only the button would have lost the phone's
+muscle memory for anyone driving the demo after using the app, so both are wired to one
+handler.
+
+**Trigger / harmonization:** ~~**P3.1 owns the row-affordance conventions**~~ **DONE at the P3
+assembly — see §56f (one hook) and §56g (one row).** P3.1 owns the row-affordance conventions
+(delete + swipe equivalents) and was unmerged when this landed — its branch had no commits past `ac1a0a9`.
+When P3.1 lands, reconcile in one pass: `features/demo/ui/useLongPress.ts` is reusable as-is
+(it is generic, per-element, and unit-tested), and the location row is now its own
+`LocationItem` component inside `CasesScreen.tsx` — the natural home for a delete affordance.
+If P3.1 introduced a different row shape (e.g. a swipe-reveal), keep ONE and re-point the
+chooser at it.
+
+### 52.2 The two export actions render live and answer with an honest notice
+
+**What:** "Export ZIP" and "Export GeoJSON" render exactly as the phone's do (same section
+caption, same labels, never name-gated) and, when pressed, close the chooser and raise the
+banner "Export ZIP isn't available yet — it lands with the Export tab." (likewise GeoJSON).
+
+**Why render rather than hide** (the plan left this to the agent's judgment, P3.5 row): the
+chooser IS the phone's location-level export entry point — hiding the section would
+misrepresent the surface as a four-action chooser, and the matrix counts the export actions as
+part of row 14. The DemoNotification idiom (the map's "Calling isn't available in the demo.")
+tells the truth on press instead of faking a download, per the honesty rule.
+
+**Trigger:** P5.2/P5.3. When the Export tab and `ExportModal` exist, re-point these two
+buttons at the real flows — ZIP still terminating in its own honest download notice per D4,
+GeoJSON at whatever P5 lands — and delete the two notice constants in `DemoExperience.tsx`.
+
+### 52.3 `duplicated_from` is not modelled
+
+**What:** the phone stamps `duplicated_from` on a duplicate (`duplicate-location-service.ts`
+step 5) and deliberately does NOT stamp it on a new-address copy — that one is an independent
+location. The demo carries the same behavioural distinction (address/requester sourcing,
+scopes) but stores no provenance column.
+
+**Why deferred:** nothing in the demo reads it. The phone uses it for sibling grouping; the
+demo's Cases list, map and PDFs all order by creation. Adding an unread field to `DemoLocation`
+would also widen the persisted snapshot shape for no rendered difference.
+
+**Trigger:** the first demo surface that groups or sorts duplicates as siblings (a case-map
+export cluster, a "duplicates of" affordance) — add `duplicatedFrom?: string`, the matching
+optional in the `demoLocationSchema` shape (device 2 makes that a compile error, not a silent
+drop), and set it in `duplicateLocation` only.
+
+### 52.4 Shared-chrome and `NewLocationModal` props added from this package — P3.4 must reconcile
+
+**What:** this package added, in files P3.4 owns or shares: `Field`'s optional `error`
+(hairline + message + `aria-invalid`), `ModalActions`' `submitDisabled`, and three optional
+`NewLocationModal` props — `subtitle`, `requireAddress`, `existingNames` — plus the live
+duplicate-name check and a blank-name gate on Create that now applies to the **plain Add
+Location caller too** (phone parity: ui-mapping 02:260 disables Create on a blank or duplicate
+name for both callers).
+
+**Why here:** P3.5's new-address flow needs the require-address variant to exist, and P3.4
+(row 13: "live duplicate-name check … `requireAddress` variant for the copy flow") was
+unmerged with no commits when this landed. The brief's instruction was to wire against its
+prop signature and flag.
+
+~~**Trigger:** at P3.4 merge…~~ **DONE at the P3 assembly — see §56h**, which also records the
+two type-level bugs the no-op had been masking (a hard-coded `'geocoded'` provenance stamp and a
+`gps`-excluding override type), and the one residual: the new-address card's GPS path has no test
+arm of its own.
+
+### 52.5 The two new modal ids are not in the rail's exploration manifest
+
+**What:** `duplicateLocation` and `newAddressLocation` are real `ModalId`s (narration written,
+`visited` recorded, persistence's `MODAL_IDS` updated) but no `EXPLORE_ITEMS` row covers them,
+so the rail keeps "Cases" active while the chooser is open — the same anchor fallback the OCR
+launch screen uses.
+
+**Why deferred:** the manifest is a curated 15-row checklist gating the before-you-go dialog;
+several P3 packages add modals, and growing it one row per package per branch would both churn
+the checklist and conflict across branches. `selectExploreStatus` handles unlisted ids by
+design ("the registry may lead or lag").
+
+**Trigger:** an owner call on whether case/location management deserves its own manifest row
+after P3 merges — one entry in `engine/content/explore.ts` if so.
+
+### 52.6 The phone's Toasts become one-line banners
+
+**What:** each phone Toast in this flow (`Location Duplicated` / `{name} created with
+scopes.`, `Location Created` / `{name} created with copied submission info…`, `Error` /
+`Location not found.`) is rendered as `title — body` in a single `DemoNotification`, portalled
+into the phone overlay root so it is visible over an open modal (the new-address card
+deliberately stays up after a failed create, phone parity — a notice hidden behind it would be
+a silent failure).
+
+**Why deferred:** the demo has no two-line toast surface, and inventing one for three strings
+would pre-empt whatever P4/P5 need. The strings themselves are verbatim.
+
+**Trigger:** if a package builds a real toast component (title + body + type colour), migrate
+these three call sites and drop the em-dash joining.
+
+---
+
+## 53. P3.6 (parity/p3-incident) — incident editing: deliberate non-ports & one un-forked duplicate
+
+**Source:** parity package P3.6 (matrix rows 22, 23; plan §5 P3.6). Phone spec:
+`docs/ui-mapping/03-tab-map.md:244-300`, `11-case-modals.md:165-207`,
+`src/features/case-management/components/EditIncidentLocationModal.tsx`,
+`src/features/location/components/IncidentLocationForm.tsx`,
+`src/features/case-management/utils/incident-location-mapping.ts`, `app/(tabs)/map.tsx:98-176`.
+
+**53a. No GPS capture control on the incident form — the one field the phone has and this does
+not.** Phone `IncidentLocationForm.tsx:312-320` mounts `GpsCaptureControl` with
+`INCIDENT_ACCURACY_OVERRIDE = 'precise'`, which is also where its reverse-geocode toggle lives.
+
+*Why deferred:* `DemoCase.incidentCoordinates.source` is typed to `COORD_SOURCES`
+(`'geocoded' | 'manual'`) with an explicit invariant — "Incident coordinates come from the address
+pick or hand entry — never a live GPS fix" (`engine/types/index.ts`) — and plan §5 P3.6 scopes this
+package to "manual/geocoded source stamping". Adding capture is not a UI change: it widens that
+union through `NewCaseInput`, `createCase`, the persistence schema and the provenance chip, all of
+which are P3.3/P3.4 territory this wave. The matrix row 23 Delta column describes the PHONE
+("GPS + reverse geocode"); the plan describes what P3.6 builds. Followed the plan.
+
+*Consequence, recorded so it is not re-derived:* of the phone's two reverse-geocode entry points
+(post-capture, `:206`; manual-coordinate blur, `:215-223`), only the blur one exists here. The
+banner — the behaviour this package is actually about — is reachable through it, so nothing is
+untested; there is simply one fewer way in.
+
+*Trigger:* whoever widens incident provenance to include `'gps'`. `GpsCaptureControl` is already
+parameterised (`label`, `config`, `geocodeEnabled`/`onToggleGeocode`) — drop it in above the
+lat/lng row in `IncidentLocationFields`, move `geocodeEnabled` from "implicitly on" to the
+control's toggle, and re-read §45a (the `onClick` busy guard) and §45f (the write-guard token).
+
+**53b. The banner has one arm, not the phone's two.** Phone
+`EditIncidentLocationModal.tsx:78-93` shows either a reverse-geocode failure or a SAVE failure
+(`error.message`, falling back to `Failed to save incident location`). The demo's save is a
+synchronous in-memory store write with no failure mode. A save-error arm would be an invented
+error path — the honesty rule cuts against it as hard as it cuts against fake successes. Not a gap
+to close; re-open only if the demo ever gains a save that can fail (it would not be this store).
+
+**53c. `onReverseGeocodeError` accepts `null` to clear — a deliberate one-word deviation.** The
+phone's callback is set-only, so a lookup failure keeps accusing the user until they press Save,
+even after a later lookup succeeds. Clearing on a new attempt is `LocationFields`' own reviewed
+behaviour (`setLookupNotice('none')` at the top of each capture). Pinned by a test.
+
+**53d. `NewCaseModal` still carries its own inline copy of the incident block — NOT forked, not
+yet folded.** `IncidentLocationFields` is built as the shared field set the matrix asks for ("build
+as a second mode of the same form"), but `NewCaseModal.tsx` is owned by P3.3 in this same wave, so
+this package did not edit it. The duplication is therefore real and temporary:
+`NewCaseModal`'s private `CoordinateField`, its inline coordinate chip, and its
+`incidentLatitude`/`incidentLongitude`/`incidentCoordinateSource` flat fields duplicate what
+`IncidentLocationFields` + `IncidentLocationValues` now express once.
+
+Two copy divergences it leaves standing, both resolved in favour of the phone in the new component:
+`Business / Scene Name` placeholder is `Optional` (phone `IncidentLocationForm.tsx:280`) vs
+NewCaseModal's `Where the occurrence happened`; street placeholder is `Start typing an address...`
+(phone `:290`, and what `LOCATION_FIELD_LABELS` already uses) vs NewCaseModal's ellipsis-character
+variant.
+
+*Trigger:* the next agent to touch `NewCaseModal`'s incident section — most likely P3.3's edit-mode
+work, since edit mode needs exactly the seed/submit pair `caseToIncidentValues` /
+`incidentValuesToPatch` already provides. Replace the inline block with
+`<IncidentLocationFields values={…} onChange={…} />`, back the three flat coordinate fields with
+`IncidentLocationValues`, and delete the private `CoordinateField`. The phone keeps ONE mapper for
+both surfaces for precisely this reason (phone `incident-location-mapping.ts:1-10`); until the fold
+happens, the demo has one mapper and one-and-a-half forms.
+
+**53e. No `incidentAddress` field.** The phone stores a pre-formatted "street, city" string on the
+case and `incidentValuesToFields` derives it on save. `DemoCase` has no such field — the demo
+derives the string at display time (`mapData.ts` `joinAddress`, and §38's `formatAddress`
+single-producer rule). Emitting one would create a second source of truth for the same string.
+Deliberate; no trigger.
+
+---
+
+## 54. P3.7 (parity/p3-camgps) — per-camera GPS: refutations & deliberate non-ports
+
+**Source:** P3.7 per-camera GPS (matrix row 42; ui-mapping 07:112-176; phone-inventory §M15) —
+`CameraGpsCapture`, the five camera keys, the max-50 row gate.
+
+### 54a. `capturedAt` comes from the READING, not the clock seam — the brief was too weak
+
+The package brief specified "`coordinateCapturedAt` via the clock seam, never `Date.now`". The
+clock seam would have been wrong in the same direction, just less so. The phone stamps
+`new Date(bestSample.timestamp).toISOString()` (`gps-service.ts:301`) — the winning satellite
+reading's OWN platform timestamp — and `GpsFix.capturedAtIso` already carried exactly that from
+P2.3. `toCameraGpsFix` passes it through untouched; no clock is read anywhere on the camera GPS
+path. A forensic capture time must be when the fix was taken, not when the app got round to
+storing it (which, under `PRECISE_GPS_CONFIG`'s 2-minute budget, can be two minutes later).
+Pinned by `gps.test.ts` ("takes `capturedAt` from the fix, never from an ambient clock").
+
+### 54b. The phone's `minItems={1}` is deliberately NOT ported alongside `maxItems={50}`
+
+`ArrayFieldManager` gates both ends: the phone hides Remove at one camera and Add at fifty. Only
+the cap is ported. `minItems` exists on the phone to protect a SEEDED first row; the demo boots
+empty by owner decision (D2/empty-boot) and has its own "No cameras yet — add the ones in the
+recovery." state, so a floor of 1 would mean either seeding a camera nobody asked for or
+forbidding the removal of the last one on a screen that legitimately starts at zero.
+**Trigger:** only if the demo ever seeds a camera row. Nothing in the plan does.
+
+### 54c. Other `ArrayFieldManager` caps are still unported
+
+The phone also caps Extracted Video Scope at 10 (`maxItems={10}`, ui-mapping 07:204). P3.7's
+scope was row 42, so only the Cameras cap landed. `MAX_CAMERAS` + `maxCamerasMessage` in
+`CamerasScreen.tsx` are the pattern to copy — the message template is the shared phone string.
+**Trigger:** the next package that touches `ExtractedScopeScreen`.
+
+### 54d. Scope extension taken deliberately: the PDF camera-GPS row
+
+Row 42 names the Cameras screen only, but the five keys would otherwise have reached NO output:
+the `cameras` NOTES section is `''` on both sides (PR-86 — the PDF camera table is the canonical
+camera surface), and the demo's table had three columns and no GPS row while the phone emits one
+(`cameras-table.ts:44-70`). Shipping the capture without the consumer would have "closed" five
+field-parity keys into a dead end, so the row was ported with the phone's
+`hasCapturedCoordinates` gate. That policy moved from `notes/camera-formatter.ts` into
+`engine/logic/coordinates.ts` and is now shared by both consumers — the arrangement the phone
+already has. Recorded because it is outside the row's literal wording.
+
+### 54e. `source` is the literal `'gps'`, deliberately narrower than `GpsSource`
+
+A recovery location's fix can be geocoded from its address or typed by hand; a camera has exactly
+one coordinate path — the crosshair button — so `CameraGpsFix.source` is
+`Extract<GpsSource, 'gps'>`, matching the phone's `coordinateSource: 'gps'`
+(`camera-gps/types.ts:17,36`). Written as `Extract<...>` rather than a bare literal so it stays
+linked to the canonical union. **If P4's import ever supplies camera coordinates, this is the
+line that must widen first** — and `persistence.ts`'s `z.literal('gps')` will stop compiling
+until it does, which is the intended alarm.
+
+### 54f. §45f's trigger, discharged
+
+§45f warned: "a per-camera control passing the recovery location's id would guard the wrong
+thing." It doesn't. The camera control's write token is the CAMERA id, and `setCameraGps`
+re-resolves that id against current state — which, because camera ids are globally unique, also
+subsumes the cross-location guard (a fix captured on location A cannot be found in location B).
+`LocationFields`' `canWriteFor` shape is not reused here because the identity being guarded is
+different, not because the discipline is.
+
+### 54g. Demo-only additions over the phone's control, both truthful
+
+The live sample readout (`Sample n of 10 · best ±Xm`) and the `UNSUPPORTED` failure line are
+carried over from `GpsCaptureControl` for the same reasons recorded in §41: the phone's
+multi-sample loop is invisible behind a spinner and the demo exists to show it, and a browser can
+lack geolocation entirely where a phone cannot. Under `PRECISE_GPS_CONFIG` the readout matters
+more, not less — the budget is 120 s, not 30 s. Every number on the line is measured; the
+accuracy clause is omitted entirely when nothing measured one. `formatSampleProgress` is shared
+by both surfaces so they cannot drift into two sentences for one state.
+
+### 54h. `sampleCount` is not stored on a camera
+
+`GpsFix.sampleCount` is dropped by `toCameraGpsFix`. The phone's `GpsLocation.sampleCount`
+doesn't reach its camera entry either, nothing renders it, and a stored reading count would be
+dead weight in every snapshot. **Trigger:** a surface that wants to show how many readings a
+stored fix took — it would need the same addition on `DemoLocation.gps` to be worth anything.
+**45i. ~~Still open, P2.3-owned, deliberately out of round-3 scope:~~ RESOLVED — see §55c.**
+R-39 (`LookupNotice` consumed by a binary ternary in `LocationFields`, so a fourth member would
+silently render the partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34;
+R-39 needs the same `never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next
+touch of this file. **Closed on `parity/p3-riders` with a total copy map rather than the `never`
+arm — same guarantee, no unreachable default; rationale in §55c.**
+
+---
+
+## 55. P2 residual-minor rider (R-35/R-36/R-37/R-38/R-39) — choices made, nothing deferred
+
+**Source:** `docs/code-reviews/parity/p2/p2-review-fixdelta.md` §R-35…R-39 — the five
+non-gating minors the P2 fix-delta left open when round 3 was scoped to R-32/R-33/R-34.
+All five verified live at `ac1a0a9` before work (none was incidentally fixed in round 3)
+and **all five are now closed on `parity/p3-riders`**; nothing here is deferred. This entry
+records the judgement calls so a fix-delta pass does not have to re-derive them, and
+**closes §45i**, which parked R-39 for "the next touch of this file".
+
+**55a. R-35 took the guard, not the deletion.** The review offered `aria-disabled` + an early
+return **or** dropping the disabling entirely ("re-confirming is idempotent"). Chose the
+guarded `aria-disabled` so the confirm button and the commit CTA twenty lines below it read
+the same way — one idiom on one screen, both explained by §44b — and so the button still
+*says* it has been answered. Consequence to know: unlike the CTA's, this guard is **not**
+load-bearing (a repeat `onConfirmDate()` is a no-op in the bridge); it is there to keep the
+two buttons symmetrical. Deleting it is safe; deleting the `aria-disabled` is not.
+
+**55b. R-37 also changed the render site.** `AlertState = Omit<AlertDialogProps,'onDismiss'>`
+would still have compiled with the hand-listed `title/message/actions` at the `<AlertDialog>`
+call, but a prop added to the primitive would then have needed two edits instead of none. The
+render spreads (`{...alert}`) so the derivation is actually load-bearing end to end.
+Mutation-verified: a required prop added to `AlertDialogProps` errors at all three `setAlert`
+call sites. The one thing this does NOT catch is a prop added with a default — same limitation
+every `Omit`-derived state has.
+
+**55c. R-39 used the copy map, not the `never` arm.** §45i asked for "the same `never`-check
+treatment R-25 gave `gpsSourceLabel`"; the fix-delta's own suggestion was a
+`Record<Exclude<LookupNotice,'none'>, string>`. Took the Record: identical compile-time
+guarantee (adding a member is TS2741 at the literal — verified), no unreachable `default` arm
+to carry, and it keeps the "which copy" decision in one place next to the two exported strings.
+`'none'` stays excluded because it has no copy — the notice element is not rendered in that
+state, and the existing `lookupNotice !== 'none'` guard is what narrows the index.
+
+**55d. R-36's probe instruments a prop, because `SectionBlock` is not a module.** The repo's
+established render-counter (`ImportTerminalProgress.memo.test.tsx`) swaps a child MODULE for a
+memo-wrapped counting delegate. `SectionBlock` lives inside `NotesScreen.tsx`, so that trick
+needs a production extraction — reshaping a court-document screen for a test. Instead
+`meta.label` is a counting getter: `NotesScreen` never reads it (it reads `manuallyEdited` for
+the banner and nothing else), `SectionBlock` reads it every render for two `aria-label`s. If a
+future change makes the PARENT read `label`, this probe silently over-counts and the test
+starts failing honestly-but-confusingly — re-point it at another SectionBlock-only field
+(`content`, `freshContent`) rather than loosening the assertion.
+
+**55e. What the R-36 guard does and does not cover.** It pins the memo through the props that
+exist today. A **seventh** prop added to `SectionBlock` from the bridge without a `useCallback`
+is caught (the bridge half asserts zero block re-renders on an unrelated store write). A prop
+added with a stable identity but a changing VALUE is not, and nor is `copyAllText` — the second
+memoised derivation — which no block consumes; it is covered only by `assembleNotesString`'s own
+suite. Its `useMemo` shares `[currentLocation]` with `notesMeta`, so the bridge-half assertion
+does move together with it in practice.
+
+---
+
+## 56. P3 assembly integration — where six packages disagreed, and how each was resolved
+
+**Source:** the P3 assembly merge of `parity/p3-crud` (P3.1), `parity/p3-newcase` (P3.3) and
+`parity/p3-duplicate` (P3.5) into `feat/parity-p3` (P3.2/P3.4/P3.6/P3.7 were already in).
+Everything below is a decision taken at the merge, not work left undone; nothing here is
+outstanding.
+
+### 56a. `parity/p3-crud` was NOT merged when the assembly brief said it was
+
+The brief listed P3.1 among the packages already on the phase branch.
+`git merge-base --is-ancestor 8816bb8 HEAD` said NO and `CasesScreen.tsx` carried no tray, so it
+was merged here as one of three, first — P3.5's `Duplicate…` entry folds into the tray it
+introduces, so its order was forced. Recorded because the same claim will be in the phase-review
+brief unless the reviewer re-derives it.
+
+### 56b. ONE case-status writer: `setCaseStatus`. §48g ∧ §49b, both discharged
+
+P3.1 shipped `archiveCase`/`reopenCase` (named one-liners over the phone's three services,
+`case-service.ts:571-583`); P3.2 shipped `setCaseStatus(caseId, status)` and wired it to the
+Case Actions Sheet. **§49b's own trigger — "fold `setCaseStatus` into P3.1's `updateCase`" — is
+refuted:** the edit payload deliberately omits `status`, and a `@ts-expect-error` probe pins the
+omission, so folding it in would delete the invariant. The named wrappers lost instead: zero call
+sites outside their own unit test, `complete` would have needed a fourth (that name belongs to the
+Completion screen's location-stamping `completeCase`), and one writer typed on `CaseStatus` cannot
+silently miss a status the enum later gains. §48g's "archiveCase/reopenCase … are THE canonical
+ones" is superseded; P3.1's semantics were carried onto the survivor arm-for-arm.
+
+**A defect fell out of the reconciliation.** `setCaseStatus`'s no-op returned `{}` from INSIDE
+`set`, which zustand `Object.assign`s onto a FRESH state object — every selector re-runs and the
+persistence subscriber writes a snapshot, for a repeat tap that changed nothing. P3.2's test
+pinned `cases` by reference only and passed either way; P3.1's whole-state assertion is what
+failed at the merge. Fixed with P3.1's `get()`-first early return, and `store.test.ts` gained the
+stronger whole-state pin at P3.2's own call site.
+
+### 56c. ONE `updateCase` payload: P3.3's `CaseEdits`, with P3.1's guard
+
+P3.1 minted `updateCase(caseId, Partial<Omit<DemoCase, …>>)`; P3.3 minted
+`updateCase(caseId, Omit<NewCaseInput, 'caseNumber'>)`. P3.3's survives: it is a structural port
+of the phone's own edit CALL SITE (`const { caseNumber: _caseNumber, ...updates } = input`,
+`app/(tabs)/home.tsx:184-188`), so the payload is TOTAL and clearing a field works. P3.1's partial
+shape ports the phone's SERVICE signature (`types/index.ts:239-251`), where partiality is
+meaningful because a SQL writer builds its SET list from the present keys — meaningless here,
+where the writer spreads onto the record either way, and actively misleading: a caller sending
+`{ displayName }` would expect the rest preserved and get them blanked. P3.1's two contributions
+were kept: the unknown-id early return, and the compile-time probe (re-pointed at `CaseEdits`,
+still rejecting `id` / `caseNumber` / `status` / `locationIds`).
+
+### 56d. ONE submit gate: `ModalActions.submitBlocked` + optional `submitDescribedBy`
+
+Three spellings landed in parallel — P3.4's `submitDisabled` (`aria-disabled` + a refusal inside
+the button's own onClick), P3.3's `submitBlocked` (`aria-disabled`, click deliberately reaching
+the caller — §50a), P3.5's `submitDisabled` (the hard `disabled` attribute). The union keeps
+BOTH live semantics: the button dims and reads `aria-disabled`, the click **always** reaches
+`onSubmit`, and enforcement is **always** the caller's guard — stated on the prop, because
+deleting a caller's validate-and-return silently re-opens the submit. `submitDescribedBy` stays
+for callers whose reason is already on screen in a live region.
+
+Why the click is not swallowed, in one line: the phone's disabled predicate is the same
+expression as its `validateForm`, which makes that function's messages ("Case number is
+required" / "Unit is required") unreachable copy; letting the click through ships them live.
+`NewLocationModal` gained the guard it had been getting from the swallow — its reason region
+already renders, so a blocked click is refused exactly as before, with the enforcement now
+readable at the call site rather than hidden in shared chrome.
+
+`aria-disabled` is rendered on both arms (present-with-`"false"`), the house convention every
+other assertion in the suite reads; P3.3's one `not.toHaveAttribute` assertion was updated.
+
+### 56e. ONE `Field.error` — a superset, not an average — plus `Field.readOnly`
+
+Also three spellings. The merged treatment reddens the border, sets `aria-invalid`, and renders
+the message with BOTH `role="alert"` and an id the input's `aria-describedby` points at:
+
+- `role="alert"` is what a SUBMIT-TIME message needs (P3.3's required-field errors). Focus is on
+  the button at that moment, so `aria-describedby` on the input announces nothing — a silently
+  refused submit, which is precisely the failure mode the house rules exist to prevent.
+- `aria-describedby` is what a field-focused visitor needs, and it re-reads on every return.
+
+**P3.4's stated reason for dropping `role="alert"` does not hold at its own call site.** It reads
+"a live check fires on every keystroke and would otherwise interrupt continuously"; the live
+callers pass a CONSTANT string (`NEW_LOCATION_BLOCK_MESSAGES.duplicateName`) from a conditionally
+mounted node, so the region announces when the collision appears and stays silent while the
+visitor keeps typing into it.
+
+Error now REPLACES hint, which is the phone's rule and was P3.4's one genuine divergence:
+`src/components/common/TextInput.tsx:113-125` renders `{error && …}` then
+`{!error && helperText && …}`.
+
+### 56f. ONE `useLongPress` — the duplicate that did not conflict
+
+P3.1 shipped `ui/primitives/useLongPress.ts`; P3.5 shipped `ui/useLongPress.ts`. **Different
+paths, so git merged both in silently** — no conflict, no signal, two hooks. Merged at P3.1's
+path (`primitives/` is the documented home for UI primitives) as a genuine union: P3.1's
+`enabled` gate and capture-phase swallow, P3.5's context-menu gesture, movement tolerance and
+keyboard-safe `detail === 0` exemption.
+
+The swallow is P3.1's `onClickCapture`, not P3.5's `guardClick(run)` wrapper: these rows hold
+more than one interactive child (the row button AND the ⋯ trigger), and a wrapper only guards
+the one callback it is threaded through, while capture-phase `stopPropagation` reaches the whole
+subtree. P3.5's hook suite carried over, its probe reshaped to the real call site, plus a new
+`enabled: false` arm. P3.1's swallow test gained an explicit `detail: 1`: `fireEvent.click`
+defaults to `0`, which is now the keyboard exemption, so the unqualified click was passing for
+the wrong reason. **Guard rail for future packages: a shared primitive added at a new path will
+not conflict with the same primitive at an old one.**
+
+### 56g. ONE location row: P3.1's tray carries both of the phone's gestures (§48g, §52.1)
+
+P3.5 built its own `LocationItem` + ⋯ button; P3.1 built `RowActionsTrigger`/`RowActionsTray`
+with single-open, expand-gating and tray-closes-on-handoff. P3.1's structure survives, and the
+tray now holds `Duplicate…` (the phone's long-press → chooser) above `Delete` (the phone's
+swipe) — two separate gestures there, one affordance here, which is what §48g's marked seam and
+§52.1's "keep ONE and re-point the chooser at it" both asked for. Both entry points (the hold and
+the ⋯ trigger) open the TRAY; the chooser is one step in. Tests in three suites moved with it.
+
+### 56h. `NewLocationModal`: P3.4 wins, and the seam hid two type-level bugs (§52.4)
+
+P3.5's copy is the pre-P3.4 shape (`onCaptureGps`/`onPickCoords`, hard-`disabled` submit,
+"Contact Person"/"Contact Phone" labels); P3.4's mounts `LocationFields` whole. P3.4's survives
+and the new-address card mounts it with no `onCaptureGps` override, which discharges §52.4's
+"the new-address card must use P3.4's REAL GPS capture, not the inherited no-op". It mints its
+own `draftId` (§45f) because it shares `locForm` with the plain Add-Location caller.
+
+Two things the no-op had been masking, both fixed here:
+
+1. `submitNewAddressLocation` stamped `source: 'geocoded'` on every fix. Harmless while an
+   address pick was the only way a coordinate could arrive; with a real capture behind the button
+   it would have relabelled every GPS fix as a geocode in the stored record and the PDF.
+2. `NewAddressOverrides.gps` was typed `Exclude<GpsSource, 'gps'>` — a type that was true only
+   because of the no-op. Widened to `GpsSource`; narrowing it again would drop real fixes.
+
+**Closed rather than deferred:** "the same component" is a claim about construction, so three
+arms now put it under test — `new-location-gps.test.tsx` drives a real capture through the card
+in its `requireAddress` variant and asserts the fix arrives stamped `'gps'`, and
+`duplicate-location.test.ts` asserts the store keeps that provenance. The only unpinned link left
+is the bridge's one-line `gps: locForm.coordinates` pass-through, which is the same expression
+`submitLocation` uses and which IS pinned there.
+
+### 56i. §50c's case-sensitivity split verified, and its `createCase` flag cleared
+
+The two rules are still deliberately different and now cross-reference each other in BOTH
+directions: `case-number.ts` is trimmed + case-SENSITIVE (SQLite BINARY, no `COLLATE NOCASE`),
+`location-name.ts` is trimmed + case-INSENSITIVE (a proactive service check with no index behind
+it). Do not harmonize them; they differ on the phone.
+
+§50c also flagged that P3.5's creation paths might hit `createCase`'s new
+`DuplicateCaseNumberError` throw. They cannot: `createCase` has exactly one call site in the
+whole app (`DemoExperience.tsx`'s `submitCase`, inside the modal's try/catch), and
+`duplicateLocation`/`duplicateToNewAddress` mint LOCATIONS via `nextId('l')` without touching it.
+The trigger stands for future seeded/imported CASE creation, which is what it was really about.
+
+### 56j. Two seams wired, and the tests they owed (§49a, §50e)
+
+`CaseActionsSheet.onEdit` → `DemoExperience.editCase`, one line at the JSX call site plus
+`editCaseFromSheet` (close the sheet, then open the editor; the phone's 350 ms pageSheet delay
+has no demo equivalent). The honest-rule consequence is the point: **Edit Case renders now**,
+because it can finally do what it says. P3.2's negative pin ("carries no Edit Case button until
+P3.3 wires…") was replaced by §50e's owed END-TO-END arm — open sheet → Edit Case → seeded form →
+change a field → Save Changes → the `updateCase` patch asserted, case number immutable, no second
+case created — plus arms for re-targeting and for create-mode restoration after Cancel.
+
+`closeCaseModal` now also blanks `caseForm`, not just `caseEditId`. Clearing the id alone left
+the previous case's VALUES in the form; every UI entry blanks them on open so nothing was
+reachable, but the guarantee belongs at the close rather than resting on every future opener
+remembering to.
+
+### 56k. Redundant tests dropped, not rewritten
+
+P3.5's four `NewLocationModal` gate arms in `modals.test.tsx` were written against the pre-P3.4
+prop shape, and every assertion in them is already made against the live modal by P3.4's
+`new-location-validation.test.tsx` (17 arms). Likewise P3.5's `isLocationNameTaken` describe,
+whose cases are a subset of P3.4's. Both dropped with a comment pointing at the surviving suite,
+rather than ported into a second copy that would drift.
+
+The R-21 sandbox disambiguation was the SAME fix in both packages (`/^Test Location/`), so only
+the comment needed reconciling. P3.5's registry-derived `isViewCover` replaced the hand-listed
+`Exclude<>` of modal ids, which had already rotted twice (P3.6's `editIncident`, then P3.5's two).
+
+### 56l. `ModalId` reached seven members with no `SNAPSHOT_VERSION` bump — deliberate
+
+`duplicateLocation` and `newAddressLocation` join `editIncident` in `MODAL_IDS`, which is the
+allow-list `loadSnapshot` filters `visited` keys through. Widening it only ACCEPTS more keys, and
+every stored snapshot's keys are a subset of the new set, so no migration is owed — the same
+reasoning P3.6 used. The version bumps when a persisted VALUE shape moves (P3.7's camera GPS keys
+took it to 5), not when a key space widens. §50d's "a second ModalId drags in a bump" was the
+cautious reading; this is the verified one.
+
+---
+
+## 57. P3 review fix round (R-1…R-17) — decisions, refutations, and what stays deferred
+
+**Source:** the P3 vetted review (`docs/code-reviews/parity/p3/p3-review.md`, approve-with-fixes,
+0 BLOCKER / 3 MAJOR / 14 MINOR), fixed on `parity/p3-fixes`. Every finding was addressed; the
+entries below are the judgement calls a fix-delta reviewer would otherwise have to re-derive.
+Nothing here is outstanding except where explicitly marked.
+
+### 57a. R-1's fix shape was followed except for one instruction, which is refuted
+
+The review asked to "lift the nested-control bail (`e.target.closest('button')`) into the shared
+hook — the Cases rows need it too". Lifting it verbatim would have **killed the Cases gesture
+outright**: the handlers rode a wrapper `<div>` whose every descendant is a `<button>`, so every
+hold would have bailed on its own row.
+
+What makes one rule serve both layouts is comparing against the surface —
+`closest(control) !== e.currentTarget` — together with each caller attaching the hook to the
+element that IS the gesture surface. So the Cases handlers moved from the wrapper strip onto the
+row/header BUTTON. Two things fall out: a press anywhere inside resolves to that button and arms,
+and the ⋯ trigger beside it leaves the gesture entirely (holding it no longer double-toggles its
+own tray — pinned).
+
+**The `userSelect` rider** is a style token (`LONG_PRESS_SURFACE_STYLE`) rather than a key in the
+returned handler object, because callers spread that object alongside their own `style` prop and
+a `style` key inside it would win or lose by attribute order at each call site.
+
+### 57b. The third long-press hook is the guard rail's third strike — state it as a rule
+
+§56f recorded "a shared primitive added at a NEW PATH will not conflict with the copy it
+duplicates". P3.2's copy was not at a new path; it was **not a module at all** — a private
+`useLongPress` inside `DashboardScreen.tsx`. The consolidation never saw it, and its private
+`LONG_PRESS_MS = 500` could have drifted from the shared beat with every test green.
+
+**The rule, generalised:** before writing a gesture/primitive helper inside a screen, grep
+`ui/primitives/` for it. A reviewer's counterpart: a `useX` defined in a screen file is a
+consolidation candidate by default. Both surviving copies encoded complementary halves of one
+platform fact (touch raises `contextmenu`, mouse does not), each correct where the other was
+broken — which is what duplication costs when neither copy can see the other's bug.
+
+### 57c. R-3 went further than the review asked — the gate is no longer re-derived
+
+The review asked for `aria-disabled` + a guarded click + a reason node on
+`DuplicateLocationModal`. It also had a private re-derivation of the two name rules
+`new-location-gate.ts` already owns, so the fix routes through `newLocationBlock({ …,
+requireAddress: false })` instead: the module's evaluation ORDER comes with it (a blank name
+reports "required", never "duplicate", even when a blank-named sibling exists), and
+`NAME_TAKEN_ERROR` becomes a re-export of the module's own string so the two surfaces cannot
+drift on copy. Same reasoning §56 applied to `location-name.ts`.
+
+Consequence worth knowing: the "emits nothing while gated" arm now pins the MECHANISM, not just
+the outcome. Under the old `disabled` attribute the click never reached the handler, so the
+commit-path guard was never actually exercised by that test.
+
+### 57d. R-2 conceded — an argument from similarity is not a pin
+
+§56h closed its own residual by arguing the new-address GPS wire "is the same expression
+`submitLocation` uses and which IS pinned there". The review re-ran the probe: severing it left
+all 1891 tests green. **Recorded as a reusable lesson, not just a fixed test:** §56h's own two
+bugs (a hard-coded `'geocoded'` stamp, a `gps`-excluding override type) survived by exactly that
+reasoning shape — a claim about construction standing in for a claim about behaviour. When a
+seam has already produced one class of bug, similarity to a sibling call site is not evidence.
+
+### 57e. R-7 closed rather than re-deferred, and §49g's trigger is discharged
+
+The review offered gating `toMapData` on `hasCapturedCoordinates` **or** re-deferring in §54 with
+a fresh trigger. Gated. §49g's trigger ("P3.7 or P6.1, whichever touches plotting first") fired
+at P3.7 and has been pointing at a shipped package since; re-deferring would leave three
+consumers of one record disagreeing for another phase over an import and two call sites.
+
+Honest about what it is: the demo has no zero-init artifact — coordinates arrive only via a
+capture, a geocode, or `parseCoordinate`, which correctly ACCEPTS a typed 0/0 — so the only
+source is a visitor deliberately typing zeros. This is consistency between consumers, not a
+fabricated position.
+
+### 57f. R-10's fix is neither shape the review proposed
+
+Both proposals had costs: keeping the tray mounted while `pendingDelete` is armed drops §48a's
+ported tray-closes-on-handoff behaviour (`SwipeableCaseCard.tsx:75-78`), and threading a
+`returnFocusTo` ref from the row up to the bridge crosses the callback-isolation boundary for
+chrome state. Instead the row moves focus to its own ⋯ trigger BEFORE handing off, so the
+dialog's existing capture finds a live element. The trigger is the right anchor on its merits: it
+is the affordance that led there, and unlike the tray's buttons it survives the tray closing.
+
+### 57g. R-13 needed the SETTER, not just the field
+
+Narrowing `NewCaseFields.incidentCoordinateSource` to `IncidentCoordSource | ''` alone would not
+have caught anything: `onChange(field: keyof NewCaseFields, value: string)` accepts any string
+for any key, so both write sites would have kept compiling. The setter is now generic per key
+(`onChange<K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K])`), verified by probe
+— `onChange('incidentCoordinateSource', 'manaul')` is now a compile error. **Generalisable:** a
+keyed setter typed on the union of keys but a single value type erases every field's type; if a
+form field's type is load-bearing, the setter has to be generic.
+
+### 57h. Still deferred, with triggers
+
+- **§53d's FULL fold** (mount `IncidentLocationFields` in `NewCaseModal`, delete its private
+  `CoordinateField` + chip). R-13 took the type half only. `NewCaseModal`'s private
+  `CoordinateField` therefore still has R-16's a11y gap — fixed in `IncidentLocationFields`,
+  not in the private twin, because the twin is slated for deletion and fixing it twice would
+  make the duplication harder to see, not easier. **Trigger:** the next package to touch
+  `NewCaseModal`'s incident section — and this time the fold, not another type patch.
+- ~~**The remaining `DemoCase` fixture sites.**~~ **CLOSED — see §57j.** The sentence that stood
+  here was wrong in both halves, as the fix-delta established (R-21): it claimed the four folded
+  suites were all the hand-rolled ones and that the survivors "build cases through the store and
+  are already drift-proof". Three survivors were full hand-rolled literals and none went through
+  the store. The trigger it offered was self-defeating too — the entity grows by OPTIONAL fields,
+  which never make a stale literal *fail*, so "fold whatever still fails" named the empty set.
+  All three are folded; no hand-rolled `DemoCase` literal remains.
+- **Type-design's four carried NITs** (the duplicate actions' three-refusals-one-`null`;
+  `IncidentSheetItem.id`; `CaseNotesCamera.gps` widening `CameraGpsFix`; `activeModal()`'s
+  `default` over a 7-member `ModalId`). Untouched, per the review's disposition. One of them now
+  has a live consequence recorded at the call site: `NEW_ADDRESS_FAILED_NOTICE`'s copy had to name
+  a single cause because the store collapses three, so surfacing a discriminated result would
+  split it back into three sentences.
+- **TESTS-P3-7** (the `deleteCase` derivation arm cannot distinguish derive-from-location from
+  keep-previous). Carried as a NIT; the distinguishing state is unconstructible through any
+  writer today.
+
+### 57i. WEB-7's omission is now recorded at the call site, deliberately
+
+`NewCaseModal` passes `submitBlocked` with no `submitDescribedBy`, and that is the design, not an
+oversight: §50a/§56d's whole point is that the click REACHES `handleSubmit`, which writes the
+phone's verbatim per-field messages into the fields' own `role="alert"` nodes. The reason is
+reachable by activation rather than pre-stated, which is what keeps that copy live instead of
+dead. A comment at the call site says so, so a later a11y sweep does not "fix" it into a swallow.
+The New Location card is the other shape — its reason is on screen before the press — and the two
+are meant to differ.
+
+### 57j. The micro-round (R-18…R-21 + two NITs) — and what it says about test evidence
+
+Four integrator-owned minors from the fix-delta, all landed. Three of them are one finding wearing
+three faces: **the long-press click/contextmenu rules were correct in production and unpinned,
+mis-pinned, or half-covered in the suite.**
+
+- **R-18** — R-1's rewrite REPLACED the keyboard-exemption arm rather than adding beside it, and a
+  repo-wide grep for `detail: 0` then returned nothing while the file header still promised the
+  guarantee. §56f had recorded that exemption as a known wrong-reason trap, which makes deleting
+  its only pin the worse half. Restored, and stronger: the arm now abandons a hold off the row
+  first, so the flag is genuinely armed when the keyboard activation arrives.
+- **R-19** — the off-row-hold arm ended in a bare `fireEvent.click(row)` (jsdom `detail: 0`), so it
+  rode the very exemption R-18 is about and passed with or without the reset it existed to pin.
+  Not introduced by the fix round: `2b18a0a`'s probe was genuinely red on P3.1's branch, and the
+  §56f ASSEMBLY silently made it vacuous by merging the `detail` check in. **The general hazard:
+  merging two correct mechanisms can make a third party's correct test vacuous, and nothing in the
+  merge is red to say so.**
+- **R-20** — `fired` was armed for every hold, but only touch raises a trailing `contextmenu` to
+  consume it, and the keyboard menu key (Shift+F10) raises one with NO pointer event, which R-1's
+  reset-on-pointerdown rule cannot reach. R-1's own improvement made it reachable by turning the
+  Cases surface into a focusable `<button>`. Fixed by arming the latch only for touch — removing
+  the class rather than adding a second clearing path.
+
+  **R-20 paid for itself immediately:** it turned three EXISTING arms red — the hook suite's,
+  `CasesScreen`'s and `DashboardScreen`'s "touch hold" arms were all simulating a MOUSE hold and
+  passing for the wrong reason. `pointerType` is now explicit at every long-press pointerdown and
+  the hook suite's `down()` helper defaults to `'mouse'`, so an arm about touch has to say so.
+
+- **R-21** — the three surviving hand-rolled `DemoCase` literals folded onto the factory
+  (`caseFormData.test.ts`, `incident-location.test.ts`, `final-submission.test.ts`; the last also
+  carried a hand-rolled `DemoLocation`, and was the live demonstration of the drift — it omitted
+  the optional `incidentCoordinates` and type-checked). §57h's false sentence corrected above. The
+  `CaseCard` fixtures in three screen suites are deliberately NOT folded: that is the view-model
+  `toCaseCards` produces, not the stored entity, and it has its own shape.
+
+**Both NITs taken** (each genuinely one line, per the fix-delta's own framing):
+
+- **TD-N1** — `NewCaseModal`'s `change` wrapper and the bridge's `onChange` were
+  `(field, value: string)`, which is assignable to R-13's generic prop by constraint
+  instantiation and silently erased the per-key typing. Both are generic now; probe-verified that
+  `change('incidentCoordinateSource', 'manaul')` is a compile error. **Generalise:** hardening a
+  prop's type does nothing if a wrapper on the way to it is still typed loosely — check the
+  forwarders, not just the declaration.
+- **TD-N2** — `LONG_PRESS_SURFACE_STYLE` is now `as const satisfies CSSProperties`, matching every
+  other exported style token; it was mutable shared data spread into three call sites.
+
+**Deliberately still not filed:** the silent-failures lane's `onContextMenu`-does-not-arm-
+`swallowNextClick` observation. No constructible browser sequence reaches it (a `contextmenu`
+before the timer, still followed by a click), both original hooks carried the same written-down
+assumption, and R-20 narrowed the latch rather than widening it — adding an unreachable
+belt-and-braces here would be one more unpinned line in the file this round exists to make
+honest.

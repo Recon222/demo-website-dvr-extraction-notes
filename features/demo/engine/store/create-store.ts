@@ -2,13 +2,17 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 
 import { COORD_SOURCES } from '@/features/demo/engine/types'
 import type {
+  CameraGpsFix,
   CaptureMethod,
+  CaseStatus,
+  DuplicateMode,
   GpsCoordinates,
   GpsSource,
   ChapterId,
   DemoCase,
   DemoLocation,
   LaunchableId,
+  LocationForm,
   MediaItem,
   MediaKind,
   ModalId,
@@ -22,12 +26,14 @@ import type {
 } from '@/features/demo/engine/types'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
 import {
   calculateCorrectedTimeRange,
   calculateTimeDifference,
   isDvrTimeCorrect,
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
+import type { IncidentLocationPatch } from '@/features/demo/engine/logic/incident-location'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
 import {
   assembleNotesString,
@@ -35,7 +41,7 @@ import {
   freshSectionContent,
   reconcileSections,
 } from '@/features/demo/engine/logic/notes'
-import { maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
+import { cloneScopesWithNewIds, maxIdSeq, mediaBucket, setPath } from '@/features/demo/engine/store/helpers'
 
 // ---- Inputs --------------------------------------------------------------
 export interface NewCaseInput {
@@ -53,6 +59,38 @@ export interface NewCaseInput {
   notes?: string
 }
 
+/**
+ * The editable half of a case — every `NewCaseInput` field EXCEPT the number. The payload of
+ * `updateCase` (the New Case modal's `mode="edit"` submit; phone `NewCaseModal` edit mode,
+ * ui-mapping 11 § NewCaseModal).
+ *
+ * Derived by subtraction from the CREATE input, which is a structural port of the phone's own
+ * edit call site: `handleEditSubmit` destructures the number off the full create payload and
+ * forwards the rest — `const { caseNumber: _caseNumber, ...updates } = input`
+ * (`app/(tabs)/home.tsx:184-188`). So the edit payload is TOTAL, not a patch: whatever the
+ * form holds is what the case becomes, which is what makes clearing a field work.
+ *
+ * P3.1 proposed `Partial<Omit<DemoCase, …>>` instead — a faithful port of the phone's *service*
+ * signature (`UpdateCaseInput`, types/index.ts:239-251, every key optional, only defined keys
+ * written). Reconciled onto this one at the P3 assembly: partiality is meaningful on the phone
+ * because a SQL writer builds its SET list from the present keys, and meaningless here where
+ * the writer spreads onto the record either way; a partial type would invite a caller to send
+ * `{ displayName }` and silently keep the rest, which the total writer below would NOT honour.
+ * P3.1's contributions were kept — the unknown-id guard on the writer, and the compile-time
+ * probe in `crud-actions.test.ts` pinning the invariants below.
+ *
+ * The case's invariants are unreachable through this type, each owned elsewhere:
+ * - `id` — identity;
+ * - `caseNumber` — immutable after create. `directory_name` (the evidence folder on disk) is
+ *   derived from it at creation and the rename path isn't wired, so the phone locks the field
+ *   (`editable={!isEdit}`, helper "Case number cannot be changed") and warns at create time;
+ * - `status` — owned by `completeCase` (the Completion screen) and `setCaseStatus` (every
+ *   other move), exactly as the phone routes every status move through its own service
+ *   function (`case-service.ts:571-583`);
+ * - `createdLabel` / `locationIds` — derived bookkeeping (`addLocation` / `deleteLocation`).
+ */
+export type CaseEdits = Omit<NewCaseInput, 'caseNumber'>
+
 export interface NewLocationInput {
   locationName: string
   businessName?: string
@@ -64,11 +102,36 @@ export interface NewLocationInput {
   requesterEmail?: string
   locationContact?: string
   locationPhone?: string
-  /** Geocoded coordinates from the address pick. Recovery locations are geocode-only at CREATE
-   *  time (no manual entry — a DVR always has a street address); the Submission screen's GPS
-   *  capture re-stamps them with `source: 'gps'` later. `accuracyM` is carried through as given
-   *  — absent unless Mapbox reported a rooftop match (phone mapbox-service.ts:246-247). */
-  gps?: GpsCoordinates & { source: Exclude<GpsSource, 'gps'> }
+  /** Coordinates the location is created with. Still no MANUAL entry (a DVR always has a real
+   *  street address, so the modal offers no lat/lng inputs), but the source is the full
+   *  `GpsSource` since P3.4: the New Location modal now carries a real multi-sample GPS capture
+   *  (`'gps'`) alongside the address pick (`'geocoded'`), so a fix no longer has to wait for the
+   *  Submission screen to be reachable. `accuracyM` is carried through as given — absent unless
+   *  the source measured one (Mapbox rooftop, phone mapbox-service.ts:246-247; or a real fix). */
+  gps?: GpsCoordinates & { source: GpsSource }
+}
+
+/**
+ * Address/contact payload for `duplicateToNewAddress` — the fields the visitor enters (or
+ * edits) on the create-location card. Requester fields are intentionally absent: they ALWAYS
+ * come from the source location (phone `NewAddressOverrides`,
+ * `duplicate-location-service.ts:31-40`, same rule and the same reason — the card never
+ * shows them, so a card-sourced value could only ever be a stale copy).
+ */
+export interface NewAddressOverrides {
+  locationName: string
+  businessName?: string
+  streetAddress?: string
+  city?: string
+  locationContact?: string
+  locationPhone?: string
+  /** The full `GpsSource`, same as `NewLocationInput.gps` above. P3.5 narrowed this to
+   *  `Exclude<GpsSource, 'gps'>` because the card it was written against inherited deferred
+   *  §24's `onCaptureGps={() => undefined}` no-op, so an address pick was the only way a
+   *  coordinate could arrive. P3.4 replaced that no-op with the real multi-sample capture and
+   *  the card mounts the same `NewLocationModal`, so `'gps'` is now reachable here — see
+   *  §52.4. Widened at the P3 assembly; narrowing it again would silently drop real fixes. */
+  gps?: GpsCoordinates & { source: GpsSource }
 }
 
 // ---- State ---------------------------------------------------------------
@@ -111,7 +174,19 @@ export interface DemoState {
 
 export interface DemoActions {
   reset(): void
+  /** THROWS `DuplicateCaseNumberError` when `caseNumber` (trimmed, case-sensitive) is
+   *  already in use — the demo's write-boundary stand-in for the phone's UNIQUE column.
+   *  Callers that surface a user-facing form (the New Case modal) must catch it; see
+   *  engine/logic/case-number.ts for why the rule lives at this boundary. */
   createCase(input: NewCaseInput): string
+  /** Overwrite a case's editable fields (everything but the number — see `CaseEdits`).
+   *  Unknown ids are a TRUE no-op: the guard is an early return, not a `.map` that misses,
+   *  so no fresh `cases` array wakes every subscriber and triggers a snapshot write (P3.1).
+   *  Deliberately does NOT touch the case/location selection pair:
+   *  editing a case from the dashboard must not move the wizard off the location the visitor
+   *  had open (R-19's invariant is about which case OWNS the current location, and this
+   *  action changes no ownership). */
+  updateCase(caseId: string, edits: CaseEdits): void
   /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
    *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
    *  The Completion screen's confirmation gate reads the location flag, never the case status.
@@ -120,9 +195,82 @@ export interface DemoActions {
    *  tracked case selection. The correlated-pair signature (`completeLocation(locationId)`)
    *  is the deferred stronger shape — see deferred.md §29 addendum. */
   completeCase(caseId: string): void
+  /**
+   * Case-level status change — the dashboard's Case Actions Sheet (P3.2): Complete Case →
+   * 'complete', Archive Case → 'archived', Reopen Case → 'draft' (the phone's three
+   * one-line services over `updateCase({ status })`, `case-service.ts:573-583`).
+   *
+   * DELIBERATELY NOT `completeCase` above: that action is the Completion SCREEN's, and it
+   * additionally stamps the open location's `form.completed` under the R-32 precondition
+   * that `caseId` owns the current location. The dashboard acts on a case the visitor
+   * merely long-pressed — it has no location context and must not invent one, so it only
+   * moves the status. A case marked complete from the dashboard therefore leaves its
+   * locations' own completion gates untouched, exactly as on the phone.
+   *
+   * THE single case-status writer (P3 assembly, closing deferred §49b ∧ §48g). P3.1 shipped
+   * `archiveCase`/`reopenCase` as named one-liners over the phone's three services and P3.2
+   * shipped this; the two were reconciled onto this one. §49b's own trigger ("fold into
+   * P3.1's `updateCase`") is refuted by P3.1's type design — `UpdateCaseInput` OMITS
+   * `status` on purpose, and its `@ts-expect-error` probe pins that omission, so folding the
+   * status in would delete the invariant. Named wrappers lost instead: they had no call site
+   * outside their own unit test, `complete` would have needed a fourth (the name is taken),
+   * and one writer typed on `CaseStatus` cannot silently miss a status the enum later gains.
+   */
+  setCaseStatus(caseId: string, status: CaseStatus): void
+  /** Incident-location-only edit, from the map's incident detail card (matrix row 23).
+   *  The patch type is DERIVED from `DemoCase` (see `IncidentLocationPatch`), so this action
+   *  structurally CANNOT touch the case number, OIC/VC, notes or status — full-record editing
+   *  stays with the New Case modal in edit mode, exactly as on the phone. A no-op for an
+   *  unknown id, like every other case-keyed writer here. */
+  updateIncidentLocation(caseId: string, patch: IncidentLocationPatch): void
+  /** Delete a case and every location under it (the phone's ON DELETE CASCADE,
+   *  `case-service.ts:551`). Repairs the selection pair — see the R-19 note at the impl. */
+  deleteCase(caseId: string): void
+  /** Delete one location. Repairs the selection pair — see the R-19 note at the impl. */
+  deleteLocation(locationId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
+  /**
+   * P3.5 — "Duplicate Location [with Scopes]": a sibling of `sourceLocationId` in the SAME
+   * case, carrying every submission-level field (address, contact, coordinates, all five
+   * requester fields) and, in `'with-scopes'` mode, a clone of the requested scopes with
+   * fresh ids. Everything DVR-specific starts blank — time offset, extracted scopes, DVR
+   * info, cameras, export, notes, media, completion (phone `duplicateLocation`,
+   * `duplicate-location-service.ts:59-122`).
+   *
+   * Returns the new location's id, or `null` when the source no longer exists or the name is
+   * blank — the two `ValidationError`s the phone service throws for the same inputs. The
+   * caller surfaces them (the demo bridge shows the phone's "Location not found." notice);
+   * they are backstops, since the chooser resolves the source at open time and disables both
+   * duplicate buttons on a blank/taken name.
+   *
+   * Deliberately does NOT move the selection pair: the phone stays on the Cases list after a
+   * duplicate (no `router.navigate`), so nothing here may reassign the open location.
+   */
+  duplicateLocation(sourceLocationId: string, locationName: string, mode: DuplicateMode): string | null
+  /**
+   * P3.5 — "New Location w/ Sub Info [+ Scopes]": an INDEPENDENT location at a new address
+   * in the same case. Address/contact/name/coordinates come from `overrides` (the card); the
+   * five requester fields ALWAYS come from the source (phone `duplicateToNewAddress`,
+   * `duplicate-location-service.ts:150-208`, incl. its mandatory street address — the whole
+   * point of the flow is a new address).
+   *
+   * Returns `null` for the phone's three `ValidationError` cases: source gone, blank name,
+   * blank street address. Like `duplicateLocation`, leaves the selection pair alone — the
+   * bridge opens the result explicitly (the phone navigates to the wizard afterwards).
+   */
+  duplicateToNewAddress(
+    sourceLocationId: string,
+    overrides: NewAddressOverrides,
+    mode: DuplicateMode,
+  ): string | null
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
+  /** Commit a per-camera GPS fix (P3.7). Addressed BY CAMERA ID, never by row index —
+   *  a capture runs for up to 120 s (`PRECISE_GPS_CONFIG`) and the row list is editable
+   *  throughout, so an index resolved before the await can point at a different camera, or
+   *  past the end, by the time the fix lands. A camera the current location no longer has is
+   *  a no-op: a removed row must not be resurrected, and a fix must never be misattributed. */
+  setCameraGps(cameraId: string, gps: CameraGpsFix): void
   setView(view: AppView): void
   openModal(modal: ModalId): void
   closeModal(): void
@@ -234,6 +382,26 @@ const isChapterId = (v: AppView): v is ChapterId =>
   v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
 
 /**
+ * The form a duplicated location starts life with (P3.5): blank everywhere, except that
+ * `'with-scopes'` carries a clone of the source's REQUESTED scopes with fresh ids.
+ *
+ * Everything else is deliberately left blank, matching the phone service: the extracted
+ * scopes, time offset, DVR info, cameras, export block, notes, media and completion state all
+ * describe a device the duplicate has not been to yet. Carrying any of it forward would put
+ * another DVR's measurements into a court document.
+ */
+function duplicatedForm(
+  source: DemoLocation,
+  mode: DuplicateMode,
+  nextScopeId: () => string,
+): LocationForm {
+  return {
+    ...blankLocationForm(),
+    scopes: mode === 'with-scopes' ? cloneScopesWithNewIds(source.form.scopes, nextScopeId) : [],
+  }
+}
+
+/**
  * Create the demo store — empty by default (the owner's empty-boot decision), or rehydrated
  * from a validated sessionStorage snapshot (P0.4). `initial` must come from `loadSnapshot`
  * (shape-guarded); the id counter is seeded past every rehydrated id so post-refresh ids
@@ -251,6 +419,11 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     reset: () => set(initialState()),
 
     createCase: (input) => {
+      // The write boundary refuses a number that is already in use — the demo's stand-in for
+      // the phone's `cases.case_number … UNIQUE` column, which is what makes the phone's
+      // `DuplicateCaseNumberError` reach the New Case banner. Checked BEFORE `nextId` so a
+      // rejected create never burns an id (ids are the persistence seq's contract).
+      assertCaseNumberFree(get().cases, input.caseNumber)
       const id = nextId('c')
       const c: DemoCase = {
         id,
@@ -277,6 +450,34 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       return id
     },
 
+    updateCase: (caseId, edits) => {
+      // Unknown id is a genuine no-op (P3.1): a bare `.map` would still allocate a new
+      // `cases` array, waking every subscriber and triggering a snapshot write for nothing.
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => ({
+        cases: s.cases.map((c) =>
+          c.id === caseId
+            ? {
+                ...c,
+                displayName: edits.displayName,
+                unit: edits.unit,
+                oicName: edits.oicName ?? '',
+                oicBadge: edits.oicBadge ?? '',
+                vcName: edits.vcName ?? '',
+                vcBadge: edits.vcBadge ?? '',
+                incidentBusinessName: edits.incidentBusinessName ?? '',
+                incidentStreetAddress: edits.incidentStreetAddress ?? '',
+                incidentCity: edits.incidentCity ?? '',
+                // Assigned unconditionally, so clearing the coordinates in the form CLEARS
+                // them on the case. A conditional spread would make removal impossible.
+                incidentCoordinates: edits.incidentCoordinates,
+                notes: edits.notes ?? '',
+              }
+            : c,
+        ),
+      }))
+    },
+
     completeCase: (caseId) =>
       set((s) => ({
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, status: 'complete' as const } : c)),
@@ -288,6 +489,93 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
             : l,
         ),
       })),
+
+    setCaseStatus: (caseId, status) => {
+      // No-op when the case is gone or already in that status — house rule: a write that
+      // changes nothing performs no write, so subscribers don't re-render on a repeat tap.
+      //
+      // The early return has to happen OUTSIDE `set`: returning `{}` from the updater is not a
+      // no-op to zustand, which `Object.assign`s it onto a FRESH state object — every selector
+      // re-runs and the persistence subscriber writes a snapshot, for a tap that changed
+      // nothing. P3.2's own test only pinned `cases` by reference, so it passed either way;
+      // P3.1's stronger whole-state assertion is what caught it at the assembly merge.
+      const current = get().cases.find((c) => c.id === caseId)
+      if (!current || current.status === status) return
+      set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }))
+    },
+    updateIncidentLocation: (caseId, patch) => {
+      // The unknown-id guard this action's own doc already claimed. It was the only P3-added
+      // case-keyed writer without it, so a `.map` that matched nothing still allocated a fresh
+      // `cases` array and state object: every selector re-runs and the persistence subscriber
+      // writes a snapshot for a write that changed nothing — verbatim the §56b defect the
+      // assembly fixed one function up and missed here (review R-4).
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => ({
+        cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
+      }))
+    },
+
+    /**
+     * Delete a case and everything under it — the phone's `DELETE FROM cases` riding SQLite's
+     * ON DELETE CASCADE (`case-service.ts:548-552`).
+     *
+     * SELECTION REPAIR (R-19: "the open location OWNS the case"). Deleting a case can strand
+     * the selection pair in two ways, and the repair below is written as a DERIVATION rather
+     * than a pair of conditional clears so the post-state is coherent by construction:
+     * `currentCaseId` is read off the surviving open location when there is one, and only
+     * falls back to its previous value when that value still resolves. The phone repairs the
+     * same thing one layer up, in the route (`cases.tsx:632-637`: clear location AND case when
+     * the open location belongs to the doomed case) — the demo does it inside the writer, so
+     * no future caller can forget it.
+     *
+     * `capture` follows the location it belongs to. It is the in-progress calibration for the
+     * OPEN location (every `switchLocation` blanks it) — and `addLocation` deliberately does
+     * not, so leaving a dead capture behind would surface the deleted DVR's clock reading on
+     * the next location the visitor creates.
+     */
+    deleteCase: (caseId) => {
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => {
+        const locations = s.locations.filter((l) => l.caseId !== caseId)
+        const openLocation = locations.find((l) => l.id === s.currentLocationId) ?? null
+        return {
+          cases: s.cases.filter((c) => c.id !== caseId),
+          locations,
+          currentLocationId: openLocation?.id ?? null,
+          currentCaseId: openLocation
+            ? openLocation.caseId
+            : s.currentCaseId === caseId
+              ? null
+              : s.currentCaseId,
+          ...(openLocation === null && s.currentLocationId !== null ? { capture: blankCapture() } : {}),
+        }
+      })
+    },
+
+    /**
+     * Delete one location, unlinking it from its case's `locationIds`.
+     *
+     * SELECTION REPAIR (R-19): only the location half moves. `currentCaseId` is deliberately
+     * KEPT — the case still exists, and "case selected, no location open" is the same coherent
+     * pair `createCase` leaves behind. Phone parity: its location-delete branch clears only the
+     * location (`cases.tsx:651-654`), unlike the case branch right above it which clears both.
+     * `capture` follows the location, for the reason spelled out on `deleteCase`.
+     */
+    deleteLocation: (locationId) => {
+      const loc = get().locations.find((l) => l.id === locationId)
+      if (!loc) return
+      set((s) => ({
+        locations: s.locations.filter((l) => l.id !== locationId),
+        cases: s.cases.map((c) =>
+          c.id === loc.caseId
+            ? { ...c, locationIds: c.locationIds.filter((id) => id !== locationId) }
+            : c,
+        ),
+        ...(s.currentLocationId === locationId
+          ? { currentLocationId: null, capture: blankCapture() }
+          : {}),
+      }))
+    },
 
     addLocation: (caseId, input) => {
       const id = nextId('l')
@@ -319,6 +607,68 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       return id
     },
 
+    duplicateLocation: (sourceLocationId, locationName, mode) => {
+      const source = get().locations.find((l) => l.id === sourceLocationId)
+      if (!source) return null // phone: ValidationError('Source location not found: …')
+      const trimmed = locationName.trim()
+      if (!trimmed) return null // phone: ValidationError('Location name is required')
+      const id = nextId('l')
+      // Spread, not a field list: every submission-level field travels (address, contact,
+      // coordinates, ALL FIVE requester fields — the phone's BUG-010 was exactly a hand-written
+      // list that dropped requesterPhone/requesterEmail). Only identity, name and form differ.
+      const loc: DemoLocation = {
+        ...source,
+        id,
+        locationName: trimmed,
+        gps: source.gps ? { ...source.gps } : undefined,
+        form: duplicatedForm(source, mode, () => nextId('sc')),
+      }
+      set((s) => ({
+        locations: [...s.locations, loc],
+        cases: s.cases.map((c) =>
+          c.id === source.caseId ? { ...c, locationIds: [...c.locationIds, id] } : c,
+        ),
+        // No selection write (R-19 stays satisfied by not touching the pair): the phone
+        // returns to the Cases list after a duplicate, so the open location must not move.
+      }))
+      return id
+    },
+
+    duplicateToNewAddress: (sourceLocationId, overrides, mode) => {
+      const source = get().locations.find((l) => l.id === sourceLocationId)
+      if (!source) return null // phone: ValidationError('Source location not found: …')
+      const trimmed = overrides.locationName.trim()
+      if (!trimmed) return null // phone: ValidationError('Location name is required')
+      if (!overrides.streetAddress?.trim()) return null // phone: ValidationError('Street address is required')
+      const id = nextId('l')
+      const loc: DemoLocation = {
+        id,
+        caseId: source.caseId,
+        locationName: trimmed,
+        // Address + contact: the card's values, never the source's — this is a different scene.
+        businessName: overrides.businessName ?? '',
+        streetAddress: overrides.streetAddress,
+        city: overrides.city ?? '',
+        locationContact: overrides.locationContact ?? '',
+        locationPhone: overrides.locationPhone ?? '',
+        gps: overrides.gps ? { ...overrides.gps } : undefined,
+        // Requester block: ALWAYS the source's (the card never shows these fields).
+        requesterName: source.requesterName,
+        requesterBadge: source.requesterBadge,
+        requesterUnit: source.requesterUnit,
+        requesterPhone: source.requesterPhone,
+        requesterEmail: source.requesterEmail,
+        form: duplicatedForm(source, mode, () => nextId('sc')),
+      }
+      set((s) => ({
+        locations: [...s.locations, loc],
+        cases: s.cases.map((c) =>
+          c.id === source.caseId ? { ...c, locationIds: [...c.locationIds, id] } : c,
+        ),
+      }))
+      return id
+    },
+
     switchLocation: (locationId) => {
       const loc = get().locations.find((l) => l.id === locationId)
       if (!loc) return
@@ -334,6 +684,25 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       const id = get().currentLocationId
       if (!id) return
       set((s) => ({ locations: s.locations.map((l) => (l.id === id ? setPath(l, path, value) : l)) }))
+    },
+
+    setCameraGps: (cameraId, gps) => {
+      const id = get().currentLocationId
+      if (!id) return
+      const loc = get().locations.find((l) => l.id === id)
+      // The identity guard (the R-1/R-32 discipline applied to a dynamic row list). Both
+      // dropped writes are silent by design: an operator who removed the row, or left for
+      // another location, has already said what should happen to that reading. Camera ids are
+      // globally unique (`uiSeq`, seeded past every rehydrated id), so "not in the OPEN
+      // location" also covers "belongs to a location the visitor has since switched away from".
+      if (!loc || !loc.form.cameras.some((c) => c.id === cameraId)) return
+      set((s) => ({
+        locations: s.locations.map((l) =>
+          l.id === id
+            ? { ...l, form: { ...l.form, cameras: l.form.cameras.map((c) => (c.id === cameraId ? { ...c, gps } : c)) } }
+            : l,
+        ),
+      }))
     },
 
     setView: (view) =>

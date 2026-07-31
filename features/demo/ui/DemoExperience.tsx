@@ -27,12 +27,31 @@ import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
-import { AlertDialog, type AlertAction } from '@/features/demo/ui/controls/AlertDialog'
+import { AlertDialog, type AlertDialogProps } from '@/features/demo/ui/controls/AlertDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
+import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
-import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
+import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
+import {
+  blankCaseForm,
+  caseFormToEdits,
+  caseFormToInput,
+  caseToCaseForm,
+  type NewCaseFields,
+} from '@/features/demo/ui/screens/caseFormData'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
+import { EditIncidentLocationModal } from '@/features/demo/ui/screens/EditIncidentLocationModal'
+import {
+  caseToIncidentValues,
+  incidentValuesToPatch,
+  type IncidentLocationValues,
+} from '@/features/demo/engine/logic/incident-location'
+import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
+import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
+import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { ensureUniqueLocationName, generateCopyName } from '@/features/demo/engine/logic/location-name'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -62,7 +81,6 @@ import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittab
 import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
-import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
@@ -73,8 +91,8 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
-import { toCaseCards } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
+import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -85,23 +103,9 @@ const realNow = () => new Date()
 // bus itself never touches Date.now() — elapsedMs comes from this injection (P1.3).
 const logClock = () => clock.now().getTime()
 
-const blankCaseForm: NewCaseFields = {
-  caseNumber: '',
-  displayName: '',
-  unit: '',
-  oicName: '',
-  oicBadge: '',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: '',
-  incidentStreetAddress: '',
-  incidentCity: '',
-  incidentLatitude: '',
-  incidentLongitude: '',
-  incidentCoordinateSource: '',
-  notes: '',
-}
 const blankLocForm: NewLocationFields = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
+/** Only ever a placeholder: `editIncident` seeds the real values from the case before opening. */
+const blankIncidentForm: IncidentLocationValues = { businessName: '', streetAddress: '', city: '', latitude: '', longitude: '', coordinateSource: '' }
 
 interface ImportState {
   /** The stored (driven) stage — displayed through computeImportStage (single union, R-31). */
@@ -129,12 +133,17 @@ interface ImportState {
 }
 const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
 
-/** An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload). */
-interface AlertState {
-  title: string
-  message: string
-  actions: readonly AlertAction[]
-}
+/**
+ * An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload):
+ * everything `AlertDialog` takes except the dismissal, which the bridge owns (`closeAlert`).
+ *
+ * R-37: DERIVED from the primitive, never re-declared. Now that `AlertDialog` is the single
+ * blocking-dialog primitive (R-5 deleted `ConfirmDialog`), a prop added to it has to reach
+ * this state — a hand-written triple would keep compiling while the new prop was simply
+ * unrepresentable in the bridge, so every alert the bridge opens would silently lack it.
+ * Same rule as R-22's store-union import in `NotesScreen`.
+ */
+type AlertState = Omit<AlertDialogProps, 'onDismiss'>
 
 /** Phone copy, verbatim — `app/(form)/completion.tsx:373-374`. */
 const MISSING_FIELDS_TITLE = 'Missing Required Fields'
@@ -167,6 +176,40 @@ const PROGRESS_SAVED_BODY =
 const PROGRESS_NOT_STORED_BODY =
   PROGRESS_SAVED_SHARED +
   "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
+
+/**
+ * The location action chooser's toasts (P3.5), lifted from the phone's `cases.tsx` Toast calls
+ * — `text1 — text2`, joined because the demo's banner is one line where the phone's Toast has
+ * a title row and a body row.
+ */
+const LOCATION_NOT_FOUND_NOTICE = 'Error — Location not found.'
+const duplicatedNotice = (name: string, mode: DuplicateMode) =>
+  `Location Duplicated — ${name} ${mode === 'with-scopes' ? 'created with scopes.' : 'created.'}`
+/** No phone counterpart: its service throws, this one returns null. Honest, not silent. */
+const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location couldn't be read."
+const NEW_ADDRESS_SUBTITLE = 'Submission info copied — enter the new address.'
+const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
+  `Location Created — ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
+/**
+ * Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry.
+ *
+ * The copy names the only cause that can actually reach it. `duplicateToNewAddress` returns a
+ * bare `null` for three refusals — source gone, blank name, blank street — but the card's own
+ * `newLocationBlock` gate holds the last two upstream, so a null here means the source location
+ * went away. The old sentence ("a name and street address are required") described the two
+ * unreachable arms and would have told a visitor to fix a form that was already valid (review
+ * R-2's rider). If a cause is ever surfaced from the store (type-design's carried NIT: make the
+ * refusal a discriminated result), this splits back into three sentences.
+ */
+const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
+/**
+ * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
+ * location-level export entry point, and hiding the section would misrepresent the surface —
+ * but they resolve to an honest notice instead of a fabricated download, the same treatment the
+ * map gives Call/Email. Re-point them at the real flows when the Export tab lands (P5).
+ */
+const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
+const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -201,6 +244,11 @@ interface PdfState {
   title: string
   html: string
 }
+
+/** What the delete confirmation is armed on (P3.1). Ids only — the dialog's copy is derived
+ *  from live store entities at render, so it can never show a stale case number or a location
+ *  list that has moved on. */
+type PendingDelete = { kind: 'case'; id: string } | { kind: 'location'; id: string }
 const EMPTY_FORM = blankLocationForm()
 
 // Fallback for views without a screen yet — only the not-yet-built media views
@@ -273,13 +321,48 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
+  // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by
+  // ID, not by the mapped object: the sheet then re-derives from live store data, so a case
+  // edited or re-statused underneath it can never show a stale report.
+  const [actionSheetCaseId, setActionSheetCaseId] = useState<string | null>(null)
   // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
   const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
+  // Which case the New Case sheet is serving. One modal id, two modes — the phone's own
+  // framing (`NewCaseModal` is a multi-caller component: Cases opens it to create, the
+  // dashboard's actions sheet opens it to edit). Held here, not in the store, because it is
+  // modal chrome: `modal` itself is deliberately not persisted, and neither is this.
+  const [caseEditId, setCaseEditId] = useState<string | null>(null)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
+  // The New Location modal's write-guard identity (deferred §45f: every `LocationFields` caller
+  // passes its OWN identity). The location does not exist yet, so what an in-flight lookup
+  // belongs to is the DRAFT — minted fresh per open from the same monotonic counter the row ids
+  // use, so a lookup left over from a cancelled draft can never write into the next one.
+  const [locDraftId, setLocDraftId] = useState<string | null>(null)
+  // Incident-location editor (matrix row 23). `incidentForm` is SEEDED ONCE per open, in
+  // `editIncident` — the phone's `useState(() => caseToIncidentValues(initialCase))` semantics
+  // lifted to the bridge so the modal itself stays store-free. `incidentCaseId` is the case the
+  // seed came from; the save writes to THAT id, never to a separately-tracked selection.
+  const [incidentCaseId, setIncidentCaseId] = useState<string | null>(null)
+  const [incidentForm, setIncidentForm] = useState<IncidentLocationValues>(blankIncidentForm)
+  /**
+   * The open location action chooser (P3.5) — the phone's `duplicateState`. Resolved ONCE when
+   * the chooser opens (source + sibling names + the pre-deduped suggestion), like the phone,
+   * so the six actions all act on the row that was actually pressed.
+   */
+  const [dupState, setDupState] = useState<{ sourceId: string; existingNames: string[] } | null>(null)
+  const [dupName, setDupName] = useState('')
+  /**
+   * The chooser's "New Location w/ Sub Info [+ Scopes]" hand-off (the phone's `newAddressState`):
+   * the create-location card, mounted in its require-address variant against this source and
+   * mode. Its form values live in `locForm` like the plain Add-Location caller's.
+   */
+  const [newAddrState, setNewAddrState] = useState<{ sourceId: string; mode: DuplicateMode; existingNames: string[] } | null>(null)
+  /** The demo's Toast analog — an auto-dismissing in-phone banner (the map's idiom). */
+  const [notice, setNotice] = useState<string | null>(null)
   const [imp, setImp] = useState<ImportState>(blankImport)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
@@ -296,6 +379,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
   const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
   // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
   // store (location-scoped) and is never unset. Keyed by LOCATION ID (R-21): an un-keyed
@@ -359,6 +443,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+  // The open sheet's read-only report. Recomputed from the store, so a status action's
+  // result is visible the instant it lands (the phone needs a refetch + toast for this).
+  const actionSheetCase = useMemo(() => {
+    const c = cases.find((x) => x.id === actionSheetCaseId)
+    return c ? toCaseSheet(c, locations) : null
+  }, [cases, locations, actionSheetCaseId])
   // Map projection for the viewer case (tab-local). Memoized so marker identity is stable across
   // unrelated re-renders (selection, etc.) — only a data or viewer-case change re-fits the camera.
   const mapViewerCase = useMemo(() => cases.find((c) => c.id === mapViewerCaseId) ?? null, [cases, mapViewerCaseId])
@@ -430,6 +520,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => {
     if (view !== 'completion') setAlert(null)
   }, [view])
+  // Same rule for the dashboard's actions sheet (the phone presents it as a pageSheet, under
+  // which nothing can navigate): a sheet naming a case, left standing over the Map or the
+  // wizard, would claim to be acting on a screen it has nothing to do with.
+  useEffect(() => {
+    if (view !== 'dashboard') setActionSheetCaseId(null)
+  }, [view])
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
   // recorded date + scopes. Clock is read here (never at render). The persisted
@@ -493,8 +589,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
   const returnToCases = () => {
     setPdf(null)
+    setPendingDelete(null)
     resetOcr()
     setMapPickerOpen(false)
+    setActionSheetCaseId(null)
+    setDupState(null) // the chooser's source, cleared with every other transient overlay state
+    setNewAddrState(null)
+    setNotice(null)
     const st = store.getState()
     st.setDrawerOpen(false)
     st.closeModal()
@@ -520,12 +621,69 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     store.getState().setView('submission')
   }
   const newCase = () => {
+    setCaseEditId(null)
     setCaseForm(blankCaseForm)
     store.getState().openModal('newCase')
+  }
+  /**
+   * Open the New Case sheet on an EXISTING case (phone: dashboard long-press →
+   * CaseActionsSheet → "Edit Case", `app/(tabs)/home.tsx:168-173`). Seeds the form from the
+   * stored case through the shared mapper, so the seed and the submit can't drift.
+   *
+   * Wired at the P3 assembly to the dashboard sheet's `onEdit` (§49a's one-line trigger,
+   * §50e's). Do not inline a second copy of this — seed drift between two edit entry points is
+   * exactly what `caseFormData.ts` exists to prevent.
+   */
+  const editCase = (caseId: string) => {
+    const target = store.getState().cases.find((c) => c.id === caseId)
+    if (!target) return
+    setCaseEditId(caseId)
+    setCaseForm(caseToCaseForm(target))
+    store.getState().openModal('newCase')
+  }
+  // Closing always returns the sheet to create mode, so a later `openModal('newCase')` from
+  // anywhere can never inherit a stale edit target — NOR a stale edit SEED. Clearing the id
+  // alone left the previous case's values in `caseForm`: every UI entry happens to blank them
+  // (`newCase` does it on open), so nothing was reachable, but the guarantee is worth having
+  // at the close rather than resting on every future opener remembering to.
+  const closeCaseModal = () => {
+    setCaseEditId(null)
+    setCaseForm(blankCaseForm)
+    store.getState().closeModal()
+  }
+
+  // ---- dashboard case actions (P3.2, rows 8/9) ----
+  const openCaseActions = (caseId: string) => setActionSheetCaseId(caseId)
+  const closeCaseActions = () => setActionSheetCaseId(null)
+  /**
+   * Close the sheet, then act — the phone's `handleSheetComplete/Reopen/Archive` shape
+   * (home.tsx:142-161), which captures the case into a local first for exactly this reason.
+   *
+   * No success/failure toast, unlike the phone: its write is an async SQLite round-trip
+   * followed by a refetch, so the toast is the only confirmation the row will change. Here
+   * the write is synchronous and the card behind the sheet re-renders green/grey on the same
+   * tick — a toast would announce something the visitor is already looking at. There is no
+   * failure arm to report either; an in-memory status write cannot fail.
+   */
+  const runCaseAction = (status: CaseStatus) => {
+    const id = actionSheetCaseId
+    if (!id) return
+    setActionSheetCaseId(null)
+    store.getState().setCaseStatus(id, status)
+  }
+  /** "Edit Case" — close the sheet, then open the editor. The phone additionally waits 350 ms
+   *  for its pageSheet dismissal animation (`home.tsx:41,168-173`); the demo's overlays unmount
+   *  synchronously, so there is nothing to wait for. Closes §49a. */
+  const editCaseFromSheet = () => {
+    const id = actionSheetCaseId
+    if (!id) return
+    setActionSheetCaseId(null)
+    editCase(id)
   }
   const addLocation = (caseId: string) => {
     setTargetCaseId(caseId)
     setLocForm(blankLocForm)
+    setLocDraftId(`draft-l${uiSeq++}`)
     store.getState().openModal('newLocation')
   }
   const openImport = (caseId: string) => {
@@ -533,27 +691,232 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp(blankImport)
     store.getState().openModal('import')
   }
+  /**
+   * Long-press (or the row's ⋯ button) on a location — the phone's `handleLocationLongPress`.
+   * Resolves the source and its siblings from LIVE state, pre-dedupes the suggested name, and
+   * opens the chooser. A source that no longer resolves gets the phone's "Location not found."
+   * notice rather than an empty modal.
+   */
+  const openLocationActions = (locationId: string) => {
+    const st = store.getState()
+    const source = st.locations.find((l) => l.id === locationId)
+    if (!source) {
+      setNotice(LOCATION_NOT_FOUND_NOTICE)
+      return
+    }
+    // Sibling names include the source's own — a duplicate may never reuse it.
+    const existingNames = st.locations.filter((l) => l.caseId === source.caseId).map((l) => l.locationName)
+    setDupState({ sourceId: locationId, existingNames })
+    setDupName(generateCopyName(source.locationName, existingNames))
+    st.openModal('duplicateLocation')
+  }
+  const closeLocationActions = () => {
+    setDupState(null)
+    store.getState().closeModal()
+  }
+  /** "Duplicate Location [with Scopes]" — creates the sibling and stays on the list, like the phone. */
+  const submitDuplicate = (name: string, mode: DuplicateMode) => {
+    if (!dupState) return
+    const id = store.getState().duplicateLocation(dupState.sourceId, name, mode)
+    closeLocationActions()
+    if (id === null) {
+      setNotice(DUPLICATION_FAILED_NOTICE)
+      return
+    }
+    // Report the STORED name (trimmed by the action), not the raw field value.
+    const created = store.getState().locations.find((l) => l.id === id)
+    setNotice(duplicatedNotice(created?.locationName ?? name, mode))
+  }
+
+  /**
+   * "New Location w/ Sub Info [+ Scopes]" — the phone's `handleNewAddress`: close the chooser,
+   * open the create-location card pre-filled from the source (name pre-deduped from
+   * "New Location", on-site contact carried) with the address left blank and REQUIRED. The
+   * requester block is not seeded here at all: `duplicateToNewAddress` reads it from the source
+   * (same mechanism as the phone, whose `NewAddressOverrides` also has no requester fields).
+   */
+  const openNewAddressCard = (mode: DuplicateMode) => {
+    if (!dupState) return
+    const st = store.getState()
+    const source = st.locations.find((l) => l.id === dupState.sourceId)
+    if (!source) {
+      closeLocationActions()
+      setNotice(LOCATION_NOT_FOUND_NOTICE)
+      return
+    }
+    setNewAddrState({ sourceId: dupState.sourceId, mode, existingNames: dupState.existingNames })
+    setLocDraftId(`draft-l${uiSeq++}`)
+    setLocForm({
+      ...blankLocForm,
+      locationName: ensureUniqueLocationName('New Location', dupState.existingNames),
+      locationContact: source.locationContact,
+      locationPhone: source.locationPhone,
+    })
+    setDupState(null)
+    st.openModal('newAddressLocation') // replaces the chooser
+  }
+  /** "Export ZIP" / "Export GeoJSON": close the chooser (phone does), then tell the truth. */
+  const exportFromChooser = (message: string) => {
+    closeLocationActions()
+    setNotice(message)
+  }
+  const closeNewAddressCard = () => {
+    setNewAddrState(null)
+    store.getState().closeModal()
+  }
+  /** Creates the independent location and opens it — the phone navigates to the wizard here. */
+  const submitNewAddressLocation = () => {
+    if (!newAddrState) return
+    const id = store.getState().duplicateToNewAddress(
+      newAddrState.sourceId,
+      {
+        locationName: locForm.locationName,
+        businessName: locForm.businessName,
+        streetAddress: locForm.streetAddress,
+        city: locForm.city,
+        locationContact: locForm.locationContact,
+        locationPhone: locForm.locationPhone,
+        // The provenance stamp travels WITH the coordinates (P3.4, §52.4's seam): this card
+        // mounts the SAME `NewLocationModal`, so its GPS button is the real multi-sample
+        // capture and stamps `'gps'`, while an address pick stamps `'geocoded'`. Flattening
+        // both to `'geocoded'` here — the shape P3.5 inherited from the no-op era — would
+        // have relabelled every real fix as a geocode. `submitLocation` does the same.
+        gps: locForm.coordinates,
+      },
+      newAddrState.mode,
+    )
+    if (id === null) {
+      // Phone parity (`cases.tsx`: "Don't clear newAddressState on error — let the user retry"):
+      // the card stays open. Only reachable if something bypasses the card's own gate.
+      setNotice(NEW_ADDRESS_FAILED_NOTICE)
+      return
+    }
+    const created = store.getState().locations.find((l) => l.id === id)
+    const mode = newAddrState.mode
+    closeNewAddressCard()
+    openLocation(id)
+    setNotice(newAddressCreatedNotice(created?.locationName ?? locForm.locationName, mode))
+  }
+
+  /**
+   * THE New Case sheet's mode, derived ONCE (review R-11). The render arm and `submitCase` used
+   * to derive it separately — the render from `cases.find(caseEditId)` with a deliberate
+   * create-mode fallback for a case deleted out from under an open sheet, the submit from a
+   * bare `caseEditId !== null`. When they disagreed the sheet said "Create Case", ran the create
+   * confirmation, and then took the EDIT branch into a guarded no-op: confirming created
+   * nothing, silently. No UI path reaches that today (the scrim covers the rows and every
+   * opener re-seeds), which is why it was filed as latent — but the fallback exists precisely
+   * for that scenario and applying it to only one of two discriminators is how it stops being
+   * latent later.
+   */
+  const editingCase = caseEditId === null ? undefined : cases.find((c) => c.id === caseEditId)
+
+  /** Create, or save an edit. Throws (`DuplicateCaseNumberError`) straight into the modal's
+   *  catch — the banner is the modal's job, and swallowing it here would lose the case
+   *  silently. Field trimming + the strict coordinate parse live in `caseFormToInput`. */
   const submitCase = () => {
-    // Build incidentCoordinates only when BOTH lat & lng parse + range-validate. An invalid or
-    // partial entry yields no coordinates (the case is still created — no required-field gate).
-    const latR = parseCoordinate(caseForm.incidentLatitude, 'lat')
-    const lngR = parseCoordinate(caseForm.incidentLongitude, 'lng')
-    const incidentCoordinates =
-      latR.ok && lngR.ok
-        ? { lat: latR.value, lng: lngR.value, source: caseForm.incidentCoordinateSource === 'geocoded' ? ('geocoded' as const) : ('manual' as const) }
-        : undefined
-    const id = store.getState().createCase({ ...caseForm, incidentCoordinates })
+    if (editingCase) {
+      store.getState().updateCase(editingCase.id, caseFormToEdits(caseForm))
+      closeCaseModal()
+      return
+    }
+    const id = store.getState().createCase(caseFormToInput(caseForm))
     setExpandedCaseId(id)
+    closeCaseModal()
+  }
+  /** Map incident card → the incident-only editor, seeded from the case (matrix rows 22 → 23).
+   *  A missing case is a no-op rather than an empty modal — the phone's `handleEditCase` makes
+   *  the same call (it toasts "Case Not Found"; the demo reads from the store it just rendered
+   *  the pin from, so the miss is unreachable rather than merely handled). */
+  const editIncident = (caseId: string) => {
+    const target = store.getState().cases.find((c) => c.id === caseId)
+    if (!target) return
+    setIncidentCaseId(caseId)
+    setIncidentForm(caseToIncidentValues(target))
+    store.getState().openModal('editIncident')
+  }
+  /**
+   * Persist the incident edit. The editor emits ONLY the incident fields, so the rest of the
+   * case is untouched (phone map.tsx:163-176).
+   *
+   * The phone follows this with a `reloadToken` bump, because its MapHost re-reads SQLite. The
+   * demo has no such indirection: `mapData` is a `useMemo` over the store's `cases`/`locations`,
+   * and `updateIncidentLocation` produces a new `cases` array — so the store write IS the
+   * refresh, and the incident pin, the sheet row and the open detail card all re-render from it.
+   */
+  const submitIncidentLocation = () => {
+    if (incidentCaseId) store.getState().updateIncidentLocation(incidentCaseId, incidentValuesToPatch(incidentForm))
+    closeIncidentModal()
+  }
+  /** The §56j hardening, applied to the sibling it missed (review R-12): both close paths clear
+   *  the seed as well as the modal, so the guarantee lives at the close rather than resting on
+   *  every future opener remembering to re-seed. Unreachable today — `editIncident` re-seeds on
+   *  every open and `modal` is excluded from snapshots — which is exactly what §56j said about
+   *  `closeCaseModal` before it was hardened. */
+  const closeIncidentModal = () => {
+    setIncidentCaseId(null)
+    setIncidentForm(blankIncidentForm)
     store.getState().closeModal()
   }
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (caseId) {
-      const gps = locForm.coordinates ? { ...locForm.coordinates, source: 'geocoded' as const } : undefined
-      store.getState().addLocation(caseId, { ...locForm, gps })
+      // The provenance stamp travels WITH the coordinates now (P3.4): `LocationFields` decides
+      // it — `'gps'` for a real capture, `'geocoded'` for an address pick — so the bridge no
+      // longer overwrites both sources with a flat `'geocoded'`.
+      store.getState().addLocation(caseId, { ...locForm, gps: locForm.coordinates })
     }
     store.getState().closeModal()
   }
+
+  // ---- delete (P3.1, matrix rows 10 CRUD + 15) -------------------------------------------
+  // The row hands up an id; the dialog's copy is derived HERE from live store entities, so a
+  // dialog can never outlive or misdescribe what it is about to destroy.
+  const deleteTarget = useMemo<DeleteTarget | null>(() => {
+    if (!pendingDelete) return null
+    if (pendingDelete.kind === 'case') {
+      const c = cases.find((x) => x.id === pendingDelete.id)
+      return c
+        ? {
+            type: 'case',
+            caseNumber: c.caseNumber,
+            locationNames: locations.filter((l) => l.caseId === c.id).map((l) => l.locationName),
+          }
+        : null
+    }
+    const l = locations.find((x) => x.id === pendingDelete.id)
+    return l
+      ? {
+          type: 'location',
+          locationName: l.locationName,
+          // Same composition as the row the visitor pressed (screenData's `locationsOf`), so
+          // the dialog echoes what they were looking at rather than a differently-built string.
+          address: formatAddress('', l.streetAddress, l.city),
+        }
+      : null
+  }, [pendingDelete, cases, locations])
+
+  /**
+   * The store repairs the SELECTION pair (R-19). This repairs the delete's bridge-local
+   * shadows of the same thing — state the store has no idea exists and that would otherwise
+   * point at an entity that no longer does: the expanded card, the Map tab's viewer case, and
+   * the Completion screen's per-location "review again" key.
+   */
+  const confirmDelete = () => {
+    if (!pendingDelete) return
+    const { kind, id } = pendingDelete
+    if (kind === 'case') {
+      store.getState().deleteCase(id)
+      setExpandedCaseId((prev) => (prev === id ? null : prev))
+      setMapViewerCaseId((prev) => (prev === id ? null : prev)) // → the map's picker, not a dead case
+      setReviewAgainFor((prev) => (prev !== null && locations.some((l) => l.id === prev && l.caseId === id) ? null : prev))
+    } else {
+      store.getState().deleteLocation(id)
+      setReviewAgainFor((prev) => (prev === id ? null : prev))
+    }
+    setPendingDelete(null)
+  }
+
   /**
    * Per-run stage forwarder. Token-guarded (p1-review R-24): every other import
    * checkpoint validates importGen, but the old bare setImp let a cancelled run's late
@@ -1027,7 +1390,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'splash':
         return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
       case 'dashboard':
-        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} />
+        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} />
       case 'cases':
         return (
           <CasesScreen
@@ -1038,6 +1401,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onOpenLocation={openLocation}
             onAddLocation={addLocation}
             onImport={openImport}
+            onDeleteCase={(id) => setPendingDelete({ kind: 'case', id })}
+            onDeleteLocation={(id) => setPendingDelete({ kind: 'location', id })}
+            onLocationActions={openLocationActions}
           />
         )
       case 'submission': {
@@ -1170,6 +1536,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChange={cam.change}
             onAdd={() => cam.add(blankCamera())}
             onRemove={cam.remove}
+            // NOT `cam.change` (P3.7): the list-edit handlers close over the camera array of the
+            // render that created them, and a precise capture runs for up to 120 s. Writing that
+            // captured list back would resurrect any row removed meanwhile — and an index
+            // resolved before the await can name a different camera afterwards. `setCameraGps`
+            // re-resolves the camera by id against current state and drops the write if it is
+            // gone (the R-1/R-32 identity discipline, applied to a dynamic row list).
+            onCaptureGps={(cameraId, gps) => store.getState().setCameraGps(cameraId, gps)}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
@@ -1251,7 +1624,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
       default:
         return placeholder(view)
     }
@@ -1259,10 +1632,75 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   function activeModal() {
     switch (modal) {
-      case 'newCase':
-        return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
-      case 'newLocation':
-        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
+      case 'newCase': {
+        // Generic per key, so R-13's provenance union survives the trip through the bridge —
+        // a `(f, v: string)` signature is assignable to the generic prop by constraint
+        // instantiation and would have erased it silently (TD-N1).
+        const onChange = <K extends keyof NewCaseFields>(f: K, v: NewCaseFields[K]) =>
+          setCaseForm((s) => ({ ...s, [f]: v }))
+        // `editingCase` is the SAME derivation `submitCase` branches on (R-11), so the sheet
+        // can never present one mode and commit the other. Its create-mode fallback — for a
+        // case deleted out from under an open edit sheet — now governs both halves.
+        return editingCase ? (
+          <NewCaseModal mode="edit" existingCase={editingCase} form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
+        ) : (
+          <NewCaseModal form={caseForm} onChange={onChange} onSubmit={submitCase} onCancel={closeCaseModal} />
+        )
+      }
+      case 'newLocation': {
+        // Same case resolution `submitLocation` uses, so the duplicate check and the write can
+        // never be looking at different cases. Names are per-case: siblings only.
+        const intoCaseId = targetCaseId ?? currentCaseId
+        return (
+          <NewLocationModal
+            form={locForm}
+            draftId={locDraftId ?? undefined}
+            existingNames={locations.filter((l) => l.caseId === intoCaseId).map((l) => l.locationName)}
+            onChange={(patch) => setLocForm((s) => ({ ...s, ...patch }))}
+            onSubmit={submitLocation}
+            onCancel={() => store.getState().closeModal()}
+          />
+        )
+      }
+      case 'editIncident':
+        return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
+      case 'duplicateLocation':
+        // Rendered only with an open dupState — the chooser's six actions all need the source
+        // it was opened for, so a state-less mount would be a modal with nothing behind it.
+        return dupState ? (
+          <DuplicateLocationModal
+            name={dupName}
+            onChangeName={setDupName}
+            existingNames={dupState.existingNames}
+            onClose={closeLocationActions}
+            onDuplicate={submitDuplicate}
+            onNewAddress={openNewAddressCard}
+            onExportZip={() => exportFromChooser(EXPORT_ZIP_NOTICE)}
+            onExportGeoJSON={() => exportFromChooser(EXPORT_GEOJSON_NOTICE)}
+          />
+        ) : null
+      case 'newAddressLocation':
+        // The create-location card in its require-address variant (phone: a second
+        // NewLocationModal instance). Same `locForm` state as the plain Add-Location caller —
+        // the two are never mounted at once, exactly like the phone's pair.
+        return newAddrState ? (
+          <NewLocationModal
+            form={locForm}
+            // Its OWN write-guard identity (§45f), minted per open like the plain caller's —
+            // the two share `locForm`, so a lookup left over from one must never land in the
+            // other. §52.4's "the new-address card must use P3.4's REAL GPS capture, not the
+            // inherited no-op" is discharged by mounting the same component with no
+            // `onCaptureGps` override: the capture, the geocode toggle and the coordinate card
+            // come with it.
+            draftId={locDraftId ?? undefined}
+            onChange={(patch) => setLocForm((s) => ({ ...s, ...patch }))}
+            onSubmit={submitNewAddressLocation}
+            onCancel={closeNewAddressCard}
+            subtitle={NEW_ADDRESS_SUBTITLE}
+            requireAddress
+            existingNames={newAddrState.existingNames}
+          />
+        ) : null
       case 'import':
         return (
           <ImportModal
@@ -1378,10 +1816,45 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               store.getState().setDrawerOpen(false)
             }}
           />
+          {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
+              the demo has no always-mounted screen to hold it, so the phone's caseData=null
+              idle state (and its measure-reset guard) has no equivalent here. */}
+          {actionSheetCase && (
+            <CaseActionsSheet
+              caseData={actionSheetCase}
+              // P3.3 seam, wired at the P3 assembly (§49a + §50e): NewCaseModal has its edit
+              // mode, so Edit Case is now a real button and renders FIRST, as on the phone.
+              // The honest-rule consequence is the point — the button appeared the moment it
+              // could do what it says, and not one merge earlier.
+              onEdit={editCaseFromSheet}
+              onComplete={() => runCaseAction('complete')}
+              onReopen={() => runCaseAction('draft')}
+              onArchive={() => runCaseAction('archived')}
+              onClose={closeCaseActions}
+            />
+          )}
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
+          {/* Delete confirmation (rows 10 CRUD + 15). Renders null once its subject is gone —
+              the confirm clears `pendingDelete` in the same tick, so this is belt and braces
+              for any path that removes the entity out from under an armed dialog. */}
+          {deleteTarget && (
+            <DeleteConfirmationModal target={deleteTarget} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
+          )}
+          {/* The demo's Toast. Portaled into the phone overlay root so it is visible over an
+              OPEN modal too — the new-address card deliberately stays up after a failed create
+              (phone parity), and a notice hidden behind it would be a silent failure. The root
+              is pointer-events:none and the banner is non-interactive, so nothing underneath
+              becomes unclickable. */}
+          {notice && (
+            <PhoneOverlayPortal>
+              <DemoNotification message={notice} onDismiss={() => setNotice(null)} />
+            </PhoneOverlayPortal>
+          )}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
-          {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}
+          {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus
+              `onDismiss` (R-37), so a prop added there flows straight through. */}
+          {alert && <AlertDialog {...alert} onDismiss={closeAlert} />}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>

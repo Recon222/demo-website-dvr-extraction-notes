@@ -142,3 +142,61 @@ describe('generateCaseNotesDoc', () => {
     expect(html).not.toContain('could not be converted')
   })
 })
+
+// P3.7 — the per-camera fix reaches the court document. The `cameras` NOTES section is
+// deliberately '' (PR-86: this table is the canonical camera surface), so this table is the
+// ONLY output that surfaces a camera's coordinates. Phone parity: `cameras-table.ts:44-70`.
+describe('generateCaseNotesDoc — per-camera GPS row', () => {
+  const withGps = (gps: { lat: number; lng: number; accuracyM?: number }) =>
+    generateCaseNotesDoc({ occNumber: 'X', cameras: [{ name: 'Till', resolution: '1080p', fps: '15', gps }] })
+
+  it('prints the captured fix at 6 decimals with its accuracy', () => {
+    const html = withGps({ lat: 43.608701, lng: -79.650502, accuracyM: 6.4 })
+    expect(html).toContain('GPS Location')
+    expect(html).toContain('43.608701, -79.650502')
+    expect(html).toContain('(±6m)')
+  })
+
+  it('omits the accuracy clause when nothing measured one (R-18)', () => {
+    const html = withGps({ lat: 43.608701, lng: -79.650502 })
+    expect(html).toContain('43.608701, -79.650502')
+    // Scoped to the coordinate's own cell, not the whole document (review R-17): a
+    // document-wide `not.toContain('±')` false-fails the moment ANY other section legitimately
+    // prints one — the offset advisories and the GPS accuracy chips both can.
+    const gpsCell = html.slice(html.indexOf('GPS Location'), html.indexOf('GPS Location') + 200)
+    expect(gpsCell).toContain('43.608701, -79.650502')
+    expect(gpsCell).not.toContain('±')
+  })
+
+  it('prints NO GPS row for a camera that was never captured', () => {
+    const html = generateCaseNotesDoc({ occNumber: 'X', cameras: [{ name: 'Till', resolution: '', fps: '' }] })
+    expect(html).toContain('Till')
+    expect(html).not.toContain('GPS Location')
+  })
+
+  it('refuses the null-island (0,0) pair — a failed fix must never print as a location', () => {
+    // The BUG-008/BUG-024 policy, shared with the notes camera formatter: zeros are what a
+    // failed capture reports, not a place on the Gulf of Guinea seabed.
+    expect(withGps({ lat: 0, lng: 0, accuracyM: 5 })).not.toContain('GPS Location')
+  })
+
+  it('refuses out-of-range and non-finite coordinates', () => {
+    expect(withGps({ lat: 91, lng: -79.65 })).not.toContain('GPS Location')
+    expect(withGps({ lat: 43.6, lng: 181 })).not.toContain('GPS Location')
+    expect(withGps({ lat: Number.NaN, lng: -79.65 })).not.toContain('GPS Location')
+  })
+
+  it('keeps the GPS row attached to its own camera', () => {
+    const html = generateCaseNotesDoc({
+      occNumber: 'X',
+      cameras: [
+        { name: 'Till', resolution: '', fps: '' },
+        { name: 'Rear', resolution: '', fps: '', gps: { lat: 43.608701, lng: -79.650502, accuracyM: 4 } },
+      ],
+    })
+    const rear = html.indexOf('Rear')
+    const gpsRow = html.indexOf('GPS Location')
+    expect(gpsRow).toBeGreaterThan(rear)
+    expect(html.indexOf('Till')).toBeLessThan(rear)
+  })
+})

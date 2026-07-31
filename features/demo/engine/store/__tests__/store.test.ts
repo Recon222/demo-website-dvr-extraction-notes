@@ -247,6 +247,66 @@ describe('completeCase (the arc payoff — G4, location-scoped gate — R-1)', (
   })
 })
 
+describe('setCaseStatus (the dashboard Case Actions Sheet — P3.2)', () => {
+  it('moves a case through complete / archived / draft, leaving other cases alone', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput({ caseNumber: 'A' }))
+    const b = store.getState().createCase(newCaseInput({ caseNumber: 'B' }))
+    const statusOf = (id: string) => store.getState().cases.find((c) => c.id === id)?.status
+
+    store.getState().setCaseStatus(a, 'complete')
+    expect(statusOf(a)).toBe('complete')
+    store.getState().setCaseStatus(a, 'archived')
+    expect(statusOf(a)).toBe('archived')
+    store.getState().setCaseStatus(a, 'draft') // Reopen
+    expect(statusOf(a)).toBe('draft')
+    expect(statusOf(b)).toBe('draft')
+  })
+
+  it('NEVER stamps a location — the dashboard has no location context (unlike completeCase)', () => {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    const locId = store.getState().addLocation(caseId, newLocationInput())
+    store.getState().switchLocation(locId)
+    store.getState().setCaseStatus(caseId, 'complete')
+    expect(store.getState().cases.find((c) => c.id === caseId)?.status).toBe('complete')
+    expect(store.getState().locations.find((l) => l.id === locId)?.form.completed).toBe(false)
+  })
+
+  it('an unknown id changes nothing', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    const before = store.getState().cases
+    store.getState().setCaseStatus('nope', 'archived')
+    expect(store.getState().cases).toBe(before) // same reference — no write happened
+    expect(store.getState().cases.find((c) => c.id === a)?.status).toBe('draft')
+  })
+
+  it('a repeat of the current status performs no write (reference-preserving)', () => {
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    store.getState().setCaseStatus(a, 'complete')
+    const after = store.getState().cases
+    store.getState().setCaseStatus(a, 'complete')
+    expect(store.getState().cases).toBe(after)
+  })
+
+  it('a no-op does not allocate a new STATE object either (no subscriber wake, no snapshot)', () => {
+    // The assertion above pins `cases` only, and passed even while the updater returned `{}`
+    // from inside `set` — which zustand `Object.assign`s onto a fresh state, waking every
+    // selector and the persistence subscriber. P3.1's CRUD suite made the same assertion at
+    // whole-state granularity and caught it at the P3 assembly merge; this is that guarantee
+    // pinned at P3.2's own call site so neither package can lose it again.
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    store.getState().setCaseStatus(a, 'archived')
+    const settled = store.getState()
+    store.getState().setCaseStatus(a, 'archived') // same status
+    store.getState().setCaseStatus('nope', 'draft') // unknown id
+    expect(store.getState()).toBe(settled)
+  })
+})
+
 describe('selection-pair coherence (R-19)', () => {
   it('createCase clears currentLocationId — a new case never keeps another case\'s location current', () => {
     const store = freshStore()

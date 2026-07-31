@@ -9,6 +9,7 @@ import {
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoCase, DemoLocation, ScopeEntry } from '@/features/demo/engine/types'
+import { demoCase as sharedCase, demoLocation as sharedLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 
 const scope = (o: Partial<ScopeEntry> = {}): ScopeEntry => ({
   id: 's1',
@@ -26,42 +27,19 @@ const input = (o: Partial<FinalSubmissionInput> = {}): FinalSubmissionInput => (
   ...o,
 })
 
-const demoCase = (o: Partial<DemoCase> = {}): DemoCase => ({
-  id: 'c1',
-  caseNumber: 'PR25-0001',
-  displayName: 'Robbery',
-  unit: 'Robbery',
-  oicName: '',
-  oicBadge: '',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: '',
-  incidentStreetAddress: '',
-  incidentCity: '',
-  notes: '',
-  status: 'draft',
-  createdLabel: 'today',
-  locationIds: ['l1'],
-  ...o,
-})
+/** Delegates to the shared entity factory (R-21). This literal was the live demonstration of
+ *  the drift the factory exists to stop: it omitted the optional `incidentCoordinates` and
+ *  type-checked anyway. */
+const demoCase = (o: Partial<DemoCase> = {}): DemoCase =>
+  sharedCase({ displayName: 'Robbery', oicName: '', oicBadge: '', createdLabel: 'today', ...o })
 
-const demoLocation = (o: Partial<DemoLocation> = {}): DemoLocation => ({
-  id: 'l1',
-  caseId: 'c1',
-  locationName: 'Rear Door',
-  businessName: "Kim's Convenience",
-  streetAddress: '1450 Eglinton Ave W',
-  city: 'Mississauga',
-  requesterName: '',
-  requesterBadge: '',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: '',
-  locationContact: '',
-  locationPhone: '',
-  form: { ...blankLocationForm(), scopes: [scope()] },
-  ...o,
-})
+const demoLocation = (o: Partial<DemoLocation> = {}): DemoLocation =>
+  sharedLocation({
+    locationName: 'Rear Door',
+    businessName: "Kim's Convenience",
+    form: { ...blankLocationForm(), scopes: [scope()] },
+    ...o,
+  })
 
 describe('finalSubmissionSchema (phone port — src/lib/schemas/form-schema.ts:137-149)', () => {
   it('passes when OCC number, address and one complete scope are all present', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
+import { blankCaseForm } from '@/features/demo/ui/screens/caseFormData'
 import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -21,14 +22,19 @@ function locView(over: Partial<ImportedLocationView> = {}): ImportedLocationView
 }
 
 describe('NewCaseModal', () => {
-  const blankCase = { caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '', incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '', incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '' }
+  // The shared blank, not a hand-rolled twin: R-13 narrowed `incidentCoordinateSource` to a
+  // union and this literal stopped compiling, which is the drift the union exists to catch.
+  const blankCase = blankCaseForm
 
   it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()
     const onSubmit = vi.fn()
-    render(<NewCaseModal form={blankCase} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-1' } })
-    expect(onChange).toHaveBeenCalledWith('caseNumber', 'PR25-1')
+    // The modal is controlled, so typing does not change `form` — the required fields
+    // (Case Number / Unit, P3.3's gate) have to be satisfied by the props for the submit
+    // half of this test to reach `onSubmit`. Gate behaviour itself: NewCaseModal.gate.test.
+    render(<NewCaseModal form={{ ...blankCase, caseNumber: 'PR25-1', unit: 'Robbery' }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-2' } })
+    expect(onChange).toHaveBeenCalledWith('caseNumber', 'PR25-2')
     // accordion fields are in the DOM even while collapsed
     fireEvent.change(screen.getByLabelText('Coordinator Name'), { target: { value: 'M. Reyes' } })
     expect(onChange).toHaveBeenCalledWith('vcName', 'M. Reyes')
@@ -36,7 +42,10 @@ describe('NewCaseModal', () => {
     expect(onChange).toHaveBeenCalledWith('incidentBusinessName', 'Acme')
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'rear cam' } })
     expect(onChange).toHaveBeenCalledWith('notes', 'rear cam')
+    // Create mode routes through the immutable-case-number confirmation (P3.3); the alert's
+    // own "Create Case" arm is what submits. Confirmation behaviour: NewCaseModal.gate.test.
     fireEvent.click(screen.getByText('Create Case'))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Create Case'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
 })
@@ -44,20 +53,27 @@ describe('NewCaseModal', () => {
 describe('NewLocationModal', () => {
   const blankLoc = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
 
-  it('edits contact fields, captures GPS, and submits', () => {
-    const onCaptureGps = vi.fn()
+  it('edits the contact fields (phone labels + placeholders) and submits', () => {
     const onSubmit = vi.fn()
     const onChange = vi.fn()
-    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} onPickCoords={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
-    expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
-    fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })
-    expect(onChange).toHaveBeenCalledWith('locationPhone', '905-555-0142')
-    fireEvent.click(screen.getByText('Capture GPS coordinates'))
-    expect(onCaptureGps).toHaveBeenCalledOnce()
+    render(<NewLocationModal form={{ ...blankLoc, locationName: 'Rear Door' }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    const contact = screen.getByLabelText('Location Contact')
+    expect(contact).toHaveAttribute('placeholder', 'Contact person name')
+    fireEvent.change(contact, { target: { value: 'Sandeep' } })
+    expect(onChange).toHaveBeenCalledWith({ locationContact: 'Sandeep' })
+    const phone = screen.getByLabelText('Location Phone')
+    expect(phone).toHaveAttribute('placeholder', '(555) 123-4567')
+    fireEvent.change(phone, { target: { value: '905-555-0142' } })
+    expect(onChange).toHaveBeenCalledWith({ locationPhone: '905-555-0142' })
     fireEvent.click(screen.getByText('Create Location'))
     expect(onSubmit).toHaveBeenCalledOnce()
   })
+
+  // The gate itself (blank name, duplicate name, `requireAddress`, the reason region and the
+  // focusable-while-blocked rule) is P3.4's `new-location-validation.test.tsx` — 17 arms against
+  // the live modal. P3.5 shipped four narrower copies here against the pre-P3.4 prop shape
+  // (`onCaptureGps`/`onPickCoords`, a hard-`disabled` submit); they were dropped at the P3
+  // assembly rather than rewritten, because every assertion in them is already made there.
 })
 
 describe('ImportModal', () => {

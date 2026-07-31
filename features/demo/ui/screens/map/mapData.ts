@@ -1,6 +1,7 @@
 import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
+import { hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
 import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
@@ -75,14 +76,25 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
     return { pins: [], incident: null, items: [], statusCounts: { started: 0, working: 0, complete: 0 } }
   }
 
+  // PLOTTING GATE — `hasCapturedCoordinates`, not plain presence (review R-7, discharging §49g's
+  // trigger, which named "P3.7 or P6.1, whichever touches plotting first" and was left pointing
+  // at a package that had already shipped). P3.7 introduced the policy and wired the case sheet,
+  // the PDF camera row and the notes formatter to it; the map was the one consumer left reading
+  // presence, so a single stored pair had two behaviours — suppressed in the sheet and the
+  // document, plotted in the Gulf of Guinea on the map beside them. The demo has no zero-init
+  // artifact (coordinates only arrive via a capture, a geocode or `parseCoordinate`, which
+  // correctly accepts a typed 0/0), so this is consistency between consumers rather than a
+  // fabricated position — but three consumers silently disagreeing about one record is exactly
+  // what the policy exists to prevent.
   const ic = viewerCase.incidentCoordinates
-  const incident: MapIncident | null = ic
+  const incident: MapIncident | null = hasCapturedCoordinates(ic)
     ? { id: viewerCase.id, caseNumber: viewerCase.caseNumber, displayName: viewerCase.displayName || undefined, lng: ic.lng, lat: ic.lat }
     : null
 
-  // Only locations WITH coordinates plot (typed-without-pick / imported stay coord-less — the honest
-  // "no coordinate" case). Status is computed once per location and reused for the pin + the sheet row.
-  const located = locations.filter((l) => l.gps)
+  // Only locations WITH a captured position plot (typed-without-pick / imported stay coord-less —
+  // the honest "no coordinate" case). Status is computed once per location and reused for the pin
+  // + the sheet row.
+  const located = locations.filter((l) => hasCapturedCoordinates(l.gps))
   const statusById = new Map(located.map((l) => [l.id, selectLocationMapStatus(l)]))
 
   const pins: MapPin[] = located.map((l) => ({ id: l.id, lng: l.gps!.lng, lat: l.gps!.lat, status: statusById.get(l.id)! }))
