@@ -1,13 +1,28 @@
 import { describe, it, expect } from 'vitest'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { CHAPTERS, WIZARD_SCREENS, LAUNCHABLE, DRAWER_DEFS } from '@/features/demo/engine/content/screens'
+import type { ModalId } from '@/features/demo/engine/types'
 
 // The exploration-manifest registry: the rail checklist's single source of truth.
 // Array order = numbering (repo convention — same as WIZARD_SCREENS and the marketing
 // feature catalog). These invariants are what make future additions safe: the owner
 // adds/regroups items freely; the cross-registry checks catch typos at test time.
 const KNOWN_TARGETS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map'])
-const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map', 'import', 'newCase', 'newLocation'])
+/** Exhaustive by construction, like `MODAL_IDS` in `store/persistence.ts`: a new `ModalId`
+ *  is a COMPILE error here, which forces whoever adds one to decide whether the manifest
+ *  should list it. The previous hand-written trio had already rotted — `editIncident`,
+ *  `duplicateLocation`, `newAddressLocation` and `mediaLibrary` were all missing, so any of
+ *  them appearing in `covers` would have failed this check for the wrong reason. */
+const MODAL_ID_SET: Record<ModalId, true> = {
+  newCase: true,
+  newLocation: true,
+  import: true,
+  mediaLibrary: true,
+  editIncident: true,
+  duplicateLocation: true,
+  newAddressLocation: true,
+}
+const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map', ...Object.keys(MODAL_ID_SET)])
 
 describe('EXPLORE_ITEMS registry', () => {
   it('every jumpTo is a known view and every covers id is a known view/modal/launchable', () => {
@@ -63,5 +78,36 @@ describe('EXPLORE_ITEMS registry', () => {
   it('orders the case-management actions right after Cases, before the wizard', () => {
     const ids = EXPLORE_ITEMS.map((i) => i.id)
     expect(ids.slice(0, 5)).toEqual(['dashboard', 'cases', 'newCase', 'newLocation', 'import'])
+  })
+
+  it('lists the three media surfaces after the wizard steps and before the map (§63g)', () => {
+    const ids = EXPLORE_ITEMS.map((i) => i.id)
+    // Positional, because the numbering is: the accordion sits after the step list in the
+    // drawer, so it sits after the step rows here.
+    expect(ids.slice(-4)).toEqual(['mediaCapture', 'audioRecording', 'mediaLibrary', 'map'])
+    // …and after the LAST wizard screen specifically, not merely somewhere later.
+    expect(ids.indexOf('mediaCapture')).toBe(ids.indexOf(WIZARD_SCREENS[WIZARD_SCREENS.length - 1]) + 1)
+  })
+
+  it('labels the media rows with the drawer accordion’s own visible text', () => {
+    const byId = (id: string) => EXPLORE_ITEMS.find((i) => i.id === id)
+    // `WizardDrawer.tsx:331-333`. Those row defs carry JSX icons, so they cannot live in the
+    // engine the way DRAWER_DEFS does — this is the pairing DRAWER_DEFS gets for free.
+    expect(byId('mediaCapture')?.label).toBe('Capture Media')
+    expect(byId('audioRecording')?.label).toBe('Record Audio')
+    expect(byId('mediaLibrary')?.label).toBe('Media Library')
+  })
+
+  it('jumps the two capture screens to themselves and the library to the wizard that opens it', () => {
+    const byId = (id: string) => EXPLORE_ITEMS.find((i) => i.id === id)
+    expect(byId('mediaCapture')?.jumpTo).toBe('mediaCapture')
+    expect(byId('audioRecording')?.jumpTo).toBe('audioRecording')
+    // A modal has no view to jump to — same treatment as newCase/newLocation/import, which
+    // route to the screen holding their opener.
+    expect(byId('mediaLibrary')?.jumpTo).toBe('submission')
+  })
+
+  it('still leaves ocr uncovered — it is a step inside Time Offset, not a destination', () => {
+    expect(EXPLORE_ITEMS.some((i) => i.id === 'ocr' || i.covers.includes('ocr'))).toBe(false)
   })
 })

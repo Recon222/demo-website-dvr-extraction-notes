@@ -3164,7 +3164,7 @@ A test pins `1 items` explicitly so the choice is visible rather than looking li
 **Trigger:** if the owner wants demo-grade polish over phone-copy fidelity here, singularize in
 `mediaLibrarySubtitle` — one function, one test line — and note it as a DEMO-BETTER row.
 
-### 63g. RESIDUAL — the library is not in `EXPLORE_ITEMS`
+### 63g. RESIDUAL — the library is not in `EXPLORE_ITEMS` — ✅ RESOLVED
 
 The rail's exploration checklist still has no entry for the media surfaces; `explore.ts:16` records
 that as pending ("the media screens join when built"), and P4.3 and P4.6 both shipped their screens
@@ -3173,6 +3173,32 @@ unrepresented, which is worse than the current uniform gap.
 **Trigger:** one commit at the end of P4 adding all three media entries (`mediaCapture`,
 `audioRecording`, `mediaLibrary`) together, after P4.7 — the checklist's ordering is registry-derived,
 so they must land as a group to read sensibly.
+
+**✅ RESOLVED (P4 explore rider, `parity/p4-explore-rider`):** all three landed in one commit,
+placed after the wizard steps and before the map — mirroring the drawer, which appends its Media
+accordion after the step list. The two capture screens jump to themselves (for a non-chapter view
+`setView` and `launch` are the same write, `create-store.ts:708-718`, so `currentChapter` is
+untouched and closing returns the visitor to the step they came from); the library is a modal with
+no view to jump to, so it routes to `submission` — the same "go where the opener lives" treatment
+the three case-management rows get — which also keeps its no-location gate on the only path that
+can reach it.
+
+Two consequences worth knowing, both pinned:
+- the manifest anchor and the rail narration now DISAGREE for the two capture launchables: the
+  checklist lights `Capture Media` / `Record Audio` while the rail copy falls through to the
+  chapter. Same "most-specific first" rule in both, run against different registries — §59e
+  deliberately gives those launchables no `MODAL_NARRATION` entry (pinned in
+  `DemoExperience.ocr.test.tsx`), while §63g deliberately gives them manifest entries. Not drift;
+  each half is a recorded decision.
+- `ocr` still has NO entry, deliberately: it is a step inside Time Offset rather than a destination,
+  and `selectors.test.ts` pins that the Time Offset row keeps the marker while it is open.
+
+Rider extra: the registry test's `KNOWN_COVER_IDS` was a hand-written `'import', 'newCase',
+'newLocation'` that had already rotted — `editIncident`, `duplicateLocation`, `newAddressLocation`
+and `mediaLibrary` were all missing, so any of them in `covers` would have failed the check for the
+wrong reason. It is now derived from a `Record<ModalId, true>` declared in the test, exhaustive by
+construction like `MODAL_IDS` in `store/persistence.ts`: a new `ModalId` is a compile error there,
+which forces whoever adds one to decide whether the manifest should list it.
 
 ### 63h. RESIDUAL — `deleteMedia` rebuilds `locations` even for an id that is not there
 
