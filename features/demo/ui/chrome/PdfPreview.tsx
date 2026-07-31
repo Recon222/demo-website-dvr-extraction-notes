@@ -40,7 +40,14 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
       // window before the dialog opens. A browser that swallows the call ("Ignored call to
       // 'print()'" in Chromium) returns normally WITHOUT firing it — so absence-of-throw is
       // never treated as success, and a prior failure notice is never cleared by a second
-      // failed attempt.
+      // failed attempt. R-36 hardens the read against the mirror failure — a definitive
+      // "blocked" notice over a print that does happen:
+      // (a) capability: an engine without the print events gives no positive signal at all,
+      //     so degrade to absence-of-throw there instead of branding every save "blocked";
+      // (b) timing: Blink/WebKit postpone the printing steps (and the beforeprint they fire)
+      //     while the frame is still loading, so the blocked verdict waits one macrotask for
+      //     a late signal instead of judging synchronously.
+      const canDetect = 'onbeforeprint' in win
       let dialogOpened = false
       const markOpened = () => {
         dialogOpened = true
@@ -49,16 +56,28 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
       try {
         win.focus() // some browsers print the focused frame's parent otherwise
         win.print()
-      } finally {
+      } catch (err) {
         win.removeEventListener('beforeprint', markOpened)
+        throw err // → outer catch renders the notice; a throw is a definitive verdict
+      } finally {
         // R-16: win.focus() moved keyboard focus INTO the sandboxed frame — a scriptless
         // document where nothing forwards keys, so the parent document's Escape listener
         // (deferred §21) would go deaf after a save. Whatever the print attempt did (dialog,
-        // throw, silent ignore), hand focus back to the parent chrome.
-        window.focus()
+        // throw, silent ignore), hand focus back to the parent chrome. Focusing a parent
+        // element is what restores it (and implicitly blurs the frame) — window.focus()
+        // requests top-level browser-window activation, moves no DOM focus, and is not
+        // needed here (R-37).
         saveBtnRef.current?.focus()
       }
-      setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+      if (!canDetect || dialogOpened) {
+        win.removeEventListener('beforeprint', markOpened)
+        setPrintNotice(null)
+      } else {
+        window.setTimeout(() => {
+          win.removeEventListener('beforeprint', markOpened)
+          setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+        }, 0)
+      }
     } catch {
       setPrintNotice(PRINT_BLOCKED_NOTICE)
     }
