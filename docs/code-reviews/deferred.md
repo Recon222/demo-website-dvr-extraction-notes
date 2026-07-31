@@ -792,3 +792,23 @@ demo behavior was deliberately changed — none are gaps to re-flag:
    `fieldCount` counts `businessName`, so it is provably empty on that path. The field
    and its `Business:` render row were dropped rather than shipped dead; re-add both
    only if a producer outside that gate ever surfaces a business name on failure.
+
+## 36. ImportState stays a flat record — runtime-enforced coherence, accepted (p1-review R-33)
+
+**Context:** P1.5 added `acknowledged` (and the R-11 fix added `lastRealStage`) to the
+bridge's flat `ImportState`. `acknowledged` is only meaningful while
+`stage === 'progress' && result !== null`; a shape like `{ stage: 'result', result: null }`
+type-checks but renders a blank modal body. The review lane traced every `setImp` writer
+and confirmed **no invalid state is reachable today** — coherence is enforced by
+discipline across the run/cancel/retry call sites plus the pure `computeImportStage`
+derivation, not by the type.
+
+**Accepted (for now), not fixed:** remodelling the run half as a discriminated union
+(`picker/paste` | progress payload | result payload — the `RetentionView` house shape)
+would ripple through every `setImp` spread in the bridge mid-fix-round for a defect that
+is currently unreachable. Runtime enforcement is the same trade §27 records for the
+manifest's "exactly one active row" invariant.
+
+**Trigger to revisit:** the next field whose validity depends on `stage`/`result`
+pairings (a third correlated field is the tell), or any bug traced to an incoherent
+`ImportState` pairing — model the union then, in a dedicated change.
