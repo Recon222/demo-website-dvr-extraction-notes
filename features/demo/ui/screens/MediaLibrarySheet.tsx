@@ -18,6 +18,7 @@ import {
   mediaLibrarySubtitle,
   mediaLibraryTab,
   mediaTabBadge,
+  type AvailableMedia,
   type MediaBuckets,
   type MediaLibraryTabId,
 } from '@/features/demo/engine/logic/media'
@@ -138,7 +139,11 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
 
       {/* Mounted only while it is actually open — the phone does the same, so no player exists
           for a fullscreen nobody asked for (MediaLibrarySheet.tsx:343-351). */}
-      {fullscreen !== null && <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />}
+      {/* `canFullscreen` narrows as well as guards (R-24): the layer cannot be handed an item
+          with no bytes, and now cannot be COMPILED that way either. */}
+      {fullscreen !== null && canFullscreen(fullscreen) && (
+        <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />
+      )}
 
       {/* The phone's native `Alert.alert` (row 66) on the shared blocking-dialog primitive:
           title, message and both button styles verbatim, Escape dismissing to the safe arm. */}
@@ -302,7 +307,7 @@ function MediaPreview({ item, onFullscreen, onClose }: { item: MediaItem; onFull
 }
 
 /** Audio never opens fullscreen on the phone, and neither does a capture with no bytes left. */
-function canFullscreen(item: MediaItem): boolean {
+function canFullscreen(item: MediaItem): item is AvailableMedia {
   return item.kind !== 'audio' && isMediaAvailable(item)
 }
 
@@ -328,7 +333,7 @@ function canFullscreen(item: MediaItem): boolean {
  * one of the two media kinds, and two entry paths in one component is how the photo branch got
  * missed in the first place.
  */
-function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }) {
+function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
   const layerRef = useRef<HTMLDivElement | null>(null)
 
@@ -401,7 +406,7 @@ function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }
 
 /** The bytes themselves. Photos get a 4:3 box and videos 16:9, matching the phone's
  *  `PREVIEW_CONFIG` aspect ratios; audio has no picture, so its control sits in the same well. */
-function MediaContent({ item }: { item: MediaItem }) {
+function MediaContent({ item }: { item: AvailableMedia }) {
   if (item.kind === 'photo') {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a blob: object URL cannot go
@@ -633,7 +638,8 @@ function MediaRow({
  * rather than a broken image — the preview panel is where that state is EXPLAINED.
  */
 function MediaThumbnail({ item }: { item: MediaItem }) {
-  const showImage = item.kind === 'photo' && item.url !== undefined && item.url !== ''
+  // The predicate, not a third hand-written copy of its rule (R-24).
+  const showImage = item.kind === 'photo' && isMediaAvailable(item)
   return (
     <span
       style={{

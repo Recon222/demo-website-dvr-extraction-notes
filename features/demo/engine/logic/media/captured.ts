@@ -147,9 +147,21 @@ export function isDurableMediaUrl(url: string): boolean {
   return url !== '' && !url.startsWith('blob:')
 }
 
+/**
+ * A `MediaItem` that still has bytes: `url` present and non-empty. The type the rendering
+ * surfaces actually want — `MediaItem.url` is optional precisely because a restored capture has
+ * none (SNAPSHOT_VERSION 6's refresh contract), so every surface that reaches for the bytes was
+ * re-deriving "but not this one" by hand (R-24).
+ */
+export type AvailableMedia = MediaItem & { url: string }
+
 /** Whether this item still has bytes to show. `false` for anything restored from a snapshot
- *  that held a live capture — the state `MEDIA_EXPIRED_NOTICE` explains. */
-export function isMediaAvailable(item: MediaItem): boolean {
+ *  that held a live capture — the state `MEDIA_EXPIRED_NOTICE` explains.
+ *
+ *  A type predicate, not a bare `boolean` (R-24): the check and the invariant it establishes
+ *  are the same fact, so a caller that has run it should not have to restate the rule — or, as
+ *  the library's thumbnail did, write a third copy of it. */
+export function isMediaAvailable(item: MediaItem): item is AvailableMedia {
   return item.url !== undefined && item.url !== ''
 }
 

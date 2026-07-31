@@ -77,6 +77,7 @@ export {
   sanitizeFilename,
   withoutEphemeralMedia,
   withoutEphemeralMediaUrls,
+  type AvailableMedia,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media/captured'
 

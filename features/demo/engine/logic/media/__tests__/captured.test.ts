@@ -215,6 +215,16 @@ describe('the refresh contract', () => {
     expect(isMediaAvailable(item({ url: '' }))).toBe(false)
   })
 
+  it('narrows to AvailableMedia, so a caller never restates the rule (R-24)', () => {
+    const media = item()
+    if (!isMediaAvailable(media)) throw new Error('fixture should be available')
+    // THE assertion is the annotation: `url` is `string` here, not `string | undefined`.
+    // Against the old bare-`boolean` signature this line does not compile, so `tsc --noEmit`
+    // is what pins the predicate — the runtime expect below just keeps the arm honest.
+    const url: string = media.url
+    expect(url).toMatch(/^blob:/)
+  })
+
   it('explains the mechanism rather than reading as a bug', () => {
     expect(MEDIA_EXPIRED_NOTICE).toMatch(/did not survive the refresh/)
     expect(MEDIA_EXPIRED_NOTICE).toMatch(/never writes captured media to storage/)
