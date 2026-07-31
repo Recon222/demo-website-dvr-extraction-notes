@@ -613,3 +613,64 @@ describe('the browser ending a take on its own (R-13)', () => {
     expect(result.current.failure).toMatchObject({ code: 'RECORDING_FAILED' })
   })
 })
+
+
+describe('a stale failure never outlives its cause (R-14)', () => {
+  it('clears a frame-grab failure when a new acquisition starts', async () => {
+    // `failure` is `ownFailure ?? streamState.failure`, and the stream hook clears only its
+    // own half — so the grab sentence sat on top of every later acquisition state.
+    const { result } = mount({}, null)
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+    expect(result.current.failure).toMatchObject({ code: 'FRAME_GRAB_FAILED' })
+
+    await act(async () => {
+      await result.current.open()
+    })
+    expect(result.current.failure).toBeNull()
+  })
+
+  it('shows the NEW acquisition failure, not the old grab sentence', async () => {
+    let deny = false
+    const { result } = mount({
+      deps: {
+        mediaDevices: devices({
+          getUserMedia: async () => {
+            if (deny) throw domError('NotReadableError')
+            return fakeStream(['video', 'audio'])
+          },
+        }),
+      },
+    })
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+
+    deny = true
+    await act(async () => {
+      await result.current.selectDevice('cam-b')
+    })
+    expect(result.current.failure).toMatchObject({ code: 'DEVICE_BUSY' })
+  })
+
+  it('clears it on a device switch too', async () => {
+    const { result } = mount({}, null)
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+    await act(async () => {
+      await result.current.selectDevice('cam-a')
+    })
+    expect(result.current.failure).toBeNull()
+  })
+})

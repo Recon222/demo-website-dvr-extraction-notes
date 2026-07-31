@@ -455,6 +455,31 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
     setOwnFailure(null)
   }, [])
 
+  /**
+   * Acquisition, with this hook's own failure cleared first (R-14).
+   *
+   * `failure` reports `ownFailure ?? streamState.failure`, and `useCaptureStream.open` clears
+   * only its own half. So after a frame-grab failure, a failed device switch showed the OLD
+   * sentence ("could not turn the camera frame into an image") over the NEW state — the
+   * visitor reading an explanation for something that is no longer what went wrong. Every
+   * entry point that starts a fresh acquisition clears both.
+   */
+  const open = useCallback(
+    (deviceId?: string) => {
+      setOwnFailure(null)
+      return streamState.open(deviceId)
+    },
+    [streamState.open],
+  )
+
+  const selectDevice = useCallback(
+    (deviceId: string) => {
+      setOwnFailure(null)
+      return streamState.selectDevice(deviceId)
+    },
+    [streamState.selectDevice],
+  )
+
   return {
     permission: streamState.permission,
     stream: streamState.stream,
@@ -464,8 +489,8 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
     deviceFailure: streamState.deviceFailure,
     selectedDeviceId: streamState.selectedDeviceId,
     isOpening: streamState.isOpening,
-    open: streamState.open,
-    selectDevice: streamState.selectDevice,
+    open,
+    selectDevice,
     close: streamState.close,
 
     // A failure raised HERE (frame grab, recorder) is the more recent event whenever both
