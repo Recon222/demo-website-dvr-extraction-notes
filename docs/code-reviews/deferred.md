@@ -2431,3 +2431,1430 @@ before the timer, still followed by a click), both original hooks carried the sa
 assumption, and R-20 narrowed the latch rather than widening it — adding an unreachable
 belt-and-braces here would be one more unpinned line in the file this round exists to make
 honest.
+
+## 58. P4.1 (parity/p4-capability) — the web capture capability: adaptations, refutations & residuals
+
+**Source:** P4.1 Capture capability layer (plan §5 P4.1, matrix §1.11 preamble) — the
+`getUserMedia`/`MediaRecorder`/canvas capability every P4 media package consumes. Engine core in
+`features/demo/engine/logic/media/`, browser I/O in `features/demo/ui/inputs/capture-media.ts` +
+`object-urls.ts`, hooks in `useCaptureStream.ts` + `useMediaCapture.ts`.
+
+### 58a. REFUTATION — object URLs are NOT what puts the test suite on the sample path
+
+The brief (and the natural assumption) is that jsdom's missing media APIs route the suite to the
+sample fallback wholesale. Verified in-environment, that is only two-thirds true. `navigator.
+mediaDevices` and `MediaRecorder` really are undefined. **`URL.createObjectURL` is not:** jsdom's
+own `window.URL` lacks it, but under Vitest the global `URL` is **Node's**, which implements it and
+mints `blob:nodedata:<uuid>`.
+
+Consequence, recorded so nobody "fixes" it later: `readBrowserObjectUrls()` returns a working io in
+tests, and the object-URL suites exercise real minting and revocation rather than a stub. The
+capability's `unavailable` state is gated on `mediaDevices`/`MediaRecorder` only. `isDurableMediaUrl`
+still classifies `blob:nodedata:…` correctly (it is a `blob:` URL), so the persistence contract is
+unaffected. No deferral — a correction to a premise.
+
+### 58b. The phone's permission REMEDY copy is deliberately not lifted
+
+Headlines are verbatim ("Camera Access Required", "Microphone Access Required", "No camera device
+available"). The remedy sentences are not: the phone says "enable microphone access in your
+**device settings**", which in a browser points the visitor at a control that cannot fix a site
+permission. `captureFailureMessage` says "your browser's site settings" instead, pinned by a test
+asserting the phone phrase never appears. Copy parity loses to being correct.
+
+### 58c. Filename extensions name the real container, not the phone's
+
+The phone appends `.jpg` / `.mp4` / `.m4a` (ui-mapping 09:592). A browser's `MediaRecorder`
+usually produces WebM, and Chrome sometimes reports `video/x-matroska`. `extensionForMimeType`
+therefore derives the extension from what was ACTUALLY produced, falling back to the phone
+extension only when the MIME type carries no container information. Stamping `.mp4` on a WebM blob
+would put a false claim in an evidence filename. **P4.4 must use `mediaFilename(base, captured)`**
+rather than appending an extension itself.
+
+### 58d. Permissions API not queried — a denial costs one extra click after a reload
+
+`navigator.permissions.query({ name: 'camera' })` would let a surface render the denied view
+immediately on mount instead of after the visitor presses the control and is instantly refused. It
+is not implemented: the `camera`/`microphone` descriptors are Chromium-only, so the demo would
+carry a second permission-source seam that answers on one browser family and stays silent on the
+others. Current behaviour is honest, just one click slower after a reload.
+**Trigger:** if P4.3/P4.6 device testing shows the extra click reads as a broken button — add it
+as an OPTIONAL enrichment behind its own seam, never as the source of truth for `CapturePermission`.
+
+### 58e. Audio-degradation ladder: one extra `getUserMedia` on a mic-less machine
+
+A camera request that also wants audio is retried video-only when the combined request fails on
+`NO_DEVICE`/`PERMISSION_DENIED`, so a machine with no microphone still gets a (silent) video take
+and the surface can say so via `audioDegraded`. Cost: a second prompt-free `getUserMedia` on those
+machines. Accepted — the alternative is reporting "No camera device available" to someone whose
+camera is fine, which is simply false. `DEVICE_BUSY` deliberately does NOT retry.
+
+### 58f. `sizeBytes` is absent on sample captures, and duration is the recorded figure
+
+`toSampleCapture` reports no `sizeBytes`: nothing measured the bundled files at runtime, and a
+hard-coded byte count in P4.5's media-item info panel would be a number nobody verified. Its
+`durationSec` (4s) is a property of the committed asset, regenerable from
+`tools/sample-media/README.md`. A live recording's `durationSec` is the RECORDED duration (paused
+time excluded), not the wall time of the take.
+
+### 58g. Media library / delete revocation is P4.5's to wire
+
+`revokeCapturedUrls(io, urls)` exists in `object-urls.ts` with tests and **zero callers** — it is
+the counterpart of `handOff()`: once the store owns a capture's URL, `deleteMedia` is the only
+thing that can revoke it. Left unwired rather than speculatively hooked into the store, since P4.5
+owns the delete flow.
+**Trigger:** P4.5, when `deleteMedia` gets its UI — call it from the bridge's delete handler. If
+P4.5 ships without it, a deleted photo's bytes stay pinned for the life of the tab.
+
+### 58h. No settings surface for capture quality
+
+The phone's `useMediaCaptureSettings` drives video resolution, codec, shutter sound, max duration
+and GPS-in-media (ui-mapping 09). The demo pins the browser defaults and the phone's 1-hour ceiling
+instead — same posture P2.3 took with `buildGpsConfig`'s `balanced`/30s.
+**Trigger:** P7.1 (Settings shell) — add a Media pane alongside Location and thread the values
+through `UseMediaCaptureOptions`.
+
+### 58i. `MediaItem.url` is optional and `snapshotOf` strips `blob:` URLs — SNAPSHOT_VERSION 6
+
+Recorded here because it is the one P4.1 change outside the media module. Media bytes are never
+persisted (plan §5 P4.1 / D2), so the write side drops object URLs and a restored capture renders
+`MEDIA_EXPIRED_NOTICE`. Making `url` optional is a field WIDENING — the drift direction the
+snapshot guard's compile-time devices explicitly do not catch (the file's own R-30 note) — so the
+version and key suffix moved together, and the maximal round-trip fixture switched its media URLs
+to bundled sample paths so `url`/`poster` remain part of its "no optional silently dropped" pin.
+Any further `MediaItem` shape change must bump again.
+
+## 59. P4.2 (parity/p4-drawer) — the drawer Media accordion + save-status chrome: refutations, deviations, residuals
+
+**Source:** P4.2 drawer media accordion (matrix row 80; ui-mapping 14 § CustomDrawerContent;
+phone `src/components/layout/CustomDrawerContent.tsx:265-400`) — the Media accordion, the
+save-status indicator slot, and the app-version chrome line.
+
+### 59a. REFUTATION — the phone has no save-status indicator, in the drawer or anywhere else
+
+Row 80 lists "the **save-status indicator** (`isDirty`/`saveStatus`)" among the drawer's missing
+pieces, which reads as a phone surface waiting to be ported. It is not one. ui-mapping 14's
+render order for `CustomDrawerContent` is header → Back to Cases → item list → Media accordion →
+footer, and the source confirms it: `CustomDrawerContent.tsx` imports `useSectionCompletion` but
+never `useSaveStatus`. Across the whole phone app, `useSaveStatus()` — the READER — has **zero**
+production callers; only the `setSaveStatus` writer is wired (`useAutoSave.ts:24`,
+`useScreenSave.ts:4`, `AppStateHandler.tsx:29`, `app/(form)/_layout.tsx:15`,
+`completion.tsx:8`). The phone computes save status and shows it to nobody.
+
+So there was no copy, placement, or colour to lift, and the demo's line is an **original** held
+to the honesty rule rather than to parity: it reports the per-tab sessionStorage snapshot and
+never implies the phone's device persistence. Anyone re-reading row 80 later should not go
+looking for the phone widget it seems to promise.
+
+### 59b. REFUTATION — the app-version chrome was already there; what was missing was honesty
+
+Row 80 also lists "app-version chrome" as missing. The drawer footer has rendered
+`DVR Extraction Notes` + `v1.0.0` since the original prototype port (visible in `2da3e3d`,
+pre-P0). The real defect was subtler and is what P4.2 fixed: a bare `v1.0.0` inside a browser
+demo reads as a build of the app. It now reads `Interactive demo · v1.0.0`, with the version
+still the app's own (phone `app.config.js:11` — the same value the phone footer renders through
+`Constants.expoConfig?.version`), as a literal because the demo is a separate deployable with no
+Expo config to ask.
+
+### 59c. Collapsed sub-rows are UNMOUNTED, not clipped — deliberate divergence
+
+The phone animates a container height and keeps the three rows mounted behind it, which forces
+three extra props to stop a hidden row being focusable or announced: `pointerEvents={'none'}`,
+`accessibilityElementsHidden`, `importantForAccessibility={'no-hide-descendants'}`
+(`CustomDrawerContent.tsx:304-309`). The demo renders them only while expanded, which achieves
+all three by construction — and on the web the phone's arrangement would be an a11y **defect**
+(`aria-hidden` over focusable buttons), not a fix. Consequence: the expand animates and the
+collapse is immediate, matching the demo's dominant one-way idiom (`ModalShell`'s `screenIn`),
+and keeping the component tests synchronous — no `waitFor` on an exit animation.
+**Trigger:** if a reviewer wants a symmetric collapse, it is an `AnimatePresence` wrap plus
+`waitFor` in two arms — and it should be weighed against the contention-flake budget the
+5000ms `asyncUtilTimeout` in `vitest.setup.ts` exists to absorb.
+
+### 59d. The status line is sampled per drawer-open, not ticked
+
+`saveStatus` is computed when `drawerOpen` flips true (after a `flush()`, so a write inside its
+250 ms debounce lands first) and cleared on close. It does not tick while the drawer sits open,
+so a menu left open for two minutes still reads "just now". Judged not worth an interval: the
+drawer is a transient overlay, the reading is correct at the moment it is asked for, and every
+alternative (interval, or reading at render) either adds a timer to a component test suite or
+breaks the "no clock at render scope" rule.
+**Trigger:** if the drawer ever becomes a persistent surface (a pinned sidebar at desktop
+widths), the line needs a tick or it becomes a stale claim.
+
+### 59e. No `MODAL_NARRATION` entry for `mediaLibrary`
+
+Every other modal id has rail narration; the media library deliberately does not, so the rail
+keeps showing the chapter the visitor is on. `narration`'s `?? ` fallback is documented for
+exactly this case ("guards a modal with no narration entry — falls back to the chapter rather
+than blanking"). Writing narration for a sheet whose body is an honest placeholder would be
+narrating a fast-follow.
+**Trigger:** P4.5, in the same commit that replaces the sheet's body.
+
+### 59f. The two capture rows are ungated, matching the phone's failure mode
+
+The phone hides `Capture Media`/`Record Audio` behind `useStepVisible('media-capture')` /
+`useStepVisible('audio-recording')` — form-customization step visibility. The demo has no
+analog to gate on: both targets are `LaunchableId`s, not wizard screens, so they never appear in
+a profile's step list (`selectDrawerItems` filters wizard screens only). Both rows therefore
+always render. Note also that neither is gated on an open location, on the phone or here — only
+`Media Library` is (and that gate IS ported, toast copy and drawer-stays-open behaviour included).
+**Trigger:** if form-customization profiles ever gain launchable visibility, this is where it
+lands.
+
+### 59g. `DrawerItem.icon` is still dead
+
+`DrawerItem` has carried an unused `icon?: ReactNode` since the port — the step rows render the
+active bar, the label and the dot, never an icon. P4.2 did not use it (the accordion's icons are
+internal to the accordion, not per-item data) and did not remove it, to keep this package's diff
+off the settled dots/items code.
+**Trigger:** the next package that touches `DrawerItem`'s shape — delete it there, or wire the
+step rows to it if the phone's per-item Ionicons are ever wanted.
+
+### 59h. The bridge's absent-handle fallback is unpinned, deliberately
+
+`describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, …)` mirrors `saveProgress`'s
+`persistenceRef.current?.isLive() ?? false` (R-2's never-assume rule). It has no test:
+`persistDemoStore` returns a non-nullable handle and the effect that sets the ref commits before
+any interaction, so the only way to exercise the branch is to make the module mock return
+something the real module's type forbids — a test of the mock. Recorded rather than faked.
+
+## 60. P4.3 (parity/p4-photovideo) — the photo/video capture screen: adaptations, refutations & residuals
+
+**Source:** P4.3 photo/video capture (plan §5 P4.3, matrix rows 49–55; ui-mapping 09; phone
+`src/features/media/video-image-capture/`). Screen in
+`features/demo/ui/screens/MediaCaptureScreen.tsx`, bridge arm + `saveCapturedMedia` in
+`ui/DemoExperience.tsx`, two engine additions in `engine/logic/media/`.
+
+### 60a. The `unavailable` copy lives in `CAPTURE_PERMISSION_COPY`, not `captureFailureMessage`
+
+The brief named `captureFailureMessage` as "the single copy site — extend there, not inline".
+It was not extended, and this is why: that function is `(code: CaptureErrorCode, facility) =>
+string`, a taxonomy of **attempts that went wrong**, and every one of its sentences ends in the
+past tense ("nothing was captured"). `unavailable` is not an attempt — it is the standing state
+a visitor meets before pressing anything, and the screen renders it as a headline + body pair,
+which is the shape `CAPTURE_PERMISSION_COPY` already holds for `prompt` and `denied`. Adding a
+fourth arm to the error function would have meant inventing an error code with no producer.
+
+So: `unavailableBody` joined `body`/`deniedBody` in the same frozen record, one file away, and
+the headline over it IS `captureFailureMessage('NO_DEVICE', 'camera')` — the phone's verbatim
+"No camera device available". Both copy sites stayed single; neither string is inline in the
+screen. Pinned by `permissions.test.ts` (never the denied sentence, never "site settings",
+always names the bundled sample; and no body anywhere mentions device settings — §58b).
+
+**Note for the orchestrator:** `unavailableBody` was added for BOTH facilities, so P4.6 can
+consume the microphone one without touching `permissions.ts`. If P4.6 added its own, that file
+is a textual conflict at merge — take one copy of the key, not two.
+
+### 60b. INTERIM — the accept path saves a default filename and an empty caption (P4.4's seam)
+
+P4.4 owns `MetadataForm`. Until it lands, `onAccept` calls the new pure
+`defaultCaptureBasename(captured)` (derived from the capture's own `capturedAt`, so the demo's
+no-`Date.now()` rule holds) and passes `caption: ''`. The insertion point is marked in source
+with a grep-able `// SEAM(P4.4): MetadataForm inserts between review-accept and addMedia` in
+`MediaCaptureScreen.onAccept`; the review stage already shows the visitor the resolved
+"Saving as `<name>.<ext>`" line, which is the slot the form replaces.
+
+Two consequences P4.4 inherits: `SAMPLE_MEDIA[kind].suggestedFilename` still has zero callers
+(it is the sample's pre-fill, and there is nothing to pre-fill yet), and two captures inside the
+same second produce the same base — deliberate, since the phone enforces no filename uniqueness
+either and `MediaItem.id` is what identifies a row.
+**Trigger:** P4.4 — replace the filename line with the form, keep `mediaFilename` as the only
+extension author (§58c), and leave the boolean contract of `onSave` alone (see 60c).
+
+### 60c. `onSave` returns a boolean because the object-URL hand-off depends on the answer
+
+`MediaCaptureScreen.onAccept` calls `handOff()` **only** when the bridge reports the store took
+the item. This is not defensive style — it is the §58 carry-rule made conditional: a refused
+save must leave the `blob:` URL owned by the capture hook so the unmount sweep frees it, and an
+accepted one must release it or the saved photo blanks. Both directions are pinned with mutation
+probes in `MediaCaptureScreen.test.tsx` ("hands the URL off…" fails if the call is deleted;
+"KEEPS the capture when the bridge refuses it" and "still revokes…" fail if it is made
+unconditional). A future refactor that makes `onSave` `void` silently reintroduces one of the
+two bugs.
+
+### 60d. The phone's two-row permission grant became ONE control — deliberate
+
+`PermissionsView` lists Camera and Microphone with independent status icons and independent
+`Grant` buttons, because they are two OS permissions. A browser answers for both in a single
+`getUserMedia` prompt; rendering two buttons where only one request exists would be a control
+the page cannot honour, and a "Microphone: ✕" row on a machine that simply has no mic would be
+reporting a refusal that never happened. One row, one prompt — and the microphone half is
+reported **after** the fact by `audioDegraded`, which video mode surfaces as "the take will be
+silent" (§58e). Headline and description are still the phone's verbatim.
+
+### 60e. Flip camera → a device cycle button, hidden when there is nothing to cycle to
+
+The phone flips a fixed `back`/`front` pair; a browser has an open-ended `enumerateDevices()`
+list, which is why P4.1's `devices.ts` calls the analog a picker. The screen renders a single
+`Switch camera` control in the phone's flip slot that advances to the next device and captions
+the live one — the phone's affordance, over the browser's data model. It is **absent** when
+`devices.length < 2`, following `toCaptureDevices`' own reasoning: a control that provably
+cannot change anything is the UI version of a fake success. Disabled while recording, as the
+phone's flip is.
+
+`deviceFailure` is rendered as its own line, distinct from `failure` — P4.1 kept "the list could
+not be read" apart from "there are none" precisely so the absence of a picker could be
+explained rather than just happen.
+
+### 60f. Stop is gated on the shared 500 ms `canStop`, which the phone's VIDEO path does not have
+
+`canStopAtElapsed` is documented as the phone's AUDIO recorder gate (ui-mapping 10);
+`VisionCameraScreen`'s video Stop is always live. The demo applies it to video anyway. Reason: a
+browser `MediaRecorder` stopped before its first `dataavailable` assembles **zero bytes**, which
+P4.1 correctly reports as `RECORDING_FAILED` — so the ungated button's only effect in that window
+is to hand the visitor an error they could not have avoided. Mutation-probed ("refuses Stop until
+the take can produce bytes").
+
+**AMENDED (review R-9, P4 round 1).** This entry originally read "the shutter renders disabled
+for that sub-second window", which described the first implementation: a native `disabled`
+attribute. That was wrong on its own terms — a `disabled` applied to the control the visitor JUST
+pressed drops focus to `<body>` and re-enables 500 ms later with focus lost, so the gate refused
+silently and unfocusably. The shutter now uses the house idiom (`aria-disabled` + guarded handler
+in `onShutter` + a `role="status"` reason line, `aria-describedby`-linked), matching
+`AudioRecorderScreen`'s two stop affordances. The DECISION recorded above (gate video Stop at
+500 ms) is unchanged; only the mechanism was wrong. §61b's claim that the demo gates "using the
+established `aria-disabled` + guarded-handler + `role='status'` reason idiom" was accurate for the
+audio surface and is now accurate for this one too — no amendment needed there.
+The same pass converted this file's other native-`disabled` site, the permission stage's Grant
+button (`disabled={isOpening}`, which spanned the whole browser permission prompt).
+**Trigger:** if a reviewer wants phone-exact behaviour, the honest alternative is a `timeslice`
+argument to `MediaRecorder.start()` small enough to guarantee a chunk — that changes P4.1's
+`startStreamRecording`, not this screen.
+
+### 60g. The shutter's accessible name changes on the sample path — deliberately not "Take photo"
+
+On `unavailable` the button attaches a bundled file. It is labelled `Attach sample photo` /
+`Attach sample clip`, not the phone's `Take photo` / `Start recording`, and a test asserts the
+phone strings are absent in that state. A control named for a capability the page does not have
+is precisely the fake success the honesty rule forbids — the same judgment the OCR screen made
+with "Use sample DVR clock". The phone's names are used verbatim wherever the capture is real.
+
+### 60h. No torch/flash control — deliberate non-port
+
+The phone's top row carries a torch toggle (`torch-toggle`, `Turn flash on`/`off`). The web
+equivalent is `MediaStreamTrack.applyConstraints({ advanced: [{ torch: true }] })`, which exists
+on Chrome for Android and essentially nowhere else — and it is not in P4.1's capability layer.
+A permanently-inert flash button would be a claim the demo cannot back. Omitted rather than
+faked; the top row carries only Close.
+**Trigger:** if the demo ever targets mobile Chrome as a first-class surface, add it behind a
+capability probe in `useCaptureStream` (torch is a track *capability*, so it belongs beside
+`hasAudio`), never as an unconditional button.
+
+### 60i. No `isSaving` state, and no focus-reset effect — both are structurally absent, not skipped
+
+The phone threads `isSaving` from the route wrapper to disable both preview buttons and spin the
+primary one, because its save is an async SQLite write. The demo's save is a synchronous store
+write inside the click handler; there is no in-flight window to render, and a spinner over a
+zero-duration operation would be theatre. Likewise `MediaCaptureFlow`'s `useIsFocused` effect
+(reset `flowState` to `'camera'` on blur) has no counterpart: `closeLaunch` unmounts this screen,
+so its state resets by construction and the pending capture's URL is revoked on the way out.
+**Trigger:** P5/P6 if media ever gains an async persistence path (an upload, an IndexedDB write)
+— then `onSave` becomes a promise and both of these come back.
+
+### 60j. Recording badge reuses the existing `blinkDot` keyframe instead of a phone-exact pulse
+
+The phone's dot animates opacity 1 ⇄ 0.3 on a 500 ms/500 ms loop. `demo.css`'s existing
+`blinkDot` runs 0.15 ⇄ 1; the badge uses it at `1s ease-in-out infinite`, gated by
+`useReducedMotion`. A new keyframe would have been three lines, but `demo.css` is a single
+shared file and **P4.6 (audio recorder) is landing in parallel** — a keyframe added on both
+branches is a merge conflict in the one file the repo's conventions say not to churn. The
+difference is a slightly darker trough on a 12 px dot.
+**Trigger:** the package that next has `demo.css` to itself — add `recordPulse` (1 ⇄ 0.3) and
+point both recording indicators at it.
+
+### 60k. REFUTATION — `MODAL_NARRATION.ocr` is unreachable, and a test pins it anyway
+
+Found while deciding whether `mediaCapture` needed rail narration (it does not — §59e's
+precedent: the rail stays on the anchor chapter). `MODAL_NARRATION` is typed
+`Partial<Record<ModalId | LaunchableId, ChapterNarration>>` and carries a full `ocr` entry, but
+the only read is `(modal && MODAL_NARRATION[modal])` in `DemoExperience.tsx` — keyed by `modal`,
+which is `ModalId | null`. `'ocr'` is a `LaunchableId`, never a `ModalId`, so the entry can
+never be selected: while the OCR screen is open the rail shows `NARRATION[currentChapter]`
+(Time Offset). `content.test.ts`'s "has modal/launch-screen copy for every modal the bridge can
+open, plus ocr" therefore asserts the existence of copy no visitor can reach.
+
+Not fixed here: it is OCR/rail territory (P2.2/P4.7), the fix is a one-line anchor change
+(`(modal && MODAL_NARRATION[modal]) ?? MODAL_NARRATION[view] ?? …`) with a narration decision
+attached, and doing it from a media package would put an untested rail change in a diff nobody
+would look for it in.
+**Trigger:** P4.7, which owns the OCR camera step — either wire the anchor to `view` for
+launchables (and then decide whether the two media screens want entries), or delete the `ocr`
+entry and its test clause.
+
+**✅ RESOLVED (P4.7):** the anchor is now modal → launchable view → map → chapter
+(`DemoExperience.tsx`, via the new `isLaunchableId` guard in `content/screens.ts`), matching
+the manifest anchor in `selectExploreStatus`. The `ocr` entry renders while the OCR screen is
+open; the two media launchables deliberately keep NO entries (§59e — their rail stays on the
+anchor chapter), pinned by the §59e fallthrough test in `DemoExperience.ocr.test.tsx`.
+
+### 60l. `MediaItem` and the snapshot version are untouched
+
+Recorded because §58i asks for it explicitly. P4.3 adds no field to `MediaItem`, `DemoLocation`
+or any persisted shape — `buildMediaItem` was already the construction site and the bridge just
+calls it — so `SNAPSHOT_VERSION` stays at 6 and the three compile-time guard devices did not
+move. A saved capture round-trips through `snapshotOf` exactly as §58i describes: the `blob:`
+URL is stripped and the restored row renders `MEDIA_EXPIRED_NOTICE`. Sample captures keep their
+`/demo-media` URLs and survive a refresh intact.
+
+## 61. P4.6 (parity/p4-audio) — the audio recorder: decisions, deviations, refutations & residuals
+
+**Source:** P4.6 audio recording (plan §5 P4.6; matrix rows 67-69; ui-mapping `10-audio.md`;
+phone `src/features/media/audio-recording/`). Engine metering in
+`features/demo/engine/logic/media/audio-levels.ts`, Web Audio I/O in
+`features/demo/ui/inputs/audio-analyser.ts` + `useAudioAnalyser.ts`, screens in
+`features/demo/ui/screens/Audio{RecorderScreen,PreviewScreen,RecordingFlow}.tsx`, bridge arm in
+`DemoExperience.tsx`.
+
+### 61a. DECISION — the `<audio>` preview does NOT auto-reset on finish
+
+The plan asked P4.6 to decide this deliberately rather than inherit it. Decision: **no
+auto-reset, and the phone's replay guard ported verbatim.** Three reasons, in order of weight:
+
+1. **A finished take should still read as finished.** The bar sitting full is information — "you
+   have heard all of this". Snapping it to zero makes a played clip look untouched, which is a
+   worse lie than the one the reset would be fixing.
+2. **`HTMLMediaElement` already behaves this way.** `ended` leaves `currentTime` at the duration,
+   so auto-resetting would be the DEVIATION here, not the parity. The phone's non-reset being an
+   `expo-audio` quirk does not make the same behaviour a quirk in a browser — it is the platform
+   default on both, arrived at independently.
+3. **The part that actually matters is ported.** `AudioPreview.tsx:106-109` seeks to 0 when the
+   head is within 0.1s of the end, so pressing Play at the end replays instead of doing nothing.
+   That is a behaviour, not a quirk, and it is what keeps the control from ever being dead.
+
+Four tests pin it (`AudioPreviewScreen.test.tsx` § the auto-reset decision): no rewind on
+`ended`, rewind on the next press, the 0.1s tolerance honoured, and no rewind from mid-take.
+**Trigger:** none — this is a settled decision, not a deferral. Re-open only if the phone
+changes deliberately (not if it changes libraries).
+
+### 61b. DEVIATION — the 500ms Stop gate binds BOTH stop controls
+
+The phone gates only the Stop pill (`RecorderScreen.tsx:314`) and never passes `disabled` to the
+big record/stop button; its own ui-mapping records the guard as "currently inert" for that
+control (`10-audio.md:62`, `:70`). A sub-500ms take can therefore leave by the other door, where
+`stopRecording()` returns nothing and the visitor gets a "Failed to save recording" toast.
+
+The demo gates both, using the established `aria-disabled` + guarded-handler + `role="status"`
+reason idiom (§44b / R-15) so the refused control stays focusable and announces why. Not
+replicating a bug is the same call P4.5 was given for the phone's missing-`onDismiss` (D-B6).
+**Phone-side follow-up (NOT actioned — this repo is read-only for the parity effort):** worth a
+`BUG-NNN` on the phone, severity low: the guard exists and one path ignores it.
+
+### 61c. DEVIATION — the format row prints what is true, and the bitrate cell is gone
+
+The phone's `TimerCard` bottom row reads `44.1kHz / AAC`, a wall clock, and `MONO / 128k`, all
+derived from `AUDIO_CAPTURE_SETTINGS` — figures the phone CHOSE, so printing them is truthful
+there. The demo chooses none of them: the browser picks the container, and the rate and channel
+count come off the opened track. So the row reads `{sampleRate} / {channels}` · clock ·
+`{codec}`, each `null` rendering as an em dash, and the **bitrate cell has no honest
+counterpart at all** — `MediaRecorder` does not report the bitrate it settled on, and P4.1's
+`startStreamRecording` does not set one. The codec occupies that cell instead.
+
+`readAudioTrackFormat` deliberately returns `null` for whatever a browser omits (Firefox states
+`channelCount` but not `sampleRate`) rather than defaulting: 44.1kHz printed beside a recording
+this browser made would be one device's constant presented as another's fact.
+**Trigger:** if P7.1's Settings shell ever grows a Media pane (§58h), an explicitly-set
+`audioBitsPerSecond` would make a real bitrate available — add the cell back then, not before.
+
+### 61d. DEVIATION — the glass pills are named by their visible text
+
+The phone gives the Stop pill `accessibilityLabel="Stop recording"` — byte-identical to the big
+button's — leaving two controls on one screen indistinguishable to a screen reader. The demo's
+pills are named `Pause` / `Resume` / `Stop` (their visible text, which is also the stronger web
+convention, WCAG 2.5.3); the big button keeps the phone's `Start recording` / `Stop recording`
+verbatim.
+
+### 61e. DEVIATION — a denied microphone offers a retry; the phone's view has none
+
+`RecorderScreen.tsx:214-236` offers only Cancel, correctly: once iOS has recorded a refusal it
+will not prompt again, so a retry button could not work. In a browser the site permission is one
+click away in the address bar, so `Try again` (calling `open()` again) is a real affordance
+rather than a dead control. The headline is the phone's verbatim; the body is §58b's
+browser-corrected remedy.
+
+### 61f. REFUTATION — `captureFailureMessage` did not need extending for the denied view
+
+The brief instructed P4.6 to "extend `captureFailureMessage` — the single copy site — not inline
+strings" for the permission-denied view. `captureFailureMessage` is the FAILURE-notice site, and
+it already covers `PERMISSION_DENIED`. The permission SCREEN's copy has its own single site,
+which P4.1 also built: `CAPTURE_PERMISSION_COPY.microphone` (`permissions.ts:130-144`), carrying
+`title` / `body` / `deniedBody`. The screen consumes those as props from the flow, so no copy is
+inlined and nothing needed extending. One string WAS added, and to the same layer rather than to
+a component: `NO_RECORDER_NOTICE` in `samples.ts`, keyed by facility so P4.3 can reuse it.
+
+### 61g. The microphone is released at stop, not held through review
+
+A browser shows a live recording indicator for as long as a track is open. Leaving the stream up
+through the review screen would say the microphone is still listening when it is not, so the
+flow calls `close()` once a take is assembled and `open()` again on Record Again (no second
+prompt — the page already holds the grant). A FAILED stop deliberately keeps the stream: the
+visitor is still on the recorder and that is exactly what they need to retry.
+
+**Correction (review R-12).** This paragraph originally ended "Both directions are pinned in
+`AudioRecordingFlow.test.tsx`" — which was **false when written**. Only the release-on-success
+direction had a test; the zero-byte arm asserted the failure alert and the absence of the review
+screen, both of which survive a `close()` made unconditional. The tests lane proved it (23/23
+green under that mutation). The arm now carries the two assertions that actually pin it —
+`track.stop` not called, and the live `Start recording` button still present, since an
+unconditional close drops `mode` to `'offer'` and replaces the recorder with "Enable
+microphone", taking the retry affordance away at the moment it is needed. **Reusable lesson,
+which is why this stays as a correction rather than a silent edit:** "both directions are
+pinned" is a claim about tests, and the only way to earn it is to run the mutation, not to read
+the arm and see the words in it.
+
+Consequence worth knowing: entering the recorder opens the microphone immediately (phone parity,
+`RecorderScreen.tsx:112-116`), so a visitor who never presses Record still sees their browser's
+mic indicator. Judged correct — they pressed "Record Audio" to get here, and it is what makes
+the idle waveform real rather than decorative.
+
+### 61h. A suspended `AudioContext` degrades to "NO LIVE INPUT", never to flat bars
+
+An `AudioContext` constructed outside a user gesture starts suspended and fills its analysis
+buffers with zeros. Flat bars over a live recording would read as "the microphone heard
+silence" — a false statement about the take. `AnalyserHandle.running()` reports whether the
+graph is processing, `useAudioAnalyser` re-checks it every tick (a backgrounded tab can suspend
+one after the fact), and any un-live path returns the single frozen `RESTING_METER`, which the
+panel labels. The dB cell is withheld rather than showing `-inf dB`, which would be a
+measurement.
+**Trigger:** if device testing shows the resume-on-sticky-activation attempt failing in a real
+browser family, the fix is a gesture-scoped `resume()` on the first Record press — not removing
+the `running()` check.
+
+### 61i. RESIDUAL — the accept path has no MetadataForm (P4.4 owns it)
+
+INTERIM, disclosed: Save writes `{ filename: <default base>, caption: '' }` with no form. Three
+grep-able `SEAM(P4.4)` markers bracket the insertion point — `AudioPreviewScreen.tsx` (between
+the player card and the action row, the phone's content order), `AudioRecordingFlow.tsx`
+(`handleSave`, where the form's value replaces the synthesized object), and `DemoExperience.tsx`
+(`saveAudioNote`'s `meta` parameter and the `defaultFilenameBase` prop). The base name is
+`audio-note-{n}` off the location's existing audio count, and a SAMPLE take is renamed to the
+bundled asset's own `sample-note` so a library row cannot read like something the visitor
+recorded. `Save Audio` is currently **ungated**; P4.4 restores the phone's
+filename-validity gate along with the form.
+**Trigger:** P4.4, in the commit that mounts the form.
+
+### 61j. RESIDUAL — the spectrum's displayed band is a constant, not a setting
+
+`SPECTRUM_BIN_FRACTION = 0.25` shows the bottom quarter of the analyser's range (~6kHz at 48k)
+because a voice note puts effectively all of its energy there and the full range would leave
+three quarters of the bars flat at all times. This is a choice of WHICH real bins to display,
+never a rescaling of what they say — but it is a constant nobody can see or change.
+**Trigger:** only if a reviewer looking at a real recording finds the band wrong for the
+content; it is a one-line change with its own test.
+
+### 61k. RESIDUAL — the wall-clock cell is blank for one frame
+
+The clock seam may not be read at render scope (features/demo/CLAUDE.md), so `timeOfDay` is
+filled by an effect and the cell is empty on the very first paint. A lazy `useState` initialiser
+would fix it and would also be a render-scope clock read. Left as is.
+
+### 61l. The 1-hour auto-stop explains itself in-screen rather than as a toast
+
+The phone fires an info toast (`RecorderScreen.tsx:186-190`). The demo shows the same words as a
+`role="status"` line, carried onto whichever screen the visitor ends up on — because the
+auto-stop also MOVES them to review, and a screen that changes by itself with no explanation is
+a silent event. Both screens therefore take a `notice` prop; it is neutral-styled, never the red
+failure treatment.
+
+## 62. P4.4 (parity/p4-metadata) — the shared MetadataForm: refutations, deviations & residuals
+
+**Source:** P4.4 MetadataForm + wiring (plan §5 P4.4; matrix row 56; ui-mapping `09-media.md`
+§ MetadataForm and `10-audio.md:139`; phone `src/features/media/shared/components/MetadataForm.tsx`
+and its two call sites). Component in `features/demo/ui/inputs/MetadataForm.tsx`, the pre-fill
+rule in `engine/logic/media/samples.ts`, the two callers in `ui/screens/MediaCaptureScreen.tsx`
+(`ReviewStage`) and `ui/screens/AudioPreviewScreen.tsx`.
+
+### 62a. REFUTATION — the plan's `{user}.jpg/.mp4/.m4a` means user-TYPED, not the analyst profile
+
+The plan row and the brief both raised the possibility that the phone's filename convention is
+derived from the User Profile, which would have made P4.4 depend on P7.2. It does not. The phone's
+form opens **empty** — `useState<MetadataFormValue>({ filename: '', caption: '' })` at
+`PhotoPreview.tsx:57-60` and `AudioPreview.tsx:92-95` — and the extension is appended by the route
+wrapper from the visitor's own text: `` const filename = `${result.userFilename}.${extension}` ``
+(`app/(form)/media-capture.tsx:133-134`) and `` `${result.userFilename}.m4a` ``
+(`app/(form)/audio-recording.tsx:128`). `userFilename` is `metadata.filename` straight off the form
+(`MediaCaptureFlow.tsx:160`, `AudioRecordingFlow.tsx:114`); no profile field is read anywhere on
+the path. `{user}` is the user's typing.
+
+**Consequence:** there is NO P7 hook to file here and nothing to un-defer. The demo's defaults are
+not standing in for an identity the demo lacks — they are a convenience the phone does not offer
+(see 62c).
+
+### 62b. REFUTATION — `SAMPLE_MEDIA[kind].suggestedFilename` was not uncalled
+
+The brief described it as "currently uncalled and intended as the sample's pre-fill". Half right:
+it was already called, at `AudioRecordingFlow.tsx:245` (pre-P4.4), through a flow-local
+`sampleAwareBase` that P4.6 added for audio only. P4.4 lifted that function into the engine as
+`suggestedFilenameBase` and generalised it over all three kinds, so the flow's copy is gone and
+photo/video now get the treatment audio already had.
+
+### 62c. DEVIATION — the filename field is PRE-FILLED; the phone's opens empty
+
+The phone requires the analyst to type a name from nothing, with Save grey until they do. The demo
+opens the field with a real value and lets them change it:
+
+- a live camera capture → `defaultCaptureBasename` (its OWN timestamp, e.g. `photo-20260730-140506`);
+- a live audio take → the bridge's location-scoped `audio-note-{n}`;
+- ANY sample take → the bundled asset's own name (`sample-photo` / `sample-clip` / `sample-note`).
+
+Reasoning: the phone's user is a trained analyst working a scene inside a workflow that expects
+them to name evidence; the demo's is a stranger evaluating a product, and a grey button over an
+empty required field with no starting point reads as a broken demo rather than as discipline.
+Every value offered is honest — a real timestamp or the real name of a real bundled file — so the
+pre-fill states a fact rather than inventing one.
+
+The gate itself is **ported, not softened**: clearing the field disables Save exactly as the phone
+does, and both capture suites pin that path.
+
+### 62d. DEVIATION — `onValidChange` is not ported; validity is derived at the point of use
+
+The phone pushes validity out of the form through a mount effect
+(`MetadataForm.tsx:64-68`) because the rule lives inside the component. In the demo the rule is
+already a pure engine predicate — `isValidFilename` (`captured.ts:63`) — which P4.1 wrote and which
+`mediaFilename` also depends on. So a parent gates its own Save button by CALLING it, and the form
+exposes no validity channel at all.
+
+One fact derived where it is needed beats a second copy kept in sync by an effect, and it removes
+the phone's own hazard, which its README records as pitfall #2: a consumer that forgets to wire
+`onValidChange` never learns the filename is empty. A caller here cannot forget, because there is
+nothing to wire — it either calls the predicate or it does not gate.
+**Trigger:** none. Re-open only if a third caller genuinely cannot reach the predicate.
+
+### 62e. DEVIATION — an unsaveable filename says why; the phone's is silent
+
+`MetadataForm` never passes its `TextInput`'s `error` prop, so on the phone an empty filename
+renders no message whatsoever and the Save button is simply grey — ui-mapping 09:268 calls this out
+explicitly as a deliberate observation, not an oversight in the mapping. The demo uses that same
+mechanism the phone has and declines to use: the field reddens, `aria-invalid` is set, and the
+helper line is replaced by a `role="alert"` reason (`FILENAME_REQUIRED_MESSAGE`).
+
+The Save control itself uses the house `aria-disabled` + guarded-handler shape (§44b / R-15 /
+§61b) rather than a truly `disabled` button, so it stays focusable and reachable; the reason is on
+screen immediately above it, which is why no separate `role="status"` line was added.
+
+### 62f. The "Saving as" line moved INTO the form
+
+P4.3 and P4.6 each rendered the resolved filename their own way — a bordered card reading "Saving
+as" over a mono line (`MediaCaptureScreen`) and an inline "Saves as `<name>`" (`AudioPreviewScreen`).
+Both are now the form's optional `savingAs` prop, one spelling, updating live as the visitor types.
+It **hides while the name is invalid** rather than rendering a bare `.jpg` as though that were a
+file the visitor would get (mutation-probed).
+
+The caller resolves the string (`mediaFilename(value.filename, captured)`) instead of the form
+taking a `CapturedMedia`, deliberately: P4.5's library caller will be editing an item that was
+saved a while ago and has no capture object to hand.
+
+### 62g. `Field` gained `maxLength` and `autoCorrect`
+
+Two additive optional props on the shared chrome (`ui/screens/_shared.tsx`), because the phone's
+`TextInput` has both behaviours and re-rolling an input would have violated the "reuse `_shared`"
+rule:
+
+- `maxLength` — the phone's own prop (100 / 500 here). A refused keystroke, not a validation state.
+- `autoCorrect={false}` — turns `autocorrect`, `autocapitalize` and `spellcheck` off TOGETHER,
+  because they are one decision (does this field hold prose, or a machine-facing value?) and
+  leaving any of the three on re-introduces the same class of problem. The phone spells it
+  `autoCapitalize="none"` + `autoCorrect={false}` (`MetadataForm.tsx:99-100`); the demo's import
+  paste step already spelled it with all three (`import/PasteStage.tsx:71-73`).
+
+### 62h. RESIDUAL — no filename-uniqueness check, on purpose
+
+Two captures can be saved under the same name, and two captures inside the same second even
+pre-fill with the same one. The phone enforces no uniqueness either — an analyst is free to save
+two `front door` photos — and `MediaItem.id`, not the filename, is what identifies a row
+(`captured.ts:90-93` already recorded this for the default).
+**Trigger:** only if P4.5's library list shows the ambiguity is genuinely confusing in a column of
+identical names; the fix would be a suffix on the PRE-FILL, never a refusal to save.
+
+### 62i. RESIDUAL — both caps refuse silently at the boundary
+
+Typing past 100 filename characters or 500 caption characters does nothing at all — no counter, no
+message. That is the phone's behaviour (`maxLength` on both fields, no character count anywhere)
+and it is why the form has exactly one error message: an over-length name is impossible rather
+than invalid, so there is no second state to describe.
+**Trigger:** if a reviewer wants a character counter it belongs on `Field` (shared chrome) and
+should land with the caption cap's first real user, not here.
+
+### 62j. NOTE for P4.5 — the form's contract, so the third caller does not re-derive it
+
+```ts
+interface MetadataFormValue { filename: string; caption: string }   // filename = BASE, no extension
+interface MetadataFormProps {
+  value: MetadataFormValue
+  onChange(value: MetadataFormValue): void
+  mediaType: MediaKind          // drives placeholder + helper copy ONLY
+  savingAs?: string             // resolved filename to display; omit and the line is not rendered
+}
+```
+
+- Controlled — the caller owns the state, and should own it in a component that **remounts per
+  item**, which is how both current callers guarantee a discarded take's name cannot leak onto the
+  next one.
+- Validity: call `isValidFilename(value.filename)` from `@/features/demo/engine/logic/media`
+  (trimmed 1–100). The form reports nothing; it only renders the reason.
+- Sanitization is the form's, on every keystroke — the illegal set never reaches `value`.
+- Never append an extension. `mediaFilename` / `buildMediaItem` are the only extension authors
+  (§58c).
+
+---
+
+## 63. P4.5 (parity/p4-library) — the media library: refutations, deviations & residuals
+
+**Source:** P4.5 media library (plan §5 P4.5; matrix rows 57–66; ui-mapping `09-media.md`
+§§ Media Library Sheet → Delete Media; phone `src/features/media/media-library/`). Engine core in
+`features/demo/engine/logic/media/library.ts`, the sheet in
+`features/demo/ui/screens/MediaLibrarySheet.tsx`, the delete bridge in `ui/DemoExperience.tsx`
+(`deleteMediaItem`).
+
+### 63a. REFUTATION — the phone's library does NOT edit metadata, so P4.4's form has no third caller
+
+The brief asked P4.5 to verify whether the library edits metadata, since it would then be
+`MetadataForm`'s third caller. It does not, and the phone is unambiguous about it in three
+independent places:
+
+- `MediaItemInfo` is display-only — every field is a bare `<Text>`, there is no input, no
+  `onChange`, no save (`MediaItemInfo.tsx:88-147`). Its ui-mapping surface entry says so in as
+  many words: "**Inputs / Buttons** — None — display-only panel" (`09-media.md:513`).
+- `MediaPreview`'s whole prop surface is `{ media, onFullscreen, onClose }`
+  (`MediaPreview.tsx:239`) — no change callback exists to thread edits back through.
+- `grep -rn "MetadataForm\|updateMedia\|editMetadata" src/features/media/media-library/` returns
+  **nothing**. The form's only callers are the two capture-side previews (`PhotoPreview`,
+  `VideoPreview`) plus the audio preview, all outside `media-library/`.
+
+**Consequence:** the demo's library likewise displays and never edits, and a test pins the absence
+(`queryByRole('textbox')` inside the info panel). §62j's contract note stands unused by this
+package — correctly.
+**Trigger:** if the owner ever wants rename-in-library as a demo-better divergence, `MetadataForm`
+is ready for it (controlled, remount-per-item) and the store needs one new `updateMedia` writer.
+
+### 63b. DEVIATION — the phone's category badge slot carries `Sample` here
+
+The phone's row and info-panel badge is an `ImageCategory` (`DVR` / `Crop` / `Camera`, from
+`CATEGORY_BADGES`, `constants.ts:63-69`). `MediaItem` in the demo has no `category` — nothing in
+the demo's capture flows ever assigns one, and the type is off-limits to this package — so there is
+no value to port. The slot instead carries `Sample`, which is the fact a visitor here actually
+needs: whether the bytes came from hardware or from a bundled asset. It is the same badge the two
+capture screens already show, so a sample is labelled everywhere it appears rather than only where
+it was made.
+**Trigger:** if a future package adds `category` to `MediaItem` (it would need a capture-side
+picker to set it), port `CATEGORY_BADGES` into `library.ts` and render both badges.
+
+### 63c. DEVIATION — the row meta line is `duration · date`, not the phone's `size · date`
+
+`MediaItem` carries no `sizeBytes`. `CapturedMedia` has one, but `buildMediaItem` deliberately
+does not copy it (`captured.ts:116-135`), and the sample assets never had one to begin with
+(`samples.ts:127` — "the demo has not measured these files at runtime"). Constraint: `MediaItem`
+and `SNAPSHOT_VERSION` are off-limits to this package. So the row shows what it can stand behind:
+duration for the timed kinds, the capture date for all three. Inventing or estimating a byte count
+is exactly the class of lie this app exists to prevent.
+**Trigger:** if a package that may touch `MediaItem` adds `sizeBytes` (bumping `SNAPSHOT_VERSION`),
+add `formatFileSize(item.sizeBytes)` to the row's meta line and to `MediaItemInfo`'s, restoring the
+phone's `size · date` exactly — the formatter is already in `engine/logic/media/recording.ts`.
+
+### 63d. DECISION — zone-1 playback uses the browser's native `<video>` / `<audio>` controls
+
+The phone's inline preview hand-rolls a play/pause button, a seekable bar and elapsed/total times
+for audio (`MediaPreview.tsx:121-235`) and uses `VideoView`'s `nativeControls` for video. On the
+web a native `controls` attribute IS that transport — play/pause, scrub, times, keyboard operation
+and screen-reader announcement, none of it re-implemented. It is also already this codebase's
+treatment for video playback (`MediaCaptureScreen`'s `ReviewStage`, `<video ... controls />`).
+
+The alternative was a second copy of P4.6's `AudioPreviewScreen` player (72px button + range input
++ time row). That is the shape of mistake §57a exists to remember: `useLongPress` shipped three
+times at three paths before anyone noticed. A second bespoke transport, entangled with a different
+item type, would be the same trap in miniature.
+**Trigger:** if a package extracts P4.6's player into a shared `ui/primitives` scrubber, this panel
+is its natural second caller — swap it in then, not before.
+
+### 63e. RESIDUAL — Escape inside the sheet closes the SHEET, not just the overlay above it
+
+`ModalShell` registers a document-level Escape listener on mount (`_shared.tsx:61-67`). While the
+delete confirmation or the fullscreen layer is up, Escape therefore dismisses that overlay *and*
+closes the whole sheet. This is pre-existing shared-chrome behaviour and it is not fixable from a
+call site: `AlertDialog`'s own listener is registered later, and a later document-level listener
+cannot suppress an earlier one. `NewCaseModal` has exactly the same shape (an `AlertDialog` inside
+a `ModalShell`, `NewCaseModal.tsx:301`) and behaves the same way — there, with a filled-in form
+behind it, the cost is higher than it is here, where the worst outcome is a cancelled delete and a
+closed library.
+**Trigger:** fix in `ModalShell` when the alert-inside-shell pattern gets a third caller — an
+opt-out prop (`escapeEnabled`) or a shared "topmost overlay owns Escape" register, applied to
+`NewCaseModal` and this sheet together.
+
+### 63f. RESIDUAL — "1 items" in the header, because it is the phone's string
+
+The subtitle is `` `${total} items` `` verbatim (`MediaLibrarySheet.tsx:251-258`), which reads
+wrong at one. The plan's binding convention is to lift quoted phone copy verbatim (§4, "Copy &
+pixel fidelity"), and a grammar divergence is a copy divergence a reviewer would have to re-derive.
+A test pins `1 items` explicitly so the choice is visible rather than looking like an oversight.
+**Trigger:** if the owner wants demo-grade polish over phone-copy fidelity here, singularize in
+`mediaLibrarySubtitle` — one function, one test line — and note it as a DEMO-BETTER row.
+
+### 63g. RESIDUAL — the library is not in `EXPLORE_ITEMS` — ✅ RESOLVED
+
+The rail's exploration checklist still has no entry for the media surfaces; `explore.ts:16` records
+that as pending ("the media screens join when built"), and P4.3 and P4.6 both shipped their screens
+without adding one. Adding only the library would leave the accordion's other two rows
+unrepresented, which is worse than the current uniform gap.
+**Trigger:** one commit at the end of P4 adding all three media entries (`mediaCapture`,
+`audioRecording`, `mediaLibrary`) together, after P4.7 — the checklist's ordering is registry-derived,
+so they must land as a group to read sensibly.
+
+**✅ RESOLVED (P4 explore rider, `parity/p4-explore-rider`):** all three landed in one commit,
+placed after the wizard steps and before the map — mirroring the drawer, which appends its Media
+accordion after the step list. The two capture screens jump to themselves (for a non-chapter view
+`setView` and `launch` are the same write, `create-store.ts:708-718`, so `currentChapter` is
+untouched and closing returns the visitor to the step they came from); the library is a modal with
+no view to jump to, so it routes to `submission` — the same "go where the opener lives" treatment
+the three case-management rows get — which also keeps its no-location gate on the only path that
+can reach it.
+
+Two consequences worth knowing, both pinned:
+- the manifest anchor and the rail narration now DISAGREE for the two capture launchables: the
+  checklist lights `Capture Media` / `Record Audio` while the rail copy falls through to the
+  chapter. Same "most-specific first" rule in both, run against different registries — §59e
+  deliberately gives those launchables no `MODAL_NARRATION` entry (pinned in
+  `DemoExperience.ocr.test.tsx`), while §63g deliberately gives them manifest entries. Not drift;
+  each half is a recorded decision.
+- `ocr` still has NO entry, deliberately: it is a step inside Time Offset rather than a destination,
+  and `selectors.test.ts` pins that the Time Offset row keeps the marker while it is open.
+
+Rider extra: the registry test's `KNOWN_COVER_IDS` was a hand-written `'import', 'newCase',
+'newLocation'` that had already rotted — `editIncident`, `duplicateLocation`, `newAddressLocation`
+and `mediaLibrary` were all missing, so any of them in `covers` would have failed the check for the
+wrong reason. It is now derived from a `Record<ModalId, true>` declared in the test, exhaustive by
+construction like `MODAL_IDS` in `store/persistence.ts`: a new `ModalId` is a compile error there,
+which forces whoever adds one to decide whether the manifest should list it.
+
+### 63h. RESIDUAL — `deleteMedia` rebuilds `locations` even for an id that is not there
+
+`create-store.ts:1080-1095` maps over `locations` unconditionally, so calling it with an unknown
+media id produces a fresh `locations` array with identical contents. It is unreachable from this
+package — the confirmation is armed on a derived, currently-visible item — and the store action
+predates P4.5, so it is left alone rather than changed under a UI package.
+**Trigger:** if a later package gains a delete path that can fire on a stale id (an undo, a sync
+reconciliation), add the `find`-first guard and pin it with the house
+`expect(store.getState()).toBe(before)` idiom.
+
+### 63i. NOTE — the auto-select machinery is deliberately three lines, not three effects
+
+The phone arms a ref and runs three `useEffect`s to re-select the first item
+(`MediaLibrarySheet.tsx:79-104`). Both of the conditions that machinery exists for are absent here:
+there is no async fetch (the media are already in the store) and no `visible` prop that toggles
+without unmounting (closing the sheet unmounts it, so a reopen re-runs the state initialiser).
+Selection, fullscreen and the pending delete are all held as IDs and RESOLVED against the visible
+list each render, which is what gives the phone's `onDeleted → closePreview` behaviour for free.
+**Trigger:** none — this is a note for whoever next reads the two files side by side and wonders
+where the effects went.
+
+## 64. P4.7 (parity/p4-ocr) — the OCR real camera: decisions, refutations & residuals
+
+**Source:** P4.7 OCR real camera (plan §5 P4.7; matrix row 37; owner decision D8; ui-mapping
+`06-wizard-b-time.md`; phone `src/features/ocr-time-capture/`). Crop geometry in
+`features/demo/engine/logic/ocr-crop.ts`, recognition I/O in
+`features/demo/ui/inputs/ocr-recognize.ts`, the live viewfinder in
+`features/demo/ui/screens/OcrCaptureScreen.tsx`, the shared read-presentation path
+(`runOcrRead`) and the Time-Offset PDF proof mapping in `ui/DemoExperience.tsx`, vendored
+runtime assets in `public/ocr/` (see `SOURCES.md` there).
+
+### 64a. DECISION — `OcrProof.imageDataUrl` persists under SNAPSHOT_VERSION 6, size-bounded at capture
+
+The brief flagged this as potentially version-shaped. It is not: `imageDataUrl` has been an
+optional member of `OcrProof` and of `ocrProofSchema` (`z.string().optional()`,
+`engine/store/persistence.ts:166`) since the field was typed — this package is the first
+WRITER, not a schema change, so v5→v6-style discard analysis does not arise and
+`SNAPSHOT_VERSION` stays 6. The persistence choice among the three options:
+
+- **Ephemeral** would break the feature's own point — the strip is the evidence image the
+  Time-Offset report embeds, and a refresh that silently dropped it would reproduce the
+  demo's "always-empty OCR image block" bug in a new form.
+- **Strip-on-persist** (the `MediaItem.url` precedent) is for `blob:` URLs, which die with
+  the document. A data URL is self-contained and survives; stripping it would discard data
+  that rehydrates fine.
+- **Persist with a size bound** wins, with the bound enforced at CONSTRUCTION:
+  `grabVideoFrame`'s new `targetWidth` caps the strip at 1280 px wide (aspect preserved,
+  never upscaled), so the recogniser and the stored proof read the same bounded pixels.
+  Measured: a 720p frame yields a 1152×122 strip ≈ 25–60 KB JPEG ≈ 35–80 KB base64; the
+  4K worst case downscales to 1280×136 ≈ ≤120 KB base64. One proof per location (plus the
+  staging copy in `capture.ocr`) against the ~5 MB sessionStorage quota. Round-trip pinned in
+  `DemoExperience.ocr.test.tsx`.
+
+**Trigger:** none — revisit the 1280 px bound only if the report's print fidelity is ever
+found wanting.
+
+### 64b. DECISION — self-hosted recogniser assets; the SIMD+LSTM core is pinned as ONE file
+
+tesseract.js's browser defaults are all jsdelivr CDN URLs (worker, core, langdata —
+`src/worker/browser/defaultOptions.js`, `src/worker-script/browser/index.js`,
+`worker-script/index.js:130`). The demo must not depend on a third-party CDN at runtime, so
+`public/ocr/` vendors: `worker.min.js` (109 KB), `tesseract-core-simd-lstm.wasm.js` (3.7 MB,
+single-file build — verified it references no sibling `.wasm` to fetch), and
+`eng.traineddata.gz` (2.8 MB, `4.0.0_best_int` LSTM-only model). ~6.8 MB in-repo, fetched
+lazily only when a live capture runs recognition.
+
+Pinning `corePath` to a specific `.js` file skips tesseract's runtime SIMD feature detection
+(a directory `corePath` would make the worker pick among relaxedsimd/simd/plain variants —
+hosting all three LSTM variants costs ~11.7 MB for a marginal relaxed-SIMD win). **Residual:**
+a browser without wasm SIMD (pre-16.4 Safari era) fails recognition honestly — the notice
+names the failure and the sample path stays available. **Trigger:** a real-world report of
+that failure → vendor `tesseract-core-lstm.wasm.js` too and pass the directory instead.
+
+### 64c. DECISION — the crop is taken from the VISIBLE (cover-fitted) band, not the raw frame
+
+The phone crops the raw photo (centered 90% × 17%) because its full frame IS what the
+operator saw. The demo's landscape viewfinder renders the stream `object-fit: cover`, so a
+camera whose aspect differs from 16:9 has pixels OFF-screen — and a raw-frame crop would
+include regions the operator never aimed at (with no height buffer to forgive it, a 4:3
+camera's raw-frame strip would read ~25% off-target vertically). `ocrCropRegion` therefore
+scales the strip into the visible band, reducing EXACTLY to the phone's
+`{0.05, 0.415, 0.90, 0.17}` when aspects match. Pinned to source-rect pixels in
+`OcrCaptureScreen.live.test.tsx` (both the matched and the 4:3-in-16:9 case).
+
+### 64d. REFUTATION (plan wording) — the 5% buffer is WIDTH-ONLY, and the guide excludes it
+
+The plan/brief say "80% × 17% with a 5% crop buffer", which under-specifies two things the
+phone source pins: the buffer applies per side to the WIDTH ONLY
+(`ocr-capture-service.ts:65-70` — `boxWidth = photo.width * (widthPercent + CROP_BUFFER_PERCENT * 2)`;
+`boxHeight = photo.height * heightPercent`, no buffer), and the on-screen guide shows the
+UNBUFFERED 80% × 17% — the buffer lands outside the guide, forgiving hands without inviting
+the operator to fill it. Both carried over verbatim; the constants are re-pinned by test with
+the phone citations (`engine/logic/__tests__/ocr-crop.test.ts`).
+
+### 64e. DECISION — recogniser configuration and lifecycle
+
+- **PSM `SINGLE_BLOCK`** (6): the strip is a cropped band carrying one or two short lines;
+  full-page auto-segmentation hunts for layout that does not exist. Not `SINGLE_LINE` (7) —
+  some DVRs stack date over time, and the strip can legitimately carry both.
+- **No `tessedit_char_whitelist`.** A digits-and-separators whitelist would forbid exactly
+  the tokens the ported cleaning pipeline protects and repairs (day/month names, AM/PM,
+  O→0/l→1 slips — `cleanOcrText`'s whole reason to exist). The recogniser stays naive; the
+  cleaning pipeline stays the work of art.
+- **Worker lifecycle:** module singleton, created on first shutter, reused across retakes,
+  disposed on screen unmount (tens of MB of wasm heap must not outlive the screen). A FAILED
+  boot is not cached — a transient asset-fetch failure is retryable. All pinned in
+  `ocr-recognize.test.ts` / `OcrCaptureScreen.dispose.test.tsx`.
+
+### 64f. EVIDENCE — recognition quality on DVR-style strips (node-side lab, vendored model)
+
+Ten synthetic DVR-style strips (1152×122, the demo's real capture size) run through the SAME
+tesseract.js 7.0.0 + vendored `eng.traineddata.gz`: clean ISO / slash / dash / time-only /
+AM-PM formats, a sans OSD font, small far-DVR text, low contrast, text over live-video grey,
+and a noisy frame — **10/10 exact reads, confidence 94–96**. Real webcam captures of real DVR
+monitors will land lower (glare, moiré, seven-segment-style fonts), which the measured
+confidence tiers and the failed-parse/failed-recognition notices absorb honestly. The `.gz`
+langdata serves as `application/gzip` (no transparent decoding) and tesseract inflates it
+itself — verified in the lab run through the same `langPath` file.
+
+### 64g. NOTE — R-16's "Sample" badge is now conditional, and its copy changed
+
+`OcrResult.confidence` gained `measured: boolean`. The badge + disclaimer render only for the
+fixed sample score; a live read's confidence is the recogniser's own number and carries
+neither. The old disclaimer sentence "a browser has no recogniser to score" became FALSE the
+moment this package landed and now reads "no live frame was scored here". The sample score
+itself remains the demo's one fabricated on-screen number, exactly as R-16 recorded.
+
+### 64h. RESIDUAL — the granted-but-closed viewfinder state
+
+The camera is released while the confirm stage is up (phone parity: its camera unmounts under
+the confirmation screen) and reopened automatically ONLY for a stream the screen itself
+closed. If that reopen fails — device unplugged mid-confirm — the viewfinder shows a
+"Restart camera" control rather than retrying in a loop. Deliberate: an auto-retry against a
+`NO_DEVICE` failure whose permission state stays `granted` would spin.
+**Trigger:** none — behaviour note.
+
+## 65. P4.1 fix round (parity/p4-fix-capability) — R-2/R-3/R-11/R-13/R-14/R-22/R-23/R-25/R-28/R-31
+
+**Source:** the P4 round-1 vetted review (`docs/code-reviews/parity/p4/p4-review-r1-vetted.md`),
+capability-territory findings. All ten FIXED — nothing refuted this round. Recorded below: the
+choices taken where a finding offered a fork, the scope crossings, and what is deliberately
+left for a named successor.
+
+### 65a. R-11's fork resolved toward the honest branch, not an argued `.mp4`
+
+T-5 offered two ways out: add a `matroska → 'mkv'` branch, or file the `.mp4` answer with a
+rationale. Took the branch. There is no rationale to write — `.mp4` on a Matroska file is
+exactly the false claim in an evidence filename that §58c exists to prevent, and §58c already
+names `video/x-matroska;codecs=avc1` as its motivating Chrome case, so the code was
+contradicting the rule it was written to enforce. Audio-only Matroska now resolves to `.mka` by
+the same rule. **Amends §58c**: its extension table gains Matroska; the phone-extension fallback
+remains reserved for MIME types carrying no container information at all.
+
+### 65b. R-3 added a THIRD fallback sentence the review did not ask for
+
+The vetted fix shape said to pick the review-stage notice "by the same `canStream` test", which
+would route a live-camera/no-`objectUrls` browser to `NO_RECORDER_NOTICE` ("can open a camera
+but cannot record video to a file"). That is better than the falsehood it replaces but still
+wrong: the recorder is fine there, the object-URL API is not. `NO_CAPTURE_STORAGE_NOTICE` is
+new, names no device on purpose (both existing sentences would be false), and
+`sampleFallbackNotice` picks by reason priority — no-device → no-storage → no-recorder — so the
+visitor is told the first thing that would have to be fixed. This is what makes the folded S-3
+rider genuinely closed rather than relabelled.
+
+**Fix-delta FD-6 (NIT) — ✅ RESOLVED in `parity/p4-fix2-capability`.** Deleting `sampleOnly` left
+`useMediaCapture`'s own docblock still naming it, twenty lines above the interface that explains
+it is gone. Now reads `capability.modeFor(kind)`. Rode FD-1's commit (same file, one sentence).
+
+### 65c. R-3's screen half is a disclosed territory crossing into P4.3's file
+
+`MediaCaptureScreen.tsx` is P4.3's, and P4.3 was fixing other findings in it in a parallel
+worktree. The edit here is deliberately minimal: three `capability.sampleOnly` reads become
+`capability.modeFor(mode)`, and `ReviewStage` takes `sampleNotice` as a prop instead of
+hard-coding `SAMPLE_MEDIA_NOTICE.camera`. Expect a merge reconcile.
+**Not done here, per the vetted routing:** the `modeFor` collapse of `AudioRecordingFlow`'s
+hand-rolled `canStream`/`canRecord` pair. `CaptureCapability` deliberately keeps the three
+booleans so that flow compiles untouched. **Trigger:** P4.6's own fix round.
+
+### 65d. R-23 collides with R-1 on `saveAudioNote`
+
+R-23's arity change (`st.addMedia(buildMediaItem(…))`) touches the same lines R-1 rewrites in
+P4.6's worktree to add the no-location guard. Both want the same final shape — the one-argument
+`addMedia` call inside a guarded branch. Flagged in the commit body; the orchestrator reconciles.
+
+### 65e. R-13's fix required splitting the assemble tail, not just adding a callback
+
+S-4's shape was "an `onEnded` callback + prefer recorded length when the two disagree". Adding
+only the callback would have made a self-ended take *silently vanish*: the later user Stop finds
+the state already stopped and returns early, so nothing would ever assemble the bytes. The tail
+of `stopRecording` is now a shared `finishTake(stopped, atMs)` that both paths call. With the
+state banked at the real end, the two figures no longer disagree at all — so the "prefer recorded
+length" half of the suggested fix is unnecessary rather than skipped.
+
+**Fix-delta FD-1 (MINOR, fix-introduced) — ✅ RESOLVED in `parity/p4-fix2-capability`.** The
+split carried a cost this entry did not notice: it moved `handleRef.current = null` ahead of
+`await handle.stop()`, and `abortRecording`'s only route to the recorder is
+`handleRef.current?.abort()`. A Cancel landing between Stop and the recorder's `stop` event hit
+nothing, and the cancelled take assembled, minted a URL and published itself to review — the
+hook's stated contract false in exactly the window it exists for. Latent (the sole caller pairs
+abort with unmount, so `abortedRef` intercepted) but `MediaCaptureScreen` already holds an
+`abortRecording` it does not yet call.
+
+The handle now stays in the ref across the await, and afterwards whoever cleared or replaced it
+owns the take — `abortRecording` nulls it, a fresh `startRecording` reassigns it — so both bail
+without publishing, and the ref is un-set only while it still points at this take. That also
+closes a race the fix shape did not name: an abort arriving after `onstop` has already settled is
+a no-op inside the handle, but the identity re-check still refuses to publish. **Generalise:**
+moving a ref clear across an `await` moves it out of reach of every handler that reads that ref
+— the window is not the await, it is everything the ref gates.
+
+### 65f. `useCaptureStream` is deliberately NOT given the same self-end signal
+
+R-13 offered `track.onended` in `useCaptureStream` as an alternative site. Not taken: the
+recorder's own `onstop` is the event that decides whether bytes exist, and putting the signal
+there keeps one owner for the take's outcome. A track that ends without the recorder stopping
+(a second camera track on a multi-track stream) is not an ended recording and must not be
+reported as one. **Trigger:** if a surface ever needs to know the PREVIEW died while no
+recording was running — the viewfinder freezing on an unplugged camera is the case — add
+`track.onended` to `useCaptureStream` for that, not for the take.
+
+### 65g. R-22 also guarded `toBlob`, which the finding did not name
+
+S-6 named `drawImage` and `toDataURL`. `canvas.toBlob` has the same defect one layer down: a
+synchronous throw inside the Promise executor rejects the promise both call sites `await`
+without a catch. Resolving `null` routes it into the existing zero-blob check. A `toDataURL`
+throw fails the whole grab rather than returning a capture without the data URL — a caller that
+asked for one (P4.7's OCR proof) must not silently receive a half-answer.
+
+### 65h. Carried forward from the vetted doc: the pre-existing `confirmOcr` sibling
+
+The aggregator's note under *Struck & re-ruled*: `confirmOcr` / `calculateOffset`
+(`DemoExperience.tsx:1441`) have the same silent-no-op-with-no-location shape R-1 fixes for
+audio — a store write that early-returns when `currentLocationId` is null, with no notice. It
+predates P4 and is unchanged by it, so it was correctly out of the PR's scope.
+**Trigger:** the next time that code is open — apply `saveCapturedMedia`'s guard shape
+(notice + `closeLaunch()` + a boolean answer the caller gates on).
+
+### 65i. §58g's carry-rule now has its cascade half
+
+§58g said "once the store owns a capture's URL, `deleteMedia` is the only thing that can revoke
+it" and named `revokeCapturedUrls`'s single caller as the whole story. R-2 showed that was
+incomplete: `deleteCase`/`deleteLocation` drop media rows too. `collectMediaUrls` + the sweep in
+`confirmDelete` close it. **Any future store path that removes locations owes the same sweep** —
+there is no other holder of those URLs.
+
+## 66. P4.3 review round 1 (R-7 · R-9 · R-16 · R-29) — what was fixed, what was deliberately left, one new finding
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, findings routed to P4.3.
+Branch `parity/p4-fix-photovideo`. All four are FIXED; no finding routed here was refuted.
+
+### 66a. R-7 (camera held through review) — fixed; one transient inherited from the pattern
+
+Closed by porting `OcrCaptureScreen.tsx:209-224`'s effect: close on `captured`, reopen through a
+latch so only the stream WE closed comes back. The latch is what stops a sample-path visitor
+meeting a permission prompt on Retake, and it has its own test.
+
+Known transient, identical to the OCR screen's and accepted for the same reason: `open()` is
+async, so between Retake and the new stream arriving `permission` is still `granted` while
+`stream` is `null`. A shutter press inside that window grabs a frame from a zero-dimension
+`<video>` and lands on `FRAME_GRAB_FAILED` — an honest notice, not a lie, and the window is one
+acquisition long.
+~~**Trigger:** if device testing shows the window is long enough to be pressed in practice, the
+fix is to fold `isOpening` into the shutter's `blocked` derivation (now a one-line change, since
+R-9 gave that derivation a home) rather than to suppress the notice.~~
+
+**RESOLVED — FD-4 (fix-delta round), fixed exactly as the trigger described.** The silent-failures
+lane found the window was worse than this entry claimed: photo mode's frame-grab sentence is
+merely the *wrong cause*, but VIDEO mode reaches `startRecording` with no stream and prints
+"This browser doesn't expose a camera to this page" — R-3's exact sentence, re-entering through
+a door R-7 opened. `reopening = isOpening && !modeIsSample` now heads R-9's blocked-reason ladder
+("Reopening the camera…") with the matching guard in `onShutter`.
+
+The `!modeIsSample` half is deliberate: a bundled-sample attach needs no stream, so refusing it
+in the window would be a refusal with no cause behind it. Pinned both ways — a live press mid-
+reopen states its reason and produces no failure copy; a sample clip attaches normally on a
+no-`MediaRecorder` browser during the same window.
+
+**RESOLVED — FD-3 (same round): the reopen was unpinned.** `close()` preserves `selectedDeviceId`,
+so the bare `open()` re-acquired the browser DEFAULT: Switch camera → capture → Retake came back
+on the built-in lens with the caption silently following. Both reopen sites now pass
+`selectedDeviceId ?? undefined`. Trade-off taken knowingly: `captureConstraints` pins with
+`exact`, so a camera unplugged during review fails loudly as `NO_DEVICE` into the honest
+unavailable panel instead of quietly opening a different lens.
+
+CROSSING, disclosed: the twin site is `OcrCaptureScreen.tsx:246` — P4.7's file. The same one line
+plus its comment and dep-array entry was changed there and nothing else, on the orchestrator's
+instruction, because splitting one mechanical fix across two agents is how the two halves drift.
+The device-identity pin lives on the capture screen only; the OCR screen's reopen arm remains
+unpinned for device identity.
+**Trigger:** P4.7's next pass — add the twin pin, or fold both screens' reopen effects onto a
+shared hook (they are now byte-identical apart from their latch names).
+
+### 66b. R-9 (native `disabled`) — fixed at both named sites; the two unnamed ones deliberately keep `disabled`
+
+The shutter and the permission stage's Grant button now take the house idiom. §60f was amended in
+the same commit: it had described the mechanism as "renders disabled", which was the defect, while
+the DECISION it records (gate video Stop at 500 ms) stands. §61b needed no edit — its claim about
+the idiom was true of the audio surface and is now true of this one.
+
+**Deliberately not converted, same file:** the mode pill (`disabled={isRecording}`) and the
+Switch-camera button (`disabled={isRecording}`). R-9's failure shape is specific and does not
+reach them: it is the control the visitor JUST PRESSED becoming `disabled` under their focus.
+Pressing the shutter to start a recording leaves focus on the shutter — the pill and the switch
+are controls the visitor is *not* on, and for a control that becomes unavailable while focus is
+elsewhere, the `disabled` attribute is the correct HTML (it is announced as unavailable and
+correctly leaves the tab order). Converting them would add two `aria-disabled` states with no
+refusal to explain.
+**Trigger:** if a reviewer wants the whole file on one idiom regardless, it is mechanical — but
+it should come with a reason line each, or it is `aria-disabled` with nothing to describe.
+
+### 66c. R-16 (badge announced once a second) — fixed, and it is a deliberate divergence from the phone
+
+`aria-live="polite"` dropped; `role="timer"` + a live `aria-label` kept. The phone's
+`RecordingIndicator` DOES set `accessibilityLiveRegion="polite"` (ui-mapping 09), so this is a
+place where copy/behaviour parity was deliberately not taken: the web role already defaults to
+`off` on purpose, and overriding it queues up to 3600 readings in front of every genuine status
+change — including R-9's new stop-gate reason, which is itself a `role="status"`. Recorded here so
+a future parity sweep does not "restore" it.
+
+### 66d. The device-list failure borrowed a sentence about opening a camera — ✅ RESOLVED
+
+Surfaced while writing R-29's pin. When `enumerateDevices` rejects, `listCaptureDevices` builds
+its failure through `captureFailure(classifyCaptureError(error), 'camera')`; a generic rejection
+classifies as `UNKNOWN`, whose copy is *"The camera could not be opened — nothing was captured."*
+That sentence is rendered **underneath a live viewfinder**, describing a failure of the device
+LIST. It is not false about anything the visitor did, but it names the wrong subject, and §60e's
+whole point is that this line exists to explain the picker's absence specifically.
+
+Not fixed here: the copy lives in P4.1's `captureFailureMessage`, keyed by `CaptureErrorCode`,
+and the honest fix is a code (or a facility-plus-subject key) for "the device list could not be
+read" — a taxonomy change in a file two other packages are consuming this round. The test pins
+the message through `captureFailureMessage` rather than as a literal, so it follows the copy
+wherever it lands.
+**Trigger:** P4.1's next pass, or P7 — add the code, and this screen's line changes only in what
+it reads.
+
+**✅ RESOLVED (P4.1 rider, `parity/p4-fix-66d`):** a new `CaptureErrorCode`, not a subject-keyed
+message. `DEVICE_LIST_UNAVAILABLE` — *"This browser wouldn't list the available cameras, so
+there's nothing to switch between."*
+
+Chose the code over threading a subject argument through `captureFailureMessage` because the
+subject is not a second axis on the existing failures: `listCaptureDevices` reports one fact
+with one consequence, and every other code in the union describes opening or using hardware.
+A `(code, facility, subject)` signature would have made every call site declare a subject that
+only one of them can vary.
+
+**BOTH** of `listCaptureDevices`' branches now report it — the rejection AND the
+missing-`enumerateDevices` case, which was returning `UNSUPPORTED` ("doesn't expose a camera to
+this page") and had the same wrong-subject defect one line up. The cause distinction
+`classifyCaptureError` drew is deliberately discarded: a denied, absent or broken enumeration
+leave the visitor with the same fact and the same non-options, and the DOMException vocabulary
+is about opening hardware. This is the same correction the recorder paths already carry (§65g's
+neighbourhood) — classify only where the decoded names mean something the caller can act on.
+
+Copy stayed single-sited per §58's rule: one `case` in `captureFailureMessage`, and both screens
+render `deviceFailure.message` unchanged. Neither `MediaCaptureScreen.tsx` nor
+`OcrCaptureScreen.tsx` was touched; only their R-29 pins, which named the old code, moved to the
+new one (a mechanical key change in test files — the OCR twin needed nothing more, so P4.7's
+file stayed shut). `permissionAfterFailure` names the new code explicitly rather than absorbing
+it into a `default`, keeping the switch total even though the path is unreachable for it — a
+device-list failure never runs through the permission derivation, because the stream is fine.
+
+Pinned: four rejection names all resolving to the one code, both no-API branches, a sentence
+assertion that the message names the list and never says the capture failed, and a screen-level
+arm that no "nothing was captured / could not be opened" text renders under a live viewfinder.
+Mutation-probed — restoring `classifyCaptureError` on the rejection reddens nine arms across
+four files.
+
+**Fix-delta FD-5 (LOW) — ✅ RESOLVED in `parity/p4-fix2-capability`.** The collapse was endorsed
+on a condition this entry did not carry through: that the cause survives SOMEWHERE. The rejection
+branch's `catch` was unbound, so after the collapse denied / absent / broken enumeration were
+indistinguishable from every seat including the console. One `console.warn` carrying the original
+error, matching `reverse-geocode.ts` and `import/geocode.ts` (P1 review L2). Pinned with a spy
+asserting the error OBJECT reaches it, not just a message — collapsing a visitor-facing
+distinction is only acceptable while the operator-facing one survives.
+
+### 66e. R-3 is P4.1's, and is NOT in this branch
+
+Disclosed so a fix-delta reviewer does not read its absence as an oversight: R-3 (video mode
+asserting "no camera" over a live viewfinder when `MediaRecorder` is missing) is owned by P4.1,
+whose fix lands a `modeFor(kind)` capability API plus the minimal consumption change in
+`MediaCaptureScreen.tsx`. That agent is working in a parallel worktree; this branch deliberately
+left `capability.sampleOnly`'s two consumption sites (`onShutter`, and the review stage's sample
+notice via `ReviewStage`) untouched so the two changesets merge without contention.
+
+---
+
+## 67. P4.5 fix round (parity/p4-fix-library) — R-8, R-18, R-19, R-24, R-26, R-30, R-33
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, the seven findings routed to
+P4.5. All seven FIXED; none refuted. One commit each, except R-26+R-33 which the review itself
+directs to land together.
+
+### 67a. R-19's opt-out changed a SHARED primitive — what the next caller needs to know
+
+`useLongPress` gained `contextMenu?: boolean` (default `true`). The default is not laziness: for
+the two tray call sites, right-click-to-open-the-actions-menu is what a desktop context menu is
+FOR, and the tray it opens is exactly what the browser's own menu would have covered. Only a
+DESTRUCTIVE callback wants `false`.
+
+The branch now has three rules where it had two, and the house pin for this primitive (§57a — one
+test arm per rule, verified by mutation) holds: dropping the opt-out reddens the doesn't-fire arms
+(3); making the opt-out `preventDefault` reddens only the menu-preservation arms (2); dropping
+`preventDefault` from the touch-hold arm reddens only the touch arm (1).
+
+Worth knowing: the touch-hold trailing menu's SUPPRESSION had no arm before this round. The
+existing touch test asserts call counts only, and the dashboard's suppression test exercises the
+no-prior-hold path, so that rule was load-bearing and unpinned. It has an arm now.
+**Trigger:** a fourth call site with a destructive callback passes `contextMenu: false`; anything
+else leaves the default alone.
+
+### 67b. R-24 crossed into P4.1's module — the exact extent
+
+`isMediaAvailable` is P4.1's. This round changed its signature line to `item is AvailableMedia`,
+added that type + docblock, and added one barrel export. No behaviour, no other symbol in
+`captured.ts`. Recorded because the routing table flagged the file as shared.
+**Trigger:** none — noted for whoever reconciles P4.1's own fix branch.
+
+### 67c. R-18 traded ARIA roles for the sibling's shape — a real choice, not a downgrade
+
+The review offered two fixes: complete the APG tablist contract, or drop to the sibling segmented
+control's `role="group"` + `aria-pressed` (`MediaCaptureScreen.tsx:440-456`). The second was taken.
+What a screen reader SAYS is unchanged — the phone's dynamic `${label} tab, ${count} items` name is
+kept — and the two media surfaces now answer the keyboard identically. What changed is that the
+markup stopped promising arrow-key navigation it did not implement.
+**Trigger:** if the library ever gains a real tabpanel region and roving tabindex, the roles can
+come back — together, not one at a time. A new arm asserts their absence, so a half-return reddens.
+
+### 67d. RESIDUAL — the `MEDIA_BUCKET` map is exhaustive, the TAB registry is not
+
+R-26 made the kind→bucket mapping a `Record<MediaKind, …>`, so a fourth media kind is a compile
+error there. `MEDIA_LIBRARY_TABS` has no equivalent guard: a fourth kind would add a bucket and a
+map entry with no tab, and the library would simply never show it. Deliberate for now — the
+registry is ORDERED display content, and forcing exhaustiveness on it would make "built but not
+yet surfaced" impossible to express, which is the state the media screens themselves were in for
+three packages.
+**Trigger:** add `MediaKind` exhaustiveness over `MEDIA_LIBRARY_TABS` if a kind ever ships without
+a tab by accident rather than by decision.
+
+### 67e. RESIDUAL — §63e (Escape closes the sheet from inside an overlay) is untouched and still open
+
+R-8 fixed focus, not Escape. Pressing Escape inside the fullscreen layer or the delete confirmation
+still closes the whole sheet, because `ModalShell` owns a document-level listener registered before
+either overlay's and a later document listener cannot suppress an earlier one. Unchanged from
+§63e, restated here so the fix round is not read as having closed it.
+**Trigger:** unchanged — fix in `ModalShell` when the alert-inside-shell pattern gets a third
+caller (`NewCaseModal` is the second).
+
+
+## 68. P4.6 review-r1 fix round — the audio recorder: dispositions, a grouped commit, and what stayed
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, findings owned by P4.6 —
+R-1 (BLOCKER), R-12, R-17, R-20, R-21, R-27. All six FIXED; nothing deferred out of the round.
+This section records the calls that are not obvious from the diff.
+
+### 68a. R-1 — the guard, and why the return type had to change with it
+
+The blocker was not "a missing `if`". `addMedia`'s silent early-return is the mechanism, but the
+damage came from three things agreeing to look like a success: the store dropped the note,
+`closeLaunch()` returned the visitor to the anchor exactly as a real save does, and `handOff()`
+released the object URL so the bytes were pinned with nothing left holding a reference to
+revoke them. Any two of those fixed alone still leaves a lie or a leak — which is why the fix is
+P4.3's whole `boolean` contract (§60c) rather than a guard: `saveAudioNote` reports whether the
+store TOOK the note, and `handleSave` gates the hand-off on the answer.
+
+Both notices are phone verbatim. The success one had no pin at all before this round, so the
+round added one: `Audio Saved — {base} saved to case`, where `base` is the filename WITHOUT the
+extension, because the phone builds its toast from `result.userFilename` and appends `.m4a`
+separately (`audio-recording.tsx:127` vs `:184-189`) — the same asymmetry `mediaSavedNotice`
+already carried a note about.
+
+### 68b. R-21 — fixed in the flow, deliberately NOT in `useMediaCapture`
+
+The finding's own fix shape offers both; the flow is the right one here. `useMediaCapture` is
+P4.1's shared hook and P4.3's capture screen mounts it too, so a release added inside it would
+change the video surface's hardware lifetime as a side effect of an audio fix — and R-7 is that
+surface's own sibling finding, owned elsewhere. A cross-surface behaviour change smuggled in
+under a different finding's number is the kind of thing a fix-delta review cannot see.
+
+What went in instead is stronger than the finding asked for: the release is no longer an action
+on the Stop handler at all but a REACTION to a take existing (`[captured, stream]`). "A take
+exists ⇒ the microphone is no longer needed" is true however the recorder got there, so the
+1-hour auto-stop — which fires inside the hook's tick and never passes through `handleStop` — is
+correct by construction rather than by a second copy of the release. Probe: gutting the effect
+reddens both arms.
+
+### 68c. R-17 — threaded as a prop, not `useReducedMotion()` inside the screen
+
+`MediaCaptureScreen.tsx:183` calls the hook in the component; `AudioRecorderScreen` takes a
+`reduceMotion` prop instead. Deliberate, two reasons: the screen is prop-driven end to end (that
+is what lets every one of its states — denied, no-analyser, sub-500ms, and now reduced-motion —
+be rendered in a test without stubbing a media query), and the flow already has to resolve the
+same preference for the meter's tick rate. `prefersReducedMotion` therefore moved out of
+`useAudioAnalyser` into `audio-analyser.ts` beside the other browser reads, so there is exactly
+one reading of the query. Two readers of one preference that could disagree is a bug waiting for
+a slow tick.
+
+### 68d. R-20 — the bar geometry is unchanged, and that is checked
+
+`scaleY` replaces the animated `height`, and the scale factors are the previous percentages over
+the same half-box (0.46 / 0.18). This is a rendering change, not a restyle — the demo's "do not
+restyle lifted rules" line applies, so the exact factor is pinned (`scaleY(0.46)` at full level)
+rather than left to look right.
+
+### 68e. R-27 — the `RecorderMode` else-chain is left as an else-chain
+
+The finding names it as "same class, recorded". It stays. `assertNever` earns its keep in a
+value switch whose result is a claim about the hardware (`recorderStatusLabel` renders READY
+beside a live microphone — that one is now exhaustive and has a runtime arm). The `RecorderMode`
+chain is a JSX branch over a union computed three lines above it by the flow, in a component
+that renders nothing at all if the union widens without it. Converting it would mean an
+`assertNever` in render position for a union that is already closed at its only producer.
+**Trigger:** if `RecorderMode` ever gains a member set by something other than the flow's own
+ternary, close it then.
+
+### 68f. §61g was corrected in place, not silently edited
+
+See §61g. Its "both directions are pinned" sentence was false when written, and the correction
+stays visible with the lesson attached: that is a claim about TESTS, and the only way to earn it
+is to run the mutation. The arm now carries the two assertions that survive nothing.
+
+### 68g. FD-2 — the flow's hand-rolled capability rules are gone (fix round 2)
+
+**Added in the second fix round (`parity/p4-fix2-audio`), discharging §65c's trigger.** §65c
+deferred the `modeFor` collapse of this flow's `canStream`/`canRecord` pair to "P4.6's own fix
+round" — and that round (§68a–f) came and went inside the same merge without touching it. The
+trigger lapsed, which is why this could not be deferred a second time; recorded plainly because
+a named trigger that expires unnoticed is worth more as a lesson than as a footnote.
+
+**What was wrong.** Two hand-rolled derivations, both missing the `objectUrls` term:
+`mode`'s sample arm (`!capability.stream || !capability.record`) and the `sampleNotice` ternary
+(`canStream ? NO_RECORDER_NOTICE : SAMPLE_MEDIA_NOTICE`). On a `{ stream: true, record: true,
+objectUrls: false }` browser — a hardened or embedded WebView — the engine answers `'sample'`
+and the flow rendered the **full live recorder**: microphone open, meter responding to the
+visitor's voice. They recorded a take, pressed Stop, and the registry check answered
+`captureFailure('UNSUPPORTED', 'microphone')` — *"This browser doesn't expose a microphone to
+this page"* — over a completed recording. The ternary was also structurally incapable of
+producing `NO_CAPTURE_STORAGE_NOTICE`, the sentence §65b added for precisely this state.
+
+**Fix:** three reads, all now the engine's. `capability.modeFor('audio') === 'live'` is the one
+derivation (closed with `assertNever` over `MediaKind`, so a fourth kind cannot inherit the
+photo rule), it gates the mount-time `open()` as well as `mode`, and `capability.sampleNotice`
+supplies the sentence by binding-reason priority. Both notice imports are gone from the flow,
+so the surface has nothing left to re-derive with.
+
+**Pin:** a `deps.objectUrls: null` arm asserting sample mode, that `getUserMedia` is never
+called, and that the storage sentence — not either device sentence — is what prints. Probed by
+restoring the exact pre-fix expressions: it reddens.
+
+**Not done here, deliberately:** FD-2's optional coda (dropping `CaptureSupport` from the public
+`CaptureCapability`, which would make this finding structurally unrepeatable) and FD-6 both land
+in `useMediaCapture.ts`, which P4.1 is editing on a parallel micro-branch for FD-1/FD-5. Two
+agents in one file is how §65c's reconcile happened. The audio flow now reads none of the three
+raw booleans, so nothing here blocks that coda.
+
+## 69. P4.7 fix round 1 (parity/p4-fix-ocr) — R-4/R-5/R-6/R-10/R-15/R-29(twin)/R-32 dispositions
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, the P4.7-routed findings.
+All FIXED, none refuted. Mutation evidence re-run for the two the aggregator reproduced.
+
+### 69a. R-4 — generation token for live reads (FIXED)
+
+`readGen` (the `importGen` pattern) in `OcrCaptureScreen`: bumped by a newer capture, a
+sample pick, the sample shutter, and — the load-bearing one — the result-arrival effect, so a
+read landing after ANY result is stale and writes nothing. The supersession point releases
+`reading` and clears the notice, because a stale read's `finally` deliberately won't touch
+flags it no longer owns (without this, a superseded read left the shutter held and "Reading
+timestamp…" up forever on Retake — found by the new failure-arm test, worse than the reviewed
+symptom). Belt: the three sample buttons are `disabled` while a read is in flight. Five pins;
+dropping the token guard fails the two supersession tests.
+
+### 69b. R-5 — the bridge arm executed (FIXED)
+
+`DemoExperience.ocr-live.test.tsx`: `OcrCaptureScreen` stubbed at the module boundary, the
+bridge's `runOcrLive` driven through props. The aggregator's exact gut (`measured: false`,
+no `imageDataUrl`, `fallbackActual: SAMPLE_ACTUAL_TIME`) now fails 2 of 3 tests. Also pins
+that a previously-calibrated `capture.actualDateTime` survives a live read.
+
+### 69c. R-6 — the proof writer compile-linked to the canonical type (FIXED)
+
+`ocrProof` ref is `Omit<OcrProof, 'parsedDateTime'>`; `confirmOcr` writes an annotated
+`OcrProof`. Probe re-run: a required field added to `OcrProof` now errors at this writer
+(previously only the two `persistence.ts` sites fired). No runtime change.
+
+### 69d. R-10 — the 1280 px bound pinned at the screen (FIXED)
+
+The 4K case (`sizeVideo(3840, 2160)` → drawCall `[192, 896, 3456, 367, 0, 0, 1280, 136]`)
+lands in `OcrCaptureScreen.live.test.tsx`; deleting `targetWidth` from the screen's grab call
+now fails it.
+
+### 69e. R-15 — persisted strip decoupled to q=0.85 (FIXED, §64a byte budget restored)
+
+`grabVideoFrame` gains `dataUrlQuality` (defaults to `quality` — no other caller moves). The
+recognition blob keeps the phone's `CAPTURE_QUALITY` 1.0; the sessionStorage-bound data URL
+encodes at 0.85, which is what §64a's stated 35–80 KB budget assumed (the lane measured
+~163 KB at q=1.0). Read §64a's size figures as q=0.85 figures from here on. Pinned at unit
+level (both encoders' arguments recorded by the shared fake canvas) and at the screen.
+
+### 69f. R-29 twin — the OCR screen's unreadable-device-list line pinned (FIXED)
+
+`enumerateDevices` rejecting → the explanation renders over the live viewfinder, no
+Switch-camera control. (`MediaCaptureScreen`'s twin belongs to P4.3's round.)
+
+### 69g. R-32 — dispose during a still-booting worker pinned (FIXED)
+
+Deferred-`createWorker` case: dispose stalls until the boot resolves, terminates exactly
+once, the abandoned read settles, and the next read boots fresh.
+
+### 69h. LEDGERED SIBLING (out of this round's scope) — `confirmOcr`/`calculateOffset` are silent no-ops with no location open
+
+Flagged by the vetted doc's struck-items notes as pre-existing and unchanged by P4: with no
+`currentLocationId`, `calculateOffset` early-returns and `confirmOcr` still writes
+`capture.*`, closes the launch screen and resets — the operator sees a normal commit while no
+offset landed anywhere. ~~Unlike R-1's media path nothing is destroyed (the capture fields
+persist), but the silence is the same shape. The OCR entry point is location-gated in
+practice (the Time Offset screen requires an open location), which is why it has never fired.~~
+
+**CORRECTED (FD-7 — the original premise and consequence above were wrong; fact-checked by
+the silent-failures lane's fix-delta, verified against source):**
+
+- **The path is fully reachable, not gated.** `onCaptureOcr`
+  (`DemoExperience.tsx:1706-1708`) launches the OCR screen with no location check,
+  `TimeOffsetScreen` renders against `EMPTY_FORM` when nothing is open, and the rail's Time
+  Offset row is one ungated `setView` from boot — R-1's exact reachability shape. "Has never
+  fired" was an inference from a gate that does not exist.
+- **The staged read IS destroyed, not preserved.** It survives on `capture.*` only until a
+  location is opened: `switchLocation` (`create-store.ts:679`) — and the null arms at
+  `:554`/`:579` — reset `capture` via `blankCapture()`. The read is wiped at the exact moment
+  the visitor does the one thing that would have made it usable, which is R-1's
+  data-destruction shape, not a milder one.
+
+The deferral itself stands — the no-op predates P4 and was outside the round's diff scope.
+**Trigger (strengthened per FD-7):** the NEXT P4.7-territory round, not merely "next time the
+code is open" — R-1's guard pattern (refuse + notice) now sits one file away in the audio
+save path, and this sibling should adopt it then.

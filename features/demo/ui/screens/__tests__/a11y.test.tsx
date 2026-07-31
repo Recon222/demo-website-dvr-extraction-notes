@@ -62,7 +62,19 @@ describe('ModalShell a11y', () => {
 describe('WizardDrawer a11y', () => {
   it('is an aria-modal dialog that closes on Escape', () => {
     const onClose = vi.fn()
-    render(<WizardDrawer open items={[]} onClose={onClose} onNavigate={vi.fn()} onBackToCases={vi.fn()} />)
+    render(
+      <WizardDrawer
+        open
+        items={[]}
+        onClose={onClose}
+        onNavigate={vi.fn()}
+        onBackToCases={vi.fn()}
+        onCaptureMedia={vi.fn()}
+        onRecordAudio={vi.fn()}
+        onOpenMediaLibrary={vi.fn()}
+        saveStatus={null}
+      />,
+    )
     const dialog = screen.getByRole('dialog', { name: 'Navigation' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     fireEvent.keyDown(dialog, { key: 'Escape' })

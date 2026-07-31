@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -48,6 +48,7 @@ import {
   type IncidentLocationValues,
 } from '@/features/demo/engine/logic/incident-location'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { MediaLibrarySheet } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -64,7 +65,12 @@ import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/scre
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
-import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { OcrCaptureScreen, type OcrLiveRead, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
+import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
+import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
+import { MEDIA_DELETED_NOTICE, buildMediaItem, collectMediaUrls, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import { readBrowserObjectUrls, revokeCapturedUrls } from '@/features/demo/ui/inputs/object-urls'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -91,8 +97,9 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -210,6 +217,46 @@ const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source loca
  */
 const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
 const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+/**
+ * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
+ * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
+ * `text1: 'No Location'` / `text2: 'Select a location first.'`) — joined `text1 — text2` like
+ * the P3.5 notices, because the demo's banner is one line. As on the phone, the drawer stays
+ * OPEN behind it: the visitor's next move is to go pick a location, and closing the menu would
+ * take the way there away.
+ */
+const NO_LOCATION_NOTICE = 'No Location — Select a location first.'
+/**
+ * The capture screen's save guard (P4.3). Phone verbatim, from the toast the media-capture
+ * route wrapper fires when it has no location to attach the file to
+ * (`app/(form)/media-capture.tsx:115`, `text1: 'Cannot Save Media'` / `text2: 'No location
+ * selected. Please navigate from a case first.'`) — joined `text1 — text2` like the notices
+ * above. As on the phone, the capture screen closes behind it: the drawer's Capture Media row
+ * is deliberately UNGATED on an open location (deferred §59f, phone parity), so this is the
+ * point where the flow discovers there is nowhere to put the photo, and `addMedia`'s silent
+ * early-return is the thing this exists to make visible.
+ */
+const CANNOT_SAVE_MEDIA_NOTICE =
+  'Cannot Save Media — No location selected. Please navigate from a case first.'
+/** Phone verbatim (`media-capture.tsx:192-193`): `text1` is 'Photo Saved'/'Video Saved' and
+ *  `text2` is the user's filename — WITHOUT the extension, which the wrapper appends after. */
+const mediaSavedNotice = (kind: MediaKind, filename: string): string =>
+  `${kind === 'photo' ? 'Photo' : 'Video'} Saved — ${filename} saved to case`
+/**
+ * The audio recorder's save guard (P4.6, review R-1). The same defect the capture screen's
+ * notice above exists for, on the third capture surface — and the worse one, because the thing
+ * `addMedia`'s silent early-return discards is a recording the visitor MADE rather than a frame
+ * they can re-take in a second.
+ *
+ * Phone verbatim (`app/(form)/audio-recording.tsx:112-117`, `text1: 'Cannot Save Audio'` /
+ * `text2: 'No location selected. Please navigate from a case first.'`), joined `text1 — text2`.
+ * The phone calls `navigateBack()` straight after the toast; `closeLaunch()` is that.
+ */
+const CANNOT_SAVE_AUDIO_NOTICE =
+  'Cannot Save Audio — No location selected. Please navigate from a case first.'
+/** Phone verbatim (`audio-recording.tsx:184-189`): `text2` is `${result.userFilename} saved to
+ *  case`, and `userFilename` is the BASE — the route appends `.m4a` separately at `:127`. */
+const audioSavedNotice = (filename: string): string => `Audio Saved — ${filename} saved to case`
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -251,8 +298,8 @@ interface PdfState {
 type PendingDelete = { kind: 'case'; id: string } | { kind: 'location'; id: string }
 const EMPTY_FORM = blankLocationForm()
 
-// Fallback for views without a screen yet — only the not-yet-built media views
-// (mediaCapture/audioRecording) reach this, and they're a deferred fast-follow (deferred.md §8).
+// Fallback for views without a screen yet. `mediaCapture` left it in P4.3; `audioRecording`
+// is the last view that still reaches here, and it is a fast-follow (P4.6), not a bug.
 const placeholder = (view: string) => (
   <div style={{ minHeight: 786, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
     The “{view}” screen is a fast-follow.
@@ -375,9 +422,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // so Cancel/Retake leave no trace of a read the operator rejected.
   const [ocrDraft, setOcrDraft] = useState('')
   const [ocrDateConfirmed, setOcrDateConfirmed] = useState(false)
-  // Render-irrelevant OCR proof (raw/cleaned text + score) carried from the read to the
-  // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
-  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
+  // Render-irrelevant OCR proof (raw/cleaned text + score, and for a live camera read the
+  // cropped strip image) carried from the read to the commit, where it becomes
+  // `capture.ocr` → `timeOffset.ocr`. Typed AS the canonical OcrProof minus the one member
+  // the commit supplies (R-6): `updateField` is unknown-valued, so this ref and the annotated
+  // write in `confirmOcr` are the only compile-time link between the writer and
+  // `ocrProofSchema` — an inline shape here let a future required field drift past the writer
+  // and fail the snapshot guard at next boot instead.
+  const ocrProof = useRef<Omit<OcrProof, 'parsedDateTime'> | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
@@ -417,12 +469,39 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }, [injectedStore, store])
 
+  /**
+   * The drawer footer's save-status line (P4.2, matrix row 80).
+   *
+   * Sampled when the drawer OPENS, not continuously: the fact lives on the persistence handle
+   * (a ref, deliberately — R-2's "read it when you're about to make a claim, never capture it
+   * at mount"), and a status line is exactly such a claim. `flush()` first, so a write still
+   * inside its 250ms debounce lands before we describe it — otherwise a visitor who types and
+   * immediately opens the menu is told the age of the write BEFORE theirs.
+   *
+   * Cleared on close so the next open can never show a stale reading. A missing handle counts
+   * as `unavailable` — same rule as `saveProgress`: never assume a wired handle.
+   */
+  const [saveStatus, setSaveStatus] = useState<SaveStatusView | null>(null)
+  useEffect(() => {
+    if (!drawerOpen) {
+      setSaveStatus(null)
+      return
+    }
+    const handle = persistenceRef.current
+    handle?.flush()
+    setSaveStatus(describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, clock.now().getTime()))
+  }, [drawerOpen])
+
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
-  // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
-  // modal with no narration entry — falls back to the chapter rather than blanking.
+  // else an open LAUNCH SCREEN with an entry shows its own (§60k — the OCR camera; the two
+  // media launchables carry no entry by decision §59e and fall through), else the Map tab its
+  // contextual copy, else the current chapter's. The ?? guards an id with no narration
+  // entry — falls back to the chapter rather than blanking.
   const narration =
-    (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+    (modal && MODAL_NARRATION[modal]) ??
+    (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
+    (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
   // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
@@ -583,6 +662,111 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const commitNotesFreeText = useCallback((text: string) => store.getState().commitNotesFreeText(text), [store])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
+
+  // ---- media capture (P4.3, matrix rows 49-55) ----
+  /**
+   * The capture screen's accept path. Returns whether the store TOOK the item, because the
+   * screen's object-URL hand-off hangs on the answer: a refused save must leave the `blob:`
+   * URL owned by the capture hook so its unmount sweep frees it (deferred §58 carry-rule 1).
+   *
+   * The filename and caption are the metadata form's (P4.4) — a BASE name, never a finished
+   * filename. `buildMediaItem` is what turns it into one, using `mediaFilename`, so the
+   * extension names the container the browser actually produced rather than the phone's
+   * `.jpg`/`.mp4` (§58c).
+   */
+  const saveCapturedMedia = ({ captured, filename, caption }: SaveMediaRequest): boolean => {
+    const st = store.getState()
+    // `addMedia` early-returns with no `currentLocationId`; without this the capture would
+    // vanish into a no-op save and the visitor would be told nothing.
+    if (!st.currentLocationId) {
+      setNotice(CANNOT_SAVE_MEDIA_NOTICE)
+      st.closeLaunch()
+      return false
+    }
+    const item = buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename, caption })
+    st.addMedia(item)
+    setNotice(mediaSavedNotice(captured.kind, filename))
+    st.closeLaunch()
+    return true
+  }
+
+  // ---- drawer Media accordion (P4.2, matrix row 80) ----
+  // The phone's three rows. Capture/Record push a route and close the drawer; both targets are
+  // LAUNCHABLES here (`launch`, never `setView`), so they leave `currentChapter` alone and
+  // `closeLaunch` returns to the wizard step the visitor came from — the OCR rule, applied to
+  // the two media screens. Capture Media lands on the real screen (P4.3); Record Audio still
+  // falls through to the honest `placeholder` until P4.6, which is correct interim behaviour,
+  // not a dead click.
+  const launchMediaCapture = () => {
+    const st = store.getState()
+    st.launch('mediaCapture')
+    st.setDrawerOpen(false)
+  }
+  const launchAudioRecording = () => {
+    const st = store.getState()
+    st.launch('audioRecording')
+    st.setDrawerOpen(false)
+  }
+  /**
+   * Commit a finished audio note (P4.6). The ONLY store write in the audio flow — the flow and
+   * both of its screens are pure, per the store-bridge rule.
+   *
+   * Returns whether the store TOOK the note, on the same contract as `saveCapturedMedia` above
+   * (§60c): the flow's object-URL hand-off hangs on the answer, so a refused save leaves the
+   * `blob:` URL owned by the capture hook and its unmount sweep frees it (§58 carry-rule 1).
+   *
+   * `meta` is the metadata form's value (P4.4): a filename BASE plus the visitor's notes. The
+   * extension is `buildMediaItem`'s (via `mediaFilename`), never appended here (§58c).
+   */
+  const saveAudioNote = (captured: CapturedMedia, meta: MetadataFormValue): boolean => {
+    const st = store.getState()
+    // Review R-1: `addMedia` early-returns with no `currentLocationId`. Without this guard the
+    // recording vanished into a no-op save, `closeLaunch()` returned the visitor to the anchor
+    // exactly as a real save does, and the two outcomes were byte-identical from their seat.
+    // The Record Audio drawer row is deliberately UNGATED (§59f, phone parity), so this is the
+    // only point at which the flow can discover there is nowhere to put the take.
+    if (!st.currentLocationId) {
+      setNotice(CANNOT_SAVE_AUDIO_NOTICE)
+      st.closeLaunch()
+      return false
+    }
+    // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
+    // restored session cannot collide with them.
+    st.addMedia(buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
+    setNotice(audioSavedNotice(meta.filename))
+    st.closeLaunch()
+    return true
+  }
+  /**
+   * Confirmed deletion from the media library (P4.5, matrix row 66) — the ONLY store write the
+   * library makes, and the first caller `revokeCapturedUrls` has ever had (§58g shipped it
+   * tested and unused, on purpose, for exactly this).
+   *
+   * Revoke BEFORE the store drops the row. The store took ownership of the object URL when the
+   * capture surface `release`d it at save time, so after this line nothing holds it and the
+   * blob's bytes — a whole photo or clip — would otherwise stay pinned in the tab for as long
+   * as it lives. `revokeCapturedUrls` no-ops on the bundled sample paths, which are static
+   * files that must outlive every capture surface.
+   */
+  const deleteMediaItem = (item: MediaItem) => {
+    const io = readBrowserObjectUrls()
+    // Absent wherever the API is (jsdom, a hardened browser) — nothing to revoke, and the store
+    // write is what actually removes the row, so it must not be gated on the revocation.
+    if (io !== null) revokeCapturedUrls(io, [item.url, item.poster])
+    store.getState().deleteMedia(item)
+    setNotice(MEDIA_DELETED_NOTICE)
+  }
+
+  /** The one row the phone gates: no location selected → toast, and the drawer stays open. */
+  const openMediaLibrary = () => {
+    const st = store.getState()
+    if (!st.currentLocationId) {
+      setNotice(NO_LOCATION_NOTICE)
+      return
+    }
+    st.openModal('mediaLibrary')
+    st.setDrawerOpen(false)
+  }
 
   // Error-boundary recovery: land back on Cases with every transient overlay cleared
   // (store AND local), so the re-rendered subtree can't immediately re-throw from a
@@ -905,6 +1089,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const confirmDelete = () => {
     if (!pendingDelete) return
     const { kind, id } = pendingDelete
+    // R-2: sweep the doomed locations' captures BEFORE the store drops them. The store is sole
+    // owner of a saved capture's object URL (§58g), so once the rows are gone nothing in the
+    // page can reach the blobs and their bytes stay pinned for the tab's life — the natural
+    // demo loop (create → capture → delete → repeat) leaks a full photo or clip per cycle.
+    // Same shape as `deleteMediaItem`: revoke first, and never gate the store write on it.
+    const doomed = kind === 'case' ? locations.filter((l) => l.caseId === id) : locations.filter((l) => l.id === id)
+    const io = readBrowserObjectUrls()
+    if (io !== null) revokeCapturedUrls(io, collectMediaUrls(doomed))
     if (kind === 'case') {
       store.getState().deleteCase(id)
       setExpandedCaseId((prev) => (prev === id ? null : prev))
@@ -1229,15 +1421,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setOcrDateConfirmed(false)
     ocrProof.current = null
   }
-  const runOcrSample = (frame: OcrSampleFrame) => {
-    const raw = OCR_SAMPLE_FRAMES[frame]
-    const cleaned = cleanOcrText(raw)
+  /**
+   * ONE presentation path for every OCR read — sample frame or live camera. The raw text goes
+   * through the ported clean/parse pipeline, the proof is staged (written to the store only on
+   * commit — nothing about a rejected read survives Cancel), and the capture instant is frozen
+   * here (the phone freezes it at the shutter).
+   */
+  const runOcrRead = (read: { rawText: string; confidence: number; measured: boolean; imageDataUrl?: string; fallbackActual: string }) => {
+    const cleaned = cleanOcrText(read.rawText)
     const reading = readDvrTimestamp(cleaned, clock.now().getTime())
-    const conf = getConfidenceLevel(OCR_SAMPLE_CONFIDENCE)
-    // The capture instant is frozen here (the phone freezes it at the shutter) but written to
-    // the store only on commit — nothing about a rejected read should survive Cancel.
-    const actual = store.getState().capture.actualDateTime || SAMPLE_ACTUAL_TIME
-    ocrProof.current = { rawText: raw, cleanedText: cleaned, confidence: OCR_SAMPLE_CONFIDENCE }
+    const conf = getConfidenceLevel(read.confidence)
+    const actual = store.getState().capture.actualDateTime || read.fallbackActual
+    ocrProof.current = {
+      rawText: read.rawText,
+      cleanedText: cleaned,
+      confidence: read.confidence,
+      ...(read.imageDataUrl !== undefined ? { imageDataUrl: read.imageDataUrl } : {}),
+    }
     setOcrDateConfirmed(false)
     setOcrDraft(reading?.dvrTime ?? '')
     setOcrResult(
@@ -1245,13 +1445,30 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         ? {
             ok: true,
             dvrTime: reading.dvrTime,
-            confidence: { label: conf.message, color: conf.color },
+            confidence: { label: conf.message, color: conf.color, measured: read.measured },
             actual,
             resolution: reading.resolution,
           }
         : { ok: false, rawText: cleaned },
     )
   }
+  const runOcrSample = (frame: OcrSampleFrame) =>
+    runOcrRead({
+      rawText: OCR_SAMPLE_FRAMES[frame],
+      confidence: OCR_SAMPLE_CONFIDENCE, // the fixed sample score — badged, not measured
+      measured: false,
+      fallbackActual: SAMPLE_ACTUAL_TIME,
+    })
+  /** A live camera frame (P4.7): measured confidence, the strip image for the proof, and the
+   *  device's calibrated "now" — a real frame must not borrow the sample's fixed instant. */
+  const runOcrLive = (read: OcrLiveRead) =>
+    runOcrRead({
+      rawText: read.rawText,
+      confidence: read.confidence,
+      measured: true,
+      imageDataUrl: read.imageDataUrl,
+      fallbackActual: getCurrentFormattedTime(clock.now().getTime()),
+    })
   /**
    * "Use this & calculate": the operator's (possibly corrected) value is what gets committed.
    * `regenerate` carries the answer to the phone's recalculate prompt — false is "Keep My Edits".
@@ -1266,8 +1483,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     st.updateField('capture.dvrDateTime', ocrDraft)
     if (ocrProof.current) {
       // parsedDateTime records what OCR READ; capture.dvrDateTime records what the operator
-      // COMMITTED. When they differ, the offset report can show the correction.
-      st.updateField('capture.ocr', { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime })
+      // COMMITTED. When they differ, the offset report can show the correction. The explicit
+      // annotation keeps this writer honest against the canonical type (R-6) — `updateField`
+      // itself checks nothing.
+      const proof: OcrProof = { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime }
+      st.updateField('capture.ocr', proof)
     }
     calcOffset(regenerate)
     store.getState().closeLaunch()
@@ -1371,6 +1591,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         dvrDateTime: off?.dvrDateTime,
         actualDateTime: off?.actualDateTime,
         captureMethod: off?.captureMethod,
+        // The OCR evidence block (P4.7): raw/cleaned/parsed always travel with an OCR-method
+        // offset; the strip image exists only for a live camera read — the template renders
+        // no image block without it, which is the honest shape for a sample commit.
+        ocrImageDataUrl: off?.ocr?.imageDataUrl,
+        ocrRawText: off?.ocr?.rawText,
+        ocrCleanedText: off?.ocr?.cleanedText,
+        ocrParsedDateTime: off?.ocr?.parsedDateTime,
         dvrAppliesDST: off?.dvrAppliesDST,
         sync: off?.sync ?? null,
       }),
@@ -1505,9 +1732,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onUseSample={runOcrSample}
             onCapture={() => runOcrSample('clean')}
+            onLiveRead={runOcrLive}
             onCancel={cancelOcr}
             onRetake={resetOcr}
             onConfirm={confirmOcr}
+          />
+        )
+      case 'mediaCapture':
+        return (
+          <MediaCaptureScreen
+            onCancel={() => store.getState().closeLaunch()}
+            onSave={saveCapturedMedia}
           />
         )
       case 'extractedScope': {
@@ -1623,6 +1858,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'audioRecording':
+        // Launch-only (P4.2 registered it, P4.6 gave it a screen). `closeLaunch` returns to the
+        // wizard step the visitor came from — `currentChapter` was never touched.
+        return (
+          <AudioRecordingFlow
+            // What the metadata form opens PRE-FILLED with for a live take — numbered off the
+            // location's existing notes so two takes don't arrive with the same name. The
+            // visitor is free to replace it; a sample take overrides it with the bundled
+            // asset's own name (`suggestedFilenameBase`).
+            defaultFilenameBase={`audio-note-${(currentLocation?.form.media.audios.length ?? 0) + 1}`}
+            onSave={saveAudioNote}
+            onClose={() => store.getState().closeLaunch()}
+          />
+        )
       case 'map':
         return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
       default:
@@ -1664,6 +1913,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
+      case 'mediaLibrary':
+        // P4.2 registered the id and the entry point; P4.5 gave the sheet its real body. The
+        // row that opens it is gated on a location, so `currentLocation` is set here — the
+        // `EMPTY_FORM.media` fallback exists only for the case where that location is deleted
+        // out from under an open sheet, which shows an empty library rather than throwing.
+        return (
+          <MediaLibrarySheet
+            media={currentLocation?.form.media ?? EMPTY_FORM.media}
+            onDelete={deleteMediaItem}
+            onClose={() => store.getState().closeModal()}
+          />
+        )
       case 'duplicateLocation':
         // Rendered only with an open dupState — the chooser's six actions all need the source
         // it was opened for, so a state-less mount would be a modal with nothing behind it.
@@ -1815,6 +2076,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               store.getState().setView('cases')
               store.getState().setDrawerOpen(false)
             }}
+            onCaptureMedia={launchMediaCapture}
+            onRecordAudio={launchAudioRecording}
+            onOpenMediaLibrary={openMediaLibrary}
+            saveStatus={saveStatus}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
               the demo has no always-mounted screen to hold it, so the phone's caseData=null

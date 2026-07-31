@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { freshStore, newCaseInput, newLocationInput } from './test-utils'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
+import { isMediaAvailable } from '@/features/demo/engine/logic/media/captured'
 import {
   SAVE_DEBOUNCE_MS,
   SNAPSHOT_KEY,
@@ -191,11 +192,15 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     store.getState().commitNoteSection('address', 'my own account of attendance')
     store.getState().commitNoteAddendum('address', 'manager was present')
     store.getState().commitNotesFreeText('additional observations')
-    store.getState().addMedia('photo', {
+    // v6: the media URLs here are BUNDLED SAMPLE paths, not `blob:` object URLs, precisely
+    // so `url`/`poster` remain part of this maximal fixture. A live capture's blob URL is
+    // deliberately stripped by `snapshotOf` — pinned separately below, so a regression there
+    // can't hide behind this fixture's whole-state diff.
+    store.getState().addMedia({
       id: 'm1',
       kind: 'photo',
-      url: 'blob:photo',
-      poster: 'blob:poster',
+      url: '/demo-media/sample-photo.jpg',
+      poster: '/demo-media/sample-clip-poster.jpg',
       filename: 'IMG_1.jpg',
       caption: 'DVR rack',
       capturedAt: '2025-03-09 10:00:00',
@@ -219,7 +224,8 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
       source: 'gps',
       capturedAt: '2026-07-30T14:05:06.000Z',
     })
-    expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    expect(loc.form.media.photos[0].url).toBe('/demo-media/sample-photo.jpg')
+    expect(loc.form.media.photos[0].poster).toBe('/demo-media/sample-clip-poster.jpg')
     const address = loc.form.notesSections.find((sec) => sec.id === 'address')
     expect(address?.content).toBe('my own account of attendance')
     expect(address?.userAddendum).toBe('manager was present')
@@ -227,6 +233,73 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     expect(address?.generatedContent).toContain('• Attended') // frozen baseline survives
     expect(loc.form.notesFreeText).toBe('additional observations')
     expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+  })
+})
+
+describe('media bytes never persist (v6 — plan §5 P4.1 / D2)', () => {
+  /** A store holding one live capture (blob URLs) and one bundled sample capture. */
+  function storeWithMedia() {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(caseId, newLocationInput())
+    store.getState().addMedia({
+      id: 'live',
+      kind: 'photo',
+      url: 'blob:http://localhost/live-photo',
+      poster: 'blob:http://localhost/live-poster',
+      filename: 'rack.jpg',
+      caption: 'DVR rack',
+      capturedAt: '2026-07-30 14:05:06',
+    })
+    store.getState().addMedia({
+      id: 'sample',
+      kind: 'video',
+      url: '/demo-media/sample-clip.mp4',
+      poster: '/demo-media/sample-clip-poster.jpg',
+      filename: 'sample.mp4',
+      caption: '',
+      capturedAt: '2026-07-30 14:06:00',
+      sample: true,
+    })
+    return store
+  }
+
+  it('strips a live capture down to its metadata — the snapshot never carries a blob URL', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+    expect(storage.map.get(SNAPSHOT_KEY)).not.toContain('blob:')
+  })
+
+  it('rehydrates a live capture with no url, so it can render the honest expired notice', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+
+    const photo = createDemoStore(loadSnapshot(storage) ?? undefined).getState().locations[0].form.media
+      .photos[0]
+    expect(photo.url).toBeUndefined()
+    expect(photo.poster).toBeUndefined()
+    // Everything the visitor typed survives — only the bytes are gone.
+    expect(photo).toMatchObject({ id: 'live', filename: 'rack.jpg', caption: 'DVR rack' })
+    expect(isMediaAvailable(photo)).toBe(false)
+  })
+
+  it('keeps a bundled sample capture intact — its URL is as valid after a refresh as before', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+
+    const video = createDemoStore(loadSnapshot(storage) ?? undefined).getState().locations[0].form.media
+      .videos[0]
+    expect(video.url).toBe('/demo-media/sample-clip.mp4')
+    expect(video.poster).toBe('/demo-media/sample-clip-poster.jpg')
+    expect(isMediaAvailable(video)).toBe(true)
+  })
+
+  it('leaves the LIVE store untouched — stripping is a write-side concern only', () => {
+    // The visitor is still looking at the photo they just took; only what goes into
+    // sessionStorage is trimmed.
+    const store = storeWithMedia()
+    saveNow(store, new FakeStorage())
+    expect(store.getState().locations[0].form.media.photos[0].url).toBe('blob:http://localhost/live-photo')
   })
 })
 
@@ -319,6 +392,21 @@ describe('shape guard (never crash boot)', () => {
     parsed.state.visited = { cases: true, newCase: true, holodeck: true }
     storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true, newCase: true })
+  })
+
+  it('the media-library modal id is REGISTERED, so its visit survives a rehydrate (P4.2)', () => {
+    // Registry compliance, from the consumer's end: `MODAL_IDS` is `Record<ModalId, true>`, so
+    // a missing entry is a compile error — but a compile-time device proves nothing about the
+    // id the drawer's new row actually opens. An unregistered one would be dropped here
+    // silently, exactly like `holodeck` above, and the exploration manifest would forget the
+    // visitor ever opened the library.
+    const storage = seeded()
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { visited: Record<string, true> }
+    }
+    parsed.state.visited = { mediaLibrary: true, holodeck: true }
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.visited).toEqual({ mediaLibrary: true })
   })
 
   it('Object.prototype key names in visited are dropped too — own-property guard, not `in` (R-7)', () => {
@@ -686,5 +774,92 @@ describe('isLive — the handle’s honesty signal (R-2)', () => {
     expect(handle.isLive()).toBe(true)
     handle.dispose()
     warn.mockRestore()
+  })
+})
+
+/**
+ * P4.2 / matrix row 80 — `saveState()` is the same fact `isLive()` reports, carrying WHY.
+ * The drawer's status line needs the reason: `isLive()` collapses "never wired", "nothing
+ * written yet" and "the write failed" into one `false`, and those want three different
+ * sentences. `isLive()` is DERIVED from this, so the two can never disagree.
+ */
+describe('saveState — the reason behind isLive (row 80)', () => {
+  it('is `unavailable` for the NOOP handle: never wired, so nothing was ever pending', () => {
+    const handle = persistDemoStore(freshStore(), null)
+    expect(handle.saveState()).toEqual({ kind: 'unavailable' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is `pending` on a wired handle before the first write lands — NOT `unavailable`', () => {
+    // The distinction this method exists for: a visitor who has not typed yet must not be
+    // told their browser isn't storing the session.
+    const handle = persistDemoStore(freshStore(), new FakeStorage())
+    expect(handle.saveState()).toEqual({ kind: 'pending' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is `saved` with the injected write timestamp once a write lands', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage(), { now: () => 1_700_000_000_000 })
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 1_700_000_000_000 })
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+  })
+
+  it('re-stamps `at` on every landed write, so recency tracks the LAST save', () => {
+    let t = 1_000
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage(), { now: () => t })
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 1_000 })
+
+    t = 61_000
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 61_000 })
+    handle.dispose()
+  })
+
+  it('is `failed` — not `unavailable` — when a write throws and the snapshot is cleared', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState().kind).toBe('saved')
+
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+
+    expect(handle.saveState()).toEqual({ kind: 'failed' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('defaults its clock to the host when no `now` is injected', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage())
+    const before = Date.now()
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    const state = handle.saveState()
+    expect(state.kind).toBe('saved')
+    // Fake timers move Date.now() with the clock, so the stamp is the host time AT THE WRITE
+    // (one debounce after the change) — not the wiring time, and not a hard-coded constant.
+    if (state.kind === 'saved') {
+      expect(state.at).toBe(Date.now())
+      expect(state.at).toBe(before + SAVE_DEBOUNCE_MS)
+    }
+    handle.dispose()
   })
 })
