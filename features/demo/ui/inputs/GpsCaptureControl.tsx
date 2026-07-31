@@ -182,7 +182,9 @@ export function GpsCaptureControl({
       {/* Live sample readout — demo-only (see the header note); every value is measured. */}
       {isCapturing && progress && (
         <div role="status" data-testid="gps-capture-progress" style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>
-          {`Sample ${progress.samplesTaken} of ${resolvedConfig.maxAttempts} · best ${formatAccuracy(progress.bestAccuracyM)}`}
+          {`Sample ${progress.samplesTaken} of ${resolvedConfig.maxAttempts}${
+            progress.bestAccuracyM === undefined ? '' : ` · best ${formatAccuracy(progress.bestAccuracyM)}`
+          }`}
         </div>
       )}
 

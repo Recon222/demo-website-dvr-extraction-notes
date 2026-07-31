@@ -65,6 +65,12 @@ describe('meetsTargetAccuracy', () => {
     expect(meetsTargetAccuracy(sample({ accuracyM: 49.9 }), 50)).toBe(true)
     expect(meetsTargetAccuracy(sample({ accuracyM: 50.1 }), 50)).toBe(false)
   })
+
+  it('never ends the loop early on a reading with no accuracy figure (R-18)', () => {
+    // A `0` default would satisfy every target instantly and collapse the multi-sample
+    // procedure to one reading — on a number nobody measured.
+    expect(meetsTargetAccuracy(sample({ accuracyM: undefined }), 100)).toBe(false)
+  })
 })
 
 describe('selectBestSample', () => {
@@ -81,6 +87,19 @@ describe('selectBestSample', () => {
 
   it('returns null for an empty set', () => {
     expect(selectBestSample([])).toBeNull()
+  })
+
+  it('prefers a MEASURED reading over an unmeasured one, in either order (R-18)', () => {
+    const measured = sample({ accuracyM: 40 })
+    const unmeasured = sample({ accuracyM: undefined })
+    expect(selectBestSample([unmeasured, measured])).toBe(measured)
+    expect(selectBestSample([measured, unmeasured])).toBe(measured)
+  })
+
+  it('still returns an unmeasured reading when nothing in the set carries an accuracy', () => {
+    // Better an honest coordinate with no accuracy chip than discarding a real fix.
+    const first = sample({ accuracyM: undefined, timestampMs: 1_000 })
+    expect(selectBestSample([first, sample({ accuracyM: undefined, timestampMs: 2_000 })])).toBe(first)
   })
 })
 
@@ -141,6 +160,13 @@ describe('toGpsFix', () => {
     const out = toGpsFix([sample({ accuracyM: 3, lat: 120 })])
     expect(out.ok).toBe(false)
     expect(out.ok === false && out.failure.code).toBe('INVALID_COORDINATES')
+  })
+
+  it('commits a fix with no accuracy when no reading carried one (R-18)', () => {
+    const out = toGpsFix([sample({ accuracyM: undefined })])
+    expect(out.ok).toBe(true)
+    expect(out.ok === true && out.fix.accuracyM).toBeUndefined()
+    expect(out.ok === true && out.fix.lat).toBe(43.6087)
   })
 
   it('fails with a typed error rather than throwing on a malformed timestamp (R-13)', () => {

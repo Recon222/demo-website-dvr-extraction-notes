@@ -176,6 +176,24 @@ describe('captureGps — multi-sample behaviour', () => {
     ])
   })
 
+  it('reports no accuracy — never a fabricated 0 — when the provider omits it (R-18)', async () => {
+    const noAccuracy = {
+      coords: { latitude: 43.6, longitude: -79.65, accuracy: null, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+      timestamp: Date.UTC(2026, 6, 30, 12, 0, 0),
+    } as unknown as GeolocationPosition
+    const geo = scripted([noAccuracy])
+    const spy = vi.spyOn(geo, 'getCurrentPosition')
+    const progress: CaptureProgress[] = []
+    const config = { ...buildGpsConfig('quick'), maxAttempts: 2 }
+    const outcome = await captureGps(config, { geolocation: geo, ...noDelay, onProgress: (p) => progress.push(p) })
+
+    expect(outcome?.ok).toBe(true)
+    expect(outcome?.ok === true && outcome.fix.accuracyM).toBeUndefined()
+    // And it did not satisfy the target, so the loop kept sampling to the cap.
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(progress[0]).toEqual({ samplesTaken: 1, bestAccuracyM: undefined })
+  })
+
   it('asks for a fresh high-accuracy fix — never a cached one', async () => {
     const geo = scripted([position(3)])
     await captureGps(buildGpsConfig(), { geolocation: geo, ...noDelay })

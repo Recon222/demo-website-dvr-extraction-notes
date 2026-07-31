@@ -29,20 +29,25 @@
 // ---- Domain ---------------------------------------------------------------
 
 /** One raw reading. `accuracyM` is the radius of 68% confidence in metres, as reported by the
- *  platform (`GeolocationCoordinates.accuracy` in the browser, `coords.accuracy` on the phone). */
+ *  platform (`GeolocationCoordinates.accuracy` in the browser, `coords.accuracy` on the phone).
+ *  OPTIONAL (R-18): a provider that omits it has measured nothing, and `0` is the one value that
+ *  would render green "±0m · Excellent" and instantly satisfy the target, collapsing the
+ *  multi-sample procedure to a single reading on a fabricated number. */
 export interface GpsSample {
   lat: number
   lng: number
-  accuracyM: number
+  accuracyM?: number
   /** Unix ms as reported by the platform for THIS reading — never an ambient clock read. */
   timestampMs: number
 }
 
-/** The committed result of a capture: the best sample, plus how many were taken to get it. */
+/** The committed result of a capture: the best sample, plus how many were taken to get it.
+ *  `accuracyM` is absent when no reading carried one — the honest "coordinates captured,
+ *  accuracy unknown" outcome the coordinate card already renders correctly. */
 export interface GpsFix {
   lat: number
   lng: number
-  accuracyM: number
+  accuracyM?: number
   /** ISO-8601 UTC, derived from the winning sample's own timestamp. */
   capturedAtIso: string
   sampleCount: number
@@ -151,9 +156,10 @@ export const PRECISE_GPS_CONFIG: GpsConfig = Object.freeze({
 
 // ---- Sample aggregation ---------------------------------------------------
 
-/** gps-service.ts:215 — the early-exit test. A reading at exactly the target counts. */
+/** gps-service.ts:215 — the early-exit test. A reading at exactly the target counts; a reading
+ *  with no accuracy figure cannot be SHOWN to meet it, so it never ends the loop early (R-18). */
 export function meetsTargetAccuracy(sample: GpsSample, targetAccuracyM: number): boolean {
-  return sample.accuracyM <= targetAccuracyM
+  return sample.accuracyM !== undefined && sample.accuracyM <= targetAccuracyM
 }
 
 /**
@@ -165,7 +171,18 @@ export function meetsTargetAccuracy(sample: GpsSample, targetAccuracyM: number):
 export function selectBestSample(samples: readonly GpsSample[]): GpsSample | null {
   let best: GpsSample | null = null
   for (const s of samples) {
-    if (best === null || s.accuracyM < best.accuracyM) best = s
+    if (best === null) {
+      best = s
+      continue
+    }
+    // R-18: a MEASURED reading always beats an unmeasured one, whatever the order. An
+    // unmeasured reading wins only when nothing in the set carries an accuracy — better an
+    // honest coordinate with no accuracy chip than discarding a real fix.
+    if (best.accuracyM === undefined) {
+      if (s.accuracyM !== undefined) best = s
+      continue
+    }
+    if (s.accuracyM !== undefined && s.accuracyM < best.accuracyM) best = s
   }
   return best
 }

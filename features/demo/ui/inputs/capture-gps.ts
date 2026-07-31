@@ -48,8 +48,8 @@ export function readBrowserGeolocation(): GeolocationLike | null {
 export interface CaptureProgress {
   /** Readings taken so far, 1-based once the first lands. Drives the live sample counter. */
   samplesTaken: number
-  /** Accuracy of the best reading so far, in metres. */
-  bestAccuracyM: number
+  /** Accuracy of the best reading so far, in metres — absent while no reading has carried one. */
+  bestAccuracyM?: number
 }
 
 export interface CaptureGpsDeps {
@@ -163,13 +163,15 @@ export async function captureGps(
     samples.push({
       lat: position.coords.latitude,
       lng: position.coords.longitude,
-      // `accuracy` is required by the spec but defensively defaulted (the phone defaults the
-      // nullable native value to 0 the same way, gps-service.ts:206).
-      accuracyM: position.coords.accuracy ?? 0,
+      // R-18: `accuracy` is required by the spec, but a non-conformant provider that omits it
+      // has measured NOTHING. The phone defaults the nullable native value to 0
+      // (gps-service.ts:206); the demo can't — this phase made `accuracyM` optional precisely
+      // so an unmeasured coordinate never renders "±0m · Excellent".
+      accuracyM: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : undefined,
       timestampMs: position.timestamp,
     })
     const best = selectBestSample(samples)
-    onProgress?.({ samplesTaken: samples.length, bestAccuracyM: best?.accuracyM ?? 0 })
+    onProgress?.({ samplesTaken: samples.length, bestAccuracyM: best?.accuracyM })
 
     if (meetsTargetAccuracy(samples[samples.length - 1], config.targetAccuracyM)) break
     if (attempts >= config.maxAttempts) break
