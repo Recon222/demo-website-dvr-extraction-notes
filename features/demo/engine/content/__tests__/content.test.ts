@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { CHAPTERS } from '@/features/demo/engine/content/screens'
-import { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
+import { CHAPTERS, LAUNCHABLE, TAB_VIEWS } from '@/features/demo/engine/content/screens'
+import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
 import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 import { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 
@@ -30,6 +30,23 @@ describe('narration', () => {
       expect(n!.title.length).toBeGreaterThan(0)
       expect(n!.paras.length).toBeGreaterThan(0)
     }
+  })
+
+  it('carries copy for exactly the tab destinations that are NOT chapters (Map, Export)', () => {
+    // The bridge consults TAB_NARRATION BEFORE the chapter copy, so an entry here for a view
+    // that is also a chapter would silently shadow that chapter's own narration. The keys are
+    // therefore pinned to the tab-only destinations.
+    const tabOnly = TAB_VIEWS.filter((v) => !(CHAPTERS as readonly string[]).includes(v))
+    expect(Object.keys(TAB_NARRATION).sort()).toEqual([...tabOnly].sort())
+    for (const id of tabOnly) {
+      const n = TAB_NARRATION[id]
+      expect(n, `tab narration missing for "${id}"`).toBeTruthy()
+      expect(n!.eyebrow.length).toBeGreaterThan(0)
+      expect(n!.title.length).toBeGreaterThan(0)
+      expect(n!.paras.length).toBeGreaterThan(0)
+    }
+    // …and never for a launchable: those are keyed in MODAL_NARRATION and matched first.
+    for (const id of LAUNCHABLE) expect(TAB_NARRATION[id]).toBeUndefined()
   })
 })
 
