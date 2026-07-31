@@ -1150,26 +1150,33 @@ dangling timer, and the loop stays testable without fake timers. Documented in
 more than the tail of one already-abandoned reading.
 ## 42. P2.1 (parity/p2-notes) — notes-generator port: shared-address-formatting placement + header/notes abbreviation seam
 
+**Status: BOTH ITEMS RESOLVED on `parity/p2-address-dedupe` (the P2.1 follow-up round).**
+
 **Context:** P2.1 ported the phone's seven-section notes generator. The address section
 formatter needs the phone's `formatAddress`/`abbreviateStreetTypes`
 (`src/lib/utils/address-formatting.ts`), which the demo did not have — it was ported
 **inside the notes module** (`engine/logic/notes/address-formatting.ts`) to keep P2.1's
-footprint out of P2.3's concurrent territory.
+footprint out of P2.3's concurrent territory. P2.3 landed its own shared port in
+parallel; per this entry's original owner rule ("whoever merges second dedupes"),
+the P2.1 follow-up executed both resolutions:
 
-1. **Lift `address-formatting.ts` to a shared engine/logic location when P2.3 lands.**
-   P2.3 (Submission depth, matrix row 29) builds the `formatAddress`
-   street-type-abbreviation derivation for the submission screen's derived address
-   field. Two copies of the abbreviation map would drift; the notes-module copy is
-   fully tested and ready to move as-is. Owner: whichever of P2.1/P2.3 is merged
-   second (orchestrator's call at phase assembly).
+1. ~~Lift `address-formatting.ts` to a shared engine/logic location~~ — **RESOLVED**
+   (commit `2b51591`): the notes address-formatter now consumes P2.3's canonical
+   `engine/logic/address-format.ts`; the notes-local copy and its test suite are
+   deleted (the shared suite is a strict superset of its pins). Byte-identity
+   verified statically (line-identical function bodies, same 13-entry table/regex/
+   join) and dynamically (all notes template-pinning + phone-parity tests pass
+   unchanged against the shared module).
 
-2. **The PDF header address is NOT street-type-abbreviated; the notes body now is.**
-   `selectCaseNotesData.address` (and the Completion summary / screenData rows) still
-   use the inline `[businessName, streetAddress, city].filter(Boolean).join(', ')`
-   join, so a location entered as "123 Main Street" renders "Main Street" in the PDF
-   header and "Main St" in the notes body below it. On the phone both surfaces run
-   through `formatAddress`. Deliberately left to P2.3 (the derived-address package)
-   rather than fixed piecemeal here — switching the header changes several non-notes
-   surfaces (Completion summary, case cards, map data) that P2.3 owns wholesale.
-   **Trigger:** P2.3's `formatAddress` wiring; verify the header/notes strings agree
-   afterward.
+2. ~~PDF header un-abbreviated while the notes body abbreviates~~ — **RESOLVED,
+   premise verified against the phone**: the phone's PDF header composes
+   `resolvedAddress` via `formatAddress` (`case-notes-template.ts:51-54`, rendered
+   `:86`) and its notes body composes its location string via the SAME
+   `formatAddress` (`notes/formatters/address-formatter.ts:37`) — header and body
+   agree on the phone, both abbreviated. The demo now matches exactly:
+   `selectCaseNotesData.address` runs `formatAddress` (P2.3's selectors wiring) and
+   the notes body runs the same shared module (item 1). Pinned end-to-end by the
+   "§42.2 pin" test in `engine/__tests__/engine-flow.test.ts` (header row and
+   attendance line carry the identical abbreviated string; the full street word
+   never reaches the document). Remaining hand-join sites OUTSIDE the PDF path
+   (Completion summary, screenData rows) are P2.4's §37 table — not re-tracked here.

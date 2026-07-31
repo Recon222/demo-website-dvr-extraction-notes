@@ -40,6 +40,27 @@ describe('sandbox pass (headless)', () => {
     expect(html).toContain("Attended Kim's Convenience") // the assembled notes body reached the PDF
   })
 
+  it('PDF header and notes body abbreviate the address IDENTICALLY (phone parity, §42.2 pin)', () => {
+    // Phone: the header composes resolvedAddress via formatAddress
+    // (case-notes-template.ts:51-54, rendered :86) and the notes body composes its
+    // location string via the SAME formatAddress (notes/formatters/address-formatter.ts:37)
+    // — header and body agree, both abbreviated. The demo mirrors that: selectors.ts
+    // (address: formatAddress(...)) + the shared engine/logic/address-format module in
+    // the notes address-formatter. This test pins the agreement end-to-end.
+    const store = freshStore()
+    store.getState().createCase(newCaseInput())
+    const c = store.getState().currentCaseId!
+    store.getState().addLocation(c, newLocationInput({ streetAddress: '1450 Eglinton Avenue West' }))
+    store.getState().reconcileNotes()
+    const html = generateCaseNotesDoc(selectCaseNotesData(store.getState()))
+    // Location: header row — abbreviated
+    expect(html).toContain("Kim's Convenience, 1450 Eglinton Ave West, Mississauga")
+    // notes body attendance line — the SAME abbreviated string
+    expect(html).toContain("Attended Kim's Convenience, 1450 Eglinton Ave West, Mississauga")
+    // the full word never reaches the document from either surface
+    expect(html).not.toContain('Eglinton Avenue')
+  })
+
   it('creates a case + two locations and round-trips updateField per location', () => {
     const store = freshStore()
     const c = store.getState().createCase(newCaseInput())
