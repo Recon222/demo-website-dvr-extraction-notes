@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { freshStore, newCaseInput, newLocationInput } from './test-utils'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
+import { isMediaAvailable } from '@/features/demo/engine/logic/media/captured'
 import {
   SAVE_DEBOUNCE_MS,
   SNAPSHOT_KEY,
@@ -191,11 +192,15 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     store.getState().commitNoteSection('address', 'my own account of attendance')
     store.getState().commitNoteAddendum('address', 'manager was present')
     store.getState().commitNotesFreeText('additional observations')
+    // v6: the media URLs here are BUNDLED SAMPLE paths, not `blob:` object URLs, precisely
+    // so `url`/`poster` remain part of this maximal fixture. A live capture's blob URL is
+    // deliberately stripped by `snapshotOf` — pinned separately below, so a regression there
+    // can't hide behind this fixture's whole-state diff.
     store.getState().addMedia('photo', {
       id: 'm1',
       kind: 'photo',
-      url: 'blob:photo',
-      poster: 'blob:poster',
+      url: '/demo-media/sample-photo.jpg',
+      poster: '/demo-media/sample-clip-poster.jpg',
       filename: 'IMG_1.jpg',
       caption: 'DVR rack',
       capturedAt: '2025-03-09 10:00:00',
@@ -219,7 +224,8 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
       source: 'gps',
       capturedAt: '2026-07-30T14:05:06.000Z',
     })
-    expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    expect(loc.form.media.photos[0].url).toBe('/demo-media/sample-photo.jpg')
+    expect(loc.form.media.photos[0].poster).toBe('/demo-media/sample-clip-poster.jpg')
     const address = loc.form.notesSections.find((sec) => sec.id === 'address')
     expect(address?.content).toBe('my own account of attendance')
     expect(address?.userAddendum).toBe('manager was present')
@@ -227,6 +233,73 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     expect(address?.generatedContent).toContain('• Attended') // frozen baseline survives
     expect(loc.form.notesFreeText).toBe('additional observations')
     expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+  })
+})
+
+describe('media bytes never persist (v6 — plan §5 P4.1 / D2)', () => {
+  /** A store holding one live capture (blob URLs) and one bundled sample capture. */
+  function storeWithMedia() {
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(caseId, newLocationInput())
+    store.getState().addMedia('photo', {
+      id: 'live',
+      kind: 'photo',
+      url: 'blob:http://localhost/live-photo',
+      poster: 'blob:http://localhost/live-poster',
+      filename: 'rack.jpg',
+      caption: 'DVR rack',
+      capturedAt: '2026-07-30 14:05:06',
+    })
+    store.getState().addMedia('video', {
+      id: 'sample',
+      kind: 'video',
+      url: '/demo-media/sample-clip.mp4',
+      poster: '/demo-media/sample-clip-poster.jpg',
+      filename: 'sample.mp4',
+      caption: '',
+      capturedAt: '2026-07-30 14:06:00',
+      sample: true,
+    })
+    return store
+  }
+
+  it('strips a live capture down to its metadata — the snapshot never carries a blob URL', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+    expect(storage.map.get(SNAPSHOT_KEY)).not.toContain('blob:')
+  })
+
+  it('rehydrates a live capture with no url, so it can render the honest expired notice', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+
+    const photo = createDemoStore(loadSnapshot(storage) ?? undefined).getState().locations[0].form.media
+      .photos[0]
+    expect(photo.url).toBeUndefined()
+    expect(photo.poster).toBeUndefined()
+    // Everything the visitor typed survives — only the bytes are gone.
+    expect(photo).toMatchObject({ id: 'live', filename: 'rack.jpg', caption: 'DVR rack' })
+    expect(isMediaAvailable(photo)).toBe(false)
+  })
+
+  it('keeps a bundled sample capture intact — its URL is as valid after a refresh as before', () => {
+    const storage = new FakeStorage()
+    saveNow(storeWithMedia(), storage)
+
+    const video = createDemoStore(loadSnapshot(storage) ?? undefined).getState().locations[0].form.media
+      .videos[0]
+    expect(video.url).toBe('/demo-media/sample-clip.mp4')
+    expect(video.poster).toBe('/demo-media/sample-clip-poster.jpg')
+    expect(isMediaAvailable(video)).toBe(true)
+  })
+
+  it('leaves the LIVE store untouched — stripping is a write-side concern only', () => {
+    // The visitor is still looking at the photo they just took; only what goes into
+    // sessionStorage is trimmed.
+    const store = storeWithMedia()
+    saveNow(store, new FakeStorage())
+    expect(store.getState().locations[0].form.media.photos[0].url).toBe('blob:http://localhost/live-photo')
   })
 })
 

@@ -38,6 +38,7 @@ import {
 } from '@/features/demo/engine/types'
 import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import type { SaveState } from '@/features/demo/engine/logic/save-status'
+import { withoutEphemeralMedia } from '@/features/demo/engine/logic/media'
 
 /**
  * sessionStorage persistence for the demo store (P0.4, owner decision D2).
@@ -70,9 +71,14 @@ export const PERSISTENCE_ENABLED = true
  *  v5: `CameraEntry.gps` gains the required `source`/`capturedAt` members (P3.7 per-camera
  *      GPS — the phone's five camera keys). A v4 snapshot holding a camera fix would fail
  *      the shape guard and wipe the whole tab; the bump makes that discard explicit and
- *      version-attributable rather than a mystery "corrupt snapshot" at boot. */
-export const SNAPSHOT_VERSION = 5
-export const SNAPSHOT_KEY = 'dvr-demo-state-v5'
+ *      version-attributable rather than a mystery "corrupt snapshot" at boot.
+ *  v6: `MediaItem.url` optional (P4.1 — media bytes are never persisted, so `snapshotOf`
+ *      strips `blob:` URLs and a restored capture renders the honest expired notice). This
+ *      is a field WIDENING, the one drift direction the compile-time devices explicitly do
+ *      NOT catch (see R-30 below): a v5 build's schema would reject the url-less item this
+ *      build writes and wipe the tab at boot. The bump makes the discard version-attributable. */
+export const SNAPSHOT_VERSION = 6
+export const SNAPSHOT_KEY = 'dvr-demo-state-v6'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -219,7 +225,8 @@ const exportInformationSchema: z.ZodType<ExportInformation> = z.object({
 const mediaItemSchema: z.ZodType<MediaItem> = z.object({
   id: z.string(),
   kind: z.enum(MEDIA_KINDS),
-  url: z.string(),
+  // Optional since v6: `snapshotOf` strips `blob:` URLs, so a persisted live capture has none.
+  url: z.string().optional(),
   poster: z.string().optional(),
   filename: z.string(),
   caption: z.string(),
@@ -363,12 +370,19 @@ const envelopeSchema = z.object({ version: z.number(), state: z.unknown() })
 // ---- Snapshot write side --------------------------------------------------
 
 /** Explicit pick of the persisted subset — action functions and the ephemeral chrome
- *  (`modal`, `drawerOpen`) can never leak into the serialized snapshot. */
+ *  (`modal`, `drawerOpen`) can never leak into the serialized snapshot.
+ *
+ *  `locations` additionally passes through `withoutEphemeralMedia` (P4.1): a captured
+ *  photo's `blob:` URL is scoped to the document that minted it, so persisting the string
+ *  would rehydrate a `MediaItem` pointing at nothing. Stripping it here — the single
+ *  write-side funnel — is what makes the restored item render the honest expired notice
+ *  instead of a broken image. Identity-preserving, so a case with no live captures still
+ *  serializes the very same objects. */
 export function snapshotOf(s: DemoState): PersistedState {
   return {
     profile: s.profile,
     cases: s.cases,
-    locations: s.locations,
+    locations: withoutEphemeralMedia(s.locations),
     currentCaseId: s.currentCaseId,
     currentLocationId: s.currentLocationId,
     view: s.view,
