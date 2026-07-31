@@ -763,3 +763,25 @@ pdfjs `getTextContent` char counts + file sizes.
 (one-click demand), AND (b) a client-side renderer that emits a REAL text layer from the same
 generator HTML (not rasterized pages) — re-run the method above and re-compare. Also revisit
 if the browsers ship a programmatic dialog-less print-to-PDF API.
+
+## 35. P1.5 (parity/p1-flowmodes) — dwell + failure-card enrichment: deliberate non-ports
+
+**Context:** P1.5 ported the phone's `computeImportFlowMode` dwell (matrix row 73) and the
+failure-card enrichment (row 79). Two phone behaviors were deliberately NOT ported, and one
+demo behavior was deliberately changed — none are gaps to re-flag:
+
+1. **No dry-run / validation-only view.** The phone's `ErrorOrDryRunContent` renders a
+   "Validation Successful / Dry run completed successfully" card for JSON-import dry runs.
+   The demo has no JSON import (owner decision D5) and no validate-only mode, so there is
+   nothing to dry-run. Noted in-source at the ImportModal failure branch. Trigger to
+   revisit: a JSON-import or validate-only path ever lands in the demo.
+
+2. **ERROR_MESSAGES deliberately does NOT cover PDF_SCANNED / NO_FIELDS_FOUND.** Their
+   pipeline messages are already the user-facing copy; the phone's own precedent
+   (§5.7.8: PDF codes stay out of its map so "the pipeline's own honest string always
+   renders"). Tests pin the absences so a future "helpful" mapping is a deliberate act.
+
+3. **Single-run failures no longer render the per-file FailuresCard.** Pre-P1.5 a lone
+   failed run showed the aggregate "1 import failed." plus a one-row file card; it now
+   surfaces the run's own error directly with code/details/partialData enrichment
+   (phone single-failure anatomy). Multi-file all-failed runs keep aggregate + rows.
