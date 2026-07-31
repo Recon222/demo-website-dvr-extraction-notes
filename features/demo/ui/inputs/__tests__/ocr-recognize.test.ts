@@ -23,6 +23,8 @@ const h = vi.hoisted(() => {
   const state = {
     created: [] as FakeWorker[],
     bootFailures: 0,
+    /** When set, `createWorker` stalls on it — the R-32 "still booting" window. */
+    bootGate: null as Promise<void> | null,
     nextData: { text: '2025-03-08 12:05:30\n', confidence: 87 } as { text?: unknown; confidence?: unknown },
   }
   return state
@@ -32,6 +34,7 @@ vi.mock('tesseract.js', () => ({
   OEM: { LSTM_ONLY: 1 },
   PSM: { SINGLE_BLOCK: '6' },
   createWorker: vi.fn(async () => {
+    if (h.bootGate) await h.bootGate
     if (h.bootFailures > 0) {
       h.bootFailures -= 1
       throw new Error('worker boot failed')
@@ -52,6 +55,7 @@ afterEach(async () => {
   await disposeDvrRecognizer()
   h.created.length = 0
   h.bootFailures = 0
+  h.bootGate = null
   h.nextData = { text: '2025-03-08 12:05:30\n', confidence: 87 }
   vi.clearAllMocks()
 })
@@ -124,5 +128,31 @@ describe('disposeDvrRecognizer', () => {
   it('is a no-op when nothing was ever created (the suite-default world)', async () => {
     await expect(disposeDvrRecognizer()).resolves.toBeUndefined()
     expect(h.created).toHaveLength(0)
+  })
+
+  // R-32 (T-9): the docblock claims the teardown is "safe against a worker that is still
+  // booting — the teardown waits for it first". The real path is Cancel during the first
+  // shutter's ~6.8 MB asset fetch. Previously asserted nowhere.
+  it('waits out a still-booting worker and terminates it — Cancel mid-first-fetch leaks nothing', async () => {
+    let openGate: () => void = () => {}
+    h.bootGate = new Promise<void>((resolve) => {
+      openGate = resolve
+    })
+
+    const pendingRead = recognizeDvrStrip(strip()) // boot starts, stalls on the gate
+    const pendingDispose = disposeDvrRecognizer() // screen unmounts while it boots
+    expect(h.created).toHaveLength(0) // nothing to terminate YET — dispose must be waiting
+
+    openGate()
+    await pendingDispose
+
+    expect(h.created).toHaveLength(1)
+    expect(h.created[0].terminate).toHaveBeenCalledTimes(1)
+    await pendingRead // the abandoned read settles too — no unhandled rejection left behind
+
+    // The singleton really is gone: the next read boots a fresh worker.
+    const { createWorker } = await import('tesseract.js')
+    await recognizeDvrStrip(strip())
+    expect(createWorker).toHaveBeenCalledTimes(2)
   })
 })

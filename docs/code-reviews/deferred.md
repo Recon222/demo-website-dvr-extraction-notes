@@ -3591,3 +3591,67 @@ ternary, close it then.
 See §61g. Its "both directions are pinned" sentence was false when written, and the correction
 stays visible with the lesson attached: that is a claim about TESTS, and the only way to earn it
 is to run the mutation. The arm now carries the two assertions that survive nothing.
+
+## 69. P4.7 fix round 1 (parity/p4-fix-ocr) — R-4/R-5/R-6/R-10/R-15/R-29(twin)/R-32 dispositions
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, the P4.7-routed findings.
+All FIXED, none refuted. Mutation evidence re-run for the two the aggregator reproduced.
+
+### 69a. R-4 — generation token for live reads (FIXED)
+
+`readGen` (the `importGen` pattern) in `OcrCaptureScreen`: bumped by a newer capture, a
+sample pick, the sample shutter, and — the load-bearing one — the result-arrival effect, so a
+read landing after ANY result is stale and writes nothing. The supersession point releases
+`reading` and clears the notice, because a stale read's `finally` deliberately won't touch
+flags it no longer owns (without this, a superseded read left the shutter held and "Reading
+timestamp…" up forever on Retake — found by the new failure-arm test, worse than the reviewed
+symptom). Belt: the three sample buttons are `disabled` while a read is in flight. Five pins;
+dropping the token guard fails the two supersession tests.
+
+### 69b. R-5 — the bridge arm executed (FIXED)
+
+`DemoExperience.ocr-live.test.tsx`: `OcrCaptureScreen` stubbed at the module boundary, the
+bridge's `runOcrLive` driven through props. The aggregator's exact gut (`measured: false`,
+no `imageDataUrl`, `fallbackActual: SAMPLE_ACTUAL_TIME`) now fails 2 of 3 tests. Also pins
+that a previously-calibrated `capture.actualDateTime` survives a live read.
+
+### 69c. R-6 — the proof writer compile-linked to the canonical type (FIXED)
+
+`ocrProof` ref is `Omit<OcrProof, 'parsedDateTime'>`; `confirmOcr` writes an annotated
+`OcrProof`. Probe re-run: a required field added to `OcrProof` now errors at this writer
+(previously only the two `persistence.ts` sites fired). No runtime change.
+
+### 69d. R-10 — the 1280 px bound pinned at the screen (FIXED)
+
+The 4K case (`sizeVideo(3840, 2160)` → drawCall `[192, 896, 3456, 367, 0, 0, 1280, 136]`)
+lands in `OcrCaptureScreen.live.test.tsx`; deleting `targetWidth` from the screen's grab call
+now fails it.
+
+### 69e. R-15 — persisted strip decoupled to q=0.85 (FIXED, §64a byte budget restored)
+
+`grabVideoFrame` gains `dataUrlQuality` (defaults to `quality` — no other caller moves). The
+recognition blob keeps the phone's `CAPTURE_QUALITY` 1.0; the sessionStorage-bound data URL
+encodes at 0.85, which is what §64a's stated 35–80 KB budget assumed (the lane measured
+~163 KB at q=1.0). Read §64a's size figures as q=0.85 figures from here on. Pinned at unit
+level (both encoders' arguments recorded by the shared fake canvas) and at the screen.
+
+### 69f. R-29 twin — the OCR screen's unreadable-device-list line pinned (FIXED)
+
+`enumerateDevices` rejecting → the explanation renders over the live viewfinder, no
+Switch-camera control. (`MediaCaptureScreen`'s twin belongs to P4.3's round.)
+
+### 69g. R-32 — dispose during a still-booting worker pinned (FIXED)
+
+Deferred-`createWorker` case: dispose stalls until the boot resolves, terminates exactly
+once, the abandoned read settles, and the next read boots fresh.
+
+### 69h. LEDGERED SIBLING (out of this round's scope) — `confirmOcr`/`calculateOffset` are silent no-ops with no location open
+
+Flagged by the vetted doc's struck-items notes as pre-existing and unchanged by P4: with no
+`currentLocationId`, `calculateOffset` early-returns and `confirmOcr` still writes
+`capture.*`, closes the launch screen and resets — the operator sees a normal commit while no
+offset landed anywhere. Unlike R-1's media path nothing is destroyed (the capture fields
+persist), but the silence is the same shape. The OCR entry point is location-gated in
+practice (the Time Offset screen requires an open location), which is why it has never fired.
+**Trigger:** next time `confirmOcr`/`calculateOffset` is open — apply R-1's guard pattern
+(refuse + notice) rather than the silent early-return.

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { captureFailureMessage } from '@/features/demo/engine/logic/media'
 import { OcrCaptureScreen, type OcrCaptureScreenProps, type OcrLiveRead, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import type { OcrRecognizeOutcome } from '@/features/demo/ui/inputs/ocr-recognize'
 import type { MediaDevicesLike } from '@/features/demo/ui/inputs/capture-media'
@@ -42,6 +43,7 @@ function harness(
     getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>
     recognize?: (image: Blob) => Promise<OcrRecognizeOutcome>
     devices?: MediaDeviceInfo[]
+    enumerateDevices?: () => Promise<MediaDeviceInfo[]>
     canvas?: ReturnType<typeof fakeCanvas>
   } = {},
 ): Harness {
@@ -56,7 +58,7 @@ function harness(
   )
   const mediaDevices: MediaDevicesLike = {
     getUserMedia,
-    enumerateDevices: async () => options.devices ?? [],
+    enumerateDevices: options.enumerateDevices ?? (async () => options.devices ?? []),
   }
   const recognize = vi.fn(
     options.recognize ?? (async (): Promise<OcrRecognizeOutcome> => ({ ok: true, text: '2025-03-08 12:05:30', confidence: 0.91 })),
@@ -161,6 +163,10 @@ describe('the live shutter', () => {
     expect(h.reads).toEqual([
       { rawText: '2025-03-08 12:05:30', confidence: 0.91, imageDataUrl: 'data:image/jpeg;base64,STRIP' },
     ])
+    // R-15: the recogniser's blob keeps the phone's max quality; the PERSISTED data URL is
+    // encoded at its own 0.85 — the sessionStorage copy must not pay q=1.0 bytes.
+    expect(h.canvas.blobCalls[0]).toEqual(['image/jpeg', 1.0])
+    expect(h.canvas.dataUrlCalls[0]).toEqual(['image/jpeg', 0.85])
   })
 
   it('narrows the crop to the VISIBLE band for a camera that does not match the viewfinder', async () => {
@@ -202,6 +208,138 @@ describe('the live shutter', () => {
     })
     expect(screen.queryByText('Reading timestamp…')).not.toBeInTheDocument()
     expect(h.recognize).toHaveBeenCalledTimes(1)
+  })
+
+  // R-10 (T-4): the 1280 px bound is what §64a's persist-the-proof decision rests on — an
+  // unbounded 4K strip is ~an order of magnitude more base64, and a quota overflow CLEARS the
+  // whole snapshot. The two smaller-resolution tests above never reach the cap, so this is
+  // the only case that fails if `targetWidth` is dropped from the screen's grab call.
+  it('caps a 4K strip at 1280 px — full-res source rect, downscaled output, aspect preserved', async () => {
+    const h = harness()
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(3840, 2160)
+
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    // Source rect stays the full-res strip (crop math), the destination is the bound:
+    // 3456 × 367 → 1280 × 136 (the numbers capture-media.test.ts derives at unit level).
+    expect(h.canvas.drawCalls[0].slice(1)).toEqual([192, 896, 3456, 367, 0, 0, 1280, 136])
+    expect(h.canvas.width).toBe(1280)
+    expect(h.canvas.height).toBe(136)
+    expect(h.reads).toHaveLength(1)
+  })
+
+  // R-4 (S-2): the belt half — a slow first recognition must not leave the sample paths open
+  // to land a SECOND result while the first is still in flight.
+  it('holds the sample paths while a live read is in flight, and releases them after', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+    for (const name of ['Use sample DVR clock', 'Ambiguous date', 'Time only']) {
+      expect(screen.getByText(name)).toBeDisabled()
+    }
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    expect(h.props.onUseSample).not.toHaveBeenCalled()
+
+    await act(async () => {
+      release({ ok: true, text: 'x', confidence: 0.5 })
+    })
+    for (const name of ['Use sample DVR clock', 'Ambiguous date', 'Time only']) {
+      expect(screen.getByText(name)).toBeEnabled()
+    }
+  })
+
+  // R-4 (S-2): the token half — a read that comes back AFTER a result arrived from anywhere
+  // else is stale, and writes nothing: no onLiveRead (which would replace the value the
+  // operator is correcting), and no notice detached from its cause.
+  it('discards a live read that lands after a result is already up — success arm', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    // The bridge presents a result (a sample frame the visitor picked) while recognition is
+    // still pending…
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={parsedResult} dvrDraft="2025-03-08 12:05:30" />)
+    })
+    // …then the slow live read resolves. It must NOT reach the bridge.
+    await act(async () => {
+      release({ ok: true, text: '2099-12-31 23:59:59', confidence: 0.99 })
+    })
+    expect(h.reads).toHaveLength(0)
+  })
+
+  it('discards a live read that lands after a result is already up — failure arm leaves no orphan notice', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={parsedResult} dvrDraft="2025-03-08 12:05:30" />)
+    })
+    await act(async () => {
+      release({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' })
+    })
+
+    // Retake returns to the aim stage: the stale failure must not materialise out of context,
+    // and the shutter must not come back still held by the read that no longer owns it.
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={null} />)
+    })
+    expect(screen.queryByText(/Text recognition failed/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Reading timestamp…')).not.toBeInTheDocument()
+    expect(shutterCapture()).toBeEnabled()
+  })
+
+  it('choosing a sample clears a lingering failure notice — it described a read that no longer matters', async () => {
+    const h = harness({
+      recognize: async () => ({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+    expect(screen.getByText(/Text recognition failed/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    expect(h.props.onUseSample).toHaveBeenCalledExactlyOnceWith('clean')
+    expect(screen.queryByText(/Text recognition failed/)).not.toBeInTheDocument()
   })
 
   it('surfaces a recognition failure as the honest notice — no read is fabricated', async () => {
@@ -311,5 +449,22 @@ describe('device picker', () => {
     })
     expect(many.getUserMedia).toHaveBeenCalledTimes(2)
     expect(many.getUserMedia.mock.calls[1][0]).toEqual({ video: { deviceId: { exact: 'cam-b' } }, audio: false })
+  })
+
+  // R-29 (T-6): an unreadable device list is NOT "there are no other cameras" — P4.1 keeps
+  // the two apart precisely so this line can explain the picker's absence. It was unpinned:
+  // deleting the render line left every suite green.
+  it('explains an UNREADABLE device list instead of silently hiding the picker', async () => {
+    const h = harness({
+      enumerateDevices: async () => {
+        throw new Error('enumeration blew up')
+      },
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
   })
 })

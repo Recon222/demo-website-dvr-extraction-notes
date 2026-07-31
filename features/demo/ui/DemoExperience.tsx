@@ -99,7 +99,7 @@ import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logi
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -424,8 +424,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [ocrDateConfirmed, setOcrDateConfirmed] = useState(false)
   // Render-irrelevant OCR proof (raw/cleaned text + score, and for a live camera read the
   // cropped strip image) carried from the read to the commit, where it becomes
-  // `capture.ocr` → `timeOffset.ocr`.
-  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number; imageDataUrl?: string } | null>(null)
+  // `capture.ocr` → `timeOffset.ocr`. Typed AS the canonical OcrProof minus the one member
+  // the commit supplies (R-6): `updateField` is unknown-valued, so this ref and the annotated
+  // write in `confirmOcr` are the only compile-time link between the writer and
+  // `ocrProofSchema` — an inline shape here let a future required field drift past the writer
+  // and fail the snapshot guard at next boot instead.
+  const ocrProof = useRef<Omit<OcrProof, 'parsedDateTime'> | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
@@ -1479,8 +1483,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     st.updateField('capture.dvrDateTime', ocrDraft)
     if (ocrProof.current) {
       // parsedDateTime records what OCR READ; capture.dvrDateTime records what the operator
-      // COMMITTED. When they differ, the offset report can show the correction.
-      st.updateField('capture.ocr', { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime })
+      // COMMITTED. When they differ, the offset report can show the correction. The explicit
+      // annotation keeps this writer honest against the canonical type (R-6) — `updateField`
+      // itself checks nothing.
+      const proof: OcrProof = { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime }
+      st.updateField('capture.ocr', proof)
     }
     calcOffset(regenerate)
     store.getState().closeLaunch()

@@ -88,8 +88,14 @@ const VIEWFINDER_ASPECT = 16 / 9
 const OCR_STRIP_MAX_WIDTH = 1280
 
 /** Phone `IMAGE_SETTINGS.CAPTURE_QUALITY` (constants/index.ts:27): maximum quality to
- *  minimise JPEG artifacts at capture — the recogniser reads this exact image. */
+ *  minimise JPEG artifacts at capture — the RECOGNISER reads this exact image. */
 const OCR_CAPTURE_QUALITY = 1.0
+
+/** The PERSISTED strip's encoding (R-15): the data URL goes into the sessionStorage
+ *  snapshot, where q=1.0 costs ~2–3× the §64a byte budget for no forensic gain — the
+ *  recogniser never reads this copy. 0.85 keeps the report image visually indistinguishable
+ *  and the budget honest. */
+const OCR_STRIP_DATAURL_QUALITY = 0.85
 
 /** The on-screen guide box mirrors the phone's: 80% × 17% of the (visible) frame. The extra
  *  5% per-side crop buffer lands OUTSIDE the guide, exactly as on the phone — the guide shows
@@ -174,6 +180,15 @@ export function OcrCaptureScreen({
   const [reading, setReading] = useState(false)
   /** The last grab/recognition failure — honest notice, dismissible. */
   const [notice, setNotice] = useState<string | null>(null)
+  /**
+   * Generation token for live reads (R-4 — the `importGen` pattern, p1-review H2). The first
+   * live recognition is slow by construction (lazy tesseract import + ~6.8 MB of assets), and
+   * the DVR timestamp becomes the calibration offset — it must never change underneath the
+   * operator. Bumped by anything that supersedes an in-flight read: a newer capture, a sample
+   * frame, or a result arriving from the bridge. A read that comes back stale writes NOTHING —
+   * no result, no notice out of context.
+   */
+  const readGen = useRef(0)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const aliveRef = useRef(true)
@@ -213,6 +228,15 @@ export function OcrCaptureScreen({
   const reopenOnAimRef = useRef(false)
   useEffect(() => {
     if (result) {
+      // A result is up — whatever produced it, any still-in-flight live read is now stale
+      // (R-4): its landing would replace the value the operator is already correcting. The
+      // stale read's own `finally` deliberately won't release the flags of a generation it
+      // no longer owns, so the supersession point clears them: the shutter must not come
+      // back to the aim stage still held, and a failure notice describing the superseded
+      // read must not materialise out of context on Retake.
+      readGen.current++
+      setReading(false)
+      setNotice(null)
       if (stream) {
         reopenOnAimRef.current = true
         close()
@@ -225,6 +249,9 @@ export function OcrCaptureScreen({
 
   const runLiveCapture = useCallback(
     async (video: HTMLVideoElement) => {
+      const gen = ++readGen.current
+      /** Stale = unmounted, or superseded by a newer capture/sample/result (R-4). */
+      const stale = () => !aliveRef.current || readGen.current !== gen
       setReading(true)
       setNotice(null)
       try {
@@ -235,10 +262,11 @@ export function OcrCaptureScreen({
               includeDataUrl: true,
               targetWidth: OCR_STRIP_MAX_WIDTH,
               quality: OCR_CAPTURE_QUALITY,
+              dataUrlQuality: OCR_STRIP_DATAURL_QUALITY,
               ...(deps?.createCanvas ? { createCanvas: deps.createCanvas } : {}),
             })
           : null
-        if (!aliveRef.current) return
+        if (stale()) return
         if (!grab || !grab.ok) {
           // A camera that has not delivered a frame yet and a canvas that cannot encode land
           // on the same honest sentence — nothing was captured.
@@ -247,17 +275,31 @@ export function OcrCaptureScreen({
         }
         const recognize = deps?.recognize ?? recognizeDvrStrip
         const outcome = await recognize(grab.blob)
-        if (!aliveRef.current) return
+        if (stale()) return
         if (!outcome.ok) {
           setNotice(outcome.message)
           return
         }
         onLiveRead({ rawText: outcome.text, confidence: outcome.confidence, imageDataUrl: grab.dataUrl })
       } finally {
-        if (aliveRef.current) setReading(false)
+        // A superseded read must not clear the flag a NEWER read owns; only the current
+        // generation may release the shutter.
+        if (aliveRef.current && readGen.current === gen) setReading(false)
       }
     },
     [deps?.createCanvas, deps?.recognize, onLiveRead],
+  )
+
+  /** Sample actions supersede any in-flight live read (R-4) and clear a pending failure
+   *  notice — it described a read that no longer matters, and surfacing it after the sample's
+   *  confirm stage would be a message detached from its cause. */
+  const pickSample = useCallback(
+    (frame: OcrSampleFrame) => {
+      readGen.current++
+      setNotice(null)
+      onUseSample(frame)
+    },
+    [onUseSample],
   )
 
   const onShutterPress = useCallback(() => {
@@ -265,6 +307,8 @@ export function OcrCaptureScreen({
     const video = videoRef.current
     if (!stream || !video) {
       // No live camera — the shutter says so in its name and runs the sample pipeline.
+      readGen.current++
+      setNotice(null)
       onCapture()
       return
     }
@@ -545,11 +589,13 @@ export function OcrCaptureScreen({
       </div>
 
       <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: 'linear-gradient(0deg,rgba(0,0,0,0.88),transparent)', zIndex: 3 }}>
-        <button type="button" onClick={() => onUseSample('clean')} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px solid #4BA3D4', background: 'rgba(43,140,193,0.14)', color: '#9fd4ee', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>Use sample DVR clock</button>
+        {/* Belt for the R-4 race: while a live read is in flight the sample paths are held —
+            a sample landing mid-recognition is the very supersession the token exists for. */}
+        <button type="button" disabled={reading} onClick={() => pickSample('clean')} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px solid #4BA3D4', background: 'rgba(43,140,193,0.14)', color: '#9fd4ee', fontSize: 14, fontWeight: 600, cursor: reading ? 'default' : 'pointer', opacity: reading ? 0.5 : 1, marginBottom: 14 }}>Use sample DVR clock</button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
           <span style={{ fontSize: 11, color: '#7a9fc4' }}>Awkward frames:</span>
-          <button type="button" onClick={() => onUseSample('ambiguous')} style={sampleLink}>Ambiguous date</button>
-          <button type="button" onClick={() => onUseSample('timeOnly')} style={sampleLink}>Time only</button>
+          <button type="button" disabled={reading} onClick={() => pickSample('ambiguous')} style={{ ...sampleLink, opacity: reading ? 0.5 : 1, cursor: reading ? 'default' : 'pointer' }}>Ambiguous date</button>
+          <button type="button" disabled={reading} onClick={() => pickSample('timeOnly')} style={{ ...sampleLink, opacity: reading ? 0.5 : 1, cursor: reading ? 'default' : 'pointer' }}>Time only</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button type="button" onClick={onCancel} style={{ fontSize: 15, color: '#cdd9e6', cursor: 'pointer', padding: 10, width: 70, background: 'transparent', border: 'none', textAlign: 'left' }}>Cancel</button>
