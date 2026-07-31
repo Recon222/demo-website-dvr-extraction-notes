@@ -151,9 +151,13 @@ describe('PdfPreview', () => {
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
       const win = frameWindow(container)
       delete (win as { onbeforeprint?: unknown }).onbeforeprint // capability probe now fails
-      win.print = vi.fn()
+      const print = vi.fn()
+      win.print = print
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       await settlePrintVerdict()
+      // The save must still be ATTEMPTED (R-48): degrading detection must never degrade the
+      // action — skipping print() on non-detecting engines would be a silent no-op Save button.
+      expect(print).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
