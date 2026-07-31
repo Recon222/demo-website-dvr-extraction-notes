@@ -23,6 +23,8 @@ export interface MapScreenProps {
   onChangeCase?(): void
   /** Hands off to the wizard for a location (switches the form's case/location). */
   onGoToLocation?(id: string): void
+  /** Opens the incident-location editor for the viewer case (matrix rows 22 → 23). */
+  onEditIncident?(caseId: string): void
 }
 
 const changeCasePill: CSSProperties = {
@@ -59,7 +61,7 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident }: MapScreenProps) {
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -97,6 +99,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation 
       onCall={(number) => setPendingCall(number)}
       onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
       onGoToLocation={(id) => onGoToLocation?.(id)}
+      onEditIncident={(caseId) => onEditIncident?.(caseId)}
     />
   ) : null
 

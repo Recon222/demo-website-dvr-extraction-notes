@@ -12,7 +12,7 @@ const fullLoc: LocationSheetItem = {
 const bareLoc: LocationSheetItem = { ...fullLoc, id: 'l2', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '' }
 const incItem: IncidentSheetItem = { kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.5, 43.5] }
 
-const cb = () => ({ onBack: vi.fn(), onCall: vi.fn(), onEmail: vi.fn(), onGoToLocation: vi.fn() })
+const cb = () => ({ onBack: vi.fn(), onCall: vi.fn(), onEmail: vi.fn(), onGoToLocation: vi.fn(), onEditIncident: vi.fn() })
 
 describe('LocationDetailCard', () => {
   it('location variant renders requester + contact and fires call/email/go-to', () => {
@@ -42,6 +42,20 @@ describe('LocationDetailCard', () => {
     expect(screen.getByText('Kim B&E')).toBeInTheDocument()
     expect(screen.getByText('Incident')).toBeInTheDocument()
     expect(screen.queryByText('Go to Location')).not.toBeInTheDocument()
+  })
+
+  // Matrix row 22's sole delta: the incident card is the ONLY entry to the incident editor
+  // (row 23). Without this button the modal is unreachable.
+  it('incident variant offers Edit Incident Location, firing with the case id', () => {
+    const c = cb()
+    render(<LocationDetailCard item={incItem} {...c} />)
+    fireEvent.click(screen.getByText('Edit Incident Location'))
+    expect(c.onEditIncident).toHaveBeenCalledWith('c1')
+  })
+
+  it('does NOT offer Edit Incident Location on a recovery location', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} />)
+    expect(screen.queryByText('Edit Incident Location')).not.toBeInTheDocument()
   })
 
   it('back fires onBack', () => {

@@ -113,3 +113,16 @@ describe('MapScreen — call/email mock + Go to Location', () => {
     expect(onGoTo).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('MapScreen — incident edit affordance', () => {
+  it('selecting the incident pin exposes Edit Incident Location, forwarding the case id', async () => {
+    const onEditIncident = vi.fn()
+    render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={onEditIncident} />)
+    await waitFor(() => expect(markerInstances.length).toBeGreaterThan(0))
+    const incidentEl = markerInstances.find((m) => m._el.getAttribute('data-marker-kind') === 'incident')!._el
+    fireEvent.click(incidentEl)
+    fireEvent.click(screen.getByText('Edit Incident Location'))
+    // mapData's incident item carries the CASE id (mapData.ts:97) — that's what the editor needs.
+    expect(onEditIncident).toHaveBeenCalledWith(expect.stringMatching(/^c/))
+  })
+})
