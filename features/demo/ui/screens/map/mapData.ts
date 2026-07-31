@@ -25,6 +25,27 @@ export interface MapIncident {
   lat: number
 }
 
+/**
+ * One plottable camera of a location — the demo's form of the phone's `featureType: 'camera'`
+ * GeoJSON features (`camerasToGeoJSONFeatures`, geojson-service.ts:254-300).
+ *
+ * `id` is the phone's composite `${locationId}:${cameraId}` (geojson-service.ts:283-285):
+ * `CameraEntry.id` is only unique inside one location's array, and these markers are keyed
+ * globally on the map.
+ *
+ * `resolution` / `accuracyM` are emitted truthy-only, exactly as the phone does, so the callout
+ * can rely on key presence rather than re-testing for the empty string.
+ */
+export interface MapCameraMarker {
+  id: string
+  locationId: string
+  cameraName: string
+  resolution?: string
+  lng: number
+  lat: number
+  accuracyM?: number
+}
+
 export interface LocationSheetItem {
   kind: 'location'
   id: string
@@ -43,6 +64,9 @@ export interface LocationSheetItem {
   locationContact: string
   locationPhone: string
   coordinateSource: GpsSource
+  /** This location's geolocated cameras (P3.7 per-camera GPS). Empty when none has a fix —
+   *  which is what hides the detail card's cameras toggle, phone LocationDetailCard.tsx:509. */
+  cameras: MapCameraMarker[]
 }
 
 export interface IncidentSheetItem {
@@ -71,6 +95,44 @@ export interface MapData {
  *  the incident scene keeps whatever the case creator typed. */
 const joinAddress = (parts: Array<string | null | undefined>) => parts.filter(Boolean).join(', ')
 
+/** Status tally over a set of sheet rows. The incident carries no status, so only location rows
+ *  count — the same rule the phone applies in `computeStatusCounts` (sheet-data-service.ts). */
+export function countStatuses(items: SheetItem[]): { started: number; working: number; complete: number } {
+  const counts = { started: 0, working: 0, complete: 0 }
+  for (const item of items) {
+    if (item.kind === 'location') counts[item.status]++
+  }
+  return counts
+}
+
+/** "N locations" — cameras and the incident pin never inflate it (phone MapHost.tsx:250-254). */
+export function countLocations(items: SheetItem[]): number {
+  return items.filter((i) => i.kind === 'location').length
+}
+
+/**
+ * Project a location's cameras into plottable markers. Gated on `hasCapturedCoordinates`, not on
+ * presence — same policy as the location/incident pins above, and the same guard the phone runs
+ * per camera (geojson-service.ts:260-271) so a zeroed fix never plots at Null Island.
+ */
+export function toCameraMarkers(loc: DemoLocation): MapCameraMarker[] {
+  const markers: MapCameraMarker[] = []
+  for (const cam of loc.form.cameras) {
+    if (!hasCapturedCoordinates(cam.gps)) continue
+    const gps = cam.gps!
+    markers.push({
+      id: `${loc.id}:${cam.id}`,
+      locationId: loc.id,
+      cameraName: cam.cameraName,
+      lng: gps.lng,
+      lat: gps.lat,
+      ...(cam.resolution ? { resolution: cam.resolution } : {}),
+      ...(gps.accuracyM != null ? { accuracyM: gps.accuracyM } : {}),
+    })
+  }
+  return markers
+}
+
 export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]): MapData {
   if (!viewerCase) {
     return { pins: [], incident: null, items: [], statusCounts: { started: 0, working: 0, complete: 0 } }
@@ -98,9 +160,6 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
   const statusById = new Map(located.map((l) => [l.id, selectLocationMapStatus(l)]))
 
   const pins: MapPin[] = located.map((l) => ({ id: l.id, lng: l.gps!.lng, lat: l.gps!.lat, status: statusById.get(l.id)! }))
-
-  const statusCounts = { started: 0, working: 0, complete: 0 }
-  for (const p of pins) statusCounts[p.status]++
 
   const items: SheetItem[] = []
   if (incident && ic) {
@@ -135,8 +194,9 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
       locationContact: l.locationContact,
       locationPhone: l.locationPhone,
       coordinateSource: l.gps!.source,
+      cameras: toCameraMarkers(l),
     })
   }
 
-  return { pins, incident, items, statusCounts }
+  return { pins, incident, items, statusCounts: countStatuses(items) }
 }

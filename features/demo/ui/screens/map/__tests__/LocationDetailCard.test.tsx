@@ -7,7 +7,7 @@ const fullLoc: LocationSheetItem = {
   kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim Convenience', address: '1450 Eglinton, Mississauga',
   status: 'working', coord: [-79.61, 43.61], streetAddress: '1450 Eglinton', city: 'Mississauga',
   requesterName: 'Liam McHugh', requesterBadge: '4471', requesterUnit: 'Central Robbery', requesterPhone: '905-555-1234', requesterEmail: 'det@peel.ca',
-  locationContact: 'Sandeep Gill', locationPhone: '905-555-0142', coordinateSource: 'geocoded',
+  locationContact: 'Sandeep Gill', locationPhone: '905-555-0142', coordinateSource: 'geocoded', cameras: [],
 }
 const bareLoc: LocationSheetItem = { ...fullLoc, id: 'l2', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '' }
 const incItem: IncidentSheetItem = { kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.5, 43.5] }

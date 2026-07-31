@@ -5,7 +5,7 @@ import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
 
 const items: SheetItem[] = [
   { kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.6, 43.6] },
-  { kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim', address: '1450 Eglinton, Mississauga', status: 'started', coord: [-79.61, 43.61], streetAddress: '1450 Eglinton', city: 'Mississauga', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '', coordinateSource: 'geocoded' },
+  { kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim', address: '1450 Eglinton, Mississauga', status: 'started', coord: [-79.61, 43.61], streetAddress: '1450 Eglinton', city: 'Mississauga', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '', coordinateSource: 'geocoded', cameras: [] },
 ]
 const counts = { started: 1, working: 0, complete: 0 }
 

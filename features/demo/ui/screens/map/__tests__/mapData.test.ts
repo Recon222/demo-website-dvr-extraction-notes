@@ -97,3 +97,70 @@ describe('toMapData', () => {
     expect(data.items.every((i) => i.kind === 'location')).toBe(true)
   })
 })
+
+// ---- per-camera GPS → camera markers (P3.7 feeds P6.1) --------------------------------------
+describe('toMapData — camera markers', () => {
+  function buildWithCameras() {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-3', displayName: 'Cams', unit: 'R' })
+    const locId = store.getState().addLocation(caseId, {
+      locationName: 'Rear door',
+      gps: { lat: 43.61, lng: -79.61, source: 'geocoded' },
+    })
+    store.getState().switchLocation(locId)
+    store.getState().updateField('form.cameras', [
+      { id: 'cam-1', cameraName: 'Front entry', resolution: '1080p', recordingFps: '15' },
+      { id: 'cam-2', cameraName: 'Loading bay', resolution: '', recordingFps: '' },
+      { id: 'cam-3', cameraName: 'No fix', resolution: '4K', recordingFps: '30' },
+    ])
+    return { store, caseId, locId }
+  }
+
+  const fix = (lat: number, lng: number, accuracyM?: number) => ({
+    lat,
+    lng,
+    source: 'gps' as const,
+    capturedAt: '2026-07-31T12:00:00.000Z',
+    ...(accuracyM != null ? { accuracyM } : {}),
+  })
+
+  function project(store: ReturnType<typeof createDemoStore>, caseId: string) {
+    const s = store.getState()
+    return toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+  }
+
+  it('plots only cameras with a captured fix, keyed by the composite locationId:cameraId', () => {
+    const { store, caseId, locId } = buildWithCameras()
+    store.getState().setCameraGps('cam-1', fix(43.615, -79.615, 4.2))
+    store.getState().setCameraGps('cam-2', fix(43.616, -79.616))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    expect(item.kind).toBe('location')
+    if (item.kind !== 'location') return
+    expect(item.cameras.map((c) => c.id)).toEqual([`${locId}:cam-1`, `${locId}:cam-2`])
+    expect(item.cameras[0]).toMatchObject({ cameraName: 'Front entry', lng: -79.615, lat: 43.615, resolution: '1080p', accuracyM: 4.2 })
+  })
+
+  it('omits resolution and accuracy keys when absent, rather than emitting empty values', () => {
+    const { store, caseId } = buildWithCameras()
+    store.getState().setCameraGps('cam-2', fix(43.616, -79.616))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras[0]).not.toHaveProperty('resolution')
+    expect(item.cameras[0]).not.toHaveProperty('accuracyM')
+  })
+
+  it('never plots a (0,0) camera fix — the same Null Island policy as the location pins', () => {
+    const { store, caseId } = buildWithCameras()
+    store.getState().setCameraGps('cam-1', fix(0, 0, 3))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toEqual([])
+  })
+
+  it('gives a location with no geolocated cameras an empty array (hides the toggle)', () => {
+    const { store, caseId } = buildWithCameras()
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toEqual([])
+  })
+})

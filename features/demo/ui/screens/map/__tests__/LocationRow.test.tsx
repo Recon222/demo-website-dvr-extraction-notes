@@ -7,7 +7,7 @@ const locItem: LocationSheetItem = {
   kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim', address: '1450 Eglinton, Mississauga',
   status: 'started', coord: [-79.6, 43.6], streetAddress: '1450 Eglinton', city: 'Mississauga',
   requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '',
-  locationContact: '', locationPhone: '', coordinateSource: 'geocoded',
+  locationContact: '', locationPhone: '', coordinateSource: 'geocoded', cameras: [],
 }
 const incItem: IncidentSheetItem = {
   kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim',
