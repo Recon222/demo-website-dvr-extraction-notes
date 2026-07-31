@@ -3335,3 +3335,91 @@ closed. If that reopen fails — device unplugged mid-confirm — the viewfinder
 "Restart camera" control rather than retrying in a loop. Deliberate: an auto-retry against a
 `NO_DEVICE` failure whose permission state stays `granted` would spin.
 **Trigger:** none — behaviour note.
+
+## 65. P4.1 fix round (parity/p4-fix-capability) — R-2/R-3/R-11/R-13/R-14/R-22/R-23/R-25/R-28/R-31
+
+**Source:** the P4 round-1 vetted review (`docs/code-reviews/parity/p4/p4-review-r1-vetted.md`),
+capability-territory findings. All ten FIXED — nothing refuted this round. Recorded below: the
+choices taken where a finding offered a fork, the scope crossings, and what is deliberately
+left for a named successor.
+
+### 65a. R-11's fork resolved toward the honest branch, not an argued `.mp4`
+
+T-5 offered two ways out: add a `matroska → 'mkv'` branch, or file the `.mp4` answer with a
+rationale. Took the branch. There is no rationale to write — `.mp4` on a Matroska file is
+exactly the false claim in an evidence filename that §58c exists to prevent, and §58c already
+names `video/x-matroska;codecs=avc1` as its motivating Chrome case, so the code was
+contradicting the rule it was written to enforce. Audio-only Matroska now resolves to `.mka` by
+the same rule. **Amends §58c**: its extension table gains Matroska; the phone-extension fallback
+remains reserved for MIME types carrying no container information at all.
+
+### 65b. R-3 added a THIRD fallback sentence the review did not ask for
+
+The vetted fix shape said to pick the review-stage notice "by the same `canStream` test", which
+would route a live-camera/no-`objectUrls` browser to `NO_RECORDER_NOTICE` ("can open a camera
+but cannot record video to a file"). That is better than the falsehood it replaces but still
+wrong: the recorder is fine there, the object-URL API is not. `NO_CAPTURE_STORAGE_NOTICE` is
+new, names no device on purpose (both existing sentences would be false), and
+`sampleFallbackNotice` picks by reason priority — no-device → no-storage → no-recorder — so the
+visitor is told the first thing that would have to be fixed. This is what makes the folded S-3
+rider genuinely closed rather than relabelled.
+
+### 65c. R-3's screen half is a disclosed territory crossing into P4.3's file
+
+`MediaCaptureScreen.tsx` is P4.3's, and P4.3 was fixing other findings in it in a parallel
+worktree. The edit here is deliberately minimal: three `capability.sampleOnly` reads become
+`capability.modeFor(mode)`, and `ReviewStage` takes `sampleNotice` as a prop instead of
+hard-coding `SAMPLE_MEDIA_NOTICE.camera`. Expect a merge reconcile.
+**Not done here, per the vetted routing:** the `modeFor` collapse of `AudioRecordingFlow`'s
+hand-rolled `canStream`/`canRecord` pair. `CaptureCapability` deliberately keeps the three
+booleans so that flow compiles untouched. **Trigger:** P4.6's own fix round.
+
+### 65d. R-23 collides with R-1 on `saveAudioNote`
+
+R-23's arity change (`st.addMedia(buildMediaItem(…))`) touches the same lines R-1 rewrites in
+P4.6's worktree to add the no-location guard. Both want the same final shape — the one-argument
+`addMedia` call inside a guarded branch. Flagged in the commit body; the orchestrator reconciles.
+
+### 65e. R-13's fix required splitting the assemble tail, not just adding a callback
+
+S-4's shape was "an `onEnded` callback + prefer recorded length when the two disagree". Adding
+only the callback would have made a self-ended take *silently vanish*: the later user Stop finds
+the state already stopped and returns early, so nothing would ever assemble the bytes. The tail
+of `stopRecording` is now a shared `finishTake(stopped, atMs)` that both paths call. With the
+state banked at the real end, the two figures no longer disagree at all — so the "prefer recorded
+length" half of the suggested fix is unnecessary rather than skipped.
+
+### 65f. `useCaptureStream` is deliberately NOT given the same self-end signal
+
+R-13 offered `track.onended` in `useCaptureStream` as an alternative site. Not taken: the
+recorder's own `onstop` is the event that decides whether bytes exist, and putting the signal
+there keeps one owner for the take's outcome. A track that ends without the recorder stopping
+(a second camera track on a multi-track stream) is not an ended recording and must not be
+reported as one. **Trigger:** if a surface ever needs to know the PREVIEW died while no
+recording was running — the viewfinder freezing on an unplugged camera is the case — add
+`track.onended` to `useCaptureStream` for that, not for the take.
+
+### 65g. R-22 also guarded `toBlob`, which the finding did not name
+
+S-6 named `drawImage` and `toDataURL`. `canvas.toBlob` has the same defect one layer down: a
+synchronous throw inside the Promise executor rejects the promise both call sites `await`
+without a catch. Resolving `null` routes it into the existing zero-blob check. A `toDataURL`
+throw fails the whole grab rather than returning a capture without the data URL — a caller that
+asked for one (P4.7's OCR proof) must not silently receive a half-answer.
+
+### 65h. Carried forward from the vetted doc: the pre-existing `confirmOcr` sibling
+
+The aggregator's note under *Struck & re-ruled*: `confirmOcr` / `calculateOffset`
+(`DemoExperience.tsx:1441`) have the same silent-no-op-with-no-location shape R-1 fixes for
+audio — a store write that early-returns when `currentLocationId` is null, with no notice. It
+predates P4 and is unchanged by it, so it was correctly out of the PR's scope.
+**Trigger:** the next time that code is open — apply `saveCapturedMedia`'s guard shape
+(notice + `closeLaunch()` + a boolean answer the caller gates on).
+
+### 65i. §58g's carry-rule now has its cascade half
+
+§58g said "once the store owns a capture's URL, `deleteMedia` is the only thing that can revoke
+it" and named `revokeCapturedUrls`'s single caller as the whole story. R-2 showed that was
+incomplete: `deleteCase`/`deleteLocation` drop media rows too. `collectMediaUrls` + the sweep in
+`confirmDelete` close it. **Any future store path that removes locations owes the same sweep** —
+there is no other holder of those URLs.
