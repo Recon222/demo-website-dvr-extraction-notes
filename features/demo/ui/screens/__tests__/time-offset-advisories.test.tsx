@@ -209,6 +209,33 @@ describe('DemoExperience — DST advisory wiring', () => {
     expect(screen.queryByText(/either side of the DST change/)).toBeNull()
   })
 
+  it('recomputes only when the advisory’s own inputs change', { timeout: 20000 }, () => {
+    // R-14: scenario A scans the year for the zone's transition dates (~23 `isDst` probes) and
+    // the bridge re-renders on every store write, so the derivation is memoised. Counting seam
+    // calls pins that — a plain render-body call would fire on the unrelated write below.
+    vi.spyOn(clock, 'now').mockReturnValue(new Date(2026, 0, 15, 12))
+    const isDst = vi.spyOn(clock, 'isDst').mockImplementation(usIsDst)
+    const store = bootAtTimeOffset({ startDateTime: '2026-06-01 09:00:00', endDateTime: '2026-06-01 17:00:00' })
+    act(() => {
+      store.getState().calculateOffset()
+    })
+    expect(screen.getByText(/either side of the DST change/)).toBeInTheDocument()
+
+    // An unrelated field: re-renders the bridge, touches none of the advisory's inputs.
+    isDst.mockClear()
+    act(() => {
+      store.getState().updateField('businessName', "Kim's Convenience")
+    })
+    expect(isDst).not.toHaveBeenCalled()
+
+    // The DVR-Applies-DST toggle IS an input — the advisory must follow it.
+    act(() => {
+      store.getState().updateField('capture.dvrAppliesDST', true)
+    })
+    expect(isDst).toHaveBeenCalled()
+    expect(screen.getByText(/DST does not affect the dates you selected/)).toBeInTheDocument()
+  })
+
   it('guards Calculate once extracted scopes exist', { timeout: 20000 }, () => {
     const store = bootAtTimeOffset({ startDateTime: '2026-06-01 09:00:00', endDateTime: '2026-06-01 17:00:00' })
     act(() => {
