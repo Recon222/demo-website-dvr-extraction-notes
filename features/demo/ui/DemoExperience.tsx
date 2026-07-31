@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
@@ -216,7 +216,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
   const [imp, setImp] = useState<ImportState>(blankImport)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
   // checkpoint even after another run begins. A shared boolean is NOT enough: the
@@ -475,14 +474,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp((s) => ({ ...s, stage: 'result', activeStage: null, batch: null, result, lastLocId: t.lastLocId }))
   }
 
-  const openFilePicker = () => fileInputRef.current?.click()
-
-  const onFilesPicked = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = '' // allow re-picking the same file
-    if (files.length) await processPdfFiles(files)
-  }
-
+  // PickerStage validates the selection (all-PDF, batch confirm) and hands File[] up here.
   const processPdfFiles = async (files: File[]) => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (!caseId) {
@@ -511,13 +503,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     finishImport(tally, emitter, total)
   }
 
-  const runPasteImport = async () => {
+  // One text pipeline for both entry points: the paste stage's textarea AND the picker's
+  // clipboard card (P1.2/D5 — clipboard text feeds the same AI path as pasted text).
+  const runTextImportFlow = async (documentText: string) => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (!caseId) {
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Select a case first.' } }))
       return
     }
-    if (!imp.text.trim()) {
+    if (!documentText.trim()) {
+      // Backstop only — the paste stage disables its submit on blank text and the clipboard
+      // card rejects an empty clipboard before calling up (phone parity: UI + service guard).
       setImp((s) => ({ ...s, stage: 'result', result: { ok: false, error: 'Paste the request text first.' } }))
       return
     }
@@ -526,7 +522,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const emitter = importLogBus.beginRun(logClock)
     emitter.log('INIT', 'reading pasted text…')
     setImp((s) => ({ ...s, stage: 'progress', isPdf: false, batch: null, activeStage: 'reading_model' }))
-    const res = await runTextImport({ documentText: imp.text, live: true, onStage: onImportStage, emitter })
+    const res = await runTextImport({ documentText, live: true, onStage: onImportStage, emitter })
     if (importGen.current !== myGen) return // cancelled, or a newer run started
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
@@ -534,6 +530,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
     finishImport(tally, emitter, 1)
   }
+
+  const runPasteImport = () => runTextImportFlow(imp.text)
 
   // ---- time offset + OCR (the marquee) ----
   const calcOffset = () => {
@@ -819,42 +817,36 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
       case 'import':
         return (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              multiple
-              style={{ display: 'none' }}
-              onChange={onFilesPicked}
-            />
-            <ImportModal
-              stage={imp.stage}
-              text={imp.text}
-              stages={buildImportStages(imp.activeStage, imp.isPdf)}
-              result={imp.result}
-              batch={imp.batch}
-              onPickPdf={openFilePicker}
-              onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: '' }))}
-              onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
-              onRun={runPasteImport}
-              onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
-              onRetry={() => {
-                // No token reset here: a retry simply starts a new run, which takes
-                // its own generation. An untokened clear would revive stale runs (H1).
-                setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
-              }}
-              onOpenLocation={(locId) => {
-                if (locId) openLocation(locId)
-                store.getState().closeModal()
-              }}
-              onCancel={() => {
-                importGen.current++ // invalidate any in-flight run's token (H1/H2)
-                importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
-                store.getState().closeModal()
-              }}
-            />
-          </>
+          <ImportModal
+            stage={imp.stage}
+            text={imp.text}
+            stages={buildImportStages(imp.activeStage, imp.isPdf)}
+            result={imp.result}
+            batch={imp.batch}
+            onPdfFilesSelected={processPdfFiles}
+            onClipboardText={runTextImportFlow}
+            onChoosePaste={() => setImp((s) => ({ ...s, stage: 'paste', text: '' }))}
+            onTextChange={(v) => setImp((s) => ({ ...s, text: v }))}
+            onRun={runPasteImport}
+            onBack={() => setImp((s) => ({ ...s, stage: 'picker' }))}
+            onRetry={() => {
+              // No token reset here: a retry simply starts a new run, which takes
+              // its own generation. An untokened clear would revive stale runs (H1).
+              setImp((s) => ({ ...s, stage: 'picker', result: null, batch: null, activeStage: null }))
+            }}
+            onOpenLocation={(locId) => {
+              if (locId) openLocation(locId)
+              store.getState().closeModal()
+            }}
+            onCancel={() => {
+              importGen.current++ // invalidate any in-flight run's token (H1/H2)
+              importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
+              // Phone handleClose parity (ImportPickerModal.tsx:147-152): a reopen always
+              // starts back at the picker step with empty text, even after a mid-run close.
+              setImp(blankImport)
+              store.getState().closeModal()
+            }}
+          />
         )
       default:
         return null

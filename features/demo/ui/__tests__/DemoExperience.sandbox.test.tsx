@@ -267,9 +267,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-IMP', displayName: 'Import Case', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text'))
-    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage from Store X' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage from Store X' } })
+    fireEvent.click(screen.getByText('Import with AI'))
 
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(store.getState().locations.length).toBeGreaterThan(0)
@@ -288,9 +288,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-GEO', displayName: 'Geo', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text'))
-    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Import with AI'))
 
     await screen.findByText('Import complete')
     expect(forwardGeocodeMock).toHaveBeenCalledWith('1450 Eglinton Ave W, Mississauga')
@@ -307,9 +307,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-NOGEO', displayName: 'NoGeo', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text'))
-    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
+    fireEvent.click(screen.getByText('Import with AI'))
 
     await screen.findByText('Import complete')
     expect(store.getState().locations.length).toBe(1)
@@ -389,9 +389,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-L', displayName: 'Live', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.click(screen.getByText('Paste Text'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'video request text' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Import with AI'))
 
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(runText).toHaveBeenCalledWith(expect.objectContaining({ live: true }))
@@ -479,9 +479,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-S', displayName: 'Sample', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text'))
+    fireEvent.click(screen.getByText('Paste Text'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'request text' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Import with AI'))
     expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText(/imported the sample request/i)).toBeInTheDocument()
   })
@@ -567,16 +567,19 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(store.getState().locations.length).toBe(0) // the cancelled run must not write
   })
 
-  it('empty paste (sandbox) shows a guard message — no model call, no location (M2)', async () => {
+  it('empty paste: submit is disabled (phone parity) — no model call, no location (M2)', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => {
       store.getState().createCase({ caseNumber: 'PR25-E', displayName: 'Empty', unit: 'Robbery' })
       store.getState().openModal('import')
     })
-    fireEvent.click(screen.getByText('Paste text')) // sandbox → blank textarea
-    fireEvent.click(screen.getByText('Extract & import'))
-    expect(await screen.findByText('Paste the request text first.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Paste Text')) // → blank textarea
+    // P1.2: the phone disables "Import with AI" until non-whitespace text exists
+    // (ImportPickerModal.tsx:740); the store-level guard remains as a backstop.
+    const submit = screen.getByText('Import with AI').closest('button')!
+    expect(submit).toBeDisabled()
+    fireEvent.click(submit) // a click on the disabled control must be inert
     expect(store.getState().locations.length).toBe(0)
     expect(runText).not.toHaveBeenCalled()
   })
@@ -612,9 +615,9 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => store.getState().openModal('import')) // no case
-    fireEvent.click(screen.getByText('Paste text'))
-    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'something' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'something' } })
+    fireEvent.click(screen.getByText('Import with AI'))
     expect(await screen.findByText('Select a case first.')).toBeInTheDocument()
     expect(runText).not.toHaveBeenCalled()
   })

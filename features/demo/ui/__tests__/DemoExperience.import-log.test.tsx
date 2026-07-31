@@ -94,9 +94,9 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     openImport(store, 'PR25-PASTE')
-    fireEvent.click(screen.getByText('Paste text'))
-    fireEvent.change(screen.getByLabelText('Request text'), { target: { value: 'recover footage from Store X' } })
-    fireEvent.click(screen.getByText('Extract & import'))
+    fireEvent.click(screen.getByText('Paste Text'))
+    fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage from Store X' } })
+    fireEvent.click(screen.getByText('Import with AI'))
     await screen.findByText('Import complete')
 
     const levels = importLogBus.getLines().map((l) => l.level)
