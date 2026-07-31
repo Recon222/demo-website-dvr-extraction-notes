@@ -36,3 +36,22 @@ export function parseCoordinate(raw: string, kind: CoordKind): ParseCoordinateRe
 export function formatCoordinate(lat: number, lng: number): string {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 }
+
+/**
+ * "Were these coordinates actually CAPTURED?" — the phone's `hasCapturedCoordinates` policy
+ * (BUG-008/BUG-024): reject NaN/Infinity, out-of-range values, and the exact (0,0) null-island
+ * pair, which is what a failed fix reported as zeros looks like. A (0,0) row once printed as an
+ * authoritative GPS location in a court-admissible PDF.
+ *
+ * It lives HERE, next to the other coordinate policy, because it has two consumers with the
+ * same duty — the notes camera formatter and the PDF camera table — exactly as on the phone,
+ * where both import one shared function (`@/features/case-management`) rather than each
+ * carrying its own copy of the (0,0) rule.
+ */
+export function hasCapturedCoordinates(gps: { lat: number; lng: number }): boolean {
+  const { lat, lng } = gps
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false
+  if (lat === 0 && lng === 0) return false
+  return true
+}

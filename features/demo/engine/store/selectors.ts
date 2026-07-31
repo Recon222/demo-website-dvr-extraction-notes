@@ -268,7 +268,9 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     dvrDateTime: off?.dvrDateTime,
     actualDateTime: off?.actualDateTime,
     dvr: form?.dvr,
-    cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps })),
+    // `gps` rides along so the document can print the per-camera fix (P3.7) — the ONE output
+    // that surfaces it, since the `cameras` notes section is deliberately '' (PR-86).
+    cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps, gps: c.gps })),
     export: form?.export,
     notesSections,
     notesFreeText: form?.notesFreeText,

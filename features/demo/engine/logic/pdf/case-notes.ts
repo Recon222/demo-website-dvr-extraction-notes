@@ -1,6 +1,7 @@
 import { escapeHtml, formatDocDate, nowStamp } from '@/features/demo/engine/logic/pdf/shared'
 import { assembleNotesString } from '@/features/demo/engine/logic/notes/notes-assembler'
-import type { NoteSection } from '@/features/demo/engine/types'
+import { hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
+import type { GpsCoordinates, NoteSection } from '@/features/demo/engine/types'
 
 /**
  * The Case Notes court document — a print-ready HTML report modelled on the app's
@@ -22,6 +23,9 @@ export interface CaseNotesCamera {
   name: string
   resolution: string
   fps: string
+  /** Per-camera fix (P3.7). Optional — a camera that was never GPS-captured prints no GPS row,
+   *  which is also the phone's behaviour (`cameras-table.ts:50-70`). */
+  gps?: GpsCoordinates
 }
 export interface CaseNotesOffset {
   isCorrect: boolean
@@ -202,9 +206,26 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   <div class="section"><div class="section-title">DVR Information</div><div class="info-grid">${dvrRows}</div></div>`
     : ''
 
+  // Per-camera GPS (P3.7): a full-width continuation row under the camera it belongs to,
+  // matching the phone (`cameras-table.ts:63-70`, whose spare leading cell exists because its
+  // table carries an extra index column). Gated by the SHARED `hasCapturedCoordinates` policy,
+  // so a (0,0) "fix" from a failed capture can never print as an authoritative location in a
+  // court document; the accuracy clause is dropped when nothing measured one (R-18).
+  const camGpsRow = (gps: GpsCoordinates | undefined): string => {
+    if (!gps || !hasCapturedCoordinates(gps)) return ''
+    const accuracy =
+      gps.accuracyM !== undefined && Number.isFinite(gps.accuracyM)
+        ? ` <span style="color:#666">(±${Math.round(gps.accuracyM)}m)</span>`
+        : ''
+    return `<tr><td></td><td colspan="2"><span class="label">GPS Location</span> ${e(gps.lat.toFixed(6))}, ${e(gps.lng.toFixed(6))}${accuracy}</td></tr>`
+  }
   const camRows = (d.cameras || [])
     .filter((c) => c.name || c.resolution || c.fps)
-    .map((c) => `<tr><td>${e(c.name || '—')}</td><td>${e(c.resolution || '—')}</td><td>${e(c.fps || '—')}</td></tr>`)
+    .map(
+      (c) =>
+        `<tr><td>${e(c.name || '—')}</td><td>${e(c.resolution || '—')}</td><td>${e(c.fps || '—')}</td></tr>` +
+        camGpsRow(c.gps),
+    )
     .join('')
   const camerasSection = camRows
     ? `
