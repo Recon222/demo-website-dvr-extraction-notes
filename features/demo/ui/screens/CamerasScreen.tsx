@@ -8,6 +8,15 @@ import { CameraGpsCapture } from '@/features/demo/ui/inputs/CameraGpsCapture'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 
+/** Phone `ArrayFieldManager` cap for this screen (`app/(form)/cameras.tsx:174`, ui-mapping
+ *  07:126) — 50 camera rows. The phone's `minItems={1}` is deliberately NOT ported: the demo
+ *  boots empty by owner decision and has its own "No cameras yet" empty state, so there is no
+ *  seeded row to protect (deferred §54). */
+export const MAX_CAMERAS = 50
+
+/** `ArrayFieldManager.tsx:94-98`, verbatim template. */
+export const maxCamerasMessage = (max: number) => `Maximum ${max} items allowed`
+
 export interface CamerasScreenProps {
   cameras: CameraEntry[]
   onChange(index: number, patch: Partial<CameraEntry>): void
@@ -90,7 +99,15 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
             <CameraGpsCapture cameraId={c.id} gps={c.gps} onCapture={onCaptureGps} deps={gpsDeps} />
           </div>
         ))}
-        <AddRowButton label="+ Add Camera" onClick={onAdd} />
+        {/* Phone parity: the Add button HIDES at the cap and the limit line takes its place —
+            it is never a disabled button (`ArrayFieldManager.tsx:83-98`). */}
+        {cameras.length < MAX_CAMERAS ? (
+          <AddRowButton label="+ Add Camera" onClick={onAdd} />
+        ) : (
+          <div data-testid="cameras-max-notice" style={{ fontSize: 13, color: '#7a9fc4', textAlign: 'center', padding: '10px 0', marginBottom: 14 }}>
+            {maxCamerasMessage(MAX_CAMERAS)}
+          </div>
+        )}
         <WizardNext label="Continue →" onClick={onNext} />
       </div>
     </div>

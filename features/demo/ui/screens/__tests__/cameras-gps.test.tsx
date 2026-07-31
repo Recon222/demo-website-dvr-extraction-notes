@@ -4,12 +4,12 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { GPS_MESSAGES, PRECISE_GPS_CONFIG } from '@/features/demo/engine/logic/gps'
 import type { GeolocationLike } from '@/features/demo/ui/inputs/capture-gps'
 import { CAMERA_GPS_LABELS } from '@/features/demo/ui/inputs/CameraGpsCapture'
-import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
+import { CamerasScreen, MAX_CAMERAS, maxCamerasMessage } from '@/features/demo/ui/screens/CamerasScreen'
 import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
 
 /**
  * Per-camera GPS on the Cameras screen (P3.7, matrix row 42; ui-mapping 07:149-158) —
- * the five phone keys and the forced-precise config.
+ * the five phone keys, the forced-precise config, and the max-50 row gate.
  */
 
 const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
@@ -322,5 +322,35 @@ describe('Cameras — a row removed mid-capture never writes (R-1/R-32 disciplin
     })
 
     expect(onCaptureGps).toHaveBeenCalledExactlyOnceWith('c1', expect.objectContaining({ source: 'gps' }))
+  })
+})
+
+describe('Cameras — max-50 gate (ArrayFieldManager parity)', () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => camera(`c${i + 1}`))
+
+  it('offers Add Camera below the cap, with no limit notice', () => {
+    renderCameras({ cameras: many(MAX_CAMERAS - 1) })
+    expect(screen.getByText('+ Add Camera')).toBeInTheDocument()
+    expect(screen.queryByTestId('cameras-max-notice')).not.toBeInTheDocument()
+  })
+
+  it('replaces Add Camera with the phone\'s limit line at 50 rows', () => {
+    renderCameras({ cameras: many(MAX_CAMERAS) })
+    expect(screen.queryByText('+ Add Camera')).not.toBeInTheDocument()
+    expect(screen.getByTestId('cameras-max-notice')).toHaveTextContent('Maximum 50 items allowed')
+  })
+
+  it('pins the cap and the message template to the phone', () => {
+    expect(MAX_CAMERAS).toBe(50)
+    expect(maxCamerasMessage(MAX_CAMERAS)).toBe('Maximum 50 items allowed')
+  })
+
+  it('cannot be added past — the button is GONE, not merely disabled', () => {
+    // Phone parity: `ArrayFieldManager` unmounts the Add button at the cap
+    // (`canAdd = items.length < maxItems`), it never renders a dead one.
+    const onAdd = vi.fn()
+    renderCameras({ cameras: many(MAX_CAMERAS), onAdd })
+    expect(screen.queryByRole('button', { name: '+ Add Camera' })).not.toBeInTheDocument()
+    expect(onAdd).not.toHaveBeenCalled()
   })
 })
