@@ -3858,3 +3858,152 @@ The deferral itself stands — the no-op predates P4 and was outside the round's
 **Trigger (strengthened per FD-7):** the NEXT P4.7-territory round, not merely "next time the
 code is open" — R-1's guard pattern (refuse + notice) now sits one file away in the audio
 save path, and this sibling should adopt it then.
+
+---
+
+## 71. P5.4 (parity/p5-casemap) — the real Case Map download: deltas, refutations & residuals
+
+**Source:** plan §5 P5.4 / decision D4. Phone spec: `src/features/case-management/case-map-export/`
+(README, `services/case-map-export-service.ts`, `template/`, `scripts/build-template.mjs`),
+`services/geojson-service.ts`, ui-mapping `03-tab-map.md`, phone-inventory §"Case Map export
+sub-feature". Nothing here blocks the package; everything is recorded so it does not evaporate.
+
+### 71a. Media in the exported map: nothing is embedded, and nothing should be
+
+The brief asked how the exported map handles captured photos — `blob:` URLs die with the tab,
+and a rehydrated capture has no URL at all (`MediaItem.url` is optional by P4.1/D2 design,
+`engine/types/index.ts:252-274`). **The question does not arise: the Case Map embeds no media
+at all, on either side.**
+
+Evidence, phone-side and conclusive:
+- The map's ONLY data source is `generateCaseGeoJSON(caseId)` (`case-map-export-service.ts:167`).
+  That builder emits three feature kinds and not one media property —
+  `geojson-service.ts:47-160` (location), `:189-241` (incident), `:281-306` (camera). No
+  `photos`, `videos`, `audios`, `mediaCount`, no URI of any kind. The one adjacent thing it
+  deliberately drops is the OCR image URIs, "device-local paths are not portable in an exported
+  file" (`geojson-service.ts:124-127`).
+- The template reads nothing of the sort: every property the map's JS touches is enumerable
+  (`p.<name>` across `prototype/assets/case-map.app.js`) and the set is the GeoJSON's. The only
+  `media` tokens in the whole 1546-line template are two `@media` CSS queries
+  (`template/case-map.template.html:576,582`). The only `background-image` is a basemap-style
+  thumbnail (`case-map.app.js:677`).
+
+So the demo's port embeds no media either, and no data-URL inlining or omission notice was
+needed. This is the phone's design, not a demo shortfall: the map is a geospatial console over
+the case's *geometry and paperwork*; media rides in the ZIP's per-location folders, which is a
+different (honestly-stubbed) export. **Trigger:** if a future phone change puts a media
+property into `generateCaseGeoJSON`, this decision reopens — and the demo's answer will have to
+be data URLs for live captures plus an honest per-item notice for rehydrated ones, because a
+`blob:` URL written into a downloaded file is a dead link the moment the tab closes.
+
+### 71b. TWO PHONE DEFECTS found while porting the template (back-port candidates)
+
+Both are in the phone repo, which is read-only for this effort; neither has a demo consequence
+(the port fixes both, see 71c). Recorded here so the orchestrator can file them.
+
+1. **The dev-only sample-data `<script>` ships in every exported Case Map.**
+   `scripts/build-template.mjs:73` intends to strip it:
+   `html.split('  <script src="assets/case-map.data.js"></script>\n').join('')`. The key ends
+   in a bare `\n`; the prototype was authored with CRLF, so the split matches nothing and the
+   tag survives. Verified in the artifact the app actually imports: decoding
+   `template/case-map.template.ts` (CRLF throughout, 1542 CRLF pairs) shows
+   `<script src="assets/case-map.data.js"></script>` intact before the inlined app JS. Every
+   exported `Case Map.html` therefore requests an `assets/` directory that is not in the ZIP —
+   a 404 on a court-facing artifact. Functionally benign (`window.SAMPLE_CASE` stays undefined,
+   so `case-map.app.js:111` cannot fall back to sample data), but it is a broken reference in
+   an evidence export, and `build-template.mjs`'s post-build guards (`:79-83`) check only the
+   three tokens and a leaked `pk.` — nothing asserts the strip happened.
+   *Fix shape:* CRLF-tolerant strip (`/[ \t]*<script src="assets\/case-map\.data\.js"><\/script>\r?\n/`)
+   plus a post-build assertion that no non-`https://` `<script src>` survives.
+2. **Every exported Case Map is titled with a SAMPLE case number.**
+   `template/case-map.template.html:6` is `<title>Case Map — OCC-2026-00417</title>`, inherited
+   verbatim from the prototype, and nothing in `case-map.app.js` sets `document.title` (grep:
+   the only `.title` write is a control's tooltip at `:796`). So the browser tab, and any
+   PDF-printed header, of every exported map for every case reads someone else's OCC.
+   *Fix shape:* tokenize the title in `build-template.mjs` and inject from `meta` in
+   `buildCaseMapHtml` — which is exactly what 71c did on the demo side.
+
+### 71c. Three deliberate deltas from a verbatim port
+
+The template is copied byte-for-byte by `tools/port-case-map-template.mjs` (which is the
+re-port path — the phone stays the source of truth for the map's HTML/CSS/JS; the demo never
+edits it). Three things do NOT cross verbatim:
+
+1. **The 71b.1 sample-data tag is dropped.** Restores the phone's own stated intent. A 404 in
+   a file we hand a visitor is not something to reproduce for fidelity's sake.
+2. **`<title>` is tokenized to `__CASE_TITLE__`** and injected as `Case Map — <case number>`
+   (HTML-escaped; the case number is visitor-typed). Fixes 71b.2 for the demo. This is the only
+   token the phone does not have; `buildCaseMapHtml`'s SIGNATURE is unchanged (the title derives
+   from `meta`), so a back-port is additive.
+3. **`encodeJsonForScriptTag` escapes `<` to the JSON escape `\u003c`** on the way into the two `application/json` tags —
+   the phone passes raw `JSON.stringify` (`case-map-export-service.ts:143-144`), which does not
+   escape `<`, so a location name containing `</script>` closes the data tag early. The map's
+   reader swallows the resulting parse failure in a bare `catch {}` (`case-map.app.js:109`) and
+   renders an EMPTY map with no error anywhere. Lossless (`\u003c` is valid JSON and parses back
+   to `<`). **Trigger for all three:** the next time anyone touches the phone's
+   `case-map-export` sub-feature — the fixes are ~3 lines each and the demo carries a working
+   reference implementation.
+
+### 71d. `buildCaseMapMeta` takes `generatedAt`; the phone reads the clock inline
+
+Phone: `generatedAt: new Date().toISOString()` inside the builder
+(`case-map-export-service.ts:112`). Demo: a required parameter, supplied by the bridge from the
+`clock.now()` seam. The engine holds no ambient time reads (feature CLAUDE.md), and it makes the
+injected JSON assertable byte-for-byte. Not a deferral — recorded because it is a signature
+divergence a re-porter will notice.
+
+### 71e. `classification` / `incidentDateTime` stay unset on both sides
+
+`CaseMapMeta` carries them (and the map lights up a classification chip + a red incident line on
+the scope timeline when they are present), but neither `Case` (phone, per its own comment at
+`case-map-export-service.ts:122-124`) nor `DemoCase` (`engine/types/index.ts:318-340`) has such
+a field. Both sides export without them. **Trigger:** whichever schema gains an incident
+date/time first — the map needs no template change, only the two lines in `buildCaseMapMeta`.
+
+### 71f. The exported map still needs the network for its basemap — by construction
+
+The case DATA is fully embedded and renders offline; Mapbox GL JS/CSS, the tiles and Google
+Fonts load from CDN (`template/case-map.template.html:9-15`). This is inherent to any web map
+and is the phone's behaviour too. With no `NEXT_PUBLIC_MAPBOX_TOKEN` the demo still exports —
+the phone does the same (`resolveMapboxToken`, `:56-67`) — and, unlike the phone (whose
+`logError` the operator never sees), says so on the banner. Not fixable, only disclosed.
+
+### 71g. Residual — the case-map export exists, the Export tab does not yet
+
+`hasPlottableFeatures` is ported from the phone's non-camera guard
+(`geojson-service.ts:553-562`) and is currently used only to decide whether the success banner
+warns that the file opens empty. The phone additionally uses it to REFUSE a whole-case GeoJSON
+export outright. The demo's GeoJSON/ZIP exports are honest stubs (`EXPORT_GEOJSON_NOTICE` /
+`EXPORT_ZIP_NOTICE` in `DemoExperience`). **Trigger:** P5.2's Export tab — when a real
+selection/validation surface lands, re-point those two notices and reuse this predicate for the
+"nothing to export" arm rather than growing a second copy.
+
+### 71h. Residual — `MapScreen`/`MapBottomSheet`/`LocationList` were touched from outside P6.1
+
+P6.1 owns the map screens. P5.4's footprint on them is three forwarded `onExportMap?` props and
+one footer button, all marked `SEAM(P6.1)` in source and none of it touching the canvas, the
+markers or the sheet's drag/detent machinery (P6.1's stated scope: clustering, filters, Turf
+proximity, camera markers, overlay states — plan §5 P6.1). Placed there rather than behind a
+P5.2 seam because the phone's export entry point IS the map sheet's list footer, not the Export
+tab (ui-mapping 03:167,182; `04-tab-export.md:359` confirms `handleExportCaseMap` "is never
+called by `export.tsx` at all"). **Trigger:** P6.1's rebase — expect the three props, keep them.
+
+### 71i. Refutation — matrix row 20's "(#36)" cross-reference is stale
+
+Row 20's Delta says the phone's list-mode footer "additionally holds **Export Map** (#36)", and
+row 17's says the `useExportFlow` hook-in is "the only unmirrored piece (see #36)". Row 36 in
+the current matrix is *OCR Capture Route Wrapper*. There is no Export Map row; the pointer is
+left over from an earlier numbering. Recorded rather than fixed — agents do not edit the matrix.
+
+### 71j. Test-infra note — `vi.doMock` on a DYNAMICALLY-imported id contaminates the rest of the file
+
+Measured while pinning the failed-chunk arm. `vi.doMock('@/features/demo/engine/logic/case-map',
+() => { throw … })` inside one `it` correctly makes that test's `await import()` reject — and then
+every LATER test in the same file rejects too, even after `vi.doUnmock(...)` **and**
+`vi.resetModules()` in a `finally`. The throwing factory stays cached against the module id;
+`doUnmock` only stops future resolutions consulting the registry. Symptom is confusing: the
+sibling tests fail on a `findByTestId` timeout for a completely unrelated notice.
+
+The working shape is a SEPARATE suite file with a top-level `vi.mock`, since vitest's module
+isolation is per file — `DemoExperience.case-map-chunk.test.tsx`. Worth knowing before the next
+agent tries to pin a lazy-import failure inline. **Trigger:** none — this is a note, not a debt.
