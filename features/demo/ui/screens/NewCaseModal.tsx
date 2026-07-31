@@ -180,10 +180,17 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
     if (!confirming) onCancel()
   }, [confirming, onCancel])
 
-  /** Typing into a field that is currently flagged clears its message immediately. */
-  const change = (field: keyof NewCaseFields, value: string) => {
-    if (field === 'caseNumber' || field === 'unit') {
-      setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+  /** Typing into a field that is currently flagged clears its message immediately.
+   *  Generic per key, like the prop it forwards to — a `(field, value: string)` wrapper would
+   *  have re-opened R-13 through the back door, since it accepts any string for any key
+   *  (TD-N1). */
+  const change = <K extends keyof NewCaseFields>(field: K, value: NewCaseFields[K]) => {
+    // Bound to a local so the comparison narrows a `keyof NewCaseFields` rather than the type
+    // PARAMETER `K`, which TS cannot narrow — the clearing branch only concerns the two gated
+    // fields, so it does not need the generic.
+    const key: keyof NewCaseFields = field
+    if (key === 'caseNumber' || key === 'unit') {
+      setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev))
     }
     onChange(field, value)
   }

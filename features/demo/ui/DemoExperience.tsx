@@ -1633,7 +1633,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   function activeModal() {
     switch (modal) {
       case 'newCase': {
-        const onChange = (f: keyof NewCaseFields, v: string) => setCaseForm((s) => ({ ...s, [f]: v }))
+        // Generic per key, so R-13's provenance union survives the trip through the bridge —
+        // a `(f, v: string)` signature is assignable to the generic prop by constraint
+        // instantiation and would have erased it silently (TD-N1).
+        const onChange = <K extends keyof NewCaseFields>(f: K, v: NewCaseFields[K]) =>
+          setCaseForm((s) => ({ ...s, [f]: v }))
         // `editingCase` is the SAME derivation `submitCase` branches on (R-11), so the sheet
         // can never present one mode and commit the other. Its create-mode fallback — for a
         // case deleted out from under an open edit sheet — now governs both halves.

@@ -96,7 +96,7 @@ const NESTED_CONTROL_SELECTOR = 'button, a, input, select, textarea, [role="butt
  * their own `style` prop, and a `style` key inside it would silently win or lose depending on
  * attribute order at each call site.
  */
-export const LONG_PRESS_SURFACE_STYLE: CSSProperties = { userSelect: 'none' }
+export const LONG_PRESS_SURFACE_STYLE = { userSelect: 'none' } as const satisfies CSSProperties
 
 export interface LongPressHandlers {
   onPointerDown(e: ReactPointerEvent): void
