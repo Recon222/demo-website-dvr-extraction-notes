@@ -74,7 +74,15 @@ describe('setCameraGps', () => {
     // The visitor removes c2 while its capture is still running.
     store.getState().updateField('form.cameras', [camera('c1')])
 
+    // Whole-state identity, not just a value check. The value assertions below are satisfied
+    // by the SHAPE of the writer — it is a `.map` keyed by camera id, not an upsert, so an
+    // absent id matches nothing whether or not the guard exists; the lane's mutation deleted
+    // the guard's second clause with all three camgps suites green (review R-6). What the
+    // guard actually buys is the no-op discipline: without it `set` reallocates `locations`,
+    // wakes every subscriber and triggers a snapshot write for a capture that landed nowhere.
+    const before = store.getState()
     store.getState().setCameraGps('c2', fix())
+    expect(store.getState()).toBe(before)
 
     expect(camerasOf(store).map((c) => c.id)).toEqual(['c1'])
     expect(camerasOf(store)[0].gps).toBeUndefined()
@@ -91,7 +99,12 @@ describe('setCameraGps', () => {
     store.getState().updateField('form.cameras', [camera('c9')])
     expect(store.getState().currentLocationId).toBe(b)
 
+    // Same identity pin as the removed-camera arm — and it matters more here, because the UI's
+    // own abort and this guard are mutually redundant: a value-level assertion passes as long
+    // as EITHER survives, so neither defence was independently pinned (review R-6).
+    const before = store.getState()
     store.getState().setCameraGps('c1', fix())
+    expect(store.getState()).toBe(before)
 
     const locA = store.getState().locations.find((l) => l.id === a)!
     const locB = store.getState().locations.find((l) => l.id === b)!
