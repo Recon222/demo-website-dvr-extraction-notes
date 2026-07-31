@@ -18,13 +18,64 @@ fs.mkdirSync(SHOT_DIR, { recursive: true });
 let shotSeq = 0;
 const shotLog = [];
 
-async function open({ headless = true, slowMo = 0 } = {}) {
-  const browser = await chromium.launch({ headless, slowMo });
+// Camera flows (media capture, OCR capture) call getUserMedia. In plain headless
+// Chromium that promise NEVER settles — the UI parks on "Opening… / Waiting for your
+// browser's camera permission…" forever, and you get neither the live path nor the
+// denied+sample path. These two flags give the context a synthetic camera and
+// auto-accept the prompt, so the real viewfinder renders. Pass `camera: 'deny'` to
+// exercise the denied/sample branch instead.
+// Chromium's built-in fake device is a rolling colour pattern — the OCR surface reads
+// nothing from it and honestly reports "Text recognition failed". FAKE_VIDEO_FILE points
+// the fake camera at a generated .y4m showing a real DVR-style timestamp, so a LIVE OCR
+// read actually succeeds. Regenerate with: ./mky4m dvrclock.y4m "2026-07-31 14:23:45"
+const FAKE_VIDEO_FILE = path.resolve(__dirname, 'dvrclock.y4m');
+
+const FAKE_MEDIA_ARGS = [
+  '--use-fake-device-for-media-stream',
+  '--use-fake-ui-for-media-stream',
+  ...(fs.existsSync(FAKE_VIDEO_FILE)
+    ? [`--use-file-for-fake-video-capture=${FAKE_VIDEO_FILE}`]
+    : []),
+];
+
+async function open({ headless = true, slowMo = 0, camera = 'fake' } = {}) {
+  const browser = await chromium.launch({
+    headless,
+    slowMo,
+    args: camera === 'fake' ? FAKE_MEDIA_ARGS : [],
+  });
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: 2,
     reducedMotion: 'reduce', // makes ScreenStage cross-slides instant
+    permissions: camera === 'fake' ? ['camera', 'microphone'] : [],
   });
+  // Headless Chromium quirk (measured, not guessed): with the fake-device flags,
+  // getUserMedia({video:true}) resolves, but ANY request including audio — {video,audio}
+  // or {audio} alone — NEVER SETTLES. The capture screen awaits that promise, so it parks
+  // on "Opening… / Waiting for your browser's camera permission…" forever with only Cancel.
+  // Serve audio from a WebAudio silent track so the live path proceeds normally.
+  if (camera === 'fake') {
+    await context.addInitScript(() => {
+      const md = navigator.mediaDevices;
+      if (!md || typeof md.getUserMedia !== 'function') return;
+      const orig = md.getUserMedia.bind(md);
+      md.getUserMedia = async (c) => {
+        if (!c || !c.audio) return orig(c);
+        const out = c.video ? await orig({ video: c.video, audio: false }) : new MediaStream();
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const dst = ctx.createMediaStreamDestination();
+          const osc = ctx.createOscillator();
+          osc.connect(dst);
+          osc.start();
+          for (const t of dst.stream.getAudioTracks()) out.addTrack(t);
+        } catch { /* video-only stream is still usable */ }
+        return out;
+      };
+    });
+  }
+
   const page = await context.newPage();
   page.on('console', (m) => {
     if (m.type() === 'error') console.log('  [browser error]', m.text());
