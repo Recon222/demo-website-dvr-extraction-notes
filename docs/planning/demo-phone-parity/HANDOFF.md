@@ -119,7 +119,7 @@ Resume agents with SendMessage using the basename (without `.output`) of their t
 2. **When P5.4 / P6.1 land:** merge each into its phase branch with gates. P6 is single-package — after its merge, straight to its review gauntlet. Separate phase PRs (#34/#35), merge-commit each.
 3. **Per-phase review** (both phases): fresh Opus lanes + fresh Fable aggregator, disk-first contract, warm fix rounds by authors, warm fix-delta, targeted rounds as needed — the P4 pattern verbatim. Reserved fix-round §§ from 75 up.
 4. **Then P7** (P7.1 shell+stubs → P7.2 profile ∥ P7.3 form customization) → **P8** (splash+biometric boot, video drop-in slot) → **OPT**.
-5. **Verification lane:** P4-boundary side-by-side IN FLIGHT; repeat at the P5/P6 boundaries (export surfaces + map depth).
+5. **Verification lane:** P4-boundary side-by-side IN FLIGHT — interim: all 6 demo-side surfaces captured (25 shots); S6 finding: the PDF OCR image block fills ONLY on a LIVE read, sample commits render NO image block — that is the demo's documented honest shape (no fabricated evidence), the orchestrator's brief was wrong to expect a sample-path image; harness gained a Y4M generator (Chromium fake camera shows a real DVR clock → live OCR genuinely succeeds in-browser). Phone-side S2–S6 next. Repeat at the P5/P6 boundaries (export surfaces + map depth).
 6. **Standing:** phone-repo BUG-NNN filings from `PHONE-BUG-LEDGER.md` (15 items) when the owner returns; keep this file + trackers current at every milestone.
 
 ## 9. Update protocol (for the orchestrator)
