@@ -68,6 +68,7 @@ export {
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
   buildMediaItem,
+  defaultCaptureBasename,
   isDurableMediaUrl,
   isMediaAvailable,
   isValidFilename,

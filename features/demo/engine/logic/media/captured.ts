@@ -75,6 +75,30 @@ export function mediaFilename(base: string, captured: CapturedMedia): string {
   return `${sanitizeFilename(base).trim()}.${extensionForMimeType(captured.mimeType, captured.kind)}`
 }
 
+/**
+ * The filename base a capture is saved under when nobody has typed one (P4.3 interim).
+ *
+ * Derived from the capture's OWN timestamp — already read from the clock seam at the capture
+ * site — so it is deterministic under a stubbed clock and the demo's no-`Date.now()` rule holds
+ * at every layer. `photo-20260730-140506`, and `mediaFilename` adds the real container's
+ * extension on top.
+ *
+ * INTERIM: P4.4's `MetadataForm` gives the visitor a field, and a sample capture will pre-fill
+ * from `SAMPLE_MEDIA[kind].suggestedFilename`. Until then this is the one place a default is
+ * decided, so the capture screens cannot each invent one.
+ *
+ * Two captures inside the same second produce the same base. That is deliberate: the phone
+ * enforces no filename uniqueness either (the visitor is free to save two `front door` photos),
+ * and `MediaItem.id` — not the filename — is what identifies a row.
+ */
+export function defaultCaptureBasename(captured: CapturedMedia): string {
+  const digits = captured.capturedAt.replace(/\D/g, '')
+  // Short of a full `YYYYMMDDHHMMSS` the timestamp says nothing reliable, so name the kind
+  // rather than emit a truncated date that reads like a real one.
+  if (digits.length < 14) return captured.kind
+  return `${captured.kind}-${digits.slice(0, 8)}-${digits.slice(8, 14)}`
+}
+
 // ---- Capture → stored item ------------------------------------------------
 
 /**

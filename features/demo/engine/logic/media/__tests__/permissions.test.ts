@@ -141,4 +141,28 @@ describe('CAPTURE_PERMISSION_COPY', () => {
       expect(CAPTURE_PERMISSION_COPY[facility].deniedBody).toMatch(/browser's site settings/)
     }
   })
+
+  it('gives the unavailable state its own sentence — never the denied one (P4.3)', () => {
+    // "This browser can't" and "you said no" are different facts, and the screens branch on
+    // them: only the unavailable arm offers the bundled sample. Sharing one sentence would
+    // either tell a refused visitor to press a sample button that isn't there, or tell someone
+    // on a camera-less machine to go change a site permission that would not help.
+    for (const facility of CAPTURE_FACILITIES) {
+      const copy = CAPTURE_PERMISSION_COPY[facility]
+      expect(copy.unavailableBody).not.toBe(copy.deniedBody)
+      expect(copy.unavailableBody).not.toMatch(/site settings/)
+      expect(copy.unavailableBody).toMatch(/bundled sample/)
+    }
+    expect(CAPTURE_PERMISSION_COPY.camera.unavailableBody).toMatch(/no camera/)
+    expect(CAPTURE_PERMISSION_COPY.microphone.unavailableBody).toMatch(/no microphone/)
+  })
+
+  it('never sends a browser visitor to their device settings (§58b, all three bodies)', () => {
+    for (const facility of CAPTURE_FACILITIES) {
+      const copy = CAPTURE_PERMISSION_COPY[facility]
+      for (const body of [copy.body, copy.deniedBody, copy.unavailableBody]) {
+        expect(body).not.toMatch(/device settings/i)
+      }
+    }
+  })
 })

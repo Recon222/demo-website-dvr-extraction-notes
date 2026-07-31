@@ -126,20 +126,40 @@ export function captureFailure(code: CaptureErrorCode, facility: CaptureFacility
  * camera and microphone access to capture photos and videos." (ui-mapping 09).
  * Microphone: `RecorderScreen.tsx:219-224` — title "Microphone Access Required" verbatim; the
  * body's remedy clause is browser-corrected (see `captureFailureMessage`).
+ *
+ * `unavailableBody` (P4.3) has no phone counterpart, because `unavailable` is a state the phone
+ * does not have (see `CAPTURE_PERMISSION_STATES`). It is the ONE state that offers the bundled
+ * sample, so its sentence has to say both halves: nothing here is live, and the flow still runs.
+ * It lives here rather than in `captureFailureMessage` because that function is keyed by
+ * `CaptureErrorCode` — a taxonomy of things that WENT WRONG — and "this page was never given a
+ * camera" is a standing condition the visitor meets before pressing anything, not a failure of
+ * an attempt they made.
  */
 export const CAPTURE_PERMISSION_COPY: Readonly<
-  Record<CaptureFacility, { readonly title: string; readonly body: string; readonly deniedBody: string }>
+  Record<
+    CaptureFacility,
+    {
+      readonly title: string
+      readonly body: string
+      readonly deniedBody: string
+      readonly unavailableBody: string
+    }
+  >
 > = Object.freeze({
   camera: Object.freeze({
     title: 'Camera Access Required',
     body: 'This app needs camera and microphone access to capture photos and videos.',
     deniedBody: "Camera access is blocked for this page. Allow it in your browser's site settings, then try again.",
+    unavailableBody:
+      'This browser exposes no camera to the page, so nothing here is live. You can still walk the whole flow with a bundled sample.',
   }),
   microphone: Object.freeze({
     title: 'Microphone Access Required',
     body: 'This app needs microphone access to record an audio note.',
     deniedBody:
       "Microphone access is blocked for this page. Allow it in your browser's site settings, then try again.",
+    unavailableBody:
+      'This browser exposes no microphone to the page, so nothing here is live. You can still walk the whole flow with a bundled sample.',
   }),
 })
 

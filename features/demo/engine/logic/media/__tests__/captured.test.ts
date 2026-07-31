@@ -4,6 +4,7 @@ import {
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
   buildMediaItem,
+  defaultCaptureBasename,
   isDurableMediaUrl,
   isMediaAvailable,
   isValidFilename,
@@ -71,6 +72,36 @@ describe('mediaFilename', () => {
 
   it('sanitizes and trims the base before appending', () => {
     expect(mediaFilename('  a/b:c  ', captured())).toBe('abc.jpg')
+  })
+})
+
+describe('defaultCaptureBasename (P4.3 interim, until P4.4 gives the visitor a field)', () => {
+  it('names the kind and the capture instant, from the capture’s own timestamp', () => {
+    expect(defaultCaptureBasename(captured())).toBe('photo-20260730-140506')
+    expect(defaultCaptureBasename(captured({ kind: 'video', capturedAt: '2026-01-02 03:04:05' }))).toBe(
+      'video-20260102-030405',
+    )
+  })
+
+  it('reads the capture timestamp, never an ambient clock', () => {
+    // The demo forbids `Date.now()` outside the seam. Two captures a year apart must produce
+    // two different names when the WALL clock has not moved at all, which is what proves the
+    // figure came off `CapturedMedia` rather than out of `new Date()`.
+    const a = defaultCaptureBasename(captured({ capturedAt: '2026-07-30 14:05:06' }))
+    const b = defaultCaptureBasename(captured({ capturedAt: '2027-07-30 14:05:06' }))
+    expect(a).not.toBe(b)
+  })
+
+  it('falls back to the bare kind rather than emitting a truncated date that looks real', () => {
+    expect(defaultCaptureBasename(captured({ capturedAt: '' }))).toBe('photo')
+    expect(defaultCaptureBasename(captured({ kind: 'audio', capturedAt: '2026-07-30' }))).toBe('audio')
+  })
+
+  it('survives the filename rule it feeds — no illegal characters, always valid', () => {
+    const base = defaultCaptureBasename(captured())
+    expect(sanitizeFilename(base)).toBe(base)
+    expect(isValidFilename(base)).toBe(true)
+    expect(mediaFilename(base, captured())).toBe('photo-20260730-140506.jpg')
   })
 })
 
