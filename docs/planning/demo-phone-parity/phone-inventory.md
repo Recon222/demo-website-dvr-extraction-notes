@@ -1,5 +1,8 @@
 # Phone App Surface Inventory — CCTV Recovery Notes (DVR Extraction Notes)
 
+> **CORRECTION (2026-07-31, P2.3 source verification):** §M13's claim that `GpsCaptureControl` applies a **">2σ outlier filter"** is FALSE — phone `gps-service.ts:276-282` simply selects the most accurate sample; no mean/deviation is ever computed. The claim traces to doc-drift inside the phone repo itself (`src/features/README.md:768`, `DOCUMENTATION-PLAN.md:2520`); the phone's accurate line is `location/README.md:276`. Any future GPS work (P3.4, P3.7) must NOT implement a 2σ filter — it would commit different coordinates than the phone. Logged on the phone-repo follow-up ledger as doc-drift.
+
+
 **Repo:** `/Users/fvadev/Developer/extraction-notes/DVR-Extraction-Notes-ReactNative`
 **Stack:** React Native + Expo SDK 54, Expo Router v6 (file-based), Zustand (12 slices), SQLite (SQLCipher) as source of truth, TypeScript strict.
 **Audience:** whoever is building/upgrading the web demo at `/Users/fvadev/Developer/extraction-notes/demo-website-dvr-extraction-notes`. This document is the **phone-app side** of a gap analysis — every user-facing surface, what it renders, what logic sits behind it, and what a browser has to mock.
