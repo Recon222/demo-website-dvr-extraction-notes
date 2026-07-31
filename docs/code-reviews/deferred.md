@@ -1684,3 +1684,72 @@ was the point. It remains open and still cheap.
 (phone `NewLocationModal.tsx:212-219`, for P3.5's caller). P3.3 (NewCaseModal's required-field
 gate + duplicate-case-number banner) needs the first two for the same reasons; if both lanes add
 them, the merge should keep one copy rather than two spellings of the same prop.
+## 53. P3.6 (parity/p3-incident) — incident editing: deliberate non-ports & one un-forked duplicate
+
+**Source:** parity package P3.6 (matrix rows 22, 23; plan §5 P3.6). Phone spec:
+`docs/ui-mapping/03-tab-map.md:244-300`, `11-case-modals.md:165-207`,
+`src/features/case-management/components/EditIncidentLocationModal.tsx`,
+`src/features/location/components/IncidentLocationForm.tsx`,
+`src/features/case-management/utils/incident-location-mapping.ts`, `app/(tabs)/map.tsx:98-176`.
+
+**53a. No GPS capture control on the incident form — the one field the phone has and this does
+not.** Phone `IncidentLocationForm.tsx:312-320` mounts `GpsCaptureControl` with
+`INCIDENT_ACCURACY_OVERRIDE = 'precise'`, which is also where its reverse-geocode toggle lives.
+
+*Why deferred:* `DemoCase.incidentCoordinates.source` is typed to `COORD_SOURCES`
+(`'geocoded' | 'manual'`) with an explicit invariant — "Incident coordinates come from the address
+pick or hand entry — never a live GPS fix" (`engine/types/index.ts`) — and plan §5 P3.6 scopes this
+package to "manual/geocoded source stamping". Adding capture is not a UI change: it widens that
+union through `NewCaseInput`, `createCase`, the persistence schema and the provenance chip, all of
+which are P3.3/P3.4 territory this wave. The matrix row 23 Delta column describes the PHONE
+("GPS + reverse geocode"); the plan describes what P3.6 builds. Followed the plan.
+
+*Consequence, recorded so it is not re-derived:* of the phone's two reverse-geocode entry points
+(post-capture, `:206`; manual-coordinate blur, `:215-223`), only the blur one exists here. The
+banner — the behaviour this package is actually about — is reachable through it, so nothing is
+untested; there is simply one fewer way in.
+
+*Trigger:* whoever widens incident provenance to include `'gps'`. `GpsCaptureControl` is already
+parameterised (`label`, `config`, `geocodeEnabled`/`onToggleGeocode`) — drop it in above the
+lat/lng row in `IncidentLocationFields`, move `geocodeEnabled` from "implicitly on" to the
+control's toggle, and re-read §45a (the `onClick` busy guard) and §45f (the write-guard token).
+
+**53b. The banner has one arm, not the phone's two.** Phone
+`EditIncidentLocationModal.tsx:78-93` shows either a reverse-geocode failure or a SAVE failure
+(`error.message`, falling back to `Failed to save incident location`). The demo's save is a
+synchronous in-memory store write with no failure mode. A save-error arm would be an invented
+error path — the honesty rule cuts against it as hard as it cuts against fake successes. Not a gap
+to close; re-open only if the demo ever gains a save that can fail (it would not be this store).
+
+**53c. `onReverseGeocodeError` accepts `null` to clear — a deliberate one-word deviation.** The
+phone's callback is set-only, so a lookup failure keeps accusing the user until they press Save,
+even after a later lookup succeeds. Clearing on a new attempt is `LocationFields`' own reviewed
+behaviour (`setLookupNotice('none')` at the top of each capture). Pinned by a test.
+
+**53d. `NewCaseModal` still carries its own inline copy of the incident block — NOT forked, not
+yet folded.** `IncidentLocationFields` is built as the shared field set the matrix asks for ("build
+as a second mode of the same form"), but `NewCaseModal.tsx` is owned by P3.3 in this same wave, so
+this package did not edit it. The duplication is therefore real and temporary:
+`NewCaseModal`'s private `CoordinateField`, its inline coordinate chip, and its
+`incidentLatitude`/`incidentLongitude`/`incidentCoordinateSource` flat fields duplicate what
+`IncidentLocationFields` + `IncidentLocationValues` now express once.
+
+Two copy divergences it leaves standing, both resolved in favour of the phone in the new component:
+`Business / Scene Name` placeholder is `Optional` (phone `IncidentLocationForm.tsx:280`) vs
+NewCaseModal's `Where the occurrence happened`; street placeholder is `Start typing an address...`
+(phone `:290`, and what `LOCATION_FIELD_LABELS` already uses) vs NewCaseModal's ellipsis-character
+variant.
+
+*Trigger:* the next agent to touch `NewCaseModal`'s incident section — most likely P3.3's edit-mode
+work, since edit mode needs exactly the seed/submit pair `caseToIncidentValues` /
+`incidentValuesToPatch` already provides. Replace the inline block with
+`<IncidentLocationFields values={…} onChange={…} />`, back the three flat coordinate fields with
+`IncidentLocationValues`, and delete the private `CoordinateField`. The phone keeps ONE mapper for
+both surfaces for precisely this reason (phone `incident-location-mapping.ts:1-10`); until the fold
+happens, the demo has one mapper and one-and-a-half forms.
+
+**53e. No `incidentAddress` field.** The phone stores a pre-formatted "street, city" string on the
+case and `incidentValuesToFields` derives it on save. `DemoCase` has no such field — the demo
+derives the string at display time (`mapData.ts` `joinAddress`, and §38's `formatAddress`
+single-producer rule). Emitting one would create a second source of truth for the same string.
+Deliberate; no trigger.

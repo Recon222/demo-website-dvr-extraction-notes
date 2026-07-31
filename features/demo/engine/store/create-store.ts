@@ -30,6 +30,7 @@ import {
   isDvrTimeCorrect,
   roundTo5Min,
 } from '@/features/demo/engine/logic/time'
+import type { IncidentLocationPatch } from '@/features/demo/engine/logic/incident-location'
 import type { MappedImport } from '@/features/demo/engine/logic/import'
 import {
   assembleNotesString,
@@ -140,6 +141,12 @@ export interface DemoActions {
    * into it — keep the three call sites' semantics.
    */
   setCaseStatus(caseId: string, status: CaseStatus): void
+  /** Incident-location-only edit, from the map's incident detail card (matrix row 23).
+   *  The patch type is DERIVED from `DemoCase` (see `IncidentLocationPatch`), so this action
+   *  structurally CANNOT touch the case number, OIC/VC, notes or status — full-record editing
+   *  stays with the New Case modal in edit mode, exactly as on the phone. A no-op for an
+   *  unknown id, like every other case-keyed writer here. */
+  updateIncidentLocation(caseId: string, patch: IncidentLocationPatch): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -323,6 +330,10 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         if (!current || current.status === status) return {}
         return { cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }
       }),
+    updateIncidentLocation: (caseId, patch) =>
+      set((s) => ({
+        cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
+      })),
 
     addLocation: (caseId, input) => {
       const id = nextId('l')

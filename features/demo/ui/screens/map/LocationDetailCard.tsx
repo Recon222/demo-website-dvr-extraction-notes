@@ -11,6 +11,9 @@ export interface LocationDetailCardProps {
   onCall(number: string): void
   onEmail(address: string): void
   onGoToLocation(id: string): void
+  /** Incident variant only — opens the incident-location editor for the case (matrix row 22:
+   *  this CTA is the sole entry to row 23). The id is the CASE id (incident items carry it). */
+  onEditIncident(caseId: string): void
 }
 
 const container: CSSProperties = { padding: '14px 16px 24px' }
@@ -22,6 +25,8 @@ const cardLabel: CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing:
 const rowText: CSSProperties = { fontSize: 14, fontWeight: 500, color: SHEET_COLORS.text, padding: '6px 0' }
 const tapRow: CSSProperties = { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 0', color: MAP_PIN_COLORS.working, fontSize: 14, fontWeight: 600, cursor: 'pointer' }
 const cta: CSSProperties = { width: '100%', height: 48, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#1a8fc2,#0f6f9e)', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 6 }
+/** Phone copy, verbatim (ui-mapping 03:256/262 — `IncidentDetailCard`'s only CTA). */
+export const EDIT_INCIDENT_LABEL = 'Edit Incident Location'
 const chip = (color: string): CSSProperties => ({ fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.4, padding: '4px 10px', borderRadius: 10, background: `${color}25`, marginTop: 2, whiteSpace: 'nowrap' })
 
 function AddressCard({ businessName, street, city, address, coord }: { businessName: string; street: string; city: string; address: string; coord: [number, number] }) {
@@ -42,8 +47,10 @@ function AddressCard({ businessName, street, city, address, coord }: { businessN
 
 /** The bottom-sheet detail view. Location variant: status badge, address, Requester + Contact cards
  *  (phone → tap-to-call, email → tap-to-email), and "Go to Location". Incident variant: headline +
- *  chip + address (no requester/contact/CTA — the incident has no wizard). */
-export function LocationDetailCard({ item, onBack, onCall, onEmail, onGoToLocation }: LocationDetailCardProps) {
+ *  chip + address + "Edit Incident Location" (no requester/contact and no wizard hand-off — the
+ *  incident is a case-level scene, not a recovery site; its only action is editing itself,
+ *  phone IncidentDetailCard, ui-mapping 03:250-262). */
+export function LocationDetailCard({ item, onBack, onCall, onEmail, onGoToLocation, onEditIncident }: LocationDetailCardProps) {
   const back = (
     <button type="button" onClick={onBack} style={backBtn}>
       {'‹'} All Locations
@@ -60,6 +67,9 @@ export function LocationDetailCard({ item, onBack, onCall, onEmail, onGoToLocati
           <span style={chip(MAP_PIN_COLORS.incident)}>Incident</span>
         </div>
         <AddressCard businessName={item.businessName} street={item.streetAddress} city={item.city} address={item.address} coord={item.coord} />
+        <button type="button" style={cta} onClick={() => onEditIncident(item.id)}>
+          {EDIT_INCIDENT_LABEL}
+        </button>
       </div>
     )
   }

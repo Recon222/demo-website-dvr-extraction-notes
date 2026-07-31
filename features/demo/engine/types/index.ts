@@ -36,7 +36,7 @@ export type ChapterId = 'splash' | 'dashboard' | 'cases' | WizardScreenId
 export type LaunchableId = 'ocr' | 'mediaCapture' | 'audioRecording'
 
 /** Overlay modals. */
-export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary'
+export type ModalId = 'newCase' | 'newLocation' | 'import' | 'mediaLibrary' | 'editIncident'
 
 // ---- Content / form value types --------------------------------------------
 export interface ScopeEntry {
@@ -279,6 +279,10 @@ export const GPS_SOURCES = ['gps', 'geocoded', 'manual'] as const
 /** Coordinate provenance. Named (R-25) so consumers annotate rather than hand-retyping the
  *  members: a widened `GPS_SOURCES` must reach the provenance chip, not stop at a copy. */
 export type GpsSource = (typeof GPS_SOURCES)[number]
+/** Incident-scene provenance — the strictly narrower half (no live fix). Named for the same
+ *  R-25 reason: the incident form and its mappers annotate with this rather than re-typing
+ *  `'geocoded' | 'manual'`, so widening `COORD_SOURCES` reaches every one of them. */
+export type IncidentCoordSource = (typeof COORD_SOURCES)[number]
 
 export interface DemoCase {
   id: string

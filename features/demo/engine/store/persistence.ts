@@ -327,7 +327,7 @@ const APP_VIEWS: readonly AppView[] = [
 const isAppView = (v: string): v is AppView => (APP_VIEWS as readonly string[]).includes(v)
 const isChapterId = (v: string): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 /** Exhaustive by construction: gains/losses on `ModalId` are compile errors here. */
-const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true }
+const MODAL_IDS: Record<ModalId, true> = { newCase: true, newLocation: true, import: true, mediaLibrary: true, editIncident: true }
 /** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
  *  snapshot with `"toString": true` would pass the guard and defeat the documented
  *  "unknown visited keys are dropped" contract. */
