@@ -1,114 +1,130 @@
-# Parity P1 — Web lane findings (fix-delta)
+# Parity P1 — Web lane findings (fix-delta ROUND 2)
 
 - **Lane:** web (React/Next browser-platform: render + bundle perf, browser-API correctness, resource leaks, accessibility, inline-style discipline, marketing↔demo isolation)
-- **Mode:** FIX-DELTA (re-review of the six fix branches merged after review commit `4a1f807`)
+- **Mode:** FIX-DELTA round 2 — re-review of the **round-2 fixes only** (three branches merged after review commit `3d03bbb`: `parity/p1-fix2-terminal`, `parity/p1-fix2-pdfsave`, `parity/p1-fix2-logbus`). Delta = `3d03bbb..feat/parity-p1`, 12 files, +329/−59 (6 non-doc production/test files).
 - **Repo:** `/private/tmp/claude-501/-Users-fvadev-Developer-extraction-notes-DVR-Extraction-Notes-ReactNative/7423d8f5-e7f4-4135-a726-296308b62d4d/scratchpad/worktrees/parity-p1`
-- **Diff under review:** `master...feat/parity-p1` (PR #30); fix delta `4a1f807..HEAD` — 27 files, +1067/−252
-- **Refs read:** `.claude/agents/web-reviewer.md`, `features/demo/CLAUDE.md`, `docs/code-reviews/parity/p1/p1-review.md` (R-2/R-3/R-7/R-14/R-15/R-16/R-17/R-18 are this lane's), the prior `lane-web.md` (WEB-1…WEB-8), `docs/code-reviews/deferred.md` §33–§36
-- **Gates re-run in-worktree:** `npx tsc --noEmit` → clean · `npx vitest run features/demo/ui/screens/import features/demo/ui/chrome/__tests__/PdfPreview.test.tsx features/demo/ui/import` → 12 files / 133 tests passing · `npx next build` → clean, `/demo` **1.24 kB / 107 kB First Load JS (unchanged)**, marketing routes unchanged (`/` 121 kB, `/beta` 111 kB, shared 106 kB)
+- **Diff under review:** `master...feat/parity-p1` (PR #30)
+- **Refs read:** `.claude/agents/web-reviewer.md`, `features/demo/CLAUDE.md`, `docs/code-reviews/parity/p1/p1-review-fixdelta.md` (R-35…R-44; **R-36 is this lane's**, merged from my prior WEB-9), my prior `lane-web.md` (WEB-1…WEB-9), `docs/code-reviews/deferred.md` §33–§36 + the round-2 §36 addendum.
+- **Gates re-run in-worktree (this round):** `npx tsc --noEmit` → **clean** · `npx vitest run` full suite → **132 files / 1078 tests passed**, zero `act()` warnings · targeted `PdfPreview` + `screens/import` suites → 7 files / 96 tests passed · `npx next build` → clean, **`/demo` 1.24 kB / 107 kB First Load JS — identical to the pre-fix build**; marketing unchanged (`/` 121 kB, `/beta` 111 kB, `/features/[slug]` 119 kB, shared 106 kB).
+- **Deliberate choices honoured (not re-flagged):** run-scoped `runHadSampleFallback` deliberately distinct from segment-scoped `deriveTrust`; the synthetic `UNEXPECTED_ERROR` row being bridge-only and unmapped; `win.focus()` on the frame kept while `window.focus()` on the parent was dropped; deferred §§29–36; D5 adaptations; dwell semantics; trust-line wording; the known 5s-timeout load-flake class.
 
-**Verdict: APPROVE.** All eight prior web-lane findings are genuinely fixed — the two MAJORs (R-2 keyboard-unreachable pin/pill, R-3 accname override) with tests that would fail on a revert. One new MINOR from the R-12 fix's blast radius (WEB-9). No BLOCKER, no MAJOR, no regression to the bundle boundary, resource lifetimes, styling half, or SSR posture.
+**Verdict: APPROVE.** My lane's one prior finding (R-36, both merged mechanisms) is genuinely **FIXED**, and the fix hardens beyond the prescribed sketch (which itself leaked the listener on the synchronous-success path). Every previously-closed web fix (R-2, R-3, R-14, R-15, R-16, R-17, R-7, R-18) is still in place and still test-pinned. No bundle, boundary, SSR, styling-half, resource-lifetime or accessibility regression was introduced by the round-2 fixes. One new MINOR (WEB-10) — a residual of my own R-36 fix: the one-macrotask grace does not span the deferral window its own comment names, and the late signal is discarded instead of retracting a wrong notice.
 
 ---
 
 # Fix-delta — per prior finding
 
-| Prior | Aggregated | Sev | Verdict | Fix commit |
+| Prior (aggregated) | Lane(s) | Sev | Verdict | Fix commit |
 |---|---|---|---|---|
-| WEB-1 | R-2 | MAJOR | **FIXED** | `a7497ed` |
-| WEB-2 | R-3 | MAJOR | **FIXED** | `82b490c` |
-| WEB-3 | R-14 | MINOR | **FIXED** (both halves) | `6dcfba7` (picker) + `c5412af` (terminal) |
-| WEB-4 | R-15 | MINOR | **FIXED** | `8d52011` |
-| WEB-5 | R-16 | MINOR | **FIXED** | `6dbffdf` |
-| WEB-6 | R-17 | MINOR | **FIXED** | `a941d79` |
-| WEB-7 | R-7 | MINOR | **FIXED** | `bd68a0d` |
-| WEB-8 | R-18 | MINOR | **FIXED** | `91d0113` |
+| **R-36** (my WEB-9 + typescript's deferred-dispatch half) | web + typescript | MINOR | **FIXED** (residual → WEB-10) | `28cf5c7` |
+| R-37 (typescript; same file, web-visible focus behaviour) | typescript | MINOR | **FIXED** — spot-checked, no focus regression | `2bbfa7e` |
+| R-35 (silent-failures/TS/type-design; web-visible CTA surface) | other lanes | MAJOR | **FIXED** — spot-checked for a11y / render-perf blast radius only | `7249809` |
+| R-38 · R-39 · R-40 · R-41 · R-42 · R-43 · R-44 | other lanes | MINOR | not my lane — swept for web regressions only (none found) | `ca0df27`, `ee2e5d9`, `819bd12`, `f6e2202`, `6a0891b` |
 
-## WEB-1 / R-2 — keyboard users could never unpin the log — **FIXED**
+## R-36 — no capability probe (web half) + synchronous-dispatch assumption (TS half) — **FIXED**
 
-`features/demo/ui/screens/import/ImportTerminalProgress.tsx:549-564` now makes the log a first-class keyboard target and treats scroll keys as user intent:
+**Fix commit:** `28cf5c7` "fix(demo): harden the beforeprint success signal — capability probe + one-macrotask grace".
+
+Both mechanisms are addressed at `features/demo/ui/chrome/PdfPreview.tsx:50-80`:
 
 ```tsx
-tabIndex={0} role="log" aria-live="off" aria-label="Import log"
-onScroll={handleScroll} onWheel={markUserScroll} onTouchMove={markUserScroll}
-onPointerDown={markUserScroll} onKeyDown={handleKeyDown}
+const canDetect = 'onbeforeprint' in win                       // :50  ← my WEB-9 half
+let dialogOpened = false
+const markOpened = () => { dialogOpened = true }
+win.addEventListener('beforeprint', markOpened)                // :55
+try { win.focus(); win.print() }                               // :56-58
+catch (err) { win.removeEventListener('beforeprint', markOpened); throw err }  // :59-61
+finally { saveBtnRef.current?.focus() }                        // :62-71  (R-16 preserved)
+if (!canDetect || dialogOpened) {                              // :72
+  win.removeEventListener('beforeprint', markOpened); setPrintNotice(null)
+} else {
+  window.setTimeout(() => {                                    // :76  ← TS half (grace)
+    win.removeEventListener('beforeprint', markOpened)
+    setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+  }, 0)
+}
 ```
 
-`handleKeyDown` (`:483-488`) reuses `markUserScroll` verbatim through `SCROLL_KEYS` (`:401` — Arrow/Page/Home/End/Space), so the "programmatic tail scroll never flips the pin" invariant at `:490` is untouched. `aria-live="off"` is present, per the aggregator's own correction (`role="log"` is implicitly polite) — `terminal-status` (`:516`) remains the sole polite region. Pinned in `__tests__/ImportTerminalProgress.test.tsx:292-323`: attribute assertions plus ArrowUp→unpin→pill-appears→tail-does-not-yank, PageDown→re-pin, and a negative case (`key: 'a'` must not arm the gate).
+- **Capability half (mine).** `'onbeforeprint' in win` is the caniuse-documented detection method for `beforeafterprint`, evaluated against the **frame's** window — the global the printing steps fire at, and the one the listener is attached to. On an engine without the print events the component degrades to absence-of-throw instead of branding every successful save "blocked", exactly as suggested. Falsifiably pinned at `__tests__/PdfPreview.test.tsx:148` (deletes `win.onbeforeprint`, stubs a silent `print`, asserts **no** `role="status"` node) — delete the probe and the deferred branch paints the notice, failing the test.
+- **Timing half.** The verdict is deferred one macrotask (`:76-79`), pinned at `__tests__/PdfPreview.test.tsx:160` with a `print` stub that dispatches `beforeprint` from its own `setTimeout(0)` (registered before the component's verdict timer, so the ordering is deterministic). Judge synchronously again and the test fails.
+- **Beyond the prescribed sketch (verified).** The review's suggested snippet left the listener attached on the *synchronous success* path — it removed it only inside the deferred timer. The shipped code removes it on **all four** exits: early return before attachment (`:35-38`), throw (`:60`), sync verdict (`:73`), deferred verdict (`:77`). I traced every exit of `printDocument`; no listener survives a print attempt.
+- **R-12's core property survives.** Absence-of-throw is still not success on a detecting engine (`__tests__/PdfPreview.test.tsx:137`, now `await findByRole`), and "a silently-ignored retry must not clear a prior failure notice" still passes with the deferred flush (`:198`).
 
-Re-verified downstream of the fix: the jump-pill sits after the log container in DOM (`:587`), i.e. behind the per-line disclosure buttons in tab order — but `End`/`PageDown` re-pins directly (asserted in the test), so keyboard users have a first-class equivalent and there is no dead end. Not a residual.
+**Residual → WEB-10:** the one-macrotask grace is narrower than the deferral window mechanism (b) names, and the late signal is thrown away rather than used to retract a wrong notice.
 
-## WEB-2 / R-3 — `aria-label` suppressed the CTA's batch counts — **FIXED**
+## R-37 — dead `window.focus()` in the print `finally` — **FIXED** (cross-lane spot-check)
 
-`aria-label` is gone; the accessible name is now the visible `cta.title` + `cta.sub`, and `cta.a11y` supplements via `aria-describedby="terminal-cta-desc"` on a **sibling** (not child) visually-hidden span (`:600-626`, `visuallyHidden` at `:279-286`). The sibling placement is the right call — inside the button it would have joined the accname. Tests assert the counts are in the name: `getByRole('button', { name: /Batch partially failed — 2 of 3, 1 needs attention/ })` + `toHaveAccessibleDescription(...)` (`__tests__/ImportTerminalProgress.test.tsx:436-437, 459-461, 481`). Label-in-Name (WCAG 2.5.3) now holds: the spoken label contains the visible text. §33's rule is satisfied.
+`2bbfa7e` deleted the line; `PdfPreview.tsx:62-71` now runs only `saveBtnRef.current?.focus()` in the `finally`, with a comment recording why that is the load-bearing call. **No web regression:** focusing an element in the parent document runs the focusing steps against the top-level traversable and implicitly blurs the frame's focused area, so R-16's guarantee (the parent document's Escape `keydown` listener reachable after a save — deferred §21) holds without `window.focus()`. The load-bearing `win.focus()` at `:57` is untouched, as the doc required. R-16's two tests (including the throw path) and the Escape-after-save test still pass.
 
-## WEB-3 / R-14 — two new ungated `spin` animations — **FIXED (both halves)**
+*Accuracy note on the finding's secondary claim:* the jsdom `Not implemented: Window's focus() method` noise is **reduced, not eliminated** — 12 lines still emit from the kept `win.focus()` at `:57` during the `PdfPreview` suite. Expected (jsdom implements `focus()` on no Window), not a residual of the fix.
 
-- Terminal: `Spinner({ reduce })` at `ImportTerminalProgress.tsx:300-316` — `animation: reduce ? undefined : 'spin 0.9s linear infinite'`, `reduce` threaded from the component (`:405`, `:632`). Asserted both ways (`test:241-253`).
-- Picker: `PickerStage.tsx:98-120` gates on a per-render `prefersReducedMotion()` read, capability-guarded with `window.matchMedia?.(…)` (optional chaining short-circuits the whole chain, so a missing `matchMedia` yields `undefined`, never a throw) and `typeof window !== 'undefined'`. The deliberate asymmetry with the terminal (module-global caching in motion/react defeats per-test overrides) is documented at the call site and is on the orchestrator's do-not-re-flag list — not re-flagged.
+## R-35 — run-scoped CTA sample attribution — **FIXED** (web-surface spot-check only)
 
-Residual (pre-existing, explicitly optional in R-14, not taken): `features/demo/ui/screens/SyncStatusCard.tsx:59` still runs an ungated `spin`, as do `PhoneFrame.tsx:67`, `SplashScreen.tsx:38/51/59-61`, `_shared.tsx:71`, `PickerSheet.tsx:62`. All pre-date this PR and are outside the fix blast radius; noted, not filed.
+Not my lane's finding; checked only for accessibility and render-performance blast radius on the dwell surface:
 
-## WEB-4 / R-15 — expanded dump was `aria-hidden` — **FIXED**
+- `runHadSampleFallback` (`ImportTerminalProgress.tsx:123`) is a second `useMemo`-guarded O(n) scan of `lines` alongside `deriveTrust` (`:451-452`). At the 400-line ring cap, rAF-batched, that is a few hundred string comparisons per commit — immaterial; folding both into one pass would be speculative micro-optimisation, which this lane's false-positive list rules out.
+- The attribution is **not colour-only** (deferred §23's class): the amber `sample import — review →` is literal text inside the CTA, and since R-3 the accessible name *is* the visible title + sub — so a screen-reader user hears the substitution disclosure, not just a colour change (`:620-641`). WCAG 2.5.3 Label-in-Name still holds.
+- No new prop, state, effect, listener or timer; `cta` was already rebuilt per render. No re-render change, and nothing new was lifted into the store bridge.
 
-`TerminalLine.tsx:169-175` renders the expanded block with no `aria-hidden`; `DETAIL_AT_HIDE_THRESHOLD`/`isDump` are deleted and replaced by a comment (`:26-31`) that states why the phone's flood rationale doesn't transfer (collapsed-by-default disclosure + `aria-live="off"` log). The disclosure's `aria-expanded`/`aria-controls` now point at a node that genuinely exists in the a11y tree when open.
+## Regression sweep of the already-closed web fixes (R-1…R-34)
 
-## WEB-5 / R-16 — focus stranded inside the sandboxed print frame — **FIXED**
-
-`PdfPreview.tsx:52-60`: a `finally` around `win.focus(); win.print()` runs `window.focus()` then `saveBtnRef.current?.focus()` (ref wired at `:121`), so focus returns to parent chrome on every path — dialog shown, silently ignored, or thrown. Two tests pin it, including the throw path, and one drives `Escape` after a save to prove the document listener is live again (`__tests__/PdfPreview.test.tsx:131-155`).
-
-## WEB-6 / R-17 — large-batch confirm unmounted the focused button — **FIXED**
-
-`PickerStage.tsx:176-192` adds the focus choreography: the confirm container takes focus on mount (`tabIndex={-1}` + `ref`, `:265-273`), cancelling hands focus back to the "Pick File" card via `confirmWasOpen`, and a failed clipboard read restores focus to the clipboard card once it is re-enabled (`clipboardErrored` + the `isReadingClipboard` effect). `role="alertdialog"` without `aria-modal` is the documented deliberate choice (no focus trap exists) — not re-flagged.
-
-Residual (pre-existing shape, not fix-introduced): on the **Continue** path the effect fires while `isLoading` is already true, so `fileCardRef.current?.focus()` targets a disabled button and focus lands on `<body>` — exactly what the ordinary (<25-file) path has always done when the stage flips to `progress`. This is the generic "no focus management across import stage transitions" gap, outside this fix's blast radius; noted, not filed.
-
-## WEB-7 / R-7 — dead `TERM_ROW` import — **FIXED**
-
-`ImportTerminalProgress.tsx:17` now imports `{ TerminalLine }` only.
-
-## WEB-8 / R-18 — wrong reduced-motion hook for the demo half — **FIXED**
-
-`ImportTerminalProgress.tsx:16` imports `useReducedMotion` from `motion/react`, matching `ScreenStage` / `WizardDrawer` / `ExploreChecklist`, with a header comment explaining the first-frame difference. Verified against the installed source rather than the docs: `framer-motion@12.42.0` `dist/framer-motion.dev.js:16057-16069` seeds `useState(prefersReducedMotion.current)` in the render body, and `initPrefersReducedMotion` (`:6798-6811`) is capability-guarded (`if (window.matchMedia)`) and uses `addEventListener('change', …)`, not the deprecated `addListener` — so no jsdom or SSR hazard from the swap. The test mocks the hook and states that reverting to the marketing hook would bypass the mock and fail (`test:4-12`).
+| Closed item | Still in place? | Evidence |
+|---|---|---|
+| R-2 keyboard-first-class log | ✓ | `ImportTerminalProgress.tsx:575-582` (`tabIndex={0}`, `role="log"`, `aria-live="off"`, `aria-label`, `onKeyDown`) — untouched by round 2 |
+| R-3 CTA accname = visible text | ✓ | `:620-641` — no `aria-label` on the CTA; sibling `#terminal-cta-desc` describedby span intact |
+| R-14 reduced-motion gates | ✓ | `Spinner reduce={reduce}`, cursor `animation: reduce ? undefined : …` (`:597`), CTA fade (`:632`); `PickerStage.tsx:98-104` probe intact; no new animation added this round |
+| R-15 expanded dump AT-readable | ✓ | `TerminalLine.tsx` untouched except a test rename |
+| R-16 focus returned after print | ✓ | `PdfPreview.tsx:70` + tests (incl. the throw path) |
+| R-17 picker focus choreography | ✓ | `PickerStage.tsx:183-190` untouched |
+| R-7 dead import | ✓ | no re-introduction |
+| R-18 `motion/react` reduced-motion hook | ✓ | `ImportTerminalProgress.tsx:16` |
+| Marketing↔demo wall | ✓ | `grep -rn "features/demo" components app/(default) lib` → only the documented comment in `components/marketing/phone-frame.tsx:7` and the guard test itself |
 
 ---
 
-# New findings introduced by the fix round
+# New findings introduced by the round-2 fixes
 
-## WEB-9 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:44-61
+## WEB-10 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:72-80
 
 ### Claim
-The R-12 fix replaces "absence of a throw" with `beforeprint` as the **sole** success signal, but never feature-detects it. In a browser that prints fine yet does not implement the print events, `dialogOpened` stays `false` and the component asserts the opposite of the truth — *"Your browser blocked the print dialog for this preview — no PDF was saved"* — immediately after a print dialog opened and the visitor saved the PDF. The fix that exists to prevent a fake success now produces a fake failure on the same surface.
+R-36's mechanism (b) is documented as covering engines that *"postpone the printing steps (and the beforeprint they fire) **while the frame is still loading**"* (`:47-49`), but the grace implemented is a single `setTimeout(…, 0)` and the listener is **torn down when that timer fires** (`:77`). Frame-load deferral is not bounded by one macrotask — it ends at the frame's `load`, which for this component's `srcDoc` document can be several tasks out (the time-offset report embeds an `<img src="data:…">` of the OCR capture — `features/demo/engine/logic/pdf/time-offset.ts:113-117`). A "Save as PDF" click inside that window therefore still produces the definitive amber *"Your browser blocked the print dialog for this preview — no PDF was saved"* over a print that then opens and succeeds — the mirror fake-failure R-36 exists to prevent — and because `markOpened` is unsubscribed at T+0, the late signal that *proves* the print happened can no longer clear the wrong notice. The pending timer is also never cleared when the overlay unmounts, so the verdict closure fires against a detached frame (harmless today — React 19 no-ops the state write — but it is the one untorn-down timer in a component that otherwise cleans up every listener).
 
 ### Evidence
 ```tsx
-// PdfPreview.tsx:44-61
-let dialogOpened = false
-const markOpened = () => { dialogOpened = true }
-win.addEventListener('beforeprint', markOpened)
-try { win.focus(); win.print() } finally { … }
-setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+// PdfPreview.tsx:72-80
+if (!canDetect || dialogOpened) {
+  win.removeEventListener('beforeprint', markOpened)
+  setPrintNotice(null)
+} else {
+  window.setTimeout(() => {
+    win.removeEventListener('beforeprint', markOpened)          // ← a late signal can no longer land
+    setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)  // ← verdict becomes final
+  }, 0)
+}
 ```
-There is no `'onbeforeprint' in win` probe anywhere in the file, and the test suite models only the supported world — `stubDialogPrint` dispatches `beforeprint` from the `print` stub (`__tests__/PdfPreview.test.tsx:16-24`), so the unsupported-browser path is untested by construction.
+The component's own comment at `:47-49` names load-time postponement as the mechanism being defended against; a 0 ms macrotask does not span it. The round-2 test that pins the grace (`__tests__/PdfPreview.test.tsx:160`) demonstrates the exact boundary — it passes only because its stub's dispatch timer is registered *before* the component's verdict timer; move the dispatch to a `load` handler (the real deferral shape) and the notice reappears. No test covers beyond-one-task dispatch, by construction.
 
-Refutation work (why this is MINOR, not MAJOR):
-- I checked the three engines that matter and they all fire it **synchronously inside `print()`**, so no modern browser hits this: Chromium and WebKit block on the print dialog; Gecko no longer blocks but dispatches the print events around the static clone (the "afterprint fires early" behaviour of bugzilla 1685011), i.e. still before `print()` returns. `beforeprint` also fires at the *printed* document's global — the iframe's window — which is what the code listens on.
-- Safari **does** support the events from Safari 13 / iOS Safari 13 (caniuse `beforeafterprint`; mdn/browser-compat-data#5313).
-- Residual exposure is the ~6.9% of caniuse global usage without support — Safari/iOS Safari ≤12, Opera Mini, legacy Android Browser / Samsung Internet / UC. Several of those cannot open a print dialog at all, so the honest-notice text is arguably right there anyway.
-
-What keeps it on the list: the surface's stated contract is *"never a fake success"* (`PRINT_BLOCKED_NOTICE`, `:14-16`), the demo is a public marketing-site surface, and the guard is one line — this is precisely the lane's "capability check missing — feature-detect before calling" rule.
+Refutation work (why MINOR, not MAJOR):
+- Reachability is low: the visitor must click "Save as PDF" before the `srcDoc` frame finishes loading. The overlay animates in over `screenIn 0.3s` (`:105`) and the document is self-contained (no network fetches; the only embedded resource is a data URL), so load typically completes well before a deliberate click.
+- The failure is a wrong notice in the honest direction (claims failure over a success), not data loss, and the visitor's own print dialog contradicts it immediately.
+- Everything the prior review prescribed *is* implemented; this is the residual the prescription itself carried.
 
 ### Suggested fix
-Probe for the signal and only claim "blocked" when the signal is trustworthy:
+Let a late signal win instead of freezing the verdict, and tear the listener down with the component rather than with the timer — ~4 lines:
 ```tsx
-const canDetect = 'onbeforeprint' in win        // the caniuse detection method
-…
-setPrintNotice(!canDetect || dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+const markOpened = () => {
+  dialogOpened = true
+  setPrintNotice(null)   // a beforeprint at ANY time proves the dialog opened
+}
+// keep the listener alive until the next attempt or unmount:
+listenerCleanupRef.current?.()
+listenerCleanupRef.current = () => win.removeEventListener('beforeprint', markOpened)
+// …and in an effect: return () => { listenerCleanupRef.current?.(); clearTimeout(verdictTimerRef.current) }
 ```
-(or keep the notice but soften its wording on the undetectable path). Add the mirror test to the two R-12 cases: a `print` stub that does **not** dispatch `beforeprint`, on a window where `onbeforeprint` is absent, must not show the blocked notice.
+Keep the `setTimeout(0)` verdict as-is (it is the honest "no signal yet" moment); the difference is that a later `beforeprint` retracts the notice. Add one test: dispatch `beforeprint` two macrotasks after `print()` returns and assert the `role="status"` notice is gone.
 
 ### Confidence
-High on the mechanism and on the compat data; the severity is deliberately MINOR because every browser that can realistically reach this screen fires the event.
+High on the mechanism and the code path (both cited from the shipped file and its own comment); deliberately MINOR on severity because the click-during-load window is narrow and the outcome is a retractable notice, not lost work.
 
 ---
 
@@ -116,16 +132,19 @@ High on the mechanism and on the compat data; the severity is deliberately MINOR
 
 | Check | Result |
 |---|---|
-| Marketing↔demo wall | `grep -rn "features/demo" components app/(default) lib` → only the documented comment in `components/marketing/phone-frame.tsx:7`. **Preserved.** |
-| Bundle shape after the fixes | `ImportTerminalProgress` now takes a **value** import (`SAMPLE_FALLBACK_PREFIX`) from `ui/import/run-import.ts`, upgrading a type-only edge to a runtime one. No cost: `DemoExperience` already statically imports `runImport`/`runPdfImport` from that module, and `pdfjs-dist` remains behind `await import` in `pdf-extract.ts:21`. `next build` confirms `/demo` unchanged at 1.24 kB / 107 kB. |
-| `package.json` / lockfile / `next.config.js` / `postcss.config.js` / `app/css/**` | Untouched by the fix round. |
-| Styling half | Zero `className` in any touched demo file; all additions are inline `CSSProperties`. `demo.css` untouched by the fix round (still no Google-Fonts `@import`; only the guard comment at `:10`). Device math untouched. |
-| Resource cleanup | New listener in `PdfPreview` (`beforeprint`) is removed in a `finally` on every path; `PickerStage`'s two new effects hold no subscriptions; `useImportLog`'s rAF/unsubscribe teardown (`useImportLog.ts:98-103`) is unchanged. No new timers, no `createObjectURL`. |
-| Render perf | The fixes are net-negative work: the terminal **removed** an effect (`lastViewRef`) in favour of the bridge-tracked `lastRealStage` prop, and `TerminalLine` dropped the `isDump` computation. `importStageFor(myGen)` allocates once per run, not per render. `lastRealStage` rides the existing `setImp` updaters — no added commits. `TerminalLine` stays `memo`'d with the same prop identities. |
-| Spurious unpin via the new `' '` key entry | Considered: Space on a line's disclosure button bubbles to the log's `onKeyDown` and arms `userScrollRef` without scrolling. Traced every consumer — the flag is only read inside `handleScroll`, and every path that can then fire a scroll (tail scroll, scroll anchoring) recomputes `isNearBottom` from live metrics, so the pin lands on the truth. Not a defect. |
-| `aria-controls` on a collapsed row | `TerminalLine.tsx:161` references `detailId` while the block is only rendered when expanded. Pre-existing (the conditional render predates the fix) and ignored by AT; out of the fix blast radius. |
-| Deliberate choices honoured | picker-vs-terminal reduced-motion asymmetry, `alertdialog` without `aria-modal`, flat `ImportState` (§36), dropped `businessName` (§35), no virtualization at the 400-line cap, dwell semantics, trust-line wording — none re-flagged. |
-| Known flake class | Not filed. (If the team wants it closed, the actionable version is extending R-6-style explicit `waitFor` timeouts to the picker-suite trio — a tests-lane MINOR at most.) |
+| `!canDetect` clears a prior genuine failure notice (`:72-74`) | **Not a defect.** On an engine with no print events there is no positive signal to distinguish a swallowed retry from a successful one; the degrade to absence-of-throw is what the review prescribed, is disclosed in the adjacent comment (clause (a), `:45-46`), and is test-pinned at `PdfPreview.test.tsx:148`. Preserving the stale notice instead would be the opposite lie. |
+| Deferred-verdict state write after unmount | No warning in React 19 and no listener leak (the timer's own callback removes it). Folded into WEB-10's suggested cleanup rather than filed separately. |
+| `role="status"` notice inserted together with its content | Pre-existing conditional render (`:135-137`), unchanged by round 2 — R-36 only moved *when* the same insertion happens. Out of the fix blast radius. |
+| Double-click / interleaved verdicts in `PdfPreview` | Traced: each attempt owns its own `dialogOpened` + `markOpened` closure, and a 0 ms timer always settles before the next user task. No cross-talk. |
+| `win` identity across `html`/`title` prop changes | Same-origin `srcDoc` navigation preserves the `WindowProxy`, so a deferred `removeEventListener` still targets the right global. |
+| Bridge re-render shape after R-38/R-39/R-40 | `importStageFor` (`DemoExperience.tsx:402-406`) now returns **before** calling `setImp` on a stale token (previously it returned the same state object from inside the updater) — strictly fewer updates, and React's bail-out is no longer relied upon. The catch's two `setImp` calls are auto-batched (React 19 batches post-`await` updates). `lastRealStageRef` is written in event scope only (`:404`, `:586`, `:619`), never during render. No new state was lifted into the bridge, and no new store subscription was added. |
+| `finishImport` now pinning `stage: 'progress'` (R-39) | Checked for a resurrect-the-dwell regression: every call site sits behind an `importGen` token check, and the picker rejects an empty selection (`PickerStage.tsx:217`), so the zero-file path cannot reach it. No overlay state is re-opened after cancel/Escape. |
+| Synthetic failure row's `filename: 'import'` (`DemoExperience.tsx:555`) rendered by `FailuresCard` (`ImportModal.tsx:188`) | Copy/UX nit on another lane's fix (it reads `import — The import failed unexpectedly…` beside real filenames). Deliberate per the round-2 design; not a browser-platform defect. Not filed. |
+| Styling half | Zero `className` in any round-2-touched demo file; every addition is inline `CSSProperties`. `demo.css`, `app/css/**`, `postcss.config.js`, `next.config.js` untouched this round. Device math and lifted pixel rules untouched. |
+| Bundle / boundary | `package.json` gained only `"typecheck": "tsc --noEmit"` — no dependency, no import-shape change. `mapbox-gl` and `pdfjs-dist` remain behind `await import`. `next build` re-run: `/demo` 1.24 kB / 107 kB First Load JS, identical to the pre-fix build; marketing routes unchanged. |
+| New animations / reduced-motion gaps | None added in round 2. |
+| Browser globals at module scope | None added; `'onbeforeprint' in win` and `window.setTimeout` both live inside the click handler. |
+| Unvirtualized log at the 400-line cap | R-42's new counting test (`ImportTerminalProgress.memo.test.tsx`) makes the no-re-render invariant that justifies shipping without virtualization falsifiable — the perf claim this lane cares about is now better pinned, not worse. |
 
 # Summary
 
@@ -135,7 +154,7 @@ High on the mechanism and on the compat data; the severity is deliberately MINOR
 | MAJOR | 0 |
 | MINOR | 1 |
 
-- **Prior findings:** 8/8 FIXED (2 MAJOR, 6 MINOR) — each with a code-level fix and, for all but the dead-import cleanup, a test that fails on revert.
-- **Marketing↔demo isolation:** preserved. **Bundle impact:** none (`/demo` 107 kB First Load JS, identical to the pre-fix build).
-- **Browser-resource cleanup:** complete. **Accessibility:** the two MAJOR a11y gaps are closed; no new gaps.
-- **Style-convention adherence:** correct half throughout; lifted pixel rules and device math untouched.
+- **Prior lane finding (R-36):** FIXED — both merged mechanisms, leak-free teardown on all four exits, two falsifiable tests. One residual filed as WEB-10.
+- **Marketing↔demo isolation:** preserved. **Bundle impact:** none (`/demo` 107 kB First Load JS, unchanged).
+- **Browser-resource cleanup:** complete except WEB-10's uncleared verdict timer (no leak today). **Accessibility:** no regressions; the R-35 CTA change strengthens the disclosure for AT users.
+- **Style-convention adherence:** correct half throughout; lifted rules and device math untouched.

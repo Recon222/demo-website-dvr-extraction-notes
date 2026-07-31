@@ -1,170 +1,141 @@
-# Lane: tests — parity P1 (PR #30) — FIX-DELTA
+# Lane: tests — parity P1 (PR #30) — FIX-DELTA ROUND 2
 
-**Mode:** FIX-DELTA (re-review of the six-branch fix round merged into `feat/parity-p1` after review commit `4a1f807`)
-**Diff under review:** `git diff master...feat/parity-p1` — 65 files, +7054/−345 (fix round alone: `git diff 4a1f807 HEAD` — 27 files, +1067/−252)
+**Mode:** FIX-DELTA round 2 (re-review of the three-branch round-2 fix set merged into `feat/parity-p1` after review commit `3d03bbb`)
+**Diff under review:** `git diff master...feat/parity-p1` — 68 files, +7232/−343 (round-2 delta alone: `git diff 3d03bbb..HEAD` — 12 files, +329/−59)
+**Round-2 fix commits:** `6a0891b` (R-44) · `2bbfa7e` (R-37) · `7249809` (R-35) · `28cf5c7` (R-36) · `ca0df27` (R-38, R-39) · `ee2e5d9` (R-40, R-41) · `819bd12` (R-42) · `f6e2202` (R-43)
 **Lane definition:** `.claude/agents/test-analyzer.md`
-**Binding contracts re-read:** `features/demo/CLAUDE.md`, `vitest.config.mts`, `vitest.setup.ts`
-**Prior artefacts read:** `docs/code-reviews/parity/p1/p1-review.md` (aggregated), this file's previous revision (TESTS-1…8 → R-5, R-6, R-19, R-20, R-21, R-22, R-27, R-28)
+**Binding contracts re-read:** `features/demo/CLAUDE.md`, `vitest.config.mts`, `vitest.setup.ts`, `tsconfig.json`
+**Prior artefacts read:** `docs/code-reviews/parity/p1/p1-review-fixdelta.md` (aggregated, R-35…R-44), this file's previous revision (TESTS-1…TESTS-11 → R-5, R-6, R-19, R-20, R-21, R-22, R-27, R-28, R-42, R-43, R-44)
+**Scope note:** R-1…R-34 are CLOSED per the orchestrator and are not re-litigated. The deliberate choices listed in the phase brief (run-scoped-vs-segment-scoped disagreement by design; `UNEXPECTED_ERROR` deliberately unmapped; `win.focus()` kept; deferred §§29–36; the 5s-timeout load-flake class) are honored — none is re-flagged.
 
 ## Gates (re-run in this worktree)
 
 | Gate | Result |
 |---|---|
-| `vitest run` (full, twice) | **131 files / 1071 tests, all passing.** No failures, no skips, no flakes observed across both runs |
-| `vitest run --coverage` | **97.26 / 89.07 / 98.90 / 98.49** vs the 80% thresholds on `lib/**` + `features/demo/engine/**` — gate met with room |
-| New/moved engine modules | `import-flow-mode.ts` + `import-log.ts` measured together: **100 / 100 / 100 / 100** (43 stmts · 14 branches · 13 fns · 37 lines). The `text` reporter hides fully-covered rows, which is why neither appears in the table |
-| `tsc --noEmit` | **clean (exit 0)** — so the two new `@ts-expect-error` pins in `import-log.test.ts:148,150` are currently satisfied (see TESTS-11 for their enforcement path) |
-| `act()` warnings | **zero** occurrences of `not wrapped in act(...)` in the full run (one existed pre-fix — R-20). The pre-existing `MapCanvas` / shorthand-style warnings the previous pass reported are also absent now |
-| Residual stderr | 22× jsdom `Not implemented: Window's focus() method`, all from `PdfPreview.tsx:57-58` — see Observations |
+| `vitest run` (full, twice) | **132 files / 1078 tests, all passing**, both runs. No failures, skips, or flakes; run 1 128.6s, run 2 53.1s (CPU contention, not instability) |
+| `not wrapped in act(...)` | **0 occurrences** across the captured full run |
+| Other warnings on stderr | **0** beyond jsdom `Not implemented: Window's focus() method` — now **13 per run, down from 22** (R-37 removed the second `focus()` call; the load-bearing `win.focus()` at `PdfPreview.tsx:57` remains, as the doc intends) |
+| `tsc --noEmit` | **clean (exit 0)** — the round's compile-only fixes (R-40 `ImportRealStageId`, R-41 required `RunFailure` fields, R-34's `@ts-expect-error` pins) all hold |
+| `pnpm typecheck` mechanism | Verified end-to-end (see TESTS-11 below): the script exists at `package.json:10`, `tsconfig.json` `include: ["**/*.ts", "**/*.tsx"]` covers `__tests__/`, and an out-of-repo tsc probe confirms dropping `readonly` turns both pins into `TS2578 Unused '@ts-expect-error' directive` (exit 2) |
+| Targeted re-run | `PdfPreview.test.tsx` + `ImportTerminalProgress.test.tsx` + `ImportTerminalProgress.memo.test.tsx` — 3 files / 58 tests green in 1.4s |
 
-Verification method for this pass: read every changed test file and its paired production file in full; traced each "pin the contract" test's inputs through production by hand; ran one out-of-repo probe (scratchpad only, no repo files touched) to settle the R-27 question empirically.
+Verification method: read every changed test and paired production file in full; traced each new "pin the contract" test's inputs through production by hand; ran one out-of-repo `tsc` probe (scratchpad only — no repo file touched) to settle the R-44 enforcement question empirically. Repo left read-only apart from this file.
 
 ---
 
-# Fix-delta — prior lane findings
+# Fix-delta — prior findings attributed to this lane
 
 | Prior ID | Aggregated ID | Sev | Status | Fix commit |
 |---|---|---|---|---|
-| TESTS-1 | R-5 | MAJOR | **FIXED** | `8b70d38` |
-| TESTS-2 | R-6 | MAJOR | **FIXED** | `685114f` |
-| TESTS-3 | R-19 | MINOR | **FIXED** | `b39f23c` |
-| TESTS-4 | R-20 | MINOR | **FIXED** | `011625d` |
-| TESTS-5 | R-21 | MINOR | **FIXED** (via the annotate-the-remainder option the finding offered) | `d0a67e7` |
-| TESTS-6 | R-22 | MINOR | **FIXED** | `cd8bd2a` |
-| TESTS-7 | R-27 | MINOR | **PARTIAL** — see TESTS-9 | `e10b681` |
-| TESTS-8 | R-28 | MINOR | **FIXED** | `c2ee770` |
+| TESTS-9 | R-42 (residual of R-27) | MINOR | **FIXED** | `819bd12` |
+| TESTS-10 | R-43 | MINOR | **FIXED** (primary claim; the optional token-arm extension not taken → TESTS-14) | `f6e2202` |
+| TESTS-11 | R-44 | MINOR | **FIXED** | `6a0891b` |
 
-## TESTS-1 / R-5 [MAJOR] — FIXED
+Round-1 lane findings TESTS-1…TESTS-8 (R-5, R-6, R-19, R-20, R-21, R-22, R-27, R-28) were signed off FIXED last pass and are **untouched by the round-2 delta** — `git diff 3d03bbb..HEAD --stat` does not list any of their test or production files except `TerminalLine.test.tsx` (rename only) and `import-log.test.ts` (comment only). Both remain green. R-27's carried PARTIAL is now closed by R-42 below.
 
-`features/demo/ui/screens/import/__tests__/PickerStage.test.tsx:44-50` now clicks the card and asserts the hidden input received exactly one click.
+## TESTS-9 / R-42 [MINOR] — FIXED (and fixed better than my suggestion)
 
-Falsifiability re-traced by hand, not assumed: `PickerStage.tsx:340` is `onClick={() => fileInputRef.current?.click()}` and `:313` is `ref={fileInputRef}`. Drop either and `fileInputRef.current` is `null`, `?.click()` no-ops, and `clickSpy` is never called. The assertion also cannot pass by accident — the hidden input (`:305-314`) is a *sibling* of the cards, not an ancestor, so a click on the card cannot bubble into it; the only way its listener fires is a direct `HTMLElement.click()` dispatch.
+`features/demo/ui/screens/import/__tests__/ImportTerminalProgress.memo.test.tsx` (new, 61 lines) takes the render-counting option: the row module is replaced by a `memo`-wrapped counting delegate with **default shallow-compare semantics**, so the mock's bail-out behaviour is identical to the real `TerminalLine`'s.
 
-## TESTS-2 / R-6 [MAJOR] — FIXED (both halves)
+Discrimination re-traced by hand through the production render, not assumed. The three props at `ImportTerminalProgress.tsx:567` are `line` (the same object identity across snapshots — `import-log.ts` `getLines()` returns `[...ring]`, a fresh array of the *same* line objects), `expanded` (a per-seq boolean off `expandedSeqs`), and `onToggleDetail` (`useCallback([])` at `:502-509`). All three must stay stable for the assertion `{1:1, 2:1, 3:1, 4:1}` at `memo.test.tsx:59` to hold. The exact mutation the original R-27 finding named — an inline `onToggleDetail` — breaks shallow-compare on every existing row and turns the map into `{1:2, 2:2, 3:2, 4:1}`. So does a per-render `expanded` object, and so does a re-created `line` view-model. That is strictly more than the node-identity test could kill, and it is the invariant the no-virtualization rationale (`ImportTerminalProgress.tsx:44-45`) actually claims.
 
-1. **End-to-end amber path** — `features/demo/ui/__tests__/DemoExperience.sandbox.test.tsx:707-733`. One `okRun` + one `PDF_SCANNED` failure through the real bridge (`processPdfFiles` → `finishImport` → `deriveTerminalOutcome`); only `runPdfImport` is stubbed, so exactly the seam the finding named is live. It asserts the counted CTA via the **visible** accessible name (`/Batch partially failed — 1 of 2, 1 needs attention/`, correctly re-based on the R-3 fix), pins the amber border *and* the absence of the success green (`:727-728`), clicks through the dwell, and asserts `Imported 1 of 2 requests` + the failed filename + `locations.length === 1`. The mutation from the original finding (`failures: []` at `DemoExperience.tsx:484`) now fails at `:723` and again at `:732`.
-2. **Mixed-run DONE detail** — `features/demo/ui/__tests__/DemoExperience.import-log.test.tsx:138-152` drives the *real* pipeline (only pdf.js / `/api/extract` / geocode stubbed) with one good and one throwing extraction and pins `/^success: 1 · failed: 1 · \d+ms$/`. The previously-only-`failed: 0` assertion at `:135` is retained alongside it.
+Two supporting details verified:
+- **No false-pass path.** If the `vi.mock` failed to apply (alias vs. relative specifier), `renderCounts` stays empty and `Object.fromEntries(renderCounts)` is `{}` — the test fails loudly rather than passing vacuously.
+- **The structural half is preserved, not lost.** Mocking the row module means this file no longer proves the *real* `TerminalLine` is memoized; `TerminalLine.test.tsx:110` still pins `$$typeof === Symbol.for('react.memo')` and was renamed (`f6e2202`… `819bd12`) to *"is wrapped in React.memo (structural pin — the no-re-render BEHAVIOUR is counted in ImportTerminalProgress.memo.test)"*, which removes the over-claim my finding named. The two files together cover both halves.
+- The dedicated-file choice is correct and documented (`memo.test.tsx:12`): `vi.mock` is module-wide and would otherwise silently replace the row in the 40+ tests of the main terminal suite.
 
-## TESTS-3 / R-19 [MINOR] — FIXED
+The node-identity test (`ImportTerminalProgress.test.tsx:89-112`) was **kept** alongside it, with its comment rewritten to claim only no-*remount*. That is honest — it still kills a shifted key scheme and a re-created subtree type — and is no longer carrying the behavioural claim.
 
-`features/demo/ui/import/__tests__/useImportLog.test.ts:103-132`. Both cleanup lines in `useImportLog.ts:98-103` are now individually falsifiable:
+## TESTS-10 / R-43 [MINOR] — FIXED (primary claim)
 
-- drop `cancelFrameRef.current?.()` → `cancelAnimationFrame` is never called with the captured pending id → fails at `:129`. The id is captured from the rAF spy's own last return value (`:125`), so it is the *actual* pending frame, not a guess.
-- drop `unsubscribe()` → the wrapping bus's instrumented release never runs → fails at `:131`.
+`features/demo/ui/__tests__/DemoExperience.sandbox.test.tsx:788-812` drives the **text** path: `runText.mockRejectedValue(...)` → Paste Text → type → Import with AI → `See error details` CTA → friendly copy → Technical Details containing `boom from the text pipeline` → breadcrumb → `locations.length === 0`.
 
-The `spyBus` spread (`:112-121`) is safe: `createImportLogBus` returns closure-bound methods with no `this` usage (`import-log.ts:120-147`), so `{...bus}` preserves behaviour. The test's own comment correctly documents why my previously-suggested post-unmount-emit probe would *not* have been diagnostic — the `pendingRef` clear makes a leaked listener early-return silently. Better than the fix I proposed.
+Falsifiability traced by hand: unwrapping `runTextImportFlow`'s `guardImportRun` (`DemoExperience.tsx:616`) makes the rejection an unhandled promise rejection, `finishImport` never runs, `result` stays `null`, `computeImportStage` holds `'progress'`, and `findByRole({ name: /See error details/ })` times out. The assertions are positive (CTA name, exact card copy, exact detail text, breadcrumb args), so none can pass by absence. The mock-reset discipline is intact — `runText.mockReset()` / `runPdf.mockReset()` in the file's `beforeEach` (`:39-42`) — so the non-`Once` `mockRejectedValue` here cannot leak into a later test.
 
-## TESTS-4 / R-20 [MINOR] — FIXED
+The optional half of my prior finding (the guard's stale-token arm) was not taken; the round-2 rework made that line load-bearing for materially more state, so it is re-filed below as TESTS-14 rather than silently dropped.
 
-`features/demo/ui/screens/__tests__/modals.test.tsx:2` now imports `waitFor` from `@testing-library/react` and `:101` uses it instead of `vi.waitFor`. Two consecutive full-suite runs produced **zero** `not wrapped in act(...)` output (grep count 0 over the captured run log). No `vi.waitFor` remains anywhere in the suite.
+## TESTS-11 / R-44 [MINOR] — FIXED
 
-## TESTS-5 / R-21 [MINOR] — FIXED
+`package.json:10` now carries `"typecheck": "tsc --noEmit"`, and `import-log.test.ts:145-148` names it in the pin's comment ("enforced by `pnpm typecheck` … vitest itself does NOT type-check — review R-44 … If ImportLogLine loses readonly, these become unused-'@ts-expect-error' failures").
 
-`computeImportStage` moved (a true `git` rename, `d0a67e7`) to `features/demo/engine/logic/import-flow-mode.ts:37` — inside `coverage.include`, and measured at 100% on all four metrics. Its test moved with it (`features/demo/engine/logic/__tests__/import-flow-mode.test.ts`, 7 cases, all input combinations). `deriveTerminalOutcome` deliberately stayed at `ImportModal.tsx:117` with the out-of-gate rationale written at `:113-115` — that is precisely option B in the original finding ("leave them where they are and note in each file's header that they're deliberately outside the gate"), so the finding is discharged, not deferred. Bonus: the module is now the single declaration of `ImportUiStage` (`:26`), consumed by `ImportModal.tsx:20,72` and `DemoExperience.tsx:31,96` (R-31).
+I did not take this on trust. Three-part verification:
+1. `tsconfig.json:26` — `include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"]`, `exclude: ["node_modules"]`. `features/demo/engine/logic/__tests__/import-log.test.ts` is in scope, so `pnpm typecheck` really does compile the pin.
+2. `npx tsc --noEmit` in this worktree exits 0 — the pins are satisfied today.
+3. Out-of-repo probe (scratchpad, repo untouched), using **this worktree's** `node_modules/.bin/tsc`: the current shape (`readonly` fields + `readonly` array) compiles clean; the mutated shape (both `readonly`s dropped) yields
+   `error TS2578: Unused '@ts-expect-error' directive.` twice, exit 2.
+   So the R-34 contract is now genuinely enforced by a scripted command, exactly as the finding asked.
 
-## TESTS-6 / R-22 [MINOR] — FIXED
-
-`PickerStage.test.tsx:169-185` (PDF path) and `:187-203` (clipboard path). Each rejects the parent handler, asserts the phone-verbatim backstop copy in the `role="alert"` banner, and asserts all three cards are re-enabled. Mutation check: removing either `finally { setIsReadingFile(false) }` (`PickerStage.tsx:209-211`) or `finally { setIsReadingClipboard(false) }` (`:257-259`) leaves `isLoading` true, every card `disabled`, and the assertions at `:176-178` / `:196-198` fail. The tests additionally pin the R-23a breadcrumb (`console.error('[demo/import] import run threw', …)`), which is the *only* signal on the production path where the stage unmounts first — a good pairing of the two findings.
-
-## TESTS-7 / R-27 [MINOR] — PARTIAL
-
-The `$$typeof` assertion was supplemented (not replaced) with a behavioural test at `ImportTerminalProgress.test.tsx:89-112`, which is what my previous fix suggestion literally asked for. Having now verified that suggestion empirically, **it does not discriminate the invariant** — full write-up as TESTS-9 below. The residual is unchanged in severity (MINOR) and the fix commit is honest about what it pins ("no-remount"); what remains wrong is the *claim*, at `TerminalLine.test.tsx:110` and in the production comment at `ImportTerminalProgress.tsx:44-45`.
-
-## TESTS-8 / R-28 [MINOR] — FIXED (all three sub-claims)
-
-`features/demo/ui/__tests__/fonts.test.ts`:
-- (a) file filter widened to `/\.tsx?$/` (`:21`) — a stack in a future `.ts` style module under `ui/` is now scanned.
-- (b) the `@import` / `fonts.googleapis.com` scan now covers `features/demo/engine/logic/pdf` alongside `demo.css` (`:16`, `:38-43`) — the print-iframe templates, the one other document that could re-fetch a family.
-- (c) the prefix match is now `var\(--font-x\),\s*` (`:27`) — a formatter-inserted space no longer false-fails.
-
-Re-verified the guard is not vacuous: `sources()` excludes `__tests__` and returns `{file, text}` pairs used in the per-file assertion message, and the current tree is clean (suite green).
+Scope note recorded, not filed: the repo has **no CI** (`ls .github` → nothing; no husky/lint-staged in `package.json`), so *every* gate here — `pnpm test` included — is human-invoked. Adding a script is therefore the complete available answer, not a partial one.
 
 ---
 
-# New findings (fix-introduced / fix-adjacent)
+# New findings (round-2 fix-introduced / fix-adjacent)
 
-## TESTS-9 [MINOR] features/demo/ui/screens/import/__tests__/ImportTerminalProgress.test.tsx:89
+## TESTS-12 [MINOR] features/demo/ui/chrome/__tests__/PdfPreview.test.tsx:148
 
-**Claim.** The R-27 replacement test pins *no remount*, not *no re-render* — and no-re-render is the invariant the production code cites as its reason to ship no virtualization. DOM-node identity plus a foreign sentinel attribute both survive a re-render, so the exact mutation the original finding named (an inline `onToggleDetail` instead of the `useCallback`) still leaves the whole suite green. The test name at `TerminalLine.test.tsx:110` ("is memoized so appends never re-render existing rows") continues to over-claim.
+**Claim.** The R-36 capability-probe test asserts only the *absence* of the blocked notice and never that a print was attempted. A regression that skips `win.print()` entirely on a non-detecting engine — the exact shape a "probe first, then decide" refactor invites — leaves the test green while the button silently does nothing at all.
 
 **Evidence.**
-- Production claim: `features/demo/ui/screens/import/ImportTerminalProgress.tsx:44-45` — "appends only MOUNT new rows (memoized TerminalLine keyed by seq — **history never re-renders**)". The collaborators that make that true are `toggleDetail` (`:502-509`, `useCallback` with `[]`) and the per-seq boolean `expanded={expandedSeqs.has(line.seq)}` (`:567`); `memo` alone does not deliver it.
-- The new test (`ImportTerminalProgress.test.tsx:102-110`) asserts `expect(el).toBe(before[i])` and that `data-render-sentinel` survived.
-- **Empirically verified** (scratchpad-only harness — repo untouched — React 19.2.3 / Vitest 4.1.7 from this worktree's `node_modules`): a parent that passes a deliberately unstable callback to a `memo`'d, keyed child re-renders **every** existing row on append (`renders === [1,2,3,4]`) while every existing DOM node stays the *same instance* and keeps the externally-set `data-render-sentinel`. Both assertions the R-27 fix relies on pass while the invariant is broken. (This is just React reconciliation: same element type + same key ⇒ in-place update; identity only changes on unmount/remount.)
-- What the new test *does* still kill: a re-created subtree type (component defined inside render) and a key scheme that shifts nodes. Real, but narrow — and not the failure mode the original finding named.
+- Test body (`PdfPreview.test.tsx:151-157`): `delete (win as {…}).onbeforeprint` → `win.print = vi.fn()` → click → `await settlePrintVerdict()` → `expect(screen.queryByRole('status')).not.toBeInTheDocument()`. The `vi.fn()` is never captured and never asserted on.
+- Production (`PdfPreview.tsx:50-80`): `const canDetect = 'onbeforeprint' in win` is read *before* the print attempt, and the only branch keyed off it (`:72`) runs *after* it. Hoisting a `if (!canDetect) { setPrintNotice(null); return }` to `:51` — a plausible "don't bother instrumenting what we can't read" simplification — satisfies every assertion in this test while removing the save.
+- The sibling test at `:160-172` does **not** share the gap: its stub is what dispatches the deferred `beforeprint`, so a skipped `print()` means no dispatch, which means the deferred verdict fires the notice and the test fails. Only `:148` is assertion-negative end to end.
+- Verified the test is not otherwise vacuous: `'onbeforeprint' in win` is true by default in this jsdom (if it weren't, the R-12 silent-ignore test at `:137-146` could never see its notice — it does, and passes), and a failed `delete` would surface the notice and fail this test loudly rather than pass it silently. So the probe branch really is exercised — the gap is only the missing positive assertion.
 
-**Suggested fix.** Count renders instead of node identity, keeping memo semantics intact — in `ImportTerminalProgress.test.tsx`, mock the row module with a `memo`-wrapped counting delegate:
+**Failure scenario.** Ship the hoisted early return. On Safari/iOS ≤12-era engines the Save as PDF button becomes a no-op with no notice and no dialog — the *worst* of both failure directions R-12 and R-36 were filed to prevent — and the suite stays 1078/1078 green.
 
+**Suggested fix.** One line, same test:
 ```ts
-const rendered = vi.hoisted(() => ({ seqs: [] as number[] }))
-vi.mock('@/features/demo/ui/screens/import/TerminalLine', async (orig) => {
-  const actual = await orig<typeof import('@/features/demo/ui/screens/import/TerminalLine')>()
-  const Counting = memo((p: TerminalLineProps) => { rendered.seqs.push(p.line.seq); return <actual.TerminalLine {...p} /> })
-  return { ...actual, TerminalLine: Counting }
-})
-// …emit 3 lines, clear rendered.seqs, emit a 4th…
-expect(rendered.seqs).toEqual([4]) // history did not re-render
+const print = vi.fn()
+win.print = print
+…
+expect(print).toHaveBeenCalledTimes(1) // degraded verdict, but the save was still attempted
 ```
 
-Cheaper alternative if the mock feels heavy: capture the `onToggleDetail` prop across two appends and assert it is the same function reference (that is the single collaborator the memo depends on). Either way, rename `TerminalLine.test.tsx:110` to what it actually asserts ("is wrapped in React.memo") so the structural pin stops carrying the behavioural claim.
+**Confidence:** High — both branches read in full; the discriminating gap is a missing assertion, not a disputed mechanism.
 
-**Confidence:** High — the discriminating power gap is not reasoned, it is executed.
+## TESTS-13 [MINOR] features/demo/ui/DemoExperience.tsx:404
 
----
-
-## TESTS-10 [MINOR] features/demo/ui/__tests__/DemoExperience.sandbox.test.tsx:735
-
-**Claim.** The R-23b pipeline backstop is pinned on the PDF path only. `guardImportRun` wraps both run flows, but no test drives a throw through the **text** path — so unwrapping `runTextImportFlow` (the paste + clipboard entry points) re-opens the exact defect R-23b closed — a dwell that spins forever with no result writer — with the whole suite green.
+**Claim.** R-40's fix has two halves — a type narrowing (`ImportErrorDetails.stage: ImportRealStageId`) and a **new runtime mechanism**, the `lastRealStageRef` mirror. The type half is enforced by `tsc`; the runtime half is pinned by nothing. Deleting the mirror leaves `tsc` clean and all 1078 tests green while the backstop's Technical Details silently reverts to the coarse entry stage — a wrong-but-plausible diagnostic, which is the defect class R-40 exists to prevent.
 
 **Evidence.**
-- Production: `features/demo/ui/DemoExperience.tsx:521` (`guardImportRun`), applied at `:553` (`processPdfFiles`) **and** `:589` (`runTextImportFlow`). `runTextImportFlow` serves both the paste stage and the picker's clipboard card, so it is not a minor branch.
-- Only throw-path bridge test: `DemoExperience.sandbox.test.tsx:735-758`, which stubs `runPdf.mockRejectedValue(...)` (`:738`). Repo-wide grep for `mockRejected` across `features/demo/ui/__tests__/`, `features/demo/ui/screens/`, `features/demo/ui/import/__tests__/` returns no `runText` rejection anywhere — `PickerStage.test.tsx:192` rejects the *prop*, which exercises the component-local catch (R-22), not the bridge guard.
-- The stale-token arm inside the guard (`DemoExperience.tsx:530`, `if (importGen.current !== myGen) return`) is likewise unexercised — a superseded run's throw clobbering a live run's state is display-visible ("The import failed unexpectedly" over a healthy run).
+- The mirror: `DemoExperience.tsx:401` (`const lastRealStageRef = useRef<ImportRealStageId | null>(null)`) and `:404` (`if (st !== 'error') lastRealStageRef.current = st`), introduced by `ee2e5d9`.
+- Its **only** reader is the backstop at `:558` — `details: { stage: lastRealStageRef.current ?? 'extracting_text', detail }`. Repo-wide grep for `lastRealStageRef` returns exactly `:401`, `:404`, `:558`, `:586`, `:619`; `:586`/`:619` are the two flow-entry seeds (`'extracting_text'` / `'reading_model'`), which survive the mutation.
+- No test asserts a `stage` value on that path. The three assertions on the rendered block are `import-technical-details` `toHaveTextContent('boom from the pipeline')` (`sandbox:780`), `('boom from the text pipeline')` (`sandbox:806`), and `('No JSON object found in AI response')` (`sandbox:864`) — all `detail`, never `stage`. The only `stage` assertion anywhere (`modals.test.tsx:225`) is a hand-built `ImportModal` prop, not the bridge's construction. The block renders `JSON.stringify(details, null, 2)` (`ImportModal.tsx:133-157`), so a wrong `stage` cannot perturb a `detail`-only `toHaveTextContent`.
+- Neither backstop test even advances a stage before throwing: `sandbox:765` uses `runPdf.mockRejectedValue(...)` (no `onStage` call at all), so `lastRealStageRef` still holds the loop seed and the assertion would read identically if the ref were permanently `null`.
 
-**Failure scenario.** Delete `await guardImportRun(myGen, emitter, …)` from `runTextImportFlow` (or let a future refactor drop the `await`): a throw from `runTextImport` escapes into an unhandled rejection, `finishImport` never runs, `result` stays `null`, `computeImportStage` holds `'progress'` forever, and the visitor is stuck on a spinning terminal whose only exit discards the run. Suite stays green.
+**Failure scenario.** A future refactor folds the stage forwarder back into a single `setImp` updater and drops `:404`. A run that fails during normalization now reports `"stage": "extracting_text"` in Technical Details — pointing an investigator at the wrong pipeline phase — with no test, no type error, and no review signal. This is the same "the diagnostic loses the only thing it exists to say" outcome R-40 was filed for, reached through the value instead of the type.
 
-**Suggested fix.** One sandbox test mirroring `:735`, on the paste route (the file already drives it in the R-11 test at `:651-673`):
+**Suggested fix.** Extend the existing R-23b test (`sandbox:762`) so its stub advances first: `runPdf.mockImplementation(async (_f, o) => { o?.onStage?.('normalizing'); throw new Error('boom from the pipeline') })`, then add `expect(screen.getByTestId('import-technical-details')).toHaveTextContent('"stage": "normalizing"')`. That pins the mirror, the `?? 'extracting_text'` fallback stays covered by the untouched R-43 test, and it costs two lines.
 
-```ts
-runText.mockRejectedValue(new Error('boom from the text pipeline'))
-// …open import → Paste Text → type → Import with AI…
-const cta = await screen.findByRole('button', { name: /See error details/ })
-fireEvent.click(cta)
-expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
-```
+**Confidence:** High — the call graph is closed (one writer, one reader) and the absence of any `stage` assertion on that reader is grep-complete.
 
-Optionally extend it to the token arm: start a second run before resolving the first's rejection and assert the newer run's terminal is untouched (the R-24 test at `:673-704` is the ready-made shape).
+## TESTS-14 [MINOR] features/demo/ui/DemoExperience.tsx:553
 
-**Confidence:** High — call sites and test inventory both enumerated by grep and by reading the bridge.
-
----
-
-## TESTS-11 [MINOR] features/demo/engine/logic/__tests__/import-log.test.ts:147
-
-**Claim.** R-34's field-level immutability contract is pinned only by two `@ts-expect-error` directives inside a function that is never invoked — and nothing in the runnable test surface type-checks. `pnpm test` transpiles with esbuild (no type checking) and `package.json` has no `typecheck` script, so dropping `readonly` from `ImportLogLine` breaks nothing any scripted command runs.
+**Claim.** `guardImportRun`'s stale-token arm is still unexercised — and the round-2 rework (`ca0df27`) made that one line protect materially more state than it did when I first noted it as an optional extension. Post-rework the catch no longer writes a self-contained failure object; it mutates the run's **tally** and calls `finishImport`, which writes `stage`, `result` and `lastLocId`. Dropping `:553` therefore lets a superseded run's late throw publish the *old* run's tally over a live newer run.
 
 **Evidence.**
-- Test: `import-log.test.ts:147-153` — `const compileTimePins = () => { /* @ts-expect-error ×2 */ }` … `void compileTimePins`. The comment is honest that it is "never executed at runtime".
-- Production contract: `features/demo/engine/logic/import-log.ts:44-53` (`readonly` fields) and `:90` (`getLines(): readonly ImportLogLine[]`).
-- Runner: `package.json:10` — `"test": "vitest run"`; `:5-12` contains no `typecheck` entry; `vitest.config.mts` has no type-checking config (`test.typecheck` is not enabled).
-- The runtime half of the protection *is* still covered: `import-log.test.ts:141-142` asserts each `getLines()` call returns a fresh array (`not.toBe` + `toEqual`), which kills the "return the live ring" mutation. The gap is only the field-level `readonly`, which is by nature compile-only.
-- Manually running `npx tsc --noEmit` in this worktree exits 0, so the pins are satisfied *today* — this is about whether anything re-checks them tomorrow.
+- Production: `DemoExperience.tsx:553` — `if (importGen.current !== myGen) return` — followed by `tally.failures.push({…})` (`:554-559`), `setImp((s) => ({ ...s, activeStage: 'error' }))` (`:560`) and `finishImport(tally, emitter, totalFiles)` (`:561`). Pre-rework the catch wrote one `setImp` with a literal failure result; now it publishes an accumulated tally through the shared result writer.
+- Test inventory: the file's three backstop tests (`sandbox:735`, `:762`, `:788`) all throw inside a run that is still current. The R-24 cross-run test (`:675-705`) exercises the *stage forwarder's* token guard, not the catch's. No test starts a second run while a first run's rejection is in flight.
+- Consequence if `:553` is dropped: the newer run's terminal flips to the older run's outcome — for a partial older batch, an amber "Batch partially failed — 1 of 2" CTA and a result card listing locations from a run the visitor already superseded. Fully display-visible, and the suite stays green.
 
-**Suggested fix.** Add `"typecheck": "tsc --noEmit"` to `package.json` scripts so the pin is a runnable gate (the phase gate already runs `tsc --noEmit` by hand — this just makes it addressable), and reference it in the test comment: "enforced by `pnpm typecheck`, not by `pnpm test`". Alternative, if a script is unwanted: enable `test.typecheck` in `vitest.config.mts` so `.test-d`-style assertions run inside the suite.
+**Suggested fix.** One sandbox test on the shape the R-24 test already establishes: hold `runPdf` on a deferred rejection, start a second run (or cancel) to bump `importGen`, then reject the first; assert the live run's terminal still shows its own stage and that `result` was not written by the stale run.
 
-**Confidence:** High for the mechanism; the practical risk is low because the review workflow runs `tsc --noEmit` every pass — hence MINOR.
+**Confidence:** High for the inventory (grep-complete over `features/demo/ui/**/__tests__/`); the severity stays MINOR because the guard *is* present and correct today — this is a missing regression pin, not a live defect.
 
 ---
 
-# Verified and NOT filed (recorded so they aren't re-raised)
+# Verified and NOT filed (recorded so they are not re-raised)
 
-- **jsdom `Not implemented: Window's focus() method` × 22 per full run.** Sole source is `features/demo/ui/chrome/PdfPreview.tsx:57-58` (`win.focus()` — pre-existing; `window.focus()` — added by the R-16 fix, and now unconditional because it sits in a `finally`). It is jsdom virtual-console noise, fails nothing, and the repo has no clean-stderr gate. If anyone wants the run silent, `vi.spyOn(window, 'focus').mockImplementation(() => {})` in `PdfPreview.test.tsx` is the one-liner. Not a test-quality defect; deliberately not filed.
-- **`window.focus()` itself is unpinned** (only `saveBtnRef.current?.focus()` is asserted, `PdfPreview.test.tsx:150`). Asserting a call on `window.focus` would be a mechanism assertion with no behavioural consequence in jsdom — dropping it is invisible to a real user too, since focusing the parent's button already moves focus out of the frame. Not filed.
-- **The `motion/react` module mock in `ImportTerminalProgress.test.tsx:8-12`.** It replaces a third-party hook rather than the true IO edge (`matchMedia`), so no test exercises the terminal's reduced-motion path against a real media query. Verified the mock's own defence claim holds (reverting to the marketing hook bypasses the mock and fails `:241-248`). The asymmetry with `PickerStage`'s direct `matchMedia` read is on the orchestrator's deliberate-choices list — not re-flagged.
-- **R-34 test strength did not regress.** The old runtime `snapshot.push(...)` assertion was replaced by `expect(bus.getLines()).not.toBe(snapshot)`; that still kills the "return the live ring array" mutation (identical references would fail `not.toBe`).
-- **`terminal-integration.test.tsx:36` hardcodes `lastRealStage="done"`** while `activeStage` varies. Harmless — the prop is only read when `stage === 'error'`, which that test never reaches. Not a false pin.
-- **R-30's `expect(block).not.toHaveTextContent('Business:')` (`modals.test.tsx:253`) is now trivially true** (the render branch was deleted). Kept deliberately as a re-introduction guard, with the reason written in the test. Not a finding.
-- **Flake class named in the phase brief.** Two full runs in this worktree: 1071/1071 green both times, no 5s-timeout failures in any suite. I could not reproduce the DateTimeField/TimeField/shared/Calendar/marketing-hero timeouts, so per lane discipline I am not filing them. If the orchestrator wants the belt-and-braces, the R-6-style `describe(..., { timeout: 20000 }, …)` used by `DemoExperience.sandbox.test.tsx:69` and `DemoExperience.import-log.test.tsx:60` is the pattern to copy onto the picker-suite trio — a one-line-per-file change, MINOR at most.
+- **R-35's `runHadSampleFallback` lives in `ui/`, outside the 80% engine gate.** Deliberate and already settled: it is a sibling of `deriveTrust` in the same module, whose out-of-gate placement was discharged by R-21 via the finding's own option B, with the in-file rationale at `ImportModal.tsx:113-115`. It is also directly unit-tested (`ImportTerminalProgress.test.tsx:521-536`) including the empty-run and non-fallback-NORM negatives. Re-filing would re-litigate a closed finding.
+- **The R-35 tests are genuinely discriminating.** The mixed-batch test (`ImportTerminalProgress.test.tsx:504-520`) emits `FILE → NORM(sample fallback) → FILE → AI`, then asserts the trust line reads `TRUST_LINE.cloud` **and** the CTA carries the amber `sample import — review →`. Reverting `ctaView`'s third argument to the segment-scoped `trust` makes the CTA read `Review import →` and the test fails on the positive assertion. The prose coupling both derivations depend on is pinned in *both* directions: consumer side at `:178-192` (`SAMPLE_FALLBACK_PREFIX` toBe `'sample fallback:'`, plus a NORM-but-not-fallback negative), producer side at `run-import-log.test.ts:47,55` (`fallback?.level` toBe `'NORM'` on both the 503 and the network-failure wordings). A producer changing the level would break the emit-side tests, not silently blind the derivation.
+- **`UNEXPECTED_ERROR` is absent from `modals.test.tsx:218-219`'s deliberately-unmapped enumeration.** Not a gap: the contract is pinned end-to-end instead — both backstop tests assert the exact string `'The import failed unexpectedly. Please try again.'`, which is what `(result.code && ERROR_MESSAGES[result.code]) || result.error` (`ImportModal.tsx:243`) renders *only while the code stays unmapped*. Adding a mapping fails those two tests.
+- **The R-36 deferred verdict can be clobbered by a stale attempt.** Mechanism is real: attempt 1 silently ignored schedules `window.setTimeout(…, 0)` (`PdfPreview.tsx:76-79`) closing over attempt 1's `dialogOpened`; if attempt 2 succeeds *before* that timer drains, the stale callback re-asserts `PRINT_BLOCKED_NOTICE` over a save that happened. No test covers it. **Not filed:** the race window is sub-millisecond and closes at the first task boundary — in a real browser two clicks are always separate tasks with the ≥1 ms timer draining between them, so it is reachable in jsdom (two synchronous `fireEvent.click`s) but not by a user. If anyone wants belt-and-braces, an attempt token (or `clearTimeout` of the previous verdict at the top of `printDocument`) plus a two-click test is the one-liner.
+- **The deferred verdict has no unmount cleanup.** Closing the preview between the click and the timer leaves a pending `setPrintNotice` on an unmounted tree — a React 19 no-op, no warning, no cross-test pollution (the detached frame window still accepts `removeEventListener`). Confirmed against the full run: zero `act()` warnings, zero stray stderr. Not a test-quality defect.
+- **`stage: 'progress'` pinned in `finishImport` (R-39) is not directly testable through the UI seam.** The scenario it defends — a throw landing before the first stage flip — requires `emitter.log('INIT', …)` itself to throw, and `importLogBus` is a module singleton created outside the component with no injection point on `DemoExperience`. The adjacent reachable case, `processPdfFiles([])`, is unreachable from the UI: `PickerStage.tsx:217` returns on `files.length === 0`. Defense-in-depth without a test seam — correctly not tested.
+- **`ImportTerminalProgress.memo.test.tsx` does not weaken the main suite.** `vi.mock` is file-scoped; the main terminal suite still renders the real `TerminalLine` (its row-content assertions at `:70-77` would fail against the counting stub, which renders only `line.text`), so the two files genuinely cover different halves.
+- **Mock-reset and factory discipline held across all round-2 tests.** `runText`/`runPdf` reset in `beforeEach` (`sandbox:39-42`); the new tests reuse `okRun()`, `createDemoStore()`, `setup()`/`rerenderWith()`, `nextFrame()`; no new inline `DemoCase`/`DemoLocation` literals; no `Date.now()`/`Math.random()`; the new PdfPreview waits use real timers with deterministic FIFO ordering (the stub's dispatch timer is always scheduled *before* the component's verdict timer, inside `win.print()`), not a sleep-and-hope.
+- **jsdom `Not implemented: Window's focus()` noise dropped 22 → 13 per run** as a side effect of R-37. Still not a finding (no clean-stderr gate; the remaining source is the load-bearing `win.focus()` at `PdfPreview.tsx:57`).
+- **The 5s-timeout load-flake class named in the phase brief.** Two more full runs in this worktree: 1078/1078 green both times, no timeout failures in any suite. Per the brief this is not a finding, and I could not reproduce it in any case.
 
 # Summary
 
@@ -174,13 +145,12 @@ Optionally extend it to the token arm: start a second run before resolving the f
 | MAJOR | 0 |
 | MINOR | 3 |
 
-**Prior findings:** 6 FIXED · 1 FIXED-via-documented-alternative (R-21) · 1 PARTIAL (R-27 → TESTS-9) · 0 UNFIXED. Both MAJORs are genuinely closed and their fixes are falsifiable, not decorative.
+**Prior lane findings: 3 of 3 FIXED (R-42, R-43, R-44) · 0 PARTIAL · 0 UNFIXED.** R-27's carried PARTIAL is closed by R-42 — the render-counting test kills the mutation my previous suggestion could not, and the over-claiming test name was corrected rather than left standing.
 
-- **Behaviourally meaningful coverage:** strong, and materially stronger than the initial pass — the fix round added end-to-end pins for the partial-batch honesty path, the batched-stage freeze, cross-run stage isolation, the pipeline-throw backstop, both picker failure backstops, keyboard pin control, the print success/blocked signals, and orphaned-pair rehydration.
-- **Engine coverage gate:** met — 97.26 / 89.07 / 98.90 / 98.49; the relocated `import-flow-mode.ts` is now inside the gate at 100%.
-- **Mock strategy:** at the IO edge, with one documented exception (`motion/react`'s `useReducedMotion`, justified in-file and on the deliberate-choices list). Engine never mocked; the real Zustand store injected, never mocked.
-- **Factory usage:** canonical — `okRun()`, `freshStore()`/`workedStore()`, `RAW_*` fixtures, `renderStage()`, `setup()` reused throughout the new tests.
-- **Setup-shim traps:** none. The two reduced-motion tests override the right seam for the hook each component actually uses.
-- **Determinism:** yes — injected clocks on the bus, fake timers driving the rAF coalescer, no `Date.now()`/`Math.random()` in test files.
+- **Behaviourally meaningful coverage:** strong. The round added the mixed-batch CTA attribution pin, the run-scoped/segment-scoped disagreement unit pin, a counted no-re-render invariant, the partial-batch-throw honesty path through the real bridge, the text-path backstop, and two mirror tests for the print capability/timing halves. Every one of them is falsifiable against the mutation it names.
+- **Engine coverage gate:** unchanged and met — round 2 added no engine logic (the one new pure function is a documented sibling of the already-discharged `deriveTrust`).
+- **Mock strategy:** at the IO edge, plus one new *deliberate* subject-adjacent mock (the counting `TerminalLine` delegate) that is correct because it preserves `memo` semantics and lives in its own file.
+- **Setup-shim traps:** none. The one shim-adjacent move — `delete win.onbeforeprint` — was checked in both directions and cannot pass vacuously.
+- **Determinism:** yes. No new real-clock dependence; the new real-timer waits are ordering-deterministic by construction.
 
-**Verdict: APPROVE** (three MINORs, all opportunistic).
+**Verdict: APPROVE** (three MINORs — one missing positive assertion, two missing regression pins on mechanisms this round introduced or made load-bearing; all opportunistic).
