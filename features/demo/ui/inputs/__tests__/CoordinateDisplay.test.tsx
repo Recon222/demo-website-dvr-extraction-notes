@@ -32,6 +32,39 @@ describe('CoordinateDisplay', () => {
     expect(screen.queryByTestId('coordinate-display-rating')).not.toBeInTheDocument()
   })
 
+  it('exposes accuracy, rating and provenance in the accessible name (R-6)', () => {
+    // `button` descendants are children-presentational and aria-label overrides the name
+    // computation, so the metadata spans alone are inaudible. The name must carry them.
+    render(<CoordinateDisplay lat={43.6} lng={-79.65} accuracyM={7} source="gps" />)
+
+    expect(screen.getByRole('button')).toHaveAccessibleName(
+      'GPS coordinates: 43.600000, -79.650000. accuracy ±7m, Good. source GPS. Copy to clipboard.',
+    )
+  })
+
+  it('omits the accuracy clause from the name when nothing measured one', () => {
+    render(<CoordinateDisplay lat={43.6} lng={-79.65} source="geocoded" />)
+
+    expect(screen.getByRole('button')).toHaveAccessibleName(
+      'GPS coordinates: 43.600000, -79.650000. source Geocoded. Copy to clipboard.',
+    )
+  })
+
+  it('renders the copy live region OUTSIDE the button so AT can announce it (R-6)', async () => {
+    const writeClipboard = vi.fn(async () => {
+      throw new Error('clipboard blocked')
+    })
+    render(<CoordinateDisplay lat={43.6} lng={-79.65} writeClipboard={writeClipboard} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('coordinate-display'))
+    })
+
+    const status = screen.getByTestId('coordinate-display-copy-status')
+    expect(status).toHaveAttribute('role', 'status')
+    expect(screen.getByTestId('coordinate-display').contains(status)).toBe(false)
+  })
+
   it('copies the coordinate pair and confirms', async () => {
     const writeClipboard = vi.fn(async () => undefined)
     render(<CoordinateDisplay lat={43.6} lng={-79.65} accuracyM={3} source="gps" writeClipboard={writeClipboard} />)

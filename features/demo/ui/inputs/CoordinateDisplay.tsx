@@ -43,7 +43,6 @@ const card: CSSProperties = {
   border: GLASS.border,
   background: 'rgba(13,27,42,0.55)',
   padding: 12,
-  marginBottom: 14,
   width: '100%',
   textAlign: 'left',
   cursor: 'pointer',
@@ -81,56 +80,72 @@ export function CoordinateDisplay({ lat, lng, accuracyM, source, writeClipboard 
 
   const sep = <span style={{ fontSize: 12, color: '#7a9fc4' }}>|</span>
 
+  // R-6: `button` descendants are children-presentational and `aria-label` overrides the name
+  // computation, so the metadata spans below are invisible to assistive tech. The measured
+  // accuracy, its rating and the provenance — the whole point of a forensic coordinate card —
+  // go into the accessible name instead.
+  const nameParts = [`GPS coordinates: ${coordinates}`]
+  if (rating && accuracyM !== undefined) nameParts.push(`accuracy ${formatAccuracy(accuracyM)}, ${rating.label}`)
+  if (sourceLabel) nameParts.push(`source ${sourceLabel}`)
+  nameParts.push('Copy to clipboard.')
+
   return (
-    <button
-      type="button"
-      onClick={copy}
-      style={card}
-      data-testid="coordinate-display"
-      aria-label={`GPS coordinates: ${coordinates}. Copy to clipboard.`}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        <span aria-hidden="true" style={{ fontSize: 16 }}>
-          📍
-        </span>
-        <span
-          data-testid="coordinate-display-coords"
-          style={{ fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-jbmono, monospace)', color: '#f0f4f8' }}
-        >
-          {coordinates}
-        </span>
-      </div>
-      {(rating || sourceLabel) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 22 }}>
-          {rating && accuracyM !== undefined && (
-            <span data-testid="coordinate-display-accuracy" style={{ fontSize: 12, fontWeight: 500, color: TONE_COLOR[rating.tone] }}>
-              {formatAccuracy(accuracyM)}
-            </span>
-          )}
-          {rating && sourceLabel && sep}
-          {sourceLabel && (
-            <span data-testid="coordinate-display-source" style={{ fontSize: 12, fontWeight: 500, color: '#7a9fc4' }}>
-              {sourceLabel}
-            </span>
-          )}
-          {rating && (
-            <>
-              {sep}
-              <span data-testid="coordinate-display-rating" style={{ fontSize: 12, fontWeight: 500, color: TONE_COLOR[rating.tone] }}>
-                {rating.label}
-              </span>
-            </>
-          )}
+    <div style={{ marginBottom: 14 }}>
+      <button
+        type="button"
+        onClick={copy}
+        style={card}
+        data-testid="coordinate-display"
+        aria-label={nameParts.join('. ')}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <span aria-hidden="true" style={{ fontSize: 16 }}>
+            📍
+          </span>
+          <span
+            data-testid="coordinate-display-coords"
+            style={{ fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-jbmono, monospace)', color: '#f0f4f8' }}
+          >
+            {coordinates}
+          </span>
         </div>
-      )}
+        {(rating || sourceLabel) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 22 }}>
+            {rating && accuracyM !== undefined && (
+              <span data-testid="coordinate-display-accuracy" style={{ fontSize: 12, fontWeight: 500, color: TONE_COLOR[rating.tone] }}>
+                {formatAccuracy(accuracyM)}
+              </span>
+            )}
+            {rating && sourceLabel && sep}
+            {sourceLabel && (
+              <span data-testid="coordinate-display-source" style={{ fontSize: 12, fontWeight: 500, color: '#7a9fc4' }}>
+                {sourceLabel}
+              </span>
+            )}
+            {rating && (
+              <>
+                {sep}
+                <span data-testid="coordinate-display-rating" style={{ fontSize: 12, fontWeight: 500, color: TONE_COLOR[rating.tone] }}>
+                  {rating.label}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </button>
+      {/* R-6: the live region is a SIBLING of the button, not a descendant — inside it the copy
+          failure would be announced to nobody (the same shape GpsCaptureControl already uses for
+          its progress/error lines). A blocked clipboard must not look like a successful copy to
+          AT any more than it does visually. */}
       {copied !== 'idle' && (
         <div
           role="status"
+          data-testid="coordinate-display-copy-status"
           style={{ fontSize: 12, marginTop: 6, marginLeft: 22, color: copied === 'ok' ? '#10d177' : '#ff4757' }}
         >
           {copied === 'ok' ? COPY_LABELS.success : COPY_LABELS.failure}
         </div>
       )}
-    </button>
+    </div>
   )
 }
