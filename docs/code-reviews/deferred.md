@@ -304,7 +304,8 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 
 **Source:** PR #16 review (silent-failure, out-of-scope).
 
-**What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
+**What:** ~~Two~~ ~~One~~ **Zero** remaining latent silent-failure paths — both halves are now
+RESOLVED (the second closed by P2.4). The entry stays for the residual noted under the first half:
 - ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
   sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
   **RESOLVED (P0 fix round 2, R-27; placement corrected by R-33 in the P1 rider):** the
@@ -323,14 +324,24 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
   `adjustedScopesPartial` regardless). **Trigger:** P2.4 (G8) requested-scope
   normalization — when scope writes gain a real commit boundary (blur/row-level), emit the
   same dev-warn there and strike this residual.
-- `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
-  `time.ts`'s own "fail loud" convention. **Still open.**
+- ~~`roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
+  `time.ts`'s own "fail loud" convention.~~
+  **RESOLVED (P2.4, G8 remainder):** the trigger fired — P2.4 touched `time.ts`. `roundTo5Min`
+  now THROWS `'Unable to parse date value'` on a non-empty unparseable string, the same message
+  and rationale as its sibling `applyTimeOffset`. Empty input still passes through, now
+  documented as the deliberate distinction: `''` is an unset scope bound (absence, explicitly
+  representable), not a corrupt value. The throw lands inside the only caller's existing
+  per-entry isolation in `generateExtractedScopes`, so a bad scope is counted, flagged via
+  `extractedScopesPartial` and dev-warned — the established counted/flagged/dev-warned
+  convention absorbs it with no new machinery. Pinned by `time.test.ts`
+  (`describe('roundTo5Min')`).
 
-**Why deferred (remaining half):** Latent — current callers guard upstream (canonical dates reach
-`roundTo5Min` after Slice A), so it doesn't fire today.
+**Status:** both halves resolved. The entry remains open ONLY for the R-26 residual recorded
+above (the third creating boundary), which keeps its own trigger.
 
-**Trigger (remaining half):** Next time `time.ts` is touched — make `roundTo5Min` fail loud (or
-document why it tolerates bad input).
+**Trigger (residual only):** as stated under the first half — when requested-scope writes gain a
+real commit boundary (blur/row-level). P2.4 did NOT introduce one (it ported the Completion
+gate, not scope normalization), so the residual carries forward unchanged.
 
 ---
 
