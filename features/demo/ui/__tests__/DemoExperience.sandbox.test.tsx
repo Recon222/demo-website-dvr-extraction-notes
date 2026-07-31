@@ -18,7 +18,7 @@ vi.mock('@/features/demo/ui/import/geocode', async (orig) => ({
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { runImport as runTextImport, runPdfImport, type ImportRunResult } from '@/features/demo/ui/import/run-import'
-import { importLogBus } from '@/features/demo/engine/logic/import-log'
+import { importLogBus, type ImportLogLevel } from '@/features/demo/engine/logic/import-log'
 
 const runText = vi.mocked(runTextImport)
 const runPdf = vi.mocked(runPdfImport)
@@ -807,6 +807,57 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
       expect(store.getState().locations.length).toBe(0)
     } finally {
+      errSpy.mockRestore()
+    }
+  })
+
+  it('a pre-seed throw reports the honest default stage, never the PREVIOUS run’s (R-45: the mirror is cleared at the token bump)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const realBeginRun = importLogBus.beginRun
+    const beginRun = vi.spyOn(importLogBus, 'beginRun')
+    try {
+      // Run 1 reaches 'normalizing' and fails there — the bridge's stage mirror now holds it.
+      runPdf.mockImplementationOnce(async (_file, input) => {
+        input.onStage?.('normalizing')
+        return { ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'first.pdf', code: 'PDF_SCANNED', details: { stage: 'normalizing', detail: 'no selectable text' } }
+      })
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-STALE', displayName: 'StaleStage', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input(), { target: { files: [new File(['a'], 'first.pdf', { type: 'application/pdf' })] } })
+      fireEvent.click(await screen.findByRole('button', { name: /See error details/ }))
+      // Back to the picker through Retry, NOT Close: onRetry takes no token and clears no
+      // ref, so only run 2's own token bump can drop run 1's stage. (Close would satisfy this
+      // test through the belt-and-braces clear and hide a missing token-bump clear.)
+      fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+
+      // Run 2 throws on the guarded closure's FIRST statement — the pre-seed window R-45
+      // names, and the only throwable in it. The emitter is the run's collaborator; the
+      // backstop's whole premise is "if a callee ever does throw".
+      beginRun.mockImplementationOnce((now: () => number) => {
+        const emitter = realBeginRun(now)
+        return {
+          ...emitter,
+          log: (level: ImportLogLevel, text: string, detail?: string) => {
+            if (level === 'INIT') throw new Error('pre-seed boom')
+            emitter.log(level, text, detail)
+          },
+        }
+      })
+      fireEvent.change(input(), { target: { files: [new File(['b'], 'second.pdf', { type: 'application/pdf' })] } })
+      fireEvent.click(await screen.findByRole('button', { name: /See error details/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
+
+      const block = screen.getByTestId('import-technical-details')
+      expect(block).toHaveTextContent('"stage": "extracting_text"') // the honest default
+      expect(block).not.toHaveTextContent('"stage": "normalizing"') // run 1's stage — a lie about run 2
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      beginRun.mockRestore()
       errSpy.mockRestore()
     }
   })

@@ -397,6 +397,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11)
    * and is mirrored into a ref so event-scope code (the guardImportRun catch) can read
    * the run's real stage without an impure state read (fix-delta R-40).
+   *
+   * The mirror is RUN-scoped in meaning but mount-scoped in lifetime, so it must be
+   * cleared wherever the run token moves (fix-delta R-45): its state twin
+   * (`imp.lastRealStage`) is nulled by blankImport/onRetry, the ref was nulled nowhere,
+   * and a throw landing in a new run's pre-seed window then published the PREVIOUS
+   * run's stage as if it were this one's — strictly more stale-prone than the
+   * `s.activeStage` read R-40 replaced. Cleared at both token bumps (the runs' own
+   * entry points, so `openImport` is covered too) plus onCancel's bump, belt-and-braces.
+   * With the clear, `?? 'extracting_text'` at the sole read reproduces exactly the
+   * honest pre-R-40 default for a pre-seed throw.
    */
   const lastRealStageRef = useRef<ImportRealStageId | null>(null)
   const importStageFor = (myGen: number) => (st: RunStageId) => {
@@ -571,6 +581,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     // One log run per import (a batch is ONE run, like the phone). beginRun clears the
     // previous run's retained lines; the emitter self-invalidates when superseded/reset.
     const emitter = importLogBus.beginRun(logClock)
@@ -612,6 +623,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     const emitter = importLogBus.beginRun(logClock)
     const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
     await guardImportRun(myGen, emitter, tally, 1, async () => {
@@ -943,6 +955,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
             onCancel={() => {
               importGen.current++ // invalidate any in-flight run's token (H1/H2)
+              lastRealStageRef.current = null // R-45: the state twin is cleared by blankImport below — the mirror moves with it
               importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
               // Phone handleClose parity (ImportPickerModal.tsx:147-152): a reopen always
               // starts back at the picker step with empty text, even after a mid-run close.
