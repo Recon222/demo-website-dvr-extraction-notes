@@ -5,9 +5,11 @@ import type { CSSProperties } from 'react'
 
 import {
   DEFAULT_MEDIA_TAB,
+  DELETE_MEDIA_TITLE,
   MEDIA_EXPIRED_NOTICE,
   MEDIA_LIBRARY_TABS,
   UNKNOWN_DURATION_LABEL,
+  deleteMediaMessage,
   formatCapturedDate,
   isMediaAvailable,
   mediaDurationLabel,
@@ -20,8 +22,10 @@ import {
   type MediaLibraryTabId,
 } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 
 /**
@@ -54,10 +58,13 @@ import { ModalShell } from '@/features/demo/ui/screens/_shared'
 export interface MediaLibrarySheetProps {
   /** The current location's three media buckets, straight off the store. */
   media: MediaBuckets
+  /** Confirmed deletion. The bridge revokes the item's object URLs and drops it from the
+   *  store; nothing here writes. */
+  onDelete(item: MediaItem): void
   onClose(): void
 }
 
-export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
+export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibrarySheetProps) {
   const counts = mediaLibraryCounts(media)
   const [tab, setTab] = useState<MediaLibraryTabId>(DEFAULT_MEDIA_TAB)
   const items = mediaForTab(media, tab)
@@ -72,12 +79,17 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
   /** Which item is being viewed full-screen — an ID rather than a boolean, so it self-cancels
    *  the moment the selection moves or the item is deleted, with nothing to remember to reset. */
   const [fullscreenId, setFullscreenId] = useState<string | null>(null)
+  /** What the delete confirmation is armed on — an id, like the bridge's own `PendingDelete`
+   *  (`DemoExperience.tsx:280`), so the dialog's copy is read off the LIVE item at render and
+   *  can never quote a filename that has moved on. */
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   // DERIVED, never a second copy of the item: a deleted row's id simply stops resolving and the
   // preview closes itself — the phone needs an explicit `onDeleted` → `closePreview` for this
   // (`MediaLibrarySheet.tsx:63-70`).
   const selected = items.find((m) => m.id === selectedId) ?? null
   const fullscreen = selected !== null && selected.id === fullscreenId ? selected : null
+  const pendingDelete = items.find((m) => m.id === pendingDeleteId) ?? null
 
   const selectTab = (next: MediaLibraryTabId) => {
     setTab(next)
@@ -111,7 +123,12 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
             <ul style={listReset}>
               {items.map((item) => (
                 <li key={item.id}>
-                  <MediaRow item={item} selected={item.id === selected?.id} onSelect={() => setSelectedId(item.id)} />
+                  <MediaRow
+                    item={item}
+                    selected={item.id === selected?.id}
+                    onSelect={() => setSelectedId(item.id)}
+                    onRequestDelete={() => setPendingDeleteId(item.id)}
+                  />
                 </li>
               ))}
             </ul>
@@ -122,6 +139,29 @@ export function MediaLibrarySheet({ media, onClose }: MediaLibrarySheetProps) {
       {/* Mounted only while it is actually open — the phone does the same, so no player exists
           for a fullscreen nobody asked for (MediaLibrarySheet.tsx:343-351). */}
       {fullscreen !== null && <MediaFullscreen item={fullscreen} onClose={() => setFullscreenId(null)} />}
+
+      {/* The phone's native `Alert.alert` (row 66) on the shared blocking-dialog primitive:
+          title, message and both button styles verbatim, Escape dismissing to the safe arm. */}
+      {pendingDelete !== null && (
+        <AlertDialog
+          title={DELETE_MEDIA_TITLE}
+          message={deleteMediaMessage(pendingDelete.filename)}
+          actions={[
+            { label: 'Cancel', style: 'cancel', onPress: () => setPendingDeleteId(null) },
+            {
+              label: 'Delete',
+              style: 'destructive',
+              onPress: () => {
+                // Clear the arming id BEFORE handing off: the item is about to stop existing,
+                // and a dialog still armed on it would be a dialog with nothing behind it.
+                setPendingDeleteId(null)
+                onDelete(pendingDelete)
+              },
+            },
+          ]}
+          onDismiss={() => setPendingDeleteId(null)}
+        />
+      )}
     </ModalShell>
   )
 }
@@ -439,9 +479,34 @@ function rowLabel(item: MediaItem, duration: string | null): string {
   return `${kind}: ${item.filename}, ${duration ?? UNKNOWN_DURATION_LABEL}`
 }
 
-function MediaRow({ item, selected, onSelect }: { item: MediaItem; selected: boolean; onSelect(): void }) {
+function MediaRow({
+  item,
+  selected,
+  onSelect,
+  onRequestDelete,
+}: {
+  item: MediaItem
+  selected: boolean
+  onSelect(): void
+  onRequestDelete(): void
+}) {
   const duration = mediaDurationLabel(item)
   const date = formatCapturedDate(item.capturedAt)
+  /**
+   * The phone's long-press-to-delete (row 66), on the shared primitive — its THIRD call site.
+   *
+   * Consumed as-is. The DOM shape is deliberately the Cases one, not the Dashboard one (§57a):
+   * the hook attaches to the row's own `<button>`, so `isNestedControl`'s
+   * `closest(control) !== currentTarget` check resolves every press inside the row back to that
+   * same button and ARMS, while the Delete button beside it is a SIBLING outside the gesture
+   * surface and never reaches the hook at all. Nesting Delete inside the row button would both
+   * be invalid HTML and make every hold bail.
+   *
+   * The visible Delete button is not optional decoration: a hold is undiscoverable, unreachable
+   * from a keyboard and unannounced to a screen reader, so the primitive's own contract is that
+   * it is an accelerator and never the only way in.
+   */
+  const longPress = useLongPress(onRequestDelete)
 
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid rgba(30,58,95,0.35)' }}>
@@ -450,6 +515,7 @@ function MediaRow({ item, selected, onSelect }: { item: MediaItem; selected: boo
         aria-label={rowLabel(item, duration)}
         aria-current={selected ? 'true' : undefined}
         onClick={onSelect}
+        {...longPress}
         style={{
           flex: 1,
           minWidth: 0,
@@ -462,6 +528,7 @@ function MediaRow({ item, selected, onSelect }: { item: MediaItem; selected: boo
           border: 'none',
           borderLeft: `2px solid ${selected ? GLASS.accentFrom : 'transparent'}`,
           cursor: 'pointer',
+          ...LONG_PRESS_SURFACE_STYLE,
         }}
       >
         <MediaThumbnail item={item} />
@@ -505,6 +572,18 @@ function MediaRow({ item, selected, onSelect }: { item: MediaItem; selected: boo
             </span>
           )}
         </span>
+      </button>
+
+      {/* SIBLING of the gesture surface, not a child — see the hook note above. */}
+      <button
+        type="button"
+        aria-label={`Delete ${item.filename}`}
+        onClick={onRequestDelete}
+        style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', padding: '0 14px', background: 'transparent', border: 'none', color: '#7a9fc4', cursor: 'pointer' }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        </svg>
       </button>
     </div>
   )

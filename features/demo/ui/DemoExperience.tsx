@@ -69,7 +69,8 @@ import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/Ocr
 import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
 import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
-import { buildMediaItem, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import { MEDIA_DELETED_NOTICE, buildMediaItem, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import { readBrowserObjectUrls, revokeCapturedUrls } from '@/features/demo/ui/inputs/object-urls'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -98,7 +99,7 @@ import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logi
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, MediaKind, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -696,6 +697,26 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     st.addMedia('audio', buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
     st.closeLaunch()
   }
+  /**
+   * Confirmed deletion from the media library (P4.5, matrix row 66) — the ONLY store write the
+   * library makes, and the first caller `revokeCapturedUrls` has ever had (§58g shipped it
+   * tested and unused, on purpose, for exactly this).
+   *
+   * Revoke BEFORE the store drops the row. The store took ownership of the object URL when the
+   * capture surface `release`d it at save time, so after this line nothing holds it and the
+   * blob's bytes — a whole photo or clip — would otherwise stay pinned in the tab for as long
+   * as it lives. `revokeCapturedUrls` no-ops on the bundled sample paths, which are static
+   * files that must outlive every capture surface.
+   */
+  const deleteMediaItem = (item: MediaItem) => {
+    const io = readBrowserObjectUrls()
+    // Absent wherever the API is (jsdom, a hardened browser) — nothing to revoke, and the store
+    // write is what actually removes the row, so it must not be gated on the revocation.
+    if (io !== null) revokeCapturedUrls(io, [item.url, item.poster])
+    store.getState().deleteMedia(item.kind, item.id)
+    setNotice(MEDIA_DELETED_NOTICE)
+  }
+
   /** The one row the phone gates: no location selected → toast, and the drawer stays open. */
   const openMediaLibrary = () => {
     const st = store.getState()
@@ -1813,7 +1834,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // row that opens it is gated on a location, so `currentLocation` is set here — the
         // `EMPTY_FORM.media` fallback exists only for the case where that location is deleted
         // out from under an open sheet, which shows an empty library rather than throwing.
-        return <MediaLibrarySheet media={currentLocation?.form.media ?? EMPTY_FORM.media} onClose={() => store.getState().closeModal()} />
+        return (
+          <MediaLibrarySheet
+            media={currentLocation?.form.media ?? EMPTY_FORM.media}
+            onDelete={deleteMediaItem}
+            onClose={() => store.getState().closeModal()}
+          />
+        )
       case 'duplicateLocation':
         // Rendered only with an open dupState — the chooser's six actions all need the source
         // it was opened for, so a state-less mount would be a modal with nothing behind it.

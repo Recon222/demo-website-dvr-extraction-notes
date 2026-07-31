@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
 import { MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import type { MediaBuckets } from '@/features/demo/engine/logic/media'
@@ -30,7 +30,7 @@ function buckets(over: Partial<MediaBuckets> = {}): MediaBuckets {
 }
 
 function props(over: Partial<MediaLibrarySheetProps> = {}): MediaLibrarySheetProps {
-  return { media: buckets(), onClose: vi.fn(), ...over }
+  return { media: buckets(), onDelete: vi.fn(), onClose: vi.fn(), ...over }
 }
 
 /** A location with one item in each bucket — enough to prove per-tab routing. */
@@ -311,6 +311,126 @@ describe('a capture that did not survive the refresh (P4.1’s contract)', () =>
 
     expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).toBeInTheDocument()
     expect(screen.getByTestId('media-preview-info')).toHaveTextContent('front-door.jpg')
+  })
+})
+
+describe('delete (row 66)', () => {
+  /** The primitive's own beat — a hold shorter than this is a tap. */
+  const HOLD_MS = 500
+
+  function hold(el: HTMLElement, ms = HOLD_MS) {
+    fireEvent.pointerDown(el, { button: 0, pointerType: 'mouse', clientX: 10, clientY: 10 })
+    act(() => {
+      vi.advanceTimersByTime(ms)
+    })
+  }
+
+  it('confirms before deleting, with the phone’s Alert copy verbatim', () => {
+    const onDelete = vi.fn()
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }), onDelete })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete front-door.jpg' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText('Delete Media')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('Are you sure you want to delete "front-door.jpg"? This action cannot be undone.'),
+    ).toBeInTheDocument()
+    // Nothing has happened yet — the confirmation is a gate, not a receipt.
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('deletes on confirm, handing the whole item to the bridge', () => {
+    const onDelete = vi.fn()
+    const photo = item({ url: 'blob:one' })
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [photo] }), onDelete })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete front-door.jpg' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    // The ITEM, not just its id — the bridge needs the urls to revoke and the kind to write.
+    expect(onDelete).toHaveBeenCalledWith(photo)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('cancels without deleting, and Escape does the same', () => {
+    const onDelete = vi.fn()
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }), onDelete })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete front-door.jpg' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete front-door.jpg' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  describe('the long-press accelerator', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('a hold on the row raises the same confirmation', () => {
+      render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+
+      hold(screen.getByRole('button', { name: 'Photo: front-door.jpg' }))
+
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+      expect(screen.getByText('Delete Media')).toBeInTheDocument()
+    })
+
+    it('a tap selects the row and raises nothing', () => {
+      render(
+        <MediaLibrarySheet
+          {...props({
+            media: buckets({
+              photos: [
+                item({ id: 'p1', filename: 'older.jpg', capturedAt: '2026-07-14 09:00:00' }),
+                item({ id: 'p2', filename: 'newer.jpg', capturedAt: '2026-07-16 09:00:00' }),
+              ],
+            }),
+          })}
+        />,
+      )
+      const row = screen.getByRole('button', { name: 'Photo: older.jpg' })
+
+      hold(row, HOLD_MS - 100)
+      fireEvent.pointerUp(row)
+      fireEvent.click(row)
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(row).toHaveAttribute('aria-current', 'true')
+    })
+
+    it('swallows the click that ends the hold, so the row does not also get selected', () => {
+      render(
+        <MediaLibrarySheet
+          {...props({
+            media: buckets({
+              photos: [
+                item({ id: 'p1', filename: 'older.jpg', capturedAt: '2026-07-14 09:00:00' }),
+                item({ id: 'p2', filename: 'newer.jpg', capturedAt: '2026-07-16 09:00:00' }),
+              ],
+            }),
+          })}
+        />,
+      )
+      const row = screen.getByRole('button', { name: 'Photo: older.jpg' })
+
+      hold(row)
+      fireEvent.pointerUp(row)
+      fireEvent.click(row, { detail: 1 })
+
+      // Selection stayed on the auto-selected newest item.
+      expect(row).not.toHaveAttribute('aria-current')
+      expect(screen.getByRole('button', { name: 'Photo: newer.jpg' })).toHaveAttribute('aria-current', 'true')
+    })
   })
 })
 
