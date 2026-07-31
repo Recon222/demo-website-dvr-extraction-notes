@@ -584,7 +584,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       for (let i = 0; i < total; i++) {
         if (importGen.current !== myGen) return // cancelled, or a newer run started
         lastRealStageRef.current = 'extracting_text'
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
+        setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
         emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
         const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
         if (importGen.current !== myGen) return // cancelled while this file was processing
