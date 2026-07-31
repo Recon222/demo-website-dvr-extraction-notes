@@ -222,8 +222,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     act(() => store.getState().setView('cases'))
     fireEvent.click(screen.getByText('Test Case')) // expand the card
     // Role-scoped: the exiting completion screen still shows "Test Location" in its summary
-    // during the slide transition — the Cases ROW is the only button carrying the name.
-    fireEvent.click(screen.getByRole('button', { name: /Test Location/ })) // openLocation — the UI path with the reset
+    // during the slide transition, and since P3.5 the row also has an "Actions for Test
+    // Location" sibling button — the ROW is the one whose accessible name STARTS with the
+    // location name (its text content: name · address · status).
+    fireEvent.click(screen.getByRole('button', { name: /^Test Location/ })) // openLocation — the UI path with the reset
     act(() => store.getState().setView('completion'))
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
   })
