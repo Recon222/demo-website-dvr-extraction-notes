@@ -66,6 +66,7 @@ import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeS
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
 import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -81,6 +82,7 @@ import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
 import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
+import { buildMediaItem } from '@/features/demo/engine/logic/media'
 import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
@@ -94,7 +96,7 @@ import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logi
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, MediaKind, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -221,6 +223,22 @@ const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands w
  * take the way there away.
  */
 const NO_LOCATION_NOTICE = 'No Location — Select a location first.'
+/**
+ * The capture screen's save guard (P4.3). Phone verbatim, from the toast the media-capture
+ * route wrapper fires when it has no location to attach the file to
+ * (`app/(form)/media-capture.tsx:115`, `text1: 'Cannot Save Media'` / `text2: 'No location
+ * selected. Please navigate from a case first.'`) — joined `text1 — text2` like the notices
+ * above. As on the phone, the capture screen closes behind it: the drawer's Capture Media row
+ * is deliberately UNGATED on an open location (deferred §59f, phone parity), so this is the
+ * point where the flow discovers there is nowhere to put the photo, and `addMedia`'s silent
+ * early-return is the thing this exists to make visible.
+ */
+const CANNOT_SAVE_MEDIA_NOTICE =
+  'Cannot Save Media — No location selected. Please navigate from a case first.'
+/** Phone verbatim (`media-capture.tsx:192-193`): `text1` is 'Photo Saved'/'Video Saved' and
+ *  `text2` is the user's filename — WITHOUT the extension, which the wrapper appends after. */
+const mediaSavedNotice = (kind: MediaKind, filename: string): string =>
+  `${kind === 'photo' ? 'Photo' : 'Video'} Saved — ${filename} saved to case`
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -262,8 +280,8 @@ interface PdfState {
 type PendingDelete = { kind: 'case'; id: string } | { kind: 'location'; id: string }
 const EMPTY_FORM = blankLocationForm()
 
-// Fallback for views without a screen yet — only the not-yet-built media views
-// (mediaCapture/audioRecording) reach this, and they're a deferred fast-follow (deferred.md §8).
+// Fallback for views without a screen yet. `mediaCapture` left it in P4.3; `audioRecording`
+// is the last view that still reaches here, and it is a fast-follow (P4.6), not a bug.
 const placeholder = (view: string) => (
   <div style={{ minHeight: 786, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
     The “{view}” screen is a fast-follow.
@@ -618,12 +636,40 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   const openMenu = () => store.getState().setDrawerOpen(true)
 
+  // ---- media capture (P4.3, matrix rows 49-55) ----
+  /**
+   * The capture screen's accept path. Returns whether the store TOOK the item, because the
+   * screen's object-URL hand-off hangs on the answer: a refused save must leave the `blob:`
+   * URL owned by the capture hook so its unmount sweep frees it (deferred §58 carry-rule 1).
+   *
+   * INTERIM (P4.4): the filename and caption arrive as defaults — `MetadataForm` has not been
+   * built yet, so nothing has asked the visitor for either. `buildMediaItem` is what turns the
+   * base into a real filename, using `mediaFilename`, so the extension names the container the
+   * browser actually produced rather than the phone's `.jpg`/`.mp4` (§58c).
+   */
+  const saveCapturedMedia = ({ captured, filename, caption }: SaveMediaRequest): boolean => {
+    const st = store.getState()
+    // `addMedia` early-returns with no `currentLocationId`; without this the capture would
+    // vanish into a no-op save and the visitor would be told nothing.
+    if (!st.currentLocationId) {
+      setNotice(CANNOT_SAVE_MEDIA_NOTICE)
+      st.closeLaunch()
+      return false
+    }
+    const item = buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename, caption })
+    st.addMedia(captured.kind, item)
+    setNotice(mediaSavedNotice(captured.kind, filename))
+    st.closeLaunch()
+    return true
+  }
+
   // ---- drawer Media accordion (P4.2, matrix row 80) ----
   // The phone's three rows. Capture/Record push a route and close the drawer; both targets are
   // LAUNCHABLES here (`launch`, never `setView`), so they leave `currentChapter` alone and
   // `closeLaunch` returns to the wizard step the visitor came from — the OCR rule, applied to
-  // the two media screens. Neither renders yet (P4.3/P4.6): `view` falls through to the honest
-  // `placeholder`, which is the correct interim behaviour, not a dead click.
+  // the two media screens. Capture Media lands on the real screen (P4.3); Record Audio still
+  // falls through to the honest `placeholder` until P4.6, which is correct interim behaviour,
+  // not a dead click.
   const launchMediaCapture = () => {
     const st = store.getState()
     st.launch('mediaCapture')
@@ -1569,6 +1615,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onCancel={cancelOcr}
             onRetake={resetOcr}
             onConfirm={confirmOcr}
+          />
+        )
+      case 'mediaCapture':
+        return (
+          <MediaCaptureScreen
+            onCancel={() => store.getState().closeLaunch()}
+            onSave={saveCapturedMedia}
           />
         )
       case 'extractedScope': {

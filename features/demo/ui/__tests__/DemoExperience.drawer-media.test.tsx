@@ -11,9 +11,9 @@ import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/cr
  * copy and a11y labels are pinned at the component level (`controls/__tests__`); what is
  * pinned HERE is what each one does to the store — the half a presentational test cannot see.
  *
- * The two capture targets deliberately have no screen yet (P4.3/P4.6). Landing on the honest
- * placeholder is the CORRECT interim behaviour, and these arms say so, so a future package
- * replacing the placeholder does not have to guess whether the routing was ever verified.
+ * Capture Media now lands on the real screen (P4.3); Record Audio still has none (P4.6), and
+ * landing on the honest placeholder is the CORRECT interim behaviour, so that arm says so
+ * rather than leaving a future package to guess whether the routing was ever verified.
  */
 
 function seed() {
@@ -47,8 +47,10 @@ describe('drawer Media accordion — wiring (row 80)', () => {
     // `launch`, not `setView`: the wizard step the visitor came from stays the anchor, so
     // closing the launch screen returns there and the rail narration never jumps.
     expect(s.currentChapter).toBe('dvrInfo')
-    // Honest interim: the screen is a fast-follow and says so rather than rendering nothing.
-    expect(screen.getByText(/“mediaCapture” screen is a fast-follow/)).toBeInTheDocument()
+    // The real screen (P4.3) — on this machine `navigator.mediaDevices` is undefined, so it
+    // opens on the honest no-camera panel with the sample shutter live.
+    expect(screen.getByText('No camera device available')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Attach sample photo' })).toBeInTheDocument()
   })
 
   it('Record Audio launches the audioRecording view on the same terms', () => {

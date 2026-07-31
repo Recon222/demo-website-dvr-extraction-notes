@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { CAPTURE_PERMISSION_COPY, SAMPLE_MEDIA } from '@/features/demo/engine/logic/media'
@@ -57,10 +57,10 @@ function deviceInfo(deviceId: string, label: string): MediaDeviceInfo {
 interface Harness {
   deps: MediaCaptureScreenDeps
   saved: SaveMediaRequest[]
-  onSave: ReturnType<typeof vi.fn>
-  onCancel: ReturnType<typeof vi.fn>
+  onSave: Mock<(request: SaveMediaRequest) => boolean>
+  onCancel: Mock<() => void>
   revoked: string[]
-  getUserMedia: ReturnType<typeof vi.fn>
+  getUserMedia: Mock<(constraints: MediaStreamConstraints) => Promise<MediaStream>>
   recorder: FakeRecorder
   advance(ms: number): void
 }
