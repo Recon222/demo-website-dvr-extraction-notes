@@ -920,25 +920,30 @@ address must not pass), and the summary card must keep it (display, not validati
 **Source:** P2.5 implementation (matrix row 34 residual — the phone's four DST advisory
 branches plus its Toast/Alert guards).
 
-### 37.1 The recalculate confirmation is a screen-local dialog, not the shared primitive
+### 39.1 The recalculate confirmation is a screen-local dialog, not the shared primitive — **RESOLVED**
 
-**What:** the phone's `Recalculate Time Offset?` Alert is ported as `RecalculateDialog`,
-declared inside `features/demo/ui/screens/TimeOffsetScreen.tsx` and rendered as an absolute
-overlay within the phone screen.
+**What (original):** the phone's `Recalculate Time Offset?` Alert was ported as
+`RecalculateDialog`, declared inside `features/demo/ui/screens/TimeOffsetScreen.tsx` and
+rendered as an absolute overlay within the phone screen.
 
-**Why deferred:** the demo still has **no shared blocking-dialog primitive** (matrix row 28:
-"only the auto-dismissing `DemoNotification`"), and building one is scheduled work owned by
+**Why it was deferred:** the demo had **no shared blocking-dialog primitive** (matrix row 28:
+"only the auto-dismissing `DemoNotification`"), and building one was scheduled work owned by
 other packages — plan §5 flags it as "wanted by P3.1/P4.5/P5.3". Inventing the shared
-primitive from an S-sized advisory package would pre-empt that design and create a merge
-hotspot mid-wave. The local dialog is ~45 lines, carries the phone's verbatim copy, and
-follows `ExitDialog`'s conventions (`role="dialog"`, `aria-modal`, Escape + backdrop cancel,
-autofocus on the safe default).
+primitive from an S-sized advisory package would have pre-empted that design and created a
+merge hotspot mid-wave.
 
-**Trigger to revisit:** the moment P3.1 / P4.5 / P5.3 lands a shared dialog primitive — move
-`RecalculateDialog` onto it and delete the local copy. Second trigger: a third screen needing
-a blocking confirm before that lands (two bespoke dialogs is the tell).
+**RESOLVED (P2.6 branch, `parity/p2-scope-passthrough`).** P2.4 landed
+`features/demo/ui/controls/AlertDialog.tsx` — RN `Alert.alert`-shaped, presentational,
+portalling into the phone screen. The recalculate confirm now renders through it and
+`RecalculateDialog` is **deleted**; the trigger above fired exactly as written. Copy is
+unchanged and still verbatim. Two behaviours changed, both inherited deliberately from the
+primitive and pinned by tests: the scrim no longer dismisses (a native alert is answered by
+choosing a button), and focus lands on the dialog container rather than the Cancel button
+(so a screen reader hears title AND body), returning to the opener on unmount. The screen
+keeps only its own `confirmRecalc` state — the bridge's `alert` state is Completion-scoped
+(cleared on `view !== 'completion'`) and was deliberately not widened.
 
-### 37.2 Three of the phone's five Time-Offset toasts are deliberately NOT ported
+### 39.2 Three of the phone's five Time-Offset toasts are deliberately NOT ported
 
 The package brief asked for the toast/alert guards "where they map to the demo's flow", and
 to refute rather than ship dead UX. Evidence per toast:
@@ -959,7 +964,7 @@ to refute rather than ship dead UX. Evidence per toast:
 uncalibrated branch reachable) or a general in-phone toast surface for the wizard, port the
 matching copy verbatim then.
 
-### 37.3 `calculateOffset` has no error path — the phone's `Calculation Error` toast is unreachable
+### 39.3 `calculateOffset` has no error path — the phone's `Calculation Error` toast is unreachable
 
 **What:** the phone wraps `performCalculation` in try/catch and shows a `Calculation Error`
 toast (`time-offset.tsx:341-353`). The demo's `calculateOffset` action does not catch, so a
@@ -976,7 +981,7 @@ catches per entry because free-text import CAN write non-canonical scope times.)
 **Trigger to revisit:** any path that writes a non-canonical capture time — an import that
 populates `capture.*`, or free-text entry replacing the pickers. Add the catch + copy then.
 
-### 37.4 Phone-repo follow-up: `getDSTTransitionDates` misses month-boundary transitions
+### 39.4 Phone-repo follow-up: `getDSTTransitionDates` misses month-boundary transitions
 
 **Not a demo deferral — a phone bug for the §8 follow-up ledger.** The phone's scan is
 `for (day = 1; day < daysInMonth; day++)` comparing `day` with `day + 1`
@@ -986,6 +991,27 @@ degrades to the literal word `spring`/`fall`. Reachable in North America wheneve
 fall-back Sunday is the 1st — e.g. **2026-11-01**. The demo's port brackets on month starts and
 binary-searches inside, so it resolves the boundary case (pinned in
 `engine/logic/__tests__/dst-advisory.test.ts`). File as a `BUG-NNN` when the owner returns.
+
+### 39.5 D10 — DVR-time extracted scopes diverge from the phone ON PURPOSE (owner ruling)
+
+**Reviewers: do not re-flag as a parity gap.** `generateExtractedScopes` now passes DVR-time
+requests (`isActualTime === false`) through untouched — no offset, no rounding — per the
+owner's D10 ruling. The phone agrees on the offset half and **differs on the rounding half**:
+`src/lib/utils/extracted-scope-generator.ts` `getEffectiveStartDateTime` /
+`getEffectiveEndDateTime` already return the ORIGINAL `startDateTime` / `endDateTime` for a
+DVR-time scope (skipping corrected/DST times), but the caller still runs every row through
+`roundDown5Minutes` / `roundUp5Minutes`.
+
+**Rationale (owner, recorded in the code comment at the branch):** a DVR-time requester stood
+at the device, read its clock, and asked for exactly those times — widening that window to
+5-minute marks invents scope nobody asked for. The outward padding exists for REAL-time
+requests, where a real-world window is mapped onto the DVR timeline and deliberately given
+slack so the export cannot clip the moment of interest.
+
+**Trigger to revisit:** the phone adopting the same passthrough (then this is parity, not a
+divergence) — or the owner reversing D10. The phone-side rounding of DVR-time scopes is a
+candidate for the phone-repo follow-up ledger alongside §39.4.
+=======
 ---
 
 ## 40. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
