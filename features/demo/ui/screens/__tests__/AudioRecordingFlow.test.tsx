@@ -294,8 +294,8 @@ describe('AudioRecordingFlow — the live path', () => {
     expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(2)
   })
 
-  it('shows the capability layer’s failure when a take produced no bytes, and stays put', async () => {
-    const { deps, recorder, advance } = liveDeps()
+  it('shows the capability layer’s failure when a take produced no bytes, and KEEPS the mic', async () => {
+    const { deps, recorder, stream, advance } = liveDeps()
     mount({ deps })
     await settle()
 
@@ -310,6 +310,13 @@ describe('AudioRecordingFlow — the live path', () => {
     // evidence.
     expect(screen.queryByText('Review Audio')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('nothing was saved')
+
+    // R-12: the half §61g claimed was pinned and was not. `handleStop` closes the stream ONLY
+    // on a real take; closing it here drops `mode` to 'offer' and replaces the live recorder
+    // with an "Enable microphone" button — taking away the retry affordance at the exact moment
+    // the visitor needs it. The two assertions above survive that regression; these do not.
+    for (const track of stream.tracks) expect(track.stop).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument()
   })
 
   it('abandons a take in flight when the visitor cancels', async () => {

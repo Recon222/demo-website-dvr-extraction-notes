@@ -2874,8 +2874,19 @@ A browser shows a live recording indicator for as long as a track is open. Leavi
 through the review screen would say the microphone is still listening when it is not, so the
 flow calls `close()` once a take is assembled and `open()` again on Record Again (no second
 prompt — the page already holds the grant). A FAILED stop deliberately keeps the stream: the
-visitor is still on the recorder and that is exactly what they need to retry. Both directions
-are pinned in `AudioRecordingFlow.test.tsx`.
+visitor is still on the recorder and that is exactly what they need to retry.
+
+**Correction (review R-12).** This paragraph originally ended "Both directions are pinned in
+`AudioRecordingFlow.test.tsx`" — which was **false when written**. Only the release-on-success
+direction had a test; the zero-byte arm asserted the failure alert and the absence of the review
+screen, both of which survive a `close()` made unconditional. The tests lane proved it (23/23
+green under that mutation). The arm now carries the two assertions that actually pin it —
+`track.stop` not called, and the live `Start recording` button still present, since an
+unconditional close drops `mode` to `'offer'` and replaces the recorder with "Enable
+microphone", taking the retry affordance away at the moment it is needed. **Reusable lesson,
+which is why this stays as a correction rather than a silent edit:** "both directions are
+pinned" is a claim about tests, and the only way to earn it is to run the mutation, not to read
+the arm and see the words in it.
 
 Consequence worth knowing: entering the recorder opens the microphone immediately (phone parity,
 `RecorderScreen.tsx:112-116`), so a visitor who never presses Record still sees their browser's
