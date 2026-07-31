@@ -1,7 +1,10 @@
 'use client'
 
-import type { CaseCard } from '@/features/demo/ui/screens/screenData'
+import { useState } from 'react'
+import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
+import { useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -11,10 +14,49 @@ export interface CasesScreenProps {
   onOpenLocation(locationId: string): void
   onAddLocation(caseId: string): void
   onImport(caseId: string): void
+  /** Opens the delete confirmation for a case (the bridge owns the dialog + the store write). */
+  onDeleteCase(caseId: string): void
+  onDeleteLocation(locationId: string): void
 }
 
-/** The Cases list — expandable cards with per-case Import / Add Location actions. */
-export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLocation, onAddLocation, onImport }: CasesScreenProps) {
+/** Row-actions keys, mirroring the phone's single-open swipeable key space
+ *  (`CaseList.tsx:101-104`: `case-${id}` / `location-${id}`). */
+const caseKey = (id: string) => `case-${id}`
+const locationKey = (id: string) => `location-${id}`
+
+/** The Cases list — expandable cards with per-case Import / Add Location actions, and the
+ *  long-press row actions that stand in for the phone's swipe-to-delete (see `RowActions`). */
+export function CasesScreen({
+  cases,
+  expandedId,
+  onToggle,
+  onNewCase,
+  onOpenLocation,
+  onAddLocation,
+  onImport,
+  onDeleteCase,
+  onDeleteLocation,
+}: CasesScreenProps) {
+  /**
+   * SINGLE-OPEN (phone parity, `CaseList.tsx:64-75`: opening one swipeable closes the previous).
+   * One id for the whole list, so at most one row can be showing its destructive action.
+   * Local to the screen — unlike `expandedId`, nothing outside it drives this, and the bridge
+   * has no reason to know which row is showing a button.
+   */
+  const [openActionsKey, setOpenActionsKey] = useState<string | null>(null)
+  const toggleActions = (key: string) => setOpenActionsKey((prev) => (prev === key ? null : key))
+  const closeActions = () => setOpenActionsKey(null)
+
+  /** Expanding (or collapsing) a card closes any tray belonging to it — the phone closes the
+   *  swipeable on expand (`SwipeableCaseCard.tsx:67-73`) and its location swipeables unmount
+   *  with the card, so a re-expand never resurrects a revealed delete button. */
+  const handleToggle = (caseId: string) => {
+    const card = cases.find((c) => c.id === caseId)
+    const owned = new Set<string>([caseKey(caseId), ...(card?.locations.map((l) => locationKey(l.id)) ?? [])])
+    setOpenActionsKey((prev) => (prev !== null && owned.has(prev) ? null : prev))
+    onToggle(caseId)
+  }
+
   return (
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 18px' }}>
@@ -28,53 +70,158 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
 
       <div style={{ padding: '0 16px' }}>
         {cases.length === 0 && <div style={{ fontSize: 14, color: '#7a9fc4', fontStyle: 'italic' }}>No cases yet — tap + to create one.</div>}
-        {cases.map((c) => {
-          const expanded = expandedId === c.id
-          return (
-            <div key={c.id} style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
-              <button type="button" onClick={() => onToggle(c.id)} style={{ width: '100%', textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
-                    {c.displayName && <div style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>{c.displayName}</div>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, marginLeft: 10 }}>
-                    <div style={{ padding: '3px 9px', borderRadius: 20, border: `1px solid ${c.status.border}`, background: c.status.bg }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: c.status.color }}>{c.status.label}</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#7a9fc4' }}>{c.locationCountLabel}</div>
-                  </div>
-                </div>
-              </button>
-
-              {expanded && (
-                <div style={{ padding: '0 16px 16px' }}>
-                  <div style={{ height: 1, background: '#1e3a5f', marginBottom: 12 }} />
-                  {c.locations.length > 0 ? (
-                    c.locations.map((loc) => (
-                      <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}>
-                        <div style={{ flex: 1, marginRight: 8 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
-                          {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
-                        </div>
-                        <div style={{ padding: '3px 8px', borderRadius: 12, background: loc.status.bg }}>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                    <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>
-                    <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add Location</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {cases.map((c) => (
+          <CaseRow
+            key={c.id}
+            card={c}
+            expanded={expandedId === c.id}
+            openActionsKey={openActionsKey}
+            onToggleActions={toggleActions}
+            onCloseActions={closeActions}
+            onToggle={handleToggle}
+            onOpenLocation={onOpenLocation}
+            onAddLocation={onAddLocation}
+            onImport={onImport}
+            onDeleteCase={onDeleteCase}
+            onDeleteLocation={onDeleteLocation}
+          />
+        ))}
       </div>
+    </div>
+  )
+}
+
+/** One case card. Split out because the long-press hook is per-row — a single hook at list
+ *  level would share one hold timer across every card. */
+function CaseRow({
+  card: c,
+  expanded,
+  openActionsKey,
+  onToggleActions,
+  onCloseActions,
+  onToggle,
+  onOpenLocation,
+  onAddLocation,
+  onImport,
+  onDeleteCase,
+  onDeleteLocation,
+}: {
+  card: CaseCard
+  expanded: boolean
+  openActionsKey: string | null
+  onToggleActions(key: string): void
+  onCloseActions(): void
+} & Pick<CasesScreenProps, 'onToggle' | 'onOpenLocation' | 'onAddLocation' | 'onImport' | 'onDeleteCase' | 'onDeleteLocation'>) {
+  const key = caseKey(c.id)
+  const actionsOpen = openActionsKey === key
+  // Phone parity (`SwipeableCaseCard.tsx:99-100,162`: `enabled={!isExpanded}` and
+  // renderRightActions returns null while expanded) — a case's destructive action is
+  // unreachable while its locations are on screen, so it can't be hit while browsing them.
+  const actionsAllowed = !expanded
+  const longPress = useLongPress(() => onToggleActions(key), { enabled: actionsAllowed })
+
+  return (
+    <div style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
+        <button type="button" onClick={() => onToggle(c.id)} style={{ flex: 1, textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
+              {c.displayName && <div style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>{c.displayName}</div>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, marginLeft: 10 }}>
+              <div style={{ padding: '3px 9px', borderRadius: 20, border: `1px solid ${c.status.border}`, background: c.status.bg }}>
+                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: c.status.color }}>{c.status.label}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#7a9fc4' }}>{c.locationCountLabel}</div>
+            </div>
+          </div>
+        </button>
+        {actionsAllowed && (
+          <RowActionsTrigger label={`Actions for case ${c.caseNumber}`} open={actionsOpen} onToggle={() => onToggleActions(key)} />
+        )}
+      </div>
+
+      {actionsAllowed && actionsOpen && (
+        <RowActionsTray
+          label={`Actions for case ${c.caseNumber}`}
+          // The tray closes as it hands off, exactly as the phone closes the swipeable before
+          // raising the confirm (`SwipeableCaseCard.tsx:75-78`).
+          actions={[{ label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteCase(c.id) } }]}
+        />
+      )}
+
+      {expanded && (
+        <div style={{ padding: '0 16px 16px' }}>
+          <div style={{ height: 1, background: '#1e3a5f', marginBottom: 12 }} />
+          {c.locations.length > 0 ? (
+            c.locations.map((loc) => (
+              <LocationRow
+                key={loc.id}
+                row={loc}
+                openActionsKey={openActionsKey}
+                onToggleActions={onToggleActions}
+                onCloseActions={onCloseActions}
+                onOpenLocation={onOpenLocation}
+                onDeleteLocation={onDeleteLocation}
+              />
+            ))
+          ) : (
+            <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>
+            <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add Location</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** One location row inside an expanded case. Unlike the case row its actions are ALWAYS
+ *  reachable — the phone gates only the case swipe on expansion (`CaseList` renders location
+ *  swipeables with no expand-state gate, ui-mapping 02 § Location row). */
+function LocationRow({
+  row: loc,
+  openActionsKey,
+  onToggleActions,
+  onCloseActions,
+  onOpenLocation,
+  onDeleteLocation,
+}: {
+  row: CaseLocationRow
+  openActionsKey: string | null
+  onToggleActions(key: string): void
+  onCloseActions(): void
+} & Pick<CasesScreenProps, 'onOpenLocation' | 'onDeleteLocation'>) {
+  const key = locationKey(loc.id)
+  const actionsOpen = openActionsKey === key
+  const longPress = useLongPress(() => onToggleActions(key))
+
+  return (
+    <div style={{ marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
+        <button type="button" onClick={() => onOpenLocation(loc.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <div style={{ flex: 1, marginRight: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
+            {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
+          </div>
+          <div style={{ padding: '3px 8px', borderRadius: 12, background: loc.status.bg }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
+          </div>
+        </button>
+        <RowActionsTrigger label={`Actions for location ${loc.locationName}`} open={actionsOpen} onToggle={() => onToggleActions(key)} />
+      </div>
+      {actionsOpen && (
+        // P3.5 lands "Duplicate…" (the phone's long-press → DuplicateLocationModal) alongside
+        // Delete here: on the phone the two live on separate gestures, which the web collapses
+        // onto this one tray.
+        <RowActionsTray
+          label={`Actions for location ${loc.locationName}`}
+          actions={[{ label: 'Delete', tone: 'danger', onSelect: () => { onCloseActions(); onDeleteLocation(loc.id) } }]}
+        />
+      )}
     </div>
   )
 }

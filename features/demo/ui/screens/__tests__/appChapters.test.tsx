@@ -42,6 +42,8 @@ describe('CasesScreen', () => {
     onOpenLocation: vi.fn(),
     onAddLocation: vi.fn(),
     onImport: vi.fn(),
+    onDeleteCase: vi.fn(),
+    onDeleteLocation: vi.fn(),
   }
 
   it('lists cases and fires toggle + new-case', () => {

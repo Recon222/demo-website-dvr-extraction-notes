@@ -290,6 +290,21 @@ describe('setCaseStatus (the dashboard Case Actions Sheet — P3.2)', () => {
     store.getState().setCaseStatus(a, 'complete')
     expect(store.getState().cases).toBe(after)
   })
+
+  it('a no-op does not allocate a new STATE object either (no subscriber wake, no snapshot)', () => {
+    // The assertion above pins `cases` only, and passed even while the updater returned `{}`
+    // from inside `set` — which zustand `Object.assign`s onto a fresh state, waking every
+    // selector and the persistence subscriber. P3.1's CRUD suite made the same assertion at
+    // whole-state granularity and caught it at the P3 assembly merge; this is that guarantee
+    // pinned at P3.2's own call site so neither package can lose it again.
+    const store = freshStore()
+    const a = store.getState().createCase(newCaseInput())
+    store.getState().setCaseStatus(a, 'archived')
+    const settled = store.getState()
+    store.getState().setCaseStatus(a, 'archived') // same status
+    store.getState().setCaseStatus('nope', 'draft') // unknown id
+    expect(store.getState()).toBe(settled)
+  })
 })
 
 describe('selection-pair coherence (R-19)', () => {

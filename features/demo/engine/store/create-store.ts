@@ -56,6 +56,25 @@ export interface NewCaseInput {
   notes?: string
 }
 
+/**
+ * The editable slice of a case — the payload of `updateCase` (P3.3's `mode="edit"` submit
+ * target; phone `NewCaseModal` edit mode, ui-mapping 11 § NewCaseModal).
+ *
+ * The four keys it deliberately CANNOT carry are the case's invariants, each owned elsewhere:
+ * - `id` — identity;
+ * - `caseNumber` — immutable after create. The phone locks the field (`editable={!isEdit}`,
+ *   helper text "Case number cannot be changed") and warns at create time ("The case number
+ *   … can't be changed after the case is created"); expressing that in the type means a future
+ *   edit form physically cannot smuggle a rename through;
+ * - `status` — owned by `completeCase` (the Completion screen) and `setCaseStatus` (every
+ *   other move), exactly as the phone routes every status move through its own service
+ *   function (`case-service.ts:571-583`);
+ * - `createdLabel` / `locationIds` — derived bookkeeping (`addLocation` / `deleteLocation`).
+ */
+export type UpdateCaseInput = Partial<
+  Omit<DemoCase, 'id' | 'caseNumber' | 'status' | 'createdLabel' | 'locationIds'>
+>
+
 export interface NewLocationInput {
   locationName: string
   businessName?: string
@@ -137,8 +156,14 @@ export interface DemoActions {
    * moves the status. A case marked complete from the dashboard therefore leaves its
    * locations' own completion gates untouched, exactly as on the phone.
    *
-   * SEAM (P3.1, cases CRUD): if that package lands a general `updateCase`, this collapses
-   * into it — keep the three call sites' semantics.
+   * THE single case-status writer (P3 assembly, closing deferred §49b ∧ §48g). P3.1 shipped
+   * `archiveCase`/`reopenCase` as named one-liners over the phone's three services and P3.2
+   * shipped this; the two were reconciled onto this one. §49b's own trigger ("fold into
+   * P3.1's `updateCase`") is refuted by P3.1's type design — `UpdateCaseInput` OMITS
+   * `status` on purpose, and its `@ts-expect-error` probe pins that omission, so folding the
+   * status in would delete the invariant. Named wrappers lost instead: they had no call site
+   * outside their own unit test, `complete` would have needed a fourth (the name is taken),
+   * and one writer typed on `CaseStatus` cannot silently miss a status the enum later gains.
    */
   setCaseStatus(caseId: string, status: CaseStatus): void
   /** Incident-location-only edit, from the map's incident detail card (matrix row 23).
@@ -147,6 +172,14 @@ export interface DemoActions {
    *  stays with the New Case modal in edit mode, exactly as on the phone. A no-op for an
    *  unknown id, like every other case-keyed writer here. */
   updateIncidentLocation(caseId: string, patch: IncidentLocationPatch): void
+  /** Edit an existing case (phone `NewCaseModal` mode="edit" → `updateCase` service).
+   *  No-ops for an unknown id. See `UpdateCaseInput` for what edit deliberately cannot reach. */
+  updateCase(caseId: string, patch: UpdateCaseInput): void
+  /** Delete a case and every location under it (the phone's ON DELETE CASCADE,
+   *  `case-service.ts:551`). Repairs the selection pair — see the R-19 note at the impl. */
+  deleteCase(caseId: string): void
+  /** Delete one location. Repairs the selection pair — see the R-19 note at the impl. */
+  deleteLocation(locationId: string): void
   addLocation(caseId: string, input: NewLocationInput): string
   switchLocation(locationId: string): void
   updateField(path: string, value: unknown): void
@@ -322,18 +355,92 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         ),
       })),
 
-    setCaseStatus: (caseId, status) =>
-      set((s) => {
-        // No-op when the case is gone or already in that status — house rule: a write that
-        // changes nothing performs no write, so subscribers don't re-render on a repeat tap.
-        const current = s.cases.find((c) => c.id === caseId)
-        if (!current || current.status === status) return {}
-        return { cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }
-      }),
+    setCaseStatus: (caseId, status) => {
+      // No-op when the case is gone or already in that status — house rule: a write that
+      // changes nothing performs no write, so subscribers don't re-render on a repeat tap.
+      //
+      // The early return has to happen OUTSIDE `set`: returning `{}` from the updater is not a
+      // no-op to zustand, which `Object.assign`s it onto a FRESH state object — every selector
+      // re-runs and the persistence subscriber writes a snapshot, for a tap that changed
+      // nothing. P3.2's own test only pinned `cases` by reference, so it passed either way;
+      // P3.1's stronger whole-state assertion is what caught it at the assembly merge.
+      const current = get().cases.find((c) => c.id === caseId)
+      if (!current || current.status === status) return
+      set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, status } : c)) }))
+    },
     updateIncidentLocation: (caseId, patch) =>
       set((s) => ({
         cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)),
       })),
+
+    updateCase: (caseId, patch) => {
+      // Unknown id is a genuine no-op: a bare `.map` would still allocate a new `cases`
+      // array, waking every subscriber and triggering a snapshot write for nothing.
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => ({ cases: s.cases.map((c) => (c.id === caseId ? { ...c, ...patch } : c)) }))
+    },
+
+    /**
+     * Delete a case and everything under it — the phone's `DELETE FROM cases` riding SQLite's
+     * ON DELETE CASCADE (`case-service.ts:548-552`).
+     *
+     * SELECTION REPAIR (R-19: "the open location OWNS the case"). Deleting a case can strand
+     * the selection pair in two ways, and the repair below is written as a DERIVATION rather
+     * than a pair of conditional clears so the post-state is coherent by construction:
+     * `currentCaseId` is read off the surviving open location when there is one, and only
+     * falls back to its previous value when that value still resolves. The phone repairs the
+     * same thing one layer up, in the route (`cases.tsx:632-637`: clear location AND case when
+     * the open location belongs to the doomed case) — the demo does it inside the writer, so
+     * no future caller can forget it.
+     *
+     * `capture` follows the location it belongs to. It is the in-progress calibration for the
+     * OPEN location (every `switchLocation` blanks it) — and `addLocation` deliberately does
+     * not, so leaving a dead capture behind would surface the deleted DVR's clock reading on
+     * the next location the visitor creates.
+     */
+    deleteCase: (caseId) => {
+      if (!get().cases.some((c) => c.id === caseId)) return
+      set((s) => {
+        const locations = s.locations.filter((l) => l.caseId !== caseId)
+        const openLocation = locations.find((l) => l.id === s.currentLocationId) ?? null
+        return {
+          cases: s.cases.filter((c) => c.id !== caseId),
+          locations,
+          currentLocationId: openLocation?.id ?? null,
+          currentCaseId: openLocation
+            ? openLocation.caseId
+            : s.currentCaseId === caseId
+              ? null
+              : s.currentCaseId,
+          ...(openLocation === null && s.currentLocationId !== null ? { capture: blankCapture() } : {}),
+        }
+      })
+    },
+
+    /**
+     * Delete one location, unlinking it from its case's `locationIds`.
+     *
+     * SELECTION REPAIR (R-19): only the location half moves. `currentCaseId` is deliberately
+     * KEPT — the case still exists, and "case selected, no location open" is the same coherent
+     * pair `createCase` leaves behind. Phone parity: its location-delete branch clears only the
+     * location (`cases.tsx:651-654`), unlike the case branch right above it which clears both.
+     * `capture` follows the location, for the reason spelled out on `deleteCase`.
+     */
+    deleteLocation: (locationId) => {
+      const loc = get().locations.find((l) => l.id === locationId)
+      if (!loc) return
+      set((s) => ({
+        locations: s.locations.filter((l) => l.id !== locationId),
+        cases: s.cases.map((c) =>
+          c.id === loc.caseId
+            ? { ...c, locationIds: c.locationIds.filter((id) => id !== locationId) }
+            : c,
+        ),
+        ...(s.currentLocationId === locationId
+          ? { currentLocationId: null, capture: blankCapture() }
+          : {}),
+      }))
+    },
 
     addLocation: (caseId, input) => {
       const id = nextId('l')
