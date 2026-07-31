@@ -241,14 +241,6 @@ const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
  */
 const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
 /**
- * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
- * location-level export entry point, and hiding the section would misrepresent the surface —
- * but they resolve to an honest notice instead of a fabricated download, the same treatment the
- * map gives Call/Email. Re-point them at the real flows when the Export tab lands (P5).
- */
-const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
-const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
-/**
  * Completion's export scope options (P5.3, matrix row 27). The list lives at the CALLER on the
  * phone too — `completion.tsx:298-316` — and the sheet renders whatever it is handed; labels,
  * descriptions and the icon choices are verbatim, with the Ionicons names mapped to the
@@ -1030,10 +1022,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setDupState(null)
     st.openModal('newAddressLocation') // replaces the chooser
   }
-  /** "Export ZIP" / "Export GeoJSON": close the chooser (phone does), then tell the truth. */
-  const exportFromChooser = (message: string) => {
+  /**
+   * "Export ZIP" / "Export GeoJSON" from the location chooser (deferred §52.2's trigger, now
+   * discharged: the two placeholder notices are gone and both buttons run the real flow).
+   *
+   * The phone closes the chooser first and dispatches against the row that was PRESSED, not
+   * the open location (`cases.tsx:577-592` → `source.id`). It needs an `exportTarget` state
+   * and a post-render effect to get that id into `useExportFlow`'s closure; here the id simply
+   * travels ON the request, which is the whole point of the engine's argument-not-state rule.
+   */
+  const exportFromChooser = (request: ExportRequest) => {
     closeLocationActions()
-    setNotice(message)
+    requestExportFlow(request)
   }
   const closeNewAddressCard = () => {
     setNewAddrState(null)
@@ -2282,8 +2282,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onClose={closeLocationActions}
             onDuplicate={submitDuplicate}
             onNewAddress={openNewAddressCard}
-            onExportZip={() => exportFromChooser(EXPORT_ZIP_NOTICE)}
-            onExportGeoJSON={() => exportFromChooser(EXPORT_GEOJSON_NOTICE)}
+            onExportZip={() => exportFromChooser({ type: 'location', locationId: dupState.sourceId })}
+            onExportGeoJSON={() => exportFromChooser({ type: 'location-geojson', locationId: dupState.sourceId })}
           />
         ) : null
       case 'newAddressLocation':
