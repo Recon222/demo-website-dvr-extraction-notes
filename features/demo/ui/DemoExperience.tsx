@@ -33,6 +33,9 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
+import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
+import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
+import { generateCopyName } from '@/features/demo/engine/logic/location-name'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -74,7 +77,7 @@ import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -167,6 +170,17 @@ const PROGRESS_SAVED_BODY =
 const PROGRESS_NOT_STORED_BODY =
   PROGRESS_SAVED_SHARED +
   "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
+
+/**
+ * The location action chooser's toasts (P3.5), lifted from the phone's `cases.tsx` Toast calls
+ * — `text1 — text2`, joined because the demo's banner is one line where the phone's Toast has
+ * a title row and a body row.
+ */
+const LOCATION_NOT_FOUND_NOTICE = 'Error — Location not found.'
+const duplicatedNotice = (name: string, mode: DuplicateMode) =>
+  `Location Duplicated — ${name} ${mode === 'with-scopes' ? 'created with scopes.' : 'created.'}`
+/** No phone counterpart: its service throws, this one returns null. Honest, not silent. */
+const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location couldn't be read."
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -280,6 +294,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
+  /**
+   * The open location action chooser (P3.5) — the phone's `duplicateState`. Resolved ONCE when
+   * the chooser opens (source + sibling names + the pre-deduped suggestion), like the phone,
+   * so the six actions all act on the row that was actually pressed.
+   */
+  const [dupState, setDupState] = useState<{ sourceId: string; existingNames: string[] } | null>(null)
+  const [dupName, setDupName] = useState('')
+  /** The demo's Toast analog — an auto-dismissing in-phone banner (the map's idiom). */
+  const [notice, setNotice] = useState<string | null>(null)
   const [imp, setImp] = useState<ImportState>(blankImport)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
@@ -495,6 +518,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setPdf(null)
     resetOcr()
     setMapPickerOpen(false)
+    setDupState(null) // the chooser's source, cleared with every other transient overlay state
+    setNotice(null)
     const st = store.getState()
     st.setDrawerOpen(false)
     st.closeModal()
@@ -533,6 +558,43 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setImp(blankImport)
     store.getState().openModal('import')
   }
+  /**
+   * Long-press (or the row's ⋯ button) on a location — the phone's `handleLocationLongPress`.
+   * Resolves the source and its siblings from LIVE state, pre-dedupes the suggested name, and
+   * opens the chooser. A source that no longer resolves gets the phone's "Location not found."
+   * notice rather than an empty modal.
+   */
+  const openLocationActions = (locationId: string) => {
+    const st = store.getState()
+    const source = st.locations.find((l) => l.id === locationId)
+    if (!source) {
+      setNotice(LOCATION_NOT_FOUND_NOTICE)
+      return
+    }
+    // Sibling names include the source's own — a duplicate may never reuse it.
+    const existingNames = st.locations.filter((l) => l.caseId === source.caseId).map((l) => l.locationName)
+    setDupState({ sourceId: locationId, existingNames })
+    setDupName(generateCopyName(source.locationName, existingNames))
+    st.openModal('duplicateLocation')
+  }
+  const closeLocationActions = () => {
+    setDupState(null)
+    store.getState().closeModal()
+  }
+  /** "Duplicate Location [with Scopes]" — creates the sibling and stays on the list, like the phone. */
+  const submitDuplicate = (name: string, mode: DuplicateMode) => {
+    if (!dupState) return
+    const id = store.getState().duplicateLocation(dupState.sourceId, name, mode)
+    closeLocationActions()
+    if (id === null) {
+      setNotice(DUPLICATION_FAILED_NOTICE)
+      return
+    }
+    // Report the STORED name (trimmed by the action), not the raw field value.
+    const created = store.getState().locations.find((l) => l.id === id)
+    setNotice(duplicatedNotice(created?.locationName ?? name, mode))
+  }
+
   const submitCase = () => {
     // Build incidentCoordinates only when BOTH lat & lng parse + range-validate. An invalid or
     // partial entry yields no coordinates (the case is still created — no required-field gate).
@@ -1038,6 +1100,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onOpenLocation={openLocation}
             onAddLocation={addLocation}
             onImport={openImport}
+            onLocationActions={openLocationActions}
           />
         )
       case 'submission': {
@@ -1263,6 +1326,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
       case 'newLocation':
         return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
+      case 'duplicateLocation':
+        // Rendered only with an open dupState — the chooser's six actions all need the source
+        // it was opened for, so a state-less mount would be a modal with nothing behind it.
+        return dupState ? (
+          <DuplicateLocationModal
+            name={dupName}
+            onChangeName={setDupName}
+            existingNames={dupState.existingNames}
+            onClose={closeLocationActions}
+            onDuplicate={submitDuplicate}
+          />
+        ) : null
       case 'import':
         return (
           <ImportModal
@@ -1379,6 +1454,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
+          {/* The demo's Toast: an in-phone banner over the SCREEN (never over an open overlay —
+              every notice below fires from a handler that closed its modal first). */}
+          {notice && <DemoNotification message={notice} onDismiss={() => setNotice(null)} />}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
           {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}

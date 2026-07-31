@@ -1,7 +1,8 @@
 'use client'
 
-import type { CaseCard } from '@/features/demo/ui/screens/screenData'
+import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { useLongPress } from '@/features/demo/ui/useLongPress'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -11,10 +12,59 @@ export interface CasesScreenProps {
   onOpenLocation(locationId: string): void
   onAddLocation(caseId: string): void
   onImport(caseId: string): void
+  /** Opens the per-location action chooser (P3.5) — the phone's long-press entry point. */
+  onLocationActions(locationId: string): void
+}
+
+/**
+ * One location row: tap opens it, hold (or right-click) opens the action chooser — and the
+ * "⋯" button does the same thing visibly, because a hold is undiscoverable and unreachable
+ * from the keyboard. Its own component so the long-press hook is per row (rules of hooks).
+ */
+function LocationItem({
+  location,
+  onOpen,
+  onActions,
+}: {
+  location: CaseLocationRow
+  onOpen(): void
+  onActions(): void
+}) {
+  const press = useLongPress(onActions)
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 8 }}>
+      <button
+        type="button"
+        onClick={press.guardClick(onOpen)}
+        {...press.handlers}
+        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left', touchAction: 'manipulation' }}
+      >
+        <div style={{ flex: 1, marginRight: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{location.locationName}</div>
+          {location.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{location.address}</div>}
+        </div>
+        <div style={{ padding: '3px 8px', borderRadius: 12, background: location.status.bg }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: location.status.color }}>{location.status.label}</span>
+        </div>
+      </button>
+      <button
+        type="button"
+        aria-label={`Actions for ${location.locationName}`}
+        onClick={onActions}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer' }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#7a9fc4" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
+    </div>
+  )
 }
 
 /** The Cases list — expandable cards with per-case Import / Add Location actions. */
-export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLocation, onAddLocation, onImport }: CasesScreenProps) {
+export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLocation, onAddLocation, onImport, onLocationActions }: CasesScreenProps) {
   return (
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 18px' }}>
@@ -52,15 +102,12 @@ export function CasesScreen({ cases, expandedId, onToggle, onNewCase, onOpenLoca
                   <div style={{ height: 1, background: '#1e3a5f', marginBottom: 12 }} />
                   {c.locations.length > 0 ? (
                     c.locations.map((loc) => (
-                      <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}>
-                        <div style={{ flex: 1, marginRight: 8 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
-                          {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
-                        </div>
-                        <div style={{ padding: '3px 8px', borderRadius: 12, background: loc.status.bg }}>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
-                        </div>
-                      </button>
+                      <LocationItem
+                        key={loc.id}
+                        location={loc}
+                        onOpen={() => onOpenLocation(loc.id)}
+                        onActions={() => onLocationActions(loc.id)}
+                      />
                     ))
                   ) : (
                     <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>

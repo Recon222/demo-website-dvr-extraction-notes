@@ -212,6 +212,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Press "Paste text" then "Extract & import" — or drop your own PDF.',
   },
+  duplicateLocation: {
+    eyebrow: 'Case management',
+    title: 'Location actions',
+    paras: [
+      'Hold a location row — or tap its ⋯ button — for everything you can do with that site. Canvassing a plaza means the same request against six DVRs, so duplicating the submission info beats retyping it six times.',
+      'The suggested name is already de-duplicated the way Windows does it: "Main Store - Copy", then "- Copy (2)", "- Copy (3)". Duplicating a copy never yields "Copy - Copy".',
+    ],
+    bullets: [
+      'Duplicate carries address, contact and the requesting officer — never the DVR data',
+      '"with Scopes" also clones the requested time ranges',
+      '"New Location w/ Sub Info" keeps the request but asks for a new address',
+    ],
+    tip: 'Try "Duplicate Location with Scopes", then re-open the chooser — the suggested name has moved on.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
