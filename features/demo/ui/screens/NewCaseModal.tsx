@@ -6,34 +6,36 @@ import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
 import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
+import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
+import type { DemoCase } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
-export interface NewCaseFields {
-  caseNumber: string
-  displayName: string
-  unit: string
-  oicName: string
-  oicBadge: string
-  vcName: string
-  vcBadge: string
-  incidentBusinessName: string
-  incidentStreetAddress: string
-  incidentCity: string
-  /** Manual coordinate entry (string-form for the inputs; parsed + range-checked at submit).
-   *  The incident scene can be off-grid (no street address), so coords are hand-enterable. */
-  incidentLatitude: string
-  incidentLongitude: string
-  /** '' | 'geocoded' (filled by an address pick) | 'manual' (typed by hand). */
-  incidentCoordinateSource: string
-  notes: string
-}
+// The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
+// re-exported here so the modal stays the import site its consumers already use.
+export type { NewCaseFields }
 
-export interface NewCaseModalProps {
+interface NewCaseModalBaseProps {
   form: NewCaseFields
   onChange(field: keyof NewCaseFields, value: string): void
   onSubmit(): void
   onCancel(): void
 }
+
+/**
+ * Discriminated on `mode`, exactly as the phone types it (`NewCaseModal.tsx:51-66`):
+ *   - create (default): "New Case" / "Create Case", editable number, confirmation on submit.
+ *     `existingCase` is forbidden.
+ *   - edit: "Edit Case" / "Save Changes", number read-only, no confirmation (there is
+ *     nothing left to warn about — the one immutable field is already locked).
+ *
+ * The union makes `{ mode: 'edit' }` without a case a COMPILE error, so the invariant lives
+ * at the type boundary rather than at each call site. `existingCase` is not decoration: the
+ * locked number is read from the stored case, not from the editable form copy, so the value
+ * on screen is the one that actually owns the evidence folder.
+ */
+export type NewCaseModalProps =
+  | (NewCaseModalBaseProps & { mode?: 'create'; existingCase?: never })
+  | (NewCaseModalBaseProps & { mode: 'edit'; existingCase: DemoCase })
 
 const sectionLabel = {
   fontSize: 12,
@@ -92,14 +94,18 @@ interface RequiredFieldErrors {
   unit?: string
 }
 
-function validateRequired(form: NewCaseFields): RequiredFieldErrors {
+function validateRequired(caseNumber: string, unit: string): RequiredFieldErrors {
   const errors: RequiredFieldErrors = {}
-  if (!form.caseNumber.trim()) errors.caseNumber = 'Case number is required'
-  if (!form.unit.trim()) errors.unit = 'Unit is required'
+  if (!caseNumber.trim()) errors.caseNumber = 'Case number is required'
+  if (!unit.trim()) errors.unit = 'Unit is required'
   return errors
 }
 
-export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModalProps) {
+export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'create', existingCase }: NewCaseModalProps) {
+  const isEdit = mode === 'edit'
+  // In edit mode the stored case owns the number — the form's copy is seeded from it and then
+  // ignored, which is what makes "immutable" true rather than merely un-typeable.
+  const caseNumber = existingCase ? existingCase.caseNumber : form.caseNumber
   // Set only by a blocked submit attempt, and cleared field-by-field as the visitor types —
   // so the modal never opens shouting at an untouched form (the phone's `errors` state has
   // the same lifecycle: written by validateForm, never on mount).
@@ -109,7 +115,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
   const showChip = latR.ok && lngR.ok
   const sourceLabel = form.incidentCoordinateSource === 'geocoded' ? 'Geocoded' : 'Manual'
 
-  const blocked = Object.keys(validateRequired(form)).length > 0
+  const blocked = Object.keys(validateRequired(caseNumber, form.unit)).length > 0
 
   // The immutable-case-number confirmation (phone `NewCaseModal.tsx:237-249`), held open
   // until the visitor answers. Stable identity for the dismiss handler: AlertDialog keys
@@ -120,17 +126,6 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
   // The submit-failure banner (phone `submitError`, rendered first in the content column).
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  /** Mirrors the phone's `handleSubmit` → `validateForm` gate: a failed validation sets the
-   *  field errors and returns without submitting. On success, create mode raises the
-   *  confirmation first; only its "Create Case" arm performs the submit. */
-  const handleSubmit = () => {
-    setSubmitError(null)
-    const found = validateRequired(form)
-    setErrors(found)
-    if (Object.keys(found).length > 0) return
-    setConfirming(true)
-  }
-
   /**
    * The phone's `performSubmit` catch (`NewCaseModal.tsx:182-195`): a
    * `DuplicateCaseNumberError` gets the typed message plus a recovery hint, anything else
@@ -139,8 +134,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
    * branch is the phone's, not an approximation of it. The modal deliberately stays OPEN on
    * failure: the form the visitor typed is still there to fix.
    */
-  const confirmSubmit = () => {
-    setConfirming(false)
+  const performSubmit = () => {
     try {
       onSubmit()
     } catch (err) {
@@ -152,6 +146,27 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
             : 'Failed to create case',
       )
     }
+  }
+
+  /** Mirrors the phone's `handleSubmit` → `validateForm` gate: a failed validation sets the
+   *  field errors and returns without submitting. On success, create mode raises the
+   *  confirmation first (only its "Create Case" arm performs the submit); edit mode saves
+   *  directly — the case number is already locked, so there is nothing to confirm. */
+  const handleSubmit = () => {
+    setSubmitError(null)
+    const found = validateRequired(caseNumber, form.unit)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+    if (isEdit) {
+      performSubmit()
+      return
+    }
+    setConfirming(true)
+  }
+
+  const confirmSubmit = () => {
+    setConfirming(false)
+    performSubmit()
   }
 
   // While the alert is up it is the ONLY answerable surface (its scrim is inert by design),
@@ -171,7 +186,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
   }
 
   return (
-    <ModalShell title="New Case" onClose={handleShellClose}>
+    <ModalShell title={isEdit ? 'Edit Case' : 'New Case'} onClose={handleShellClose}>
       {/* Render order #1 on the phone: the submit-failure banner sits above every field. */}
       {submitError && (
         <div
@@ -181,7 +196,18 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
           {submitError}
         </div>
       )}
-      <Field label="Case Number" required value={form.caseNumber} onChange={(v) => change('caseNumber', v)} placeholder="OCC2025-001" hint="Locked once the case is created — it names the evidence folder." error={errors.caseNumber} />
+      {/* Read-only in edit mode, and read FROM the case: the number names the evidence
+          folder, which is fixed at creation (phone `NewCaseModal.tsx:296-316`). */}
+      <Field
+        label="Case Number"
+        required
+        readOnly={isEdit}
+        value={caseNumber}
+        onChange={(v) => change('caseNumber', v)}
+        placeholder="OCC2025-001"
+        hint={isEdit ? 'Case number cannot be changed' : 'Locked once the case is created — it names the evidence folder.'}
+        error={errors.caseNumber}
+      />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />
       <Field label="Unit" required value={form.unit} onChange={(v) => change('unit', v)} placeholder="Investigation unit" error={errors.unit} />
 
@@ -247,7 +273,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
       <Field label="Notes" multiline value={form.notes} onChange={(v) => onChange('notes', v)} placeholder="Case notes…" />
 
       <div style={{ marginTop: 4 }}>
-        <ModalActions submitLabel="Create Case" onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
+        <ModalActions submitLabel={isEdit ? 'Save Changes' : 'Create Case'} onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
       </div>
 
       {/* The phone's create-mode confirmation (`NewCaseModal.tsx:237-249`) on the shared
@@ -257,7 +283,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
       {confirming && (
         <AlertDialog
           title="Confirm Case Number"
-          message={`The case number "${form.caseNumber.trim()}" can't be changed after the case is created. Everything else can be edited later.`}
+          message={`The case number "${caseNumber.trim()}" can't be changed after the case is created. Everything else can be edited later.`}
           actions={[
             { label: 'Cancel', style: 'cancel', onPress: cancelConfirm },
             { label: 'Create Case', onPress: confirmSubmit },

@@ -117,6 +117,7 @@ export function Field({
   placeholder,
   hint,
   error,
+  readOnly,
   multiline,
 }: {
   label: string
@@ -129,11 +130,15 @@ export function Field({
    *  TextInput renders "an error line (red) OR a helper-text line, error always wins"
    *  (ui-mapping 11 § shared `TextInput`). */
   error?: string
+  /** Displays the value but refuses edits — dimmed like the phone's `readOnlyField`
+   *  treatment (`NewCaseModal.tsx:494-498`). Still focusable and selectable, so the value
+   *  can be read and copied; `disabled` would take it out of the tab order entirely. */
+  readOnly?: boolean
   multiline?: boolean
 }) {
   const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={readOnly ? { marginBottom: 14, opacity: 0.6 } : { marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
         {label}
         {required && <span style={{ color: '#ff4757' }}> *</span>}
@@ -145,6 +150,7 @@ export function Field({
           placeholder={placeholder}
           aria-label={label}
           aria-invalid={error ? true : undefined}
+          readOnly={readOnly}
           rows={3}
           style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
@@ -155,6 +161,7 @@ export function Field({
           placeholder={placeholder}
           aria-label={label}
           aria-invalid={error ? true : undefined}
+          readOnly={readOnly}
           style={boxStyle}
         />
       )}

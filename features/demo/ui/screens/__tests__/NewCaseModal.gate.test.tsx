@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
+import { caseToCaseForm } from '@/features/demo/ui/screens/caseFormData'
+import type { DemoCase } from '@/features/demo/engine/types'
 
 /**
  * P3.3 / matrix row 11 — the required-field gate.
@@ -193,6 +195,7 @@ describe('NewCaseModal — submit-failure banner', () => {
   })
 
   it('clears the banner on the next submit attempt', () => {
+    // (see below for edit mode, which never raises the confirmation)
     let willFail = true
     const onSubmit = vi.fn(() => {
       if (willFail) throw new DuplicateCaseNumberError('PR25-1')
@@ -204,5 +207,106 @@ describe('NewCaseModal — submit-failure banner', () => {
     willFail = false
     fireEvent.click(screen.getByText('Create Case')) // re-attempt: the banner goes at once
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * P3.3 / matrix row 12 — edit mode. The phone reuses this exact component with `mode="edit"`
+ * + a required `initialCase` (`NewCaseModal.tsx:64-66`): "Edit Case" / "Save Changes", the
+ * case number rendered read-only with `helperText="Case number cannot be changed"`, and NO
+ * confirmation Alert (the one immutable field is already locked).
+ */
+describe('NewCaseModal — edit mode', () => {
+  const existing: DemoCase = {
+    id: 'c1',
+    caseNumber: 'PR25-0098213',
+    displayName: "Kim's Convenience — B&E",
+    unit: 'Central Robbery',
+    oicName: 'Det. Liam McHugh',
+    oicBadge: '2015',
+    vcName: 'M. Reyes',
+    vcBadge: '4477',
+    incidentBusinessName: "Kim's Convenience",
+    incidentStreetAddress: '1450 Eglinton Ave W',
+    incidentCity: 'Mississauga',
+    incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+    notes: 'Rear camera covers the loading bay.',
+    status: 'draft',
+    createdLabel: 'Just now',
+    locationIds: [],
+  }
+
+  function renderEdit(over: Partial<NewCaseFields> = {}, onSubmit = vi.fn(), onChange = vi.fn()) {
+    render(
+      <NewCaseModal
+        mode="edit"
+        existingCase={existing}
+        form={{ ...caseToCaseForm(existing), ...over }}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    )
+    return { onSubmit, onChange }
+  }
+
+  it('titles the sheet "Edit Case" and labels the action "Save Changes"', () => {
+    renderEdit()
+    expect(screen.getByRole('dialog', { name: 'Edit Case' })).toBeInTheDocument()
+    expect(screen.getByText('Save Changes')).toBeInTheDocument()
+    expect(screen.queryByText('Create Case')).not.toBeInTheDocument()
+  })
+
+  it('seeds every field from the case', () => {
+    renderEdit()
+    expect(screen.getByLabelText('Case Number')).toHaveValue('PR25-0098213')
+    expect(screen.getByLabelText('Display Name')).toHaveValue("Kim's Convenience — B&E")
+    expect(screen.getByLabelText('Unit')).toHaveValue('Central Robbery')
+    expect(screen.getByLabelText('OIC Name')).toHaveValue('Det. Liam McHugh')
+    expect(screen.getByLabelText('Coordinator Badge')).toHaveValue('4477')
+    expect(screen.getByLabelText('City')).toHaveValue('Mississauga')
+    expect(screen.getByLabelText('Latitude')).toHaveValue('43.6087')
+    expect(screen.getByLabelText('Notes')).toHaveValue('Rear camera covers the loading bay.')
+  })
+
+  it('locks the case number: read-only, with the phone helper text', () => {
+    renderEdit()
+    expect(screen.getByLabelText('Case Number')).toHaveAttribute('readonly')
+    expect(screen.getByText('Case number cannot be changed')).toBeInTheDocument()
+    expect(screen.queryByText(/names the evidence folder/)).not.toBeInTheDocument()
+  })
+
+  it('shows the STORED number even if the form copy has drifted', () => {
+    renderEdit({ caseNumber: 'TAMPERED' })
+    expect(screen.getByLabelText('Case Number')).toHaveValue('PR25-0098213')
+  })
+
+  it('saves directly — no confirmation, since nothing immutable is being decided', () => {
+    const { onSubmit } = renderEdit()
+    fireEvent.click(screen.getByText('Save Changes'))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('still enforces Unit, and never blocks on the (locked) case number', () => {
+    const { onSubmit } = renderEdit({ unit: '' })
+    const save = screen.getByText('Save Changes')
+    expect(save).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(save)
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('Unit is required')).toBeInTheDocument()
+    expect(screen.queryByText('Case number is required')).not.toBeInTheDocument()
+  })
+
+  it('banners a save failure without closing the sheet', () => {
+    renderEdit(
+      {},
+      vi.fn(() => {
+        throw new Error('save failed')
+      }),
+    )
+    fireEvent.click(screen.getByText('Save Changes'))
+    expect(screen.getByText('save failed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Display Name')).toBeInTheDocument()
   })
 })

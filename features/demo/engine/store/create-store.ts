@@ -54,6 +54,17 @@ export interface NewCaseInput {
   notes?: string
 }
 
+/**
+ * The editable half of a case — every `NewCaseInput` field EXCEPT the number.
+ *
+ * The case number is immutable after creation on the phone: `directory_name` (the evidence
+ * folder on disk) is derived from it at creation and the rename path isn't wired, so the
+ * field is rendered read-only in edit mode and dropped at the write boundary
+ * (`app/(tabs)/home.tsx:184-188`). Deriving the edit payload by subtraction makes that rule a
+ * type error instead of a convention: `updateCase` cannot be handed a case number at all.
+ */
+export type CaseEdits = Omit<NewCaseInput, 'caseNumber'>
+
 export interface NewLocationInput {
   locationName: string
   businessName?: string
@@ -117,6 +128,12 @@ export interface DemoActions {
    *  Callers that surface a user-facing form (the New Case modal) must catch it; see
    *  engine/logic/case-number.ts for why the rule lives at this boundary. */
   createCase(input: NewCaseInput): string
+  /** Overwrite a case's editable fields (everything but the number — see `CaseEdits`).
+   *  Unknown ids are a no-op. Deliberately does NOT touch the case/location selection pair:
+   *  editing a case from the dashboard must not move the wizard off the location the visitor
+   *  had open (R-19's invariant is about which case OWNS the current location, and this
+   *  action changes no ownership). */
+  updateCase(caseId: string, edits: CaseEdits): void
   /** "Complete & Save" (R-1, location-scoped gate): stamps the CURRENT location's
    *  `form.completed` and turns the case's cards green (`status: 'complete'` — G4's payoff).
    *  The Completion screen's confirmation gate reads the location flag, never the case status.
@@ -286,6 +303,30 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       set((s) => ({ cases: [c, ...s.cases], currentCaseId: id, currentLocationId: null }))
       return id
     },
+
+    updateCase: (caseId, edits) =>
+      set((s) => ({
+        cases: s.cases.map((c) =>
+          c.id === caseId
+            ? {
+                ...c,
+                displayName: edits.displayName,
+                unit: edits.unit,
+                oicName: edits.oicName ?? '',
+                oicBadge: edits.oicBadge ?? '',
+                vcName: edits.vcName ?? '',
+                vcBadge: edits.vcBadge ?? '',
+                incidentBusinessName: edits.incidentBusinessName ?? '',
+                incidentStreetAddress: edits.incidentStreetAddress ?? '',
+                incidentCity: edits.incidentCity ?? '',
+                // Assigned unconditionally, so clearing the coordinates in the form CLEARS
+                // them on the case. A conditional spread would make removal impossible.
+                incidentCoordinates: edits.incidentCoordinates,
+                notes: edits.notes ?? '',
+              }
+            : c,
+        ),
+      })),
 
     completeCase: (caseId) =>
       set((s) => ({
