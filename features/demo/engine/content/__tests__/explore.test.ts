@@ -21,6 +21,11 @@ const MODAL_ID_SET: Record<ModalId, true> = {
   editIncident: true,
   duplicateLocation: true,
   newAddressLocation: true,
+  // Deliberately NOT listed in EXPLORE_ITEMS (P5.3): the scope chooser is a step INSIDE
+  // Completion, reached from its "Export Zip" button, the same relationship `ocr` has to Time
+  // Offset — and the module note above says why that shape gets no row of its own. The Export
+  // TAB is a destination and will bring its own row (P5.2).
+  exportScope: true,
 }
 const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map', ...Object.keys(MODAL_ID_SET)])
 

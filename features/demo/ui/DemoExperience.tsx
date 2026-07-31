@@ -77,6 +77,37 @@ import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
 import { ExportInfoScreen } from '@/features/demo/ui/screens/ExportInfoScreen'
 import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
+import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
+import {
+  ExportActionSheet,
+  type ExportSheetOption,
+  type ExportSheetOptionId,
+} from '@/features/demo/ui/screens/ExportActionSheet'
+import { describeExportTerminal } from '@/features/demo/ui/screens/exportNotices'
+import {
+  EXPORT_ALERTS,
+  IDLE_EXPORT_FLOW,
+  advanceStage,
+  applyValidation,
+  cancelValidation,
+  continueValidatedExport,
+  failValidation,
+  isExporting as isExportInFlight,
+  reportProgress,
+  requestExport,
+  resetExportFlow,
+  resolveExportModalMode,
+  validateLocationForPdf,
+  validateLocationSubsetForPdf,
+  validateLocationsForPdf,
+  type CasePdfValidationResult,
+  type ExportAlert,
+  type ExportFlowState,
+  type ExportRequest,
+  type ExportRun,
+  type ValidatedExportRun,
+} from '@/features/demo/engine/logic/export'
+import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
@@ -217,6 +248,33 @@ const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source loca
  */
 const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
 const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+/**
+ * Completion's export scope options (P5.3, matrix row 27). The list lives at the CALLER on the
+ * phone too — `completion.tsx:298-316` — and the sheet renders whatever it is handed; labels,
+ * descriptions and the icon choices are verbatim, with the Ionicons names mapped to the
+ * sheet's own named icons.
+ */
+const EXPORT_SHEET_OPTIONS: readonly ExportSheetOption[] = [
+  {
+    id: 'location',
+    label: 'Export This Location',
+    description: 'ZIP with documents and media for current location',
+    icon: 'location',
+  },
+  {
+    id: 'case',
+    label: 'Export Full Case',
+    description: 'ZIP with all locations, documents, and media',
+    icon: 'folder',
+  },
+  { id: 'cancel', label: 'Cancel', icon: 'close' },
+]
+/** The only title a phone user ever sees for this sheet (`completion.tsx:612`). */
+const EXPORT_SHEET_TITLE = 'Choose Export Scope'
+/** How long each simulated pipeline stage is held. Long enough to read the stage line, short
+ *  enough that a non-dismissible overlay never feels stuck. Exported so the flow tests step the
+ *  pipeline by its real cadence instead of re-typing the number. */
+export const EXPORT_STEP_MS = 550
 /**
  * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
  * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
@@ -581,6 +639,39 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
   // per render would tear down and re-add the listener on every store update.
   const closeAlert = useCallback(() => setAlert(null), [])
+
+  // ---- Export flow (P5.3, matrix rows 25/27/28) ------------------------------------------
+  /**
+   * The phone's `useExportFlow` state, held HERE and never persisted — the settled §70a
+   * verdict, which follows the phone's own comment on the same state ("Tab-local selection
+   * (never persisted; the Map tab's `mapViewerCaseId` precedent)", `export.tsx:37-38`) and the
+   * demo's literal mirror of that precedent two hundred lines above.
+   *
+   * Two holders on purpose. The REF is what the pure transitions read: an export CTA press and
+   * a pipeline tick both need the live value, and a render-closure read would hand a stale one
+   * to a machine whose entry guard is the only thing standing between a second press and a
+   * double export. The state exists to render, and `setExportFlow` writes both in one call so
+   * the two can never disagree.
+   */
+  const [exportFlow, setExportFlowState] = useState<ExportFlowState>(IDLE_EXPORT_FLOW)
+  const exportFlowRef = useRef<ExportFlowState>(IDLE_EXPORT_FLOW)
+  const setExportFlow = useCallback((next: ExportFlowState) => {
+    exportFlowRef.current = next
+    setExportFlowState(next)
+  }, [])
+  const exportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A pipeline left mid-flight when the experience unmounts must not keep ticking into a dead
+  // setState — the syncTimer rule, same reason.
+  useEffect(() => () => {
+    if (exportTimer.current) clearTimeout(exportTimer.current)
+  }, [])
+  /** Every export alert is a single-OK dialog on the phone (ui-mapping `04-tab-export.md:305`). */
+  const raiseExportAlert = useCallback(
+    (a: ExportAlert) => {
+      setAlert({ title: a.title, message: a.message, actions: [{ label: 'OK', onPress: closeAlert }] })
+    },
+    [closeAlert],
+  )
 
   // Auto-clear, mirroring the phone's effect (`completion.tsx:115-125`): the card disappears
   // the moment the operator fixes the underlying data — they never have to re-tap to find out.
@@ -1604,6 +1695,242 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     })
   }
 
+  // ---- Export flow handlers (P5.3) -------------------------------------------------------
+
+  /**
+   * The case an export acts on: the one that OWNS the open location, falling back to the
+   * selection when nothing is open. The R-19 law again — trusting `currentCaseId` while a
+   * location from another case is open would ZIP the wrong evidence package.
+   */
+  const exportCaseId = (): string | null => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId)
+    return loc?.caseId ?? st.currentCaseId
+  }
+
+  /**
+   * The locations a ZIP run would actually generate PDFs for, by name and in card order —
+   * what the progress overlay counts through.
+   *
+   * Re-derived from the store rather than read off `validationResult`, because the two paths
+   * into a run disagree about that field: a straight-through dispatch carries the verdict,
+   * while Continue-anyway CONSUMES it (`continueValidatedExport` clears it in the same write
+   * that closes the modal). The phone has the same shape for the same reason — `executeExport`
+   * re-validates internally (`pdf-export-service.ts:971-993`) and never trusts the modal's
+   * earlier answer.
+   *
+   * `null` means the entity this run names is gone — the one condition that turns an
+   * authorised run back into an alert.
+   */
+  const pdfPassFor = (run: ExportRun): readonly string[] | null => {
+    const st = store.getState()
+    if (run.type === 'location') {
+      const loc = st.locations.find((l) => l.id === run.locationId)
+      const owner = loc ? st.cases.find((c) => c.id === loc.caseId) : undefined
+      if (!loc || !owner) return null
+      return validateLocationForPdf(loc, owner.caseNumber).valid ? [loc.locationName] : []
+    }
+    if (run.type === 'case' || run.type === 'case-subset') {
+      const owner = st.cases.find((c) => c.id === run.caseId)
+      if (!owner) return null
+      const inCase = st.locations.filter((l) => l.caseId === owner.id)
+      const scoped =
+        run.type === 'case-subset' ? inCase.filter((l) => run.locationIds.includes(l.id)) : inCase
+      return scoped
+        .filter((l) => validateLocationForPdf(l, owner.caseNumber).valid)
+        .map((l) => l.locationName)
+    }
+    return []
+  }
+
+  const exportTerminalAlert = (run: ExportRun): AlertState => {
+    const notice = describeExportTerminal(run)
+    return { title: notice.title, message: notice.message, actions: [{ label: 'OK', onPress: closeAlert }] }
+  }
+
+  /**
+   * The simulated ZIP pipeline: `generating` once per location that will get a PDF (with the
+   * phone's k-of-n counter and location name), then `zipping`, then the honest terminal.
+   *
+   * The stage ORDER is the phone's service, not invention — `validating` → `generating` (only
+   * when at least one location validates, `pdf-export-service.ts:971-977`) → `zipping`
+   * (`:1046`). `sharing` is deliberately never entered: `DEMO_EXPORT_STAGES` excludes it
+   * because "Opening share dialog..." precedes an OS share sheet a browser tab does not have.
+   */
+  const runZipPipeline = (run: ExportRun, pdfPass: readonly string[]) => {
+    const steps: ((s: ExportFlowState) => ExportFlowState)[] = pdfPass.map(
+      (name, i) => (s: ExportFlowState) =>
+        reportProgress(advanceStage(s, 'generating'), i + 1, pdfPass.length, name),
+    )
+    steps.push((s) => advanceStage(s, 'zipping'))
+
+    let step = 0
+    const tick = () => {
+      if (step < steps.length) {
+        setExportFlow(steps[step++](exportFlowRef.current))
+        exportTimer.current = setTimeout(tick, EXPORT_STEP_MS)
+        return
+      }
+      exportTimer.current = null
+      // Back to rest FIRST, then the notice: the progress overlay must be gone before the
+      // alert lands on top of it, or the visitor reads "Creating ZIP archive..." behind a
+      // dialog telling them nothing was created.
+      setExportFlow(resetExportFlow(exportFlowRef.current))
+      setAlert(exportTerminalAlert(run))
+    }
+    exportTimer.current = setTimeout(tick, EXPORT_STEP_MS)
+  }
+
+  /**
+   * Begin an authorised dispatch. `run` carries its own resolved ids — they are never re-read
+   * from state, which is the engine's structural form of the phone's PR-87 HIGH-1 rule.
+   */
+  const startExportRun = (run: ExportRun, state: ExportFlowState) => {
+    if (run.type === 'location-geojson' || run.type === 'case-map') {
+      // No stage theatre for these two. The phone gives them no `onStageChange` at all and
+      // calls them "sub-second" (`useExportFlow.ts:906-911`); a fabricated "Validating
+      // locations..." would be inventing work. Both terminate inside THIS handler, so there is
+      // no window for a second press to enter — §70j's contract is met by there being no gap.
+      // SEAM(P5.4): real case-map download lands here.
+      setExportFlow(resetExportFlow(state))
+      setAlert(exportTerminalAlert(run))
+      return
+    }
+    const pdfPass = pdfPassFor(run)
+    if (pdfPass === null) {
+      setExportFlow(resetExportFlow(state))
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
+    // §70j: `requestExport` hands back the run state UNTOUCHED for the single-artifact
+    // pipelines, so the stage flip belongs to the handler that starts the run — `isExporting`
+    // is false until it happens. Idempotent for the validated paths, which arrive already at
+    // `validating`.
+    setExportFlow(advanceStage(state, 'validating'))
+    runZipPipeline(run, pdfPass)
+  }
+
+  /**
+   * Run the pre-export validator and hand its verdict straight back to the machine.
+   *
+   * Synchronous (§70f): the demo holds the rows in the store, so there is nothing to await —
+   * and an artificial Promise would open exactly the between-press gap §70j warns about.
+   */
+  const runExportValidation = (run: ValidatedExportRun) => {
+    const st = store.getState()
+    const owner = st.cases.find((c) => c.id === run.caseId)
+    if (!owner) {
+      setExportFlow(resetExportFlow(exportFlowRef.current))
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
+    const inCase = st.locations.filter((l) => l.caseId === owner.id)
+    let result: CasePdfValidationResult
+    try {
+      result =
+        run.type === 'case-subset'
+          ? validateLocationSubsetForPdf(owner, inCase, run.locationIds)
+          : validateLocationsForPdf(owner, inCase)
+    } catch (e) {
+      // `CaseValidationError`'s own message is already operator-facing ("Selected locations not
+      // found in case: …"), which is what the phone's `getUserFriendlyMessage` produces for it.
+      const failed = failValidation(exportFlowRef.current, e instanceof Error ? e.message : String(e))
+      setExportFlow(failed.state)
+      raiseExportAlert(failed.alert)
+      return
+    }
+    const verdict = applyValidation(exportFlowRef.current, run, result)
+    setExportFlow(verdict.state)
+    if (verdict.kind === 'run') startExportRun(verdict.run, verdict.state)
+  }
+
+  /**
+   * THE export dispatch — every caller goes through here.
+   *
+   * SEAM(P5.2): the Export tab's footer CTA calls this with the request its selection plan
+   * resolves to — `{ type: 'case', caseId }`, `{ type: 'location', locationId }` or
+   * `{ type: 'case-subset', caseId, locationIds }`, matching `ExportSelectionPlan.dispatch`.
+   * Ids travel ON the request; there is deliberately no store-reading overload.
+   */
+  const requestExportFlow = (request: ExportRequest) => {
+    // Strengthening the §70i residual rather than inheriting it. The engine's entry guard is
+    // `stage !== 'idle'`, and opening the validation prompt RESETS the stage — so on the phone
+    // the only thing stopping a second press is the modal physically covering the button. The
+    // demo's narration rail sits OUTSIDE the phone and can move the visitor while the prompt is
+    // up, so the prompt is made part of the guard here instead of left to geometry.
+    if (exportFlowRef.current.showValidationModal) return
+
+    const outcome = requestExport(exportFlowRef.current, request)
+    switch (outcome.kind) {
+      case 'ignored':
+        return
+      case 'blocked':
+        raiseExportAlert(outcome.alert)
+        return
+      case 'validate':
+        setExportFlow(outcome.state)
+        runExportValidation(outcome.run)
+        return
+      case 'run':
+        startExportRun(outcome.run, outcome.state)
+        return
+      default:
+        return assertNever(outcome)
+    }
+  }
+
+  /** The validation prompt's Continue / Export Anyway (phone `handleValidationContinue`). */
+  const continueExportFlow = () => {
+    const outcome = continueValidatedExport(exportFlowRef.current, exportCaseId())
+    switch (outcome.kind) {
+      case 'ignored':
+        return
+      case 'blocked':
+        setExportFlow(outcome.state)
+        raiseExportAlert(outcome.alert)
+        return
+      case 'run':
+        setExportFlow(outcome.state)
+        startExportRun(outcome.run, outcome.state)
+        return
+      default:
+        return assertNever(outcome)
+    }
+  }
+
+  /** The prompt's Cancel (phone `handleValidationCancel`): drops the prompt AND both arms. */
+  const cancelExportFlow = () => setExportFlow(cancelValidation(exportFlowRef.current))
+
+  /** Completion's "Export Zip" (phone `setShowExportSheet(true)`, completion.tsx:554). */
+  const openExportSheet = () => store.getState().openModal('exportScope')
+
+  /** The sheet's answer (phone `handleExportSheetSelect`, completion.tsx:278-292): close the
+   *  sheet FIRST, then dispatch — Cancel dispatches nothing. */
+  const selectExportScope = (id: ExportSheetOptionId) => {
+    store.getState().closeModal()
+    switch (id) {
+      case 'location':
+        requestExportFlow({ type: 'location', locationId: store.getState().currentLocationId })
+        return
+      case 'case':
+        requestExportFlow({ type: 'case', caseId: exportCaseId() })
+        return
+      case 'cancel':
+        return
+      default:
+        return assertNever(id)
+    }
+  }
+
+  const exportBusy = isExportInFlight(exportFlow)
+  // The one home of the phone's three hand-copied precedence ternaries (`export.tsx:169-176`,
+  // `cases.tsx:595-602`, `completion.tsx:102-112`).
+  const exportModalMode = resolveExportModalMode({
+    showValidationModal: exportFlow.showValidationModal,
+    validationResult: exportFlow.validationResult,
+    stage: exportFlow.stage,
+  })
+
   const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
   function activeScreen() {
@@ -1849,6 +2176,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
+            onExportZip={openExportSheet}
+            // Phone: `disabled={isExporting || !currentLocationId}` (completion.tsx:557). Both
+            // halves matter — the ZIP needs a location to scope itself to, and a second press
+            // mid-run would be inert anyway (the machine's entry guard), so saying so is
+            // better than letting it look live.
+            canExport={!!currentLocation && !exportBusy}
+            isExporting={exportBusy}
             onComplete={completeLocation}
             onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
@@ -1911,6 +2245,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'exportScope':
+        // The ZIP scope chooser (row 27). Reached ONLY from Completion's "Export Zip" — the
+        // Export tab dispatches from its own footer CTA, as on the phone.
+        return (
+          <ExportActionSheet
+            title={EXPORT_SHEET_TITLE}
+            options={EXPORT_SHEET_OPTIONS}
+            onSelect={selectExportScope}
+            onCancel={() => store.getState().closeModal()}
+            disabled={exportBusy}
+          />
+        )
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
       case 'mediaLibrary':
@@ -2115,6 +2461,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               <DemoNotification message={notice} onDismiss={() => setNotice(null)} />
             </PhoneOverlayPortal>
           )}
+          {/* Export progress / pre-flight validation (rows 25/28). Not a `ModalId`: its
+              visibility is DERIVED from the export machine, exactly as on the phone, so the
+              mode ternary — not a store write — is what makes validation outrank progress. */}
+          <ExportModal
+            mode={exportModalMode}
+            stage={exportFlow.stage}
+            progress={exportFlow.progress}
+            currentLocationName={exportFlow.currentLocationName}
+            validationResult={exportFlow.validationResult}
+            isExporting={exportBusy}
+            onContinueAnyway={continueExportFlow}
+            onCancel={cancelExportFlow}
+          />
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
           {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus

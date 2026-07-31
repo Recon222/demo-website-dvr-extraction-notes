@@ -271,6 +271,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Capture Media or Record Audio first, then come back — the library opens on the newest one.',
   },
+  exportScope: {
+    eyebrow: 'Export',
+    title: 'One location, or the whole case',
+    paras: [
+      'The same request usually covers several sites, so export asks what you mean: just the location you are standing in, or every location on the case in one package. Either way the archive carries the documents, the media and a JSON copy of the data.',
+      'Before it builds anything it checks every location against the four fields a Case Notes PDF needs. Anything short is named, one missing field at a time, and you decide whether to ship the package without those notes.',
+    ],
+    bullets: [
+      'Location ZIP or full-case ZIP — the case one also carries the case map',
+      'Pre-flight validation lists exactly which locations would ship without notes',
+      'In a browser the archive itself is the one thing that cannot be produced — the demo says so instead of faking a download',
+    ],
+    tip: 'Pick either scope — the validation pass and the progress stages are the real ones.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
