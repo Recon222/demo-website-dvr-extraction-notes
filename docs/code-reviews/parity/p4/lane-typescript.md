@@ -294,3 +294,53 @@ on the existing harness, which already exposes manual `emitStop`).
 Store bridge, engine purity, barrel + marketing/demo isolation, determinism seam: **all still preserved** after the round (re-swept; the new `capability.ts` is pure, `MEDIA_BUCKET` moves engine→engine, no new `useStore`, no new `any`/`as any`/non-null assertion in the fix diff).
 
 **Verdict: APPROVE with one minor follow-up.** The blocker and both minors are genuinely closed and mutation-probed. R-3's residual and FD-1 are both minor and both one-file fixes; neither needs to hold the merge, but both should land as ledger lines if they are not fixed now — R-3's residual especially, since its first deferral already lapsed silently at its own named trigger.
+
+---
+
+# Targeted-delta r2 — TYPESCRIPT lane
+
+**Diff:** `4ccaea6..641ed33` on `feat/parity-p4`, reviewed at `641ed33`. Scope: my two open items only.
+**Method:** re-ran my r1 probes against the fix, then restored the exact pre-fix expressions and recorded which pins redden. Every probe reverted; this lane leaves no source edits.
+
+## FD-1 (`0b7d656`) — **FIXED**
+
+`useMediaCapture.ts:352-368`: the handle now stays in `handleRef` across `await handle.stop()`;
+afterwards `superseded = handleRef.current !== handle` decides ownership, the ref is un-set only
+while it still points at this take, and `superseded || abortedRef.current` bails before the mint.
+Both routes I named are closed — `abortRecording()` (`:424`) reaches the recorder again *and* the
+result is refused on identity even when `onstop` settled first, which is the narrower race my
+finding did not name. No stale handle is left behind on either branch, and a superseded
+resolution cannot strip a newer take's handle.
+
+- **My original r1 probe** (flow-level: Start → Stop → Cancel before `emitStop` → assert `Review Audio` absent) now **passes** at `641ed33`. That is the same probe that failed at `cd819ee` and passed at `d09a291`.
+- **Pre-fix shape restored** → 2 of the 4 new pins redden: `discards the take instead of publishing it to review` and `does not un-set a handle a NEW take has already claimed`. Matches the commit body's own "reddens two of the four" claim exactly.
+
+**One correction to the routing note, worth carrying forward.** The hand-off described the
+`stopCalls` pin as the load-bearing one. It is not: `reaches the recorder itself, rather than
+only hiding the result` asserts `expect(recorder.stopCalls).toBeGreaterThan(0)`, and
+`handle.stop()` already increments that counter to 1 on its own — so it reads the same whether
+the abort reached the recorder (2) or no-oped (1), and it is one of the two that survive the
+pre-fix shape. The pins that actually carry FD-1 are #1 and #4. The assertion is one character
+from being load-bearing (`toBeGreaterThan(1)`, or `toBe(2)`); worth strengthening precisely
+because its name claims the axis nothing else covers — if someone later trims pin #1 trusting
+that #2 holds the recorder contract, coverage on that axis drops to zero silently. Not a defect
+in the fix; a note for the tests lane.
+
+## FD-2 (`257e917`) — **FIXED** (my r1 PARTIAL is now closed)
+
+Verified as genuine subtractions, not additions layered over the old expressions:
+
+- `AudioRecordingFlow.tsx:122` is the single derivation — `capability.modeFor('audio') === 'live'`; the `canStream`/`canRecord` pair is gone.
+- `:266` takes `capability.sampleNotice`; the ternary is gone and **both** notice imports (`NO_RECORDER_NOTICE`, `SAMPLE_MEDIA_NOTICE`) are deleted from the file. Grep confirms the flow now reads **none** of the three raw booleans and holds no copy's worth of the rule — the surface has nothing left to re-derive with, which was the point of R-3's type half.
+- The mount-time `open()` gate (`:158-164`) moved onto the same answer, so the microphone is never opened for a recorder that could not keep what it caught — a third site brought under the rule, beyond what I asked for.
+
+Behavioural check of the arms that already worked (no silent shift): `{!stream}` → `SAMPLE_MEDIA_NOTICE.microphone` as before; `{stream, !record}` → `NO_RECORDER_NOTICE.microphone` as before; the previously-gated `open()` behaviour on a no-`MediaRecorder` browser is unchanged. Only the `{stream: true, record: true, objectUrls: false}` world moves — from the full live recorder (open mic, moving meter, then "This browser doesn't expose a microphone to this page" over a completed take) to sample mode with `NO_CAPTURE_STORAGE_NOTICE`.
+
+- The new `deps.objectUrls: null` pin asserts all three: sample mode, `getUserMedia` never called, and the storage sentence rendered while neither device sentence is.
+- **Probe:** restoring the two pre-fix expressions verbatim (and re-adding the two imports) reddens that pin. Reverted.
+
+## Gates
+
+`AudioRecordingFlow` + `useMediaCapture` + `DemoExperience.audio` → **71/71 green** after every probe was reverted. No new issue in the immediate blast radius: `finishTake`'s ownership handoff leaves no stale handle on either branch and pin #4 covers the start-a-second-take case; the flow's three capability reads are all the engine's single answer, and `sampleNotice` is only rendered in the `sample` arm.
+
+**Both of my open items are closed.** Nothing outstanding from this lane.

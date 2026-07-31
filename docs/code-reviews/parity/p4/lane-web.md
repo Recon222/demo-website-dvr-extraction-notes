@@ -376,3 +376,34 @@ My first pass (`features/demo/ui` + `features/demo/engine/logic/media`) reported
 ### Fix-delta verdict
 
 **APPROVE.** All ten of this lane's findings are fixed at the level they were filed, several with a better shape than proposed (R-19's menu-preservation, R-2's engine helper, R-21 generalising R-7's invariant). Both disclosed deviations are accepted on the merits. One new minor (**W-11**), a two-site one-token change with a trade-off worth stating; it does not gate the merge.
+
+---
+
+## Targeted-delta r2
+
+**Reviewed:** `4ccaea6..641ed33` on `feat/parity-p4` — narrow, this lane's item only.
+**Re-run here:** `MediaCaptureScreen.test.tsx` + `OcrCaptureScreen.live.test.tsx` + `useCaptureStream.test.ts` solo → **3 files / 76 tests passed**, clean tree.
+
+### FD-3 (W-11) — FIXED, both sites
+
+`MediaCaptureScreen.tsx:273` and `OcrCaptureScreen.tsx:249` both now call `void open(selectedDeviceId ?? undefined)`, with `selectedDeviceId` added to each effect's dep array (`:275`, `:251`). The disclosed crossing into P4.7's file is one line plus its comment and the dep entry — nothing else in `OcrCaptureScreen` moved, which I checked against the diff.
+
+**Dep-array addition verified safe** (the thing worth checking about this fix, since it widens a re-entrant effect): `selectedDeviceId` only ever changes inside `open()`, which sets `stream` in the same pass. So the `captured && stream` arm cannot re-fire from it — during review the stream is already closed — and the reopen arm cannot re-enter because the latch is cleared **synchronously** before `open()` is called. Both screens have the identical shape (`result` in place of `captured`), so neither can loop.
+
+**Trade-off endorsed.** Pinning with `exact` means a camera unplugged during the review window now fails as `NO_DEVICE` rather than quietly opening a different lens. That is the better outcome and it lands somewhere honest: on `MediaCaptureScreen`, `permissionAfterFailure('NO_DEVICE')` → `unavailable` → the "No camera device available" panel plus the sample shutter (verified in the r1 sweep); on `OcrCaptureScreen`, the same code routes to its own no-camera panel. Neither dead-ends.
+
+**Disclosed asymmetry (OCR side fixed but unpinned) — ACCEPTABLE for this round, no escalation.** The gap is coverage, not correctness: the behaviour is fixed at both sites, the two effects are now byte-identical apart from their latch and gate names, and §66a files the trigger with the right successor (add the twin pin, or fold both reopen effects onto a shared hook). Test coverage is the test lane's remit, and the ledger states the asymmetry accurately.
+
+One precision correction, for the record rather than as a finding: `63d669e`'s message says *"Mutation-probed: reverting either site to a bare `open()` fails it."* It does not — the FD-3 arm renders `MediaCaptureScreen`, so it cannot bind the OCR site. `OcrCaptureScreen.live.test.tsx` asserts the release/reopen round trip (`:393`) and asserts that a **device switch** pins `cam-b` (`:451`), but never carries a chosen device through the confirm stage. The ledger entry gets this right ("the OCR screen's reopen arm remains unpinned for device identity"); only the commit message overreaches.
+
+### FD-4 (`reopening` guard) — sweep of my blast radius: clean
+
+`fb4c4a9` folds the reopen window into R-9's machinery rather than giving it a second mechanism, which is the right call. Checked for the failure modes that machinery exists to prevent:
+
+- **No focus drop.** The shutter still carries `aria-disabled` + `aria-describedby` and is never natively `disabled`, so the control stays focusable through the acquisition — the test asserts `toBeEnabled()` alongside `toHaveAccessibleDescription('Reopening the camera…')`. The R-9 property holds through the new state.
+- **Guard and reason are aligned in BOTH directions**, which is the way a blocked-reason ladder usually rots. `reopening = isOpening && !modeIsSample` (`:307`) heads the ladder (`:377-386`), and the guard `if (isOpening) return` (`:315`) sits *after* the `modeIsSample` early return — so it is reachable only when `!modeIsSample`, i.e. exactly when `reopening` is true. There is no state where the shutter refuses with no reason rendered, and none where a reason renders but the press proceeds.
+- **Sample exemption is consistent across both halves** — the same `!modeIsSample` predicate gates the reason and (structurally) the guard, so attaching a bundled clip mid-reopen is neither refused nor silently blocked. Its own arm pins it on a no-`MediaRecorder` browser.
+- **Live-region churn is net-negative, not additive**: one polite `role="status"` announcement per Retake, which replaces a wrong-cause failure notice that used to appear in the same window. It cannot surface during the first acquisition — `permission` is still `prompt` then, so `PermissionStage` is rendering and the shutter does not exist.
+- **`Switch camera` during a switch**: still pressable, and a second press hits `useCaptureStream.open`'s `openingRef` early-return, so it is idempotent. The "Reopening the camera…" copy is literally true for a switch as well.
+
+**Nothing new in the immediate blast radius.** W-11 closes; this lane has no open findings.

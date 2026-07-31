@@ -219,3 +219,68 @@ without a further fan-out.
 | FD-7 | DOC | P4.7 | ledger paragraph |
 
 P4.5 is retired; nothing routes to it. T-10 / D1 / D3 → ledger lines, no code owner.
+
+---
+
+## Final verdict (targeted-delta r2, aggregated at `641ed33`)
+
+**APPROVE — merge PR #33.**
+
+The targeted round (`4ccaea6..641ed33`, four fix branches, zero merge conflicts) closed all
+seven items, each verified by its discovering lane against source with probes re-run:
+
+| Item | Disposition | Verified by |
+|---|---|---|
+| FD-1 | **FIXED** — handle survives the await; `superseded` identity check; abort reaches the recorder. Original r1 probe now passes; pre-fix shape reddens 2 of 4 new pins | typescript |
+| FD-2 | **FIXED** — repo-wide sweep: zero raw-boolean consumers; single engine derivation on all three surfaces; both notice imports deleted; mount-time `open()` gate brought under the rule (beyond the ask). §65c's lapsed trigger discharged | typescript + type-design (both r1 PARTIALs closed) |
+| FD-3 | **FIXED, both sites** — `open(selectedDeviceId ?? undefined)`; dep-array re-entrancy verified safe; exact-pin trade-off endorsed (unplugged → honest `NO_DEVICE` panels) | web |
+| FD-4 | **FIXED** — `reopening` folded into R-9's ladder; guard and reason provably aligned in both directions; sample attach correctly exempted | silent-failures |
+| FD-5 | **FIXED** — object-pinned `console.warn`, unconditional per the `geocode.ts` precedent; spy reddens on message-only logging | silent-failures |
+| FD-6 | **FIXED** — docblock names `modeFor(kind)` | type-design |
+| FD-7 | **FIXED** — §69h's two false premises struck in place with corrections, re-verified at source; trigger strengthened | silent-failures |
+
+**Ruling on the one-character pin-precision item (does it gate?): NO.** FD-1's pin #2
+(*"reaches the recorder itself"*) asserts `stopCalls > 0`, which `handle.stop()` alone
+satisfies — so the assertion does not bind the axis its name claims. But the defect FD-1 was
+filed for is carried by pins #1 and #4, both probe-verified to redden under the pre-fix shape;
+the discovering lane itself files this as a note, not a defect. The exposure is future coverage
+erosion (someone trims pin #1 trusting #2's name), not a live gap. A test-strength refinement in
+an area with three other live pins does not warrant holding a merge whose entire review surface
+is otherwise closed. It rides, ledgered.
+
+### Riding items — complete list with dispositions
+
+| Item | Disposition |
+|---|---|
+| NIT-R2 — drop `extends CaptureSupport` from `CaptureCapability` (~4 lines, zero consumers, unblocked; the invariant is currently held by convention) | **Ride to next phase** — first commit touching `useMediaCapture.ts`; folds in the `AudioRecorderScreen.tsx:78` stale `sampleNotice` prop doc |
+| Pin precision — FD-1 pin #2 `toBeGreaterThan(0)` → `(1)` (or `toBe(2)`) | **Ride to next phase**, ledger line — ruled non-gating above |
+| NIT-D1 — `dataUrlQuality` inert without `includeDataUrl` | **Ledgered with trigger** — second caller → reshape as `includeDataUrl?: { quality?: number }` |
+| NIT-D3 — stream/list failure-channel split is convention, not type | **Recorded only** — consequence nil ('prompt' arm); machinery not warranted |
+| OCR reopen device-identity pin asymmetry (FD-3) | **Ledgered with trigger (§66a)** — twin pin, or fold both reopen effects onto a shared hook |
+| `63d669e` commit-message overreach ("either site" — the probe binds only `MediaCaptureScreen`) | **Recorded only** — history is immutable; §66a and this doc are the correction |
+| FD-4 sub-frame residual (`isOpening` briefly false before the passive `open()` effect) | **Recorded only** — not humanly reachable; noted in the lane so it is not re-derived |
+| T-10 — R-33's pin is tsc-enforced, not runner-enforced | **Recorded only** (r1 disposition upheld) |
+
+Nothing gates. No open finding remains at any severity across all five lanes.
+
+### PR-comment-ready — the full arc
+
+P4's review ran three rounds over five lanes (typescript, web, tests, silent-failures,
+type-design). **Initial:** raw 2 blockers / 13 majors / ~21 minors deduped to a vetted
+1 BLOCKER / 11 MAJOR / 20 MINOR / 1 NIT (R-1…R-33) — two multi-lane convergences merged, one
+lane blocker demoted on the merits, one re-flag challenge overruled with new evidence, verdict
+BLOCK on the silently-destroyed audio take. **Fix round 1:** 32 of 33 FIXED plus the §66d rider,
+1 PARTIAL, 0 UNFIXED, zero fix-introduced test rot across 23 touched test files, several fixes
+stronger than asked (per-operation capability engine, supersession-released OCR shutter, honest
+Matroska extensions); the residuals became FD-1…FD-7. **Targeted round:** 7/7 FIXED, verified by
+each discovering lane with probes re-run, zero new findings of substance, zero conflicts on the
+four-branch merge. The suite grew **1908 → 2570 tests** (220 files) with `tsc` clean and the
+`/demo` bundle pinned at 107 kB throughout. Worth the record: two lanes filed self-corrections
+against their own earlier output (silent-failures documenting that its proposed FD-4 shape would
+have refused sample attaches and the implementer's refinement was right; typescript correcting
+its own routing note about which pin carries FD-1) — the review pipeline catching itself is the
+behaviour the probe discipline exists to produce. And the §65c lesson is now ledgered practice:
+a deferral's named trigger must be checked inside the round that constitutes it — the one that
+lapsed silently in fix round 1 was caught independently by both discovering lanes and discharged
+in r2. Remaining work is three nits and four record-only lines, all ledgered with owners or
+triggers; nothing outstanding gates this merge.

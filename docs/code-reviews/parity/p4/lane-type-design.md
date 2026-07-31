@@ -644,3 +644,43 @@ Disclosed deviations judged: **§68e SOUND** (accepted, with a sharpening of its
 Snapshot-guard discipline after the round: **intact** — no new persisted union, no `SNAPSHOT_VERSION` movement, and R-6 closed the one writer the three guard devices could not see.
 
 **Verdict: APPROVE WITH ONE PARTIAL** — TYPE-DESIGN-1's audio half (three lines, `AudioRecordingFlow.tsx:113-114, 179, 255`) is the only thing outstanding, and it is a deferral whose own named trigger fired inside this merge.
+
+---
+
+# Targeted-delta r2
+
+**Scope:** FD-2 only (`257e917`), plus FD-6 (`0b7d656`) confirmed in passing. Round `4ccaea6..641ed33`, HEAD `641ed33`. `npx tsc --noEmit` → **clean**. No probes needed — the claim is a reachability claim, settled by a repo-wide sweep. Tree clean but for this doc.
+
+## FD-2 — **FIXED**. TYPE-DESIGN-1 is now closed end to end.
+
+Verified at source rather than from the commit body. A repo-wide sweep for reads of the three raw `CaptureSupport` booleans off a capability object returns **zero live consumers**:
+
+```
+capability.stream | capability.record | capability.objectUrls   → 1 hit, and it is prose:
+  AudioRecordingFlow.tsx:115  "The flow used to spell the rule itself as
+                               `!capability.stream || !capability.record`, which…"
+```
+
+The three surfaces now all ask the engine, and none of them can spell a rule of its own:
+
+| Surface | derivation | sentence |
+|---|---|---|
+| `MediaCaptureScreen` | `:293` `capability.modeFor(mode)` | `:402` `capability.sampleNotice` |
+| `AudioRecordingFlow` | `:122` `capability.modeFor('audio')` | `:266` `capability.sampleNotice` |
+| `AudioRecorderScreen` | — (takes `mode` as a prop) | `:79` takes `sampleNotice` as a prop |
+
+Both notice imports are gone from the flow (`NO_RECORDER_NOTICE` / `SAMPLE_MEDIA_NOTICE` no longer appear in any `ui/` file except two docblocks), so the surface has nothing left to re-derive *with* — which is the structural form of the fix, not just the current-behaviour form. The `{stream: true, record: true, objectUrls: false}` state now resolves to `'sample'` in the flow exactly as `captureAvailability` resolves it, and the sentence it prints is `NO_CAPTURE_STORAGE_NOTICE` by binding-reason priority — the state §65b added a sentence for and the old two-arm ternary was structurally unable to name.
+
+**One step beyond the residual I asked for:** `canCaptureLive` also gates the mount-time acquisition (`:158-163`), so the microphone is never opened on a browser that could not keep what it caught. My residual only named the two derivations; opening the mic for a recorder that cannot produce a file is the same falsehood one layer earlier (a browser recording-indicator asserting a live capture that can never become one), and it is now unreachable too.
+
+§65c's trigger — which lapsed inside the previous round — is discharged.
+
+**FD-6 confirmed:** `useMediaCapture.ts:57` now reads `capability.modeFor(kind)`. NIT-D2 closed.
+
+## New in the immediate blast radius — 1 NIT, nothing else
+
+**NIT-R2 — the coda is now unblocked, and the gate that replaced the type is social.** `CaptureCapability extends CaptureSupport` (`useMediaCapture.ts:81`) still publishes `stream` / `record` / `objectUrls`, and as of this commit **nothing reads them**. That was the precondition I named for dropping the `extends` ("once both consumers go through `modeFor`/`sampleNotice`, the three booleans have no external reader at all"), and `257e917` explicitly leaves the coda for later, correctly noting it is no longer blocked. Left exposed, the fields are re-derivation surface: the next capture surface can still reach for `capability.record` and rebuild the exact rule this finding existed to delete, with nothing red. Not a defect — no current reader, and `modeFor` is right there — but the invariant is now held by convention where it could be held by the type. Dropping `extends CaptureSupport` (moving the three onto a private `support` local inside the `useMemo`, which is where they are already built) is a ~4-line change with no consumer to update.
+
+Related one-liner, same species as D2: `AudioRecorderScreen.tsx:78` still documents its `sampleNotice` prop as *"The no-capability explanation — `SAMPLE_MEDIA_NOTICE.microphone`"*, which is now one of three sentences the engine may pick. Fold into whichever commit takes NIT-R2.
+
+**Lane status after r2: all 7 initial findings FIXED (0 PARTIAL, 0 UNFIXED). Outstanding from this lane: 3 NITs (D1, D3, R2) + 2 doc one-liners, none blocking.**

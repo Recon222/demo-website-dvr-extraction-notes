@@ -531,3 +531,29 @@ Async cancellation / stale-write safety: **closed** — `readGen` is the `import
 Operator breadcrumbs: **one lost** (N-1); none of the prior reviews' `console.warn`s were removed.
 
 **Fix-delta verdict: APPROVE.**
+
+---
+
+# Targeted-delta r2
+
+**Diff:** `4ccaea6..641ed33`. Three items, all mine. **3 FIXED / 0 PARTIAL / 0 UNFIXED / 0 new.**
+
+## FD-4 (N-2) — **FIXED**, and the refinement is right
+
+`MediaCaptureScreen.tsx:295-308` (`reopening = isOpening && !modeIsSample`), `:310-317` (the `onShutter` guard), `:377-385` (`reopening` heads the R-9 ladder).
+
+The window is closed on both paths I traced: with `modeIsSample === false` and `isOpening === true`, `onShutter` now returns before `capturePhoto` (no wrong-cause frame-grab sentence) and before `startRecording` (no `UNSUPPORTED` — R-3's sentence is unreachable from this door again). The visitor gets *"Reopening the camera…"* on the same `aria-disabled` + `role="status"` control R-9 built, so the refusal is stated rather than discovered as an error afterwards. Both entrances to the window are covered — Retake's latch and `onSwitchDevice` → `selectDevice` → `open()`, which sets `isOpening` synchronously before its await.
+
+**The refinement is correct, and I would have gotten this wrong.** My proposed fix said "`if (isOpening) return` alongside `if (busy) return`" — placing it *before* the sample branch, which would have refused a bundled-sample attach during the window. That refusal has no cause behind it: `captureSample` needs no stream, and on a `{stream: true, record: false}` browser video mode is *permanently* sample-only, so a literal reading would have made every sample clip attach fail for as long as any acquisition was in flight. Gating the display flag on `!modeIsSample` keeps the reason line and the guard in agreement — no state shows "Reopening…" over a control that would have worked. Both arms pinned (`MediaCaptureScreen.test.tsx`: the FD-4 refusal, and "still lets a sample be attached while the camera reopens").
+
+Residual, not filed: between the commit that renders the camera stage and the passive effect that calls `open()`, `isOpening` is briefly false with `stream` null. Sub-frame and not humanly clickable — noted only so a future reader does not re-derive it.
+
+## FD-5 (N-1) — **FIXED**
+
+`capture-media.ts:189-195`. `catch (e)` now carries a `console.warn` naming the operation and the consequence, with the **original error object** as the second argument — so the cause §66d collapses out of the visitor-facing sentence survives for the operator, which was the condition I endorsed the collapse on. Unconditional rather than `NODE_ENV`-gated, matching `geocode.ts` / `reverse-geocode.ts` — the exact precedent I cited. The spy pins the object (`toHaveBeenCalledWith(expect.stringContaining('enumerateDevices failed'), boom)`), so logging only a message reddens. Correctly left alone: the missing-`enumerateDevices` branch has no error to carry and is a static capability fact, not an anomaly.
+
+## FD-7 (§69h fact-check) — **FIXED**
+
+`deferred.md:3744-3770`. Both wrong claims struck in place with the corrections beneath, and both re-verified against source by me: `onCaptureOcr` is ungated (`DemoExperience.tsx:1706-1708` — `resetOcr()` then `launch('ocr')`, no location check), and `switchLocation` resets `capture` via `blankCapture()` (`create-store.ts:679`), so the staged read is destroyed at the moment it would become usable — R-1's data-destruction shape, as the correction now says. Trigger strengthened from "next time the code is open" to the next P4.7-territory round. The deferral itself still stands on scope grounds, correctly.
+
+**Targeted-delta verdict: APPROVE.** Nothing new in the blast radius.
