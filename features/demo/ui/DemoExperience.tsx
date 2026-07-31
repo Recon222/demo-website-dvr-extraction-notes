@@ -33,6 +33,7 @@ import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { NewLocationModal, type NewLocationFields } from '@/features/demo/ui/screens/NewLocationModal'
+import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { ImportModal, type ImportResult, type ImportFailure } from '@/features/demo/ui/screens/ImportModal'
 import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
@@ -201,6 +202,11 @@ interface PdfState {
   title: string
   html: string
 }
+
+/** What the delete confirmation is armed on (P3.1). Ids only — the dialog's copy is derived
+ *  from live store entities at render, so it can never show a stale case number or a location
+ *  list that has moved on. */
+type PendingDelete = { kind: 'case'; id: string } | { kind: 'location'; id: string }
 const EMPTY_FORM = blankLocationForm()
 
 // Fallback for views without a screen yet — only the not-yet-built media views
@@ -296,6 +302,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
   const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
   // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
   // store (location-scoped) and is never unset. Keyed by LOCATION ID (R-21): an un-keyed
@@ -493,6 +500,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
   const returnToCases = () => {
     setPdf(null)
+    setPendingDelete(null)
     resetOcr()
     setMapPickerOpen(false)
     const st = store.getState()
@@ -554,6 +562,55 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     store.getState().closeModal()
   }
+
+  // ---- delete (P3.1, matrix rows 10 CRUD + 15) -------------------------------------------
+  // The row hands up an id; the dialog's copy is derived HERE from live store entities, so a
+  // dialog can never outlive or misdescribe what it is about to destroy.
+  const deleteTarget = useMemo<DeleteTarget | null>(() => {
+    if (!pendingDelete) return null
+    if (pendingDelete.kind === 'case') {
+      const c = cases.find((x) => x.id === pendingDelete.id)
+      return c
+        ? {
+            type: 'case',
+            caseNumber: c.caseNumber,
+            locationNames: locations.filter((l) => l.caseId === c.id).map((l) => l.locationName),
+          }
+        : null
+    }
+    const l = locations.find((x) => x.id === pendingDelete.id)
+    return l
+      ? {
+          type: 'location',
+          locationName: l.locationName,
+          // Same composition as the row the visitor pressed (screenData's `locationsOf`), so
+          // the dialog echoes what they were looking at rather than a differently-built string.
+          address: formatAddress('', l.streetAddress, l.city),
+        }
+      : null
+  }, [pendingDelete, cases, locations])
+
+  /**
+   * The store repairs the SELECTION pair (R-19). This repairs the delete's bridge-local
+   * shadows of the same thing — state the store has no idea exists and that would otherwise
+   * point at an entity that no longer does: the expanded card, the Map tab's viewer case, and
+   * the Completion screen's per-location "review again" key.
+   */
+  const confirmDelete = () => {
+    if (!pendingDelete) return
+    const { kind, id } = pendingDelete
+    if (kind === 'case') {
+      store.getState().deleteCase(id)
+      setExpandedCaseId((prev) => (prev === id ? null : prev))
+      setMapViewerCaseId((prev) => (prev === id ? null : prev)) // → the map's picker, not a dead case
+      setReviewAgainFor((prev) => (prev !== null && locations.some((l) => l.id === prev && l.caseId === id) ? null : prev))
+    } else {
+      store.getState().deleteLocation(id)
+      setReviewAgainFor((prev) => (prev === id ? null : prev))
+    }
+    setPendingDelete(null)
+  }
+
   /**
    * Per-run stage forwarder. Token-guarded (p1-review R-24): every other import
    * checkpoint validates importGen, but the old bare setImp let a cancelled run's late
@@ -1038,6 +1095,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onOpenLocation={openLocation}
             onAddLocation={addLocation}
             onImport={openImport}
+            onDeleteCase={(id) => setPendingDelete({ kind: 'case', id })}
+            onDeleteLocation={(id) => setPendingDelete({ kind: 'location', id })}
           />
         )
       case 'submission': {
@@ -1379,6 +1438,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
+          {/* Delete confirmation (rows 10 CRUD + 15). Renders null once its subject is gone —
+              the confirm clears `pendingDelete` in the same tick, so this is belt and braces
+              for any path that removes the entity out from under an armed dialog. */}
+          {deleteTarget && (
+            <DeleteConfirmationModal target={deleteTarget} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
+          )}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
           {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}
