@@ -785,6 +785,32 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     }
   })
 
+  it('the throw backstop guards the TEXT path too (R-43): a rejecting runImport cannot hang the paste dwell', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      runText.mockRejectedValue(new Error('boom from the text pipeline')) // a throw, not a failure result
+      const store = createDemoStore()
+      render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-TXT', displayName: 'TextThrow', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      fireEvent.click(screen.getByText('Paste Text'))
+      fireEvent.change(screen.getByLabelText('Pasted request text'), { target: { value: 'recover footage' } })
+      fireEvent.click(screen.getByText('Import with AI'))
+      // Unwrapping runTextImportFlow re-opens the forever-spinning dwell — this pins the wrap.
+      const cta = await screen.findByRole('button', { name: /See error details/ })
+      fireEvent.click(cta)
+      expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
+      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the text pipeline')
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+      expect(store.getState().locations.length).toBe(0)
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   // ---- P1.5 the dwell (row 73) ----
 
   it('DWELL: a successful run holds on the terminal — results render ONLY after "Review import →"', async () => {
