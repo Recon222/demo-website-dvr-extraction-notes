@@ -54,8 +54,8 @@ import { useCaptureStream, type UseCaptureStreamReturn } from '@/features/demo/u
  *
  * ── What it will not do ─────────────────────────────────────────────────────────────────
  * It never substitutes a sample for a capture that was refused or that failed. `captureSample`
- * is a call the surface makes deliberately, and `capability.sampleOnly` tells it when that is
- * the only path available. A denied camera produces a denied state and nothing else.
+ * is a call the surface makes deliberately, and `capability.modeFor(kind)` tells it when that
+ * is the only path available. A denied camera produces a denied state and nothing else.
  *
  * ── Object-URL ownership ────────────────────────────────────────────────────────────────
  * Every URL this hook mints is owned by its registry and swept on unmount. When a capture is
@@ -352,10 +352,20 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
     async (stopped: RecordingState, atMs: number): Promise<CapturedMedia | null> => {
       const handle = handleRef.current
       if (!handle) return null
-      handleRef.current = null
 
+      // FD-1: the handle stays in the ref ACROSS the await. Clearing it first (R-13's split)
+      // put `abortRecording` out of reach for the whole window it exists for — its only route
+      // to the recorder is `handleRef.current?.abort()`, and the post-await guard is
+      // `abortedRef`, the UNMOUNT flag. A Cancel between Stop and the recorder's `stop` event
+      // hit nothing, and the cancelled take went on to mint a URL and publish itself to review.
       const outcome = await handle.stop()
-      if (abortedRef.current) return null
+      // Whoever cleared or replaced the ref while we were waiting owns this take now: an
+      // `abortRecording` (which nulls it) or a fresh `startRecording` (which reassigns it).
+      // Either way this result must not be published — and the handle must not be un-set from
+      // under its new owner.
+      const superseded = handleRef.current !== handle
+      if (!superseded) handleRef.current = null
+      if (superseded || abortedRef.current) return null
 
       // `null` is an abandoned take: neither a result nor a failure the operator should see.
       if (outcome === null) return null

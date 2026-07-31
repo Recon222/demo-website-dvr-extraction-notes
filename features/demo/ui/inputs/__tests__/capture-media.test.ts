@@ -211,6 +211,19 @@ describe('listCaptureDevices', () => {
     ])
   })
 
+  it('leaves the operator a breadcrumb naming the cause the visitor is spared (FD-5)', async () => {
+    // §66d's collapse to one sentence was accepted on the condition that the cause survives
+    // SOMEWHERE. After it, the console is the only place left that can tell a denied
+    // enumeration from a broken one.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const boom = domError('NotAllowedError')
+    await listCaptureDevices('camera', {
+      mediaDevices: devices({ enumerateDevices: async () => Promise.reject(boom) }),
+    })
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('enumerateDevices failed'), boom)
+    warn.mockRestore()
+  })
+
   it('surfaces an enumeration failure rather than an indistinguishable empty list', async () => {
     // An empty picker because enumeration FAILED looks identical to one because there are no
     // devices — only one of those is worth telling the visitor about.

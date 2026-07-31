@@ -674,3 +674,124 @@ describe('a stale failure never outlives its cause (R-14)', () => {
     expect(result.current.failure).toBeNull()
   })
 })
+
+
+describe('cancelling a take whose stop() is already in flight (FD-1)', () => {
+  /** Open a stream and start a take, returning the driving fake recorder. */
+  async function rolling() {
+    const recorder = fakeRecorder('audio/webm')
+    const harness = mount({ facility: 'microphone' }, fakeRecorderIo(recorder))
+    await act(async () => {
+      await harness.result.current.open()
+    })
+    act(() => {
+      harness.result.current.startRecording()
+      recorder.emitData('bytes')
+    })
+    return { ...harness, recorder }
+  }
+
+  it('discards the take instead of publishing it to review', async () => {
+    // The window R-13's `finishTake` split closed off: `handleRef` was cleared BEFORE the
+    // await, so `abortRecording`'s only route to the recorder hit nothing and the cancelled
+    // take assembled, minted a URL and rendered as a result.
+    const { result, recorder, revoked } = await rolling()
+
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = result.current.stopRecording()
+    })
+    act(() => {
+      result.current.abortRecording()
+    })
+    await act(async () => {
+      recorder.emitStop()
+      expect(await pending).toBeNull()
+    })
+
+    expect(result.current.captured).toBeNull()
+    expect(result.current.phase).toBe('idle')
+    // Nothing was minted, so there is nothing to have revoked — a leak here would mean the
+    // URL was created and then orphaned.
+    expect(revoked).toEqual([])
+  })
+
+  it('reaches the recorder itself, rather than only hiding the result', async () => {
+    const { result, recorder } = await rolling()
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = result.current.stopRecording()
+    })
+    act(() => {
+      result.current.abortRecording()
+    })
+    await act(async () => {
+      recorder.emitStop()
+      await pending
+    })
+    // `abort()` is what discards the buffered chunks; a guard that only suppressed publishing
+    // would leave the bytes assembled and the contract ("discard its bytes") still false.
+    expect(recorder.stopCalls).toBeGreaterThan(0)
+  })
+
+  it('raises no failure — an abandoned take is not an error the operator should see', async () => {
+    const { result, recorder } = await rolling()
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = result.current.stopRecording()
+    })
+    act(() => {
+      result.current.abortRecording()
+    })
+    await act(async () => {
+      recorder.emitStop()
+      await pending
+    })
+    expect(result.current.failure).toBeNull()
+  })
+
+  it('does not un-set a handle a NEW take has already claimed', async () => {
+    // Cancel, then start again while the first stop is still settling: the late resolution
+    // must neither publish nor strip the second take's handle out from under it.
+    const first = fakeRecorder('audio/webm')
+    const second = fakeRecorder('audio/webm')
+    let call = 0
+    const io: RecorderIo = { create: () => (call++ === 0 ? first : second), isTypeSupported: () => true }
+    const { result } = mount({ facility: 'microphone' }, io)
+    await act(async () => {
+      await result.current.open()
+    })
+    act(() => {
+      result.current.startRecording()
+      first.emitData('bytes')
+    })
+
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = result.current.stopRecording()
+    })
+    act(() => {
+      result.current.abortRecording()
+      expect(result.current.startRecording()).toBe(true)
+    })
+    await act(async () => {
+      first.emitStop()
+      expect(await pending).toBeNull()
+    })
+
+    expect(result.current.phase).toBe('recording')
+    expect(result.current.captured).toBeNull()
+
+    // The second take still owns a live handle and completes normally.
+    let secondPending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      second.emitData('more')
+      secondPending = result.current.stopRecording()
+      second.emitStop()
+    })
+    await act(async () => {
+      await secondPending
+    })
+    expect(result.current.captured).toMatchObject({ kind: 'audio', sample: false })
+  })
+})
