@@ -218,7 +218,8 @@ describe('extensionForMimeType', () => {
   it.each([
     ['video/mp4;codecs=avc1', 'video', 'mp4'],
     ['video/webm;codecs=vp9', 'video', 'webm'],
-    ['video/x-matroska;codecs=avc1', 'video', 'mp4'], // Chrome reports mp4-in-mkv this way
+    ['video/x-matroska;codecs=avc1', 'video', 'mkv'], // Chrome's H.264-in-Matroska — NOT an mp4
+    ['audio/x-matroska', 'audio', 'mka'],
     ['audio/mp4', 'audio', 'm4a'],
     ['audio/webm;codecs=opus', 'audio', 'webm'],
     ['audio/ogg;codecs=opus', 'audio', 'ogg'],
@@ -234,9 +235,12 @@ describe('extensionForMimeType', () => {
     expect(extensionForMimeType('VIDEO/WEBM', 'video')).toBe('webm')
   })
 
-  it('never stamps .mp4 on a WebM blob (the false-claim-in-a-filename pin)', () => {
+  it('never stamps .mp4 on a WebM or Matroska blob (the false-claim-in-a-filename pin)', () => {
+    // R-11: the Matroska row used to assert `.mp4` here, which made this test the one thing
+    // that would have blocked the honest branch.
     expect(extensionForMimeType('video/webm', 'video')).not.toBe('mp4')
     expect(extensionForMimeType('audio/webm', 'audio')).not.toBe('m4a')
+    expect(extensionForMimeType('video/x-matroska;codecs=avc1', 'video')).not.toBe('mp4')
   })
 
   it('falls back to the phone extension only when the MIME type says nothing', () => {

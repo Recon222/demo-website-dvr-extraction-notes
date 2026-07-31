@@ -232,6 +232,11 @@ export function extensionForMimeType(mimeType: string, kind: MediaKind): string 
     return kind === 'audio' ? 'm4a' : 'mp4'
   }
   if (type.includes('webm')) return 'webm'
+  // R-11: Chrome's `video/x-matroska;codecs=avc1` is H.264 in a MATROSKA container, not an
+  // MP4. It used to reach the `PHONE_MEDIA_EXTENSIONS` fallback below and come out `.mp4` —
+  // the docblock reserves that fallback for MIME types carrying NO container information, and
+  // Matroska is the container. §58c names this exact string as the motivating Chrome case.
+  if (type.includes('matroska') || type.includes('mkv')) return kind === 'audio' ? 'mka' : 'mkv'
   if (type.includes('ogg')) return kind === 'audio' ? 'ogg' : 'ogv'
   if (type.includes('jpeg') || type.includes('jpg')) return 'jpg'
   if (type.includes('png')) return 'png'
