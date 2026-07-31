@@ -3858,3 +3858,77 @@ The deferral itself stands — the no-op predates P4 and was outside the round's
 **Trigger (strengthened per FD-7):** the NEXT P4.7-territory round, not merely "next time the
 code is open" — R-1's guard pattern (refuse + notice) now sits one file away in the audio
 save path, and this sibling should adopt it then.
+
+---
+
+## 72. P6.1 map feature depth — deliberate choices and residuals
+
+**Source:** package P6.1 (plan §5, matrix row 19), branch `parity/p6-map`. Everything the brief
+asked for shipped; this section records the calls a reviewer would otherwise re-derive, and the
+three things left open.
+
+### 72a. DELIBERATE — the `supercluster` package, not mapbox-gl's built-in `cluster: true`
+
+Both run the same library. The phone's clustering is `@rnmapbox/maps`' ShapeSource, which its own
+comment describes as "supercluster under the hood" (`cluster-press-service.ts:5-9`); mapbox-gl's
+GeoJSON source runs supercluster in a Web Worker. Running it in-process buys three things the
+worker path cannot:
+
+- `getClusterExpansionZoom` is **synchronous and observable**. Behind the worker it is a promise
+  resolved by native code that jsdom cannot drive, so the phone's expansion maths
+  (`computeClusterExpansionCamera` — the 0.5 nudge, the zoom-20 clamp) would have been untestable
+  at unit level, which is precisely why the phone factored it into a pure service in the first
+  place.
+- the cluster **count label stays local**. Under mapbox-gl the count is a SymbolLayer, i.e. a
+  network glyph fetch — the failure mode `ClusterBadge.tsx:38-45` documents at length, where a
+  missing glyph renders no text and no error.
+- the existing **DOM-marker seam survives**. Location pins, the incident teardrop, cluster bubbles
+  and cameras are all `mapboxgl.Marker` elements carrying `data-marker-id` / `data-marker-kind`,
+  so the suite's marker assertions kept working and the marker chrome became testable without
+  WebGL (`markerElements.ts`).
+
+Cost: pins are re-plotted on every `moveend` rather than being GPU layers. At demo scale (a case's
+locations) that is dozens of DOM nodes. **Trigger to revisit:** an aggregate All-Cases map, or any
+projection that can exceed a few hundred pins.
+
+### 72b. DELIBERATE — three copy/behaviour adaptations, each because the phone's version asserts
+something untrue of the demo
+
+- **Error overlay copy.** Phone: the caught SQLite error's `.message`, fallback
+  `Failed to load map data` (ui-mapping 03:96). Demo: `Failed to load the map.` — there is no data
+  fetch; the only thing that can fail is the Mapbox style/tile load. `Retry` is verbatim.
+- **Proximity toggle fallback chain.** Phone tries previous centre → first plottable feature → a
+  GPS read → a static North-America centroid (MapHost.tsx:370-431). The demo keeps steps 1 and 2,
+  drops the GPS read, and uses the map's own centre instead of a static coordinate. A browser
+  geolocation prompt fired by a map-filter toggle asks for more than the feature needs, and the
+  live camera centre is strictly better information than a hard-coded continent centre.
+- **Controls placement.** `MapControls` stacks BELOW the "Change Case" pill rather than sharing its
+  band. On a 390-430 pt phone the two coexist; the demo's screen slot is 378 px wide, where three
+  status pills plus the pill collide. Control set, copy, and row order are otherwise the phone's.
+
+### 72c. RESIDUAL — no scale bar
+
+The phone's map carries `MapScaleBar` (ui-mapping 03:108): a fixed 80 pt bar whose label is
+recomputed from zoom + latitude and snapped to round steps, replacing the native ornament. The
+demo has neither — mapbox-gl's own `ScaleControl` is available and would be a two-line add, but it
+has the same defects the phone rejected the native ornament for (variable width, jumpy steps), and
+porting `compute-span-label.ts` is a package of its own. Not in P6.1's brief.
+**Trigger:** the next P6-territory round, or any review that treats ui-mapping 03's marker/overlay
+table as a completeness checklist.
+
+### 72d. RESIDUAL — clusters do not expose their members to the sheet
+
+Tapping a cluster expands the camera (phone parity). Neither app offers "list the N locations in
+this cluster" in the bottom sheet. Recorded so a future reviewer reads the omission as parity
+rather than a gap. **Trigger:** only if the phone grows the affordance first.
+
+### 72e. RESIDUAL — the long-press seam is a container-level pointer timer, not a mapbox event
+
+mapbox-gl has no `longpress`, so `MapCanvas` runs its own 500 ms timer (RN's `delayLongPress`,
+what the phone's `onLongPress` fires on) on the canvas container, with a 10 px slop that
+reclassifies a travelling hold as a map drag, then `map.unproject`. Two known edges, both
+acceptable for a demo and neither observed: a two-finger pinch whose first contact never moves
+more than 10 px can still fire (mapbox handles the gesture itself, so the ring simply re-centres
+under the pinch), and a hold that starts on a marker element bubbles to the container, so a long
+hold on a pin both selects it and moves the ring. **Trigger:** a review finding either behaviour
+on a touch device, or the arrival of a pointer-gesture helper in `ui/primitives/`.

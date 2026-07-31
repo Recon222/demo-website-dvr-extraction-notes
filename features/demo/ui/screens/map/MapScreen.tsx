@@ -1,18 +1,38 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
+import { MapControls } from '@/features/demo/ui/screens/map/MapControls'
 import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { CallConfirmSheet } from '@/features/demo/ui/screens/map/CallConfirmSheet'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
-import type { MapData } from '@/features/demo/ui/screens/map/mapData'
+import { countLocations, type MapCameraMarker, type MapData } from '@/features/demo/ui/screens/map/mapData'
+import {
+  EMPTY_MAP_FILTERS,
+  applyMapFilters,
+  countActiveFilters,
+  toggleStatus,
+  type MapFilterState,
+} from '@/features/demo/ui/screens/map/mapFilters'
+import { DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
+import type { ProximityResult } from '@/features/demo/ui/screens/map/mapProximity'
+import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 const FLY_ZOOM = 16
 const CALL_UNAVAILABLE = "Calling isn't available in the demo."
 const EMAIL_UNAVAILABLE = "Email isn't available in the demo."
+
+/** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
+const NO_CAMERAS: MapCameraMarker[] = []
+
+/** Last-resort proximity centre when the case has nothing plotted and the map has no centre yet.
+ *  Matches `MapCanvas`'s own default camera centre rather than inventing a coordinate. */
+const FALLBACK_CENTER: [number, number] = [-79.65, 43.61]
+
+type ProximityModule = typeof import('@/features/demo/ui/screens/map/mapProximity')
 
 export interface MapScreenProps {
   /** The tab-local viewer case (distinct from the form's current case). `null` → pick-a-case prompt. */
@@ -68,12 +88,16 @@ const emptyStyle: CSSProperties = {
 }
 
 /**
- * The map orchestrator (the demo's analog of the phone's MapHost). Presentational: data + callbacks
- * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
- * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
+ * The map orchestrator (the demo's analog of the phone's MapHost). Presentational: data +
+ * callbacks via props, no store. It owns every piece of ephemeral interaction state the phone's
+ * host owns through its four hooks — filters (`useMapFilter`), proximity (`useProximity`), camera
+ * visibility (`useCameraVisibility`) and sheet/selection (`useBottomSheet`) — none of which the
+ * phone persists, so none of which belongs in the demo store either.
+ *
+ * The projection pipeline mirrors MapHost.tsx:248-268 exactly:
+ *   mapData → applyMapFilters → (proximity) → display → markers / sheet / counts
  */
 export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident }: MapScreenProps) {
-  const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheetMode, setSheetMode] = useState<'list' | 'detail'>('list')
@@ -81,17 +105,93 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   const [notice, setNotice] = useState<string | null>(null)
   const mapRef = useRef<MapCanvasHandle>(null)
 
+  // ---- filters (phone useMapFilter) ---------------------------------------------------------
+  const [filters, setFilters] = useState<MapFilterState>(EMPTY_MAP_FILTERS)
+
+  // ---- proximity (phone useProximity) -------------------------------------------------------
+  // Turf arrives with the module, which is fetched on the first activation so it never lands in
+  // the demo's own chunk. `proximityModule` is state (not just a ref) so the first computed
+  // result renders as soon as it resolves.
+  const [proximityModule, setProximityModule] = useState<ProximityModule | null>(null)
+  const proximityLoadRef = useRef<Promise<ProximityModule> | null>(null)
+  const [proximityActive, setProximityActive] = useState(false)
+  const [proximityCenter, setProximityCenter] = useState<[number, number] | null>(null)
+  const [proximityRadius, setProximityRadius] = useState<RadiusPreset>(DEFAULT_PROXIMITY_RADIUS)
+
+  const loadProximity = useCallback((): Promise<ProximityModule> => {
+    if (!proximityLoadRef.current) {
+      proximityLoadRef.current = import('@/features/demo/ui/screens/map/mapProximity').then((mod) => {
+        setProximityModule(mod)
+        return mod
+      })
+    }
+    return proximityLoadRef.current
+  }, [])
+
+  // ---- camera visibility (phone useCameraVisibility) ----------------------------------------
+  // Session-scoped, default off, per LOCATION id. Never persisted: camera visibility is an
+  // ephemeral viewing preference, not case data.
+  const [cameraShownIds, setCameraShownIds] = useState<ReadonlySet<string>>(() => new Set())
+
+  // A case switch resets everything view-local: the phone REMOUNTS MapHost per viewed case
+  // (app/(tabs)/map.tsx keys it), so its filters, proximity, camera toggles and selection are all
+  // recreated. The demo's MapScreen stays mounted, so it clears them explicitly.
+  const firstCaseRun = useRef(true)
+  useEffect(() => {
+    if (firstCaseRun.current) {
+      firstCaseRun.current = false
+      return
+    }
+    setFilters(EMPTY_MAP_FILTERS)
+    setProximityActive(false)
+    setProximityCenter(null)
+    setProximityRadius(DEFAULT_PROXIMITY_RADIUS)
+    setCameraShownIds(new Set())
+    setSelectedId(null)
+    setSheetMode('list')
+    setSnapIndex(0)
+  }, [viewerCaseId])
+
+  // ---- projection ---------------------------------------------------------------------------
+  const filtered = useMemo(() => applyMapFilters(mapData, filters), [mapData, filters])
+
+  const proximityResult = useMemo<ProximityResult | null>(() => {
+    if (!proximityActive || !proximityCenter || !proximityModule) return null
+    return proximityModule.computeProximity(filtered, proximityCenter, proximityRadius)
+  }, [proximityActive, proximityCenter, proximityModule, filtered, proximityRadius])
+
+  const display = proximityResult?.data ?? filtered
+  const markers = useMemo(() => buildMarkers(display), [display])
+
+  // Phone MapHost.tsx:250-258: the "of M" half is the POST-FILTER count and the "N" half is the
+  // post-proximity one — so a status/text filter moves both together (badge reads "N locations")
+  // and only proximity produces "N of M".
+  const locationCount = useMemo(() => countLocations(filtered.items), [filtered.items])
+  const filteredCount = proximityResult?.locationCount ?? locationCount
+
+  // A stale selection (case switch, or a row the filter just removed) falls back to the list.
+  const selectedItem = display.items.find((i) => i.id === selectedId) ?? null
+  const contentMode = sheetMode === 'detail' && selectedItem ? 'detail' : 'list'
+
+  const camerasShown = selectedItem?.kind === 'location' && cameraShownIds.has(selectedItem.id)
+  const visibleCameras = useMemo(
+    () => (camerasShown && selectedItem?.kind === 'location' ? selectedItem.cameras : NO_CAMERAS),
+    [camerasShown, selectedItem],
+  )
+
+  // ---- handlers -----------------------------------------------------------------------------
+
   // Tap a pin or a row → fly the camera to it and open its detail (at least the partial detent).
   const selectItem = useCallback(
     (id: string) => {
-      const item = mapData.items.find((i) => i.id === id)
+      const item = display.items.find((i) => i.id === id)
       if (!item) return
       mapRef.current?.flyTo(item.coord[0], item.coord[1], FLY_ZOOM)
       setSelectedId(id)
       setSheetMode('detail')
       setSnapIndex((i) => Math.max(i, 1))
     },
-    [mapData.items],
+    [display.items],
   )
 
   const back = useCallback(() => {
@@ -100,9 +200,61 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     setSnapIndex(1)
   }, [])
 
-  // A stale selection (after a case switch) falls back to the list.
-  const selectedItem = mapData.items.find((i) => i.id === selectedId) ?? null
-  const contentMode = sheetMode === 'detail' && selectedItem ? 'detail' : 'list'
+  const handleToggleStatus = useCallback((status: LocationMapStatus) => {
+    setFilters((prev) => ({ ...prev, statuses: toggleStatus(prev.statuses, status) }))
+  }, [])
+
+  const handleSearchChange = useCallback((searchText: string) => {
+    setFilters((prev) => ({ ...prev, searchText }))
+  }, [])
+
+  const handleClearFilters = useCallback(() => setFilters(EMPTY_MAP_FILTERS), [])
+
+  const handleToggleCameras = useCallback(() => {
+    if (selectedItem?.kind !== 'location') return
+    const id = selectedItem.id
+    setCameraShownIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [selectedItem])
+
+  /**
+   * Proximity toggle. Phone MapHost.tsx:370-431 tries, in order: a previously-set centre, the
+   * first plottable location/incident, a best-effort GPS read, then a static globe centre.
+   *
+   * The demo drops the GPS step deliberately: a browser geolocation prompt fired by a toggle the
+   * visitor pressed to filter a map would be a permission request the phone's own UX never
+   * explains here — and the demo's honesty rule is that nothing asks for more than it needs. The
+   * map's current centre stands in, which is strictly better information than the phone's static
+   * North-America fallback.
+   */
+  const handleProximityToggle = useCallback(() => {
+    if (proximityActive) {
+      setProximityActive(false)
+      return
+    }
+    void loadProximity()
+    if (!proximityCenter) {
+      const anchor = filtered.items[0]?.coord ?? mapRef.current?.getCenter() ?? FALLBACK_CENTER
+      setProximityCenter([anchor[0], anchor[1]])
+    }
+    setProximityActive(true)
+  }, [proximityActive, proximityCenter, filtered.items, loadProximity])
+
+  /** Long-press: re-centre the ring when proximity is on, else activate it there
+   *  (phone MapHost.tsx:359-368). */
+  const handleLongPress = useCallback(
+    (lng: number, lat: number) => {
+      void loadProximity()
+      setProximityCenter([lng, lat])
+      setProximityActive(true)
+    },
+    [loadProximity],
+  )
+
   const detail = selectedItem ? (
     <LocationDetailCard
       item={selectedItem}
@@ -111,6 +263,8 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
       onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
       onGoToLocation={(id) => onGoToLocation?.(id)}
       onEditIncident={onEditIncident}
+      camerasShown={camerasShown}
+      onToggleCameras={handleToggleCameras}
     />
   ) : null
 
@@ -123,15 +277,35 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
         </div>
       ) : (
         <>
-          <MapCanvas ref={mapRef} markers={markers} onMarkerPress={selectItem} />
+          <MapCanvas
+            ref={mapRef}
+            markers={markers}
+            cameras={visibleCameras}
+            proximityRing={proximityResult?.ring ?? null}
+            onMarkerPress={selectItem}
+            onLongPress={handleLongPress}
+          />
           {onChangeCase && (
             <button type="button" onClick={onChangeCase} style={changeCasePill}>
               Change Case
             </button>
           )}
+          <MapControls
+            filters={filters}
+            onToggleStatus={handleToggleStatus}
+            onSearchChange={handleSearchChange}
+            onClearFilters={handleClearFilters}
+            activeFilterCount={countActiveFilters(filters)}
+            proximityActive={proximityActive}
+            proximityRadius={proximityRadius}
+            onProximityToggle={handleProximityToggle}
+            onRadiusChange={setProximityRadius}
+            locationCount={locationCount}
+            filteredCount={filteredCount}
+          />
           <MapBottomSheet
-            items={mapData.items}
-            statusCounts={mapData.statusCounts}
+            items={display.items}
+            statusCounts={display.statusCounts}
             snapIndex={snapIndex}
             onSnapChange={setSnapIndex}
             contentMode={contentMode}
