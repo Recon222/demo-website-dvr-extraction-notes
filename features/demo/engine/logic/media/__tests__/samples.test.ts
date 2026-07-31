@@ -3,16 +3,22 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildMediaItem, isDurableMediaUrl, withoutEphemeralMediaUrls } from '@/features/demo/engine/logic/media/captured'
+import {
+  buildMediaItem,
+  isDurableMediaUrl,
+  withoutEphemeralMediaUrls,
+  type CapturedMedia,
+} from '@/features/demo/engine/logic/media/captured'
 import {
   SAMPLE_MEDIA,
   SAMPLE_MEDIA_BASE,
   SAMPLE_MEDIA_NOTICE,
   facilityForKind,
+  suggestedFilenameBase,
   toSampleCapture,
 } from '@/features/demo/engine/logic/media/samples'
 import { CAPTURE_FACILITIES } from '@/features/demo/engine/logic/media/permissions'
-import { MEDIA_KINDS } from '@/features/demo/engine/types'
+import { MEDIA_KINDS, type MediaKind } from '@/features/demo/engine/types'
 
 const publicDir = join(process.cwd(), 'public')
 
@@ -144,5 +150,40 @@ describe('facilityForKind', () => {
     expect(facilityForKind('photo')).toBe('camera')
     expect(facilityForKind('video')).toBe('camera')
     expect(facilityForKind('audio')).toBe('microphone')
+  })
+})
+
+describe('suggestedFilenameBase (the metadata form pre-fill, P4.4)', () => {
+  const live = (kind: MediaKind): CapturedMedia => ({
+    ...toSampleCapture(kind, '2026-07-30 14:05:06'),
+    url: 'blob:mint/1',
+    sample: false,
+  })
+
+  it('names a sample after the bundled asset it actually is, for every kind', () => {
+    // Mutation probe for the `captured.sample` branch: return the fallback unconditionally and
+    // all three of these become the caller's made-up name.
+    expect(suggestedFilenameBase(toSampleCapture('photo', 'T'), 'photo-20260730-140506')).toBe('sample-photo')
+    expect(suggestedFilenameBase(toSampleCapture('video', 'T'), 'video-20260730-140506')).toBe('sample-clip')
+    expect(suggestedFilenameBase(toSampleCapture('audio', 'T'), 'audio-note-3')).toBe('sample-note')
+  })
+
+  it('leaves a real capture with the caller’s own base', () => {
+    expect(suggestedFilenameBase(live('photo'), 'photo-20260730-140506')).toBe('photo-20260730-140506')
+    expect(suggestedFilenameBase(live('audio'), 'audio-note-3')).toBe('audio-note-3')
+  })
+
+  it('reads the registry rather than a second copy of the names', () => {
+    for (const kind of MEDIA_KINDS) {
+      expect(suggestedFilenameBase(toSampleCapture(kind, 'T'), 'ignored')).toBe(
+        SAMPLE_MEDIA[kind].suggestedFilename,
+      )
+    }
+  })
+
+  it('yields a base with no extension — `mediaFilename` is the only place one is added', () => {
+    for (const kind of MEDIA_KINDS) {
+      expect(suggestedFilenameBase(toSampleCapture(kind, 'T'), 'x')).not.toMatch(/\./)
+    }
   })
 })

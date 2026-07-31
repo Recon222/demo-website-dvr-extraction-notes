@@ -99,6 +99,27 @@ export function facilityForKind(kind: MediaKind): CaptureFacility {
 }
 
 /**
+ * The base name the metadata form (P4.4) opens with — the ONE rule all three capture surfaces
+ * pre-fill through, so a photo, a clip and an audio note cannot each answer this differently.
+ *
+ * A SAMPLE take is named after the bundled asset it actually is (`sample-photo` / `sample-clip`
+ * / `sample-note`). Anything the caller would otherwise have used — a live camera capture's
+ * `defaultCaptureBasename`, the audio flow's location-scoped `audio-note-N` — would put a name
+ * that reads like something the visitor made onto a file nobody captured, and the media
+ * library's filename column is the one place the "Sample" badge does not follow it.
+ *
+ * `fallback` stays a parameter rather than being derived here because the two provenances are
+ * genuinely different (a capture timestamp vs. the open location's note count) and each caller
+ * is the only one that knows its own.
+ *
+ * It is a PRE-FILL, not a commitment: every caller hands it to an editable field, and what is
+ * stored is whatever the visitor leaves in that field.
+ */
+export function suggestedFilenameBase(captured: CapturedMedia, fallback: string): string {
+  return captured.sample ? SAMPLE_MEDIA[captured.kind].suggestedFilename : fallback
+}
+
+/**
  * Turn a bundled asset into a `CapturedMedia` indistinguishable in SHAPE from a live capture
  * (so the review/metadata screens have one code path) and unmistakable in CONTENT (`sample:
  * true`, and the asset says so on its face).
