@@ -2431,3 +2431,94 @@ before the timer, still followed by a click), both original hooks carried the sa
 assumption, and R-20 narrowed the latch rather than widening it — adding an unreachable
 belt-and-braces here would be one more unpinned line in the file this round exists to make
 honest.
+
+## 58. P4.1 (parity/p4-capability) — the web capture capability: adaptations, refutations & residuals
+
+**Source:** P4.1 Capture capability layer (plan §5 P4.1, matrix §1.11 preamble) — the
+`getUserMedia`/`MediaRecorder`/canvas capability every P4 media package consumes. Engine core in
+`features/demo/engine/logic/media/`, browser I/O in `features/demo/ui/inputs/capture-media.ts` +
+`object-urls.ts`, hooks in `useCaptureStream.ts` + `useMediaCapture.ts`.
+
+### 58a. REFUTATION — object URLs are NOT what puts the test suite on the sample path
+
+The brief (and the natural assumption) is that jsdom's missing media APIs route the suite to the
+sample fallback wholesale. Verified in-environment, that is only two-thirds true. `navigator.
+mediaDevices` and `MediaRecorder` really are undefined. **`URL.createObjectURL` is not:** jsdom's
+own `window.URL` lacks it, but under Vitest the global `URL` is **Node's**, which implements it and
+mints `blob:nodedata:<uuid>`.
+
+Consequence, recorded so nobody "fixes" it later: `readBrowserObjectUrls()` returns a working io in
+tests, and the object-URL suites exercise real minting and revocation rather than a stub. The
+capability's `unavailable` state is gated on `mediaDevices`/`MediaRecorder` only. `isDurableMediaUrl`
+still classifies `blob:nodedata:…` correctly (it is a `blob:` URL), so the persistence contract is
+unaffected. No deferral — a correction to a premise.
+
+### 58b. The phone's permission REMEDY copy is deliberately not lifted
+
+Headlines are verbatim ("Camera Access Required", "Microphone Access Required", "No camera device
+available"). The remedy sentences are not: the phone says "enable microphone access in your
+**device settings**", which in a browser points the visitor at a control that cannot fix a site
+permission. `captureFailureMessage` says "your browser's site settings" instead, pinned by a test
+asserting the phone phrase never appears. Copy parity loses to being correct.
+
+### 58c. Filename extensions name the real container, not the phone's
+
+The phone appends `.jpg` / `.mp4` / `.m4a` (ui-mapping 09:592). A browser's `MediaRecorder`
+usually produces WebM, and Chrome sometimes reports `video/x-matroska`. `extensionForMimeType`
+therefore derives the extension from what was ACTUALLY produced, falling back to the phone
+extension only when the MIME type carries no container information. Stamping `.mp4` on a WebM blob
+would put a false claim in an evidence filename. **P4.4 must use `mediaFilename(base, captured)`**
+rather than appending an extension itself.
+
+### 58d. Permissions API not queried — a denial costs one extra click after a reload
+
+`navigator.permissions.query({ name: 'camera' })` would let a surface render the denied view
+immediately on mount instead of after the visitor presses the control and is instantly refused. It
+is not implemented: the `camera`/`microphone` descriptors are Chromium-only, so the demo would
+carry a second permission-source seam that answers on one browser family and stays silent on the
+others. Current behaviour is honest, just one click slower after a reload.
+**Trigger:** if P4.3/P4.6 device testing shows the extra click reads as a broken button — add it
+as an OPTIONAL enrichment behind its own seam, never as the source of truth for `CapturePermission`.
+
+### 58e. Audio-degradation ladder: one extra `getUserMedia` on a mic-less machine
+
+A camera request that also wants audio is retried video-only when the combined request fails on
+`NO_DEVICE`/`PERMISSION_DENIED`, so a machine with no microphone still gets a (silent) video take
+and the surface can say so via `audioDegraded`. Cost: a second prompt-free `getUserMedia` on those
+machines. Accepted — the alternative is reporting "No camera device available" to someone whose
+camera is fine, which is simply false. `DEVICE_BUSY` deliberately does NOT retry.
+
+### 58f. `sizeBytes` is absent on sample captures, and duration is the recorded figure
+
+`toSampleCapture` reports no `sizeBytes`: nothing measured the bundled files at runtime, and a
+hard-coded byte count in P4.5's media-item info panel would be a number nobody verified. Its
+`durationSec` (4s) is a property of the committed asset, regenerable from
+`tools/sample-media/README.md`. A live recording's `durationSec` is the RECORDED duration (paused
+time excluded), not the wall time of the take.
+
+### 58g. Media library / delete revocation is P4.5's to wire
+
+`revokeCapturedUrls(io, urls)` exists in `object-urls.ts` with tests and **zero callers** — it is
+the counterpart of `handOff()`: once the store owns a capture's URL, `deleteMedia` is the only
+thing that can revoke it. Left unwired rather than speculatively hooked into the store, since P4.5
+owns the delete flow.
+**Trigger:** P4.5, when `deleteMedia` gets its UI — call it from the bridge's delete handler. If
+P4.5 ships without it, a deleted photo's bytes stay pinned for the life of the tab.
+
+### 58h. No settings surface for capture quality
+
+The phone's `useMediaCaptureSettings` drives video resolution, codec, shutter sound, max duration
+and GPS-in-media (ui-mapping 09). The demo pins the browser defaults and the phone's 1-hour ceiling
+instead — same posture P2.3 took with `buildGpsConfig`'s `balanced`/30s.
+**Trigger:** P7.1 (Settings shell) — add a Media pane alongside Location and thread the values
+through `UseMediaCaptureOptions`.
+
+### 58i. `MediaItem.url` is optional and `snapshotOf` strips `blob:` URLs — SNAPSHOT_VERSION 6
+
+Recorded here because it is the one P4.1 change outside the media module. Media bytes are never
+persisted (plan §5 P4.1 / D2), so the write side drops object URLs and a restored capture renders
+`MEDIA_EXPIRED_NOTICE`. Making `url` optional is a field WIDENING — the drift direction the
+snapshot guard's compile-time devices explicitly do not catch (the file's own R-30 note) — so the
+version and key suffix moved together, and the maximal round-trip fixture switched its media URLs
+to bundled sample paths so `url`/`poster` remain part of its "no optional silently dropped" pin.
+Any further `MediaItem` shape change must bump again.
