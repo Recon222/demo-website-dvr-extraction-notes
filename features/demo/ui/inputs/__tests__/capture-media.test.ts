@@ -218,21 +218,50 @@ describe('listCaptureDevices', () => {
       mediaDevices: devices({ enumerateDevices: async () => Promise.reject(domError('NotAllowedError')) }),
     })
     expect(result.devices).toEqual([])
-    expect(result.failure).toMatchObject({ code: 'PERMISSION_DENIED' })
+    expect(result.failure).toMatchObject({ code: 'DEVICE_LIST_UNAVAILABLE' })
   })
 
-  it('reports UNSUPPORTED with no API at all', async () => {
+  it.each([
+    ['NotAllowedError'],
+    ['NotFoundError'],
+    ['NotReadableError'],
+    ['SomeFutureError'],
+  ])('reports the LIST failing whatever %s the enumeration rejected with (§66d)', async (name) => {
+    // The cause distinction `classifyCaptureError` would draw is unusable here: a denied,
+    // absent or broken enumeration all leave the visitor with the same fact and the same
+    // non-options. Classifying it borrowed sentences about opening a camera — rendered under a
+    // live viewfinder, every one of them named the wrong subject.
+    const result = await listCaptureDevices('camera', {
+      mediaDevices: devices({ enumerateDevices: async () => Promise.reject(domError(name)) }),
+    })
+    expect(result.failure?.code).toBe('DEVICE_LIST_UNAVAILABLE')
+  })
+
+  it('reports the list failing with no API at all', async () => {
     expect(await listCaptureDevices('microphone', { mediaDevices: null })).toMatchObject({
       devices: [],
-      failure: { code: 'UNSUPPORTED' },
+      failure: { code: 'DEVICE_LIST_UNAVAILABLE' },
     })
   })
 
-  it('reports UNSUPPORTED when enumerateDevices is missing from the API object', async () => {
+  it('reports the list failing when enumerateDevices is missing from the API object', async () => {
     const partial = { getUserMedia: vi.fn() } as unknown as MediaDevicesLike
     expect(await listCaptureDevices('camera', { mediaDevices: partial })).toMatchObject({
-      failure: { code: 'UNSUPPORTED' },
+      failure: { code: 'DEVICE_LIST_UNAVAILABLE' },
     })
+  })
+
+  it('never says the capture failed — the stream this runs after is live', async () => {
+    // §66d in one assertion: this failure is reported alongside a WORKING viewfinder, so a
+    // sentence about the camera not opening or nothing being captured is simply wrong.
+    for (const facility of ['camera', 'microphone'] as const) {
+      const result = await listCaptureDevices(facility, {
+        mediaDevices: devices({ enumerateDevices: async () => Promise.reject(domError('NotAllowedError')) }),
+      })
+      const message = result.failure?.message ?? ''
+      expect(message).not.toMatch(/nothing was captured|could not be opened|could not be started/)
+      expect(message).toMatch(/list/)
+    }
   })
 })
 

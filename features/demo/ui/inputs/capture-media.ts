@@ -176,13 +176,18 @@ export async function listCaptureDevices(
   deps: CaptureStreamDeps,
 ): Promise<DeviceListResult> {
   const { mediaDevices } = deps
+  // §66d: both branches report the LIST failing, not the device. `classifyCaptureError`'s
+  // vocabulary is about opening hardware, and its sentences say so — rendered under a live
+  // viewfinder to explain a missing picker, every one of them names the wrong subject. Same
+  // correction the recorder paths already carry: classify only where the DOMException names
+  // decode to something the caller can act on.
   if (!mediaDevices || typeof mediaDevices.enumerateDevices !== 'function') {
-    return { devices: [], failure: captureFailure('UNSUPPORTED', facility) }
+    return { devices: [], failure: captureFailure('DEVICE_LIST_UNAVAILABLE', facility) }
   }
   try {
     return { devices: toCaptureDevices(await mediaDevices.enumerateDevices(), facility), failure: null }
-  } catch (error) {
-    return { devices: [], failure: captureFailure(classifyCaptureError(error), facility) }
+  } catch {
+    return { devices: [], failure: captureFailure('DEVICE_LIST_UNAVAILABLE', facility) }
   }
 }
 

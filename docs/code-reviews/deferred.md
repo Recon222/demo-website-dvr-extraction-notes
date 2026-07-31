@@ -3494,7 +3494,7 @@ place where copy/behaviour parity was deliberately not taken: the web role alrea
 change — including R-9's new stop-gate reason, which is itself a `role="status"`. Recorded here so
 a future parity sweep does not "restore" it.
 
-### 66d. NEW FINDING (not fixed here) — the device-list failure borrows a sentence about opening a camera
+### 66d. The device-list failure borrowed a sentence about opening a camera — ✅ RESOLVED
 
 Surfaced while writing R-29's pin. When `enumerateDevices` rejects, `listCaptureDevices` builds
 its failure through `captureFailure(classifyCaptureError(error), 'camera')`; a generic rejection
@@ -3510,6 +3510,38 @@ the message through `captureFailureMessage` rather than as a literal, so it foll
 wherever it lands.
 **Trigger:** P4.1's next pass, or P7 — add the code, and this screen's line changes only in what
 it reads.
+
+**✅ RESOLVED (P4.1 rider, `parity/p4-fix-66d`):** a new `CaptureErrorCode`, not a subject-keyed
+message. `DEVICE_LIST_UNAVAILABLE` — *"This browser wouldn't list the available cameras, so
+there's nothing to switch between."*
+
+Chose the code over threading a subject argument through `captureFailureMessage` because the
+subject is not a second axis on the existing failures: `listCaptureDevices` reports one fact
+with one consequence, and every other code in the union describes opening or using hardware.
+A `(code, facility, subject)` signature would have made every call site declare a subject that
+only one of them can vary.
+
+**BOTH** of `listCaptureDevices`' branches now report it — the rejection AND the
+missing-`enumerateDevices` case, which was returning `UNSUPPORTED` ("doesn't expose a camera to
+this page") and had the same wrong-subject defect one line up. The cause distinction
+`classifyCaptureError` drew is deliberately discarded: a denied, absent or broken enumeration
+leave the visitor with the same fact and the same non-options, and the DOMException vocabulary
+is about opening hardware. This is the same correction the recorder paths already carry (§65g's
+neighbourhood) — classify only where the decoded names mean something the caller can act on.
+
+Copy stayed single-sited per §58's rule: one `case` in `captureFailureMessage`, and both screens
+render `deviceFailure.message` unchanged. Neither `MediaCaptureScreen.tsx` nor
+`OcrCaptureScreen.tsx` was touched; only their R-29 pins, which named the old code, moved to the
+new one (a mechanical key change in test files — the OCR twin needed nothing more, so P4.7's
+file stayed shut). `permissionAfterFailure` names the new code explicitly rather than absorbing
+it into a `default`, keeping the switch total even though the path is unreachable for it — a
+device-list failure never runs through the permission derivation, because the stream is fine.
+
+Pinned: four rejection names all resolving to the one code, both no-API branches, a sentence
+assertion that the message names the list and never says the capture failed, and a screen-level
+arm that no "nothing was captured / could not be opened" text renders under a live viewfinder.
+Mutation-probed — restoring `classifyCaptureError` on the rejection reddens nine arms across
+four files.
 
 ### 66e. R-3 is P4.1's, and is NOT in this branch
 

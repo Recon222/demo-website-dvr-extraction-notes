@@ -464,7 +464,7 @@ describe('device picker', () => {
     await grant()
 
     expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
-    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('DEVICE_LIST_UNAVAILABLE', 'camera'))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
   })
 })
