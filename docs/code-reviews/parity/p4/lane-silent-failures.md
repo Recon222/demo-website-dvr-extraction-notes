@@ -383,3 +383,151 @@ Async cancellation / stale-write safety: **gap found** — S-2 (no generation to
 Operator breadcrumbs intact: **yes** — no prior review's `console.warn`/`console.error` removed
 
 **Verdict: REVISE**
+
+---
+
+# Fix-delta r1
+
+**Fix diff:** `d09a291..cd819ee` on `feat/parity-p4` (six merges: capability, photovideo, audio, ocr, library, + the `§66d` rider `faba6a0`).
+**Verified against:** source traces, not commit messages. Ledger §§65–69 read for stated intent.
+
+| | Count |
+|---|---|
+| FIXED | 6 |
+| PARTIAL | 0 |
+| UNFIXED | 0 |
+| New (fix-introduced / fix-adjacent) | 2 minor |
+
+**Verdict: APPROVE** — both majors closed at the root, all four minors closed, two new minors are transient/observability-grade.
+
+---
+
+## S-1 → R-1 — **FIXED** (was major/HIGH)
+
+`DemoExperience.tsx:721-738` now carries the guard, the notice, the phone's success notice, and the boolean contract; `AudioRecordingFlow.tsx:206-219` consumes it.
+
+Traced end to end, both directions:
+
+- **Refused (no location):** `handleSave` → `saveAudioNote` → `!st.currentLocationId` → `setNotice(CANNOT_SAVE_AUDIO_NOTICE)` → `closeLaunch()` → `return false`. Back in `handleSave`, `accepted === false` → **`handOff()` is not called**, so the registry still owns the `blob:` URL; `closeLaunch` unmounts the flow → `useMediaCapture`'s unmount effect runs `revokeAll()` and frees it. **Answering the question directly: after a refusal the capture hook's registry owns the URL, and its unmount sweep is what releases it — nothing is stranded and nothing leaks.** Pinned by a mutation-probed test that asserts the refused URL appears in `revoked` after unmount (`AudioRecordingFlow.test.tsx:228-244`).
+- **Taken:** `addMedia(item)` → `setNotice(audioSavedNotice(…))` → `closeLaunch()` → `return true` → `handOff()` releases without revoking, so the stored note keeps its bytes.
+- The notice renders at `DemoExperience.tsx:2113`, outside the launch-screen switch, so it survives the `closeLaunch()` that fires in the same handler. Both arms pinned (`DemoExperience.audio.test.tsx:79`, `:108`).
+
+The **success notice was added too** (`Audio Saved — <name> saved to case`, phone `audio-recording.tsx:184-189`), which closes the half of S-1 that made the swallow invisible: success and failure are no longer byte-identical from the visitor's seat.
+
+Bonus, unrequested and correct: `addMedia`/`deleteMedia` now take the item and derive the bucket (R-23, `create-store.ts:1071-1084`), removing the `kind !== item.kind` mismatch class that could have filed a row under one tab and deleted it from another.
+
+## S-2 → R-4 — **FIXED** (was major/HIGH), including the bonus
+
+`OcrCaptureScreen.tsx:183-192` (`readGen`), `:250-290` (`stale()` at :254, checked after both awaits; generation-scoped `finally` at :287), `:228-240` (the supersession point), `:294-305` (`pickSample`), `:592-599` (the three sample buttons now `disabled={reading}`).
+
+Every supersession path bumps the token **synchronously in the handler**, before the bridge can set a result: `runLiveCapture` (`++readGen.current` first statement), `pickSample`, `onShutterPress`'s sample branch, and the result effect. `stale()` = `!aliveRef.current || readGen.current !== gen` is checked after the grab **and** after `recognize`, so a superseded read writes neither `onLiveRead` nor `setNotice`. The original sequence is now closed twice over — belt (buttons held while `reading`) and braces (token).
+
+**The bonus fix is real and necessary, not decorative.** The new `finally` deliberately releases `reading` only for its own generation (`:287`) — which by itself would strand the shutter held after a supersession. `:237-239` releases it at the supersession point, together with `setNotice(null)`. I checked every supersession path terminates in a result whose effect performs that release: `pickSample`/`onCapture` always produce a result (`runOcrRead` sets one on both arms), and both are unreachable while `reading`. No stranding path found.
+
+The "notice out of context" half is resolved by clearing at supersession rather than by rendering the notice on the confirm stage — the better of the two shapes I proposed, since the message described a read that no longer matters. Four arms pinned (`OcrCaptureScreen.live.test.tsx:237, :269, :296, :328`).
+
+## S-3 → R-3/R-31 — **FIXED** (was minor/MEDIUM), both halves, at the root
+
+The stored `sampleOnly` boolean is gone. `engine/logic/media/capability.ts` answers per operation (`captureAvailability`, `assertNever`-closed over `MediaKind`) and per binding reason (`sampleFallbackNotice`, priority no-device → no-storage → no-recorder).
+
+- **Half 1** (`MediaCaptureScreen.tsx:286`): `modeIsSample = capability.modeFor(mode) === 'sample'`, so on a `{stream: true, record: false}` browser video mode takes the sample branch and `startRecording`'s `UNSUPPORTED` sentence is now unreachable from that path — photo mode still goes live, which is the correct per-operation answer.
+- **Half 2** (`:867`): `ReviewStage` takes `sampleNotice` instead of hard-coding `SAMPLE_MEDIA_NOTICE.camera`, and the `{objectUrls: false}` case gets the new facility-independent `NO_CAPTURE_STORAGE_NOTICE` (`samples.ts:96-107`) — which names neither the camera nor the recorder, because both would be false there. The review stage no longer contradicts the unavailable panel's own reasoning.
+
+## S-4 → R-13 — **FIXED** (was minor/MEDIUM)
+
+`capture-media.ts:382-393` (`RecorderDeps.onEnded`), `:466-473` (`selfEnded = !settled && !aborted && resolvePending === null`, read *before* `settle` flips it), `useMediaCapture.ts:345-424` (`finishTake` split, `onRecorderEnded`).
+
+Verified the three ways a recorder reaches `onstop` are discriminated correctly: a visitor Stop sets `resolvePending` before `instance.stop()` (→ not self-ended); `abort()` sets `aborted` (→ not self-ended); a track ending has neither (→ self-ended). `onRecorderEnded` banks the state at the moment of the end, so `applyRecording` freezes the readout, the tick effect unmounts with the phase, the badge stops, and `durationSec = recordedMs(stopped, atMs)` reads `accumulatedMs` — **the recorded length, not the visitor's reaction time**. Both my sub-claims (a climbing badge over a dead recorder, and an overstated `durationSec` stamped on a saved item) are closed.
+
+Double-finish is impossible: `onRecorderEnded` applies the stopped state synchronously, so a subsequent `stopRecording` sees `next === recordingRef.current` and returns null; `finishTake` also nulls `handleRef.current` before awaiting.
+
+## S-5 → R-21 — **FIXED** (was minor/LOW)
+
+`AudioRecordingFlow.tsx:158-177`: the microphone release moved out of `handleStop` into an effect on `captured !== null && stream !== null`, so the capability layer's 1-hour auto-stop — which never passes through `handleStop` — gets the same release. §61g's invariant now holds on every path. The failed-stop arm still deliberately keeps the mic (no take ⇒ effect does not fire), pinned. Checked `handleRecordAgain` for a close/open race: `discard()` and `open()` batch into one commit with `captured === null`, so the effect early-returns and cannot close the stream it just reopened.
+
+## S-6 → R-22 — **FIXED** (was minor/LOW)
+
+`capture-media.ts:300-310` (`drawImage` in a try), `:311-320` (`toDataURL` in a try), `:342-355` (`toBlob`'s synchronous throw resolves `null` instead of rejecting the executor). All three now route into the existing typed `FRAME_GRAB_FAILED`, so `grabVideoFrame`'s outcome union is genuinely total and neither catch-less call site can meet a floating rejection. The dead-shutter-with-no-notice outcome is gone.
+
+---
+
+## §66d (assigned) — **FIXED, and the author's two judgement calls are endorsed**
+
+`permissions.ts:69-79` + `:119-122` (new `DEVICE_LIST_UNAVAILABLE` + its sentence), `capture-media.ts:176-192` (both branches).
+
+**Fixing both branches is right, and the missing-`enumerateDevices` branch was the worse of the two.** The rejection branch printed `UNKNOWN`'s *"The camera could not be opened — nothing was captured"*; the missing branch printed `UNSUPPORTED`'s *"This browser doesn't expose a camera to this page — nothing was captured"* — under a live viewfinder, that is the same falsehood S-3 was filed for, and the ledger's original §66d text only named the rejection half. Fixing one and leaving the other would have left the more-reachable branch lying. The new sentence names the list, states the consequence ("nothing to switch between"), and claims nothing about the capture — correct.
+
+**Bypassing `classifyCaptureError` is right.** Its seven codes each decode to a statement about opening or using hardware, and four of them end "nothing was captured" — which is false here, since nothing was attempted. The discarded distinction is also not actionable: `enumerateDevices` does not reject on permission (it returns id-less placeholders, which `toCaptureDevices` already filters), the stream is open and working, and denied/absent/broken all leave the visitor with the same non-options. This is the same rule the recorder paths already apply — classify only where the DOMException names decode to something the caller can act on.
+
+Also verified: the code can only ever reach `deviceFailure` (its sole producer is `listCaptureDevices`, whose only consumer is `useCaptureStream.open` → `setDeviceFailure`), so it never runs through `permissionAfterFailure` — which names it anyway to keep the switch total. Both screens render `deviceFailure` on its own line, distinct from `failure`.
+
+One residual, filed as **N-1** below.
+
+---
+
+## New findings
+
+### N-1 — [minor (LOW)] §66d discards the `enumerateDevices` rejection object with no operator breadcrumb
+
+**File:** `features/demo/ui/inputs/capture-media.ts:188-191`
+
+```ts
+} catch {
+  return { devices: [], failure: captureFailure('DEVICE_LIST_UNAVAILABLE', facility) }
+}
+```
+
+The previous code at least threaded the DOMException name through `classifyCaptureError`, so the resulting sentence differed by cause and an operator could infer what happened. The collapse to one visitor-facing outcome is correct (above) — but the error object is now dropped entirely: unbound `catch`, no log, nothing. Denied, absent, and genuinely-broken enumeration are now indistinguishable **from every seat**, including the console.
+
+This is the exact pattern `geocode.ts`'s `console.warn` was added for by review L2 — *"an expired/rate-limited token would otherwise fail identically to 'no match', forever, with no signal"* — and the same reasoning behind `extract-client.ts`'s non-503 warns. When this lane's rubric allows a cause collapse, it is on the condition that the operator keeps a breadcrumb; here that condition is newly unmet.
+
+**Fix:** `catch (e) { console.warn('[demo] enumerateDevices failed — the device picker will be absent', e); … }` (or `NODE_ENV`-gated, matching `generateExtractedScopes`). One line, no behaviour change.
+
+### N-2 — [minor (LOW)] R-7's reopen window re-opens S-3's exact sentence on a new path
+
+**Files:** `features/demo/ui/screens/MediaCaptureScreen.tsx:241-268` (the new latch), `:288-315` (`onShutter`, not gated on `isOpening`), `:350-358` (the shutter's blocked-reason machinery, which does not include `isOpening`)
+
+R-7 correctly releases the camera while a capture is under review. On **Retake** the latch reopens it — but the camera stage renders immediately, with `permission === 'granted'` and `stream === null` for the duration of the reopen, and the shutter is live throughout that window:
+
+- **photo mode** → `capability.modeFor('photo')` is still `'live'` (it keys off `permission`, not off `stream`), `videoRef.current` exists, so `capturePhoto` grabs from a `<video>` with `srcObject === null` → `videoWidth === 0` → *"This browser could not turn the camera frame into an image — nothing was captured."*
+- **video mode** → `startRecording` finds `streamState.stream === null` → `captureFailure('UNSUPPORTED', 'camera')` → **"This browser doesn't expose a camera to this page — nothing was captured."** — the very sentence R-3 removed the old trigger for, now reachable through a window R-7 introduced.
+
+Both are transient (one press, self-correcting on the next) and neither loses data, hence minor. But this is the wrong-cause-copy class the round just spent two fixes eliminating, and the machinery to close it shipped in the same round.
+
+**Fix:** fold it into R-9's existing blocked-reason path — `isOpening ? 'Reopening the camera…' : stopBlocked ? … : busy ? …` for `shutterBlockedReason`, plus an `if (isOpening) return` alongside `if (busy) return` at the top of `onShutter` (the reason line is display-only; the refusals live in the handler). The sibling `OcrCaptureScreen` does not have this gap — its shutter falls back to the honestly-labelled sample path when `!stream`.
+
+*Checked and clear on the same latch:* a reopen that **fails** is always surfaced with a live retry — `PERMISSION_DENIED` → `permission: 'denied'` → `PermissionStage` with the failure text and *Try again*; `NO_DEVICE`/`UNSUPPORTED` → `'unavailable'` → the honest no-camera panel, and `modeFor` correctly flips to `'sample'`; `DEVICE_BUSY`/`UNKNOWN` → `'prompt'` → `PermissionStage` with the failure text and *Grant*. The latch also never fires for a visitor who never had a stream (sample path), so no surprise permission prompt.
+
+---
+
+## Ledger check
+
+**§69h exists with a trigger** (`deferred.md:3744-3753`) — requirement met. One correction for the record: its premise *"The OCR entry point is location-gated in practice (the Time Offset screen requires an open location), which is why it has never fired"* is **not accurate**. `onCaptureOcr` (`DemoExperience.tsx:1706-1708`) is ungated, `TimeOffsetScreen` renders against `EMPTY_FORM` with no location, and the rail's `Time Offset` row is one ungated `setView` from boot — the identical reachability that made R-1 a blocker. Its stated consequence is also understated: the staged read survives on `capture.*` only until `openLocation`, which calls `blankCapture()` — so the read *is* destroyed the moment the visitor does the one thing that would have made it usable.
+
+Still correctly out of scope (pre-existing, untouched by P4, and by the diff-scope rule not a P4 finding). But the deferral's justification should be corrected, and the trigger is worth strengthening from "next time it is open" to the next round, since R-1's guard pattern is now sitting one file away.
+
+---
+
+## Fix-delta blast-radius sweep — clear
+
+- **R-2's revocation placement** (`DemoExperience.tsx:1092-1099`): sweeps `collectMediaUrls(doomed)` **before** `deleteCase`/`deleteLocation`, same shape as `deleteMediaItem`, never gating the store write on the revocation. `doomed` comes from the render-scope `locations` (`:353`, a `useStore` selector) and both store actions early-return only on a non-existent id — which cannot happen, since `pendingDelete` is armed from a live row. `revokeCapturedUrls` still filters on `blob:`, so bundled `/demo-media` sample paths ride through untouched. No path revokes a URL that stays on screen.
+- **R-13's `finishTake` split**: nulling `handleRef.current` before the await means the unmount sweep no longer `abort()`s a recorder whose `stop()` is in flight — checked, and harmless: the pending `stop()` resolves, `abortedRef` short-circuits before any URL is minted, and the handle plus its chunk array become garbage together.
+- **R-14's `open`/`selectDevice` wrappers**: clear `ownFailure` at the start of a fresh acquisition, which is the correct moment; no failure the visitor still needs is cleared early.
+- **R-19** (`useLongPress` `contextMenu: false` for destructive callbacks), **R-18** (tablist → toggle group), **R-24** (`isMediaAvailable` as a type predicate), **R-16** (dropping `aria-live` from the recording badge), **R-11** (Matroska extension): reviewed for swallow shapes — none introduced. R-24's extra `canFullscreen(fullscreen)` guard at the render site is belt over an already-gated control, not a new silent arm.
+- **`prefersReducedMotion` move** to `audio-analyser.ts`: one reader, no behaviour change.
+
+## Fix-delta summary
+
+| | Count |
+|---|---|
+| FIXED | 6 of 6 |
+| PARTIAL | 0 |
+| UNFIXED | 0 |
+| New minor (LOW) | 2 |
+
+Fallback honesty: **yes** — S-3's two false sentences and §66d's two wrong-subject sentences are all gone; N-2 is a transient re-entry of one of them on a new path.
+Failure-cause distinctions: **preserved**, with one endorsed deliberate collapse (§66d) whose operator breadcrumb is missing — N-1.
+Async cancellation / stale-write safety: **closed** — `readGen` is the `importGen` pattern, correctly applied at every supersession point.
+Operator breadcrumbs: **one lost** (N-1); none of the prior reviews' `console.warn`s were removed.
+
+**Fix-delta verdict: APPROVE.**

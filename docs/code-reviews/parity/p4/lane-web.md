@@ -257,3 +257,122 @@ Style-convention adherence: **correct half** throughout; lifted rules and device
 **Verdict: BLOCK** (W-1). W-2/W-3/W-4 are single-site fixes with in-repo reference patterns; the six minors are independent.
 
 Notes: this is an unusually clean platform diff for its size — the capability layer's injection seams, `read*()` probes and unmount sweeps are the right shape throughout, and every finding above is a *call site* that diverged from a pattern the same PR establishes elsewhere, not a design problem.
+
+---
+
+## Fix-delta r1
+
+**Fix diff reviewed:** `d09a291..cd819ee` on `feat/parity-p4` (HEAD `cd819ee`) · same worktree.
+**Gates re-run here:** `pnpm build` → `/demo` **107 kB** First Load JS, shared 106 kB — unmoved. `pnpm vitest run features/demo/ui features/demo/engine/logic/media` → see the fleet-load note at the end.
+
+**Disposition: 10 FIXED · 0 PARTIAL · 0 UNFIXED · 1 new.**
+
+| Lane finding | Routed as | Commit | Disposition |
+|---|---|---|---|
+| W-1 (blocker → top-major R-2) | R-2 | `2e7a473` | **FIXED** |
+| W-2 | R-7 | `41dbef3` | **FIXED** |
+| W-3 | R-8 | `1751778` | **FIXED** |
+| W-4 | R-9 | `c4d005b` | **FIXED** |
+| W-5 | R-16 | `dac7cd7` | **FIXED** |
+| W-6 | R-17 | `72b6cab` | **FIXED** |
+| W-7 | R-18 | `6e7049e` | **FIXED** |
+| W-8 | R-15 | `f26ada0` | **FIXED** |
+| W-9 | R-19 | `026876a` | **FIXED** |
+| W-10 | R-20 | `72b6cab` | **FIXED** |
+
+### W-1 → R-2 — FIXED
+
+`DemoExperience.tsx:1093-1099`: `confirmDelete` now collects the doomed locations **before** the store write and sweeps them.
+
+```ts
+const doomed = kind === 'case' ? locations.filter((l) => l.caseId === id) : locations.filter((l) => l.id === id)
+const io = readBrowserObjectUrls()
+if (io !== null) revokeCapturedUrls(io, collectMediaUrls(doomed))
+```
+
+Both cascades verified: the case arm filters on `caseId` (matching `create-store.ts:539`, which drops every location of the case) and the location arm on `id`. Ordering verified — the sweep is above both `store.getState().delete*` calls, i.e. at the last moment the rows are still reachable, and it is **not** gated on the object-URL API being present (`io === null` skips the revoke, never the delete). `collectMediaUrls` (`engine/logic/media/captured.ts:188-197`) walks all three buckets and pushes **both** `url` and `poster` per item, so the two cascades cannot disagree about coverage; sample paths pass through unfiltered and are no-op'd by `revokeCapturedUrls`' own `blob:` check, keeping that rule in one place. Extracting it as an engine helper rather than two inline loops is the right call and closes the drift the finding was really about.
+
+### W-2 → R-7 — FIXED
+
+`MediaCaptureScreen.tsx:241-269`: `close` is now destructured (`:212`) and the `OcrCaptureScreen` effect is ported verbatim, latch included — close when `captured` becomes non-null, reopen only the stream this screen closed. Both parts of the finding are covered: the camera **and** the unconditional audio track (§58e) are released, and the reopen latch means a sample-path visitor is never met with a permission prompt they did not ask for. Pinned three ways (`MediaCaptureScreen.test.tsx:664-706`): every track stopped when the review opens, a live replacement stream on Retake, and `getUserMedia` never called at all on the sample path — the last is the latch's own arm.
+
+Verified against the sibling paths rather than assumed:
+- **Recorder ordering** — `finishTake` resolves the capture before `captured` is set, so the effect never closes a stream out from under an assembling take.
+- **R-3 interaction** — with per-operation capability, a `{stream: true, record: false}` browser takes `captureSample('video')` while a live stream is open; the effect then closes it and latches, and Retake reopens. Consistent, not a new hole.
+- **R-21** — the audio flow was restated as the same invariant on `[captured, stream]` (`AudioRecordingFlow.tsx:150-170`), so the 1-hour auto-stop now releases too. The two capture surfaces and the OCR screen are finally on one shape.
+
+### W-3 → R-8 — FIXED
+
+`MediaLibrarySheet.tsx:337-347`: `tabIndex={-1}` on the layer, `layerRef.current?.focus()` on mount, and the opener restored on unmount behind `if (opener instanceof HTMLElement && opener.isConnected)`. This is `AlertDialog.tsx:55-61` verbatim in shape, which is what the finding asked for. The `isConnected` guard is load-bearing here beyond the deleted-row case the commit names: it is also what makes the §63e residual safe — Escape inside the layer unmounts the sheet **and** the opener, and the guard turns the restore into a no-op instead of a throw. Three arms, with the two effects independently mutation-probed.
+
+**Disclosed deviation — dropping `autoFocus`: ACCEPTED.** It solved entry for one of two branches and exit for neither, and having two entry paths in one component is precisely how the photo branch got missed. Focusing the container instead announces the dialog's `aria-label` (`Fullscreen photo: …`) rather than dropping the visitor straight onto a video transport with no context, and the `<video controls>` remains Tab-reachable **inside** the dialog, so nothing was lost. One path for both kinds is the stronger shape.
+
+### W-4 → R-9 — FIXED
+
+`MediaCaptureScreen.tsx:344-357` + `:500-506` + `:594-615`: the shutter takes `aria-disabled` + `aria-describedby` with the refusal guarded in `onShutter` (`:288`, `:307` — both guards intact, so the existing "refuses Stop until the take can produce bytes" mutation probe still binds), and a `role="status"` line now states the reason. Both refusals are named, not just the one flagged: `'Stop unlocks after half a second of recording.'` and `'Finishing the last capture…'` for `busy`. `PermissionStage`'s Grant button took the same treatment (`:682-712`) with a `Waiting for your browser's camera permission…` status line, correctly with **no** handler guard — `useCaptureStream.open` already early-returns on `openingRef`, so a second press is idempotent rather than refused. §60f amended in the same commit to stop describing the defective mechanism as the decision; §61b's claim is now true of both surfaces.
+
+**Disclosed deviation — §66b, mode pill and Switch camera keep native `disabled`: ACCEPTED, and correctly reasoned.** The failure shape is specifically *the control the visitor just pressed becoming `disabled` under their focus*; starting a recording requires activating the shutter, so focus is on the shutter and never on those two. For a control that becomes unavailable while focus is elsewhere, `disabled` is the correct HTML — announced as unavailable, correctly out of the tab order — and converting them would mint two `aria-disabled` states with no refusal to describe. I checked the one way focus could be on them at the transition (tab to Switch camera, then activate the shutter) and it requires focus to move to the shutter first. The §66b trigger is the right place to leave it.
+
+### W-5 → R-16 · W-7 → R-18 · W-8 → R-15 · W-9 → R-19 — FIXED
+
+- **R-16**: `aria-live="polite"` gone from the badge (`MediaCaptureScreen.tsx:441-443`); `role="timer"` + the live `aria-label` kept, so the elapsed time stays readable on demand. §66c records it as a deliberate divergence from the phone's `accessibilityLiveRegion`, which is the right call — and it does not create an announcement void: R-9's stop-gate `role="status"` fires at exactly the start-of-recording moment and the shutter's `aria-label` flips to `Stop recording`.
+- **R-18**: `role="group"` + `aria-label="Media type"` + `aria-pressed` (`MediaLibrarySheet.tsx:198-207`), matching the mode pill this PR already ships. The phone's dynamic accessible name is untouched, so what a screen reader *says* is identical — only the navigation promise is now true. A new arm asserts `tab`/`tablist`/`tabpanel` are all absent, so re-adding the roles without the model reddens.
+- **R-15**: `grabVideoFrame` gained `dataUrlQuality`, defaulting to `quality` so no other caller moves; `OcrCaptureScreen.tsx:98` sets `OCR_STRIP_DATAURL_QUALITY = 0.85` while `:92` keeps the recognition blob at the phone's 1.0 (`:264-265`). Pinned at both encoders' arguments **and** at the screen. Against my measurement table this moves the persisted strip from ~163 KB base64 to well inside §64a's stated 35–80 KB budget, on the quota path whose overflow clears the whole snapshot.
+- **R-19**: new `contextMenu?: boolean` option defaulting to `true` (both tray callers untouched), `false` at `MediaLibrarySheet.tsx:551`. The opt-out also stops `preventDefault`ing, which is better than I proposed — suppression exists so the OS menu cannot cover what the hold opened, and when nothing opens, taking the menu away would be a second unrelated loss. The touch hold's trailing `contextmenu` is still consumed and still suppressed. Three rules, three separately-mutated arms, per the §57a house rule for this primitive.
+
+### W-6 → R-17 · W-10 → R-20 — FIXED
+
+`AudioRecorderScreen.tsx` now takes a `reduceMotion` prop (`:83-90`), threaded from `AudioRecordingFlow.tsx:106` (`deps?.reducedMotion ?? prefersReducedMotion()`) — the same value that already drives the meter's tick rate, so the two readers cannot disagree. All three infinite `blinkDot` loops are gated (`:179-186`, `:211`), as are the level-fill (`:242`), the record-button morph, and the bar glide. `prefersReducedMotion` moved to `audio-analyser.ts:134-145` beside the other browser reads, leaving one reading in the codebase. Prop-over-hook is the right call for this screen specifically — it is prop-driven end to end, which is what lets the reduced-motion state be rendered in a test at all.
+
+R-20: `Bar` (`:355-393`) is now `transform: scaleY()` + `transformOrigin` on a full-height box, factors `value * 0.46` / `value * 0.18` — the previous percentages over the same half-box, so the geometry is byte-identical and this is a rendering change rather than a restyle (pinned at the exact value). Composited, so 80 nodes at 16 Hz cost the compositor instead of style+layout+paint for the whole take. `overflow: hidden` on the two wells is harmless belt-and-braces given `transformOrigin` and a ≤1 scale. R-20's second half landed too: `readAudioTrackFormat` is memoised on `[stream]` (`AudioRecordingFlow.tsx:128`).
+
+---
+
+### New — fix-introduced
+
+#### [MINOR] W-11 — the review-stage reopen discards the camera the visitor chose
+
+**File:** `features/demo/ui/screens/MediaCaptureScreen.tsx:266` (introduced by R-7)
+**Pre-existing twin, same one-token fix:** `features/demo/ui/screens/OcrCaptureScreen.tsx:246`
+
+```ts
+} else if (reopenAfterReviewRef.current) {
+  reopenAfterReviewRef.current = false
+  void open()            // ← no deviceId
+}
+```
+
+**Issue.** `useCaptureStream.close()` deliberately preserves `devices` and `selectedDeviceId` (it clears only `stream`/`hasAudio`/`audioDegraded`), but the reopen calls `open()` with no argument. `captureConstraints` then builds `{ video: true }` and the browser opens its **default** camera, not the one the visitor selected. `openedDeviceId(stream, undefined)` reads the new track's real id back, so `selectedDeviceId` and the on-screen device caption (`:397`, `:519-521`) silently follow to the default — the UI stays truthful about which camera is live, but the visitor's choice is gone with no indication it was discarded.
+
+**Concrete failure.** Laptop with a built-in and an external webcam. Press **Switch camera** (`:359-364`) to reach the external one — the caption confirms it. Take a photo; R-7 closes the stream for the review. Press **Retake**: the viewfinder comes back on the *built-in* camera and the caption changes under the visitor, who now has to press Switch camera again for every retake. Before R-7 the stream was never closed mid-screen, so this state was unreachable on this surface — it is introduced by the fix. `OcrCaptureScreen` has carried the same shape since P4.7 (its Retake reopen, with its own Switch camera control at `:609-620`); one fix covers both.
+
+**Not test-covered.** `MediaCaptureScreen.test.tsx:679-692` asserts the reopen happened and that the replacement's tracks are live; nothing pins device identity across the round trip.
+
+**Fix.** `void open(selectedDeviceId ?? undefined)` at both sites. Worth naming the trade-off so the author can choose deliberately: `open(deviceId)` pins with `{ deviceId: { exact } }`, which by design (`capture-media.ts:110-112`) fails loudly as `NO_DEVICE` if that camera was unplugged during the review — on `MediaCaptureScreen` that routes to the honest `unavailable` panel, which is the better of the two outcomes. The alternative — keeping the default-camera fallback but saying so — is a notice line, not a silent swap.
+
+---
+
+### Regression sweep — checked and clear
+
+Verified rather than assumed, so the next round need not re-walk these:
+
+- **Granted-but-no-stream dead end after a failed reopen (hypothesised, refuted).** R-7 makes "permission granted, stream closed" reachable on `MediaCaptureScreen` for the first time, which on the OCR screen needs §64h's *Restart camera* control. It needs none here: `permissionAfterFailure` (`permissions.ts:224-242`) moves `permission` off `granted` for **every** code — `NO_DEVICE`/`UNSUPPORTED` → `unavailable` (the honest no-camera panel + sample shutter), `PERMISSION_DENIED` → `denied` and `DEVICE_BUSY`/`UNKNOWN`/`FRAME_GRAB_FAILED` → `prompt` (both `PermissionStage`, which offers Grant/Try again). The two screens gate their viewfinders differently — OCR on `stream !== null` with a `granted` fallthrough, this one on `permission` — and both are covered.
+- **Announcement void after R-16.** None; see W-5 above.
+- **Self-ended recorder (R-13) vs. the two new release effects.** A recorder ended by its own tracks dying reaches `finishTake` → `captured` → both R-7 and R-21 effects fire `close()` on already-ended tracks, which is a no-op. No path where a take exists and the hardware stays held.
+- **R-14 (clear own failure on new acquisition) vs. R-7's reopen.** Retake clears a stale capture-failure notice as it reopens — correct, not a swallow: the failure it clears described the previous acquisition.
+- **`aria-disabled` shutter is now clickable while blocked.** Both guards survive in `onShutter` (`:288` busy, `:307` `canStop`), so the refusal is real and the mutation probe still binds.
+- **New `role="status"` regions.** Four now exist across the two capture surfaces; none is high-frequency (R-16 removed the only 1 Hz one), and the two on `MediaCaptureScreen` are mutually exclusive with the review/permission stages they do not render in.
+- **§66d (`DEVICE_LIST_UNAVAILABLE`).** Renders in the same `deviceFailure` slot on both screens; no a11y or perf surface change. Copy-taxonomy call, not my lane.
+- **Bundle.** `pnpm build` re-run: `/demo` 107 kB, shared 106 kB — unmoved by the fix round. Tesseract still lazy-chunked; no new dependency.
+
+**Observation, not a finding.** `AudioRecordingFlow.tsx:106` calls `prefersReducedMotion()` at render scope, so a fresh `MediaQueryList` is allocated on every render — ~16/sec while the meter ticks. Harmless (and marginally *more* reactive than the previous per-effect read, since there is still no `change` listener anywhere on this path), but a `useState` lazy initialiser or a `useMemo` would be the tidier shape if this file is touched again.
+
+**Also not re-filed:** no overlay in this feature traps focus — `MediaFullscreen`, `AlertDialog` and `ModalShell` all let forward Tab escape the dialog eventually. R-8 matched the established house idiom, which is what W-3 asked for; a real trap is a shared-chrome change across all three callers, not a call-site fix.
+
+### Fleet-load note on the test run
+
+My first pass (`features/demo/ui` + `features/demo/engine/logic/media`) reported **6 failed / 1579 passed**, all six tracing to `sampleFallbackNotice`. `git status` at that moment showed a concurrent lane's live mutation probe in `features/demo/engine/logic/media/captured.ts`; it was reverted moments later. Re-running the four affected files **solo** against the clean tree: **4 files / 106 tests passed**. Not a regression — recorded so the count is not mistaken for one.
+
+### Fix-delta verdict
+
+**APPROVE.** All ten of this lane's findings are fixed at the level they were filed, several with a better shape than proposed (R-19's menu-preservation, R-2's engine helper, R-21 generalising R-7's invariant). Both disclosed deviations are accepted on the merits. One new minor (**W-11**), a two-site one-token change with a trade-off worth stating; it does not gate the merge.

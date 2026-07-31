@@ -127,3 +127,170 @@ Determinism seam: **preserved**
 `tsc --noEmit`: **clean** · targeted vitest (100 files / 1247 tests): **green**
 
 **Verdict: REVISE** — two majors, both in the same seam: the audio accept path is missing the boolean-answer contract P4.3 established (TS-1, silent loss + orphaned blob), and the video capture surface ignores the `capability.record` fact P4.6's sibling flow consumes (TS-2, a false sentence over a live viewfinder). Both fixes are small and both have an in-repo correct pattern to copy.
+
+---
+
+# Fix-delta r1 — TYPESCRIPT lane
+
+**Fix diff:** `d09a291..cd819ee` on `feat/parity-p4` (five package merges + the §66d rider), reviewed at `cd819ee`.
+**Map used:** `p4-review-r1-vetted.md` (R-1 = TS-1+T-1+S-1, R-3 = TS-2+TYPE-DESIGN-1+S-3, R-14 = TS-3, R-28 = TS-4), PR #33's fix-round comment, ledger §§65–69.
+**Method:** read every fix at source in the committed tree (`git show cd819ee:…`, never the working tree — other lanes were probing in this shared worktree during the session), then **mutation-probed each fix**: re-introduce the original defect, confirm a named test reddens, revert. Every probe below was reverted; the tree carries no source edits from this lane.
+
+**Gates:** `tsc --noEmit` clean. The six suites covering my findings — `DemoExperience.audio`, `AudioRecordingFlow`, `MediaCaptureScreen`, `useMediaCapture`, `capability`, `store-actions` — **130/130 green**. (One run of that batch reported a single failure in `MediaCaptureScreen > says so when the device list could not be READ`; solo re-run and two batch re-runs all green. Second occurrence of load-noise in this worktree this session — same signature as the r0 `extensionForMimeType` flake: a test that cannot fail non-deterministically on its own logic. Operational note, not a finding.)
+
+## Verification of my findings
+
+| Mine | Vetted | Commit | Verdict |
+|---|---|---|---|
+| TS-1 | R-1 (BLOCKER) | `a68e0d9` + merge union | **FIXED** |
+| TS-2 | R-3 (MAJOR) | `5145661` | **PARTIAL** |
+| TS-3 | R-14 (MINOR) | `984b343` | **FIXED** |
+| TS-4 | R-28 (MINOR) | `8c84973` | **FIXED** |
+
+### TS-1 → R-1 — FIXED (both halves, both probed)
+
+`DemoExperience.tsx:255-259` hoists `CANNOT_SAVE_AUDIO_NOTICE` (phone verbatim, joined) and an
+`audioSavedNotice` sibling; `saveAudioNote` (`:721-739`) is now `(captured, meta) => boolean`,
+guards on `st.currentLocationId`, notices, `closeLaunch()`, `return false` — and notices the
+*success* case too, which my finding did not ask for and the vetted shape did.
+`AudioRecordingFlowProps.onSave` is `=> boolean` and `handleSave` gates `if (accepted)
+capture.handOff()`, so §60c's contract now holds on all three capture surfaces.
+
+Probes (both reverted):
+- Delete the guard block → `DemoExperience.audio.test.tsx > with no location open: tells the visitor, saves nothing, and closes the recorder (R-1)` **fails**.
+- Make `handOff()` unconditional → `AudioRecordingFlow.test.tsx > does NOT hand off a REFUSED save — the hook keeps the URL so its sweep can free it` **fails** (it asserts the refused URL *is* in `revoked` after unmount — i.e. the registry still owned it).
+
+Both halves of the defect I filed (silent loss, orphaned blob) are closed and cannot regress silently.
+
+### TS-2 → R-3 — PARTIAL (the reported falsehood is closed; one clause of the vetted fix shape is not)
+
+**Fixed, and better than I specified.** The stored `sampleOnly` boolean is gone. A new pure
+engine module `engine/logic/media/capability.ts` answers per operation — `captureAvailability`
+(`:47`, a `MediaKind` switch closed with `assertNever`) and `sampleFallbackNotice` (`:70`, a
+reason-priority ladder). `MediaCaptureScreen.tsx:286` consumes `capability.modeFor(mode)` and
+`:372` passes `capability.sampleNotice` into `ReviewStage` instead of hard-coding
+`SAMPLE_MEDIA_NOTICE.camera`. On the `{stream, !record}` browser my finding described, video mode
+now attaches the bundled clip, labels the shutter `Attach sample clip`, and shows
+`NO_RECORDER_NOTICE.camera` — the UNSUPPORTED sentence is unreachable there.
+
+Probes (both reverted):
+- `modeFor(mode)` → `modeFor('photo')` (the pre-R-3 answer) → 3 tests fail, including `never prints "doesn't expose a camera" while the viewfinder is live`.
+- Collapse `sampleFallbackNotice` to a single sentence → 4 fail (3 engine + the screen's).
+
+**Outstanding.** The vetted fix shape's half 2 ends: *"This collapses the audio flow's hand-rolled
+`!canStream || !canRecord` onto the same rule."* It does not.
+`AudioRecordingFlow.tsx:179` still derives `mode` from `!canStream || !canRecord`, and `:255`
+still hand-picks `canStream ? NO_RECORDER_NOTICE.microphone : SAMPLE_MEDIA_NOTICE.microphone`.
+So the two consumers still hold two spellings of one rule — the drift the type half exists to
+kill — and they *disagree* on one input: the flow's version ignores `objectUrls`, so on a
+`{stream: true, record: true, objectUrls: false}` browser it reports `mode: 'live'` where
+`captureAvailability(support, 'audio')` returns `'sample'`. The visitor then records a real take
+and `finishTake`'s registry check (`useMediaCapture.ts:382`) answers with
+`captureFailure('UNSUPPORTED', 'microphone')` — *"This browser doesn't expose a microphone to
+this page"* — with the meter visibly moving. That is TS-2's falsehood class, surviving on the
+third surface.
+
+Severity of the residual is **minor**, and stated honestly: it needs a browser with
+`getUserMedia` + `MediaRecorder` but no `URL.createObjectURL`, which is rarer than TS-2's own
+Safari ≤ 14.0 population. The real cost is the design drift, not the sentence.
+
+**Disclosure trail** (judged, not just noted): §65c discloses the deferral correctly and names
+its trigger — *"Not done here, per the vetted routing… **Trigger:** P4.6's own fix round."*
+That trigger fired: §68 **is** P4.6's fix round, and it is silent on the collapse. So this is a
+disclosed deferral that lapsed at its own named trigger without a ledger line. Fix is three
+lines in one file (`mode` from `capture.capability.modeFor('audio')`, `sampleNotice` from
+`capture.capability.sampleNotice`) plus the two booleans' remaining reader at `:153`.
+
+### TS-3 → R-14 — FIXED
+
+`useMediaCapture.ts:466-481`: `open` and `selectDevice` are wrapped to `setOwnFailure(null)`
+before delegating — exactly the fix shape I gave, applied to both entry points rather than one.
+Probe (reverted): drop the clear from `open` → `useMediaCapture.test.ts > a stale failure never
+outlives its cause (R-14) > clears a frame-grab failure when a new acquisition starts` **fails**
+(`expected { code: 'FRAME_GRAB_FAILED' } to be null`). Two sibling arms pin the device-switch
+path and the "shows the NEW acquisition failure" outcome.
+
+### TS-4 → R-28 — FIXED
+
+`facilityForKind` and `canStopRecording` deleted from `samples.ts` / `recording.ts` and from the
+media barrel. `canStopAtElapsed`'s four arms survive — the suite composes `recordedMs` + the rule
+through a local helper rather than dropping the coverage with the wrapper, so "a paused recorder
+does not let the clock unlock Stop" is still pinned. The third item I folded in
+(`NO_RECORDER_NOTICE.camera`'s zero readers) now has a real production reader via
+`sampleFallbackNotice` — verified by the screen test asserting the sentence renders.
+
+## Disclosed deviations, judged on the merits
+
+1. **`NO_CAPTURE_STORAGE_NOTICE` — a third notice beyond the vetted two-way shape: ACCEPT.**
+   The vetted text said to pick the review notice "by the same `canStream` test", which routes a
+   `{stream: true, objectUrls: false}` browser to `NO_RECORDER_NOTICE` — *"can open a camera but
+   cannot record video to a file"* — which is **false** there: the recorder is fine, the
+   object-URL API is not. The new sentence names no device (both existing ones would lie) and
+   `sampleFallbackNotice`'s priority ladder (no-device → no-storage → no-recorder) reports the
+   first thing that would have to be fixed. This is the vetted shape being *corrected*, not
+   exceeded, and §65b argues it in the same terms. Pinned by three engine tests that redden when
+   the ladder is collapsed. It also closes the folded S-3 rider properly rather than relabelling
+   it.
+2. **The R-23 × R-1 merge union in `saveAudioNote`: ACCEPT.** The one-argument
+   `st.addMedia(buildMediaItem(…))` lands *inside* the guarded branch, after the early
+   `return false`, so neither intent is diluted; the guard is what the probe reddens. The arity
+   change is complete — three production call sites (`DemoExperience.tsx:687`, `:735`, `:756`),
+   `tsc` clean, `store-actions` green. R-23 additionally deletes a defect class adjacent to mine:
+   `addMedia(kind, item)` allowed `kind !== item.kind` to compile, whose end state is a row filed
+   under one tab and deleted from another — an undeletable capture.
+3. **`dataUrlQuality` threaded through the frame grab (R-15 × R-22 reconcile): correct.**
+   `grabVideoFrame` encodes the blob at `options.quality` (q=1.0, the recogniser's copy, phone
+   parity) and the data URL at `options.dataUrlQuality ?? options.quality` (0.85, the persisted
+   copy) — two distinct reads of two distinct options, with R-22's `try/catch` around
+   `toDataURL` returning the same typed `FRAME_GRAB_FAILED` as the other four failure modes
+   rather than escaping as a floating rejection. No path can now encode the persisted copy at the
+   recogniser's quality or vice versa.
+
+## New finding — fix-introduced regression
+
+### [MINOR] FD-1 — `abortRecording()` can no longer abandon a take whose `stop()` is in flight; the assembled capture is published anyway
+
+**File:** `features/demo/ui/inputs/useMediaCapture.ts:351-357` (`finishTake` — `handleRef.current = null` moved to *before* `await handle.stop()`), against `:424-428` (`abortRecording`, whose only route to the recorder is `handleRef.current?.abort()`) and the contract at `:139` (*"Abandon the take and discard its bytes"*).
+**Introduced by:** R-13's split of `stopRecording`'s tail into `finishTake` (`5b336d4`). Pre-fix, `handleRef.current` was cleared *after* the await (`d09a291:useMediaCapture.ts`), so an abort during the window reached the handle, `assemble()` saw `aborted` and resolved `null`.
+
+**Issue.** During the await, `handleRef.current` is `null`, so `abortRecording()` no-ops on the
+recorder and only resets the phase. The pending `stop()` then resolves with real bytes;
+`finishTake`'s remaining guard is `abortedRef` — which is the **unmount** flag, not an
+abort-recording flag — so it proceeds to mint an object URL and `replaceCaptured(media)`. The
+visitor who cancelled gets a review screen for the take they discarded, and its URL is now owned
+by a registry whose surface has already been told to forget the take.
+
+**Proven, not reasoned** (probe appended to `AudioRecordingFlow.test.tsx`, run, file restored —
+Start recording → roll 3 s → Stop → **Cancel before `emitStop`** → then `emitData`/`emitStop`;
+assert `Review Audio` is absent):
+- against `cd819ee` → **FAILS** (the review screen renders for the cancelled take);
+- the identical probe with only `useMediaCapture.ts` restored to `d09a291` → **PASSES**.
+So the behaviour changed in this round, in this file.
+
+**Blast radius today: none user-visible.** The single production caller
+(`AudioRecordingFlow.tsx:221`, `handleCancel`) pairs `abortRecording()` with `onClose()` →
+`closeLaunch()` → unmount, and the unmount sets `abortedRef` before the stop resolves, so
+`finishTake` returns `null` ahead of the mint. The probe only shows it because the flow test's
+`onClose` is a `vi.fn` that does not unmount. This is filed as **minor** on that basis — but the
+hook's stated contract is now false precisely in the window it exists for, `MediaCaptureScreen`
+already holds an `abortRecording` it does not yet call, and §58/§60c's carry-rules are written
+against that contract.
+
+**Fix shape.** Keep the abort path able to reach the take: either leave `handleRef.current` set
+until after the await and re-check `handleRef.current === handle` before publishing, or give
+`abortRecording` a generation/abort flag that `finishTake` re-checks after its await — the
+`importGen` shape R-4 has just adopted two files away. Pin with the probe above (it is four lines
+on the existing harness, which already exposes manual `emitStop`).
+
+## Fix-delta summary
+
+| | Count |
+|---|---|
+| Verified FIXED | 3 (TS-1, TS-3, TS-4) |
+| PARTIAL | 1 (TS-2 / R-3 — reported defect closed, one vetted clause outstanding) |
+| UNFIXED | 0 |
+| New regressions (this lane) | 1 minor (FD-1) |
+
+Store bridge, engine purity, barrel + marketing/demo isolation, determinism seam: **all still preserved** after the round (re-swept; the new `capability.ts` is pure, `MEDIA_BUCKET` moves engine→engine, no new `useStore`, no new `any`/`as any`/non-null assertion in the fix diff).
+
+**Verdict: APPROVE with one minor follow-up.** The blocker and both minors are genuinely closed and mutation-probed. R-3's residual and FD-1 are both minor and both one-file fixes; neither needs to hold the merge, but both should land as ledger lines if they are not fixed now — R-3's residual especially, since its first deferral already lapsed silently at its own named trigger.

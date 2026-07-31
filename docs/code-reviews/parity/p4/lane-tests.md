@@ -405,3 +405,155 @@ assert `h.created[0].terminate` was called.
 **Verdict: REVISE** — T-1 must be closed before merge (silent loss of a visitor's recording on an
 untested path the PR already guards on the photo side); T-2 – T-5 are one test each and T-4/T-5
 are single-line edits to tests that already exist.
+
+---
+
+## Fix-delta r1
+
+**Diff verified:** `d09a291..cd819ee` on `feat/parity-p4` · **Date:** 2026-07-31
+
+**Gates re-run in this worktree, after every probe was reverted:** `pnpm test --silent` →
+**220 files / 2561 tests green** (103s); `pnpm exec tsc --noEmit` → clean. Tracked source diff
+empty. A second full run earlier in the session was identically green — still no flaky baseline.
+
+**Method.** For this lane, "verified" means the mutation was re-applied, the suite was run, the
+failure was observed, and the file was reverted. Every disposition below is backed by a probe I
+ran in this pass — 16 mutations across 12 fix commits. Nothing here is reasoned-from-the-diff.
+
+### My findings
+
+| # | → | Disposition | Probe re-run | Result |
+|---|---|---|---|---|
+| T-1 (BLOCKER) | R-1 | **FIXED** | (a) delete the `saveAudioNote` guard; (b) restore unconditional `handOff()` | (a) 1 fail; (b) 1 fail |
+| T-2 (MAJOR) | R-5 | **FIXED** | the original 3-part gut, then each part alone | 2 fail; then 1 / 1 / 2 fail |
+| T-3 (MAJOR) | R-12 | **FIXED** | `handleStop` closes unconditionally | 1 fail |
+| T-4 (MAJOR) | R-10 | **FIXED** | drop `targetWidth` from the strip grab | 1 fail |
+| T-5 (MAJOR) | R-11 | **FIXED** | remove the Matroska branch | 3 fail |
+| T-6 (MINOR) | R-29 | **FIXED** | delete the `deviceFailure` line in both screens | 2 fail (one per screen) |
+| T-7 (MINOR) | R-30 | **FIXED** | narrow the delete to `[item.url]` | 1 fail |
+| T-8 (MINOR) | R-31/R-3 | **FIXED** | `readBrowserObjectUrls` returns `null` unconditionally | 1 fail |
+| T-9 (MINOR) | R-32 | **FIXED** | dispose fire-and-forget instead of awaiting the boot | 1 fail |
+
+**9 FIXED · 0 PARTIAL · 0 UNFIXED.**
+
+Detail on the two that needed more than one probe:
+
+- **T-1 → R-1.** The fix is the full §60c shape, not just a guard: `saveAudioNote` returns
+  `boolean`, `AudioRecordingFlowProps.onSave` returns `boolean`, and `handleSave` gates
+  `capture.handOff()` on the answer. Both halves redden independently — deleting the bridge guard
+  fails *"with no location open: tells the visitor, saves nothing, and closes the recorder (R-1)"*;
+  making `handOff()` unconditional fails *"does NOT hand off a REFUSED save"* with
+  `expected [] to include 'blob:mint/1'`. The refusal arm is the one I did **not** ask for and is
+  the more valuable of the two: it pins that a refused take's bytes stay owned by the hook so the
+  unmount sweep can free them, closing a leak the guard alone would have opened. Both notices are
+  phone-verbatim and the success line — which had no pin at all before — now has one.
+- **T-2 → R-5.** I re-ran the exact original gut (2 tests fail), then isolated each dimension to
+  confirm the new suite is not passing on one axis and coasting on the others: `measured: false`
+  alone → 1 fail; dropped `imageDataUrl` alone → 1 fail; `fallbackActual: SAMPLE_ACTUAL_TIME`
+  alone → 2 fail. All three of P4.7's headline claims are independently pinned.
+
+### Disclosed test-shape deviations — judged
+
+- **R-12's two added assertions** — `track.stop` not called, and the live `Start recording`
+  button still present. Exactly the shape §61g needs and precisely what I specified. Verified:
+  they are what reddens under the unconditional-close mutation. **Accept.** Note the fix round
+  also refactored release out of `handleStop` into an effect (R-21) so the 1-hour auto-stop takes
+  the same path; my mutation re-inserted a close into the handler and the pin still fired, so it
+  guards the regression *shape* rather than one call site. Better than what was asked for.
+- **§61g's ledger wording** — corrected **in place**, as a labelled correction carrying the
+  reusable lesson ("'both directions are pinned' is a claim about tests, and the only way to earn
+  it is to run the mutation"), rather than a silent edit. **Accept** — this is the right handling
+  of a false claim in a living doc, and the lesson is the part that transfers.
+- **R-5's module-boundary stub of `OcrCaptureScreen`** — the preferred shape I named, and it is
+  at the layer boundary rather than over the subject: the real screen's behaviour stays fully
+  pinned in `marquee.test.tsx` and `OcrCaptureScreen.live.test.tsx`, and the stub is only a hand
+  that presses `onLiveRead`/`onConfirm` plus a window onto bridge-computed props. **Accept.** The
+  file also adds an arm I did not ask for — an already-calibrated `actualDateTime` is not
+  overwritten by a live read — which is the right instinct for a value that becomes a forensic
+  offset.
+- **R-11 went past fork (a)** — it took the honest branch *and* mapped audio Matroska to `.mka`,
+  *and* folded Matroska into the false-claim pin's name and body. **Accept**, strictly stronger:
+  removing the branch now reddens three arms rather than one, and the test that used to be the
+  only thing blocking the honest answer is now the thing enforcing it.
+
+### Fix-introduced rot — hunted, none found
+
+I went after the shape that hides in a fix round: **deleted and weakened assertions**. Every `-`
+line across the 23 touched test files was reviewed, and the five that removed real coverage were
+each traced to its replacement and probed.
+
+- **`recording.test.ts` lost the whole `canStopRecording` describe (5 assertions)** — R-28 deleted
+  the export as unconsumed. Not rot: the four boundary arms (499/500, idle, stopped, paused-holds)
+  survive against a local `canStopAt` helper that composes `canStopAtElapsed(state, recordedMs(…))`
+  — i.e. they now pin the gate *the way the only production consumer applies it*. Confirmed no
+  remaining `canStopRecording`/`facilityForKind` consumers exist.
+- **`MediaCaptureScreen.test.tsx` lost `expect(shutter('Stop recording')).toBeDisabled()`** —
+  R-9's `disabled` → `aria-disabled` change. This is the classic trap (`aria-disabled` does not
+  block clicks; only the handler guard does), so I read the replacement in full: the behavioral
+  refusal `expect(h.recorder.stopCalls).toBe(0)` after the click is **retained**, with
+  focusability and an accessible-description assertion added around it. Strengthened, not
+  weakened.
+- **`library.test.ts` lost the duplicated bucket-literal assertion** — R-26/R-33 replaced it with
+  a shared-map identity pin (`mediaBucket(kind) === MEDIA_BUCKET[kind]`, plus exhaustive keys).
+  Probed: narrowing the sweep to photos-only reddens it. Strengthened.
+- **`capture-media.test.ts` / `useCaptureStream.test.ts` lost their `UNSUPPORTED` and
+  `PERMISSION_DENIED` device-list assertions** — the §66d retaxonomy. Replaced by an `it.each`
+  over four rejection names plus a negative-copy arm ("never says the capture failed — the stream
+  this runs after is live"). Strengthened.
+- **`samples.test.ts` lost `facilityForKind`** — R-28, unconsumed export. Correct deletion.
+
+Spot-checks of the highest-stakes new pins, all by running the mutation they claim to guard:
+
+- **R-2's revocation arms** — removing the cascade sweep reddens exactly the two cascade arms
+  (case and location), and narrowing `collectMediaUrls` to the photos bucket reddens three
+  (including the engine arm). The suite also carries the negatives that matter: the untouched
+  case's capture is asserted *not* revoked, sample paths are asserted never revoked, and deletion
+  still works with no object-URL API.
+- **R-4's generation-token arms** — two independent mutations, both caught: reverting `stale()`
+  to the pre-fix alive-only check, and dropping the supersession bump when a result arrives.
+  Each reddens the same two arms (success and failure). Event-driven, no timers, no timing luck.
+- **R-13's browser-initiated-stop arms** — four arms, three of them negative (ours, abandoned,
+  later-stop), all driven by explicit `emitStop()`/`abort()` rather than by waiting. Deterministic.
+- **§66d's unreachability claim** (`permissionAfterFailure` is never reached for
+  `DEVICE_LIST_UNAVAILABLE`) — I probed it directly by routing the device-list failure through
+  `permissionAfterFailure` in `useCaptureStream`; R-29's screen test catches it. The arm's absence
+  from the hand-written `it.each` at `permissions.test.ts:104` is therefore **correct**, not a
+  gap: adding it would pin a value nothing consumes under a test name ("so the retry affordance
+  stays live") that does not describe it.
+- **R-3's new `capability.test.ts`** — exhaustive over `MEDIA_KINDS` in four arms plus a runtime
+  `assertNever` arm for a fourth kind, and the R-3 defect itself gets its own single arm
+  (photo `live` / video `sample` / audio `sample` on a recorder-less browser).
+
+### New finding
+
+### [LOW] T-10 — R-33's pin is compile-time only, inside a runtime test file
+
+**Test:** `features/demo/engine/logic/media/__tests__/library.test.ts` — *"mediaLibraryTab returns
+the registry ENTRY, keeping its literals (R-33)"*, whose own comment says "THE assertion is the
+annotations" (`const id: MediaLibraryTabId = photos.id`).
+
+Vitest transpiles through esbuild, which strips type annotations without checking them, so under
+`pnpm test` alone that test asserts only `expect([id, label]).toEqual(['photos', 'Photos'])` — the
+widening it exists to catch is caught by `tsc --noEmit`, not by the runner it lives in. This is
+fine as things stand (tsc is a declared gate on this PR and was clean), and the repo already uses
+compile-time devices deliberately (`store/persistence.ts`'s `MODAL_IDS`). Recorded only so nobody
+later reads a green `pnpm test` as evidence that the R-33 return type held.
+
+**Fix (optional):** none required. If it is worth making explicit, the house move is the one
+`persistence.ts` uses — a `satisfies`/`Record` device at module scope with a comment naming tsc as
+its enforcer — rather than annotations inside an `it`.
+
+### Fix-delta Summary
+
+| Severity | Count |
+|---|---|
+| BLOCKER | 0 |
+| MAJOR | 0 |
+| MINOR | 0 |
+| LOW (new) | 1 |
+
+Original findings: **9 FIXED / 0 PARTIAL / 0 UNFIXED.** Deviations judged: 4, all accepted (three
+strictly stronger than requested). Fix-introduced rot: none — the five coverage-removing deletions
+each trace to an equal-or-stronger replacement, verified by probe.
+
+**Verdict: APPROVE.**

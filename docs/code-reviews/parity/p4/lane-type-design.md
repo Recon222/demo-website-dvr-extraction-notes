@@ -482,3 +482,165 @@ Boundary types honest about untrusted input: **yes** — `OcrRecognition` reads 
 Snapshot-guard discipline maintained across the v6 widening: **yes** (see *Checked and clean*)
 
 **Verdict: REVISE** (2 MAJOR, no CRITICAL).
+
+---
+
+# Fix-delta r1
+
+**Mode:** FIX-DELTA — re-review of the fix commits only (`d09a291..cd819ee`, 41 commits / 45 files / +2766 −278). Supersedes the initial pass's dispositions; the initial findings stand above for traceability.
+**Refs read:** ledger §§65 (a–i), 66d, 67d, 68e, 69c · PR #33's commit→finding comment · the new `engine/logic/media/capability.ts`.
+**Pre-flight (re-run in this worktree):** `npx tsc --noEmit` → **clean, exit 0**. Working tree clean after verification — three probes run (one non-destructive module, two destructive-then-reverted edits to `engine/types/index.ts`), all reverted, `git status` empty but for this doc's directory.
+
+**Verdict: APPROVE WITH ONE PARTIAL. 6 of 7 findings FIXED · 1 PARTIAL · 0 UNFIXED · 0 new blocker/major · 3 new NIT.**
+
+The round did not merely patch the two majors — R-3 produced a new pure engine module (`capability.ts`) that replaces the flawed shape with a per-operation *function* and a reason-priority notice picker, and R-6's fix is provable in exactly the way the original finding was: the same probe that produced zero errors at the writer now produces one. Five of the five minors are closed with the shapes proposed, two of them going further than asked (R-24 converted three call sites and made `canFullscreen` a predicate too; R-26 collapsed the duplicated kind→bucket mapping the store had been carrying separately).
+
+The one PARTIAL is TYPE-DESIGN-1's other half, and it is a **disclosed deferral whose named trigger fired inside this same merge** — see below.
+
+---
+
+## Disposition table
+
+| Initial | Routed | Sev | Status | One-line verdict |
+|---|---|---|---|---|
+| TYPE-DESIGN-1 | R-3 (+R-31) | MAJOR | **PARTIAL** | Engine rule + photo/video surface fixed; `AudioRecordingFlow` still hand-rolls both derivations, and its copy is now demonstrably incomplete against the engine's. |
+| TYPE-DESIGN-2 | R-6 | MAJOR | **FIXED** | `Omit<OcrProof, 'parsedDateTime'>` + typed commit. Probe-proven: the writer now errors where it previously did not. |
+| TYPE-DESIGN-3 | R-23 | MINOR | **FIXED** | `addMedia(item)` / `deleteMedia({kind,id})` — the correlated parameter is gone. Probe-proven in both directions. |
+| TYPE-DESIGN-4 | R-24 | MINOR | **FIXED (stronger)** | Type predicate + `AvailableMedia`; three call sites converted, `canFullscreen` promoted to a predicate, the hand-rolled third copy deleted. |
+| TYPE-DESIGN-5 | R-25 | MINOR | **FIXED** | `crop?: NormalizedCrop`, imported canonically. |
+| TYPE-DESIGN-6 | R-26 (+R-33) | MINOR | **FIXED (stronger)** | `MEDIA_BUCKET` is now THE mapping, consumed by both `mediaForTab` and the store's `mediaBucket`; the `kind`/`bucket` pair is deleted, not policed. §67d residual judged sound. |
+| TYPE-DESIGN-7 | R-27 | MINOR | **FIXED** | Both `RecordingPhase` switches name `idle`/`stopped` and close with `assertNever`. `RecorderMode` else-chain deliberately left (§68e) — judged sound. |
+| TYPE-DESIGN-N1 | R-33 | NIT | **FIXED** | `mediaLibraryTab` returns `(typeof MEDIA_LIBRARY_TABS)[number]`. |
+
+---
+
+## TYPE-DESIGN-1 → R-3 — **PARTIAL**
+
+### What landed, and it is the right shape
+
+`engine/logic/media/capability.ts` is a genuinely better answer than the one this lane proposed.
+
+- **The question is now typed as a question about an operation.** `captureAvailability(support, kind): 'live' | 'sample'` (`capability.ts:47-58`) is a `switch` over `MediaKind` closed with `assertNever` — so a photo needs `stream && objectUrls`, a video or audio note needs `record` on top, and a fourth kind cannot silently inherit the photo rule. **Probe-verified:** adding `'document'` to `MEDIA_KINDS` compile-breaks in five places, and `capability.ts` is one of them. The guard is real, not decorative.
+- **The stored `sampleOnly` is gone** (`useMediaCapture.ts:73-86`). The three raw facts survive as `CaptureSupport`, the *answers* are `modeFor(kind)` and `sampleNotice`, and both are computed by the engine — so a surface cannot re-derive either by hand and get a different meaning. That was the whole finding.
+- **`NO_RECORDER_NOTICE` is finally read** — `capability.ts:73`, reached through `capability.sampleNotice` → `MediaCaptureScreen.tsx:372`. The dead copy P4.6 wrote for P4.3 now has its consumer.
+- **The photo/video falsehood is closed.** `MediaCaptureScreen.tsx:286` asks `capability.modeFor(mode)`, so on a `{stream: true, record: false}` browser video mode falls back to the sample with the correct sentence instead of printing "This browser doesn't expose a camera to this page" over a live viewfinder.
+
+### The third notice (§65b) — assessed, and it is the correct call
+
+`NO_CAPTURE_STORAGE_NOTICE` was not in the vetted shape. Taking it was right, and the *reason* is a type-design reason rather than a copy one: the vetted fix said to pick the notice "by the same `canStream` test", which is a **two-way** choice over a **three-way** fact space. `sampleFallbackNotice` (`capability.ts:70-74`) instead picks by reason priority — no device → no storage → no recorder — which is the only ordering under which each sentence can only surface where it is true (the file states exactly this reasoning at `:60-68`, and the reasoning checks out: on `{stream:true, record:false}` the photo path never falls back, so "cannot record to a file" is unreachable-when-false). A two-arm ternary over three independent booleans is the same species of bug as the original `sampleOnly`; the author saw that and did not ship the smaller fix. **Correct, and it is what makes the folded S-3 rider genuinely closed.**
+
+### Why this is PARTIAL
+
+`AudioRecordingFlow` was left on the old shape, and §65c discloses it precisely:
+
+> *"Not done here, per the vetted routing: the `modeFor` collapse of `AudioRecordingFlow`'s hand-rolled `canStream`/`canRecord` pair. `CaptureCapability` deliberately keeps the three booleans so that flow compiles untouched. **Trigger:** P4.6's own fix round."*
+
+**P4.6's fix round is in this merge** (`36bced5`, ledger §68) and did not take it; §68 does not mention R-3. So the deferral's own trigger fired inside the same merge that created it, and the code still reads:
+
+```ts
+// AudioRecordingFlow.tsx:113-114, 179-187
+const canRecord = capture.capability.record
+const canStream = capture.capability.stream
+const mode: RecorderMode = !canStream || !canRecord ? 'sample' : …
+// AudioRecordingFlow.tsx:255
+sampleNotice={canStream ? NO_RECORDER_NOTICE.microphone : SAMPLE_MEDIA_NOTICE.microphone}
+```
+
+Both are hand-rolled copies of functions that now exist, and **both are missing the `objectUrls` term**:
+
+- `mode` omits it where `captureAvailability(support, 'audio')` includes it (`canHoldBytes = stream && objectUrls`).
+- `sampleNotice` is the exact two-arm ternary §65b just rejected — it can never produce `NO_CAPTURE_STORAGE_NOTICE`, the sentence this round added.
+
+**Concrete consequence.** On a `{ stream: true, record: true, objectUrls: false }` browser — the state `NO_CAPTURE_STORAGE_NOTICE` was written for, and the state `deps.objectUrls: null` injects:
+
+1. `capability.modeFor('audio')` returns `'sample'` — the engine has the right answer.
+2. `AudioRecordingFlow.tsx:179` computes `mode` without consulting `objectUrls` → not `'sample'` → the **full live recorder renders**, mic open, level meter moving.
+3. The visitor records a take and presses Stop → `finishTake` → `registryRef.current` is `null` (`useMediaCapture.ts:168-171` only builds a registry when `objectUrlIo !== null`) → `setOwnFailure(captureFailure('UNSUPPORTED', 'microphone'))`.
+4. The screen prints **"This browser doesn't expose a microphone to this page — nothing was captured."** — after a completed recording, beneath a meter the visitor watched respond to their voice.
+
+That is the *same* falsehood R-3 was filed for — a "this browser has no ⟨device⟩" sentence over a demonstrably working device — reproduced on the surface the fix did not convert, with the correct answer already computed one layer down and simply not asked for. It is narrower than the original (audio only; the missing term is `objectUrls` rather than `record`), which is why this is PARTIAL and not UNFIXED.
+
+**Residual fix, three lines:** `const mode: RecorderMode = capture.capability.modeFor('audio') === 'sample' ? 'sample' : …` and `sampleNotice={capture.capability.sampleNotice}`, deleting the two `NO_RECORDER_NOTICE`/`SAMPLE_MEDIA_NOTICE` imports from the flow. Once both consumers go through `modeFor`/`sampleNotice`, the three `CaptureSupport` booleans have no external reader at all and `CaptureCapability` can stop extending it — which is the state that makes the original finding structurally unrepeatable rather than currently-correct.
+
+---
+
+## TYPE-DESIGN-2 → R-6 — **FIXED** (`51d5344`)
+
+`DemoExperience.tsx:432` is now `useRef<Omit<OcrProof, 'parsedDateTime'> | null>(null)`, and `:1488` annotates the commit `const proof: OcrProof = { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime }` before handing it to `updateField`. Exactly the shape proposed.
+
+**Re-ran the original probe** (added a required `probeRequiredField` to `OcrProof`, `tsc`, reverted):
+
+| | initial pass | after the fix |
+|---|---|---|
+| `persistence.ts:161` (device 1) | TS2322 | TS2322 |
+| `persistence.ts:167` (device 2) | TS1360 | TS1360 |
+| **`DemoExperience.tsx` (the writer)** | **— no error —** | **`(1435,5): error TS2741: Property 'probeRequiredField' is missing … but required in type 'Omit<OcrProof, "parsedDateTime">'`** |
+
+The drift path the finding described — schema author forced to add the field, writer silently not, store holds a lying `OcrProof`, next boot's shape guard `discard()`s the whole tab — is now a compile error at the writer. §69c's claim is earned.
+
+---
+
+## Minors — verified
+
+**R-23 (`7f176aa`) — FIXED.** `addMedia(item: MediaItem)` / `deleteMedia(item: Pick<MediaItem, 'kind' | 'id'>)` (`create-store.ts:307-309`); both derive the bucket from `item.kind`. Probed with `@ts-expect-error` on the old two-arg forms and plain calls on the new — `tsc` clean, which (since TS errors on *unused* `@ts-expect-error`) is positive proof that both old forms are now compile errors and both new forms type-check. The undeletable-row end state is unreachable: `kind` and the item can no longer disagree because there is only one of them.
+
+**R-24 (`0ed6816`) — FIXED, stronger than proposed.** `AvailableMedia` + `isMediaAvailable(item): item is AvailableMedia` (`captured.ts:150-166`). Probe: `isMediaAvailable(item) ? item.url : ''` now types as `string` — the exact expression that produced TS2322 in the initial pass. Beyond the ask: `canFullscreen` is itself a predicate now (`MediaLibrarySheet.tsx:310`), `MediaContent` and `MediaFullscreen` take `AvailableMedia` (`:409`, `:336`), and the hand-rolled third copy at the thumbnail is gone (`:642` calls the predicate). §67b's disclosed crossing into P4.1's module is the minimum extent.
+
+**R-25 (`a2fc69c`) — FIXED as scoped.** `capture-media.ts:20` imports the canonical type; `:227` is `crop?: NormalizedCrop`. Probe: a pixel-space rect still assigns — correctly so, since the finding explicitly declined to propose a brand (the repo has none) and asked only for canonicalisation and a named unit. The parallel declaration is gone and the unit now has one home.
+
+**R-26 + R-33 (`5c41567`) — FIXED, stronger than proposed.** `MEDIA_BUCKET: Readonly<Record<MediaKind, keyof MediaBuckets>>` (`library.ts:32`) is now THE mapping; `MediaLibraryTab` no longer carries `bucket` at all (`:36-47`), `mediaForTab` derives it (`:121`), and — beyond the ask — `store/helpers.ts:65` was collapsed onto it, deleting the second copy of the same pairing that had been living in the store. The correlated pair is *removed*, not policed, which is the better of the two fixes offered. **Probe-verified:** a fourth `MediaKind` compile-breaks `MEDIA_BUCKET`. R-33 closes N1: `mediaLibraryTab` returns `(typeof MEDIA_LIBRARY_TABS)[number]`, so callers keep the literals.
+
+**R-27 (`984f97c`) — FIXED.** `recorderStatusLabel` and `recorderStatusColor` (`audio-levels.ts:127-153`) both name `case 'idle': case 'stopped':` and close `default: return assertNever(phase)`. The docblock now states *why* the arms are named rather than defaulted, so the reasoning survives the next edit.
+
+---
+
+## Disclosed deviations — judged
+
+**§68e — the `RecorderMode` else-chain stays. SOUND, accepted.** The argument draws the line on the right axis: `assertNever` earns its keep where the returned value is *a claim about the hardware* (`recorderStatusLabel` renders READY beside a live microphone), and a JSX branch that renders nothing for an unhandled member is a layout defect, not a false statement. That is a real distinction and the correct place to stop. One sharpening of their own trigger, not a finding: "already closed at its only producer" is a fact about today's call graph, not about the type — `RecorderMode` is *exported* (`AudioRecorderScreen.tsx:42`) and sits on an exported component's public prop, so a second producer needs no change to the union to appear. The §68e trigger ("if `RecorderMode` ever gains a member set by something other than the flow's own ternary") already covers this; it is worth reading as "or a second producer", which is the cheaper thing to notice.
+
+**§67d — `MEDIA_BUCKET` exhaustive, `MEDIA_LIBRARY_TABS` deliberately not. SOUND type design, not a rationalised gap.** Verified factually (the fourth-kind probe breaks `MEDIA_BUCKET`, `samples.ts`, `recording.ts`, `MetadataForm.tsx` and `capability.ts` — and *not* the tab registry), and the asymmetry is principled on three grounds:
+
+1. `MEDIA_BUCKET` is the domain of a **total function** — every kind must route to a bucket or `addMedia` cannot store it. Exhaustiveness there is a correctness requirement, not a style preference.
+2. `MEDIA_LIBRARY_TABS` is **ordered display content**, and this engine's standing rule is that array position carries the ordering (`WIZARD_SCREENS`, `EXPLORE_ITEMS`, the notes sections). `Record<MediaKind, …>` and positional ordering are in genuine tension; you cannot have both without hand-typing an index, which is the thing the rule exists to forbid.
+3. The precedent is already load-bearing elsewhere: `EXPLORE_ITEMS` deliberately omits `splash` and `ocr` today, and deferred §27 records this team's accepted "test-over-type" posture for exactly this class of static, single-author registry.
+
+So "built but not yet surfaced" is a state this codebase has needed repeatedly and has consistently chosen to keep expressible. **Accepted.** If the §67d trigger ever fires, the proportionate close is the §27 mechanism rather than a mapped type: a test asserting that the set of kinds without a tab equals an explicitly-listed set of deliberately-unsurfaced kinds (today `[]`) — which converts "silently absent" into "absent on purpose, stated", without making deliberate absence impossible.
+
+---
+
+## Blast-radius sweep — fix-introduced type design
+
+**`capability.ts` (new).** Clean. `CaptureAvailability` is a two-member union with no payload; `CaptureSupport` is three independent facts with no correlations to express; `captureAvailability` is `assertNever`-closed; `sampleFallbackNotice` is a total function of `(support, facility)`. One shape worth naming as *acceptable rather than accidental*: `CaptureCapability extends CaptureSupport` exposes the raw inputs **beside** their derivations, which is normally the `ScopeRetention` anti-pattern — but `modeFor` is a *function* (it cannot go stale) and `sampleNotice` is recomputed in the same `useMemo` from the same deps, so no incoherent pair is constructible from the producer. The only reason the raw booleans are still reachable is TYPE-DESIGN-1's residual; once the audio flow is converted they should come off the public type.
+
+**`DEVICE_LIST_UNAVAILABLE` (`faba6a0`, §66d).** Correct on every device the guard file names: added to the `CAPTURE_ERROR_CODES` `as const` tuple (device 3 — the union is derived, not hand-typed), given a named arm in `captureFailureMessage` whose subject is the *list* rather than the device, and named explicitly in `permissionAfterFailure` rather than absorbed into `default`, so both switches stay total and `assertNever` stays reachable. The union is not persisted, so no schema or `SNAPSHOT_VERSION` consequence.
+
+**The rider's totality claim — verified, and it holds.** `permissionAfterFailure` has exactly one caller (`useCaptureStream.ts:161`), fed only from `openCaptureStream` outcomes; `DEVICE_LIST_UNAVAILABLE` originates only in `listCaptureDevices` (`capture-media.ts:185, 190`) and lands only on `deviceFailure` (`useCaptureStream.ts:177`). So "never reached for this code" is true today. It is a *documented* invariant rather than a typed one — `failure` and `deviceFailure` both carry the full `CaptureErrorCode`, so the stream/list split is convention — but the arm chosen for it is `'prompt'`, which is the harmless answer if the invariant is ever violated. Defensive placement; no finding. → **NIT-D3.**
+
+**`dataUrlQuality` (R-15).** Fine. Two independent optional numbers where the second defaults to the first (`capture-media.ts:216`, applied at `:319`) — see NIT-D1.
+
+---
+
+## New this round — 3 NIT, 0 blocker, 0 major
+
+**NIT-D1 — `dataUrlQuality` is silently inert without `includeDataUrl`.** `FrameGrabOptions` (`capture-media.ts:210-216`) permits `{ dataUrlQuality: 0.85 }` with no `includeDataUrl`, which compiles and does nothing — a correlated-optional pair. One caller today, and it sets both (`OcrCaptureScreen.tsx:262-265`). Not worth a union for one call site; recorded so the second caller does not discover it by producing a full-quality data URL and wondering why. If it ever gets a second caller, the shape is `includeDataUrl?: { quality?: number }`.
+
+**NIT-D2 — a stale docblock now names a field the same file deleted.** `useMediaCapture.ts:57` still reads *"`capability.sampleOnly` tells it when that is the only path available"*, twenty lines above the interface whose R-3 comment explains that `sampleOnly` no longer exists. Whichever commit takes TYPE-DESIGN-1's residual should fix the sentence to name `modeFor(kind)`.
+
+**NIT-D3 — the stream/list failure-channel split is convention, not type.** `UseCaptureStreamReturn.failure` and `.deviceFailure` are both `CaptureFailure | null` over the full `CaptureErrorCode` union, so nothing prevents a future path from routing a `DEVICE_LIST_UNAVAILABLE` into the permission derivation that `faba6a0`'s comment says it never reaches. Consequence if violated is nil (the arm returns `'prompt'`). Listed for completeness; a split code-space here would be heavier machinery than the risk warrants.
+
+---
+
+## Fix-delta summary
+
+| | Count |
+|---|---|
+| Findings FIXED | 6 |
+| Findings PARTIAL | 1 |
+| Findings UNFIXED | 0 |
+| New BLOCKER / MAJOR | 0 |
+| New NIT | 3 |
+
+Disclosed deviations judged: **§68e SOUND** (accepted, with a sharpening of its own trigger) · **§67d SOUND** (accepted; principled, and consistent with two standing precedents).
+Snapshot-guard discipline after the round: **intact** — no new persisted union, no `SNAPSHOT_VERSION` movement, and R-6 closed the one writer the three guard devices could not see.
+
+**Verdict: APPROVE WITH ONE PARTIAL** — TYPE-DESIGN-1's audio half (three lines, `AudioRecordingFlow.tsx:113-114, 179, 255`) is the only thing outstanding, and it is a deferral whose own named trigger fired inside this merge.
