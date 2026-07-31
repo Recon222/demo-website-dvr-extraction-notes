@@ -100,12 +100,35 @@ describe('useImportLog', () => {
     expect(result.current.lines.map((l) => l.text)).toEqual(['x', 'while inactive'])
   })
 
-  it('unmount cancels the pending flush — a buffered burst cannot commit into a dead hook', () => {
+  it('unmount cancels the pending flush and releases the bus subscription (R-19: falsifiable)', () => {
     freshRun()
-    const { unmount } = renderHook(() => useImportLog(true, bus))
-    act(() => emitter.log('INIT', 'buffered'))
-    unmount() // pending frame cancelled before it fires
-    expect(() => act(() => void vi.advanceTimersToNextFrame())).not.toThrow()
+    // Spies wrap the (sinon-faked) globals and call through — frame advancing still works.
+    const raf = vi.spyOn(globalThis, 'requestAnimationFrame')
+    const caf = vi.spyOn(globalThis, 'cancelAnimationFrame')
+    // The bus's listener set is deliberately unexposed, so wrap subscribe to make the
+    // release directly observable. (A post-unmount-emit probe is NOT diagnostic here:
+    // the cleanup's pendingRef clear makes a leaked listener early-return silently.)
+    const released = vi.fn()
+    const spyBus: typeof bus = {
+      ...bus,
+      subscribe: (listener) => {
+        const release = bus.subscribe(listener)
+        return () => {
+          released()
+          release()
+        }
+      },
+    }
+    const { unmount } = renderHook(() => useImportLog(true, spyBus))
+    nextFrame() // settle the mount/replay commit so no frame is pending
+    act(() => emitter.log('INIT', 'buffered')) // schedules exactly one pending flush
+    const pendingId = raf.mock.results[raf.mock.results.length - 1]!.value as number
+
+    unmount()
+    // The pending frame was truly cancelled — not merely tolerated by a dead-state guard…
+    expect(caf).toHaveBeenCalledWith(pendingId)
+    // …and the bus subscription was truly released, not leaked.
+    expect(released).toHaveBeenCalledTimes(1)
   })
 
   it('starts with the bus epoch even before any subscription commit', () => {

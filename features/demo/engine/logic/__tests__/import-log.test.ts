@@ -134,13 +134,23 @@ describe('createImportLogBus', () => {
     expect(bus.getLines()).toEqual([]) // dropped
   })
 
-  it('getLines returns a snapshot copy — mutating it cannot corrupt the bus', () => {
+  it('getLines returns a fresh readonly snapshot — consumers cannot corrupt the ring (R-34)', () => {
     const bus = createImportLogBus()
     const em = bus.beginRun(fixedClock())
     em.log('INIT', 'a')
     const snapshot = bus.getLines()
-    snapshot.push({ seq: 99, elapsedMs: 0, level: 'ERR', text: 'injected' })
-    expect(bus.getLines()).toHaveLength(1)
+    // Runtime isolation: every call is a fresh copy, never the live ring array.
+    expect(bus.getLines()).not.toBe(snapshot)
+    expect(bus.getLines()).toEqual(snapshot)
+    // Compile-time immutability (tsc --noEmit type-checks tests; never executed at runtime —
+    // a runtime push/assign WOULD land, which is exactly why the type must forbid it):
+    const compileTimePins = () => {
+      // @ts-expect-error — the snapshot array is readonly (no push)
+      snapshot.push({ seq: 99, elapsedMs: 0, level: 'ERR', text: 'injected' })
+      // @ts-expect-error — line fields are readonly (shared identity across ring/subscribers/state)
+      snapshot[0]!.text = 'tampered'
+    }
+    void compileTimePins
   })
 
   it('elapsed() tracks the run clock for duration details', () => {
