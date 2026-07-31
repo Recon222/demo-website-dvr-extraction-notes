@@ -1011,7 +1011,6 @@ slack so the export cannot clip the moment of interest.
 **Trigger to revisit:** the phone adopting the same passthrough (then this is parity, not a
 divergence) — or the owner reversing D10. The phone-side rounding of DVR-time scopes is a
 candidate for the phone-repo follow-up ledger alongside §39.4.
-=======
 ---
 
 ## 40. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
