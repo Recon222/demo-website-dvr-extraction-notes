@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -474,10 +474,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
-  // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
-  // modal with no narration entry — falls back to the chapter rather than blanking.
+  // else an open LAUNCH SCREEN with an entry shows its own (§60k — the OCR camera; the two
+  // media launchables carry no entry by decision §59e and fall through), else the Map tab its
+  // contextual copy, else the current chapter's. The ?? guards an id with no narration
+  // entry — falls back to the chapter rather than blanking.
   const narration =
-    (modal && MODAL_NARRATION[modal]) ?? (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+    (modal && MODAL_NARRATION[modal]) ??
+    (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
+    (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
   // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes

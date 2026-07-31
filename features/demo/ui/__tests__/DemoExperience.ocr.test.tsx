@@ -54,6 +54,32 @@ function seedEditedExtractedScope(store: DemoStore): string {
 beforeEach(() => stubClock(NOW))
 afterEach(() => vi.restoreAllMocks())
 
+describe('DemoExperience — OCR rail narration (§60k)', () => {
+  it('anchors the rail on the OCR copy while the capture screen is open', () => {
+    // §60k: `MODAL_NARRATION.ocr` existed but was unreachable — the anchor read only `modal`,
+    // and 'ocr' is a LaunchableId. The rail used to sit on the anchor chapter instead.
+    openOcr()
+    expect(screen.getByText('Read the DVR clock')).toBeInTheDocument()
+  })
+
+  it('an open modal still outranks the launchable — the anchor stays most-specific first', () => {
+    const store = openOcr()
+    act(() => store.getState().openModal('newCase'))
+    expect(screen.getByText('Create a case')).toBeInTheDocument()
+    expect(screen.queryByText('Read the DVR clock')).not.toBeInTheDocument()
+  })
+
+  it('launchables without narration entries still fall through to the anchor chapter (§59e)', () => {
+    const store = openOcr()
+    act(() => {
+      store.getState().setView('dvrInfo')
+      store.getState().launch('mediaCapture')
+    })
+    // No `mediaCapture` entry in MODAL_NARRATION — the rail stays on the chapter's copy.
+    expect(screen.getByText('DVR information')).toBeInTheDocument()
+  })
+})
+
 describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
   it('commits the read when the operator accepts it, and calculates the offset', () => {
     const store = openOcr()

@@ -2768,6 +2768,12 @@ would look for it in.
 launchables (and then decide whether the two media screens want entries), or delete the `ocr`
 entry and its test clause.
 
+**✅ RESOLVED (P4.7):** the anchor is now modal → launchable view → map → chapter
+(`DemoExperience.tsx`, via the new `isLaunchableId` guard in `content/screens.ts`), matching
+the manifest anchor in `selectExploreStatus`. The `ocr` entry renders while the OCR screen is
+open; the two media launchables deliberately keep NO entries (§59e — their rail stays on the
+anchor chapter), pinned by the §59e fallthrough test in `DemoExperience.ocr.test.tsx`.
+
 ### 60l. `MediaItem` and the snapshot version are untouched
 
 Recorded because §58i asks for it explicitly. P4.3 adds no field to `MediaItem`, `DemoLocation`
