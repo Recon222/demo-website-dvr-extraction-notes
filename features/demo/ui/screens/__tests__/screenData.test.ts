@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toCaseCards, caseStatusTheme, locationStatusTheme } from '@/features/demo/ui/screens/screenData'
+import { toCaseCards, toCaseSheet, caseStatusTheme, locationStatusTheme } from '@/features/demo/ui/screens/screenData'
 import { MAP_PIN_COLORS, STATUS_LABEL } from '@/features/demo/ui/screens/map/mapTokens'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoCase, DemoLocation, LocationForm } from '@/features/demo/engine/types'
@@ -61,6 +61,67 @@ describe('toCaseCards', () => {
   it('themes a complete case green', () => {
     expect(caseStatusTheme('complete').label).toBe('Complete')
     expect(caseStatusTheme('complete').color).toBe('#10d177')
+  })
+})
+
+// The Case Actions Sheet's read-only report (P3.2, matrix row 9) — phone
+// CaseActionsSheet.tsx:136-233.
+describe('toCaseSheet', () => {
+  const rowsOf = (sheet: ReturnType<typeof toCaseSheet>, groupId: string) =>
+    sheet.groups.find((g) => g.id === groupId)?.rows ?? []
+
+  it('renders every nameWithBadge arm: both parts, name only, badge only, neither', () => {
+    const both = toCaseSheet(aCase({ vcName: 'A. Okafor', vcBadge: '8812' }), [])
+    expect(rowsOf(both, 'personnel')).toContainEqual({ label: 'Video Coordinator', value: 'A. Okafor · #8812' })
+
+    const nameOnly = toCaseSheet(aCase({ oicBadge: '' }), [])
+    expect(rowsOf(nameOnly, 'personnel')).toContainEqual({ label: 'Officer in Charge', value: 'L. McHugh' })
+
+    const badgeOnly = toCaseSheet(aCase({ oicName: '' }), [])
+    expect(rowsOf(badgeOnly, 'personnel')).toContainEqual({ label: 'Officer in Charge', value: '#4471' })
+
+    const neither = toCaseSheet(aCase({ oicName: '', oicBadge: '' }), [])
+    expect(rowsOf(neither, 'personnel').map((r) => r.label)).toEqual(['Unit'])
+  })
+
+  it('drops the personnel group entirely when OIC, VC and Unit are all empty', () => {
+    const sheet = toCaseSheet(aCase({ oicName: '', oicBadge: '', unit: '' }), [])
+    expect(sheet.groups.map((g) => g.id)).toEqual(['meta'])
+  })
+
+  it('counts only the case\'s own locations', () => {
+    const sheet = toCaseSheet(aCase(), [aLoc(), aLoc({ id: 'l2' }), aLoc({ id: 'l3', caseId: 'other' })])
+    expect(rowsOf(sheet, 'meta')).toContainEqual({ label: 'Locations', value: '2' })
+  })
+
+  it('passes the stored createdLabel through unparsed (the demo has no case-creation clock)', () => {
+    const sheet = toCaseSheet(aCase({ createdLabel: 'Mar 9, 2025' }), [])
+    expect(rowsOf(sheet, 'meta')).toContainEqual({ label: 'Created', value: 'Mar 9, 2025' })
+  })
+
+  it('blanks a display name that only repeats the case number', () => {
+    expect(toCaseSheet(aCase({ displayName: 'PR25-0001' }), []).displayName).toBe('')
+    expect(toCaseSheet(aCase({ displayName: '   ' }), []).displayName).toBe('')
+    expect(toCaseSheet(aCase({ displayName: 'Case One' }), []).displayName).toBe('Case One')
+  })
+
+  it('marks the coordinate row monospace and gates it on a captured position', () => {
+    const real = toCaseSheet(aCase({ incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' } }), [])
+    expect(rowsOf(real, 'incident')).toContainEqual({ label: 'Coordinates', value: '43.608700, -79.650500', mono: true })
+
+    const nullIsland = toCaseSheet(aCase({ incidentCoordinates: { lat: 0, lng: 0, source: 'manual' } }), [])
+    expect(nullIsland.groups.some((g) => g.id === 'incident')).toBe(false)
+  })
+
+  it('carries notes as a free-text body, not a label/value row', () => {
+    const sheet = toCaseSheet(aCase({ notes: 'Suspect fled east.' }), [])
+    const notes = sheet.groups.find((g) => g.id === 'notes')
+    expect(notes).toMatchObject({ title: 'Notes', rows: [], body: 'Suspect fled east.' })
+  })
+
+  it('carries the raw status plus the phone\'s status label', () => {
+    expect(toCaseSheet(aCase({ status: 'draft' }), [])).toMatchObject({ status: 'draft', statusLabel: 'Active' })
+    expect(toCaseSheet(aCase({ status: 'complete' }), [])).toMatchObject({ status: 'complete', statusLabel: 'complete' })
   })
 })
 

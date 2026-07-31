@@ -27,18 +27,30 @@ const grid: CSSProperties = {
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals.
  *  `onBack` (optional) renders a chevron before the title for in-modal sub-steps — the
- *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661). */
+ *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661).
+ *
+ *  `subtitle` / `footer` / `fillBody` (all optional, added by P3.2) carry the phone's
+ *  pageSheet shape for the Case Actions Sheet: header lines under the title, an action row
+ *  PINNED below the body (never scrolled away), and a body that hands scrolling to its child
+ *  instead of owning it (the sheet's report panel measures its own overflow). Every default
+ *  reproduces the pre-P3.2 markup byte for byte, so the three existing callers are untouched. */
 export function ModalShell({
   title,
+  subtitle,
   onClose,
   onBack,
   backLabel = 'Back',
+  fillBody = false,
+  footer,
   children,
 }: {
   title: string
+  subtitle?: ReactNode
   onClose(): void
   onBack?(): void
   backLabel?: string
+  fillBody?: boolean
+  footer?: ReactNode
   children: ReactNode
 }) {
   useEffect(() => {
@@ -74,7 +86,7 @@ export function ModalShell({
       >
         <div style={grid} />
         <div style={{ position: 'relative', padding: 18, borderBottom: GLASS.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {onBack && (
               <button type="button" aria-label={backLabel} onClick={onBack} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -82,7 +94,10 @@ export function ModalShell({
                 </svg>
               </button>
             )}
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+              {subtitle}
+            </div>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
@@ -90,7 +105,28 @@ export function ModalShell({
             </svg>
           </button>
         </div>
-        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }}>{children}</div>
+        <div
+          style={
+            fillBody
+              ? // The child owns its own scrolling (and its own overflow measurement);
+                // `minHeight: 0` lets it shrink inside the flex column instead of pushing
+                // the pinned footer off the sheet. Column flex so the child can claim the
+                // remaining height with `flex: 1` and MEASURE it.
+                {
+                  position: 'relative',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  padding: 18,
+                  display: 'flex',
+                  flexDirection: 'column' as const,
+                }
+              : { position: 'relative', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18 }
+          }
+        >
+          {children}
+        </div>
+        {footer && <div style={{ position: 'relative', padding: 18, borderTop: GLASS.border }}>{footer}</div>}
       </div>
     </>
   )
