@@ -6,15 +6,15 @@ import {
 } from '@/features/demo/engine/logic/incident-location'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import type { DemoCase } from '@/features/demo/engine/types'
+import { demoCase as sharedCase } from '@/features/demo/engine/store/__tests__/test-utils'
 
+/** Delegates to the shared entity factory (R-21). */
 function makeCase(o: Partial<DemoCase> = {}): DemoCase {
-  return {
-    id: 'c1',
+  return sharedCase({
     caseNumber: 'PR25-1',
     displayName: 'Kim B&E',
     unit: 'Central Robbery',
     oicName: 'Liam McHugh',
-    oicBadge: '4471',
     vcName: 'Ana Ruiz',
     vcBadge: '2210',
     incidentBusinessName: 'Kim Convenience',
@@ -22,11 +22,9 @@ function makeCase(o: Partial<DemoCase> = {}): DemoCase {
     incidentCity: 'Mississauga',
     incidentCoordinates: { lat: 43.5, lng: -79.5, source: 'geocoded' },
     notes: 'Case notes',
-    status: 'draft',
-    createdLabel: 'Just now',
     locationIds: [],
     ...o,
-  }
+  })
 }
 
 const blank: IncidentLocationValues = {

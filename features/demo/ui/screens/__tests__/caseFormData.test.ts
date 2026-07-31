@@ -7,6 +7,7 @@ import {
   caseToCaseForm,
   type NewCaseFields,
 } from '@/features/demo/ui/screens/caseFormData'
+import { demoCase as sharedCase } from '@/features/demo/engine/store/__tests__/test-utils'
 
 /**
  * P3.3 / matrix row 12 — the create/edit round trip. `caseToCaseForm` seeds the edit sheet;
@@ -14,9 +15,10 @@ import {
  * form can express, and these tests are what catch a field that only one of them learns about.
  */
 
+/** Delegates to the shared entity factory (R-21) — only the fields these round-trip
+ *  assertions actually read are named here. */
 function demoCase(over: Partial<DemoCase> = {}): DemoCase {
-  return {
-    id: 'c1',
+  return sharedCase({
     caseNumber: 'PR25-0098213',
     displayName: "Kim's Convenience — B&E",
     unit: 'Central Robbery',
@@ -29,11 +31,8 @@ function demoCase(over: Partial<DemoCase> = {}): DemoCase {
     incidentCity: 'Mississauga',
     incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
     notes: 'Rear camera covers the loading bay.',
-    status: 'draft',
-    createdLabel: 'Just now',
-    locationIds: ['l1'],
     ...over,
-  }
+  })
 }
 
 describe('caseToCaseForm', () => {
