@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react'
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAccuracy, getAccuracyRating, gpsSourceLabel, type AccuracyTone } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import type { GpsSource } from '@/features/demo/engine/types'
+import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
 
 /**
  * The captured-coordinate card — the demo's port of the phone's `CoordinateDisplay`
@@ -50,12 +50,10 @@ const card: CSSProperties = {
   display: 'block',
 }
 
-export interface CoordinateDisplayProps {
-  lat: number
-  lng: number
-  /** Absent when nothing measured one — the accuracy and rating chips then don't render
-   *  (phone CoordinateDisplay.tsx:138-166). */
-  accuracyM?: number
+/** Renders a fix that EXISTS, so it takes `GpsCoordinates` as-is: `lat`/`lng` required,
+ *  `accuracyM` optional — absent when nothing measured one, and the accuracy and rating chips
+ *  then don't render (phone CoordinateDisplay.tsx:138-166). Derived, not re-typed (R-24). */
+export interface CoordinateDisplayProps extends GpsCoordinates {
   source?: GpsSource
   /** Test seam — defaults to `navigator.clipboard.writeText`. */
   writeClipboard?(text: string): Promise<void>

@@ -5,7 +5,7 @@ import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inp
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import type { GpsSource } from '@/features/demo/engine/types'
+import type { DemoLocation } from '@/features/demo/engine/types'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -40,12 +40,10 @@ export interface SubmissionFields {
   locationPhone: string
 }
 
-export interface SubmissionCoordinates {
-  lat: number
-  lng: number
-  accuracyM?: number
-  source: GpsSource
-}
+/** The stored fix, as the screen consumes it. Derived from the store's own shape (R-24) so a
+ *  change to `DemoLocation.gps` is a compile error here rather than a silent divergence — the
+ *  `accuracyM?` widening had to be hand-applied to seven copies, and one was missed. */
+export type SubmissionCoordinates = NonNullable<DemoLocation['gps']>
 
 export interface SubmissionScreenProps {
   occNumber: string

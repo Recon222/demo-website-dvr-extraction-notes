@@ -1,8 +1,10 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
-import { COORD_SOURCES, GPS_SOURCES } from '@/features/demo/engine/types'
+import { COORD_SOURCES } from '@/features/demo/engine/types'
 import type {
   CaptureMethod,
+  GpsCoordinates,
+  GpsSource,
   ChapterId,
   DemoCase,
   DemoLocation,
@@ -66,7 +68,7 @@ export interface NewLocationInput {
    *  time (no manual entry — a DVR always has a street address); the Submission screen's GPS
    *  capture re-stamps them with `source: 'gps'` later. `accuracyM` is carried through as given
    *  — absent unless Mapbox reported a rooftop match (phone mapbox-service.ts:246-247). */
-  gps?: { lat: number; lng: number; accuracyM?: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
+  gps?: GpsCoordinates & { source: Exclude<GpsSource, 'gps'> }
 }
 
 // ---- State ---------------------------------------------------------------

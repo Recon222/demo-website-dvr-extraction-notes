@@ -11,6 +11,8 @@
  * `notes-relevant-data.ts` is the ONE coercion site that adapts it.
  */
 
+import type { GpsCoordinates } from '@/features/demo/engine/types'
+
 import type { NoteSectionId, OFFSET_DIRECTIONS } from '@/features/demo/engine/types'
 
 /** A requested scope as the notes formatters see it (phone `scopes` entry shape).
@@ -38,7 +40,7 @@ export interface NotesCamera {
   cameraName: string
   resolution: string
   recordingFps: string
-  gps?: { lat: number; lng: number; accuracyM?: number }
+  gps?: GpsCoordinates
 }
 
 /**

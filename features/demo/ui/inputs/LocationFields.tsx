@@ -9,7 +9,7 @@ import { GpsCaptureControl } from '@/features/demo/ui/inputs/GpsCaptureControl'
 import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { Field } from '@/features/demo/ui/screens/_shared'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
-import type { GpsSource } from '@/features/demo/engine/types'
+import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
 
 /**
  * The demo's port of the phone's `LocationForm`
@@ -36,13 +36,16 @@ import type { GpsSource } from '@/features/demo/engine/types'
  * extends that guard from "unmounted" to "different location" too.
  */
 
-export interface LocationFieldValues {
+/** The address block's working values. The coordinate half is a deliberately FLATTENED,
+ *  all-optional projection of `GpsCoordinates` (a half-filled form is a real state here, unlike
+ *  a stored fix) — `CoordinateProjection` states that relationship so a field added to
+ *  `GpsCoordinates` fails to compile until it is projected (R-24). */
+type CoordinateProjection = { [K in keyof GpsCoordinates]?: GpsCoordinates[K] }
+
+export interface LocationFieldValues extends CoordinateProjection {
   businessName: string
   streetAddress: string
   city: string
-  lat?: number
-  lng?: number
-  accuracyM?: number
   coordinateSource?: GpsSource
 }
 
