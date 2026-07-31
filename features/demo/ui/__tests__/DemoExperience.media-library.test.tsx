@@ -41,7 +41,11 @@ function seed(): { store: DemoStore; otherLocationId: string } {
 
     store.getState().switchLocation(locId)
     store.getState().addMedia('photo', media({ id: 'p1', filename: 'front-door.jpg' }))
-    store.getState().addMedia('video', media({ id: 'v1', kind: 'video', filename: 'lobby.mp4', durationSec: 95, url: 'blob:two' }))
+    // A poster alongside the video url (R-30): `deleteMediaItem` revokes BOTH, and until this
+    // fixture carried one, the `item.poster` half of that call was never executed. No producer
+    // mints a `blob:` poster yet — the frame-grab path that will is the reason the branch
+    // exists — so the fixture is what keeps it honest in the meantime.
+    store.getState().addMedia('video', media({ id: 'v1', kind: 'video', filename: 'lobby.mp4', durationSec: 95, url: 'blob:two', poster: 'blob:poster' }))
     store.getState().setView('dvrInfo')
   })
   return { store, otherLocationId }
@@ -111,6 +115,22 @@ describe('deleting a capture (row 66)', () => {
     confirmDelete('Delete')
 
     expect(revoke).toHaveBeenCalledWith('blob:one')
+  })
+
+  it('revokes a video’s POSTER as well as its url (R-30)', () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const { store } = seed()
+    render(<DemoExperience store={store} />)
+    openLibrary(store)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Video tab, 1 items' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete lobby.mp4' }))
+    confirmDelete('Delete')
+
+    // Two blobs, two revocations — a poster is a full frame, so leaking it leaks a whole image.
+    expect(revoke).toHaveBeenCalledWith('blob:two')
+    expect(revoke).toHaveBeenCalledWith('blob:poster')
+    expect(revoke).toHaveBeenCalledTimes(2)
   })
 
   it('never revokes a bundled sample path — those files outlive every surface', () => {
