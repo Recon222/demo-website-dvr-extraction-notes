@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react'
 
 import { GPS_MESSAGES } from '@/features/demo/engine/logic/gps'
 import type { GeolocationLike } from '@/features/demo/ui/inputs/capture-gps'
-import { REVERSE_GEOCODE_UNAVAILABLE } from '@/features/demo/ui/inputs/LocationFields'
+import { REVERSE_GEOCODE_PARTIAL, REVERSE_GEOCODE_UNAVAILABLE } from '@/features/demo/ui/inputs/LocationFields'
 import { SubmissionScreen, type SubmissionCoordinates } from '@/features/demo/ui/screens/SubmissionScreen'
 
 const fields = {
@@ -377,5 +377,49 @@ describe('Submission — malformed provider reading (R-13)', () => {
     expect(screen.getByTestId('gps-capture-error')).toHaveTextContent('Invalid timestamp reported by the location service.')
     expect(onCoordinates).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
+  })
+})
+
+describe('Submission — partial reverse-geocode (R-17)', () => {
+  it('keeps the operator-typed field the lookup could not resolve, and says so', async () => {
+    // Mapbox routinely returns context.address without context.place. Writing the empty city
+    // through blanked what the operator typed, with a success-shaped outcome and no notice.
+    const onChange = vi.fn()
+    renderSubmission({
+      geolocation: geolocation(4),
+      onChange,
+      reverseGeocode: async () => ({ streetAddress: '1450 Eglinton Ave W', city: '' }),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    expect(onChange).toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
+    expect(onChange).not.toHaveBeenCalledWith('city', '')
+    expect(screen.getByTestId('reverse-geocode-notice')).toHaveTextContent(REVERSE_GEOCODE_PARTIAL)
+  })
+
+  it('shows no notice when the lookup resolved both components', async () => {
+    renderSubmission({
+      geolocation: geolocation(4),
+      reverseGeocode: async () => ({ streetAddress: '1450 Eglinton Ave W', city: 'Mississauga' }),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    expect(screen.queryByTestId('reverse-geocode-notice')).not.toBeInTheDocument()
+  })
+
+  it('still distinguishes a wholly failed lookup from a partial one', async () => {
+    renderSubmission({ geolocation: geolocation(4), reverseGeocode: async () => null })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+
+    expect(screen.getByTestId('reverse-geocode-notice')).toHaveTextContent(REVERSE_GEOCODE_UNAVAILABLE)
   })
 })

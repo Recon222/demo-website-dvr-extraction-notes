@@ -73,13 +73,24 @@ export const LOCATION_FIELD_LABELS = {
  *  and states the part that matters: the coordinates were kept. */
 export const REVERSE_GEOCODE_UNAVAILABLE = 'Address lookup unavailable — the captured coordinates were kept.'
 
+/** R-17. Mapbox routinely returns `context.address` without `context.place` (rural addresses,
+ *  reduced-context tokens). Writing that through blanked an operator-typed City with a
+ *  success-shaped outcome and no notice — and `formatAddress` drops empty components, so the
+ *  loss propagated silently to the PDF header, the notes, the Cases row and the map sheet.
+ *  Only the components the lookup actually resolved are written; this says the rest stands. */
+export const REVERSE_GEOCODE_PARTIAL = 'Address lookup found only part of the address — the rest was left as you typed it.'
+
+/** Which post-lookup notice the block is showing. A union, not two booleans: the outcomes are
+ *  mutually exclusive and the "both true" state has no rendering. */
+type LookupNotice = 'none' | 'failed' | 'partial'
+
 export function LocationFields({ locationId, values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
   // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
   // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
   // settings store; the demo has no settings surface until P7, so it lives here for now.
   const [geocodeEnabled, setGeocodeEnabled] = useState(true)
   const [reverseGeocoding, setReverseGeocoding] = useState(false)
-  const [lookupFailed, setLookupFailed] = useState(false)
+  const [lookupNotice, setLookupNotice] = useState<LookupNotice>('none')
 
   // R-1 write guard. Bumped by the cleanup, which React runs both when `locationId` changes and
   // on unmount — so a lookup in flight across either event is abandoned rather than written.
@@ -94,7 +105,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
   const handleCapture = async (fix: GpsFix) => {
     // Coordinates land first and stand on their own (phone LocationForm.tsx:119-126).
     onChange({ lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM, coordinateSource: 'gps' })
-    setLookupFailed(false)
+    setLookupNotice('none')
     if (!geocodeEnabled) return
 
     const gen = writeGen.current
@@ -106,15 +117,24 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
       // would overwrite whoever is open NOW, and a notice about an abandoned lookup on a
       // location the visitor has left is noise.
       if (gen !== writeGen.current) return
-      if (address) onChange({ streetAddress: address.streetAddress, city: address.city })
-      else setLookupFailed(true)
+      if (!address) {
+        setLookupNotice('failed')
+        return
+      }
+      // R-17: write ONLY what the lookup resolved. An empty component means "not found",
+      // never "clear what the operator typed".
+      const patch: Partial<LocationFieldValues> = {}
+      if (address.streetAddress) patch.streetAddress = address.streetAddress
+      if (address.city) patch.city = address.city
+      if (Object.keys(patch).length > 0) onChange(patch)
+      setLookupNotice(address.streetAddress && address.city ? 'none' : 'partial')
     } catch {
       if (gen !== writeGen.current) return
       // `reverseGeocode` soft-fails by contract, so this only fires for an injected seam or a
       // future implementation that throws. Treat it as "no address" — the notice below already
       // says the coordinates were kept — rather than letting it escape as an unhandled
       // rejection and strand the button in its "Looking up address…" state.
-      setLookupFailed(true)
+      setLookupNotice('failed')
     } finally {
       setReverseGeocoding(false)
     }
@@ -143,7 +163,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
               ? { lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM, coordinateSource: 'geocoded' as const }
               : {}),
           })
-          setLookupFailed(false)
+          setLookupNotice('none')
         }}
         placeholder={LOCATION_FIELD_LABELS.streetAddressPlaceholder}
       />
@@ -164,9 +184,9 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
         reverseGeocoding={reverseGeocoding}
         deps={deps}
       />
-      {lookupFailed && (
+      {lookupNotice !== 'none' && (
         <div role="status" data-testid="reverse-geocode-notice" style={{ fontSize: 12, color: '#ffd93d', marginTop: -8, marginBottom: 14 }}>
-          {REVERSE_GEOCODE_UNAVAILABLE}
+          {lookupNotice === 'failed' ? REVERSE_GEOCODE_UNAVAILABLE : REVERSE_GEOCODE_PARTIAL}
         </div>
       )}
       {hasCoordinates && (
