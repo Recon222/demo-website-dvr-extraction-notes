@@ -493,9 +493,29 @@ export interface PersistenceHandle {
   flush(): void
   /** Unsubscribe from the store, flushing any pending write first. */
   dispose(): void
+  /**
+   * Is this handle actually mirroring the store into storage RIGHT NOW?
+   *
+   * False when there was nothing to mirror into at wiring time (no/blocked storage, or the
+   * kill switch) — that is the `NOOP_HANDLE`, a total no-op — and false again from the moment
+   * a write fails, because the failure path deliberately CLEARS the snapshot (see `save`
+   * below), so a refresh would boot empty. It returns to true if a later write lands: this
+   * tracks reality, it is not a latch.
+   *
+   * Exists because write failures are deliberately invisible to the visitor (the policy in
+   * this module's header) — which is correct right up until the UI makes a persistence
+   * PROMISE. Any surface that tells the visitor their work will survive a refresh must gate
+   * that sentence on this (parity plan §4 honesty rule; review R-2). Never assume a wired
+   * handle is a working one.
+   */
+  isLive(): boolean
 }
 
-const NOOP_HANDLE: PersistenceHandle = { flush: () => undefined, dispose: () => undefined }
+const NOOP_HANDLE: PersistenceHandle = {
+  flush: () => undefined,
+  dispose: () => undefined,
+  isLive: () => false,
+}
 
 /**
  * Subscribe to the store and mirror it into `storage` (debounced). Returns a handle whose
@@ -514,6 +534,9 @@ export function persistDemoStore(
   const debounceMs = opts.debounceMs ?? SAVE_DEBOUNCE_MS
 
   let timer: ReturnType<typeof setTimeout> | null = null
+  // Tracks whether the LAST write attempt landed. Starts false: nothing has been stored yet,
+  // so nothing can be promised yet (see `isLive`).
+  let live = false
   const save = () => {
     timer = null
     try {
@@ -521,7 +544,11 @@ export function persistDemoStore(
         SNAPSHOT_KEY,
         JSON.stringify({ version: SNAPSHOT_VERSION, state: snapshotOf(store.getState()) }),
       )
+      live = true
     } catch (e) {
+      // The snapshot is about to be cleared, so this tab can no longer promise refresh
+      // survival — say so to anyone who asks (R-2), independently of the dev breadcrumb.
+      live = false
       // Best-effort — a full/blocked storage must never break the demo — but not silent
       // (R-14): leaving the PREVIOUS snapshot in place would make a later refresh silently
       // restore stale work as current. Clear it so a refresh boots empty (honest), and leave
@@ -554,5 +581,6 @@ export function persistDemoStore(
       unsubscribe()
       flush()
     },
+    isLive: () => live,
   }
 }
