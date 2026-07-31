@@ -129,6 +129,15 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
   )
   const canWriteFor = (issuedFor: string | undefined) => mounted.current && issuedFor === openLocation.current
 
+  // Transient lookup state belongs to the location that produced it (fix-delta observation,
+  // adjacent to R-32). This component is NOT remounted on a switch, so without the reset the
+  // new location wears the old one's "Looking up address…" spinner and lookup notice until the
+  // stale promise settles.
+  useEffect(() => {
+    setReverseGeocoding(false)
+    setLookupNotice('none')
+  }, [locationId])
+
   const handleCapture = async (fix: GpsFix) => {
     // Coordinates land first and stand on their own (phone LocationForm.tsx:119-126).
     onChange({ lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM, coordinateSource: 'gps' })
@@ -163,7 +172,9 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
       // rejection and strand the button in its "Looking up address…" state.
       setLookupNotice('failed')
     } finally {
-      setReverseGeocoding(false)
+      // Only the location this lookup belongs to owns the spinner: a stale settle must not
+      // clear a spinner that by now belongs to a DIFFERENT location's lookup.
+      if (canWriteFor(issuedFor)) setReverseGeocoding(false)
     }
   }
 

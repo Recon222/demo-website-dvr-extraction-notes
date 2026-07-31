@@ -464,6 +464,31 @@ describe('Submission — partial reverse-geocode (R-17)', () => {
   })
 })
 
+describe('Submission — transient lookup state is per-location', () => {
+  it('does not leave the new location wearing the old one\'s "Looking up address…" spinner', async () => {
+    // LocationFields is not remounted on a switch, so the busy state has to be reset explicitly.
+    let resolveLookup!: (v: { streetAddress: string; city: string } | null) => void
+    const reverseGeocode = () =>
+      new Promise<{ streetAddress: string; city: string } | null>((resolve) => {
+        resolveLookup = resolve
+      })
+    const { rerender } = renderSubmission({ locationId: 'l1', geolocation: geolocation(4), reverseGeocode })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+    })
+    expect(screen.getByRole('button', { name: 'Looking up address, please wait' })).toBeInTheDocument()
+
+    rerender(submission({ locationId: 'l2', geolocation: geolocation(4), reverseGeocode }))
+
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
+    await act(async () => {
+      resolveLookup({ streetAddress: 'x', city: 'y' })
+    })
+    expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
+  })
+})
+
 describe('Submission — address-pick write guard (R-32)', () => {
   const startPick = () => {
     pickHarness.release = null
