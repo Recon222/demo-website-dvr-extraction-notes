@@ -108,6 +108,23 @@ export function deriveTrust(lines: readonly ImportLogLine[]): TerminalTrust {
 }
 
 /**
+ * RUN-scoped substitution flag — the outcome CTA's source (p1-review-fixdelta R-35).
+ * One value cannot serve both scopes: segment-scoped {@link deriveTrust} feeds the
+ * LIVE surfaces (title bar, per-file badge), where 'cloud' is the safe overclaim of
+ * exposure — but the CTA is a run-scoped SUMMARY, where 'cloud' is unsafe
+ * under-disclosure. A mixed batch whose substitution happened on any file but the
+ * last must still say so at the CTA moment: Escape during the dwell discards the
+ * result view, so the notice + per-card badges may never paint. Kept as a separate
+ * boolean (not a second TerminalTrust) so a consumer cannot silently take the wrong
+ * scope again. Ring-cap note: FIFO eviction can only drop OLDER lines, so a wholly
+ * evicted fallback line degrades this toward false — at ~15 lines/file that needs a
+ * ~27-file batch, beyond the 25-file confirm gate; accepted.
+ */
+export function runHadSampleFallback(lines: readonly ImportLogLine[]): boolean {
+  return lines.some((l) => l.level === 'NORM' && l.text.startsWith(SAMPLE_FALLBACK_PREFIX))
+}
+
+/**
  * Replaces the phone's "nothing leaves this phone" (ImportTerminalProgress.tsx:317),
  * which would be a lie here. `cloud` wording follows the P1.3 precedent (the AI
  * Request line's own detail: "cloud model via server proxy"); `sample` runs process
@@ -334,17 +351,18 @@ interface CtaView {
  * Exhaustive: a future TerminalOutcome variant is a compile error, not a silent
  * fall-through to the failure treatment.
  *
- * Sample attribution (p1-review R-25): with the P1.5 dwell, the result notice +
- * per-card badge only paint AFTER the CTA tap — Escape during the dwell used to
- * discard a sample-substituted import with the substitution never marked on this
- * surface. When the run's trust is 'sample', the success/partial sub carries the
- * attribution in the amber warning colour, so the CTA moment itself says so.
+ * Sample attribution (p1-review R-25, re-scoped by fix-delta R-35): with the P1.5
+ * dwell, the result notice + per-card badge only paint AFTER the CTA tap — Escape
+ * during the dwell used to discard a sample-substituted import with the substitution
+ * never marked on this surface. When ANY file in the run fell back to the sample
+ * (`runHadSample` — run-scoped, NOT the segment-scoped trust, which resets per FILE
+ * marker and went blind to mid-batch substitutions), the success/partial sub carries
+ * the attribution in the amber warning colour, so the CTA moment itself says so.
  */
-function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, trust: TerminalTrust): CtaView {
-  const reviewSub =
-    trust === 'sample'
-      ? { sub: 'sample import — review →', subColor: C.warning }
-      : { sub: 'Review import →', subColor: C.textSecondary }
+function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: boolean): CtaView {
+  const reviewSub = runHadSample
+    ? { sub: 'sample import — review →', subColor: C.warning }
+    : { sub: 'Review import →', subColor: C.textSecondary }
   switch (outcome.status) {
     case 'success': {
       const batch = outcome.totalFiles > 1
@@ -431,8 +449,9 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
   const running = effectiveStage ? STAGE_VIEW[effectiveStage] : PREPARING
 
   const trust = useMemo(() => deriveTrust(lines), [lines])
+  const runHadSample = useMemo(() => runHadSampleFallback(lines), [lines])
   const isBatchRun = batch !== null && batch.total > 1
-  const cta = outcome === null ? null : ctaView(outcome, isBatchRun, trust)
+  const cta = outcome === null ? null : ctaView(outcome, isBatchRun, runHadSample)
   const headline = cta ? cta.headline : running.message
   // Success/partial land at 100 (the phone's complete band); failure keeps the bar
   // where the pipeline stopped — a full bar on a failed run would be a lie.
