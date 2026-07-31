@@ -66,6 +66,8 @@ import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeS
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
 import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
+import { buildMediaItem, type CapturedMedia } from '@/features/demo/engine/logic/media'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -633,6 +635,22 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const st = store.getState()
     st.launch('audioRecording')
     st.setDrawerOpen(false)
+  }
+  /**
+   * Commit a finished audio note (P4.6). The ONLY store write in the audio flow — the flow and
+   * both of its screens are pure, per the store-bridge rule.
+   *
+   * SEAM(P4.4): MetadataForm inserts between preview-accept and addMedia. `meta` is where its
+   * value arrives; today the flow synthesizes `{ filename: defaultFilenameBase, caption: '' }`
+   * and this handler is what P4.4 will feed instead — unchanged. The extension is `buildMediaItem`'s
+   * (via `mediaFilename`), never appended here (§58c).
+   */
+  const saveAudioNote = (captured: CapturedMedia, meta: { filename: string; caption: string }) => {
+    const st = store.getState()
+    // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
+    // restored session cannot collide with them.
+    st.addMedia('audio', buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
+    st.closeLaunch()
   }
   /** The one row the phone gates: no location selected → toast, and the drawer stays open. */
   const openMediaLibrary = () => {
@@ -1684,6 +1702,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'audioRecording':
+        // Launch-only (P4.2 registered it, P4.6 gave it a screen). `closeLaunch` returns to the
+        // wizard step the visitor came from — `currentChapter` was never touched.
+        return (
+          <AudioRecordingFlow
+            // SEAM(P4.4): the MetadataForm replaces this default with the visitor's filename.
+            // Numbered off the location's existing notes so two takes don't share a name.
+            defaultFilenameBase={`audio-note-${(currentLocation?.form.media.audios.length ?? 0) + 1}`}
+            onSave={saveAudioNote}
+            onClose={() => store.getState().closeLaunch()}
+          />
+        )
       case 'map':
         return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
       default:

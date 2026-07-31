@@ -11,9 +11,12 @@ import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/cr
  * copy and a11y labels are pinned at the component level (`controls/__tests__`); what is
  * pinned HERE is what each one does to the store — the half a presentational test cannot see.
  *
- * The two capture targets deliberately have no screen yet (P4.3/P4.6). Landing on the honest
- * placeholder is the CORRECT interim behaviour, and these arms say so, so a future package
- * replacing the placeholder does not have to guess whether the routing was ever verified.
+ * `mediaCapture` deliberately has no screen yet (P4.3). Landing on the honest placeholder is
+ * the CORRECT interim behaviour, and that arm says so, so a future package replacing the
+ * placeholder does not have to guess whether the routing was ever verified. `audioRecording`
+ * reached its screen in P4.6; what is pinned here is still the ROUTING — the screen's own
+ * behaviour lives in `screens/__tests__/AudioRecordingFlow.test.tsx` and the bridge's store
+ * write in `DemoExperience.audio.test.tsx`.
  */
 
 function seed() {
@@ -62,7 +65,9 @@ describe('drawer Media accordion — wiring (row 80)', () => {
     expect(s.view).toBe('audioRecording')
     expect(s.drawerOpen).toBe(false)
     expect(s.currentChapter).toBe('dvrInfo')
-    expect(screen.getByText(/“audioRecording” screen is a fast-follow/)).toBeInTheDocument()
+    // P4.6 replaced the placeholder with the real recorder; under vitest (no mediaDevices) it
+    // opens on its honest sample treatment.
+    expect(screen.getByText('AUDIO CAPTURE')).toBeInTheDocument()
   })
 
   it('Media Library opens the sheet and closes the drawer when a location is open', () => {
