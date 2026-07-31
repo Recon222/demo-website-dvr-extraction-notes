@@ -210,6 +210,13 @@ export interface FrameGrabOptions {
   /** Also produce a data URL (P4.7 stores one on `OcrProof`). Off by default — a 1080p frame
    *  is a multi-megabyte base64 string, and the photo path only needs the blob. */
   includeDataUrl?: boolean
+  /**
+   * Downscale the encoded output to at most this many pixels wide (aspect preserved; never
+   * upscales). P4.7's OCR strip uses it as the `OcrProof.imageDataUrl` size bound: the data
+   * URL is persisted with the snapshot, so its ceiling is set here at construction rather
+   * than policed at persist time — and the recogniser reads the same bounded pixels.
+   */
+  targetWidth?: number
 }
 
 export interface FrameGrabSuccess {
@@ -256,15 +263,23 @@ export async function grabVideoFrame(
   const sw = crop ? Math.max(1, Math.round(crop.width * sourceWidth)) : sourceWidth
   const sh = crop ? Math.max(1, Math.round(crop.height * sourceHeight)) : sourceHeight
 
+  // Output size: the crop, downscaled to `targetWidth` when it is narrower than the crop.
+  const scale =
+    options.targetWidth !== undefined && options.targetWidth > 0 && options.targetWidth < sw
+      ? options.targetWidth / sw
+      : 1
+  const dw = Math.max(1, Math.round(sw * scale))
+  const dh = Math.max(1, Math.round(sh * scale))
+
   const canvas = (options.createCanvas ?? defaultCanvas)()
-  canvas.width = sw
-  canvas.height = sh
+  canvas.width = dw
+  canvas.height = dh
   const context = canvas.getContext('2d')
   if (!context) return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
 
   // `video` is typed structurally (only the two dimensions are read here), but drawImage
   // needs the element itself — the cast is confined to this one call.
-  context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, sw, sh)
+  context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh)
 
   const blob = await toBlobAsync(canvas, mimeType, options.quality)
   if (!blob || blob.size === 0) {
@@ -275,8 +290,8 @@ export async function grabVideoFrame(
     ok: true,
     blob,
     mimeType: blob.type === '' ? mimeType : blob.type,
-    width: sw,
-    height: sh,
+    width: dw,
+    height: dh,
     ...(options.includeDataUrl === true ? { dataUrl: canvas.toDataURL(mimeType, options.quality) } : {}),
   }
 }
