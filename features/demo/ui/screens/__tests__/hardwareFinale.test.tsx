@@ -9,6 +9,8 @@ import { CompletionScreen } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 
 const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+/** CamerasScreen additionally takes the per-camera GPS callback (P3.7). */
+const camNav = { ...nav, onCaptureGps: vi.fn() }
 const form = blankLocationForm()
 
 describe('DvrInfoScreen', () => {
@@ -23,7 +25,7 @@ describe('DvrInfoScreen', () => {
 describe('CamerasScreen', () => {
   it('renders the empty state and adds a camera', () => {
     const onAdd = vi.fn()
-    render(<CamerasScreen cameras={[]} onChange={vi.fn()} onAdd={onAdd} onRemove={vi.fn()} {...nav} />)
+    render(<CamerasScreen cameras={[]} onChange={vi.fn()} onAdd={onAdd} onRemove={vi.fn()} {...camNav} />)
     expect(screen.getByText(/No cameras yet/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('+ Add Camera'))
     expect(onAdd).toHaveBeenCalledOnce()
@@ -35,7 +37,7 @@ describe('CamerasScreen', () => {
       { id: 'c1', cameraName: 'A', resolution: '', recordingFps: '' },
       { id: 'c2', cameraName: 'B', resolution: '', recordingFps: '' },
     ]
-    render(<CamerasScreen cameras={cameras} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...nav} />)
+    render(<CamerasScreen cameras={cameras} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...camNav} />)
     fireEvent.click(screen.getAllByText('Remove')[1])
     expect(onRemove).toHaveBeenCalledWith(1)
   })

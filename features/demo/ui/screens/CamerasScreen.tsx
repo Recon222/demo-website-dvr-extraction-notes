@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { CameraEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
 import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE, isCustomResolution, isCustomFps } from '@/features/demo/ui/screens/field-options'
+import { CameraGpsCapture } from '@/features/demo/ui/inputs/CameraGpsCapture'
+import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface CamerasScreenProps {
@@ -11,12 +13,16 @@ export interface CamerasScreenProps {
   onChange(index: number, patch: Partial<CameraEntry>): void
   onAdd(): void
   onRemove(index: number): void
+  /** A per-camera GPS fix, addressed by camera id — see `CameraGpsCapture`. */
+  onCaptureGps(cameraId: string, gps: CameraGpsFix): void
   onNext(): void
   onBack(): void
   onMenu(): void
+  /** Test seam forwarded to every row's capture control. */
+  gpsDeps?: UseGpsCaptureOptions['deps']
 }
 
-export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBack, onMenu }: CamerasScreenProps) {
+export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, onNext, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
   // Per-camera custom Resolution/FPS mode — the phone's cameras.tsx:43-61 behavior with two
   // deliberate divergences (review R-2): the maps are keyed by the stable CameraEntry.id, not
   // the row index (the phone's index keying silently reassigns custom mode between rows when a
@@ -79,6 +85,9 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onNext, onBa
             {customFps[c.id] && (
               <Field label="Custom FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} placeholder="e.g., 12" />
             )}
+            {/* Per-camera GPS — last in the row, matching the phone's render order
+                (`renderCamera`, cameras.tsx:85-160; ui-mapping 07:127-132). */}
+            <CameraGpsCapture cameraId={c.id} gps={c.gps} onCapture={onCaptureGps} deps={gpsDeps} />
           </div>
         ))}
         <AddRowButton label="+ Add Camera" onClick={onAdd} />
