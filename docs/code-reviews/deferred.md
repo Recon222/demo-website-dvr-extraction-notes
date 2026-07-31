@@ -3836,8 +3836,25 @@ once, the abandoned read settles, and the next read boots fresh.
 Flagged by the vetted doc's struck-items notes as pre-existing and unchanged by P4: with no
 `currentLocationId`, `calculateOffset` early-returns and `confirmOcr` still writes
 `capture.*`, closes the launch screen and resets — the operator sees a normal commit while no
-offset landed anywhere. Unlike R-1's media path nothing is destroyed (the capture fields
+offset landed anywhere. ~~Unlike R-1's media path nothing is destroyed (the capture fields
 persist), but the silence is the same shape. The OCR entry point is location-gated in
-practice (the Time Offset screen requires an open location), which is why it has never fired.
-**Trigger:** next time `confirmOcr`/`calculateOffset` is open — apply R-1's guard pattern
-(refuse + notice) rather than the silent early-return.
+practice (the Time Offset screen requires an open location), which is why it has never fired.~~
+
+**CORRECTED (FD-7 — the original premise and consequence above were wrong; fact-checked by
+the silent-failures lane's fix-delta, verified against source):**
+
+- **The path is fully reachable, not gated.** `onCaptureOcr`
+  (`DemoExperience.tsx:1706-1708`) launches the OCR screen with no location check,
+  `TimeOffsetScreen` renders against `EMPTY_FORM` when nothing is open, and the rail's Time
+  Offset row is one ungated `setView` from boot — R-1's exact reachability shape. "Has never
+  fired" was an inference from a gate that does not exist.
+- **The staged read IS destroyed, not preserved.** It survives on `capture.*` only until a
+  location is opened: `switchLocation` (`create-store.ts:679`) — and the null arms at
+  `:554`/`:579` — reset `capture` via `blankCapture()`. The read is wiped at the exact moment
+  the visitor does the one thing that would have made it usable, which is R-1's
+  data-destruction shape, not a milder one.
+
+The deferral itself stands — the no-op predates P4 and was outside the round's diff scope.
+**Trigger (strengthened per FD-7):** the NEXT P4.7-territory round, not merely "next time the
+code is open" — R-1's guard pattern (refuse + notice) now sits one file away in the audio
+save path, and this sibling should adopt it then.
