@@ -186,7 +186,12 @@ export async function listCaptureDevices(
   }
   try {
     return { devices: toCaptureDevices(await mediaDevices.enumerateDevices(), facility), failure: null }
-  } catch {
+  } catch (e) {
+    // Collapsing denied / absent / broken enumeration into one visitor-facing sentence is
+    // deliberate (§66d) — but the operator still needs to be able to tell them apart, and
+    // after that collapse the console was the only place left that could. Same treatment as
+    // `reverse-geocode.ts` and `import/geocode.ts` (P1 review L2): soft-fail, never silent.
+    console.warn('[demo/capture-media] enumerateDevices failed — the device picker will be absent:', e)
     return { devices: [], failure: captureFailure('DEVICE_LIST_UNAVAILABLE', facility) }
   }
 }
