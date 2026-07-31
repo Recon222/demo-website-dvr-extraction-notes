@@ -1,4 +1,5 @@
 import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 /**
@@ -63,6 +64,9 @@ export interface MapData {
   statusCounts: { started: number; working: number; complete: number }
 }
 
+/** Incident street+city. Deliberately NOT street-type-abbreviated: on the phone only the
+ *  LOCATION address goes through `formatAddress` (submission.tsx:75, NewLocationModal.tsx:149) —
+ *  the incident scene keeps whatever the case creator typed. */
 const joinAddress = (parts: Array<string | null | undefined>) => parts.filter(Boolean).join(', ')
 
 export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]): MapData {
@@ -105,7 +109,7 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
       id: l.id,
       locationName: l.locationName,
       businessName: l.businessName,
-      address: joinAddress([l.streetAddress, l.city]),
+      address: formatAddress('', l.streetAddress, l.city),
       status: statusById.get(l.id)!,
       coord: [l.gps!.lng, l.gps!.lat],
       streetAddress: l.streetAddress,

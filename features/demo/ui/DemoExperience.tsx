@@ -55,6 +55,7 @@ import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
@@ -677,7 +678,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const previewCaseNotes = () => setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
   const previewTimeOffset = () => {
     const off = currentLocation?.form.timeOffset
-    const addr = currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') : ''
+    const addr = formatAddress(currentLocation?.businessName, currentLocation?.streetAddress, currentLocation?.city)
     setPdf({
       title: 'Time-Offset Calibration',
       html: generateTimeOffsetDoc({
@@ -856,7 +857,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const off = currentLocation?.form.timeOffset
         const summary: CompletionSummary = {
           occNumber: currentCase?.caseNumber ?? '—',
-          location: currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') || currentLocation.locationName : '—',
+          location: currentLocation
+            ? formatAddress(currentLocation.businessName, currentLocation.streetAddress, currentLocation.city) || currentLocation.locationName
+            : '—',
           dvr: currentLocation?.form.dvr.dvrTypeBrand || '—',
           offset: off ? `${off.formattedDifference} ${off.direction}` : null,
           scopes: currentLocation?.form.scopes.length ?? 0,

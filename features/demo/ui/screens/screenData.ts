@@ -1,4 +1,5 @@
 import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 /** UI-data mappers: shape the store's cases/locations into the display rows the dumb screens
@@ -76,7 +77,9 @@ function locationsOf(c: DemoCase, locations: DemoLocation[]): CaseLocationRow[] 
     .map((l) => ({
       id: l.id,
       locationName: l.locationName,
-      address: [l.streetAddress, l.city].filter(Boolean).join(', '),
+      // Street+city only (the business name is its own row); street types abbreviated by
+      // formatAddress, exactly as the phone's composed `address` renders them.
+      address: formatAddress('', l.streetAddress, l.city),
       status: locationStatusTheme(selectLocationMapStatus(l)),
     }))
 }

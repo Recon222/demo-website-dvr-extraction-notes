@@ -3,6 +3,7 @@ import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } fr
 import { getProfile } from '@/features/demo/engine/content/profiles'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
 import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
@@ -220,7 +221,7 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
   const adjusted = selectAdjustedScopes(s)
   return {
     occNumber: caseObj?.caseNumber,
-    address: loc ? [loc.businessName, loc.streetAddress, loc.city].filter(Boolean).join(', ') : '',
+    address: formatAddress(loc?.businessName, loc?.streetAddress, loc?.city),
     requesterName: loc?.requesterName,
     requesterBadgeNumber: loc?.requesterBadge,
     requesterUnit: caseObj?.unit,
