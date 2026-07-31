@@ -23,7 +23,7 @@ import {
   type RecorderIo,
 } from '@/features/demo/ui/inputs/capture-media'
 import type { ObjectUrlIo } from '@/features/demo/ui/inputs/object-urls'
-import { readAudioTrackFormat, type AnalyserIo } from '@/features/demo/ui/inputs/audio-analyser'
+import { prefersReducedMotion, readAudioTrackFormat, type AnalyserIo } from '@/features/demo/ui/inputs/audio-analyser'
 import { useAudioAnalyser } from '@/features/demo/ui/inputs/useAudioAnalyser'
 import { useMediaCapture } from '@/features/demo/ui/inputs/useMediaCapture'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
@@ -101,9 +101,12 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
       capturedAt: deps?.capturedAt,
     },
   })
+  // ONE reading of the preference, shared by the meter's tick rate and the screen's animations
+  // (review R-17). Two readers of the same media query must not be able to disagree.
+  const reduceMotion = deps?.reducedMotion ?? prefersReducedMotion()
   const meter = useAudioAnalyser({
     stream: capture.stream,
-    deps: { analyser: deps?.analyser, reducedMotion: deps?.reducedMotion },
+    deps: { analyser: deps?.analyser, reducedMotion: reduceMotion },
   })
 
   const { captured, permission, phase, stream } = capture
@@ -118,6 +121,11 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     return io === null ? null : pickRecorderMimeType(recorderMimeCandidates('audio'), io.isTypeSupported)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-time capability probe
   }, [])
+
+  // Memoised on the stream (review R-20): the read walks the track list and calls
+  // `getSettings()`, and it ran on every render — including all ~16 the meter's tick causes
+  // each second for the whole take.
+  const trackFormat = useMemo(() => readAudioTrackFormat(stream), [stream])
 
   const readClock = useCallback(
     (): string => timeOfDay(deps?.capturedAt?.() ?? getCurrentFormattedTime(clock.now().getTime())),
@@ -228,7 +236,6 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
     )
   }
 
-  const trackFormat = readAudioTrackFormat(stream)
 
   return (
     <AudioRecorderScreen
@@ -243,6 +250,7 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
         codec: codecLabel(preferredMime ?? ''),
       }}
       timeOfDay={wallClock}
+      reduceMotion={reduceMotion}
       deniedTitle={CAPTURE_PERMISSION_COPY.microphone.title}
       deniedBody={CAPTURE_PERMISSION_COPY.microphone.deniedBody}
       sampleNotice={canStream ? NO_RECORDER_NOTICE.microphone : SAMPLE_MEDIA_NOTICE.microphone}

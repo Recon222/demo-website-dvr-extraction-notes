@@ -31,6 +31,7 @@ function props(over: Partial<AudioRecorderScreenProps> = {}): AudioRecorderScree
     deniedBody: CAPTURE_PERMISSION_COPY.microphone.deniedBody,
     sampleNotice: SAMPLE_MEDIA_NOTICE.microphone,
     notice: null,
+    reduceMotion: false,
     failure: null,
     onDismissFailure: vi.fn(),
     onStart: vi.fn(),
@@ -169,6 +170,41 @@ describe('AudioRecorderScreen — recording and paused', () => {
 
     rerender(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.2) })} />)
     expect(screen.getByTestId('level-fill')).toHaveStyle({ background: '#2B8CC1' })
+  })
+})
+
+describe('AudioRecorderScreen — reduced motion (R-17)', () => {
+  it('runs no infinite loop and no transition when the visitor asked for less motion', () => {
+    render(
+      <AudioRecorderScreen
+        {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.4), reduceMotion: true })}
+      />,
+    )
+
+    // The state is still fully legible without any of it: colour, the REC text, and a bar
+    // height that is DATA rather than decoration.
+    expect(screen.getByTestId('recording-status-dot').style.animation).toBe('')
+    expect(screen.getByTestId('waveform-live-dot').style.animation).toBe('')
+    expect(screen.getByTestId('level-fill').style.transition).toBe('')
+    expect(screen.getAllByTestId('waveform-bar')[0].style.transition).toBe('')
+    expect(screen.getByText('REC')).toBeInTheDocument()
+  })
+
+  it('animates by default', () => {
+    render(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.4) })} />)
+    expect(screen.getByTestId('recording-status-dot').style.animation).toContain('blinkDot')
+    expect(screen.getByTestId('waveform-live-dot').style.animation).toContain('blinkDot')
+    expect(screen.getAllByTestId('waveform-bar')[0].style.transition).toContain('transform')
+  })
+
+  it('drives the bars with a composited transform, not an animated height (R-20)', () => {
+    // 80 nodes re-laid-out every 60ms tick for a whole take, beside a live recorder and an
+    // AudioContext, is what the height animation cost. The factor is the old percentage.
+    render(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(1) })} />)
+    const bar = screen.getAllByTestId('waveform-bar')[0]
+    expect(bar.style.transform).toBe('scaleY(0.46)')
+    expect(bar.style.transformOrigin).toBe('bottom')
+    expect(bar.style.height).toBe('100%')
   })
 })
 
