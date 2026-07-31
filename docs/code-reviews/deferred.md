@@ -827,3 +827,78 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+## 37. P2.3 (parity/p2-submission) — GPS capability: refutations & deliberate residuals
+
+**Source:** P2.3 Submission depth (matrix row 29) — the shared geolocation capability,
+`formatAddress` port, and the Submission location section.
+
+### 37a. The phone has NO >2σ GPS outlier filter — the parity brief and §M13 are wrong
+
+The package brief and `docs/planning/demo-phone-parity/phone-inventory.md:5604` (§M13) both
+specify "multi-sample + >2σ outlier filter" for `GpsCaptureControl`. **The phone does not do
+this.** `src/features/location/services/gps-service.ts` samples up to `maxAttempts` times,
+exits early once a reading meets `targetAccuracy`, and returns **the single most accurate
+sample** (`:276-282`) — it never computes a mean or a standard deviation. A repo-wide grep for
+`outlier|stdDev|standardDeviation|sigma|variance` finds outlier filtering only in
+`precision-time-sync/utils/offset-calculator.ts` (RTT-based, a different feature).
+
+The ">2σ from mean" claim traces to two phone DOC files that describe an algorithm the code
+never implemented: `src/features/README.md:768` and `src/features/DOCUMENTATION-PLAN.md:2520`.
+The phone's own accurate description is `src/features/location/README.md:276` ("returns the most
+accurate sample").
+
+**Decision:** the demo implements the phone's REAL behaviour (`engine/logic/gps.ts`
+`selectBestSample` + `toGpsFix`). Shipping a 2σ filter would make the demo commit a different
+coordinate than the phone for identical samples — a parity regression dressed as a feature. The
+refutation is documented at the top of `engine/logic/gps.ts` so the next reader who checks §M13
+finds the evidence immediately.
+
+**Phone-repo follow-up (for the BUG-NNN ledger when the owner returns):** `src/features/README.md:768`
+and `DOCUMENTATION-PLAN.md:2520,2534` describe GPS outlier filtering that does not exist —
+doc-vs-code drift that already propagated into this effort's own inventory. Doc fix, not a code fix.
+
+### 37b. Matrix row 29's "missing `locationContact`/`locationContactPhone`" is stale
+
+Row 29's Delta lists the contact fields as missing from the demo. They were already present
+(`SubmissionScreen`, and `DemoLocation.locationContact` / `.locationPhone` in the store) — note
+the phone's second field is `locationPhone`, **not** `locationContactPhone`. The genuine finding
+was PLACEMENT: the phone renders them inside the Location Information section but *after*
+`<LocationForm/>`, i.e. below the GPS control and coordinate card (`app/(form)/submission.tsx:189-207`,
+ui-mapping 05:41-42), with placeholder `Optional` on both. P2.3 fixed the placement and the copy.
+No deferral — recorded so the matrix row can be corrected at merge.
+
+### 37c. `formatLocationLabel` not ported
+
+The phone's export-filename builder (`src/lib/utils/address-formatting.ts:155-188`) is the third
+function in the module P2.3 ported. It is deliberately **not** ported: the demo has no export
+filenames until P5, and shipping it now would mean an untested dead export.
+**Trigger:** P5.1/P5.3, when export filenames land — port it there with its own tests (mind the
+business-name de-duplication logic at `:179-187`, which exists to fix a real double-prepend bug).
+
+### 37d. The reverse-geocode preference is component-local, not a setting
+
+The phone's "Geocode" toggle reads/writes a per-context preference in the settings store
+(`useReverseGeocodePreference('location')`, default on). The demo has no settings surface until
+P7, so `LocationFields` holds it in `useState` — same default, same semantics, no persistence
+across a screen unmount.
+**Trigger:** P7.1 (Settings shell) — move it into the settings slice alongside the other Location
+settings, and give the GPS accuracy mode the same treatment (P2.3 pins the phone's
+`balanced` / 30 s defaults in `buildGpsConfig`, since there is no pane to change them yet).
+
+### 37e. Reverse-geocode failure is surfaced; the phone's is silent
+
+Submission passes no `onReverseGeocodeError` on the phone, so a failed lookup is logged and
+**never shown** (ui-mapping 05:35). The demo shows an inline
+"Address lookup unavailable — the captured coordinates were kept." instead: a silent no-op after
+an explicit user action reads as a broken button, and the demo's honesty rule prefers saying what
+happened. Deliberate deviation, not a port gap.
+
+### 37f. GPS timeout is a deadline, not a raced timer
+
+The phone races its whole sample loop against a `setTimeout` (`gps-service.ts:313-337`). The demo
+enforces the same budget as a deadline: each `getCurrentPosition` receives the remaining budget as
+its own `timeout` option and the deadline is re-checked between attempts. Same guarantee, no
+dangling timer, and the loop stays testable without fake timers. Documented in
+`ui/inputs/capture-gps.ts`. Revisit only if a capture is ever observed outliving its budget by
+more than the tail of one already-abandoned reading.
