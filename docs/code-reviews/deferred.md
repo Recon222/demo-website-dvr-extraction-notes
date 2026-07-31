@@ -304,7 +304,8 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
 
 **Source:** PR #16 review (silent-failure, out-of-scope).
 
-**What:** ~~Two~~ One latent silent-failure path in existing demo code (not introduced by PR #16):
+**What:** ~~Two~~ ~~One~~ **Zero** remaining latent silent-failure paths — both halves are now
+RESOLVED (the second closed by P2.4). The entry stays for the residual noted under the first half:
 - ~~`selectAdjustedScopes` (`engine/store/selectors.ts`) has an empty `catch` that lacks the dev-warn its
   sibling `generateExtractedScopes` emits — a parse failure is swallowed silently.~~
   **RESOLVED (P0 fix round 2, R-27; placement corrected by R-33 in the P1 rider):** the
@@ -323,14 +324,24 @@ pattern (`daysBetweenAbs`) — in both the demo and the phone source.
   `adjustedScopesPartial` regardless). **Trigger:** P2.4 (G8) requested-scope
   normalization — when scope writes gain a real commit boundary (blur/row-level), emit the
   same dev-warn there and strike this residual.
-- `roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
-  `time.ts`'s own "fail loud" convention. **Still open.**
+- ~~`roundTo5Min` (`engine/logic/time.ts`) silently returns unparseable input unchanged, against
+  `time.ts`'s own "fail loud" convention.~~
+  **RESOLVED (P2.4, G8 remainder):** the trigger fired — P2.4 touched `time.ts`. `roundTo5Min`
+  now THROWS `'Unable to parse date value'` on a non-empty unparseable string, the same message
+  and rationale as its sibling `applyTimeOffset`. Empty input still passes through, now
+  documented as the deliberate distinction: `''` is an unset scope bound (absence, explicitly
+  representable), not a corrupt value. The throw lands inside the only caller's existing
+  per-entry isolation in `generateExtractedScopes`, so a bad scope is counted, flagged via
+  `extractedScopesPartial` and dev-warned — the established counted/flagged/dev-warned
+  convention absorbs it with no new machinery. Pinned by `time.test.ts`
+  (`describe('roundTo5Min')`).
 
-**Why deferred (remaining half):** Latent — current callers guard upstream (canonical dates reach
-`roundTo5Min` after Slice A), so it doesn't fire today.
+**Status:** both halves resolved. The entry remains open ONLY for the R-26 residual recorded
+above (the third creating boundary), which keeps its own trigger.
 
-**Trigger (remaining half):** Next time `time.ts` is touched — make `roundTo5Min` fail loud (or
-document why it tolerates bad input).
+**Trigger (residual only):** as stated under the first half — when requested-scope writes gain a
+real commit boundary (blur/row-level). P2.4 did NOT introduce one (it ported the Completion
+gate, not scope normalization), so the residual carries forward unchanged.
 
 ---
 
@@ -827,3 +838,550 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+## 37. P1 residual-minor rider (R-45/R-46/R-49/R-50/R-51) — deliberate residuals
+
+**Context:** the five P1.4-owned minors from `docs/code-reviews/parity/p1/p1-r2-review-fixdelta.md`
+were all FIXED on `parity/p2-rider-import` (nothing from that set is deferred). Three
+choices inside those fixes are deliberate and should not be re-flagged:
+
+1. **R-46 took option (b), not option (a).** The review offered carrying `totalFiles` on
+   the `ImportResult` arms (structural) or padding the tally (catch-local). Padding was
+   taken because it closes BOTH halves of the finding — the shrunken denominator *and*
+   the row that could not name the file that threw — where (a) closes only the first and
+   would leave the printed total disagreeing with the number of failure rows beside it.
+   `deriveTerminalOutcome` keeps summing `locations.length + failures.length`; the
+   premise it now rests on (every writer accounts for every file) is stated in its
+   docstring and in `ImportTally.unaccounted`. **Trigger to revisit:** a second partial
+   reporter that cannot enumerate its own files — carry the total then, for all writers
+   at once.
+
+2. **`filename: 'import'` survives on the paste path** (the type-design lane's folded
+   `filename: string | null` secondary). The PDF backstop now names real files, but the
+   paste path has no filename to name, so its synthetic row keeps the sentinel.
+   Modelling "not a file" as `null` would ripple through `ImportFailure`, `FailuresCard`,
+   and the phone-parity row copy for one sentinel on one path. **Trigger to revisit:** a
+   second non-file import source (a URL/QR path would be the tell).
+
+3. **The unattempted rows reuse `UNEXPECTED_ERROR`.** "Not attempted — the import stopped
+   after an unexpected failure." is not really an *error* code, but the code union is
+   closed and `UNEXPECTED_ERROR` is the bridge-only member that is deliberately unmapped
+   in `ERROR_MESSAGES` — so each row's own honest string renders verbatim, which is the
+   behaviour wanted. Adding a `NOT_ATTEMPTED` member would ripple into the map, the
+   phone-parity §5.7.8 precedent, and every exhaustiveness site for a code no consumer
+   branches on. **Trigger to revisit:** any consumer that needs to branch on "skipped"
+   vs "failed" (a retry-only-the-skipped affordance would be the tell).
+
+**Recorded, not filed (verified during this rider):** the p1-r2 doc's R-49 note assumed
+the R-43 text-path test covered the `?? 'extracting_text'` default — it does not.
+`runTextImportFlow` seeds the stage mirror to `'reading_model'` before calling
+`runImport`, so that test pins the SEED write (now asserted); the null-ref default is
+covered by the new pre-seed R-45 test. Same doc's suggested R-45 shortcut ("reject
+`runText` immediately after a completed PDF run") cannot reach the defect for the same
+reason — the seed overwrites the stale ref before the rejection lands. A pre-seed throw
+is the only reachable window, and the emitter's `INIT` log is the only throwable in it.
+---
+
+## 38. Four hand-rolled address joins — RESOLVED (`formatAddress` is the single producer)
+
+**Source:** P2.4 (parity/p2-gate), self-logged while porting `finalSubmissionSchema`.
+
+**What:** the demo builds a location's display address by joining
+`businessName`/`streetAddress`/`city` in four places, from three slightly different
+expressions:
+
+| Site | Expression |
+|---|---|
+| `engine/store/selectors.ts:223` (`selectCaseNotesData`) | `filter(Boolean).join(', ')` |
+| `engine/store/create-store.ts:377` (`generateNotes`) | `filter(Boolean).join(', ')` |
+| `ui/DemoExperience.tsx` (Completion summary + time-offset doc) | `filter(Boolean).join(', ')`, with a `\|\| locationName` fallback on the summary only |
+| `engine/logic/final-submission.ts` (`toFinalSubmissionInput`, new) | `.map(trim).filter(Boolean).join(', ')` — **trims**, and deliberately has no name fallback |
+
+The gate's version trims because the phone's `address` is only ever written by
+`formatAddress` (`src/lib/utils/address-formatting.ts:102-119`), which trims each component
+and drops the blanks — without it a three-space address clears a gate the phone blocks. So
+the gate is correct and the other three are merely untrimmed, which is invisible today
+(nothing writes whitespace-only components) but is a second definition of "the address".
+
+**Why deferred (historical):** P2.3 (submission depth, matrix row 29) was concurrently
+porting `formatAddress` — including the street-type abbreviation the demo had no equivalent
+of. Introducing a fifth, competing helper while that landed would have been the exact drift
+this entry is about.
+
+**RESOLVED — trigger fired and fully discharged in P2.** P2.3 landed
+`engine/logic/address-format.ts`; `selectCaseNotesData`, the notes address formatter and both
+bridge joins converted with it, and P2.4's `toFinalSubmissionInput` converted in the P2 fix
+round (review **R-11**, which caught that this entry shipped stale-on-arrival — four of four
+sites now call `formatAddress`, and the ledger says so).
+
+The conversion was behaviourally inert for the gate by construction: `formatAddress` trims
+each component and drops the blanks, the same emptiness semantics the private join had, so a
+whitespace-only address still fails `min(1)`. It is not cosmetic, though — the gate now
+validates the *same string* the PDF header, notes body and Cases row display, street-type
+abbreviation included. Pinned by
+`engine/logic/__tests__/final-submission.test.ts` ("composes the address through the shared
+formatAddress"), which fails if the private join ever returns.
+
+Both deliberate call-site differences survive the conversion and stay explicit in the source:
+the gate must NOT take the `locationName` fallback (a location with no address must not pass),
+and the Completion summary card must keep it (display, not validation).
+
+---
+
+## 39. P2.5 (parity/p2-advisories) — Time-Offset advisories: deliberate non-ports & residuals
+
+**Source:** P2.5 implementation (matrix row 34 residual — the phone's four DST advisory
+branches plus its Toast/Alert guards).
+
+### 39.1 The recalculate confirmation is a screen-local dialog, not the shared primitive — **RESOLVED**
+
+**What (original):** the phone's `Recalculate Time Offset?` Alert was ported as
+`RecalculateDialog`, declared inside `features/demo/ui/screens/TimeOffsetScreen.tsx` and
+rendered as an absolute overlay within the phone screen.
+
+**Why it was deferred:** the demo had **no shared blocking-dialog primitive** (matrix row 28:
+"only the auto-dismissing `DemoNotification`"), and building one was scheduled work owned by
+other packages — plan §5 flags it as "wanted by P3.1/P4.5/P5.3". Inventing the shared
+primitive from an S-sized advisory package would have pre-empted that design and created a
+merge hotspot mid-wave.
+
+**RESOLVED (P2.6 branch, `parity/p2-scope-passthrough`).** P2.4 landed
+`features/demo/ui/controls/AlertDialog.tsx` — RN `Alert.alert`-shaped, presentational,
+portalling into the phone screen. The recalculate confirm now renders through it and
+`RecalculateDialog` is **deleted**; the trigger above fired exactly as written. Copy is
+unchanged and still verbatim. Two behaviours changed, both inherited deliberately from the
+primitive and pinned by tests: the scrim no longer dismisses (a native alert is answered by
+choosing a button), and focus lands on the dialog container rather than the Cancel button
+(so a screen reader hears title AND body), returning to the opener on unmount. The screen
+keeps only its own `confirmRecalc` state — the bridge's `alert` state is Completion-scoped
+(cleared on `view !== 'completion'`) and was deliberately not widened.
+
+### 39.2 Three of the phone's five Time-Offset toasts are deliberately NOT ported
+
+The package brief asked for the toast/alert guards "where they map to the demo's flow", and
+to refute rather than ship dead UX. Evidence per toast:
+
+- **`Missing Information` / "Please enter both DVR and actual times"** (`time-offset.tsx:362-367`)
+  — unreachable in the demo: `Calculate` is `disabled` whenever either field is empty
+  (`TimeOffsetScreen.tsx` `canCalc`, pinned by `marquee.test.tsx` "disables Calculate until both
+  datetimes are present"). The demo prevents the state the phone warns about.
+- **`Using Calibrated Time` / `Using Device Time`** (`time-offset.tsx:242-254`) — the demo's
+  sync is `simulateNtpSync()` (`engine/logic/time-sync.ts:17-34`), which has **no failure
+  path**, so the "NTP unavailable — verify device clock accuracy" branch can never fire; the
+  success branch would only restate what `SyncStatusCard` already renders in place. These are
+  outcome notifications, not guards.
+- **`Calculation Complete`** (`time-offset.tsx:333-340`) — the demo renders the same sentence
+  as the 34px result card the moment the calculation commits.
+
+**Trigger to revisit:** if the demo ever gains a simulated sync-failure mode (making the
+uncalibrated branch reachable) or a general in-phone toast surface for the wizard, port the
+matching copy verbatim then.
+
+### 39.3 `calculateOffset` has no error path — the phone's `Calculation Error` toast is unreachable
+
+**What:** the phone wraps `performCalculation` in try/catch and shows a `Calculation Error`
+toast (`time-offset.tsx:341-353`). The demo's `calculateOffset` action does not catch, so a
+throw from `calculateTimeDifference` ("Unable to parse date values",
+`engine/logic/time.ts:35`) would escape the click handler into `DemoErrorBoundary`.
+
+**Why deferred:** every writer of `capture.dvrDateTime` / `capture.actualDateTime` produces a
+canonical `'YYYY-MM-DD HH:MM:SS'` string — the `DateTimeField` pickers (via `formatStored`),
+`getCurrentFormattedTime` on the sync path, the OCR parser, and the zod-guarded snapshot.
+There is no reachable input that throws, so a friendly error surface here would be UX for a
+state the demo cannot enter. (This is unlike `generateExtractedScopes`, which legitimately
+catches per entry because free-text import CAN write non-canonical scope times.)
+
+**Trigger to revisit:** any path that writes a non-canonical capture time — an import that
+populates `capture.*`, or free-text entry replacing the pickers. Add the catch + copy then.
+
+### 39.4 Phone-repo follow-up: `getDSTTransitionDates` misses month-boundary transitions
+
+**Not a demo deferral — a phone bug for the §8 follow-up ledger.** The phone's scan is
+`for (day = 1; day < daysInMonth; day++)` comparing `day` with `day + 1`
+(`src/lib/utils/bidirectional-time.ts:330-344`), so it never compares the last day of a month
+with the first of the next. A DST transition landing on the 1st is invisible and the advisory
+degrades to the literal word `spring`/`fall`. Reachable in North America whenever the November
+fall-back Sunday is the 1st — e.g. **2026-11-01**. The demo's port brackets on month starts and
+binary-searches inside, so it resolves the boundary case (pinned in
+`engine/logic/__tests__/dst-advisory.test.ts`). File as a `BUG-NNN` when the owner returns.
+
+### 39.5 D10 — DVR-time extracted scopes diverge from the phone ON PURPOSE (owner ruling)
+
+**Reviewers: do not re-flag as a parity gap.** `generateExtractedScopes` now passes DVR-time
+requests (`isActualTime === false`) through untouched — no offset, no rounding — per the
+owner's D10 ruling. The phone agrees on the offset half and **differs on the rounding half**:
+`src/lib/utils/extracted-scope-generator.ts` `getEffectiveStartDateTime` /
+`getEffectiveEndDateTime` already return the ORIGINAL `startDateTime` / `endDateTime` for a
+DVR-time scope (skipping corrected/DST times), but the caller still runs every row through
+`roundDown5Minutes` / `roundUp5Minutes`.
+
+**Rationale (owner, recorded in the code comment at the branch):** a DVR-time requester stood
+at the device, read its clock, and asked for exactly those times — widening that window to
+5-minute marks invents scope nobody asked for. The outward padding exists for REAL-time
+requests, where a real-world window is mapped onto the DVR timeline and deliberately given
+slack so the export cannot clip the moment of interest.
+
+**Trigger to revisit:** the phone adopting the same passthrough (then this is parity, not a
+divergence) — or the owner reversing D10. The phone-side rounding of DVR-time scopes is a
+candidate for the phone-repo follow-up ledger alongside §39.4.
+---
+
+## 40. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
+
+Recorded by the P2.2 package (matrix rows 38/39 + the `TODO(M2)` at `engine/logic/ocr.ts:135`).
+Everything below is a *considered* choice or a *found-not-fixed* item, not drift.
+
+### 37a. One `date-disambiguation` module serves both the import and OCR paths (DIVERGENCE — accepted)
+
+The phone keeps **two** copies of the resolver under an explicit autonomy contract: the OCR
+copy (`src/features/ocr-time-capture/utils/date-disambiguation.ts`) is proximity-only, and the
+import copy (`src/features/import/pdf-import/normalization/date-disambiguation.ts`, lines 7-44)
+adds two domain rules — no-future and a recency window. The demo ported the **import** copy, and
+`readDvrTimestamp` now consumes it on the OCR path too.
+
+**Why that's acceptable here:** for a live DVR clock, a month/day swap that lands in the future
+is not a reading an operator should accept silently, and a years-stale reading is exactly the
+case where "closer to today" carries no signal. Both extra rules resolve to `confidence: 'low'`,
+i.e. the operator gets warned rather than quietly overridden — strictly the safer failure.
+
+**Consequence to know:** the demo's OCR path can return `year_outside_proximity_window` /
+`both_interpretations_future`, reason codes the phone's OCR path cannot. Anyone comparing reason
+codes side-by-side with the phone will see the difference; the *choice* still matches for every
+case where the phone's copy has an opinion.
+
+**Trigger to revisit:** if the demo ever needs to reproduce a phone OCR reason code exactly (a
+support/repro scenario), split the module the way the phone does — and copy the phone's autonomy
+comment with it.
+
+### 37b. The assumed-date gate is AHEAD of the phone, deliberately
+
+The phone's parser stamps `new Date()` over a dateless frame
+(`timestamp-parser.ts:260-266`) and its `ConfirmationScreen` pre-fills the picker with the
+result — so a guessed date can be committed without anyone being told it was guessed. The
+`TODO(M2)` this package closes called that a BLOCK, and the demo now refuses it: the assumed
+date is labelled, and the commit is held until the operator confirms or corrects it.
+
+This is a place where the demo is **better than the phone**, not a copy-parity miss. It is worth
+raising as a phone-side follow-up (plan §8 territory — file separately; the phone repo is
+read-only to this effort).
+
+### 37c. The ambiguous sample frame's warning depends on the visitor's clock
+
+`OCR_SAMPLE_FRAMES.ambiguous` is `06/07/2024 23:45:30`. It renders
+`DateDisambiguationWarning` because 2024 falls outside the resolver's proximity window
+(`year < currentYear - 1`) — true for every visitor from 2026 onward, and *more* true as time
+passes. A visitor whose device clock is set to 2025 or earlier would get a high-confidence
+resolution and see no warning (the resolution itself is still correct and still applied).
+
+Not worth engineering around: the engine tests inject a fixed clock, so the *behaviour* is
+pinned deterministically in both directions; only the live sample's flavour depends on the
+visitor's clock.
+
+### 37d. `capture.ocr` is populated but the Time-Offset PDF still ignores it
+
+`confirmOcr` now writes a real `OcrProof` (`rawText` / `cleanedText` / `parsedDateTime` /
+`confidence`), which `calculateOffset` threads into `timeOffset.ocr`. The PDF generator already
+has a full OCR tech-specs block (`engine/logic/pdf/time-offset.ts:119-133`) gated on
+`ocrRawText`, but `previewTimeOffset` in `DemoExperience` never maps those three fields into
+`generateTimeOffsetDoc`, so the block stays dead. The fix is three lines
+(`ocrRawText`/`ocrCleanedText`/`ocrParsedDateTime` from `off.ocr`).
+
+**Why deferred:** matrix row 37 already owns the OCR→PDF evidence path for **P4** (the image
+half of that block needs the real camera anyway). Doing the text half here would have put a
+P2 package into a P4 surface for a partial win.
+
+### 37e. The confirm stage has no direct Cancel
+
+The phone's confirmation is wrapped in a `FormLayout` whose back button cancels the flow; the
+demo's confirm stage offers only `Retake` and `Use this & calculate`. Exiting from confirm is
+therefore two taps (Retake → Cancel), not one. Left alone because the button row is lifted,
+reviewed chrome and the exit is reachable — but it is a real one-tap parity gap on row 38's
+surface.
+
+### 37f. The OCR rail narration still overclaims (pre-existing, row 37 / P4)
+
+`engine/content/narration.ts` tells the visitor "This runs real in-browser OCR" and lists "Live
+webcam capture" as a bullet. Neither is true today — there is no recogniser and no camera; the
+*cleaning and parsing* pipeline is real, running over a hardcoded frame (matrix row 37, STUB).
+The screen itself is honest ("No camera available here"); only the narration overclaims.
+
+This package updated the two narration lines its own change made stale (confirm → correct, and
+the new sample frames) and deliberately left the recognition/camera claims for **P4**, which
+owns row 37 and will rewrite that copy when a real capture surface lands. Flagged here so the
+honesty gap is not mistaken for an oversight.
+## 41. P2.3 (parity/p2-submission) — GPS capability: refutations & deliberate residuals
+
+**Source:** P2.3 Submission depth (matrix row 29) — the shared geolocation capability,
+`formatAddress` port, and the Submission location section.
+
+### 37a. The phone has NO >2σ GPS outlier filter — the parity brief and §M13 are wrong
+
+The package brief and `docs/planning/demo-phone-parity/phone-inventory.md:5604` (§M13) both
+specify "multi-sample + >2σ outlier filter" for `GpsCaptureControl`. **The phone does not do
+this.** `src/features/location/services/gps-service.ts` samples up to `maxAttempts` times,
+exits early once a reading meets `targetAccuracy`, and returns **the single most accurate
+sample** (`:276-282`) — it never computes a mean or a standard deviation. A repo-wide grep for
+`outlier|stdDev|standardDeviation|sigma|variance` finds outlier filtering only in
+`precision-time-sync/utils/offset-calculator.ts` (RTT-based, a different feature).
+
+The ">2σ from mean" claim traces to two phone DOC files that describe an algorithm the code
+never implemented: `src/features/README.md:768` and `src/features/DOCUMENTATION-PLAN.md:2520`.
+The phone's own accurate description is `src/features/location/README.md:276` ("returns the most
+accurate sample").
+
+**Decision:** the demo implements the phone's REAL behaviour (`engine/logic/gps.ts`
+`selectBestSample` + `toGpsFix`). Shipping a 2σ filter would make the demo commit a different
+coordinate than the phone for identical samples — a parity regression dressed as a feature. The
+refutation is documented at the top of `engine/logic/gps.ts` so the next reader who checks §M13
+finds the evidence immediately.
+
+**Phone-repo follow-up (for the BUG-NNN ledger when the owner returns):** `src/features/README.md:768`
+and `DOCUMENTATION-PLAN.md:2520,2534` describe GPS outlier filtering that does not exist —
+doc-vs-code drift that already propagated into this effort's own inventory. Doc fix, not a code fix.
+
+### 37b. Matrix row 29's "missing `locationContact`/`locationContactPhone`" is stale
+
+Row 29's Delta lists the contact fields as missing from the demo. They were already present
+(`SubmissionScreen`, and `DemoLocation.locationContact` / `.locationPhone` in the store) — note
+the phone's second field is `locationPhone`, **not** `locationContactPhone`. The genuine finding
+was PLACEMENT: the phone renders them inside the Location Information section but *after*
+`<LocationForm/>`, i.e. below the GPS control and coordinate card (`app/(form)/submission.tsx:189-207`,
+ui-mapping 05:41-42), with placeholder `Optional` on both. P2.3 fixed the placement and the copy.
+No deferral — recorded so the matrix row can be corrected at merge.
+
+### 37c. `formatLocationLabel` not ported
+
+The phone's export-filename builder (`src/lib/utils/address-formatting.ts:155-188`) is the third
+function in the module P2.3 ported. It is deliberately **not** ported: the demo has no export
+filenames until P5, and shipping it now would mean an untested dead export.
+**Trigger:** P5.1/P5.3, when export filenames land — port it there with its own tests (mind the
+business-name de-duplication logic at `:179-187`, which exists to fix a real double-prepend bug).
+
+### 37d. The reverse-geocode preference is component-local, not a setting
+
+The phone's "Geocode" toggle reads/writes a per-context preference in the settings store
+(`useReverseGeocodePreference('location')`, default on). The demo has no settings surface until
+P7, so `LocationFields` holds it in `useState` — same default, same semantics, no persistence
+across a screen unmount.
+**Trigger:** P7.1 (Settings shell) — move it into the settings slice alongside the other Location
+settings, and give the GPS accuracy mode the same treatment (P2.3 pins the phone's
+`balanced` / 30 s defaults in `buildGpsConfig`, since there is no pane to change them yet).
+
+### 37e. Reverse-geocode failure is surfaced; the phone's is silent
+
+Submission passes no `onReverseGeocodeError` on the phone, so a failed lookup is logged and
+**never shown** (ui-mapping 05:35). The demo shows an inline
+"Address lookup unavailable — the captured coordinates were kept." instead: a silent no-op after
+an explicit user action reads as a broken button, and the demo's honesty rule prefers saying what
+happened. Deliberate deviation, not a port gap.
+
+### 37f. GPS timeout is a deadline, not a raced timer
+
+The phone races its whole sample loop against a `setTimeout` (`gps-service.ts:313-337`). The demo
+enforces the same budget as a deadline: each `getCurrentPosition` receives the remaining budget as
+its own `timeout` option and the deadline is re-checked between attempts. Same guarantee, no
+dangling timer, and the loop stays testable without fake timers. Documented in
+`ui/inputs/capture-gps.ts`. Revisit only if a capture is ever observed outliving its budget by
+more than the tail of one already-abandoned reading.
+## 42. P2.1 (parity/p2-notes) — notes-generator port: shared-address-formatting placement + header/notes abbreviation seam
+
+**Status: BOTH ITEMS RESOLVED on `parity/p2-address-dedupe` (the P2.1 follow-up round).**
+
+**Context:** P2.1 ported the phone's seven-section notes generator. The address section
+formatter needs the phone's `formatAddress`/`abbreviateStreetTypes`
+(`src/lib/utils/address-formatting.ts`), which the demo did not have — it was ported
+**inside the notes module** (`engine/logic/notes/address-formatting.ts`) to keep P2.1's
+footprint out of P2.3's concurrent territory. P2.3 landed its own shared port in
+parallel; per this entry's original owner rule ("whoever merges second dedupes"),
+the P2.1 follow-up executed both resolutions:
+
+1. ~~Lift `address-formatting.ts` to a shared engine/logic location~~ — **RESOLVED**
+   (commit `2b51591`): the notes address-formatter now consumes P2.3's canonical
+   `engine/logic/address-format.ts`; the notes-local copy and its test suite are
+   deleted (the shared suite is a strict superset of its pins). Byte-identity
+   verified statically (line-identical function bodies, same 13-entry table/regex/
+   join) and dynamically (all notes template-pinning + phone-parity tests pass
+   unchanged against the shared module).
+
+2. ~~PDF header un-abbreviated while the notes body abbreviates~~ — **RESOLVED,
+   premise verified against the phone**: the phone's PDF header composes
+   `resolvedAddress` via `formatAddress` (`case-notes-template.ts:51-54`, rendered
+   `:86`) and its notes body composes its location string via the SAME
+   `formatAddress` (`notes/formatters/address-formatter.ts:37`) — header and body
+   agree on the phone, both abbreviated. The demo now matches exactly:
+   `selectCaseNotesData.address` runs `formatAddress` (P2.3's selectors wiring) and
+   the notes body runs the same shared module (item 1). Pinned end-to-end by the
+   "§42.2 pin" test in `engine/__tests__/engine-flow.test.ts` (header row and
+   attendance line carry the identical abbreviated string; the full street word
+   never reaches the document). Remaining hand-join sites OUTSIDE the PDF path
+   (Completion summary, screenData rows) are P2.4's §37 table — not re-tracked here.
+
+## 43. `NoteSection`'s content/generatedContent invariant — recorded, deliberately unexpressed (P2 review R-28)
+
+**Source:** P2 review R-28 (type-design lane TD-7, LOW; the lane itself recommended
+recording over fixing). Owner P2.1, disposition executed on `parity/p2-fix-notes`.
+
+**The invariant:** for an un-edited section (`manuallyEdited: false`),
+`generatedContent === content` always holds — the reconciler's un-edited arm writes both
+from the same fresh output, and every other writer either freezes the pair
+(`manuallyEdited: true` paths) or rebuilds both (`resetNoteSection`,
+`restoreAllNotes`). The type (`engine/types/index.ts` `NoteSection`) documents this in
+prose but cannot express it structurally.
+
+**Why record, not fix:** a discriminated union (`auto` arm carrying one string / `edited`
+arm carrying both) would fork the demo's PERSISTED shape from the phone's
+(`src/features/documentation/notes/types.ts` — the same flat shape, same prose
+invariant), against the phase's port-verbatim premise; the snapshot guard would need a
+custom refinement; and the sole route to a violating value is hand-editing
+sessionStorage, where the zod shape guard already discards malformed snapshots — the
+worst reachable case is a stale staleness-baseline that self-heals on the next
+formatter-output change.
+
+**Optional hardening, considered and NOT taken:** making the reconciler's un-edited arm
+also compare `generatedContent` (self-healing at one extra comparison) would diverge the
+reconciler from the phone's verbatim `fresh === stored.content` arm
+(`section-reconciler.ts`) for a state unreachable through the demo's own writers.
+
+**Trigger to revisit:** any new writer that sets `content` without `generatedContent`
+(or vice versa) on an un-edited section, or a phone-side reshape of `NoteSection` —
+adopt whatever shape the phone lands.
+---
+
+## 44. P2.2 fix round (parity/p2-fix-ocr) — OCR confirm: decisions taken while closing R-4/R-15/R-16/R-23/R-26
+
+All five P2.2 findings from `docs/code-reviews/parity/p2/p2-review.md` were **fixed**, not
+deferred. This section records the choices inside those fixes that a future reader would
+otherwise have to reverse-engineer, plus the one §40 entry they partially overtake.
+
+### 44a. Escape on the OCR recalculate prompt is deliberately NOT the Cancel arm
+
+`AlertDialog`'s docblock says the caller should "wire `onDismiss` to whatever cancel means for
+that alert." The OCR recalculate prompt breaks that rule on purpose.
+
+The phone's `Cancel` on this alert is not a "close the dialog" — it is
+`router.push(ROUTES.FORM.TIME_OFFSET)`, which **leaves the OCR flow and discards the capture**
+(phone `app/(form)/ocr-capture.tsx:293-296`; ui-mapping 06:152). Wiring Escape to that would
+mean a stray keypress throws away a read the operator just took. Escape instead closes the
+prompt back to the confirmation step with the read, the draft, and the date-confirmation state
+all intact — the least-destructive route, and the one every other Escape in this feature takes.
+
+The sibling guard on `TimeOffsetScreen` does not face this: its `Cancel` genuinely is "close and
+stay", so there Escape and Cancel coincide.
+
+**Trigger to revisit:** if `AlertDialog` ever grows a documented "dismiss ≠ cancel" affordance
+(a distinct `onEscape`, say), fold this in rather than keeping the local reasoning.
+
+### 44b. The commit CTA is `aria-disabled`, not `disabled`
+
+Closing R-15 swapped the confirmation step's primary CTA from `disabled` to `aria-disabled` with
+a guarded click handler. Two reasons, only the first of which R-15 names: a `disabled` button
+takes no focus, so nothing leads a keyboard user to the reason it is blocked; and this
+particular button's state flips *while the operator is working on the screen* (confirming or
+correcting the assumed date re-enables it), so `disabled` would drop focus to `<body>` at the
+exact moment the operator wants to press it — the failure shape R-7 documents on the GPS
+capture button.
+
+The commit is now refused at three layers: the guarded click, the screen's `canCommit`, and
+`isDvrDraftCommittable` inside `confirmOcr` on the bridge. That last one is the real gate; the
+other two are UI.
+
+### 44c. `calcOffset` gained a defaulted `regenerate` parameter (shared bridge helper)
+
+R-4's fix split `generateExtractedScopes` off the offset calculation via
+`calcOffset(regenerate = true)`, mirroring the phone's `performOcrCalculation(result, boolean)`.
+The default is `true` **specifically** so the Time Offset screen's Calculate path — which has
+its own confirmation, owned by P2.5 — keeps its exact previous behaviour. `TimeOffsetScreen.tsx`
+was not touched. Anyone adding a third caller must decide the regenerate answer explicitly
+rather than leaning on the default.
+
+### 44d. Refines §40e — the confirm stage now has a Cancel, but only inside the prompt
+
+§40e recorded that the confirmation stage offers no one-tap exit (only `Retake` → `Cancel`).
+Still true in the general case. The R-4 prompt adds a `Cancel` that *does* leave the flow in one
+tap, but only on the path where extracted scopes exist and the operator has already pressed
+"Use this & calculate". §40e stands for every other path.
+
+### 44e. R-16 was closed by labelling, not by suppressing or deferring
+
+The finding offered three dispositions for the fabricated confidence chip. Chose labelling (the
+`Sample` pill + a note stating the score is fixed and rates character legibility, not date
+interpretation) over suppressing it on the ambiguous/time-only frames, because suppression hides
+a value instead of telling the truth about it — the inverse of how this demo handles everything
+else it cannot really do — and would make the confidence tiers unreachable on two of three
+frames. If a real recogniser ever lands (P4), the badge and its note must be removed with the
+constant; `OCR_SAMPLE_CONFIDENCE`'s docblock carries that instruction.
+## 45. P2.3 fix round (p2-review R-1/R-6/R-7/R-10/R-13/R-17/R-18/R-21/R-24/R-25/R-31) — choices made
+
+**Source:** the P2 aggregated review, `docs/code-reviews/parity/p2/p2-review.md`. All eleven
+P2.3-owned findings are FIXED on `parity/p2-fix-submission`; nothing was deferred or refuted.
+This entry records the judgement calls inside those fixes, so the fix-delta pass does not have
+to re-derive them. (§41 remains the package's own refutation/residual ledger — it was §37 on the
+authoring branch and renumbered during merge integration.)
+
+**45a. R-7 took the stronger option, not the in-repo idiom.** The review offered PickerStage's
+re-focus-on-failure effect (`:171-192`) or `aria-disabled` + an early return. Chose the latter:
+PickerStage *repairs* focus after losing it, which fits a sub-second clipboard read, whereas the
+GPS stranding window is the whole 30–120 s capture and covers the SUCCESS path too. `aria-disabled`
+never drops focus at all. Consequence to know: the button stays tabbable and clickable while busy,
+so the `if (busy || disabled) return` guard in `onClick` is load-bearing — deleting it re-enables
+double-capture. Pinned by a test that clicks during the capture and asserts one write.
+
+**45b. R-13 classified a bad timestamp as `INVALID_COORDINATES`.** A separate code would have been
+more literal, but the union is deliberately the phone's minus the unreachable `UNKNOWN` (§41), and
+`INVALID_COORDINATES` already means "this reading cannot be trusted". The message names the actual
+defect. Revisit only if a caller ever needs to branch on timestamp-vs-coordinate invalidity.
+
+**45c. R-18's unmeasured-sample ordering is a decision, not a fallout.** With `accuracyM` optional,
+`selectBestSample` prefers any MEASURED reading over an unmeasured one in either order, and returns
+an unmeasured one only when nothing in the set carries an accuracy. The alternative — never
+returning an unmeasured sample — would turn "coordinates captured, accuracy unknown" into
+`LOCATION_UNAVAILABLE`, which is dishonest in the other direction: the fix is real, only the
+accuracy figure is missing. Both arms are pinned.
+
+**45d. R-1 abandons a superseded lookup silently.** When the write guard fires, no notice is shown.
+A notice would be attributed to the location now on screen, which never had a lookup in flight —
+noise about someone else's operation. The dropped result is not evidence: the coordinates it would
+have annotated were already written, stamped, and visible before the lookup started.
+
+**45e. R-24 left one deliberate divergence.** `LocationFieldValues` is a flattened, all-optional
+projection (`CoordinateProjection`) rather than `GpsCoordinates` proper, because a half-filled form
+IS a real state there — unlike a stored fix, where lat/lng are required together. It is expressed
+as a mapped type over `GpsCoordinates` so a field added to the canonical shape still has to be
+projected explicitly. The other six carriers are straight derivations.
+
+**Trigger for all five:** P3.4/P3.7 mount `GpsCaptureControl`/`LocationFields` for New Location and
+per-camera capture. Re-read 45a (the `onClick` guard) and 45d (the guard token — those callers must
+pass their own identity, not the recovery location's) before wiring them.
+
+### Round 3 (fix-delta R-32/R-33/R-34) — additions and one superseded entry
+
+**45f. The write guard is an identity check, not a generation counter — 45d is superseded.**
+R-32 found the address-PICK path unguarded (R-1 had covered only the reverse-geocode write). Fixing
+it exposed a defect in the round-1 shape: the fix-delta's suggested "capture `writeGen.current` in
+the `onPick` body" reads the token at CONTINUATION time, after the switch, so it can never fire;
+and capturing at handler-creation time instead hits an ordering hazard — the effect cleanup that
+bumps the counter runs AFTER the re-render following a `locationId` change, so a handler created by
+that render holds the pre-bump value and refuses its own first write. Both paths now share
+`canWriteFor(issuedFor)` = mounted AND `issuedFor === openLocation.current`. The `mounted` half is
+load-bearing and must not be dropped as redundant: it covers "left the wizard entirely", where the
+id still matches while the store's target has moved on. A mutation test (`accepts a pick issued
+AFTER the switch`) pins the deviation — it is red under the counter shape.
+**Trigger for P3.4/P3.7:** these callers must pass their OWN identity as `locationId`; a per-camera
+control passing the recovery location's id would guard the wrong thing.
+
+**45g. R-33's guard reads the config source, not the config module.** Importing `vitest.config.mts`
+into the test breaks `tsc --noEmit` (the `.mts` sits outside this tsconfig's module resolution, and
+the extension-ful import is rejected). Reading the declaration out of the file text is the
+type-check-safe way to assert the `testTimeout > asyncUtilTimeout` relationship. If the config ever
+moves to `.ts` under the app's resolution, swap the regex for a real import.
+
+**45h. R-34: the derivations are the protection; the guard file is the statement.** The round-1
+guard asserted the wrong direction (`GpsCoordinates extends T` is silent precisely when a copy
+LOSES a field). Corrected to key-exhaustiveness, matching `persistence.ts`'s `FullShape`. Worth
+keeping in mind for future type guards in this repo: assignability-to-a-looser-type never catches
+missing members, which is the direction real drift runs.
+
+**45i. Still open, P2.3-owned, deliberately out of round-3 scope:** R-39 (`LookupNotice` consumed
+by a binary ternary in `LocationFields`, so a fourth member would silently render the
+partial-address copy — nit-grade). The round was scoped to R-32/R-33/R-34; R-39 needs the same
+`never`-check treatment R-25 gave `gpsSourceLabel`. Cheap; fold into the next touch of this file.

@@ -3,6 +3,7 @@
 import { Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import type { GpsCoordinates } from '@/features/demo/engine/types'
 
 export interface NewLocationFields {
   locationName: string
@@ -11,8 +12,9 @@ export interface NewLocationFields {
   city: string
   locationContact: string
   locationPhone: string
-  /** Geocoded coordinates captured from an address pick (carried to submit; not rendered). */
-  coordinates?: { lat: number; lng: number }
+  /** Geocoded coordinates captured from an address pick (carried to submit; not rendered).
+   *  `accuracyM` is present only for a rooftop match (see AddressAutocomplete). */
+  coordinates?: GpsCoordinates
 }
 
 export interface NewLocationModalProps {
@@ -23,7 +25,7 @@ export interface NewLocationModalProps {
   onCaptureGps(): void
   /** Fires when an address pick yields geocoded coordinates (recovery locations are geocode-only —
    *  no manual lat/lng entry, since a DVR always has a real street address). */
-  onPickCoords(coords: { lat: number; lng: number }): void
+  onPickCoords(coords: GpsCoordinates): void
 }
 
 export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCaptureGps, onPickCoords }: NewLocationModalProps) {
@@ -38,7 +40,7 @@ export function NewLocationModal({ form, onChange, onSubmit, onCancel, onCapture
         onPick={(p) => {
           onChange('streetAddress', p.streetAddress)
           onChange('city', p.city)
-          if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng })
+          if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM })
         }}
         placeholder="Start typing an address…"
       />

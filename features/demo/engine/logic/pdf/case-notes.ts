@@ -1,4 +1,6 @@
 import { escapeHtml, formatDocDate, nowStamp } from '@/features/demo/engine/logic/pdf/shared'
+import { assembleNotesString } from '@/features/demo/engine/logic/notes/notes-assembler'
+import type { NoteSection } from '@/features/demo/engine/types'
 
 /**
  * The Case Notes court document — a print-ready HTML report modelled on the app's
@@ -71,7 +73,25 @@ export interface CaseNotesData {
   dvr?: CaseNotesDvr
   cameras?: CaseNotesCamera[]
   export?: CaseNotesExport
-  notes?: string
+  /**
+   * SECTIONED notes input (P2.1 — phone parity): the document consumes the
+   * seven-section structure + free-text tail and assembles the flat body itself via
+   * the canonical `assembleNotesString`, exactly like the phone's template path
+   * (`deriveNotesFromStore` → the template's single `.notes` block). Callers pass the
+   * READ-ONLY-reconciled sections (Flow F — `selectCaseNotesData`), never a
+   * pre-flattened string, so the document's notes body can't fork from the assembler.
+   */
+  notesSections?: NoteSection[]
+  notesFreeText?: string
+  /**
+   * True when `generateExtractedScopes` dropped ≥1 non-canonical requested scope, so
+   * `extractedScopes` — the list the notes' recovered-footage line is built from — is
+   * SHORT. The document must say so (P2 review R-3): unlike `adjustedScopesPartial`
+   * (recomputed live), this flag describes the stored extracted list, which stays stale
+   * until the visitor recalculates — the court PDF may otherwise under-report the
+   * recovery with no warning anywhere.
+   */
+  extractedScopesPartial?: boolean
   arrivalDepartures?: CaseNotesArrival[]
   generatedAt?: string
 }
@@ -205,10 +225,23 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   <div class="section"><div class="section-title">Export Information</div><div class="info-grid">${exRows}</div></div>`
     : ''
 
+  // The notes body is assembled from the SECTIONED input here — the canonical
+  // assembler is the only flattening path (matches the phone's template semantics:
+  // one pre-wrap `.notes` block containing the registry-ordered section blocks).
+  const notesFlat = assembleNotesString(d.notesSections ?? [], d.notesFreeText ?? '')
+  // R-3: a flagged-partial extracted list means the recovered-footage line above was
+  // built from a SHORT list — annotate, don't silently under-report (the
+  // adjustedScopesPartial idiom). Rendered even if the notes body is empty: the flag
+  // describes the recovery record, not the prose.
+  const notesPartialNote = d.extractedScopesPartial
+    ? `<p style="font-size:10pt;color:#d9534f;font-weight:bold;">&#9888; One or more requested time ranges could not be converted to DVR time when the extracted scopes were last calculated — the recovered footage reported in these notes may be incomplete. Recalculate on the Time Offset screen after correcting the requested times.</p>`
+    : ''
   const notesSection =
-    d.notes && d.notes.trim()
+    notesFlat.trim() || notesPartialNote
       ? `
-  <div class="section"><div class="section-title">Case Notes</div><div class="notes">${e(d.notes)}</div></div>`
+  <div class="section"><div class="section-title">Case Notes</div>${
+    notesFlat.trim() ? `<div class="notes">${e(notesFlat)}</div>` : ''
+  }${notesPartialNote}</div>`
       : ''
 
   const adRows = (d.arrivalDepartures || [])

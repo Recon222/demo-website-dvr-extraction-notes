@@ -41,6 +41,7 @@ export {
 
 // ---- Logic: time / OCR / import / PDF ----
 export * from '@/features/demo/engine/logic/time'
+export * from '@/features/demo/engine/logic/dst-advisory'
 export * from '@/features/demo/engine/logic/ocr'
 export * from '@/features/demo/engine/logic/import'
 // NOTE (review R-10): engine/logic/import-log is deliberately NOT re-exported here. Every
@@ -48,6 +49,57 @@ export * from '@/features/demo/engine/logic/import'
 // convention — and the barrel should not advertise the mutable importLogBus singleton as
 // public surface with zero consumers. Import from '@/features/demo/engine/logic/import-log'.
 export { parseCoordinate, formatCoordinate, type CoordKind, type ParseCoordinateResult } from '@/features/demo/engine/logic/coordinates'
+export {
+  FINAL_SUBMISSION_MESSAGES,
+  finalSubmissionSchema,
+  toFinalSubmissionInput,
+  validateFinalSubmission,
+  type FinalSubmissionInput,
+  type FinalSubmissionOutcome,
+} from '@/features/demo/engine/logic/final-submission'
+export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
+export {
+  ACCURACY_MODE_TARGET_M,
+  ACCURACY_RATINGS,
+  GPS_ACCURACY_MODES,
+  GPS_CONFIG_STATIC,
+  GPS_ERROR_CODES,
+  GPS_MESSAGES,
+  PRECISE_GPS_CONFIG,
+  buildGpsConfig,
+  formatAccuracy,
+  getAccuracyRating,
+  gpsSourceLabel,
+  gpsTimeoutMessage,
+  meetsTargetAccuracy,
+  selectBestSample,
+  toGpsFix,
+  validateCoordinates,
+  type AccuracyRating,
+  type AccuracyRatingLabel,
+  type AccuracyTone,
+  type GpsAccuracyMode,
+  type GpsCaptureOutcome,
+  type GpsConfig,
+  type GpsErrorCode,
+  type GpsFailure,
+  type GpsFix,
+  type GpsSample,
+} from '@/features/demo/engine/logic/gps'
+// Notes generation (P2.1 — the phone's seven-section registry port)
+export {
+  SECTION_DEFINITIONS,
+  sectionLabel,
+  freshSectionContent,
+  isSectionStale,
+  reconcileSections,
+  assembleNotesString,
+  extractNotesRelevantData,
+  buildNotesSectionMeta,
+  type NoteSectionMeta,
+  type NotesRelevantFormData,
+  type SectionDefinition,
+} from '@/features/demo/engine/logic/notes'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
@@ -61,6 +113,8 @@ export {
   type NewCaseInput,
   type NewLocationInput,
   type PersistedState,
+  type ScrapAllMode,
+  type RestoreAllMode,
 } from '@/features/demo/engine/store/create-store'
 export {
   PERSISTENCE_ENABLED,

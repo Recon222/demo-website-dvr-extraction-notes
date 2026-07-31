@@ -1,13 +1,17 @@
 'use client'
 
+import { useCallback, useState } from 'react'
 import { DateTimeField, SectionCard, switchKeyDown, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface CorrectedScope {
   id: string
   reqLabel: string
+  /** The domain the adjusted times are in — the inverse of `reqLabel`, as the phone labels it. */
+  adjLabel: string
   reqStart: string
   reqEnd: string
   adjStart: string
@@ -29,6 +33,10 @@ export interface TimeOffsetScreenProps {
   correctedScopes: CorrectedScope[]
   dvrAppliesDST: boolean
   onToggleDst(): void
+  /** The phone's DST scenario message for the current calibration, or null. */
+  dstAdvisory: string | null
+  /** True when a recalculation would overwrite generated/edited extracted scopes. */
+  hasExtractedScopes: boolean
   onNext(): void
   onBack(): void
   onMenu(): void
@@ -36,10 +44,25 @@ export interface TimeOffsetScreenProps {
 
 const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" })
 
+/** The demo's warning amber — the same `colors.warning` stop the import terminal uses. */
+const WARNING = '#ffd93d'
+
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
 export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
   const canCalc = Boolean(p.dvrDateTime && p.actualDateTime)
+  const [confirmRecalc, setConfirmRecalc] = useState(false)
+  // The phone gates Calculate behind a confirmation once extracted scopes exist, because the
+  // recalculation regenerates them wholesale and discards any manual edits. The demo's
+  // `generateExtractedScopes` replaces the list the same way, and its Extracted-Scope screen is
+  // editable — so the guard is load-bearing here, not ceremony.
+  const onCalculateClick = () => {
+    if (p.hasExtractedScopes) setConfirmRecalc(true)
+    else p.onCalculate()
+  }
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear the listener down and re-add it on every parent update.
+  const cancelRecalc = useCallback(() => setConfirmRecalc(false), [])
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Time Offset" onBack={p.onBack} onMenu={p.onMenu} />
@@ -49,7 +72,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <DateTimeField label="Actual Date / Time" value={p.actualDateTime} onChange={p.onChangeActual} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Use Current Time</button>
-            <button type="button" onClick={p.onCalculate} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
+            <button type="button" onClick={onCalculateClick} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
           </div>
           <button type="button" onClick={p.onCaptureOcr} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 12, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', cursor: 'pointer', width: '100%' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
@@ -76,7 +99,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
                     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#7a9fc4', marginBottom: 5 }}>Requested ({sc.reqLabel})</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={cell('#f0f4f8')}>{sc.reqStart}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={cell('#7a9fc4')}>End</span><span style={cell('#f0f4f8')}>{sc.reqEnd}</span></div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#4BA3D4', marginBottom: 5 }}>Adjusted (DVR time)</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#4BA3D4', marginBottom: 5 }}>Adjusted ({sc.adjLabel})</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={{ ...cell('#4BA3D4'), fontWeight: 600 }}>{sc.adjStart}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={cell('#7a9fc4')}>End</span><span style={{ ...cell('#4BA3D4'), fontWeight: 600 }}>{sc.adjEnd}</span></div>
                     {sc.cameras && <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', marginTop: 10 }}>Cameras: {sc.cameras}</div>}
@@ -99,6 +122,18 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
                 <div style={{ position: 'absolute', top: 3, [p.dvrAppliesDST ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: p.dvrAppliesDST ? '#fff' : '#7a9fc4' }} />
               </div>
             </div>
+            <div style={{ fontSize: 12.5, color: '#7a9fc4', marginTop: 2, marginBottom: 10 }}>
+              Enable if the DVR clock adjusts for Daylight Saving Time
+            </div>
+
+            {p.dstAdvisory && (
+              <div
+                role="status"
+                style={{ marginTop: 4, padding: 12, borderRadius: 10, border: `1px dashed ${WARNING}`, background: 'rgba(255,217,61,0.07)', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic', textAlign: 'center', color: WARNING }}
+              >
+                {p.dstAdvisory}
+              </div>
+            )}
           </>
         )}
 
@@ -106,6 +141,28 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <WizardNext label="Continue →" onClick={p.onNext} />
         </div>
       </div>
+
+      {/* The phone's `Recalculate Time Offset?` Alert (`app/(form)/time-offset.tsx:372-382`,
+          spec `docs/ui-mapping/06-wizard-b-time.md:80-83`) on the shared blocking-dialog
+          primitive: title, message and both button labels verbatim, `Cancel` carrying the
+          phone's `style: 'cancel'`, Escape dismissing to the safe default. */}
+      {confirmRecalc && (
+        <AlertDialog
+          title="Recalculate Time Offset?"
+          message="This will reset your extracted video scopes. Any manual edits to the extracted times will be lost."
+          actions={[
+            { label: 'Cancel', style: 'cancel', onPress: cancelRecalc },
+            {
+              label: 'Continue',
+              onPress: () => {
+                setConfirmRecalc(false)
+                p.onCalculate()
+              },
+            },
+          ]}
+          onDismiss={cancelRecalc}
+        />
+      )}
     </div>
   )
 }

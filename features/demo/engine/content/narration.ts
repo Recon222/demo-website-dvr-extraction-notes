@@ -145,14 +145,14 @@ export const NARRATION: Record<ChapterId, ChapterNarration> = {
     eyebrow: 'Auto notes',
     title: 'Case notes',
     paras: [
-      'The app assembles bullet-point notes from everything you captured — occurrence, location, offset, scopes, export. Edit freely; regenerate to rebuild from the data.',
+      'Seven auto-generated sections — attendance, time offset, recovered footage, retention, export, time on scene — each tracked independently. Rewrite any section and it stays yours; the rest keep regenerating from your data.',
     ],
     bullets: [
-      'Auto-generated from all form data',
-      'Editable, with a one-tap regenerate',
+      'Sections regenerate from the wizard data',
+      'Your edits are never overwritten',
       'Becomes the body of the court PDF',
     ],
-    tip: 'Press "Regenerate" to rebuild from the latest data.',
+    tip: 'Tap any paragraph to edit it. If the data changes under an edited section, a reset offer appears.',
   },
   completion: {
     eyebrow: 'Review + export',
@@ -222,9 +222,10 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     bullets: [
       'Live webcam capture, or a generated sample DVR clock',
       'Real OCR → ported text cleaning → multi-format timestamp parse',
-      'Confidence score; confirm to calculate the offset automatically',
+      'Confidence score; correct the parsed time before you commit it',
+      'Warns when a date could read either MM/DD or DD/MM, and never accepts an assumed date silently',
     ],
-    tip: 'Press "Use sample DVR clock" (works without a camera) — or capture a live frame.',
+    tip: 'Press "Use sample DVR clock" (works without a camera) — or try the awkward frames underneath it.',
   },
 }
 

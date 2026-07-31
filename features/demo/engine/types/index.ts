@@ -96,11 +96,21 @@ export interface TimeOffsetData {
   ocr?: OcrProof
 }
 
-/** A GPS fix: latitude/longitude with the achieved accuracy in metres. */
+/**
+ * A coordinate pair with the accuracy achieved when it was obtained, in metres.
+ *
+ * `accuracyM` is OPTIONAL because not every source measures one — exactly as on the phone,
+ * where `coordinateAccuracy?: number` (LocationForm.tsx:34, CoordinateDisplay.tsx:25) and the
+ * accuracy/rating chip renders only when it is defined (CoordinateDisplay.tsx:138-166). A GPS
+ * capture always carries a measured radius; a geocoded pick carries 5 m only when Mapbox
+ * reports a rooftop match (phone mapbox-service.ts:246-247) and nothing otherwise. Filling a
+ * placeholder `0` here would render as "±0m · Excellent" — fabricated precision on a
+ * coordinate nobody measured.
+ */
 export interface GpsCoordinates {
   lat: number
   lng: number
-  accuracyM: number
+  accuracyM?: number
 }
 
 export interface CameraEntry {
@@ -136,6 +146,60 @@ export interface ExportInformation {
   mediaProvidedVia: string
 }
 
+// ---- Notes sections (P2.1 — phone notes-generator port) ---------------------
+/**
+ * The seven registry-ordered notes sections, in display order (phone parity:
+ * `src/features/documentation/notes/services/section-registry.ts`). Declared as an
+ * `as const` tuple so the persistence shape guard consumes the same value via
+ * `z.enum(NOTE_SECTION_IDS)` (snapshot-guard device 3 / R-4a) — the union and the
+ * schema enum cannot drift apart. Display order itself is owned by
+ * `engine/logic/notes/section-registry.ts` (which is pinned to cover this union
+ * exhaustively at compile time).
+ */
+export const NOTE_SECTION_IDS = [
+  'address',
+  'timeOffset',
+  'scopes',
+  'retention',
+  'cameras',
+  'export',
+  'timeOnScene',
+] as const
+export type NoteSectionId = (typeof NOTE_SECTION_IDS)[number]
+
+/**
+ * A single section of the structured notes (output-comparison model, ported from the
+ * phone's `notes/types.ts`). Section state is DERIVED, never stored, from these fields
+ * plus the current formatter output:
+ *
+ * | State           | Predicate                                              |
+ * |-----------------|--------------------------------------------------------|
+ * | Auto            | `!manuallyEdited`                                      |
+ * | Auto + addendum | `!manuallyEdited && userAddendum`                      |
+ * | Edited          | `manuallyEdited && (fresh === '' || fresh === generatedContent)` |
+ * | Edited + stale  | `manuallyEdited && fresh !== '' && fresh !== generatedContent`   |
+ * | Deleted         | `manuallyEdited && content === ''`                     |
+ * | Empty (no data) | `!manuallyEdited && content === ''`                    |
+ */
+export interface NoteSection {
+  id: NoteSectionId
+  /** Displayed/exported primary text: formatter output, or the user's replacement. */
+  content: string
+  /**
+   * What the formatter produced the last time it was APPLIED to content. For un-edited
+   * sections this always equals content; for edited sections it is frozen at the
+   * generation the user overwrote — the staleness baseline.
+   */
+  generatedContent: string
+  /**
+   * Optional user annotation rendered after content within the same block.
+   * Survives regeneration and reset. Never merged into content.
+   */
+  userAddendum?: string
+  /** True only when the user has REPLACED the generated text (or deleted it). */
+  manuallyEdited: boolean
+}
+
 export const MEDIA_KINDS = ['photo', 'video', 'audio'] as const
 export type MediaKind = (typeof MEDIA_KINDS)[number]
 
@@ -164,8 +228,12 @@ export interface LocationForm {
   dvr: DvrInformation
   cameras: CameraEntry[]
   export: ExportInformation
-  notesText: string
-  notesEdited: boolean
+  /** The seven independently-tracked notes sections (registry order once reconciled).
+   *  Empty until the Notes screen first reconciles (Flow A) — read paths that need
+   *  wizard-fresh notes reconcile READ-ONLY themselves (Flow F, the PDF path). */
+  notesSections: NoteSection[]
+  /** Free-text tail appended after all sections in the assembled notes. */
+  notesFreeText: string
   /** Completion screen entry fields. */
   dateTimeCompleted: string
   completedBy: string
@@ -182,6 +250,9 @@ export type CaseStatus = (typeof CASE_STATUSES)[number]
 export const COORD_SOURCES = ['geocoded', 'manual'] as const
 /** Recovery-location fixes can additionally come from a real GPS capture. */
 export const GPS_SOURCES = ['gps', 'geocoded', 'manual'] as const
+/** Coordinate provenance. Named (R-25) so consumers annotate rather than hand-retyping the
+ *  members: a widened `GPS_SOURCES` must reach the provenance chip, not stop at a copy. */
+export type GpsSource = (typeof GPS_SOURCES)[number]
 
 export interface DemoCase {
   id: string
@@ -222,7 +293,7 @@ export interface DemoLocation {
   requesterEmail: string
   locationContact: string
   locationPhone: string
-  gps?: GpsCoordinates & { source: (typeof GPS_SOURCES)[number] }
+  gps?: GpsCoordinates & { source: GpsSource }
   form: LocationForm
 }
 

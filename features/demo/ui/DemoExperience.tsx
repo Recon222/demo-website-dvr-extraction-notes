@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
-import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
+import {
+  createDemoStore,
+  type DemoStore,
+  type RestoreAllMode,
+  type ScrapAllMode,
+} from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 import { nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
@@ -22,6 +27,7 @@ import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
+import { AlertDialog, type AlertAction } from '@/features/demo/ui/controls/AlertDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -50,20 +56,25 @@ import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
-import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
+import { loadSnapshot, persistDemoStore, type PersistenceHandle, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
-import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
+import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
+import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
+import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
+import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
+import { assembleNotesString, buildNotesSectionMeta } from '@/features/demo/engine/logic/notes'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { toCaseCards } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -118,8 +129,52 @@ interface ImportState {
 }
 const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
 
+/** An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload). */
+interface AlertState {
+  title: string
+  message: string
+  actions: readonly AlertAction[]
+}
+
+/** Phone copy, verbatim — `app/(form)/completion.tsx:373-374`. */
+const MISSING_FIELDS_TITLE = 'Missing Required Fields'
+const MISSING_FIELDS_BODY = 'Please fill in all required fields to complete the case. Save progress instead?'
+/**
+ * Phone copy, verbatim (`completion.tsx:331-332`) plus ONE honest line. The phone's "Save
+ * Progress" writes the location to SQLite; the demo's equivalent is the sessionStorage
+ * snapshot (P0.4/D2) that is already being written continuously — true, but bounded by the
+ * tab, and the demo says so rather than implying a database. Same language as the /demo error
+ * page's "this tab's session snapshot".
+ */
+const PROGRESS_SAVED_TITLE = 'Progress Saved'
+/**
+ * True on BOTH arms below, and the reason the title still reads "Progress Saved" even when
+ * nothing is being stored: the location is in the store either way, and Cases really does
+ * reopen it. Only the persistence sentence differs.
+ */
+const PROGRESS_SAVED_SHARED = 'You can continue this location later from the Cases screen.\n\n'
+const PROGRESS_SAVED_BODY =
+  PROGRESS_SAVED_SHARED +
+  'Your work stays in this browser tab — it survives a refresh, but closing the tab starts fresh.'
+/**
+ * R-2: the demoted arm. `sessionStorage` can be absent or blocked (enterprise policy, privacy
+ * extension, sandboxed embed) — `persistDemoStore` answers that with a total no-op handle —
+ * and a quota/security write failure deliberately CLEARS the snapshot, so the refresh the
+ * visitor was just promised would boot empty. Saying nothing is not an option either: silence
+ * leaves them assuming the demo's usual behaviour. Same shape as the FallbackMode / "Sample
+ * data" honesty treatments.
+ */
+const PROGRESS_NOT_STORED_BODY =
+  PROGRESS_SAVED_SHARED +
+  "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
+
+/** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
+ *  can call it every render without looping on a fresh array identity. */
+const dropGateErrors = (prev: readonly string[]): readonly string[] => (prev.length === 0 ? prev : [])
+
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
+
 
 /** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
 function sessionStorageOrNull(): StorageLike | null {
@@ -232,6 +287,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // newer run's "reset" would un-cancel the stale one and let it mutate the store.
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  // The operator's working DVR date/time on the confirm step. Held here (not in the screen)
+  // per the store-bridge rule, and committed to the store only by "Use this & calculate" —
+  // so Cancel/Retake leave no trace of a read the operator rejected.
+  const [ocrDraft, setOcrDraft] = useState('')
+  const [ocrDateConfirmed, setOcrDateConfirmed] = useState(false)
+  // Render-irrelevant OCR proof (raw/cleaned text + score) carried from the read to the
+  // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
+  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
   // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
@@ -251,13 +314,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // P0.4: mirror the store into sessionStorage (debounced) so a mid-wizard refresh restores
   // the tab's work. pagehide flushes a pending write — a refresh rarely waits out the
   // debounce. Injected stores (the test seam) are deliberately not persisted.
+  // The handle is read at ALERT time by saveProgress (R-2), never at render — a value captured
+  // once would keep promising refresh survival after a write failure revoked it.
+  const persistenceRef = useRef<PersistenceHandle | null>(null)
   useEffect(() => {
-    if (injectedStore) return
-    const handle = persistDemoStore(store, sessionStorageOrNull())
+    // Injected stores (the test seam) are still deliberately not persisted — but they are
+    // wired with a NULL BACKEND rather than skipped, so every mount has a handle to ask about
+    // persistence. An absent handle is exactly the unknown state the old unconditional
+    // "survives a refresh" copy assumed away.
+    const handle = persistDemoStore(store, injectedStore ? null : sessionStorageOrNull())
+    persistenceRef.current = handle
     const onPageHide = () => handle.flush()
     window.addEventListener('pagehide', onPageHide)
     return () => {
       window.removeEventListener('pagehide', onPageHide)
+      persistenceRef.current = null
       handle.dispose()
     }
   }, [injectedStore, store])
@@ -299,6 +370,67 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
+  // ---- DST advisory (P2.5) ---------------------------------------------------------------
+  // The phone recomputes this on every render of the Time-Offset result block, so it tracks
+  // the DVR-Applies-DST toggle and the scope edits live. Memoised here (review R-14) because
+  // scenario A additionally scans the year for the zone's transition dates — ~23 `isDst`
+  // probes — and the bridge re-renders on EVERY store write, doubled under StrictMode.
+  //
+  // Deps are exactly the advisory's inputs. `clock.now` / `clock.isDst` are module-level seam
+  // singletons, stable by construction. Honest consequence of memoising a clock read: "today"
+  // is frozen until one of these inputs changes — irrelevant at demo timescales, and the
+  // alternative (recompute per render) is what this finding is about.
+  const timeOffsetForAdvisory = currentLocation?.form.timeOffset ?? null
+  const scopesForAdvisory = currentLocation?.form.scopes
+  const dstAdvisory = useMemo(
+    () =>
+      timeOffsetForAdvisory
+        ? computeDstAdvisory({
+            scopes: scopesForAdvisory ?? [],
+            actualDateTime: capture.actualDateTime,
+            dvrAppliesDST: capture.dvrAppliesDST,
+            now: clock.now,
+            isDst: clock.isDst,
+          })
+        : null,
+    [timeOffsetForAdvisory, scopesForAdvisory, capture.actualDateTime, capture.dvrAppliesDST],
+  )
+
+  // ---- Completion gate (P2.4, matrix G9) -------------------------------------------------
+  // The phone's ONE runtime validation gate, evaluated against the OPEN LOCATION and the case
+  // that OWNS it (`loc.caseId`) — never `currentCase` above, which is the selection-pair read.
+  // Same R-19 law the completion action follows: trusting the pair here would validate an
+  // unrelated case's occurrence number against this location's address and scopes.
+  const gateOwnerCase = currentLocation ? (cases.find((c) => c.id === currentLocation.caseId) ?? null) : null
+  const gateOutcome = useMemo(
+    () => validateFinalSubmission(toFinalSubmissionInput(currentLocation, gateOwnerCase)),
+    [currentLocation, gateOwnerCase],
+  )
+  /** Messages from the last BLOCKED attempt — the phone's `validationErrors` state. */
+  const [gateErrors, setGateErrors] = useState<readonly string[]>([])
+  const [alert, setAlert] = useState<AlertState | null>(null)
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear down and re-add the listener on every store update.
+  const closeAlert = useCallback(() => setAlert(null), [])
+
+  // Auto-clear, mirroring the phone's effect (`completion.tsx:115-125`): the card disappears
+  // the moment the operator fixes the underlying data — they never have to re-tap to find out.
+  useEffect(() => {
+    if (gateOutcome.ok) setGateErrors(dropGateErrors)
+  }, [gateOutcome])
+  // Errors belong to the location they were computed for. On the phone the screen remounts per
+  // location; here the bridge outlives the switch, so drop them rather than show location A's
+  // list over location B's form.
+  useEffect(() => {
+    setGateErrors(dropGateErrors)
+  }, [currentLocationId])
+  // The phone's Alert is OS-modal — nothing can navigate under it. The demo's rail sits OUTSIDE
+  // the phone and can jump views, so an alert left standing over another screen would misstate
+  // what it is blocking. Leaving Completion closes it.
+  useEffect(() => {
+    if (view !== 'completion') setAlert(null)
+  }, [view])
+
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
   // recorded date + scopes. Clock is read here (never at render). The persisted
   // totalDvrRetention (the PDF's source) is kept in sync — written only while
@@ -322,6 +454,38 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     prevFirstRecorded.current = fr
   }, [store, currentLocation])
 
+  // Flow A (phone parity: the Notes screen's focus reconcile): entering the Notes
+  // screen reconciles stored sections against current wizard data — un-edited sections
+  // silently pick up fresh output, edited ones are never clobbered. Keyed on the
+  // location too, so switching locations while the screen is open re-reconciles.
+  // The action itself is a no-op when nothing changed (reference-preserving).
+  useEffect(() => {
+    if (view === 'notes') store.getState().reconcileNotes()
+  }, [store, view, currentLocationId])
+
+  // Notes wiring (R-14): stable callback identities + memoised derivations, so
+  // SectionBlock's memo actually holds — the store ref is stable, so these bind once.
+  const notesMeta = useMemo(() => buildNotesSectionMeta(currentLocation), [currentLocation])
+  const notesCopyAllText = useMemo(
+    () =>
+      currentLocation
+        ? assembleNotesString(currentLocation.form.notesSections, currentLocation.form.notesFreeText)
+        : '',
+    [currentLocation],
+  )
+  const commitNoteSection = useCallback(
+    (id: NoteSectionId, text: string) => store.getState().commitNoteSection(id, text),
+    [store],
+  )
+  const commitNoteAddendum = useCallback(
+    (id: NoteSectionId, text: string) => store.getState().commitNoteAddendum(id, text),
+    [store],
+  )
+  const resetNoteSection = useCallback((id: NoteSectionId) => store.getState().resetNoteSection(id), [store])
+  const scrapAllNotes = useCallback((mode: ScrapAllMode) => store.getState().scrapAllNotes(mode), [store])
+  const restoreAllNotes = useCallback((mode: RestoreAllMode) => store.getState().restoreAllNotes(mode), [store])
+  const commitNotesFreeText = useCallback((text: string) => store.getState().commitNotesFreeText(text), [store])
+
   const openMenu = () => store.getState().setDrawerOpen(true)
 
   // Error-boundary recovery: land back on Cases with every transient overlay cleared
@@ -329,7 +493,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
   const returnToCases = () => {
     setPdf(null)
-    setOcrResult(null)
+    resetOcr()
     setMapPickerOpen(false)
     const st = store.getState()
     st.setDrawerOpen(false)
@@ -397,6 +561,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11)
    * and is mirrored into a ref so event-scope code (the guardImportRun catch) can read
    * the run's real stage without an impure state read (fix-delta R-40).
+   *
+   * The mirror is RUN-scoped in meaning but mount-scoped in lifetime, so it must be
+   * cleared wherever the run token moves (fix-delta R-45): its state twin
+   * (`imp.lastRealStage`) is nulled by blankImport/onRetry, the ref was nulled nowhere,
+   * and a throw landing in a new run's pre-seed window then published the PREVIOUS
+   * run's stage as if it were this one's — strictly more stale-prone than the
+   * `s.activeStage` read R-40 replaced. Cleared at both token bumps (the runs' own
+   * entry points, so `openImport` is covered too) plus onCancel's bump, belt-and-braces.
+   * With the clear, `?? 'extracting_text'` at the sole read reproduces exactly the
+   * honest pre-R-40 default for a pre-seed throw.
    */
   const lastRealStageRef = useRef<ImportRealStageId | null>(null)
   const importStageFor = (myGen: number) => (st: RunStageId) => {
@@ -470,6 +644,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     notice: string | undefined
     locations: ImportedLocationView[]
     failures: RunFailure[]
+    /**
+     * The run's files that have not been accounted for yet, in order — the head is the
+     * file the run is AT (in flight, or the next one up before the loop's first seed),
+     * drained as each lands in `locations` or `failures`. Exists so the
+     * throw backstop can keep the tally COMPLETE (fix-delta R-46): every downstream count
+     * is `locations.length + failures.length` (deriveTerminalOutcome, the result view's
+     * "Imported N of M", the DONE line), a sum that is only sound while the tally accounts
+     * for every file in the run. An aborted batch otherwise shrank its own denominator —
+     * 3 files with a throw on file 2 reported "1 of 2" — and the casualty was spelled with
+     * the 'import' sentinel. Empty on the paste path: one document, and no file to name.
+     */
+    unaccounted: string[]
   }
   const recordSuccess = async (caseId: string, caseNumber: string, res: Extract<ImportRunResult, { ok: true }>, tally: ImportTally, myGen: number, emitter: ImportLogEmitter) => {
     const locId = await applySuccess(caseId, res, myGen, emitter)
@@ -551,12 +737,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       const detail = e instanceof Error ? e.message : String(e)
       emitter.log('ERR', '✗ import run threw unexpectedly', detail) // no-op if superseded/reset
       if (importGen.current !== myGen) return
+      const stage = lastRealStageRef.current ?? 'extracting_text'
+      // Account for the WHOLE run (R-46): one synthetic row for the file that was in
+      // flight, plus a row per file the aborted loop never reached. Without them the
+      // unattempted files were in neither array and every derived count summed over a
+      // tally that was incomplete by construction. `UNEXPECTED_ERROR` is right for both:
+      // it is the bridge-only code (the phone's UNKNOWN_ERROR parity) and is deliberately
+      // unmapped in ERROR_MESSAGES, so each row's own honest string renders verbatim.
+      const [threw, ...skipped] = tally.unaccounted
       tally.failures.push({
-        filename: 'import',
+        filename: threw ?? 'import', // the paste path has no filename — sentinel kept
         error: 'The import failed unexpectedly. Please try again.',
-        code: 'UNEXPECTED_ERROR', // bridge-synthesized — the phone's UNKNOWN_ERROR parity
-        details: { stage: lastRealStageRef.current ?? 'extracting_text', detail },
+        code: 'UNEXPECTED_ERROR',
+        details: { stage, detail },
       })
+      for (const name of skipped) {
+        tally.failures.push({
+          filename: name,
+          error: 'Not attempted — the import stopped after an unexpected failure.',
+          code: 'UNEXPECTED_ERROR',
+          details: { stage, detail: `The run stopped before this file was attempted: ${detail}` },
+        })
+      }
       setImp((s) => ({ ...s, activeStage: 'error' }))
       finishImport(tally, emitter, totalFiles)
     }
@@ -571,25 +773,28 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     // One log run per import (a batch is ONE run, like the phone). beginRun clears the
     // previous run's retained lines; the emitter self-invalidates when superseded/reset.
     const emitter = importLogBus.beginRun(logClock)
     const total = files.length
     // Hoisted OUT of the guarded closure (R-38): the catch reports through this tally,
-    // so already-landed files stay visible even when a later file's run throws.
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    // so already-landed files stay visible even when a later file's run throws. Seeded
+    // with every selected filename (R-46) so an aborted run can still report its full size.
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [], unaccounted: files.map((f) => f.name) }
     await guardImportRun(myGen, emitter, tally, total, async () => {
       if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
       else emitter.log('INIT', 'reading document…')
       for (let i = 0; i < total; i++) {
         if (importGen.current !== myGen) return // cancelled, or a newer run started
         lastRealStageRef.current = 'extracting_text'
-      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
+        setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
         emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
         const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
         if (importGen.current !== myGen) return // cancelled while this file was processing
         if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
         else tally.failures.push({ filename: res.filename ?? 'file', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
+        tally.unaccounted.shift() // this file is now in locations or failures (R-46)
       }
       if (importGen.current !== myGen) return // invalidated during the last file's geocode — don't overwrite a newer run's result
       finishImport(tally, emitter, total)
@@ -612,8 +817,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
+    lastRealStageRef.current = null // R-45: the stage mirror is run-scoped — never inherit the last run's
     const emitter = importLogBus.beginRun(logClock)
-    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    // No `unaccounted` names: the paste path is one document with no filename, so its
+    // backstop row keeps the 'import' sentinel and its totals were never derivable wrong.
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [], unaccounted: [] }
     await guardImportRun(myGen, emitter, tally, 1, async () => {
       emitter.log('INIT', 'reading pasted text…')
       lastRealStageRef.current = 'reading_model'
@@ -630,9 +838,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const runPasteImport = () => runTextImportFlow(imp.text)
 
   // ---- time offset + OCR (the marquee) ----
-  const calcOffset = () => {
+  // `regenerate: false` is the phone's "Keep My Edits" arm (`performOcrCalculation(result, false)`,
+  // phone `ocr-capture.tsx:225-230`): recompute the offset, leave the edited extracted-scope list
+  // alone. Defaults to true — the Time Offset screen's Calculate always regenerates, behind its
+  // own confirmation.
+  const calcOffset = (regenerate = true) => {
     store.getState().calculateOffset()
-    store.getState().generateExtractedScopes()
+    if (regenerate) store.getState().generateExtractedScopes()
   }
   // "Use Current Time": simulated atomic-clock sync — stamps ONLY the real-time field with the
   // calibrated device time and records the sync metadata. Never touches the DVR time.
@@ -648,36 +860,143 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       syncTimer.current = null
     }, 1100)
   }
-  const runOcrSample = () => {
-    const raw = '2025-03-08 12:05:30' // sample DVR clock
+  const resetOcr = () => {
+    setOcrResult(null)
+    setOcrDraft('')
+    setOcrDateConfirmed(false)
+    ocrProof.current = null
+  }
+  const runOcrSample = (frame: OcrSampleFrame) => {
+    const raw = OCR_SAMPLE_FRAMES[frame]
     const cleaned = cleanOcrText(raw)
-    const parsed = parseTimestampFromText(cleaned)
-    const conf = getConfidenceLevel(0.93)
-    const st = store.getState()
-    if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
-    st.updateField('capture.method', 'ocr')
-    if (parsed) st.updateField('capture.dvrDateTime', parsed)
+    const reading = readDvrTimestamp(cleaned, clock.now().getTime())
+    const conf = getConfidenceLevel(OCR_SAMPLE_CONFIDENCE)
+    // The capture instant is frozen here (the phone freezes it at the shutter) but written to
+    // the store only on commit — nothing about a rejected read should survive Cancel.
+    const actual = store.getState().capture.actualDateTime || SAMPLE_ACTUAL_TIME
+    ocrProof.current = { rawText: raw, cleanedText: cleaned, confidence: OCR_SAMPLE_CONFIDENCE }
+    setOcrDateConfirmed(false)
+    setOcrDraft(reading?.dvrTime ?? '')
     setOcrResult(
-      parsed
-        ? { ok: true, dvrTime: parsed, confidence: { label: conf.message, color: conf.color }, actual: store.getState().capture.actualDateTime }
+      reading
+        ? {
+            ok: true,
+            dvrTime: reading.dvrTime,
+            confidence: { label: conf.message, color: conf.color },
+            actual,
+            resolution: reading.resolution,
+          }
         : { ok: false, rawText: cleaned },
     )
   }
-  const confirmOcr = () => {
-    calcOffset()
+  /**
+   * "Use this & calculate": the operator's (possibly corrected) value is what gets committed.
+   * `regenerate` carries the answer to the phone's recalculate prompt — false is "Keep My Edits".
+   */
+  const confirmOcr = (regenerate: boolean) => {
+    // Same gate the CTA is disabled by — enforced here too so the commit path, not just the
+    // button, is what refuses an empty draft or an unconfirmed assumed date.
+    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.resolution, ocrDateConfirmed)) return
+    const st = store.getState()
+    st.updateField('capture.method', 'ocr')
+    if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', ocrResult.actual)
+    st.updateField('capture.dvrDateTime', ocrDraft)
+    if (ocrProof.current) {
+      // parsedDateTime records what OCR READ; capture.dvrDateTime records what the operator
+      // COMMITTED. When they differ, the offset report can show the correction.
+      st.updateField('capture.ocr', { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime })
+    }
+    calcOffset(regenerate)
     store.getState().closeLaunch()
-    setOcrResult(null)
+    resetOcr()
   }
   const cancelOcr = () => {
     store.getState().closeLaunch()
-    setOcrResult(null)
+    resetOcr()
   }
 
   // ---- PDF preview + completion ----
-  const previewCaseNotes = () => setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+
+  /**
+   * Run the gate against LIVE store state, not the render-time snapshot above: a click handler
+   * created in an earlier render would otherwise judge stale data. `gateOutcome` (render scope)
+   * exists only to drive the auto-clear.
+   */
+  const runGate = () => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId) ?? null
+    const owner = loc ? (st.cases.find((c) => c.id === loc.caseId) ?? null) : null
+    return validateFinalSubmission(toFinalSubmissionInput(loc, owner))
+  }
+
+  /** The blocked alert's second arm (`completion.tsx:377` → `handleSaveProgress`). */
+  const saveProgress = () => {
+    // Honesty rule (parity plan §4; review R-2): promise refresh survival ONLY when the
+    // persistence layer is genuinely writing. Read here, at alert time, so a write failure
+    // that revoked the promise mid-session demotes the very next alert. A missing handle is
+    // treated as "not storing" — never assume.
+    const stored = persistenceRef.current?.isLive() ?? false
+    setAlert({
+      title: PROGRESS_SAVED_TITLE,
+      message: stored ? PROGRESS_SAVED_BODY : PROGRESS_NOT_STORED_BODY,
+      actions: [
+        {
+          label: 'OK',
+          onPress: () => {
+            setAlert(null)
+            store.getState().setView('cases') // phone: router.dismissTo('/(tabs)/cases')
+          },
+        },
+      ],
+    })
+  }
+
+  const previewCaseNotes = () => {
+    // The phone gates the PDF on the same schema (`handlePreviewPdf`, completion.tsx:170-178).
+    // DEVIATION (deliberate): the phone alerts with `validationErrors.join('\n')` read from
+    // React state that `validateRequiredFields()` only just called `setValidationErrors` on —
+    // so its FIRST blocked tap shows an empty alert body. We alert with the errors this run
+    // produced. Logged for the phone-repo follow-up ledger; copying the bug is not parity.
+    const outcome = runGate()
+    if (!outcome.ok) {
+      setGateErrors(outcome.errors)
+      setAlert({
+        title: MISSING_FIELDS_TITLE,
+        message: outcome.errors.join('\n'),
+        actions: [{ label: 'OK', onPress: closeAlert }],
+      })
+      return
+    }
+    setGateErrors(dropGateErrors)
+    setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+  }
+
+  /** "Complete & Save" — gated, then the existing location-scoped completion, untouched. */
+  const completeLocation = () => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId)
+    if (!loc) return // canComplete already disables the CTA; belt and braces for the R-19 law
+    const outcome = runGate()
+    if (!outcome.ok) {
+      setGateErrors(outcome.errors)
+      setAlert({
+        title: MISSING_FIELDS_TITLE,
+        message: MISSING_FIELDS_BODY,
+        actions: [
+          { label: 'Cancel', style: 'cancel', onPress: closeAlert },
+          { label: 'Save Progress', onPress: saveProgress },
+        ],
+      })
+      return
+    }
+    setGateErrors(dropGateErrors)
+    st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
+    setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
+  }
+
   const previewTimeOffset = () => {
     const off = currentLocation?.form.timeOffset
-    const addr = currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') : ''
+    const addr = formatAddress(currentLocation?.businessName, currentLocation?.streetAddress, currentLocation?.city)
     setPdf({
       title: 'Time-Offset Calibration',
       html: generateTimeOffsetDoc({
@@ -735,7 +1054,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: 0, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        // `onCoordinates` is the ONE coordinate write path for this screen — a GPS capture and an
+        // address pick both arrive here already stamped with their own source (P2.3).
+        return (
+          <SubmissionScreen
+            occNumber={currentCase?.caseNumber ?? ''}
+            locationId={currentLocation?.id}
+            fields={fields}
+            coordinates={currentLocation?.gps}
+            onChange={(f, v) => store.getState().updateField(f, v)}
+            onCoordinates={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: c.source })}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
@@ -778,7 +1111,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onUseCurrentTime={runTimeSync}
             onCalculate={calcOffset}
             onCaptureOcr={() => {
-              setOcrResult(null)
+              resetOcr()
               store.getState().launch('ocr')
             }}
             sync={capture.sync}
@@ -787,6 +1120,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             correctedScopes={selectAdjustedScopes(store.getState())}
             dvrAppliesDST={capture.dvrAppliesDST}
             onToggleDst={() => store.getState().updateField('capture.dvrAppliesDST', !capture.dvrAppliesDST)}
+            dstAdvisory={dstAdvisory}
+            hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
@@ -794,7 +1129,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'ocr':
-        return <OcrCaptureScreen result={ocrResult} onUseSample={runOcrSample} onCapture={runOcrSample} onCancel={cancelOcr} onRetake={() => setOcrResult(null)} onConfirm={confirmOcr} />
+        return (
+          <OcrCaptureScreen
+            result={ocrResult}
+            dvrDraft={ocrDraft}
+            onChangeDvrDraft={setOcrDraft}
+            dateConfirmed={ocrDateConfirmed}
+            onConfirmDate={() => setOcrDateConfirmed(true)}
+            hasExtractedScopes={(currentLocation?.form.extractedScopes.length ?? 0) > 0}
+            onUseSample={runOcrSample}
+            onCapture={() => runOcrSample('clean')}
+            onCancel={cancelOcr}
+            onRetake={resetOcr}
+            onConfirm={confirmOcr}
+          />
+        )
       case 'extractedScope': {
         const exs = currentLocation?.form.extractedScopes ?? []
         const ex = formList(exs, 'form.extractedScopes')
@@ -839,14 +1188,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'notes':
+        // The seven-section editor (P2.1). Meta derives from the subscribed location;
+        // copyAllText reads COMMITTED store values (the phone's documented micro-edge).
         return (
           <NotesScreen
-            notes={currentLocation?.form.notesText ?? ''}
-            onChange={(v) => {
-              store.getState().updateField('form.notesText', v)
-              store.getState().updateField('form.notesEdited', true)
-            }}
-            onRegenerate={() => store.getState().generateNotes()}
+            sections={notesMeta}
+            freeText={currentLocation?.form.notesFreeText ?? ''}
+            copyAllText={notesCopyAllText}
+            onCommitSection={commitNoteSection}
+            onCommitAddendum={commitNoteAddendum}
+            onResetSection={resetNoteSection}
+            onScrapAll={scrapAllNotes}
+            onRestoreAll={restoreAllNotes}
+            onCommitFreeText={commitNotesFreeText}
             onNext={onNext}
             onBack={onPrev}
             onMenu={openMenu}
@@ -856,7 +1210,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const off = currentLocation?.form.timeOffset
         const summary: CompletionSummary = {
           occNumber: currentCase?.caseNumber ?? '—',
-          location: currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') || currentLocation.locationName : '—',
+          location: currentLocation
+            ? formatAddress(currentLocation.businessName, currentLocation.streetAddress, currentLocation.city) || currentLocation.locationName
+            : '—',
           dvr: currentLocation?.form.dvr.dvrTypeBrand || '—',
           offset: off ? `${off.formattedDifference} ${off.direction}` : null,
           scopes: currentLocation?.form.scopes.length ?? 0,
@@ -879,17 +1235,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // it keeps the CTA correct even if a future writer slips). The only disabling
             // condition left is "no location open", which is exactly what the disabled hint says.
             canComplete={!!currentLocation}
+            validationErrors={gateErrors}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
-            onComplete={() => {
-              const st = store.getState()
-              const loc = st.locations.find((l) => l.id === st.currentLocationId)
-              if (loc) st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
-              setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
-            }}
+            onComplete={completeLocation}
             onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
             onBackToCases={() => store.getState().setView('cases')}
@@ -943,6 +1295,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
             onCancel={() => {
               importGen.current++ // invalidate any in-flight run's token (H1/H2)
+              lastRealStageRef.current = null // R-45: the state twin is cleared by blankImport below — the mirror moves with it
               importLogBus.reset() // same rule for the log: a cancelled run's late lines must drop
               // Phone handleClose parity (ImportPickerModal.tsx:147-152): a reopen always
               // starts back at the picker step with empty text, even after a mid-run close.
@@ -1026,6 +1379,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
+          {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
+              every other overlay, like an OS alert does. */}
+          {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>

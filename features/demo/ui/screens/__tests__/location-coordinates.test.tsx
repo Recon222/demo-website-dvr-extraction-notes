@@ -39,10 +39,10 @@ describe('NewLocationModal — geocoded coordinates', () => {
 
 describe('SubmissionScreen — geocoded coordinates', () => {
   const fields = { requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
-  it('forwards { lat, lng } to onPickCoords on an address pick', () => {
-    const onPickCoords = vi.fn()
-    render(<SubmissionScreen occNumber="OCC" fields={fields} onChange={vi.fn()} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} onPickCoords={onPickCoords} />)
+  it('stamps an address pick as `geocoded` on the single coordinate write path', () => {
+    const onCoordinates = vi.fn()
+    render(<SubmissionScreen occNumber="OCC" fields={fields} onChange={vi.fn()} onNext={vi.fn()} onBack={vi.fn()} onMenu={vi.fn()} onCoordinates={onCoordinates} />)
     fireEvent.click(screen.getByText('mock-pick'))
-    expect(onPickCoords).toHaveBeenCalledWith({ lat: 43.6087, lng: -79.6505 })
+    expect(onCoordinates).toHaveBeenCalledWith({ lat: 43.6087, lng: -79.6505, accuracyM: undefined, source: 'geocoded' })
   })
 })

@@ -29,6 +29,10 @@ describe('features/demo/engine barrel', () => {
     expect(typeof demo.mapAiToForm).toBe('function')
     expect(typeof demo.generateCaseNotesDoc).toBe('function')
     expect(typeof demo.generateTimeOffsetDoc).toBe('function')
+    // P2.4 (G9): the Completion gate — the demo's only runtime validation, like the phone's.
+    expect(typeof demo.validateFinalSubmission).toBe('function')
+    expect(typeof demo.toFinalSubmissionInput).toBe('function')
+    expect(demo.FINAL_SUBMISSION_MESSAGES.occNumber).toBe('OCC number is required')
   })
 
   it('exposes the content registries (no seed case — the demo boots empty)', () => {

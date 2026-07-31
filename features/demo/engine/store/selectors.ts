@@ -3,7 +3,9 @@ import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } fr
 import { getProfile } from '@/features/demo/engine/content/profiles'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
+import { extractNotesRelevantData, reconcileSections } from '@/features/demo/engine/logic/notes'
 import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
@@ -50,6 +52,8 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
 export interface AdjustedScopeRow {
   id: string
   reqLabel: string
+  /** The domain the adjusted times are IN — always the inverse of `reqLabel`. */
+  adjLabel: string
   reqStart: string
   reqEnd: string
   adjStart: string
@@ -62,6 +66,15 @@ export interface AdjustedScopeRow {
  * NO rounding. The Time-Offset screen shows these (the actual difference calculation); the
  * Extracted-Scope screen rounds them to 5-minute boundaries separately (`generateExtractedScopes`).
  * A scope whose requested time isn't canonical yet leaves its adjusted fields blank.
+ *
+ * BOTH domains are converted here, DVR-time rows included — verified against the phone, which
+ * runs `calculateCorrectedTimeRange(..., scope.isActualTime)` over every scope with both
+ * endpoints in `performCalculation` (`app/(form)/time-offset.tsx:290-327`) and renders the
+ * result under an INVERSE label: `REQUESTED (<Real Time | DVR Time>)` at `:556` against
+ * `ADJUSTED (<DVR Time | Real Time>)` at `:578` (spec `docs/ui-mapping/06-wizard-b-time.md:69-70`).
+ * That is the informational read-across D10 describes: for a DVR-time request the adjusted row
+ * answers "what real-world time was that?", which is display only and never feeds the extracted
+ * window (see `generateExtractedScopes`, where DVR-time requests pass through untouched).
  */
 export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
   const loc = selectCurrentLocation(s)
@@ -89,6 +102,7 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
     return {
       id: sc.id,
       reqLabel: sc.isActualTime ? 'real time' : 'DVR time',
+      adjLabel: sc.isActualTime ? 'DVR time' : 'real time',
       reqStart: sc.startDateTime,
       reqEnd: sc.endDateTime,
       adjStart,
@@ -184,7 +198,13 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
     dvrInfo: checkFields([dvr.dvrLocation, dvr.dvrTypeBrand, dvr.dvrUsername, dvr.dvrPassword, dvr.numberOfChannels, dvr.activeCameras, dvr.resolution, dvr.recordingFps, dvr.firstRecordedDate]),
     cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
     exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
-    notes: isFilled(f.notesText) ? 'complete' : 'empty',
+    // Phone rule (use-section-completion:293): two-state only — any section content,
+    // any addendum, or a non-blank free-text tail → complete; never 'partial'.
+    notes:
+      f.notesSections.some((sec) => sec.content.trim() !== '' || !!sec.userAddendum) ||
+      isFilled(f.notesFreeText)
+        ? 'complete'
+        : 'empty',
     completion: checkFields([f.dateTimeCompleted, f.completedBy]),
   }
 }
@@ -218,9 +238,15 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
   // "Adjusted Scope (Calculated Times)" is the EXACT corrected time (matches the app's PDF) — not
   // the rounded extracted scope. Rounding is the extracted-scope screen's job, not the document's.
   const adjusted = selectAdjustedScopes(s)
+  // Flow F (phone parity, useCaseNotesExport.deriveNotesFromStore): reconcile READ-ONLY
+  // before assembling, so the court PDF can never embed stale un-edited notes even if
+  // the Notes screen was never focused. Nothing is written back to the store.
+  const notesSections = loc
+    ? reconcileSections(extractNotesRelevantData(loc), loc.form.notesSections).sections
+    : []
   return {
     occNumber: caseObj?.caseNumber,
-    address: loc ? [loc.businessName, loc.streetAddress, loc.city].filter(Boolean).join(', ') : '',
+    address: formatAddress(loc?.businessName, loc?.streetAddress, loc?.city),
     requesterName: loc?.requesterName,
     requesterBadgeNumber: loc?.requesterBadge,
     requesterUnit: caseObj?.unit,
@@ -244,7 +270,12 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     dvr: form?.dvr,
     cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps })),
     export: form?.export,
-    notes: form?.notesText,
+    notesSections,
+    notesFreeText: form?.notesFreeText,
+    // R-3: the stored extracted list can be SHORT (non-canonical scopes dropped at the
+    // last Calculate) — the flag rides with the notes so the document annotates the
+    // possibly-under-reported recovered-footage line instead of shipping it silently.
+    extractedScopesPartial: form?.extractedScopesPartial,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
   }
 }

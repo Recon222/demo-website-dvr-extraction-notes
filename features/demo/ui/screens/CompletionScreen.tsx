@@ -20,6 +20,10 @@ export interface CompletionScreenProps {
   /** False when no location is open (rail-jump with nothing selected): Complete & Save disables
    *  instead of silently no-opping. */
   canComplete: boolean
+  /** Messages from the last blocked gate run (`finalSubmissionSchema`). Empty = no card.
+   *  The bridge owns the state and clears it as soon as the data becomes valid, exactly like
+   *  the phone's auto-clear effect (`app/(form)/completion.tsx:115-125`). */
+  validationErrors: readonly string[]
   dateTimeCompleted: string
   completedBy: string
   onChange(field: 'dateTimeCompleted' | 'completedBy', value: string): void
@@ -66,6 +70,17 @@ export function CompletionScreen(p: CompletionScreenProps) {
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Completion & Review" onBack={p.onBack} onMenu={p.onMenu} />
       <div style={{ padding: 16 }}>
+        {/* The phone's "Required Fields Missing" card, same position (above the summary) and
+            same shape: title, then one `- message` line per rule that failed
+            (ui-mapping 08 → Completion "Content (render order)" #2; completion.tsx:468-479). */}
+        {p.validationErrors.length > 0 && (
+          <div role="alert" style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#ff6b7a', marginBottom: 8 }}>Required Fields Missing</div>
+            {p.validationErrors.map((err) => (
+              <div key={err} style={{ fontSize: 13, color: '#ff9aa5', marginBottom: 4 }}>- {err}</div>
+            ))}
+          </div>
+        )}
         <div style={{ borderRadius: 14, border: GLASS.borderAccent, background: 'linear-gradient(180deg,rgba(26,45,68,0.9),rgba(19,34,54,0.96))', padding: 18, marginBottom: 18, boxShadow: '0 0 22px rgba(43,140,193,0.12)' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 14 }}>OCC #{p.summary.occNumber}</div>
           <Row label="Location" value={p.summary.location} />

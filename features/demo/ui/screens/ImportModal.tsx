@@ -113,6 +113,12 @@ export interface ImportModalProps {
  * Deliberately colocated with the UI `ImportResult` type it maps (outside the
  * engine coverage gate — R-21): moving it to engine/ would drag the whole
  * result-view model along; its unit tests below fully cover it regardless.
+ *
+ * `totalFiles` is a SUM, not a carried total — sound only while every writer
+ * accounts for every file in the run. The bridge's throw backstop is the one
+ * writer that could hand over an incomplete tally, so it pads the tally with the
+ * casualty and the unattempted remainder (fix-delta R-46). Any future partial
+ * reporter must do the same, or state its own total here instead.
  */
 export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutcome | null {
   if (result === null) return null

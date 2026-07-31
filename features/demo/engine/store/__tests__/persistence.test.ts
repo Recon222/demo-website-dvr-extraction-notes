@@ -124,9 +124,9 @@ describe('round-trip (refresh survival — G1/D2)', () => {
 describe('maximal round-trip (R-4b runtime pin)', () => {
   // Every optional in the persisted graph populated: DemoCase.incidentCoordinates,
   // DemoLocation.gps, CameraEntry.gps, MediaItem.poster/durationSec/sample, SyncResult's
-  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr. The plain
-  // round-trip can't catch a silently-dropped optional (newCaseInput fills 3 of 16 fields);
-  // this one fails on ANY dropped key.
+  // four optionals, OcrProof.imageDataUrl, TimeOffsetData.ocr, capture.sync/ocr,
+  // NoteSection.userAddendum (v3). The plain round-trip can't catch a silently-dropped
+  // optional (newCaseInput fills 3 of 16 fields); this one fails on ANY dropped key.
   it('a state with every optional populated survives the round-trip in full', () => {
     const storage = new FakeStorage()
     const store = freshStore()
@@ -177,6 +177,12 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     store.getState().updateField('form.cameras', [
       { id: 'cam1', cameraName: 'Front door', resolution: '1080p', recordingFps: '15', gps: { lat: 43.6, lng: -79.6, accuracyM: 4 } },
     ])
+    // Sectioned notes (v3): an edited section carrying the optional userAddendum,
+    // plus the free-text tail — pins the deepest new optional through the round-trip.
+    store.getState().reconcileNotes()
+    store.getState().commitNoteSection('address', 'my own account of attendance')
+    store.getState().commitNoteAddendum('address', 'manager was present')
+    store.getState().commitNotesFreeText('additional observations')
     store.getState().addMedia('photo', {
       id: 'm1',
       kind: 'photo',
@@ -200,6 +206,12 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     expect(loc.form.timeOffset?.sync?.stratum).toBe(2)
     expect(loc.form.cameras[0].gps).toEqual({ lat: 43.6, lng: -79.6, accuracyM: 4 })
     expect(loc.form.media.photos[0].poster).toBe('blob:poster')
+    const address = loc.form.notesSections.find((sec) => sec.id === 'address')
+    expect(address?.content).toBe('my own account of attendance')
+    expect(address?.userAddendum).toBe('manager was present')
+    expect(address?.manuallyEdited).toBe(true)
+    expect(address?.generatedContent).toContain('• Attended') // frozen baseline survives
+    expect(loc.form.notesFreeText).toBe('additional observations')
     expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
   })
 })
@@ -566,5 +578,76 @@ describe('kill switch + disabled paths', () => {
     vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
     expect(() => handle.dispose()).not.toThrow()
     expect(loadSnapshot(null)).toBeNull()
+  })
+})
+
+describe('isLive — the handle’s honesty signal (R-2)', () => {
+  it('is false for a null backend: the NOOP handle must never claim to be storing anything', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, null)
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is false when persistence is switched off, even with a working backend', () => {
+    const storage = new FakeStorage()
+    const handle = persistDemoStore(freshStore(), storage, { enabled: false })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is true once a write has actually landed', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(true)
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+  })
+
+  it('goes false the moment a write fails and the snapshot is cleared — the refresh promise is void', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(true)
+
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+
+    expect(storage.map.has(SNAPSHOT_KEY)).toBe(false) // cleared, per R-14
+    expect(handle.isLive()).toBe(false) // …and the handle says so
+    handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('recovers to true when a later write succeeds — the signal tracks reality, not a latch', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    let fail = true
+    const realSet = storage.setItem.bind(storage)
+    storage.setItem = (k, v) => {
+      if (fail) throw new Error('QuotaExceededError')
+      realSet(k, v)
+    }
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(false)
+
+    fail = false
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+    warn.mockRestore()
   })
 })

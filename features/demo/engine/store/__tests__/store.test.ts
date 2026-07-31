@@ -158,7 +158,7 @@ describe('coordinates', () => {
     expect(store.getState().cases.find((c) => c.id === id)?.incidentCoordinates).toBeUndefined()
   })
 
-  it('addLocation persists gps (accuracyM 0) when provided', () => {
+  it('addLocation persists gps as given — no fabricated accuracy for a geocoded pick', () => {
     const store = freshStore()
     const caseId = store.getState().createCase(newCaseInput())
     const locId = store.getState().addLocation(caseId, {
@@ -168,7 +168,6 @@ describe('coordinates', () => {
     expect(store.getState().locations.find((l) => l.id === locId)?.gps).toEqual({
       lat: 43.6087,
       lng: -79.6505,
-      accuracyM: 0,
       source: 'geocoded',
     })
   })
@@ -184,12 +183,12 @@ describe('coordinates', () => {
     const store = freshStore()
     const caseId = store.getState().createCase(newCaseInput())
     store.getState().addLocation(caseId, newLocationInput())
-    store.getState().updateField('gps', { lat: 43.7, lng: -79.4, accuracyM: 0, source: 'geocoded' })
+    store.getState().updateField('gps', { lat: 43.7, lng: -79.4, accuracyM: 8, source: 'gps' })
     expect(selectCurrentLocation(store.getState())?.gps).toEqual({
       lat: 43.7,
       lng: -79.4,
-      accuracyM: 0,
-      source: 'geocoded',
+      accuracyM: 8,
+      source: 'gps',
     })
   })
 })
@@ -368,16 +367,16 @@ describe('generateExtractedScopes', () => {
   })
 })
 
-describe('generateNotes', () => {
-  it('assembles notes text containing the occurrence number and a scope line', () => {
+describe('reconcileNotes (smoke — full flow coverage in notes-actions.test.ts)', () => {
+  it('fills all seven registry sections; the address section covers the location', () => {
     const store = freshStore()
     const c = store.getState().createCase(newCaseInput({ caseNumber: 'PR25-0098213' }))
     store.getState().addLocation(c, newLocationInput())
     store.getState().updateField('form.scopes', [scope()])
-    store.getState().generateNotes()
-    const notes = selectCurrentLocation(store.getState())?.form.notesText ?? ''
-    expect(notes).toContain('PR25-0098213')
-    expect(notes.toLowerCase()).toContain('scope')
+    store.getState().reconcileNotes()
+    const sections = selectCurrentLocation(store.getState())?.form.notesSections ?? []
+    expect(sections).toHaveLength(7)
+    expect(sections.find((s) => s.id === 'address')?.content).toContain("Kim's Convenience")
   })
 })
 

@@ -19,6 +19,7 @@ describe('selectAdjustedScopes', () => {
     expect(rows[0].adjStart).toBe('2025-03-08 23:53:00')
     expect(rows[0].adjEnd).toBe('2025-03-09 01:38:00')
     expect(rows[0].reqLabel).toBe('real time')
+    expect(rows[0].adjLabel).toBe('DVR time')
     expect(rows[0].reqStart).toBe('2025-03-08 23:47:30')
 
     // And the extracted scope (separate step) DOES round the same adjusted times:
@@ -60,5 +61,27 @@ describe('selectAdjustedScopes', () => {
     // never render-scoped — repeated selector calls must not spam the console.
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  // Phone-verified (P2.6): the phone converts EVERY scope with both endpoints, DVR-time rows
+  // included (`app/(form)/time-offset.tsx:290-327`), and labels the adjusted block with the
+  // INVERSE domain — `ADJUSTED (Real Time)` for a DVR-time request (`:578`, spec
+  // `docs/ui-mapping/06-wizard-b-time.md:69-70`). That informational read-across is display
+  // only; the extracted window passes DVR-time requests through untouched (D10).
+  it('converts a DVR-time request too, and labels it as the real-time read-across', () => {
+    const store = storeWithLocation()
+    store.getState().updateField('form.scopes', [
+      { id: 's1', startDateTime: '2025-03-08 23:47:30', endDateTime: '2025-03-09 01:32:30', isActualTime: false, cameras: '' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset() // DVR ahead of real by 00:05:30
+
+    const rows = selectAdjustedScopes(store.getState())
+    expect(rows[0].reqLabel).toBe('DVR time')
+    expect(rows[0].adjLabel).toBe('real time')
+    // DVR-time request + DVR ahead → subtract the offset to land on the real-world clock.
+    expect(rows[0].adjStart).toBe('2025-03-08 23:42:00')
+    expect(rows[0].adjEnd).toBe('2025-03-09 01:27:00')
   })
 })
