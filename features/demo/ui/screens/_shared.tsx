@@ -108,7 +108,9 @@ const fieldInput: CSSProperties = {
   outline: 'none',
 }
 
-/** A labelled text input (or textarea when `multiline`), lifted from the prototype's form styling. */
+/** A labelled text input (or textarea when `multiline`), lifted from the prototype's form styling.
+ *  `error` mirrors the phone's shared `TextInput` error prop (a red hairline + the message under
+ *  the field, `aria-invalid` for assistive tech) — used by the live duplicate-name checks. */
 export function Field({
   label,
   required,
@@ -116,6 +118,7 @@ export function Field({
   onChange,
   placeholder,
   hint,
+  error,
   multiline,
 }: {
   label: string
@@ -124,8 +127,10 @@ export function Field({
   onChange(value: string): void
   placeholder?: string
   hint?: string
+  error?: string
   multiline?: boolean
 }) {
+  const style: CSSProperties = error ? { ...fieldInput, border: GLASS.borderError } : fieldInput
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
@@ -138,13 +143,26 @@ export function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-label={label}
+          aria-invalid={error ? true : undefined}
           rows={3}
-          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          style={{ ...style, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} style={fieldInput} />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          style={style}
+        />
       )}
-      {hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
+      {error && (
+        <div role="alert" style={{ fontSize: 12, color: '#ff4757', marginTop: 5 }}>
+          {error}
+        </div>
+      )}
+      {hint && !error && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
     </div>
   )
 }
