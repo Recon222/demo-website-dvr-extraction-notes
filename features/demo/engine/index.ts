@@ -59,6 +59,12 @@ export {
 } from '@/features/demo/engine/logic/final-submission'
 export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
 export {
+  caseToIncidentValues,
+  incidentValuesToPatch,
+  type IncidentLocationPatch,
+  type IncidentLocationValues,
+} from '@/features/demo/engine/logic/incident-location'
+export {
   ACCURACY_MODE_TARGET_M,
   ACCURACY_RATINGS,
   GPS_ACCURACY_MODES,
