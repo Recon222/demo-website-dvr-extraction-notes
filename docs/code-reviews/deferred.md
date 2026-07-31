@@ -2698,12 +2698,24 @@ explained rather than just happen.
 ### 60f. Stop is gated on the shared 500 ms `canStop`, which the phone's VIDEO path does not have
 
 `canStopAtElapsed` is documented as the phone's AUDIO recorder gate (ui-mapping 10);
-`VisionCameraScreen`'s video Stop is always live. The demo applies it to video anyway, and the
-shutter renders disabled for that sub-second window. Reason: a browser `MediaRecorder` stopped
-before its first `dataavailable` assembles **zero bytes**, which P4.1 correctly reports as
-`RECORDING_FAILED` — so the ungated button's only effect in that window is to hand the visitor
-an error they could not have avoided. Mutation-probed ("refuses Stop until the take can produce
-bytes").
+`VisionCameraScreen`'s video Stop is always live. The demo applies it to video anyway. Reason: a
+browser `MediaRecorder` stopped before its first `dataavailable` assembles **zero bytes**, which
+P4.1 correctly reports as `RECORDING_FAILED` — so the ungated button's only effect in that window
+is to hand the visitor an error they could not have avoided. Mutation-probed ("refuses Stop until
+the take can produce bytes").
+
+**AMENDED (review R-9, P4 round 1).** This entry originally read "the shutter renders disabled
+for that sub-second window", which described the first implementation: a native `disabled`
+attribute. That was wrong on its own terms — a `disabled` applied to the control the visitor JUST
+pressed drops focus to `<body>` and re-enables 500 ms later with focus lost, so the gate refused
+silently and unfocusably. The shutter now uses the house idiom (`aria-disabled` + guarded handler
+in `onShutter` + a `role="status"` reason line, `aria-describedby`-linked), matching
+`AudioRecorderScreen`'s two stop affordances. The DECISION recorded above (gate video Stop at
+500 ms) is unchanged; only the mechanism was wrong. §61b's claim that the demo gates "using the
+established `aria-disabled` + guarded-handler + `role='status'` reason idiom" was accurate for the
+audio surface and is now accurate for this one too — no amendment needed there.
+The same pass converted this file's other native-`disabled` site, the permission stage's Grant
+button (`disabled={isOpening}`, which spanned the whole browser permission prompt).
 **Trigger:** if a reviewer wants phone-exact behaviour, the honest alternative is a `timeslice`
 argument to `MediaRecorder.start()` small enough to guarantee a chunk — that changes P4.1's
 `startStreamRecording`, not this screen.
@@ -3423,3 +3435,76 @@ it" and named `revokeCapturedUrls`'s single caller as the whole story. R-2 showe
 incomplete: `deleteCase`/`deleteLocation` drop media rows too. `collectMediaUrls` + the sweep in
 `confirmDelete` close it. **Any future store path that removes locations owes the same sweep** —
 there is no other holder of those URLs.
+
+## 66. P4.3 review round 1 (R-7 · R-9 · R-16 · R-29) — what was fixed, what was deliberately left, one new finding
+
+**Source:** `docs/code-reviews/parity/p4/p4-review-r1-vetted.md`, findings routed to P4.3.
+Branch `parity/p4-fix-photovideo`. All four are FIXED; no finding routed here was refuted.
+
+### 66a. R-7 (camera held through review) — fixed; one transient inherited from the pattern
+
+Closed by porting `OcrCaptureScreen.tsx:209-224`'s effect: close on `captured`, reopen through a
+latch so only the stream WE closed comes back. The latch is what stops a sample-path visitor
+meeting a permission prompt on Retake, and it has its own test.
+
+Known transient, identical to the OCR screen's and accepted for the same reason: `open()` is
+async, so between Retake and the new stream arriving `permission` is still `granted` while
+`stream` is `null`. A shutter press inside that window grabs a frame from a zero-dimension
+`<video>` and lands on `FRAME_GRAB_FAILED` — an honest notice, not a lie, and the window is one
+acquisition long.
+**Trigger:** if device testing shows the window is long enough to be pressed in practice, the fix
+is to fold `isOpening` into the shutter's `blocked` derivation (now a one-line change, since R-9
+gave that derivation a home) rather than to suppress the notice.
+
+### 66b. R-9 (native `disabled`) — fixed at both named sites; the two unnamed ones deliberately keep `disabled`
+
+The shutter and the permission stage's Grant button now take the house idiom. §60f was amended in
+the same commit: it had described the mechanism as "renders disabled", which was the defect, while
+the DECISION it records (gate video Stop at 500 ms) stands. §61b needed no edit — its claim about
+the idiom was true of the audio surface and is now true of this one.
+
+**Deliberately not converted, same file:** the mode pill (`disabled={isRecording}`) and the
+Switch-camera button (`disabled={isRecording}`). R-9's failure shape is specific and does not
+reach them: it is the control the visitor JUST PRESSED becoming `disabled` under their focus.
+Pressing the shutter to start a recording leaves focus on the shutter — the pill and the switch
+are controls the visitor is *not* on, and for a control that becomes unavailable while focus is
+elsewhere, the `disabled` attribute is the correct HTML (it is announced as unavailable and
+correctly leaves the tab order). Converting them would add two `aria-disabled` states with no
+refusal to explain.
+**Trigger:** if a reviewer wants the whole file on one idiom regardless, it is mechanical — but
+it should come with a reason line each, or it is `aria-disabled` with nothing to describe.
+
+### 66c. R-16 (badge announced once a second) — fixed, and it is a deliberate divergence from the phone
+
+`aria-live="polite"` dropped; `role="timer"` + a live `aria-label` kept. The phone's
+`RecordingIndicator` DOES set `accessibilityLiveRegion="polite"` (ui-mapping 09), so this is a
+place where copy/behaviour parity was deliberately not taken: the web role already defaults to
+`off` on purpose, and overriding it queues up to 3600 readings in front of every genuine status
+change — including R-9's new stop-gate reason, which is itself a `role="status"`. Recorded here so
+a future parity sweep does not "restore" it.
+
+### 66d. NEW FINDING (not fixed here) — the device-list failure borrows a sentence about opening a camera
+
+Surfaced while writing R-29's pin. When `enumerateDevices` rejects, `listCaptureDevices` builds
+its failure through `captureFailure(classifyCaptureError(error), 'camera')`; a generic rejection
+classifies as `UNKNOWN`, whose copy is *"The camera could not be opened — nothing was captured."*
+That sentence is rendered **underneath a live viewfinder**, describing a failure of the device
+LIST. It is not false about anything the visitor did, but it names the wrong subject, and §60e's
+whole point is that this line exists to explain the picker's absence specifically.
+
+Not fixed here: the copy lives in P4.1's `captureFailureMessage`, keyed by `CaptureErrorCode`,
+and the honest fix is a code (or a facility-plus-subject key) for "the device list could not be
+read" — a taxonomy change in a file two other packages are consuming this round. The test pins
+the message through `captureFailureMessage` rather than as a literal, so it follows the copy
+wherever it lands.
+**Trigger:** P4.1's next pass, or P7 — add the code, and this screen's line changes only in what
+it reads.
+
+### 66e. R-3 is P4.1's, and is NOT in this branch
+
+Disclosed so a fix-delta reviewer does not read its absence as an oversight: R-3 (video mode
+asserting "no camera" over a live viewfinder when `MediaRecorder` is missing) is owned by P4.1,
+whose fix lands a `modeFor(kind)` capability API plus the minimal consumption change in
+`MediaCaptureScreen.tsx`. That agent is working in a parallel worktree; this branch deliberately
+left `capability.sampleOnly`'s two consumption sites (`onShutter`, and the review stage's sample
+notice via `ReviewStage`) untouched so the two changesets merge without contention.

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 
 import {
@@ -181,6 +181,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
   const [maxDurationHit, setMaxDurationHit] = useState(false)
   const reduceMotion = useReducedMotion()
 
+  const blockedIdBase = useId()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const aliveRef = useRef(true)
   useEffect(() => {
@@ -207,6 +208,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     selectedDeviceId,
     isOpening,
     open,
+    close,
     selectDevice,
     capability,
     failure,
@@ -235,6 +237,35 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
       element.srcObject = null
     }
   }, [stream])
+
+  /**
+   * Release the hardware while a capture is under review (review R-7).
+   *
+   * The phone's camera is `isActive={isFocused}` and `MediaCaptureFlow` swaps the whole screen
+   * for `PhotoPreview`/`VideoPreview`, so the sensor is idle the moment the review is up. Here
+   * the review is a sibling branch of the same component and the stream would otherwise stay
+   * open for the entire naming-and-deciding window — camera LED and tab indicator lit, with
+   * nothing rendering the frames, which is exactly the state `useCaptureStream` names as the
+   * thing to avoid. `withAudio` is unconditional (§58e/§60d), so the microphone track is held
+   * too: a live mic behind a filename field is the worse half of this.
+   *
+   * Same effect `OcrCaptureScreen` runs for its confirm stage, latch included: only the stream
+   * WE closed is reopened, so a sample-path visitor — who never had one — is never met with a
+   * surprise permission prompt on Retake. `stopRecording` resolves its capture before this
+   * fires, so there is no ordering hazard with the recorder.
+   */
+  const reopenAfterReviewRef = useRef(false)
+  useEffect(() => {
+    if (captured) {
+      if (stream) {
+        reopenAfterReviewRef.current = true
+        close()
+      }
+    } else if (reopenAfterReviewRef.current) {
+      reopenAfterReviewRef.current = false
+      void open()
+    }
+  }, [captured, stream, close, open])
 
   const runBusy = useCallback(async (work: () => Promise<unknown>) => {
     setBusy(true)
@@ -306,6 +337,24 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     },
     [captured, handOff, onSave],
   )
+
+  /**
+   * The shutter's refusals, stated rather than silent (review R-9).
+   *
+   * `aria-disabled` + a `role="status"` reason, not the `disabled` attribute — the demo's
+   * convention (§44b / R-15, and the sibling `AudioRecorderScreen`'s two stop affordances).
+   * A `disabled` applied to the control the visitor JUST pressed is the failure shape this repo
+   * already documents: pressing Start blurs the page to `<body>`, and half a second later the
+   * shutter re-enables with focus lost, so a keyboard or screen-reader user meets a dead button
+   * that never says why.
+   */
+  const stopBlocked = mode === 'video' && isRecording && !canStop
+  const shutterBlockedReason = stopBlocked
+    ? 'Stop unlocks after half a second of recording.'
+    : busy
+      ? 'Finishing the last capture…'
+      : null
+  const shutterBlockedId = `${blockedIdBase}-shutter-blocked`
 
   const onSwitchDevice = useCallback(() => {
     if (devices.length < 2) return
@@ -380,10 +429,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
         />
       )}
 
+      {/* No `aria-live` on the badge (review R-16). The phone's `RecordingIndicator` sets
+          `accessibilityLiveRegion="polite"`, but a web `role="timer"` already defaults to
+          `aria-live="off"` DELIBERATELY — overriding it queues one announcement per second, up
+          to 3600 of them on a take that runs to the ceiling, and every genuine status change (a
+          capture failure, the stop-gate reason) waits its turn behind them. The role plus a
+          live `aria-label` still lets a screen-reader user read the elapsed time on demand,
+          which is what the badge is for. The sibling audio timer ships silent too. */}
       {isRecording && (
         <div
           role="timer"
-          aria-live="polite"
           aria-label={`Recording ${formatDuration(elapsedMs)}`}
           style={{ position: 'absolute', top: 54, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 5 }}
         >
@@ -441,6 +496,14 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
               This browser gave the page a camera but no microphone — the take will be silent.
             </div>
           )}
+          {/* R-9: the shutter's refusal, said out loud. `role="status"` so it is announced
+              politely rather than interrupting, and `aria-describedby`-linked from the control
+              it explains. */}
+          {shutterBlockedReason && (
+            <div id={shutterBlockedId} role="status" style={{ ...noticeLine, color: '#7a9fc4' }}>
+              {shutterBlockedReason}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -470,7 +533,8 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
             mode={mode}
             sampleOnly={modeIsSample}
             isRecording={isRecording}
-            disabled={busy || (mode === 'video' && isRecording && !canStop)}
+            blocked={shutterBlockedReason !== null}
+            describedBy={shutterBlockedReason !== null ? shutterBlockedId : undefined}
             onPress={onShutter}
           />
           {devices.length > 1 ? (
@@ -506,18 +570,26 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
  * photo" — it attaches a bundled file — and labelling it with the phone's string would be the
  * one thing the demo's honesty rule forbids: a control that claims a capability it does not
  * have.
+ *
+ * `blocked` renders `aria-disabled`, never the `disabled` attribute (R-9), so a refused shutter
+ * stays focusable and carries its reason. The refusal itself is NOT duplicated here: it lives
+ * once, in the parent's `onShutter`, so the guard cannot be deleted with the suite green — the
+ * "refuses Stop until the take can produce bytes" test asserts the recorder was never stopped,
+ * which only holds while that single guard exists.
  */
 function ShutterButton({
   mode,
   sampleOnly,
   isRecording,
-  disabled,
+  blocked,
+  describedBy,
   onPress,
 }: {
   mode: CaptureMode
   sampleOnly: boolean
   isRecording: boolean
-  disabled: boolean
+  blocked: boolean
+  describedBy: string | undefined
   onPress(): void
 }) {
   const label = sampleOnly
@@ -535,7 +607,8 @@ function ShutterButton({
     <button
       type="button"
       aria-label={label}
-      disabled={disabled}
+      aria-disabled={blocked}
+      aria-describedby={describedBy}
       onClick={onPress}
       style={{
         width: 80,
@@ -546,8 +619,8 @@ function ShutterButton({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
+        cursor: blocked ? 'not-allowed' : 'pointer',
+        opacity: blocked ? 0.5 : 1,
         padding: 0,
       }}
     >
@@ -583,6 +656,7 @@ function PermissionStage({
   onCancel(): void
 }) {
   const copy = CAPTURE_PERMISSION_COPY.camera
+  const openingId = `${useId()}-opening`
   return (
     <div
       style={{
@@ -621,22 +695,34 @@ function PermissionStage({
             }}
           />
           <span style={{ flex: 1, fontSize: 16, color: '#fff' }}>Camera &amp; microphone</span>
+          {/* R-9, same idiom as the shutter: `aria-disabled`, not `disabled`, so the control the
+              visitor just pressed keeps focus while the browser's permission sheet is up. No
+              handler guard is needed or wanted here — `useCaptureStream.open` already
+              early-returns on a re-entrant call (`openingRef`), so a second press is genuinely
+              idempotent rather than merely refused. */}
           <button
             type="button"
             onClick={onGrant}
-            disabled={isOpening}
+            aria-disabled={isOpening}
+            aria-describedby={isOpening ? openingId : undefined}
             style={{
               ...glassBtnPrimary,
               padding: '8px 16px',
               fontSize: 14,
               fontWeight: 600,
-              cursor: isOpening ? 'default' : 'pointer',
+              cursor: isOpening ? 'not-allowed' : 'pointer',
               opacity: isOpening ? 0.6 : 1,
             }}
           >
             {isOpening ? 'Opening…' : permission === 'denied' ? 'Try again' : 'Grant'}
           </button>
         </div>
+
+        {isOpening && (
+          <div id={openingId} role="status" style={{ ...noticeLine, color: '#7a9fc4', textAlign: 'center' }}>
+            Waiting for your browser&rsquo;s camera permission&hellip;
+          </div>
+        )}
 
         {failure && (
           <div style={{ ...noticeLine, color: '#ff8a93', textAlign: 'center' }}>{failure}</div>

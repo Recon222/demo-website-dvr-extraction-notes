@@ -6,6 +6,7 @@ import {
   MAX_RECORDING_DURATION_MS,
   NO_RECORDER_NOTICE,
   SAMPLE_MEDIA,
+  captureFailureMessage,
 } from '@/features/demo/engine/logic/media'
 import { RECORDING_TICK_MS } from '@/features/demo/ui/inputs/useMediaCapture'
 import {
@@ -22,6 +23,7 @@ import {
   fakeRecorderIo,
   fakeStream,
   type FakeRecorder,
+  type FakeTrack,
 } from '@/features/demo/ui/inputs/__tests__/capture-media-io'
 
 /**
@@ -67,6 +69,9 @@ interface Harness {
   onCancel: Mock<() => void>
   revoked: string[]
   getUserMedia: Mock<(constraints: MediaStreamConstraints) => Promise<MediaStream>>
+  /** Every stream the default `getUserMedia` handed out, newest last — so a test can assert the
+   *  screen actually stopped its tracks rather than merely dropping the reference. */
+  streams: (MediaStream & { tracks: FakeTrack[] })[]
   recorder: FakeRecorder
   advance(ms: number): void
 }
@@ -83,18 +88,29 @@ function harness(
     accept?: boolean
     devices?: MediaDeviceInfo[]
     getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>
+    /** Make the device enumeration FAIL — distinct from it returning nothing (§60e). */
+    enumerateDevices?: () => Promise<MediaDeviceInfo[]>
   } = {},
 ): Harness {
   const { io, revoked } = urlIo()
   const recorder = fakeRecorder('video/webm')
   const saved: SaveMediaRequest[] = []
+  const streams: (MediaStream & { tracks: FakeTrack[] })[] = []
   let nowMs = 1_000_000
 
   const getUserMedia = vi.fn(
-    options.getUserMedia ?? (async () => fakeStream(['video', 'audio'])),
+    options.getUserMedia ??
+      (async () => {
+        const stream = fakeStream(['video', 'audio'])
+        streams.push(stream)
+        return stream
+      }),
   )
   const mediaDevices: MediaDevicesLike | null = options.live
-    ? { getUserMedia, enumerateDevices: async () => options.devices ?? [] }
+    ? {
+        getUserMedia,
+        enumerateDevices: options.enumerateDevices ?? (async () => options.devices ?? []),
+      }
     : null
 
   const onSave = vi.fn((request: SaveMediaRequest) => {
@@ -116,6 +132,7 @@ function harness(
     onCancel: vi.fn(),
     revoked,
     getUserMedia,
+    streams,
     recorder,
     advance: (ms: number) => {
       nowMs += ms
@@ -326,6 +343,36 @@ describe('permission stages (phone PermissionsView, browser-corrected)', () => {
     expect(shutter('Take photo')).toBeInTheDocument()
   })
 
+  it('keeps Grant focusable while the browser’s permission sheet is up, and says what it waits on', async () => {
+    // R-9's second site. `disabled={isOpening}` spanned the whole permission prompt — which on
+    // a cold browser is however long the visitor takes to read it — with the just-pressed
+    // control removed from the tab order and nothing saying why.
+    let release!: (stream: MediaStream) => void
+    const h = harness({
+      live: true,
+      getUserMedia: () =>
+        new Promise<MediaStream>((resolve) => {
+          release = resolve
+        }),
+    })
+    mount(h)
+
+    const grantButton = screen.getByRole('button', { name: 'Grant' })
+    fireEvent.click(grantButton)
+
+    const opening = screen.getByRole('button', { name: 'Opening…' })
+    expect(opening).toHaveAttribute('aria-disabled', 'true')
+    expect(opening).toBeEnabled()
+    expect(opening).toHaveAccessibleDescription(/Waiting for your browser.s camera permission/)
+    opening.focus()
+    expect(document.activeElement).toBe(opening)
+
+    await act(async () => {
+      release(fakeStream(['video', 'audio']))
+    })
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+  })
+
   it('a refusal is a refusal: denied copy, a retry, and no sample offered', async () => {
     const h = harness({
       live: true,
@@ -407,6 +454,36 @@ describe('live viewfinder', () => {
     expect(screen.getByText(/gave the page a camera but no microphone — the take will be silent/)).toBeInTheDocument()
   })
 
+  it('says so when the device list could not be READ — not just when there is nothing in it', async () => {
+    // R-29. §60e calls this line load-bearing: P4.1 kept `deviceFailure` apart from `failure`
+    // precisely so "the picker is missing because enumeration failed" and "the picker is
+    // missing because you have one camera" could not look identical. Nothing pinned it, so
+    // deleting the render line left the whole suite green.
+    const h = harness({
+      live: true,
+      enumerateDevices: async () => {
+        throw new Error('enumeration blocked')
+      },
+    })
+    mount(h)
+    await grant()
+
+    // The stream itself is fine — this failure is about the LIST, and the viewfinder stays live.
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
+  })
+
+  it('stays quiet when the list simply came back empty', async () => {
+    // The other half of the same distinction: one camera is not a failure, and saying anything
+    // here would be noise on the overwhelmingly common path.
+    const h = harness({ live: true, devices: [deviceInfo('cam-a', 'FaceTime HD')] })
+    mount(h)
+    await grant()
+
+    expect(screen.queryByText(captureFailureMessage('UNKNOWN', 'camera'))).not.toBeInTheDocument()
+  })
+
   it('offers the device picker only when there is another device to pick', async () => {
     const single = harness({ live: true, devices: [deviceInfo('cam-a', 'FaceTime HD')] })
     const { unmount } = mount(single)
@@ -455,6 +532,10 @@ describe('video recording', () => {
 
     const badge = screen.getByRole('timer')
     expect(badge).toHaveAccessibleName('Recording 00:00')
+    // R-16: the badge is readable on demand, not announced once a second for up to an hour.
+    // `role="timer"` defaults to `aria-live="off"`; overriding it would bury every genuine
+    // status change (a capture failure, the stop-gate reason) behind 3600 queued readings.
+    expect(badge).not.toHaveAttribute('aria-live')
 
     // The wall clock moves; the tick is what reads it.
     act(() => {
@@ -487,15 +568,26 @@ describe('video recording', () => {
     const h = harness({ live: true })
     await startRecording(h)
 
-    expect(shutter('Stop recording')).toBeDisabled()
-    fireEvent.click(shutter('Stop recording'))
+    // R-9: refused with `aria-disabled`, never the `disabled` attribute — the control stays in
+    // the tab order and keeps the focus the press that started the recording put on it.
+    const stop = shutter('Stop recording')
+    expect(stop).toHaveAttribute('aria-disabled', 'true')
+    expect(stop).toBeEnabled()
+    expect(stop).toHaveAccessibleDescription('Stop unlocks after half a second of recording.')
+    // The failure shape the idiom exists to prevent: a `disabled` attribute here would make the
+    // just-pressed control unfocusable, and the browser would drop focus to <body>.
+    stop.focus()
+    expect(document.activeElement).toBe(stop)
+
+    fireEvent.click(stop)
     expect(h.recorder.stopCalls).toBe(0)
 
     act(() => {
       h.advance(600)
       vi.advanceTimersByTime(400)
     })
-    expect(shutter('Stop recording')).toBeEnabled()
+    expect(shutter('Stop recording')).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.queryByText('Stop unlocks after half a second of recording.')).not.toBeInTheDocument()
 
     h.recorder.emitData('video-bytes')
     await act(async () => {
@@ -548,6 +640,66 @@ describe('video recording', () => {
 
     expect(screen.queryByText('Review Video')).not.toBeInTheDocument()
     expect(screen.getByText(/recording failed and produced no audio or video/)).toBeInTheDocument()
+  })
+})
+
+// ---- Hardware lifecycle -----------------------------------------------------
+
+describe('camera release while a capture is under review (R-7)', () => {
+  async function capturePhotoLive(h: Harness) {
+    const view = mount(h)
+    await grant()
+    const preview = screen.getByLabelText('Live camera preview')
+    Object.defineProperty(preview, 'videoWidth', { value: 640, configurable: true })
+    Object.defineProperty(preview, 'videoHeight', { value: 480, configurable: true })
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    return view
+  }
+
+  it('stops the camera AND the microphone track the moment the review stage is up', async () => {
+    // The phone's sensor is idle behind `PhotoPreview` (`isActive={isFocused}`). Here the review
+    // is a sibling branch of the same component, so without the effect the LED and the tab
+    // indicator stay lit for the whole naming-and-deciding window with nothing rendering the
+    // frames — and `withAudio` is unconditional, so the mic is held behind a text field too.
+    const h = harness({ live: true })
+    await capturePhotoLive(h)
+
+    expect(screen.getByText('Review Image')).toBeInTheDocument()
+    expect(h.streams).toHaveLength(1)
+    for (const track of h.streams[0].tracks) {
+      expect(track.stop, `${track.kind} track left running`).toHaveBeenCalled()
+    }
+  })
+
+  it('reopens the camera the demo closed when the visitor retakes', async () => {
+    const h = harness({ live: true })
+    await capturePhotoLive(h)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    expect(h.getUserMedia).toHaveBeenCalledTimes(2)
+    expect(h.streams).toHaveLength(2)
+    // The replacement is live — its tracks are the ones NOT stopped.
+    for (const track of h.streams[1].tracks) expect(track.stop).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+  })
+
+  it('never opens a camera the visitor never had — the sample path retake stays silent', async () => {
+    // The latch is the point: reopening unconditionally would fire a permission prompt at a
+    // visitor who has been on the bundled sample the whole time and never asked for a camera.
+    const h = harness()
+    mount(h)
+    fireEvent.click(shutter('Attach sample photo'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    expect(h.getUserMedia).not.toHaveBeenCalled()
+    expect(shutter('Attach sample photo')).toBeInTheDocument()
   })
 })
 
