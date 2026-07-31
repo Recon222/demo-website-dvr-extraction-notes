@@ -40,12 +40,16 @@ export interface AudioPreviewScreenProps {
   /** The filename this take will be stored under, extension included. Displayed so the
    *  visitor can see what is being written — P4.4 replaces it with an editable field. */
   filename: string
+  /** An informational line carried over from the recorder (today: the 1-hour auto-stop, which
+   *  lands the visitor HERE without them pressing anything — an unexplained screen change is a
+   *  silent event). Not a failure; never the red treatment. */
+  notice: string | null
   onSave(): void
   onRecordAgain(): void
   onCancel(): void
 }
 
-export function AudioPreviewScreen({ captured, filename, onSave, onRecordAgain, onCancel }: AudioPreviewScreenProps) {
+export function AudioPreviewScreen({ captured, filename, notice, onSave, onRecordAgain, onCancel }: AudioPreviewScreenProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -188,6 +192,12 @@ export function AudioPreviewScreen({ captured, filename, onSave, onRecordAgain, 
           <span style={{ fontSize: 11, color: '#9fc0db', lineHeight: 1.45 }}>
             A bundled sample note — no microphone was used to make this.
           </span>
+        </div>
+      )}
+
+      {notice !== null && (
+        <div role="status" style={{ borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
+          {notice}
         </div>
       )}
 

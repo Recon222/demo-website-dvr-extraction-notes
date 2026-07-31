@@ -34,7 +34,7 @@ function view(over: Partial<React.ComponentProps<typeof AudioPreviewScreen>> = {
     onRecordAgain: vi.fn(),
     onCancel: vi.fn(),
   }
-  render(<AudioPreviewScreen captured={LIVE} filename="audio-note-1.webm" {...handlers} {...over} />)
+  render(<AudioPreviewScreen captured={LIVE} filename="audio-note-1.webm" notice={null} {...handlers} {...over} />)
   return handlers
 }
 

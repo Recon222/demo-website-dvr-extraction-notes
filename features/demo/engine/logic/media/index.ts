@@ -79,6 +79,7 @@ export {
 } from '@/features/demo/engine/logic/media/captured'
 
 export {
+  NO_RECORDER_NOTICE,
   SAMPLE_MEDIA,
   SAMPLE_MEDIA_BASE,
   SAMPLE_MEDIA_NOTICE,

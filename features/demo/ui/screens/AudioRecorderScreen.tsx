@@ -77,6 +77,9 @@ export interface AudioRecorderScreenProps {
   deniedBody: string
   /** The no-capability explanation — `SAMPLE_MEDIA_NOTICE.microphone`. */
   sampleNotice: string
+  /** An informational line (today: the 1-hour auto-stop). Not a failure — it gets the neutral
+   *  treatment, never the red one. */
+  notice: string | null
   /** Operator-facing failure text from the capability layer; `null` when there is none. */
   failure: string | null
   onDismissFailure(): void
@@ -97,7 +100,7 @@ const BAR_GAP = 3
 const monoLabel: CSSProperties = { fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 0.5 }
 
 export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
-  const { mode, phase, elapsedMs, canStop, meter, format, timeOfDay, failure } = props
+  const { mode, phase, elapsedMs, canStop, meter, format, timeOfDay, failure, notice } = props
   const blockedId = `${useId()}-stop-blocked`
   const active = phase === 'recording' || phase === 'paused'
   // The gate applies to every stop affordance, not just the pill (deviation 1 above).
@@ -231,6 +234,12 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
           <span style={{ fontFamily: MONO, fontSize: 10, color: '#7a9fc4', minWidth: 48, textAlign: 'right' }}>
             {meter.available ? levelDbLabel(meter.level) : '—'}
           </span>
+        </div>
+      )}
+
+      {notice !== null && (
+        <div role="status" style={{ margin: '12px 20px 0', borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
+          {notice}
         </div>
       )}
 

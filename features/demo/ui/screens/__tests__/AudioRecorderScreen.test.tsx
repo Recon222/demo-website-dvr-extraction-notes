@@ -30,6 +30,7 @@ function props(over: Partial<AudioRecorderScreenProps> = {}): AudioRecorderScree
     deniedTitle: CAPTURE_PERMISSION_COPY.microphone.title,
     deniedBody: CAPTURE_PERMISSION_COPY.microphone.deniedBody,
     sampleNotice: SAMPLE_MEDIA_NOTICE.microphone,
+    notice: null,
     failure: null,
     onDismissFailure: vi.fn(),
     onStart: vi.fn(),
