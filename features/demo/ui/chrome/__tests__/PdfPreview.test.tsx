@@ -151,9 +151,13 @@ describe('PdfPreview', () => {
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
       const win = frameWindow(container)
       delete (win as { onbeforeprint?: unknown }).onbeforeprint // capability probe now fails
-      win.print = vi.fn()
+      const print = vi.fn()
+      win.print = print
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       await settlePrintVerdict()
+      // The save must still be ATTEMPTED (R-48): degrading detection must never degrade the
+      // action — skipping print() on non-detecting engines would be a silent no-op Save button.
+      expect(print).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
@@ -168,6 +172,39 @@ describe('PdfPreview', () => {
       })
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
       await settlePrintVerdict()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('a beforeprint arriving after the verdict retracts the wrong "blocked" notice — a late signal wins (R-47)', async () => {
+      // Frame-load deferral ends at the frame's load, not at the next macrotask — a data-URI-heavy
+      // document (the time-offset report embeds the OCR capture) can take several tasks. The
+      // interim "no PDF was saved" verdict is honest at T+0, but the signal that later PROVES the
+      // print happened must retract it, not be discarded with the listener.
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      win.print = vi.fn() // returns with no signal — the frame is still loading
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      expect(await screen.findByRole('status')).toHaveTextContent(/no PDF was saved/i) // honest interim verdict
+      await act(async () => {
+        win.dispatchEvent(new Event('beforeprint')) // the deferred printing steps finally run
+      })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('a superseded attempt cannot re-assert its verdict over a newer attempt (R-47)', async () => {
+      // Attempt 1's pending verdict timer must die when attempt 2 starts — otherwise a
+      // silently-ignored first attempt brands the second attempt's settled verdict "blocked" one
+      // macrotask later. Attempt 2 is steered onto the synchronous no-capability path (capability
+      // removed between clicks — contrived, but the one way to settle attempt 2 without attempt
+      // 1's still-armed listener hearing the same window event) so the verdicts genuinely differ:
+      // attempt 2 settled clean, and only attempt 1's orphaned timer could still say "blocked".
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      win.print = vi.fn() // attempt 1: swallowed silently, verdict pending
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      delete (win as { onbeforeprint?: unknown }).onbeforeprint
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' })) // attempt 2: settles synchronously
+      await settlePrintVerdict() // attempt 1's orphaned timer would fire here
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
