@@ -343,6 +343,7 @@ const MODAL_IDS: Record<ModalId, true> = {
   editIncident: true,
   duplicateLocation: true,
   newAddressLocation: true,
+  exportScope: true,
 }
 /** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
  *  snapshot with `"toString": true` would pass the guard and defeat the documented

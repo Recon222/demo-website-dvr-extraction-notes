@@ -367,25 +367,77 @@ describe('DemoExperience — location action chooser', () => {
     })
   })
 
-  describe('the two export actions (honest, not fake — plan D4)', () => {
-    it.each([
-      // Copy retuned by P5.2: the Export TAB now exists, so the notice names what is still
-      // missing (the run) instead of a surface the visitor can already open.
-      ['Export ZIP', "Export ZIP isn't available yet — it lands with the export flow."],
-      ['Export GeoJSON', "Export GeoJSON isn't available yet — it lands with the export flow."],
-    ])('%s closes the chooser and says what is really true', (label, message) => {
+  describe('the two export actions (real flow since P5.3, honest terminal — plan D4)', () => {
+    /**
+     * §52.2's trigger, discharged: both buttons now run the P5.1 export machine instead of the
+     * placeholder banners. They dispatch against the row that was PRESSED — the phone's own
+     * `source.id` (`cases.tsx:577-592`) — and end in the honest download notice.
+     */
+    it('Export ZIP closes the chooser and runs the location pipeline to its honest terminal', () => {
+      vi.useFakeTimers()
       const { store } = setup()
       render(<DemoExperience store={store} />)
       expandCase()
       openChooser('Main Store')
 
-      fireEvent.click(within(chooser()).getByRole('button', { name: label }))
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'Export ZIP' }))
 
       expect(screen.queryByRole('dialog', { name: 'Duplicate Location' })).toBeNull()
-      expect(screen.getByTestId('demo-notification')).toHaveTextContent(message)
+      expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
+
+      act(() => vi.advanceTimersByTime(10_000))
+      const notice = screen.getByRole('alertdialog')
+      expect(notice).toHaveAccessibleName("Downloads Aren't Available in the Demo")
+      expect(notice).toHaveTextContent('a ZIP of this location')
       // Nothing was fabricated: no location, no navigation, no download claim.
       expect(store.getState().locations).toHaveLength(1)
       expect(store.getState().view).toBe('cases')
+    })
+
+    it('Export GeoJSON says so without inventing a ZIP pipeline it does not have', () => {
+      const { store } = setup()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'Export GeoJSON' }))
+
+      // Sub-second on the phone, with no `onStageChange` at all — so no stage theatre here.
+      expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+      const notice = screen.getByRole('alertdialog')
+      expect(notice).toHaveAccessibleName("Downloads Aren't Available in the Demo")
+      expect(notice).toHaveTextContent('canonical GeoJSON')
+      expect(store.getState().locations).toHaveLength(1)
+      expect(store.getState().view).toBe('cases')
+    })
+
+    it('exports the row that was PRESSED, not whichever location happens to be open', () => {
+      vi.useFakeTimers()
+      const { store, caseId } = setup(['Main Store'])
+      act(() => {
+        // Only the PRESSED row can produce PDF notes, so the `generating` stage names it —
+        // and would be absent entirely if the flow had exported the open location instead.
+        const main = store.getState().locations[0].id
+        store.getState().switchLocation(main)
+        store.getState().updateField('form.scopes', [
+          { id: 'sc-1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '' },
+        ])
+        store.getState().updateField('form.dateTimeCompleted', '2025-03-09 04:10:00')
+        store.getState().updateField('form.completedBy', 'Det. Vega')
+        const other = store.getState().addLocation(caseId, { locationName: 'Rear Alley Camera' })
+        store.getState().switchLocation(other)
+        store.getState().setView('cases')
+      })
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'Export ZIP' }))
+      act(() => vi.advanceTimersByTime(600))
+
+      expect(screen.getByText('"Main Store"')).toBeInTheDocument()
+      expect(screen.queryByText('"Rear Alley Camera"')).not.toBeInTheDocument()
+      act(() => vi.advanceTimersByTime(10_000))
     })
   })
 

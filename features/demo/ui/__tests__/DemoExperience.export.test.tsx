@@ -1,186 +1,436 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
-import { EXPORT_NARRATION } from '@/features/demo/engine/content/narration'
-import { DemoExperience } from '@/features/demo/ui/DemoExperience'
+import { createDemoStore } from '@/features/demo/engine/store/create-store'
+import { DemoExperience, EXPORT_STEP_MS } from '@/features/demo/ui/DemoExperience'
 
 /**
- * P5.2 — the Export tab end to end through the bridge (matrix rows 7/24 + G7, ui-mapping 04).
- *
- * What matters here is the wiring the components can't prove on their own: that the selection
- * is bridge-local and ephemeral, that it is pruned against live store data on READ, that the
- * footer and the CTA read the SAME engine decision, and that the not-yet-built export RUN says
- * so out loud (the SEAM(P5.3) handoff) rather than pretending.
+ * P5.3 / matrix rows 25, 27, 28 — the export flow shell driven end to end through the bridge:
+ * Completion's "Export Zip" → the scope chooser → the P5.1 flow machine → the progress overlay
+ * → the honest terminal notice (decision D4, deferred §70k).
  */
 
-// Generous suite timeout, matching the sibling full-experience suites (R-6): these renders are
-// heavy under jsdom and this file runs alongside others under CPU contention.
-const TIMEOUT = { timeout: 20000 }
+type Store = ReturnType<typeof createDemoStore>
 
-/** A case with `count` locations, opened on the Export tab. */
-function seed(count: number, caseNumber = 'PR25-0001'): DemoStore {
-  const store = createDemoStore()
+const SCOPE = [
+  { id: 'sc-1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '' },
+]
+
+/** A location that passes `validateLocationForPdf` — case number, one full scope, and both
+ *  completion fields (phone `pdf-export-service.ts:90-161`). */
+function addExportableLocation(store: Store, caseId: string, locationName: string) {
+  let id = ''
   act(() => {
-    const caseId = store.getState().createCase({ caseNumber, displayName: 'Alpha', unit: 'VRU' })
-    for (let i = 1; i <= count; i++) {
-      store.getState().addLocation(caseId, { locationName: `Location ${i}`, streetAddress: `${i} Main St`, city: 'Brampton' })
-    }
+    id = store.getState().addLocation(caseId, { locationName })
+    store.getState().switchLocation(id)
+    store.getState().updateField('form.scopes', SCOPE)
+    store.getState().updateField('form.dateTimeCompleted', '2025-03-09 04:10:00')
+    store.getState().updateField('form.completedBy', 'Det. Vega')
   })
-  return store
+  return id
 }
 
-const openExportTab = () => fireEvent.click(screen.getByLabelText('Export'))
-const caseHeader = (caseNumber: string) => screen.getByRole('button', { name: `Case ${caseNumber}` })
-const caseCheckbox = (caseNumber: string) => screen.getByRole('checkbox', { name: `Select all locations in ${caseNumber}` })
-const locationRow = (name: string) => screen.getByRole('checkbox', { name: `Select ${name}` })
-
-describe('DemoExperience — Export tab wiring', TIMEOUT, () => {
-  it('opens the hub from the 4th tab and keeps the tab bar reachable', () => {
-    const store = seed(2)
-    render(<DemoExperience store={store} />)
-    openExportTab()
-    expect(store.getState().view).toBe('export')
-    expect(document.querySelector('[data-export-hub]')).toBeInTheDocument()
-    // Not a trap: the other tabs are still there.
-    fireEvent.click(screen.getByLabelText('Cases'))
-    expect(store.getState().view).toBe('cases')
+/** …and one that does not: no completion fields, no scope. */
+function addIncompleteLocation(store: Store, caseId: string, locationName: string) {
+  let id = ''
+  act(() => {
+    id = store.getState().addLocation(caseId, { locationName })
   })
+  return id
+}
 
-  it('shows the export narration on the rail (a tab destination, not a chapter)', () => {
-    const store = seed(1)
-    render(<DemoExperience store={store} />)
-    openExportTab()
-    expect(screen.getByText(EXPORT_NARRATION.title)).toBeInTheDocument()
-    // A tab-only view never becomes the chapter the wizard would resume from.
-    expect(store.getState().currentChapter).not.toBe('export')
+function openCompletion(store: Store, locationId: string) {
+  act(() => {
+    store.getState().switchLocation(locationId)
+    store.getState().setView('completion')
   })
+}
 
-  it('says "No cases to export" with an empty store', () => {
+/** One pipeline tick. */
+function step(times = 1) {
+  act(() => {
+    vi.advanceTimersByTime(EXPORT_STEP_MS * times)
+  })
+}
+
+/** Run the pipeline to its terminal, however many steps it has. */
+function runToEnd() {
+  act(() => {
+    vi.advanceTimersByTime(EXPORT_STEP_MS * 20)
+  })
+}
+
+function chooseScope(option: 'location' | 'case' | 'cancel') {
+  fireEvent.click(screen.getByText('Export Zip'))
+  fireEvent.click(screen.getByTestId(`export-option-${option}`))
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+afterEach(() => {
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
+})
+
+describe('Completion — the Export Zip affordance', () => {
+  it('renders between the document previews and Complete & Save, and opens the scope chooser', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
-    openExportTab()
-    expect(screen.getByText('No cases to export')).toBeInTheDocument()
-  })
-})
-
-describe('DemoExperience — Export selection', TIMEOUT, () => {
-  it('arms the whole case from the header checkbox and names the canonical artifact', () => {
-    render(<DemoExperience store={seed(2)} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export Full Case (2 locations)' })).toBeInTheDocument()
-    expect(screen.getByText('2 of 2 locations selected')).toBeInTheDocument()
-    // Arming also surfaces the case (the accordion's "raised focus" beat).
-    expect(locationRow('Location 1')).toBeInTheDocument()
-  })
-
-  it('keeps a hand-built single-location pick a FLAT export, unlike the same set armed by gesture', () => {
-    // The N=1 collision the engine's `armedFullCase` exists to resolve, driven through the UI.
-    render(<DemoExperience store={seed(1)} />)
-    openExportTab()
-    fireEvent.click(caseHeader('PR25-0001'))
-    fireEvent.click(locationRow('Location 1'))
-    expect(screen.getByRole('button', { name: 'Export 1 Location' })).toBeInTheDocument()
-    expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toBeInTheDocument()
-
-    // Same one location, armed from the case checkbox instead: the canonical package. (The
-    // checkbox reads 'all' at this point, so a press there would CLEAR — start from empty, the
-    // way an operator who meant "the whole case" would.)
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    expect(screen.getByRole('button', { name: 'Export Full Case (1 location)' })).toBeInTheDocument()
-    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toBeInTheDocument()
-  })
-
-  it('clears the case when its checkbox is pressed with everything already selected', () => {
-    render(<DemoExperience store={seed(2)} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    expect(caseCheckbox('PR25-0001')).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    expect(caseCheckbox('PR25-0001')).toHaveAttribute('aria-checked', 'false')
-    expect(document.querySelector('[data-export-footer]')).toBeNull()
-  })
-
-  it('builds a partial subset from location rows', () => {
-    render(<DemoExperience store={seed(3)} />)
-    openExportTab()
-    fireEvent.click(caseHeader('PR25-0001'))
-    fireEvent.click(locationRow('Location 1'))
-    fireEvent.click(locationRow('Location 3'))
-    expect(screen.getByText('SUBSET ZIP · PARTIAL · 2 OF 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export 2 of 3 Locations' })).toBeInTheDocument()
-  })
-
-  it('replaces the selection when a location in another case is ticked (one-case rule)', () => {
-    const store = seed(2)
     act(() => {
-      const other = store.getState().createCase({ caseNumber: 'PR25-0002', displayName: 'Bravo', unit: 'VRU' })
-      store.getState().addLocation(other, { locationName: 'Dock', streetAddress: '9 Rear Ln', city: 'Brampton' })
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
     })
-    render(<DemoExperience store={store} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    fireEvent.click(caseHeader('PR25-0002'))
-    fireEvent.click(locationRow('Dock'))
-    // The footer's case number is the indicator that the whole selection moved.
-    expect(screen.getByRole('button', { name: 'Export 1 Location' })).toBeInTheDocument()
-    expect(screen.getByText('1 of 1 location selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select all locations in PR25-0001' })).toHaveAttribute('aria-checked', 'false')
+    const loc = addExportableLocation(store, store.getState().cases[0].id, "Kim's Convenience")
+    openCompletion(store, loc)
+
+    const cta = screen.getByText('Export Zip')
+    expect(cta).toBeEnabled()
+
+    // Document order: Preview / Export PDF → Export Zip → Complete & Save (phone FormActions).
+    const body = document.body.textContent!
+    expect(body.indexOf('Preview / Export PDF')).toBeLessThan(body.indexOf('Export Zip'))
+    expect(body.indexOf('Export Zip')).toBeLessThan(body.indexOf('Complete & Save'))
+
+    fireEvent.click(cta)
+    expect(screen.getByRole('menu')).toHaveAccessibleName('Choose Export Scope')
+    expect(store.getState().modal).toBe('exportScope')
   })
 
-  it('clears the selection, footer and all', () => {
-    render(<DemoExperience store={seed(2)} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(document.querySelector('[data-export-footer]')).toBeNull()
+  it('offers exactly the phone’s three options, verbatim', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const loc = addExportableLocation(store, store.getState().cases[0].id, "Kim's Convenience")
+    openCompletion(store, loc)
+    fireEvent.click(screen.getByText('Export Zip'))
+
+    const sheet = screen.getByTestId('export-action-sheet')
+    expect(sheet).toHaveTextContent('Export This Location')
+    expect(sheet).toHaveTextContent('ZIP with documents and media for current location')
+    expect(sheet).toHaveTextContent('Export Full Case')
+    expect(sheet).toHaveTextContent('ZIP with all locations, documents, and media')
+    expect(sheet).toHaveTextContent('Cancel')
   })
 
-  it('prunes a deleted location out of the armed selection on the next read', () => {
-    const store = seed(3)
+  it('disables the CTA when no location is open (the ZIP has nothing to scope itself to)', () => {
+    const store = createDemoStore()
     render(<DemoExperience store={store} />)
-    openExportTab()
-    fireEvent.click(caseHeader('PR25-0001'))
-    fireEvent.click(locationRow('Location 1'))
-    fireEvent.click(locationRow('Location 2'))
-    expect(screen.getByText('2 of 3 locations selected')).toBeInTheDocument()
-
-    const doomed = store.getState().locations.find((l) => l.locationName === 'Location 2')!
-    act(() => store.getState().deleteLocation(doomed.id))
-    // Dropped from the set AND from the denominator — no ghost row, no stale count.
-    expect(screen.getByText('1 of 2 locations selected')).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'Select Location 2' })).toBeNull()
+    act(() => store.getState().setView('completion'))
+    expect(screen.getByText('Export Zip')).toBeDisabled()
   })
 
-  it('drops the footer entirely when the armed case is deleted', () => {
-    const store = seed(2)
+  it('Cancel closes the sheet and dispatches nothing', () => {
+    const store = createDemoStore()
     render(<DemoExperience store={store} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    const armed = store.getState().cases[0]
-    act(() => store.getState().deleteCase(armed.id))
-    expect(document.querySelector('[data-export-footer]')).toBeNull()
-    expect(screen.getByText('No cases to export')).toBeInTheDocument()
-  })
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const loc = addExportableLocation(store, store.getState().cases[0].id, "Kim's Convenience")
+    openCompletion(store, loc)
 
-  it('keeps the selection out of the session snapshot — it is tab-local, like the map viewer case', () => {
-    const store = seed(2)
-    render(<DemoExperience store={store} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    // Nothing selection-shaped reaches the store; the export selection is bridge `useState`.
-    expect(JSON.stringify(store.getState())).not.toContain('armedFullCase')
+    chooseScope('cancel')
+
+    expect(store.getState().modal).toBeNull()
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+    runToEnd()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })
 
-describe('DemoExperience — SEAM(P5.3): the export run', TIMEOUT, () => {
-  it('answers the CTA honestly instead of miming a download', () => {
-    render(<DemoExperience store={seed(2)} />)
-    openExportTab()
-    fireEvent.click(caseCheckbox('PR25-0001'))
-    fireEvent.click(screen.getByRole('button', { name: 'Export Full Case (2 locations)' }))
-    expect(screen.getByText("Running an export isn't available yet — it lands with the export modals.")).toBeInTheDocument()
+describe('Export This Location — the single-location ZIP pipeline', () => {
+  function setup() {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const loc = addExportableLocation(store, store.getState().cases[0].id, "Kim's Convenience")
+    openCompletion(store, loc)
+    return store
+  }
+
+  it('walks validating → generating → zipping, then tells the truth about the archive', () => {
+    setup()
+    chooseScope('location')
+
+    // The stage flip happens in the SAME handler that starts the run (§70j) — before any timer.
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
+
+    step()
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Generating PDFs...')
+    expect(screen.getByText('Location 1 of 1')).toBeInTheDocument()
+    expect(screen.getByText('"Kim\'s Convenience"')).toBeInTheDocument()
+
+    step()
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
+
+    step()
+    // Overlay gone BEFORE the notice — never a dialog saying nothing was written over a
+    // progress line saying it is being written.
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+    const notice = screen.getByRole('alertdialog')
+    expect(notice).toHaveAccessibleName("Downloads Aren't Available in the Demo")
+    expect(notice).toHaveTextContent('a ZIP of this location')
+    expect(notice).toHaveTextContent('no file system, no share sheet')
+  })
+
+  it('never enters the phone’s "sharing" stage — a browser tab has no share sheet', () => {
+    setup()
+    chooseScope('location')
+    runToEnd()
+    expect(screen.queryByText('Opening share dialog...')).not.toBeInTheDocument()
+  })
+
+  it('skips the PDF pass entirely when the location cannot produce notes', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const loc = addIncompleteLocation(store, store.getState().cases[0].id, 'Rear Alley Camera')
+    openCompletion(store, loc)
+
+    chooseScope('location')
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
+    step()
+    // Straight to zipping — the phone only emits `generating` when something validates.
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
+    expect(screen.queryByText(/^Location \d+ of/)).not.toBeInTheDocument()
+    // …and NO validation prompt: the phone opens that only for case / case-subset runs.
+    expect(screen.queryByTestId('export-validation-modal')).not.toBeInTheDocument()
+  })
+
+  it('the CTA reads "Exporting..." and is inert while a run is in flight', () => {
+    setup()
+    chooseScope('location')
+    expect(screen.getByText('Exporting...')).toBeDisabled()
+    expect(screen.queryByText('Export Zip')).not.toBeInTheDocument()
+    runToEnd()
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }))
+    expect(screen.getByText('Export Zip')).toBeEnabled()
+  })
+})
+
+describe('Export Full Case — validation passes', () => {
+  it('counts every location that will get a PDF, in card order', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const caseId = store.getState().cases[0].id
+    addExportableLocation(store, caseId, 'Front Counter')
+    const second = addExportableLocation(store, caseId, 'Rear Alley Camera')
+    openCompletion(store, second)
+
+    chooseScope('case')
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
+    // No prompt: every location validates.
+    expect(screen.queryByTestId('export-validation-modal')).not.toBeInTheDocument()
+
+    step()
+    expect(screen.getByText('Location 1 of 2')).toBeInTheDocument()
+    expect(screen.getByText('"Front Counter"')).toBeInTheDocument()
+    step()
+    expect(screen.getByText('Location 2 of 2')).toBeInTheDocument()
+    expect(screen.getByText('"Rear Alley Camera"')).toBeInTheDocument()
+    step()
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
+    step()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('a ZIP of the whole case')
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('plus the interactive case map')
+  })
+})
+
+describe('Export Full Case — validation finds gaps', () => {
+  function setupMixed() {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const caseId = store.getState().cases[0].id
+    const good = addExportableLocation(store, caseId, 'Front Counter')
+    addIncompleteLocation(store, caseId, 'Rear Alley Camera')
+    openCompletion(store, good)
+    return store
+  }
+
+  it('stops at the prompt, names the location and every field it is missing', () => {
+    setupMixed()
+    chooseScope('case')
+
+    const prompt = screen.getByTestId('export-validation-modal')
+    expect(prompt).toHaveTextContent('Some Locations Missing PDF Data')
+    expect(prompt).toHaveTextContent('Rear Alley Camera')
+    expect(prompt).toHaveTextContent('- Missing: At least one extraction scope with start and end times')
+    expect(prompt).toHaveTextContent('- Missing: Completion date')
+    expect(prompt).toHaveTextContent('- Missing: Completed by')
+    expect(prompt).toHaveTextContent('1 of 2 locations will include PDF notes.')
+    // The prompt is a QUESTION, not progress — the stage is back at idle behind it.
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+  })
+
+  it('Cancel drops the prompt and starts nothing', () => {
+    setupMixed()
+    chooseScope('case')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel export' }))
+
+    expect(screen.queryByTestId('export-validation-modal')).not.toBeInTheDocument()
+    runToEnd()
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('a cancelled prompt leaves nothing armed — the next run re-validates from scratch', () => {
+    setupMixed()
+    chooseScope('case')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel export' }))
+
+    chooseScope('case')
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+  })
+
+  it('Continue resumes the case pipeline and generates only the valid location', () => {
+    setupMixed()
+    chooseScope('case')
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
+
+    // The modal close and the stage flip land in ONE write — no blank frame between them.
+    expect(screen.queryByTestId('export-validation-modal')).not.toBeInTheDocument()
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
+
+    step()
+    // The invalid location is skipped: one PDF, not two.
+    expect(screen.getByText('Location 1 of 1')).toBeInTheDocument()
+    expect(screen.getByText('"Front Counter"')).toBeInTheDocument()
+    step()
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
+    step()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('a ZIP of the whole case')
+  })
+
+  it('every location invalid switches to the louder framing and Export Anyway', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const caseId = store.getState().cases[0].id
+    const only = addIncompleteLocation(store, caseId, 'Rear Alley Camera')
+    openCompletion(store, only)
+
+    chooseScope('case')
+    const prompt = screen.getByTestId('export-validation-modal')
+    expect(prompt).toHaveTextContent('All Locations Missing PDF Data')
+    expect(prompt).toHaveTextContent('The ZIP will be created without any PDF notes.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
+    step()
+    // Nothing to generate — the pipeline goes validating → zipping.
+    expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
+    step()
+    // …and the promise the prompt made ("the ZIP will be created") is answered honestly.
+    expect(screen.getByRole('alertdialog')).toHaveAccessibleName("Downloads Aren't Available in the Demo")
+  })
+})
+
+describe('Export flow — guards', () => {
+  it('§70i: with the validation prompt up, a second dispatch is inert', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const caseId = store.getState().cases[0].id
+    const only = addIncompleteLocation(store, caseId, 'Rear Alley Camera')
+    openCompletion(store, only)
+
+    chooseScope('case')
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+
+    // The CTA still exists behind the prompt's scrim (the phone leaves it enabled too — the
+    // modal covers it). Driving the whole sheet round-trip anyway must change nothing.
+    chooseScope('case')
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+    runToEnd()
+    // No terminal notice — nothing ran. (The prompt itself is an alertdialog, so this has to
+    // ask for the notice by name.)
+    expect(
+      screen.queryByRole('alertdialog', { name: "Downloads Aren't Available in the Demo" }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+  })
+
+  it('Continue resumes the case the prompt was ARMED for, not one re-derived at press time', () => {
+    // `continueValidatedExport` takes the case id as an argument, so remembering WHICH case
+    // raised the prompt is the shell's job. Re-deriving it from the open location would let a
+    // prompt raised on case A export case B — scope escalation of the exact kind the machine's
+    // arming rules exist to prevent, and reachable the moment P5.2's tab can arm a case that is
+    // not the open location's.
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    let caseA = ''
+    let caseB = ''
+    act(() => {
+      caseA = store.getState().createCase({ caseNumber: 'PR25-AAA', displayName: 'Case A', unit: 'Robbery' })
+      caseB = store.getState().createCase({ caseNumber: 'PR25-BBB', displayName: 'Case B', unit: 'Robbery' })
+    })
+    const aValid = addExportableLocation(store, caseA, 'Front Counter')
+    addIncompleteLocation(store, caseA, 'Rear Alley Camera') // forces the prompt
+    const bValid = addExportableLocation(store, caseB, 'Plaza Office')
+    openCompletion(store, aValid)
+
+    chooseScope('case')
+    expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+
+    // The prompt is not view-scoped, so the open location can move underneath it.
+    act(() => store.getState().switchLocation(bValid))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
+
+    step()
+    expect(screen.getByText('"Front Counter"')).toBeInTheDocument()
+    expect(screen.queryByText('"Plaza Office"')).not.toBeInTheDocument()
+    runToEnd()
+  })
+
+  it('an export whose case has gone raises the phone’s "no longer available" backstop', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const caseId = store.getState().cases[0].id
+    const loc = addExportableLocation(store, caseId, "Kim's Convenience")
+    openCompletion(store, loc)
+    // The location survives with a caseId pointing at nothing — the shape the phone's Export
+    // tab guards against when its list has moved on.
+    act(() => {
+      store.setState({ cases: [] })
+    })
+
+    chooseScope('case')
+    const alert = screen.getByRole('alertdialog')
+    expect(alert).toHaveAccessibleName('Export Error')
+    expect(alert).toHaveTextContent('The selected case is no longer available. Re-select and try again.')
+    expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
+  })
+
+  it('the export flow is session chrome — nothing about it is persisted', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-EXP', displayName: 'Export Case', unit: 'Robbery' })
+    })
+    const loc = addExportableLocation(store, store.getState().cases[0].id, "Kim's Convenience")
+    openCompletion(store, loc)
+    chooseScope('location')
+
+    // §70a: the machine's state lives in the bridge, never in the store.
+    expect(Object.keys(store.getState())).not.toContain('exportStage')
+    expect(Object.keys(store.getState())).not.toContain('exportFlow')
+    runToEnd()
   })
 })
