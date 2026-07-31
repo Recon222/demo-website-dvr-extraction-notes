@@ -107,7 +107,7 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     expect(screen.getByRole('button')).toHaveAttribute('aria-controls', 'terminal-detail-7')
   })
 
-  it('is memoized so appends never re-render existing rows (keyed by seq in the parent)', () => {
+  it('is wrapped in React.memo (structural pin — the no-re-render BEHAVIOUR is counted in ImportTerminalProgress.memo.test)', () => {
     expect((TerminalLine as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'))
   })
 })
