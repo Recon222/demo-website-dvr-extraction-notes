@@ -23,7 +23,7 @@
  * `gps-service.ts` never computes a mean or a deviation, and the phone's own accurate
  * description is `src/features/location/README.md:276` ("returns the most accurate sample").
  * Shipping a 2σ filter here would make the demo's coordinates DIFFER from the phone's for the
- * same samples, so this module implements the phone's real behaviour. See deferred.md §37.
+ * same samples, so this module implements the phone's real behaviour. See deferred.md §41.
  */
 
 // ---- Domain ---------------------------------------------------------------

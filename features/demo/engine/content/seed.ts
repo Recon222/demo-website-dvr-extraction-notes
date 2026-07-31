@@ -24,7 +24,7 @@ export type OcrSampleFrame = 'clean' | 'ambiguous' | 'timeOnly'
  * cases would otherwise be unreachable in a cameraless demo:
  *  - `ambiguous` — 06 vs 07, with a year deliberately outside the resolver's proximity window
  *    (`year < currentYear - 1`), which pins the resolution at `confidence: 'low'` so the
- *    warning actually renders for any visitor from 2026 on (deferred §37c). A DVR whose clock
+ *    warning actually renders for any visitor from 2026 on (deferred §40c). A DVR whose clock
  *    is a couple of years stale is the normal case in this domain, not a contrivance.
  *  - `timeOnly` — a clock with no date at all: the `assumedDate` path.
  */

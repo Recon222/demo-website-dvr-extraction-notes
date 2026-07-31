@@ -196,7 +196,7 @@ export interface DvrTimestampReading {
  *
  * Pure: `currentTimeMs` is the only clock input.
  *
- * NOTE (deliberate reuse, see deferred §37): the demo keeps ONE `date-disambiguation` module —
+ * NOTE (deliberate reuse, see deferred §40): the demo keeps ONE `date-disambiguation` module —
  * the import-side port, which additionally rejects future readings and distrusts proximity for
  * stale years. The phone's OCR feature keeps a proximity-only sibling copy. For a live DVR clock
  * both extra rules land the same way a reviewer would: a month/day swap into the future is not a

@@ -880,10 +880,9 @@ covered by the new pre-seed R-45 test. Same doc's suggested R-45 shortcut ("reje
 `runText` immediately after a completed PDF run") cannot reach the defect for the same
 reason — the seed overwrites the stale ref before the rejection lands. A pre-seed throw
 is the only reachable window, and the emitter's `INIT` log is the only throwable in it.
-=======
 ---
 
-## 37. Four hand-rolled address joins — fold into P2.3's `formatAddress` when it lands
+## 38. Four hand-rolled address joins — fold into P2.3's `formatAddress` when it lands
 
 **Source:** P2.4 (parity/p2-gate), self-logged while porting `finalSubmissionSchema`.
 
@@ -914,10 +913,9 @@ entry is about, and the gate's own behaviour is fully pinned by tests either way
 joins all call it, and this entry is struck. Keep the two deliberate differences explicit at
 the call sites — the gate must NOT take the `locationName` fallback (a location with no
 address must not pass), and the summary card must keep it (display, not validation).
-=======
 ---
 
-## 37. P2.5 (parity/p2-advisories) — Time-Offset advisories: deliberate non-ports & residuals
+## 39. P2.5 (parity/p2-advisories) — Time-Offset advisories: deliberate non-ports & residuals
 
 **Source:** P2.5 implementation (matrix row 34 residual — the phone's four DST advisory
 branches plus its Toast/Alert guards).
@@ -988,10 +986,9 @@ degrades to the literal word `spring`/`fall`. Reachable in North America wheneve
 fall-back Sunday is the 1st — e.g. **2026-11-01**. The demo's port brackets on month starts and
 binary-searches inside, so it resolves the boundary case (pinned in
 `engine/logic/__tests__/dst-advisory.test.ts`). File as a `BUG-NNN` when the owner returns.
-=======
 ---
 
-## 37. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
+## 40. P2.2 (parity/p2-ocr) — OCR confirm depth: deliberate divergences & residuals
 
 Recorded by the P2.2 package (matrix rows 38/39 + the `TODO(M2)` at `engine/logic/ocr.ts:135`).
 Everything below is a *considered* choice or a *found-not-fixed* item, not drift.
