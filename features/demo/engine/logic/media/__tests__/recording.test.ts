@@ -8,7 +8,7 @@ import {
   PHONE_MEDIA_EXTENSIONS,
   VIDEO_MIME_CANDIDATES,
   beginRecording,
-  canStopRecording,
+  canStopAtElapsed,
   extensionForMimeType,
   formatDuration,
   formatFileSize,
@@ -20,6 +20,7 @@ import {
   recorderMimeCandidates,
   resumeRecording,
   stopRecording,
+  type RecordingState,
 } from '@/features/demo/engine/logic/media/recording'
 
 const T0 = 1_000_000
@@ -106,7 +107,11 @@ describe('out-of-phase transitions are identity no-ops', () => {
   })
 })
 
-describe('canStopRecording (the phone 500ms gate)', () => {
+describe('canStopAtElapsed (the phone 500ms gate)', () => {
+  /** How the only production consumer applies the gate: elapsed from state, then the rule. */
+  const canStopAt = (state: RecordingState, nowMs: number): boolean =>
+    canStopAtElapsed(state, recordedMs(state, nowMs))
+
   it('pins the phone constants', () => {
     expect(MIN_RECORDING_DURATION_MS).toBe(500)
     expect(MAX_RECORDING_DURATION_MS).toBe(60 * 60 * 1000)
@@ -114,18 +119,18 @@ describe('canStopRecording (the phone 500ms gate)', () => {
 
   it('is false below the minimum and true at exactly the minimum', () => {
     const state = beginRecording(T0)
-    expect(canStopRecording(state, T0 + 499)).toBe(false)
-    expect(canStopRecording(state, T0 + 500)).toBe(true)
+    expect(canStopAt(state, T0 + 499)).toBe(false)
+    expect(canStopAt(state, T0 + 500)).toBe(true)
   })
 
   it('is false for idle and stopped recorders whatever the elapsed figure', () => {
-    expect(canStopRecording(IDLE_RECORDING, T0 + 99_999)).toBe(false)
-    expect(canStopRecording(stopRecording(beginRecording(T0), T0 + 9_000), T0 + 99_999)).toBe(false)
+    expect(canStopAt(IDLE_RECORDING, T0 + 99_999)).toBe(false)
+    expect(canStopAt(stopRecording(beginRecording(T0), T0 + 9_000), T0 + 99_999)).toBe(false)
   })
 
   it('holds a paused recorder at its banked total rather than letting the clock unlock Stop', () => {
     const paused = pauseRecording(beginRecording(T0), T0 + 100)
-    expect(canStopRecording(paused, T0 + 100_000)).toBe(false)
+    expect(canStopAt(paused, T0 + 100_000)).toBe(false)
   })
 })
 

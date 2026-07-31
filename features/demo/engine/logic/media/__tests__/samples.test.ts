@@ -13,7 +13,6 @@ import {
   SAMPLE_MEDIA,
   SAMPLE_MEDIA_BASE,
   SAMPLE_MEDIA_NOTICE,
-  facilityForKind,
   suggestedFilenameBase,
   toSampleCapture,
 } from '@/features/demo/engine/logic/media/samples'
@@ -142,14 +141,6 @@ describe('SAMPLE_MEDIA_NOTICE', () => {
 
   it('is frozen', () => {
     expect(Object.isFrozen(SAMPLE_MEDIA_NOTICE)).toBe(true)
-  })
-})
-
-describe('facilityForKind', () => {
-  it('routes photo and video to the camera, audio to the microphone', () => {
-    expect(facilityForKind('photo')).toBe('camera')
-    expect(facilityForKind('video')).toBe('camera')
-    expect(facilityForKind('audio')).toBe('microphone')
   })
 })
 

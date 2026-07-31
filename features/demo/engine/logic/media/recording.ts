@@ -111,17 +111,13 @@ export function isActiveRecording(state: RecordingState): boolean {
  * The phone's Stop gate (ui-mapping 10): active AND at least `MIN_RECORDING_DURATION_MS`.
  * Below it the recorder has nothing worth handing to a review screen.
  *
- * Split from `canStopRecording` so a consumer that already HAS the elapsed figure can apply
- * the rule without re-reading a clock. `useMediaCapture` keeps `elapsedMs` in state (the demo
- * forbids clock reads at render scope), and duplicating the `>= 500` comparison there would
- * be a second copy of the phone's gate free to drift.
+ * Takes the elapsed figure rather than a clock reading, because that is how the only consumer
+ * has it: `useMediaCapture` keeps `elapsedMs` in state (the demo forbids clock reads at render
+ * scope). R-28 removed the `canStopRecording(state, nowMs)` wrapper that read the clock
+ * itself — it had no production caller, and the barrel's own header names exactly that drift.
  */
 export function canStopAtElapsed(state: RecordingState, elapsedMs: number): boolean {
   return isActiveRecording(state) && elapsedMs >= MIN_RECORDING_DURATION_MS
-}
-
-export function canStopRecording(state: RecordingState, nowMs: number): boolean {
-  return canStopAtElapsed(state, recordedMs(state, nowMs))
 }
 
 /** The phone's 1-hour auto-stop trigger. Only ever true while a recording is live. */

@@ -106,11 +106,6 @@ export const NO_RECORDER_NOTICE: Readonly<Record<CaptureFacility, string>> = Obj
 export const NO_CAPTURE_STORAGE_NOTICE =
   'This browser will not let the page hold on to a captured file, so the demo attached a bundled sample instead. Nothing was recorded.'
 
-/** The facility a kind is captured with — photo and video both come from the camera. */
-export function facilityForKind(kind: MediaKind): CaptureFacility {
-  return kind === 'audio' ? 'microphone' : 'camera'
-}
-
 /**
  * The base name the metadata form (P4.4) opens with — the ONE rule all three capture surfaces
  * pre-fill through, so a photo, a clip and an audio note cannot each answer this differently.
