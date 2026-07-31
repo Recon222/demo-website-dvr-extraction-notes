@@ -83,6 +83,15 @@ export interface CaseNotesData {
    */
   notesSections?: NoteSection[]
   notesFreeText?: string
+  /**
+   * True when `generateExtractedScopes` dropped ≥1 non-canonical requested scope, so
+   * `extractedScopes` — the list the notes' recovered-footage line is built from — is
+   * SHORT. The document must say so (P2 review R-3): unlike `adjustedScopesPartial`
+   * (recomputed live), this flag describes the stored extracted list, which stays stale
+   * until the visitor recalculates — the court PDF may otherwise under-report the
+   * recovery with no warning anywhere.
+   */
+  extractedScopesPartial?: boolean
   arrivalDepartures?: CaseNotesArrival[]
   generatedAt?: string
 }
@@ -220,10 +229,20 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   // assembler is the only flattening path (matches the phone's template semantics:
   // one pre-wrap `.notes` block containing the registry-ordered section blocks).
   const notesFlat = assembleNotesString(d.notesSections ?? [], d.notesFreeText ?? '')
-  const notesSection = notesFlat.trim()
-    ? `
-  <div class="section"><div class="section-title">Case Notes</div><div class="notes">${e(notesFlat)}</div></div>`
+  // R-3: a flagged-partial extracted list means the recovered-footage line above was
+  // built from a SHORT list — annotate, don't silently under-report (the
+  // adjustedScopesPartial idiom). Rendered even if the notes body is empty: the flag
+  // describes the recovery record, not the prose.
+  const notesPartialNote = d.extractedScopesPartial
+    ? `<p style="font-size:10pt;color:#d9534f;font-weight:bold;">&#9888; One or more requested time ranges could not be converted to DVR time when the extracted scopes were last calculated — the recovered footage reported in these notes may be incomplete. Recalculate on the Time Offset screen after correcting the requested times.</p>`
     : ''
+  const notesSection =
+    notesFlat.trim() || notesPartialNote
+      ? `
+  <div class="section"><div class="section-title">Case Notes</div>${
+    notesFlat.trim() ? `<div class="notes">${e(notesFlat)}</div>` : ''
+  }${notesPartialNote}</div>`
+      : ''
 
   const adRows = (d.arrivalDepartures || [])
     .filter((a) => a.arrival || a.departure)

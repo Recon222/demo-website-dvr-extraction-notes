@@ -11,10 +11,9 @@
 import { formatTimestamp } from '@/features/demo/engine/logic/notes/format-timestamp'
 import type { NotesRelevantFormData } from '@/features/demo/engine/logic/notes/types'
 
-interface ArrivalDeparture {
-  arrivalDateTime: string
-  departureDateTime: string
-}
+/** A visit as the notes shape carries it (R-27: derived from the canonical field, never
+ *  a local interface shadowing the store's `ArrivalDeparture` entity with disjoint keys). */
+type NotesVisit = NotesRelevantFormData['arrivalDepartures'][number]
 
 /**
  * Formats a duration in minutes to a human-readable string
@@ -65,7 +64,7 @@ export function formatTimeOnScene(formData: NotesRelevantFormData): string {
 
   // Filter out incomplete visits
   const validVisits = arrivalDepartures.filter(
-    (visit: ArrivalDeparture) => visit.arrivalDateTime && visit.departureDateTime
+    (visit: NotesVisit) => visit.arrivalDateTime && visit.departureDateTime
   )
 
   if (validVisits.length === 0) {
@@ -75,7 +74,7 @@ export function formatTimeOnScene(formData: NotesRelevantFormData): string {
   // Total time across all visits. NaN from any visit with an unparseable timestamp
   // poisons the sum — deliberately (honest "unable to calculate" beats summing
   // around the bad visit).
-  const totalMinutes = validVisits.reduce((total: number, visit: ArrivalDeparture) => {
+  const totalMinutes = validVisits.reduce((total: number, visit: NotesVisit) => {
     return total + calculateDuration(visit.arrivalDateTime, visit.departureDateTime)
   }, 0)
 
@@ -94,7 +93,7 @@ export function formatTimeOnScene(formData: NotesRelevantFormData): string {
 
   // For multiple visits, show the visit list with the total
   let result = '• On scene for multiple visits:\n'
-  validVisits.forEach((visit: ArrivalDeparture, index: number) => {
+  validVisits.forEach((visit: NotesVisit, index: number) => {
     const arrivalTime = formatTimestamp(visit.arrivalDateTime)
     const departureTime = formatTimestamp(visit.departureDateTime)
     result += `   Visit ${index + 1}: ${arrivalTime} to ${departureTime}\n`

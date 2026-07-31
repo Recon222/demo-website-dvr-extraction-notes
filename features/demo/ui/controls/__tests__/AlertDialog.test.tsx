@@ -88,4 +88,17 @@ describe('AlertDialog — the in-phone blocking alert (Alert.alert analog)', () 
     const cancel = screen.getByRole('button', { name: 'Cancel' })
     expect(discard.style.color).not.toBe(cancel.style.color)
   })
+
+  it('stacks 3+ actions into a column (the iOS multi-option shape); 2 stay side-by-side (R-5)', () => {
+    const three = [
+      { label: 'Keep', onPress: vi.fn() },
+      { label: 'Replace', style: 'destructive' as const, onPress: vi.fn() },
+      { label: 'Cancel', style: 'cancel' as const, onPress: vi.fn() },
+    ]
+    const { unmount } = render(<AlertDialog title="T" message="m" actions={three} onDismiss={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Keep' }).parentElement?.style.flexDirection).toBe('column')
+    unmount()
+    render(<AlertDialog title="T" message="m" actions={three.slice(0, 2)} onDismiss={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Keep' }).parentElement?.style.flexDirection).not.toBe('column')
+  })
 })

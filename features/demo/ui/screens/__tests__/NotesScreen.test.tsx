@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { NotesScreen, type NotesScreenProps } from '@/features/demo/ui/screens/NotesScreen'
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
@@ -7,6 +7,18 @@ import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
 // The phone's section-editor surface (ui-mapping 08): section states, the five confirm
 // dialogs (exact copy), commit-on-blur-and-unmount, the taken-over banner, Copy all.
+
+// R-29: the clipboard stub is torn down after every test — jsdom's navigator has no
+// own `clipboard`, so restore means deleting the property (or reinstating a captured
+// descriptor if one ever exists).
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+afterEach(() => {
+  if (originalClipboard) {
+    Object.defineProperty(navigator, 'clipboard', originalClipboard)
+  } else {
+    delete (navigator as { clipboard?: unknown }).clipboard
+  }
+})
 
 function meta(over: Partial<NoteSectionMeta> = {}): NoteSectionMeta {
   return {
@@ -136,6 +148,19 @@ describe('NotesScreen — addendum', () => {
 })
 
 describe('NotesScreen — footer + banner', () => {
+  it('confirmations use the shared AlertDialog contract: focus moves in, body copy is described-by (R-5)', () => {
+    render(<NotesScreen {...props()} />)
+    fireEvent.click(screen.getByText('Write my own notes…'))
+    const dialog = screen.getByRole('alertdialog')
+    // focus entered the dialog (the R-17 idiom) — a screen reader hears title AND body
+    expect(dialog).toHaveFocus()
+    const describedBy = dialog.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy!)?.textContent).toContain(
+      'Auto-generation stops for every section',
+    )
+  })
+
   it('scrap-all dialog carries the exact phone copy and routes both modes', () => {
     const onScrapAll = vi.fn()
     render(<NotesScreen {...props({ onScrapAll })} />)
@@ -198,6 +223,33 @@ describe('NotesScreen — footer + banner', () => {
       fireEvent.click(screen.getByLabelText('Copy all notes'))
     })
     expect(screen.getByText('Copy failed')).toBeInTheDocument()
+  })
+
+  it('R-12: a re-copy re-arms the reset window — the earlier timer cannot wipe the later confirmation', async () => {
+    vi.useFakeTimers()
+    try {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      render(<NotesScreen {...props({ copyAllText: 'assembled' })} />)
+      const btn = screen.getByLabelText('Copy all notes')
+      await act(async () => {
+        fireEvent.click(btn)
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(1000) // first window half-elapsed
+        fireEvent.click(btn) // second copy re-arms
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(700) // past the FIRST timer's would-be expiry
+      })
+      expect(screen.getByText('Copied ✓')).toBeInTheDocument() // not wiped early
+      await act(async () => {
+        vi.advanceTimersByTime(1000) // second window completes
+      })
+      expect(screen.queryByText('Copied ✓')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('free text commits on blur', () => {

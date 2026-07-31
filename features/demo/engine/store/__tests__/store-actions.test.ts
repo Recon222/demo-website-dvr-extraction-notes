@@ -173,6 +173,26 @@ describe('selectCaseNotesData', () => {
     expect(data.scopes).toBeUndefined()
     expect(data.timeOffset).toBeNull()
   })
+
+  it('R-20: projects cameras and arrival/departures field-by-field (a resolution↔fps swap must fail here)', () => {
+    const store = withLocation()
+    store.getState().updateField('form.cameras', [
+      { id: 'cam1', cameraName: 'Till', resolution: '1920x1080', recordingFps: '15' },
+      { id: 'cam2', cameraName: 'Rear door', resolution: '4CIF', recordingFps: '30' },
+    ])
+    store.getState().updateField('form.arrivalDepartures', [
+      { id: 'v1', arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:30:00' },
+    ])
+    const data = selectCaseNotesData(store.getState())
+    // Distinct resolution/fps values so a type-correct field swap cannot ship green.
+    expect(data.cameras).toEqual([
+      { name: 'Till', resolution: '1920x1080', fps: '15' },
+      { name: 'Rear door', resolution: '4CIF', fps: '30' },
+    ])
+    expect(data.arrivalDepartures).toEqual([
+      { arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:30:00' },
+    ])
+  })
 })
 
 describe('generateExtractedScopes resilience (review #1)', () => {

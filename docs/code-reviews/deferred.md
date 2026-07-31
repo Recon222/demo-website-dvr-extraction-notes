@@ -1215,3 +1215,33 @@ the P2.1 follow-up executed both resolutions:
    attendance line carry the identical abbreviated string; the full street word
    never reaches the document). Remaining hand-join sites OUTSIDE the PDF path
    (Completion summary, screenData rows) are P2.4's §37 table — not re-tracked here.
+
+## 43. `NoteSection`'s content/generatedContent invariant — recorded, deliberately unexpressed (P2 review R-28)
+
+**Source:** P2 review R-28 (type-design lane TD-7, LOW; the lane itself recommended
+recording over fixing). Owner P2.1, disposition executed on `parity/p2-fix-notes`.
+
+**The invariant:** for an un-edited section (`manuallyEdited: false`),
+`generatedContent === content` always holds — the reconciler's un-edited arm writes both
+from the same fresh output, and every other writer either freezes the pair
+(`manuallyEdited: true` paths) or rebuilds both (`resetNoteSection`,
+`restoreAllNotes`). The type (`engine/types/index.ts` `NoteSection`) documents this in
+prose but cannot express it structurally.
+
+**Why record, not fix:** a discriminated union (`auto` arm carrying one string / `edited`
+arm carrying both) would fork the demo's PERSISTED shape from the phone's
+(`src/features/documentation/notes/types.ts` — the same flat shape, same prose
+invariant), against the phase's port-verbatim premise; the snapshot guard would need a
+custom refinement; and the sole route to a violating value is hand-editing
+sessionStorage, where the zod shape guard already discards malformed snapshots — the
+worst reachable case is a stale staleness-baseline that self-heals on the next
+formatter-output change.
+
+**Optional hardening, considered and NOT taken:** making the reconciler's un-edited arm
+also compare `generatedContent` (self-healing at one extra comparison) would diverge the
+reconciler from the phone's verbatim `fresh === stored.content` arm
+(`section-reconciler.ts`) for a state unreachable through the demo's own writers.
+
+**Trigger to revisit:** any new writer that sets `content` without `generatedContent`
+(or vice versa) on an un-edited section, or a phone-side reshape of `NoteSection` —
+adopt whatever shape the phone lands.

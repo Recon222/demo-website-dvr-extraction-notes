@@ -73,6 +73,18 @@ describe('generateCaseNotesDoc', () => {
     expect(html).not.toContain('Case Notes</div>')
   })
 
+  it('R-3: a flagged-partial extracted list annotates the Case Notes block; unflagged renders no warning', () => {
+    const flagged = generateCaseNotesDoc({ ...full, extractedScopesPartial: true })
+    expect(flagged).toContain('recovered footage reported in these notes may be incomplete')
+    expect(generateCaseNotesDoc(full)).not.toContain('may be incomplete')
+  })
+
+  it('R-3: the warning renders even when the notes body itself is empty (the flag describes the record, not the prose)', () => {
+    const html = generateCaseNotesDoc({ ...full, notesSections: [], notesFreeText: '', extractedScopesPartial: true })
+    expect(html).toContain('Case Notes</div>')
+    expect(html).toContain('recovered footage reported in these notes may be incomplete')
+  })
+
   it('shows the offset section when timeOffset is present and omits it otherwise', () => {
     expect(generateCaseNotesDoc(full)).toContain('DVR Time Offset')
     expect(generateCaseNotesDoc({ ...full, timeOffset: null })).not.toContain('DVR Time Offset')
