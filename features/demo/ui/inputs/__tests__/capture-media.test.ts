@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { ocrCropRegion } from '@/features/demo/engine/logic/ocr-crop'
 import {
   captureConstraints,
   grabVideoFrame,
@@ -9,6 +10,7 @@ import {
   readBrowserRecorder,
   startStreamRecording,
   stopStream,
+  type FrameGrabOptions,
   type MediaDevicesLike,
 } from '@/features/demo/ui/inputs/capture-media'
 import {
@@ -277,6 +279,17 @@ describe('grabVideoFrame', () => {
     expect(canvas.width).toBe(640)
     expect(canvas.height).toBe(480)
     expect(canvas.drawCalls[0].slice(1)).toEqual([0, 0, 640, 480, 0, 0, 640, 480])
+  })
+
+  it('takes the canonical NormalizedCrop, so the OCR strip and the grab share one unit (R-25)', () => {
+    // Type-level, asserted by construction: the crop `ocrCropRegion` produces is exactly what
+    // `grabVideoFrame` accepts. Before R-25 the option was a structural re-declaration and the
+    // 0–1 unit lived only in prose — a pixel-space rect compiled and produced a blank strip
+    // reported as a recognition failure.
+    const crop = ocrCropRegion(1920, 1080, 16 / 9)
+    expect(crop).not.toBeNull()
+    const options: FrameGrabOptions = { crop: crop ?? undefined }
+    expect(options.crop).toBe(crop)
   })
 
   it('crops to a normalized sub-rectangle (P4.7 OCR strip)', async () => {

@@ -17,6 +17,7 @@
  * unavailable/sample path is the DEFAULT tested contract.
  */
 
+import type { NormalizedCrop } from '@/features/demo/engine/logic/ocr-crop'
 import {
   captureFailure,
   classifyCaptureError,
@@ -202,11 +203,16 @@ export interface FrameGrabOptions {
   /** JPEG quality, 0–1. */
   quality?: number
   /**
-   * Normalized (0–1) sub-rectangle of the frame to keep. P4.7's OCR strip is the intended
-   * consumer: the phone crops to the DVR timestamp band before recognition, and cropping at
-   * grab time means the recognizer and the stored `OcrProof.imageDataUrl` see the same pixels.
+   * Sub-rectangle of the frame to keep. P4.7's OCR strip is the intended consumer: the phone
+   * crops to the DVR timestamp band before recognition, and cropping at grab time means the
+   * recognizer and the stored `OcrProof.imageDataUrl` see the same pixels.
+   *
+   * R-25: the canonical `NormalizedCrop`, not a structural re-declaration of its four numbers.
+   * The 0–1 unit is the whole contract here and it lived only in prose — a pixel-space rect
+   * satisfied the old inline shape, and the result is not a type error but a blank strip
+   * reported as a recognition failure. Type-only import, so no cycle.
    */
-  crop?: { x: number; y: number; width: number; height: number }
+  crop?: NormalizedCrop
   /** Also produce a data URL (P4.7 stores one on `OcrProof`). Off by default — a 1080p frame
    *  is a multi-megabyte base64 string, and the photo path only needs the blob. */
   includeDataUrl?: boolean
