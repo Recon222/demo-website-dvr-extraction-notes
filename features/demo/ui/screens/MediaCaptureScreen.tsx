@@ -292,12 +292,29 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
   // while the camera rendered behind the words.
   const modeIsSample = capability.modeFor(mode) === 'sample'
 
+  /**
+   * An acquisition is in flight and this mode needs the stream it will produce (review FD-4).
+   *
+   * The window R-7 opened: after Retake (and after a device switch) `permission` is still
+   * `granted` while `stream` is momentarily `null`. A live shutter press in there grabs from a
+   * `<video>` with no `srcObject` — the frame-grab sentence, wrong cause — or, in video mode,
+   * reaches `startRecording` with nothing to record and prints "This browser doesn't expose a
+   * camera to this page": R-3's exact sentence, re-entering through a new door. Transient and
+   * self-correcting, but it is the wrong-cause copy this round spent two fixes deleting.
+   *
+   * Gated on `!modeIsSample` deliberately: attaching a bundled sample needs no stream, so
+   * refusing it here would be a refusal with no cause behind it.
+   */
+  const reopening = isOpening && !modeIsSample
+
   const onShutter = useCallback(() => {
     if (busy) return
     if (modeIsSample) {
       captureSample(mode)
       return
     }
+    // Every path below this line needs the live stream.
+    if (isOpening) return
     if (mode === 'photo') {
       const element = videoRef.current
       if (!element) return
@@ -318,6 +335,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
   }, [
     busy,
     canStop,
+    isOpening,
     modeIsSample,
     capturePhoto,
     captureSample,
@@ -356,11 +374,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
    * that never says why.
    */
   const stopBlocked = mode === 'video' && isRecording && !canStop
-  const shutterBlockedReason = stopBlocked
-    ? 'Stop unlocks after half a second of recording.'
-    : busy
-      ? 'Finishing the last capture…'
-      : null
+  // `reopening` heads the ladder (FD-4): while the stream is being re-acquired every live
+  // operation would fail for a reason that has nothing to do with what the visitor pressed, so
+  // the refusal is stated here rather than discovered as a wrong-cause error afterwards.
+  const shutterBlockedReason = reopening
+    ? 'Reopening the camera…'
+    : stopBlocked
+      ? 'Stop unlocks after half a second of recording.'
+      : busy
+        ? 'Finishing the last capture…'
+        : null
   const shutterBlockedId = `${blockedIdBase}-shutter-blocked`
 
   const onSwitchDevice = useCallback(() => {

@@ -728,6 +728,98 @@ describe('camera release while a capture is under review (R-7)', () => {
     expect(screen.getByText('Rear')).toBeInTheDocument()
   })
 
+  it('refuses live captures WHILE reopening, with the cause, instead of failing for a wrong one (FD-4)', async () => {
+    // The window R-7 opened: `permission === 'granted'` and `stream === null` while the reopen
+    // is in flight. A live press in there produced copy about the wrong thing — the frame-grab
+    // sentence in photo mode, and in video mode "This browser doesn't expose a camera to this
+    // page", which is R-3's exact sentence arriving through a new door.
+    let release!: (stream: MediaStream) => void
+    let call = 0
+    const h = harness({
+      live: true,
+      getUserMedia: async () => {
+        if (++call === 1) return fakeStream(['video', 'audio'])
+        return new Promise<MediaStream>((resolve) => {
+          release = resolve
+        })
+      },
+    })
+    mount(h)
+    await grant()
+
+    const preview = screen.getByLabelText('Live camera preview')
+    Object.defineProperty(preview, 'videoWidth', { value: 640, configurable: true })
+    Object.defineProperty(preview, 'videoHeight', { value: 480, configurable: true })
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    // Held mid-acquisition. The refusal is stated through R-9's machinery — focusable control,
+    // reason attached — not a native `disabled`.
+    const held = shutter('Take photo')
+    expect(held).toHaveAttribute('aria-disabled', 'true')
+    expect(held).toBeEnabled()
+    expect(held).toHaveAccessibleDescription('Reopening the camera…')
+
+    fireEvent.click(held)
+    expect(screen.queryByText(/could not turn the camera frame into an image/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
+    fireEvent.click(shutter('Start recording'))
+    expect(screen.queryByText(/doesn't expose a camera to this page/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+
+    await act(async () => {
+      release(fakeStream(['video', 'audio']))
+    })
+    expect(shutter('Start recording')).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.queryByText('Reopening the camera…')).not.toBeInTheDocument()
+  })
+
+  it('still lets a sample be attached while the camera reopens — nothing there needs a stream', async () => {
+    // `reopening` is gated on `!modeIsSample` on purpose: refusing a bundled-sample attach
+    // during the window would be a refusal with no cause behind it.
+    let release!: (stream: MediaStream) => void
+    let call = 0
+    const h = harness({
+      live: true,
+      noRecorder: true,
+      getUserMedia: async () => {
+        if (++call === 1) return fakeStream(['video', 'audio'])
+        return new Promise<MediaStream>((resolve) => {
+          release = resolve
+        })
+      },
+    })
+    mount(h)
+    await grant()
+
+    const preview = screen.getByLabelText('Live camera preview')
+    Object.defineProperty(preview, 'videoWidth', { value: 640, configurable: true })
+    Object.defineProperty(preview, 'videoHeight', { value: 480, configurable: true })
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    // No `MediaRecorder` here, so video mode is the sample path (R-3's `modeFor`).
+    fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
+    const sampleShutter = shutter('Attach sample clip')
+    expect(sampleShutter).toHaveAttribute('aria-disabled', 'false')
+
+    fireEvent.click(sampleShutter)
+    expect(screen.getByText('Review Video')).toBeInTheDocument()
+
+    await act(async () => {
+      release(fakeStream(['video', 'audio']))
+    })
+  })
+
   it('never opens a camera the visitor never had — the sample path retake stays silent', async () => {
     // The latch is the point: reopening unconditionally would fire a permission prompt at a
     // visitor who has been on the bundled sample the whole time and never asked for a camera.
