@@ -31,6 +31,45 @@ describe('toMapData', () => {
     expect(data.items[0].kind).toBe('incident')
   })
 
+  // ---- the plotting policy (review R-7, discharging §49g) -----------------------------------
+  //
+  // `hasCapturedCoordinates` is the app's answer to "should this ever DISPLAY as a captured
+  // position?", and P3.7 wired the case sheet, the PDF camera row and the notes formatter to it
+  // while the map kept reading plain presence. One stored pair, three consumers, two behaviours.
+
+  it('does not plot a (0,0) incident — Null Island is never a captured position', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({
+      caseNumber: 'PR25-NULL',
+      displayName: 'Null Island',
+      unit: 'Robbery',
+      // Geometrically valid, and `parseCoordinate` accepts it, so a visitor CAN type it.
+      incidentCoordinates: { lat: 0, lng: 0, source: 'manual' },
+    })
+    const s = store.getState()
+    const data = toMapData(s.cases.find((c) => c.id === caseId)!, [])
+
+    expect(data.incident).toBeNull()
+    expect(data.items.some((i) => i.kind === 'incident')).toBe(false)
+  })
+
+  it('does not plot a (0,0) location, and does not count it in the status tallies', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-NULL2', displayName: 'X', unit: 'Robbery' })
+    store.getState().addLocation(caseId, { locationName: 'Null Island', gps: { lat: 0, lng: 0, source: 'manual' } })
+    store.getState().addLocation(caseId, { locationName: 'Real', gps: { lat: 43.61, lng: -79.61, source: 'gps' } })
+    const s = store.getState()
+    const data = toMapData(
+      s.cases.find((c) => c.id === caseId)!,
+      s.locations.filter((l) => l.caseId === caseId),
+    )
+
+    expect(data.pins).toHaveLength(1)
+    expect(data.pins[0]).toMatchObject({ lat: 43.61, lng: -79.61 })
+    expect(data.items.filter((i) => i.kind === 'location')).toHaveLength(1)
+    expect(data.statusCounts.started).toBe(1)
+  })
+
   it('plots only located locations (a coord-less location is excluded from pins and items)', () => {
     const { viewerCase, locations } = build()
     const data = toMapData(viewerCase, locations)
