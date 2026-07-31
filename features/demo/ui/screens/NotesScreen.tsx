@@ -270,6 +270,16 @@ export function NotesScreen({
 
   const allTakenOver = sections.length > 0 && sections.every((s) => s.manuallyEdited)
 
+  // R-12: the reset timer is tracked — re-arming clears the previous handle (rapid
+  // copies keep the LATEST confirmation on screen for its full window) and unmount
+  // clears the pending one (the syncTimer/PdfPreview idiom).
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (copiedTimerRef.current !== null) clearTimeout(copiedTimerRef.current)
+    },
+    [],
+  )
   const copyAll = async () => {
     try {
       await navigator.clipboard.writeText(copyAllText)
@@ -277,7 +287,8 @@ export function NotesScreen({
     } catch {
       setCopied('failed') // honest: no fake success when the browser blocks clipboard
     }
-    setTimeout(() => setCopied('idle'), 1600)
+    if (copiedTimerRef.current !== null) clearTimeout(copiedTimerRef.current)
+    copiedTimerRef.current = setTimeout(() => setCopied('idle'), 1600)
   }
 
   // All six Notes confirmations route through the shared AlertDialog primitive (R-5 —

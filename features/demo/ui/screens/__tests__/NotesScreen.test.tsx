@@ -213,6 +213,33 @@ describe('NotesScreen — footer + banner', () => {
     expect(screen.getByText('Copy failed')).toBeInTheDocument()
   })
 
+  it('R-12: a re-copy re-arms the reset window — the earlier timer cannot wipe the later confirmation', async () => {
+    vi.useFakeTimers()
+    try {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      render(<NotesScreen {...props({ copyAllText: 'assembled' })} />)
+      const btn = screen.getByLabelText('Copy all notes')
+      await act(async () => {
+        fireEvent.click(btn)
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(1000) // first window half-elapsed
+        fireEvent.click(btn) // second copy re-arms
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(700) // past the FIRST timer's would-be expiry
+      })
+      expect(screen.getByText('Copied ✓')).toBeInTheDocument() // not wiped early
+      await act(async () => {
+        vi.advanceTimersByTime(1000) // second window completes
+      })
+      expect(screen.queryByText('Copied ✓')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('free text commits on blur', () => {
     const onCommitFreeText = vi.fn()
     render(<NotesScreen {...props({ onCommitFreeText })} />)
