@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
+import type { MediaItem } from '@/features/demo/engine/types'
 
 /**
  * P3.1 end-to-end through the bridge: row action → confirmation dialog → store write →
@@ -200,5 +201,100 @@ describe('DemoExperience — the selection survives coherently (R-19)', () => {
 
     expect(store.getState().currentLocationId).toBe(locIdOf(store, "Kim's Convenience"))
     expect(store.getState().currentCaseId).toBe(caseIdOf(store, 'PR25-A'))
+  })
+})
+
+describe('the delete cascade revokes the captures it destroys (R-2)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const photo = (id: string, url: string, over: Partial<MediaItem> = {}): MediaItem => ({
+    id,
+    kind: 'photo',
+    url,
+    filename: `${id}.jpg`,
+    caption: '',
+    capturedAt: '2026-07-16 14:05:06',
+    ...over,
+  })
+
+  /** PR25-A with captures on both of its locations, and one on PR25-B's. */
+  function seedWithCaptures(): DemoStore {
+    const store = seed()
+    act(() => {
+      store.getState().switchLocation(locIdOf(store, "Kim's Convenience"))
+      store.getState().addMedia('photo', photo('k1', 'blob:kim-1'))
+      store.getState().addMedia('video', photo('k2', 'blob:kim-2', { kind: 'video', poster: 'blob:kim-2-poster' }))
+      store.getState().switchLocation(locIdOf(store, 'Rear Alley'))
+      store.getState().addMedia('audio', photo('r1', 'blob:alley-1', { kind: 'audio' }))
+      store.getState().switchLocation(locIdOf(store, 'Plaza Office'))
+      store.getState().addMedia('photo', photo('p1', 'blob:plaza-1'))
+      store.getState().setView('cases')
+    })
+    return store
+  }
+
+  it('sweeps every capture on every location of a deleted CASE', () => {
+    // The store is sole owner of a saved capture's URL (§58g). Once these rows are gone nothing
+    // in the page can reach the blobs, so the bytes stay pinned for the tab's life.
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const store = seedWithCaptures()
+    render(<DemoExperience store={store} />)
+
+    pressDelete('Actions for case PR25-A')
+    fireEvent.click(screen.getByTestId('delete-modal-confirm'))
+
+    expect(revoke.mock.calls.map(([url]) => url).sort()).toEqual([
+      'blob:alley-1',
+      'blob:kim-1',
+      'blob:kim-2',
+      'blob:kim-2-poster',
+    ])
+    // The untouched case keeps its capture — the sweep is scoped to what was deleted.
+    expect(revoke).not.toHaveBeenCalledWith('blob:plaza-1')
+  })
+
+  it('sweeps only the deleted LOCATION, leaving its sibling’s captures alone', () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const store = seedWithCaptures()
+    render(<DemoExperience store={store} />)
+    expandCase('PR25-A')
+
+    pressDelete('Actions for location Rear Alley')
+    fireEvent.click(screen.getByTestId('delete-modal-confirm'))
+
+    expect(revoke.mock.calls.map(([url]) => url)).toEqual(['blob:alley-1'])
+  })
+
+  it('never revokes a bundled sample path in the cascade', () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const store = seed()
+    act(() => {
+      store.getState().switchLocation(locIdOf(store, 'Plaza Office'))
+      store.getState().addMedia('photo', photo('s1', '/demo-media/sample-photo.jpg', { sample: true }))
+      store.getState().setView('cases')
+    })
+    render(<DemoExperience store={store} />)
+
+    pressDelete('Actions for case PR25-B')
+    fireEvent.click(screen.getByTestId('delete-modal-confirm'))
+
+    expect(revoke).not.toHaveBeenCalled()
+  })
+
+  it('still deletes when the browser exposes no object-URL API', () => {
+    // The store write is what removes the rows; it must never be gated on the revocation.
+    const original = URL.revokeObjectURL
+    ;(URL as unknown as Record<string, unknown>).revokeObjectURL = undefined
+    try {
+      const store = seedWithCaptures()
+      render(<DemoExperience store={store} />)
+      pressDelete('Actions for case PR25-A')
+      fireEvent.click(screen.getByTestId('delete-modal-confirm'))
+      expect(store.getState().cases.map((c) => c.caseNumber)).toEqual(['PR25-B'])
+    } finally {
+      URL.revokeObjectURL = original
+    }
   })
 })
