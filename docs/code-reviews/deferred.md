@@ -3984,3 +3984,116 @@ precedes a real OS share sheet the browser has no equivalent of. `DEMO_EXPORT_ST
 (`validating` / `generating` / `zipping`) is the subset the simulated pipeline may enter, so
 P5.3 has something to assert against rather than a comment. **Trigger:** none — delete it only
 if a browser share target ever makes `'sharing'` truthful.
+
+## 74. P5.3 (parity/p5-modals) — export modals + the flow shell: boundaries, strengthenings, and the seams left open
+
+**Source:** parity plan §5 P5.3; matrix rows 25/27/28; decision D4; the P5.1 contracts in §70.
+Phone `src/components/export/{ExportModal,ExportActionSheet}.tsx`, `src/hooks/useExportFlow.ts`,
+`app/(form)/completion.tsx`, `app/(tabs)/cases.tsx`, ui-mapping `04-tab-export.md` +
+`08-wizard-d-completion.md`. Shipped as `ui/screens/{ExportModal,ExportActionSheet,exportNotices}`
+plus the flow shell in `ui/DemoExperience.tsx`. Nothing below is a bug.
+
+### 74a. §70k discharged — where the honest terminal lives, and what it says
+
+Every ZIP pipeline (`case` / `case-subset` / `location`) and both single-file pipelines end in a
+BLOCKING `AlertDialog` built by `describeExportTerminal` (`ui/screens/exportNotices.ts`), titled
+`Downloads Aren't Available in the Demo` — D4's own wording, so the shipped string matches the
+ruling. The body names what the real app would have written (so
+`CASE ZIP · CANONICAL · INCLUDES CASE MAP` and `The ZIP will be created without any PDF notes.`
+are ANSWERED rather than softened), says plainly why there is no file, and points at the Case
+Notes / Time-Offset PDFs, which print for real. A blocking dialog and not the auto-dismissing
+`DemoNotification`: the one honest sentence in the flow must not be able to time out unread.
+**No trigger — this is the decision, recorded so it is not re-litigated.**
+
+### 74b. STRENGTHENING over the phone — §70i's residual is closed in the shell, not the engine
+
+`requestExportFlow` returns early while `showValidationModal` is true. The engine is frozen
+(P5.1's), so the guard lives at the shell rather than inside `isExporting`. Rationale beyond the
+phone's: the phone relies on the modal physically covering the CTA, but the demo's narration rail
+sits OUTSIDE the phone frame and can move the visitor while the prompt is up. Pinned in
+`DemoExperience.export.test.tsx` ("§70i: with the validation prompt up, a second dispatch is
+inert"). **Trigger:** if the engine is ever unfrozen, fold `|| showValidationModal` into
+`isExporting` and delete the shell guard — one guard, not two.
+
+### 74c. §70j satisfied two different ways, on purpose
+
+`case` / `case-subset` / `location` flip to `validating` inside `startExportRun`, synchronously,
+before any timer — the contract as written. `location-geojson` and `case-map` never flip at all:
+they terminate inside the same handler, so there is no window a second press could enter. That
+is deliberate rather than an oversight — the phone gives neither pipeline an `onStageChange` and
+calls them sub-second (`useExportFlow.ts:906-911`), so printing "Validating locations..." over
+them would be inventing work. **Trigger:** if either ever gains real asynchronous work (P5.4's
+case-map download is the obvious candidate), it needs a stage flip in the starting handler before
+the first `await`.
+
+### 74d. The PDF pass is re-derived, never read off `validationResult`
+
+`pdfPassFor(run)` re-runs `validateLocationForPdf` against the store. The two routes into a run
+disagree about `validationResult`: a straight-through dispatch carries the verdict, while
+Continue-anyway CONSUMES it (`continueValidatedExport` nulls it in the same write that closes the
+modal), so a shell that read the field would generate zero PDFs after every "Continue". The phone
+has the same shape for the same reason — `executeExport` re-validates internally
+(`pdf-export-service.ts:971-993`) and never trusts the modal's earlier answer.
+
+### 74e. NOT BUILT — PasswordModal (matrix row 26), per D4
+
+No password round-trip, no `resolvePasswordPolicy`, no `encryptionNote` suffix (§70c). The
+terminal notice therefore never claims the archive would be encrypted, even though the phone's
+would be: an encryption promise with no encryption behind it is exactly the fake-security claim
+the honesty rule exists to prevent. **Trigger:** real client-side encryption (D4 leaves that door
+shut for now).
+
+### 74f. The `case-map` arm has no caller yet — SEAM(P5.4)
+
+`ExportRun` is a closed union and `describeExportTerminal` is exhaustive over it, so the
+`case-map` branch exists because the type demands it, not because a button reaches it. Neither
+Completion's scope sheet (`location` / `case` / `cancel`) nor the location chooser
+(`location` / `location-geojson`) dispatches it; the map tab's "Export Map" is a different
+surface. The dispatch point is marked `// SEAM(P5.4): real case-map download lands here` in
+`startExportRun`, and its interim copy says the map was NOT generated rather than blaming the
+platform — it is the one artifact D4 says a browser genuinely can produce. **Trigger:** P5.4's
+merge replaces that arm; P6 (or the map sheet) supplies the caller.
+
+### 74g. SEAM(P5.2) — the exact handler the Export tab's CTA calls
+
+`requestExportFlow(request: ExportRequest): void`, declared in `ui/DemoExperience.tsx`. The tab
+builds its request from `ExportSelectionPlan.dispatch`:
+`'case' → { type: 'case', caseId }`, `'location' → { type: 'location', locationId }`,
+`'case-subset' → { type: 'case-subset', caseId, locationIds }`. There is deliberately NO
+store-reading overload and no plan-shaped convenience wrapper: ids travel on the request and come
+back resolved on the returned `ExportRun`, which is the structural form of PR-87 HIGH-1 and the
+reason the demo needs neither the phone's `exportTarget` state nor its post-render dispatch
+effect (`cases.tsx:539-575`).
+
+### 74h. `exportScope` is not in `EXPLORE_ITEMS`
+
+The rail checklist lists destinations. The scope chooser is a step INSIDE Completion — the same
+relationship `ocr` has to Time Offset, which `explore.ts`'s own module note already uses to
+explain why that shape gets no row. Recorded in `explore.test.ts` next to the compile-time
+`Record<ModalId, true>` guard so the next person to add a modal id sees the decision. The Export
+TAB is a destination and brings its own row (P5.2).
+
+### 74i. §52.2 discharged — the chooser's two export buttons are live
+
+Both placeholder banners are deleted and the buttons run the real flow, dispatching against the
+PRESSED row (the phone's `source.id`, `cases.tsx:577-592`) rather than the open location. §52.2's
+trigger named P5.2/P5.3 and asked for exactly this; consider it closed.
+
+### 74j. RESIDUAL — a running pipeline follows the visitor across screens
+
+The progress overlay is portaled into the phone frame and is not view-scoped, so a rail jump
+mid-export leaves "Creating ZIP archive..." over the Cases screen for the remaining ~1s, and the
+terminal notice lands wherever the visitor now is. This is arguably MORE truthful than hiding it
+(the run really is still going, and the phone's own export is app-modal), and the standing
+"leaving Completion closes a standing alert" effect still clears the notice on the next
+navigation. Not fixed because every alternative — cancelling the run, or scoping the overlay to
+`view === 'completion'` — would either lie about what stopped or hide a live operation.
+**Trigger:** if a future pipeline runs long enough that stranding it reads as a stuck screen, add
+a run-generation token (the `importGen` idiom) and cancel on view change, saying so in the notice.
+
+### 74k. Stage cadence is a demo constant, not a ported value
+
+`EXPORT_STEP_MS = 550` in `ui/DemoExperience.tsx` (exported so the flow tests step by the real
+cadence). The phone's stages are however long the filesystem takes; there is no number to port.
+It is the only fabricated quantity in the flow — the stage ORDER, the k-of-n counter, the
+location names and every string are real. **No trigger.**
