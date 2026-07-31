@@ -64,11 +64,13 @@ export interface NewLocationInput {
   requesterEmail?: string
   locationContact?: string
   locationPhone?: string
-  /** Geocoded coordinates from the address pick. Recovery locations are geocode-only at CREATE
-   *  time (no manual entry — a DVR always has a street address); the Submission screen's GPS
-   *  capture re-stamps them with `source: 'gps'` later. `accuracyM` is carried through as given
-   *  — absent unless Mapbox reported a rooftop match (phone mapbox-service.ts:246-247). */
-  gps?: GpsCoordinates & { source: Exclude<GpsSource, 'gps'> }
+  /** Coordinates the location is created with. Still no MANUAL entry (a DVR always has a real
+   *  street address, so the modal offers no lat/lng inputs), but the source is the full
+   *  `GpsSource` since P3.4: the New Location modal now carries a real multi-sample GPS capture
+   *  (`'gps'`) alongside the address pick (`'geocoded'`), so a fix no longer has to wait for the
+   *  Submission screen to be reachable. `accuracyM` is carried through as given — absent unless
+   *  the source measured one (Mapbox rooftop, phone mapbox-service.ts:246-247; or a real fix). */
+  gps?: GpsCoordinates & { source: GpsSource }
 }
 
 // ---- State ---------------------------------------------------------------

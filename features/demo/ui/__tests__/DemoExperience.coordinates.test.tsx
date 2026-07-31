@@ -108,3 +108,86 @@ describe('DemoExperience — geocoded coordinates bridge', { timeout: 20000 }, (
     expect(screen.getByTestId('coordinate-display-source')).toHaveTextContent('GPS')
   })
 })
+
+/** Opens the New Location modal through the real affordance (Cases → expand the card →
+ *  "Add Location"), which is what mints the draft write-guard token — `openModal('newLocation')`
+ *  alone bypasses it. */
+function openNewLocationModal(caseNumber: string) {
+  // Expanding is a toggle, and the card stays expanded across a modal open/close — so only
+  // expand when the action row isn't already on screen.
+  if (!screen.queryByText('Add Location')) fireEvent.click(screen.getByText(caseNumber))
+  fireEvent.click(screen.getByText('Add Location'))
+}
+
+/** Grants the render a location service for the duration of `run`. */
+async function withGeolocation(geolocation: { getCurrentPosition: (ok: (p: GeolocationPosition) => void) => void }, run: () => Promise<void>) {
+  Object.defineProperty(navigator, 'geolocation', { value: geolocation, configurable: true })
+  try {
+    await run()
+  } finally {
+    Reflect.deleteProperty(navigator, 'geolocation')
+  }
+}
+
+const fixAt = (lat: number, lng: number, accuracy: number) =>
+  ({
+    coords: { latitude: lat, longitude: lng, accuracy, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+    timestamp: Date.UTC(2026, 6, 30, 12, 0, 0),
+  }) as GeolocationPosition
+
+describe('DemoExperience — New Location GPS capture (P3.4, deferred §24)', { timeout: 20000 }, () => {
+  it('creates the location with the captured fix stamped `gps`', async () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-LOCGPS', displayName: 'X', unit: 'Robbery' })
+      store.getState().setView('cases')
+    })
+    openNewLocationModal('PR25-LOCGPS')
+    fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'Rear Door' } })
+
+    await withGeolocation({ getCurrentPosition: (ok) => ok(fixAt(43.7, -79.4, 4)) }, async () => {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+      })
+    })
+    fireEvent.click(screen.getByText('Create Location'))
+
+    const loc = store.getState().locations.find((l) => l.locationName === 'Rear Door')
+    expect(loc?.gps).toEqual({ lat: 43.7, lng: -79.4, accuracyM: 4, source: 'gps' })
+  })
+
+  it('a capture abandoned by closing the modal cannot land on the NEXT draft', async () => {
+    // The hazard this pins: `locForm` lives in DemoExperience and OUTLIVES the modal, so a fix
+    // delivered after the close writes into whatever draft is open by then. The fix is therefore
+    // delivered AFTER the reopen — before it, `addLocation`'s blank-on-open reset would mask the
+    // contamination and make this test green for the wrong reason.
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-ABANDON', displayName: 'X', unit: 'Robbery' })
+      store.getState().setView('cases')
+    })
+
+    let deliver!: (p: GeolocationPosition) => void
+    await withGeolocation({ getCurrentPosition: (ok) => { deliver = ok } }, async () => {
+      openNewLocationModal('PR25-ABANDON')
+      fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
+      // The visitor gives up on the capture and closes the sheet, then starts a new one.
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      openNewLocationModal('PR25-ABANDON')
+      fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'Untouched' } })
+
+      await act(async () => {
+        deliver(fixAt(43.7, -79.4, 4))
+      })
+    })
+
+    expect(screen.queryByTestId('coordinate-display')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Create Location'))
+
+    const loc = store.getState().locations.find((l) => l.locationName === 'Untouched')
+    expect(loc).toBeDefined()
+    expect(loc?.gps).toBeUndefined()
+  })
+})

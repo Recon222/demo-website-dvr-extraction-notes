@@ -23,15 +23,21 @@ vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
 
 describe('NewLocationModal — geocoded coordinates', () => {
   const form = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
-  it('forwards { lat, lng } to onPickCoords on an address pick', () => {
-    const onPickCoords = vi.fn()
-    render(<NewLocationModal form={form} onChange={vi.fn()} onSubmit={vi.fn()} onCancel={vi.fn()} onCaptureGps={vi.fn()} onPickCoords={onPickCoords} />)
+  it('forwards the picked coordinates stamped `geocoded` on the single coordinate write path', () => {
+    const onChange = vi.fn()
+    render(<NewLocationModal form={form} onChange={onChange} onSubmit={vi.fn()} onCancel={vi.fn()} />)
     fireEvent.click(screen.getByText('mock-pick'))
-    expect(onPickCoords).toHaveBeenCalledWith({ lat: 43.6087, lng: -79.6505 })
+    // One patch carries street, city AND the fix — `LocationFields` decides the provenance
+    // stamp for both the pick and the capture path (P3.4).
+    expect(onChange).toHaveBeenCalledWith({
+      streetAddress: '1450 Eglinton Ave W',
+      city: 'Mississauga',
+      coordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
+    })
   })
 
-  it('has no manual Latitude/Longitude fields (geocode-only)', () => {
-    render(<NewLocationModal form={form} onChange={vi.fn()} onSubmit={vi.fn()} onCancel={vi.fn()} onCaptureGps={vi.fn()} onPickCoords={vi.fn()} />)
+  it('has no manual Latitude/Longitude fields (geocode-or-capture only)', () => {
+    render(<NewLocationModal form={form} onChange={vi.fn()} onSubmit={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.queryByLabelText('Latitude')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Longitude')).not.toBeInTheDocument()
   })

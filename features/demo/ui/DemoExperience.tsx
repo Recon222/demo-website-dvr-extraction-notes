@@ -280,6 +280,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   const [locForm, setLocForm] = useState<NewLocationFields>(blankLocForm)
+  // The New Location modal's write-guard identity (deferred §45f: every `LocationFields` caller
+  // passes its OWN identity). The location does not exist yet, so what an in-flight lookup
+  // belongs to is the DRAFT — minted fresh per open from the same monotonic counter the row ids
+  // use, so a lookup left over from a cancelled draft can never write into the next one.
+  const [locDraftId, setLocDraftId] = useState<string | null>(null)
   const [imp, setImp] = useState<ImportState>(blankImport)
   // Import cancellation token (H1): each run captures its own generation; cancelling —
   // or starting a newer run — bumps the counter, so a stale in-flight run fails its
@@ -526,6 +531,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const addLocation = (caseId: string) => {
     setTargetCaseId(caseId)
     setLocForm(blankLocForm)
+    setLocDraftId(`draft-l${uiSeq++}`)
     store.getState().openModal('newLocation')
   }
   const openImport = (caseId: string) => {
@@ -549,8 +555,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (caseId) {
-      const gps = locForm.coordinates ? { ...locForm.coordinates, source: 'geocoded' as const } : undefined
-      store.getState().addLocation(caseId, { ...locForm, gps })
+      // The provenance stamp travels WITH the coordinates now (P3.4): `LocationFields` decides
+      // it — `'gps'` for a real capture, `'geocoded'` for an address pick — so the bridge no
+      // longer overwrites both sources with a flat `'geocoded'`.
+      store.getState().addLocation(caseId, { ...locForm, gps: locForm.coordinates })
     }
     store.getState().closeModal()
   }
@@ -1262,7 +1270,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'newCase':
         return <NewCaseModal form={caseForm} onChange={(f, v) => setCaseForm((s) => ({ ...s, [f]: v }))} onSubmit={submitCase} onCancel={() => store.getState().closeModal()} />
       case 'newLocation':
-        return <NewLocationModal form={locForm} onChange={(f, v) => setLocForm((s) => ({ ...s, [f]: v }))} onSubmit={submitLocation} onCancel={() => store.getState().closeModal()} onCaptureGps={() => undefined} onPickCoords={(c) => setLocForm((s) => ({ ...s, coordinates: c }))} />
+        return (
+          <NewLocationModal
+            form={locForm}
+            draftId={locDraftId ?? undefined}
+            onChange={(patch) => setLocForm((s) => ({ ...s, ...patch }))}
+            onSubmit={submitLocation}
+            onCancel={() => store.getState().closeModal()}
+          />
+        )
       case 'import':
         return (
           <ImportModal
