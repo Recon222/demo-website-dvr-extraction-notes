@@ -69,9 +69,13 @@ export interface AudioRecordingFlowProps {
    * name through `suggestedFilenameBase`.
    */
   defaultFilenameBase: string
-  /** Hand the finished capture to the bridge. Must be synchronous: `handOff()` runs straight
-   *  after, and the store has to own the URL by then. */
-  onSave(captured: CapturedMedia, meta: MetadataFormValue): void
+  /**
+   * Hand the finished capture to the bridge. Must be synchronous — `handOff()` runs straight
+   * after — and must report whether the store TOOK it (§60c, review R-1): a refused save leaves
+   * the object URL owned by the capture hook so the unmount sweep can free it, instead of
+   * pinning bytes nothing can reach.
+   */
+  onSave(captured: CapturedMedia, meta: MetadataFormValue): boolean
   /** Leave the launch surface (the bridge's `closeLaunch`). */
   onClose(): void
   deps?: AudioRecordingFlowDeps
@@ -176,10 +180,11 @@ export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps 
       if (captured === null) return
       // The form supplies a BASE; `buildMediaItem` (bridge side) owns the extension via
       // `mediaFilename`, so nothing here appends one (§58c).
-      onSave(captured, meta)
-      // P4.1 rule 1: the store owns the object URL from this point, so the registry must forget
-      // it. Skipping this revokes it on unmount and the saved note blanks.
-      capture.handOff()
+      const accepted = onSave(captured, meta)
+      // P4.1 rule 1: ownership passes to the store ONLY on a real save, so the registry must
+      // forget the URL only then. Skipping it on a taken save revokes the note on unmount and
+      // it blanks; running it on a REFUSED save pins the bytes with nothing left to free them.
+      if (accepted) capture.handOff()
     },
     [captured, capture, onSave],
   )

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 
-import { SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE } from '@/features/demo/engine/logic/media'
+import { SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import {
   AudioRecordingFlow,
   type AudioRecordingFlowDeps,
@@ -63,7 +64,8 @@ function liveDeps(over: Partial<AudioRecordingFlowDeps> = {}) {
 }
 
 function mount(over: Partial<AudioRecordingFlowProps> = {}) {
-  const onSave = vi.fn()
+  // Defaults to a store that TAKES the note; the refusal arm passes its own (R-1 / §60c).
+  const onSave = vi.fn((_captured: CapturedMedia, _meta: MetadataFormValue) => true)
   const onClose = vi.fn()
   const utils = render(
     <AudioRecordingFlow defaultFilenameBase="audio-note-1" onSave={onSave} onClose={onClose} {...over} />,
@@ -222,6 +224,24 @@ describe('AudioRecordingFlow — the live path', () => {
 
     expect(savedUrl).toMatch(/^blob:/)
     expect(revoked).not.toContain(savedUrl)
+  })
+
+  it('does NOT hand off a REFUSED save — the hook keeps the URL so its sweep can free it', async () => {
+    // R-1 / §60c, the other half of the guard. Mutation probe: change `if (accepted)` back to an
+    // unconditional `capture.handOff()` and this reddens — the refused take's bytes would be
+    // pinned for the tab's life with nothing left holding a reference to revoke them.
+    const { deps, recorder, revoked, advance } = liveDeps()
+    const onSave = vi.fn((_captured: CapturedMedia, _meta: MetadataFormValue) => false)
+    const { unmount } = mount({ deps, onSave })
+    await settle()
+    await recordAndStop(recorder, advance)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
+    const refusedUrl = onSave.mock.calls[0][0].url as string
+    unmount()
+
+    expect(refusedUrl).toMatch(/^blob:/)
+    expect(revoked).toContain(refusedUrl)
   })
 
   it('carries the visitor’s filename and notes up to the bridge, not the default', async () => {

@@ -242,6 +242,21 @@ const CANNOT_SAVE_MEDIA_NOTICE =
  *  `text2` is the user's filename — WITHOUT the extension, which the wrapper appends after. */
 const mediaSavedNotice = (kind: MediaKind, filename: string): string =>
   `${kind === 'photo' ? 'Photo' : 'Video'} Saved — ${filename} saved to case`
+/**
+ * The audio recorder's save guard (P4.6, review R-1). The same defect the capture screen's
+ * notice above exists for, on the third capture surface — and the worse one, because the thing
+ * `addMedia`'s silent early-return discards is a recording the visitor MADE rather than a frame
+ * they can re-take in a second.
+ *
+ * Phone verbatim (`app/(form)/audio-recording.tsx:112-117`, `text1: 'Cannot Save Audio'` /
+ * `text2: 'No location selected. Please navigate from a case first.'`), joined `text1 — text2`.
+ * The phone calls `navigateBack()` straight after the toast; `closeLaunch()` is that.
+ */
+const CANNOT_SAVE_AUDIO_NOTICE =
+  'Cannot Save Audio — No location selected. Please navigate from a case first.'
+/** Phone verbatim (`audio-recording.tsx:184-189`): `text2` is `${result.userFilename} saved to
+ *  case`, and `userFilename` is the BASE — the route appends `.m4a` separately at `:127`. */
+const audioSavedNotice = (filename: string): string => `Audio Saved — ${filename} saved to case`
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -692,15 +707,31 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * Commit a finished audio note (P4.6). The ONLY store write in the audio flow — the flow and
    * both of its screens are pure, per the store-bridge rule.
    *
+   * Returns whether the store TOOK the note, on the same contract as `saveCapturedMedia` above
+   * (§60c): the flow's object-URL hand-off hangs on the answer, so a refused save leaves the
+   * `blob:` URL owned by the capture hook and its unmount sweep frees it (§58 carry-rule 1).
+   *
    * `meta` is the metadata form's value (P4.4): a filename BASE plus the visitor's notes. The
    * extension is `buildMediaItem`'s (via `mediaFilename`), never appended here (§58c).
    */
-  const saveAudioNote = (captured: CapturedMedia, meta: MetadataFormValue) => {
+  const saveAudioNote = (captured: CapturedMedia, meta: MetadataFormValue): boolean => {
     const st = store.getState()
+    // Review R-1: `addMedia` early-returns with no `currentLocationId`. Without this guard the
+    // recording vanished into a no-op save, `closeLaunch()` returned the visitor to the anchor
+    // exactly as a real save does, and the two outcomes were byte-identical from their seat.
+    // The Record Audio drawer row is deliberately UNGATED (§59f, phone parity), so this is the
+    // only point at which the flow can discover there is nowhere to put the take.
+    if (!st.currentLocationId) {
+      setNotice(CANNOT_SAVE_AUDIO_NOTICE)
+      st.closeLaunch()
+      return false
+    }
     // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
     // restored session cannot collide with them.
     st.addMedia('audio', buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
+    setNotice(audioSavedNotice(meta.filename))
     st.closeLaunch()
+    return true
   }
   /**
    * Confirmed deletion from the media library (P4.5, matrix row 66) — the ONLY store write the
