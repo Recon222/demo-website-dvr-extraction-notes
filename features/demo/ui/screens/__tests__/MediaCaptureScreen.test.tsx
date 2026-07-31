@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
-import { CAPTURE_PERMISSION_COPY, MAX_RECORDING_DURATION_MS, SAMPLE_MEDIA } from '@/features/demo/engine/logic/media'
+import {
+  CAPTURE_PERMISSION_COPY,
+  MAX_RECORDING_DURATION_MS,
+  SAMPLE_MEDIA,
+  captureFailureMessage,
+} from '@/features/demo/engine/logic/media'
 import { RECORDING_TICK_MS } from '@/features/demo/ui/inputs/useMediaCapture'
 import {
   MediaCaptureScreen,
@@ -444,6 +449,36 @@ describe('live viewfinder', () => {
     expect(screen.queryByText(/the take will be silent/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
     expect(screen.getByText(/gave the page a camera but no microphone — the take will be silent/)).toBeInTheDocument()
+  })
+
+  it('says so when the device list could not be READ — not just when there is nothing in it', async () => {
+    // R-29. §60e calls this line load-bearing: P4.1 kept `deviceFailure` apart from `failure`
+    // precisely so "the picker is missing because enumeration failed" and "the picker is
+    // missing because you have one camera" could not look identical. Nothing pinned it, so
+    // deleting the render line left the whole suite green.
+    const h = harness({
+      live: true,
+      enumerateDevices: async () => {
+        throw new Error('enumeration blocked')
+      },
+    })
+    mount(h)
+    await grant()
+
+    // The stream itself is fine — this failure is about the LIST, and the viewfinder stays live.
+    expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
+    expect(screen.getByText(captureFailureMessage('UNKNOWN', 'camera'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Switch camera' })).not.toBeInTheDocument()
+  })
+
+  it('stays quiet when the list simply came back empty', async () => {
+    // The other half of the same distinction: one camera is not a failure, and saying anything
+    // here would be noise on the overwhelmingly common path.
+    const h = harness({ live: true, devices: [deviceInfo('cam-a', 'FaceTime HD')] })
+    mount(h)
+    await grant()
+
+    expect(screen.queryByText(captureFailureMessage('UNKNOWN', 'camera'))).not.toBeInTheDocument()
   })
 
   it('offers the device picker only when there is another device to pick', async () => {
