@@ -1,6 +1,46 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 
+// Faithful stand-in for the Mapbox autocomplete: it renders the same labelled input (the render
+// -order and placeholder assertions below still see it) and lets a test hold the `retrieve`
+// continuation open. "mock-pick-start" captures the CURRENT `onPick` closure — which is what
+// Mapbox's own `.then` calls when it resolves — so releasing it later reproduces R-32's race
+// exactly, rather than a hand-built approximation of it.
+const pickHarness = vi.hoisted(() => ({ release: null as null | (() => void) }))
+vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
+  AddressAutocomplete: ({
+    label,
+    value,
+    onChange,
+    onPick,
+    placeholder,
+  }: {
+    label: string
+    value: string
+    onChange(v: string): void
+    onPick(p: { streetAddress: string; city: string; coordinates?: { lng: number; lat: number }; accuracyM?: number }): void
+    placeholder?: string
+  }) => (
+    <div>
+      <input aria-label={label} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      <button
+        type="button"
+        onClick={() => {
+          pickHarness.release = () =>
+            onPick({
+              streetAddress: '1450 Eglinton Ave W',
+              city: 'Mississauga',
+              coordinates: { lng: -79.6505, lat: 43.6087 },
+              accuracyM: 5,
+            })
+        }}
+      >
+        mock-pick-start
+      </button>
+    </div>
+  ),
+}))
+
 import { GPS_MESSAGES } from '@/features/demo/engine/logic/gps'
 import type { GeolocationLike } from '@/features/demo/ui/inputs/capture-gps'
 import { REVERSE_GEOCODE_PARTIAL, REVERSE_GEOCODE_UNAVAILABLE } from '@/features/demo/ui/inputs/LocationFields'
@@ -421,5 +461,61 @@ describe('Submission — partial reverse-geocode (R-17)', () => {
     })
 
     expect(screen.getByTestId('reverse-geocode-notice')).toHaveTextContent(REVERSE_GEOCODE_UNAVAILABLE)
+  })
+})
+
+describe('Submission — address-pick write guard (R-32)', () => {
+  const startPick = () => {
+    pickHarness.release = null
+    fireEvent.click(screen.getByText('mock-pick-start'))
+  }
+
+  it('drops an address pick whose retrieve resolves after a location switch', async () => {
+    // The pick path writes MORE than the geocode path: street, city, and coordinates stamped
+    // 'geocoded'. Unguarded, all of it landed on whichever location was open when Mapbox
+    // answered — with a provenance stamp asserting it was geocoded for that address.
+    const onChange = vi.fn()
+    const onCoordinates = vi.fn()
+    const { rerender } = renderSubmission({ locationId: 'l1', onChange, onCoordinates })
+
+    startPick()
+    rerender(submission({ locationId: 'l2', onChange, onCoordinates }))
+    await act(async () => {
+      pickHarness.release?.()
+    })
+
+    expect(onChange).not.toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
+    expect(onChange).not.toHaveBeenCalledWith('city', 'Mississauga')
+    expect(onCoordinates).not.toHaveBeenCalled()
+  })
+
+  it('writes the pick when the location did not change', async () => {
+    const onChange = vi.fn()
+    const onCoordinates = vi.fn()
+    renderSubmission({ locationId: 'l1', onChange, onCoordinates })
+
+    startPick()
+    await act(async () => {
+      pickHarness.release?.()
+    })
+
+    expect(onChange).toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
+    expect(onChange).toHaveBeenCalledWith('city', 'Mississauga')
+    expect(onCoordinates).toHaveBeenCalledWith({ lat: 43.6087, lng: -79.6505, accuracyM: 5, source: 'geocoded' })
+  })
+
+  it('accepts a pick issued AFTER the switch — the guard tracks identity, not staleness', async () => {
+    // Guards keyed on a counter bumped in an effect cleanup refuse this write: the handler
+    // created by the post-switch render captures the pre-bump generation.
+    const onChange = vi.fn()
+    const { rerender } = renderSubmission({ locationId: 'l1', onChange })
+
+    rerender(submission({ locationId: 'l2', onChange }))
+    startPick()
+    await act(async () => {
+      pickHarness.release?.()
+    })
+
+    expect(onChange).toHaveBeenCalledWith('streetAddress', '1450 Eglinton Ave W')
   })
 })

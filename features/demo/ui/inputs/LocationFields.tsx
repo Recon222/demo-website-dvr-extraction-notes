@@ -26,13 +26,26 @@ import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
  * is the reconciliation the parity matrix's row 29 asks for: one component decides provenance,
  * so the two paths can never disagree.
  *
- * WRITE GUARD (p2-review R-1). Every `onChange` here ends in the bridge's
+ * WRITE GUARD (p2-review R-1, extended by R-32). Every `onChange` here ends in the bridge's
  * `store.getState().updateField(...)`, which resolves its target at CALL time
- * (`create-store.ts` reads `get().currentLocationId`). The reverse-geocode write happens after
- * an unbounded `await`, so without a token a lookup started on location A can land A's address
- * on location B. `locationId` is the token: the generation ref below is invalidated whenever it
- * changes AND on unmount, and the post-await write is abandoned if the generation moved. The
- * capture half already had this via `useGpsCapture`'s `abortedRef`; the `key` on the control
+ * (`create-store.ts` reads `get().currentLocationId`). This component has TWO writes that land
+ * after an unbounded await — the reverse-geocode result and the address-pick result — so
+ * without a token either one can put location A's data (and, on the pick path, A's coordinates
+ * stamped `'geocoded'`) onto location B.
+ *
+ * `canWriteFor(issuedFor)` is the single guard both paths use: a write is allowed only while
+ * the component is mounted AND the location it was issued for is still the open one. The two
+ * paths differ only in where the identity comes from — `handleCapture` reads it before its
+ * await; `onPick`'s handler closes over the `locationId` of the render that created it, which
+ * IS the location the visitor picked the suggestion on (the Mapbox `retrieve` continuation
+ * calls that same closure, `AddressAutocomplete.tsx` `choose`).
+ *
+ * Deliberately NOT a generation counter (the round-1 shape): a counter bumped in an effect
+ * cleanup is incremented AFTER the re-render that follows a `locationId` change, so a handler
+ * created in that render captures the OLD generation and refuses its own first write — a
+ * mutation test pins exactly that regression.
+ *
+ * The capture half additionally has `useGpsCapture`'s `abortedRef`; the `key` on the control
  * extends that guard from "unmounted" to "different location" too.
  */
 
@@ -96,15 +109,21 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
   const [reverseGeocoding, setReverseGeocoding] = useState(false)
   const [lookupNotice, setLookupNotice] = useState<LookupNotice>('none')
 
-  // R-1 write guard. Bumped by the cleanup, which React runs both when `locationId` changes and
-  // on unmount — so a lookup in flight across either event is abandoned rather than written.
-  const writeGen = useRef(0)
+  // R-1/R-32 write guard (see header). `openLocation` always names the currently-open location;
+  // `mounted` closes the "left the wizard entirely" path, where the id would otherwise still
+  // match while the store's target has moved on.
+  const openLocation = useRef(locationId)
+  const mounted = useRef(true)
+  useEffect(() => {
+    openLocation.current = locationId
+  })
   useEffect(
     () => () => {
-      writeGen.current += 1
+      mounted.current = false
     },
-    [locationId],
+    [],
   )
+  const canWriteFor = (issuedFor: string | undefined) => mounted.current && issuedFor === openLocation.current
 
   const handleCapture = async (fix: GpsFix) => {
     // Coordinates land first and stand on their own (phone LocationForm.tsx:119-126).
@@ -112,7 +131,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
     setLookupNotice('none')
     if (!geocodeEnabled) return
 
-    const gen = writeGen.current
+    const issuedFor = locationId
     setReverseGeocoding(true)
     try {
       const address = await reverseGeocode(fix.lat, fix.lng)
@@ -120,7 +139,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
       // address belongs to a location nobody is editing any more. Drop it silently: writing it
       // would overwrite whoever is open NOW, and a notice about an abandoned lookup on a
       // location the visitor has left is noise.
-      if (gen !== writeGen.current) return
+      if (!canWriteFor(issuedFor)) return
       if (!address) {
         setLookupNotice('failed')
         return
@@ -133,7 +152,7 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
       if (Object.keys(patch).length > 0) onChange(patch)
       setLookupNotice(address.streetAddress && address.city ? 'none' : 'partial')
     } catch {
-      if (gen !== writeGen.current) return
+      if (!canWriteFor(issuedFor)) return
       // `reverseGeocode` soft-fails by contract, so this only fires for an injected seam or a
       // future implementation that throws. Treat it as "no address" — the notice below already
       // says the coordinates were kept — rather than letting it escape as an unhandled
@@ -160,6 +179,11 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
         value={values.streetAddress}
         onChange={(v) => onChange({ streetAddress: v })}
         onPick={(p) => {
+          // R-32: this closure was created while `locationId` was open, and Mapbox's `retrieve`
+          // continuation calls THIS closure — so `locationId` is the location the suggestion was
+          // picked on. A pick that resolves after a switch writes street/city AND coordinates
+          // stamped `'geocoded'`; dropping it is the same call the geocode path makes.
+          if (!canWriteFor(locationId)) return
           onChange({
             streetAddress: p.streetAddress,
             city: p.city,
