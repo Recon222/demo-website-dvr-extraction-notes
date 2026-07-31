@@ -91,9 +91,25 @@ export function OcrCaptureScreen({
             <div style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.6)', background: '#0a1320', padding: 16, marginBottom: 16 }}>
               <div style={{ ...label12, marginBottom: 4 }}>Parsed DVR time</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8', fontFamily: mono, marginBottom: 14 }}>{result.dvrTime}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={label12}>OCR confidence</span>
+              {/* R-16: this score is the one number on the screen that is NOT measured — there
+                  is no recogniser in a browser, so it is a constant per sample frame. It gets
+                  the demo's established "not from the real thing" badge (the import result's
+                  Sample-data pill), and the note names what it does and does not describe:
+                  the legibility of the characters, never the reading of the date. Without
+                  that, a green "High confidence" sitting above a red assumed-date blocker or
+                  a low-confidence ambiguity warning reads as the screen contradicting itself. */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ ...label12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  OCR confidence
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '1px 6px' }}>
+                    Sample
+                  </span>
+                </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence.color }}>{result.confidence.label}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#7a9fc4', lineHeight: 1.45, marginBottom: 10 }}>
+                Fixed for sample frames — a browser has no recogniser to score. It rates how legibly the characters
+                read, never which date they mean.
               </div>
               <div style={label12}>
                 Actual (atomic): <span style={{ color: '#cfe6f5', fontFamily: mono }}>{result.actual}</span>

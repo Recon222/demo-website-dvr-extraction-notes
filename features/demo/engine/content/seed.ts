@@ -37,7 +37,12 @@ export const OCR_SAMPLE_FRAMES: Readonly<Record<OcrSampleFrame, string>> = Objec
 /** Fallback "actual" instant for the OCR chapter when no real sync has been run yet. */
 export const SAMPLE_ACTUAL_TIME = '2025-03-08 12:00:00'
 
-/** Fixed OCR score for the sample frames — there is no recogniser here to score against. */
+/**
+ * Fixed OCR score for the sample frames — there is no recogniser here to score against, so
+ * this is the demo's one fabricated on-screen number. The confirmation step badges it
+ * `Sample` and says so in words (R-16); if this ever becomes a measured value, that badge and
+ * its note have to go with it.
+ */
 export const OCR_SAMPLE_CONFIDENCE = 0.93
 
 export const SAMPLE_REQUEST_DOC = `From: det.mchugh.4471@peelpolice.ca

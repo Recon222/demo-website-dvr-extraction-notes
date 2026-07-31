@@ -197,6 +197,17 @@ describe('OcrCaptureScreen', () => {
     expect(onRetake).toHaveBeenCalledOnce()
   })
 
+  // R-16: the confidence score is the only fabricated number on this screen; it must not read
+  // as measured, and it must not look like it is contradicting the warnings under it.
+  it('badges the confidence score as sample-derived and says what it does not describe', () => {
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity } }} />)
+    expect(screen.getByText('Sample')).toBeInTheDocument()
+    expect(screen.getByText(/a browser has no recogniser to score/i)).toBeInTheDocument()
+    expect(screen.getByText(/never which date they mean/i)).toBeInTheDocument()
+    // …and it still shows the score rather than hiding the feature
+    expect(screen.getByText('High')).toBeInTheDocument()
+  })
+
   it('exposes the parsed DVR time as an editable field, pre-filled with the read', () => {
     render(<OcrCaptureScreen {...ocrBase} result={parsed} />)
     // The demo's DateTimeField renders the value across a Date and a Time button.
