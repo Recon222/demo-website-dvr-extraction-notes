@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
+
+// Controlled seam for motion/react's useReducedMotion (R-18): the real hook latches a
+// module-global on first use, so a per-test matchMedia override cannot flip it. The mock
+// also pins WHICH hook the component consumes — reverting to the marketing hook would
+// bypass this mock and fail the reduced-motion test below.
+const motionState = vi.hoisted(() => ({ reduce: false as boolean | null }))
+vi.mock('motion/react', async (orig) => ({
+  ...(await orig<typeof import('motion/react')>()),
+  useReducedMotion: () => motionState.reduce,
+}))
 import {
   ImportTerminalProgress,
   isNearBottom,
@@ -15,7 +25,10 @@ import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/
 import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
 
 // Fake timers drive the useImportLog coalescing frame (same rig as useImportLog.test.ts).
-beforeEach(() => vi.useFakeTimers())
+beforeEach(() => {
+  vi.useFakeTimers()
+  motionState.reduce = false
+})
 afterEach(() => vi.useRealTimers())
 
 const nextFrame = () => act(() => void vi.advanceTimersToNextFrame())
@@ -198,26 +211,12 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.queryByTestId('terminal-cursor')).not.toBeInTheDocument()
   })
 
-  it('reduced motion: the cursor stays visible but static, and the CTA morph does not animate', () => {
-    const original = window.matchMedia
-    window.matchMedia = ((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)',
-      media: query,
-      onchange: null,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia
-    try {
-      const { rerenderWith } = setup()
-      expect(screen.getByTestId('terminal-cursor').style.animation).toBe('')
-      rerenderWith({ outcome: SUCCESS })
-      expect(screen.getByTestId('terminal-review-cta').style.animation).toBe('')
-    } finally {
-      window.matchMedia = original
-    }
+  it('reduced motion (motion/react hook, R-18): cursor stays visible but static, CTA morph does not animate', () => {
+    motionState.reduce = true
+    const { rerenderWith } = setup()
+    expect(screen.getByTestId('terminal-cursor').style.animation).toBe('')
+    rerenderWith({ outcome: SUCCESS })
+    expect(screen.getByTestId('terminal-review-cta').style.animation).toBe('')
   })
 
   // ---- auto-follow / pin ----

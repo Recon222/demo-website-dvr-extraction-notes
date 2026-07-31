@@ -9,7 +9,11 @@ import {
 } from '@/features/demo/engine/logic/import-log'
 import { useImportLog } from '@/features/demo/ui/import/useImportLog'
 import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId } from '@/features/demo/ui/import/run-import'
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
+// The DEMO's reduced-motion hook (p1-review R-18): motion/react seeds from a global on
+// the FIRST render, so a reduced-motion visitor never gets one committed frame with
+// animations armed — the marketing hook (@/lib/hooks) starts false and corrects in an
+// effect. Same source ScreenStage / WizardDrawer / ExploreChecklist use.
+import { useReducedMotion } from 'motion/react'
 import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
 
 /**
