@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { WizardScreenId } from '@/features/demo/engine/types'
+import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -31,6 +32,15 @@ export interface WizardDrawerProps {
    *  closes: it stays OPEN behind a "No Location" toast when nothing is selected
    *  (`app/(form)/_layout.tsx:334-345`), so this row deliberately does not close it itself. */
   onOpenMediaLibrary(): void
+  /**
+   * The footer's save-status line, already worded by `describeSaveStatus` (the drawer is
+   * presentational — it neither reads the persistence handle nor owns a clock).
+   *
+   * `null` renders NO line, and that is the honest reading of "not sampled yet": the bridge
+   * samples on open, so the value is absent for the first frame of the slide-in. A placeholder
+   * there would be a claim about a state nobody has looked at.
+   */
+  saveStatus: SaveStatusView | null
 }
 
 const itemButton: CSSProperties = {
@@ -67,6 +77,24 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
 // colour rather than dropped.
 
 const iconStroke = '#99badd'
+
+/**
+ * The app version the demo mirrors — the phone's `app.config.js:11` (`version: '1.0.0'`),
+ * which is what its own drawer footer renders via `Constants.expoConfig?.version`. A literal
+ * here rather than a read: the demo is a separate deployable and has no Expo config to ask.
+ */
+const APP_VERSION = '1.0.0'
+
+/**
+ * Save-status tone. Redundant with the wording (the text already says which state it is), so
+ * this is emphasis, never the carrier — the same rule the completion dots' `aria-label` obeys.
+ */
+const SAVE_STATUS_COLOR: Record<SaveStateKind, string> = {
+  saved: '#5d7a9a',
+  pending: '#5d7a9a',
+  unavailable: '#c9a227',
+  failed: '#c9a227',
+}
 
 /** Ionicons `albums-outline` — two stacked cards. */
 const AlbumsIcon = () => (
@@ -197,6 +225,7 @@ export function WizardDrawer({
   onCaptureMedia,
   onRecordAudio,
   onOpenMediaLibrary,
+  saveStatus,
 }: WizardDrawerProps) {
   const reduce = useReducedMotion()
   useEffect(() => {
@@ -305,8 +334,17 @@ export function WizardDrawer({
             </div>
 
             <div style={{ padding: '14px 18px', borderTop: GLASS.border, textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
+              {saveStatus && (
+                <div data-save-status={saveStatus.kind} style={{ fontSize: 11, marginBottom: 8, color: SAVE_STATUS_COLOR[saveStatus.kind] }}>
+                  {saveStatus.text}
+                </div>
+              )}
               <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>DVR Extraction Notes</div>
-              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>v1.0.0</div>
+              {/* The phone renders `v{Constants.expoConfig?.version}` here — this is the same
+                  chrome, labelled for what the visitor is actually looking at. The version is
+                  the app's (phone `app.config.js:11`), and this is its demo, not a build of it;
+                  a bare "v1.0.0" in a browser would imply otherwise. */}
+              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>Interactive demo · v{APP_VERSION}</div>
             </div>
           </motion.div>
         )}

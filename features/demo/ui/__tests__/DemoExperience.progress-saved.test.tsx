@@ -23,6 +23,9 @@ const { persistMock, isLive } = vi.hoisted(() => {
       flush: () => undefined,
       dispose: () => undefined,
       isLive: () => isLive.value,
+      // The fake tracks the real handle's shape (P4.2 added `saveState`); `isLive` is derived
+      // from it there, so the two agree here too.
+      saveState: () => (isLive.value ? ({ kind: 'saved', at: 0 } as const) : ({ kind: 'unavailable' } as const)),
     })),
   }
 })

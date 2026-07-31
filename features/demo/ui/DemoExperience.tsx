@@ -92,6 +92,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -426,6 +427,29 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       handle.dispose()
     }
   }, [injectedStore, store])
+
+  /**
+   * The drawer footer's save-status line (P4.2, matrix row 80).
+   *
+   * Sampled when the drawer OPENS, not continuously: the fact lives on the persistence handle
+   * (a ref, deliberately — R-2's "read it when you're about to make a claim, never capture it
+   * at mount"), and a status line is exactly such a claim. `flush()` first, so a write still
+   * inside its 250ms debounce lands before we describe it — otherwise a visitor who types and
+   * immediately opens the menu is told the age of the write BEFORE theirs.
+   *
+   * Cleared on close so the next open can never show a stale reading. A missing handle counts
+   * as `unavailable` — same rule as `saveProgress`: never assume a wired handle.
+   */
+  const [saveStatus, setSaveStatus] = useState<SaveStatusView | null>(null)
+  useEffect(() => {
+    if (!drawerOpen) {
+      setSaveStatus(null)
+      return
+    }
+    const handle = persistenceRef.current
+    handle?.flush()
+    setSaveStatus(describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, clock.now().getTime()))
+  }, [drawerOpen])
 
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
@@ -1859,6 +1883,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onCaptureMedia={launchMediaCapture}
             onRecordAudio={launchAudioRecording}
             onOpenMediaLibrary={openMediaLibrary}
+            saveStatus={saveStatus}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
               the demo has no always-mounted screen to hold it, so the phone's caseData=null

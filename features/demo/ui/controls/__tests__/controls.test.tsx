@@ -26,6 +26,7 @@ describe('WizardDrawer', () => {
     onCaptureMedia: vi.fn(),
     onRecordAudio: vi.fn(),
     onOpenMediaLibrary: vi.fn(),
+    saveStatus: null,
   })
 
   it('renders nothing when closed', () => {
@@ -72,6 +73,21 @@ describe('WizardDrawer', () => {
     expect(screen.getByRole('button', { name: /Submission, complete/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Time Offset, partially complete/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'DVR' })).toBeInTheDocument() // no status → label only
+  })
+
+  it('renders no save-status line until one is sampled, then renders exactly what it is given', () => {
+    // `null` is "not sampled yet" (the bridge samples on open), and the honest rendering of
+    // that is NOTHING — a placeholder would be a claim about a state nobody has read.
+    const { rerender, container } = render(<WizardDrawer open items={items} {...cb()} />)
+    expect(container.querySelector('[data-save-status]')).toBeNull()
+
+    rerender(
+      <WizardDrawer open items={items} {...cb()} saveStatus={{ kind: 'unavailable', text: 'Not saved · x' }} />,
+    )
+    const line = container.querySelector('[data-save-status]')
+    expect(line).toHaveAttribute('data-save-status', 'unavailable')
+    // Presentational: the drawer never words the status itself.
+    expect(line).toHaveTextContent('Not saved · x')
   })
 
   /**

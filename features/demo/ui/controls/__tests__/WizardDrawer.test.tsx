@@ -11,6 +11,7 @@ const cb = {
   onCaptureMedia: vi.fn(),
   onRecordAudio: vi.fn(),
   onOpenMediaLibrary: vi.fn(),
+  saveStatus: null,
 }
 
 describe('WizardDrawer', () => {
