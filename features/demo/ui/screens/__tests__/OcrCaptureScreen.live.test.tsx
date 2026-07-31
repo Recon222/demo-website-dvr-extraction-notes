@@ -204,6 +204,116 @@ describe('the live shutter', () => {
     expect(h.recognize).toHaveBeenCalledTimes(1)
   })
 
+  // R-4 (S-2): the belt half — a slow first recognition must not leave the sample paths open
+  // to land a SECOND result while the first is still in flight.
+  it('holds the sample paths while a live read is in flight, and releases them after', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+    for (const name of ['Use sample DVR clock', 'Ambiguous date', 'Time only']) {
+      expect(screen.getByText(name)).toBeDisabled()
+    }
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    expect(h.props.onUseSample).not.toHaveBeenCalled()
+
+    await act(async () => {
+      release({ ok: true, text: 'x', confidence: 0.5 })
+    })
+    for (const name of ['Use sample DVR clock', 'Ambiguous date', 'Time only']) {
+      expect(screen.getByText(name)).toBeEnabled()
+    }
+  })
+
+  // R-4 (S-2): the token half — a read that comes back AFTER a result arrived from anywhere
+  // else is stale, and writes nothing: no onLiveRead (which would replace the value the
+  // operator is correcting), and no notice detached from its cause.
+  it('discards a live read that lands after a result is already up — success arm', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    // The bridge presents a result (a sample frame the visitor picked) while recognition is
+    // still pending…
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={parsedResult} dvrDraft="2025-03-08 12:05:30" />)
+    })
+    // …then the slow live read resolves. It must NOT reach the bridge.
+    await act(async () => {
+      release({ ok: true, text: '2099-12-31 23:59:59', confidence: 0.99 })
+    })
+    expect(h.reads).toHaveLength(0)
+  })
+
+  it('discards a live read that lands after a result is already up — failure arm leaves no orphan notice', async () => {
+    let release: (outcome: OcrRecognizeOutcome) => void = () => {}
+    const h = harness({
+      recognize: () =>
+        new Promise<OcrRecognizeOutcome>((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={parsedResult} dvrDraft="2025-03-08 12:05:30" />)
+    })
+    await act(async () => {
+      release({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' })
+    })
+
+    // Retake returns to the aim stage: the stale failure must not materialise out of context,
+    // and the shutter must not come back still held by the read that no longer owns it.
+    await act(async () => {
+      view.rerender(<OcrCaptureScreen {...h.props} result={null} />)
+    })
+    expect(screen.queryByText(/Text recognition failed/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Reading timestamp…')).not.toBeInTheDocument()
+    expect(shutterCapture()).toBeEnabled()
+  })
+
+  it('choosing a sample clears a lingering failure notice — it described a read that no longer matters', async () => {
+    const h = harness({
+      recognize: async () => ({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
+    })
+    render(<OcrCaptureScreen {...h.props} />)
+    await grant()
+    sizeVideo(1280, 720)
+    await act(async () => {
+      fireEvent.click(shutterCapture())
+    })
+    expect(screen.getByText(/Text recognition failed/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Use sample DVR clock'))
+    expect(h.props.onUseSample).toHaveBeenCalledExactlyOnceWith('clean')
+    expect(screen.queryByText(/Text recognition failed/)).not.toBeInTheDocument()
+  })
+
   it('surfaces a recognition failure as the honest notice — no read is fabricated', async () => {
     const h = harness({
       recognize: async () => ({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
