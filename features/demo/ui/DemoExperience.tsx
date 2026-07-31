@@ -97,6 +97,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
@@ -217,6 +218,30 @@ const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source loca
  */
 const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
 const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+/**
+ * The map's "Export Map" outcomes (P5.4). Unlike the two stubs above, this export is REAL —
+ * the visitor ends up holding the file — so the copy is the phone's, plus whatever is true
+ * about the artifact they now have.
+ *
+ * Base sentence: phone verbatim (`useExportFlow.ts:297-299`, `Case Map exported
+ * successfully${encryptionNote}.` with an empty note — the demo encrypts nothing), joined
+ * `title — body` like every notice above.
+ *
+ * The two caveats have no phone counterpart by circumstance, not by choice: the phone's
+ * missing-token case is a `logError` the OPERATOR never sees (`case-map-export-service.ts:59-64`),
+ * and it has no empty case to warn about because the button sits behind a case with pins. Here
+ * the person who clicked is the person who walks away with the file, so anything true about it
+ * that they cannot see from the banner has to be on the banner.
+ */
+const caseMapExportedNotice = ({ hasSites, hasToken }: { hasSites: boolean; hasToken: boolean }): string =>
+  'Success — Case Map exported successfully.' +
+  (hasSites ? '' : ' No location has coordinates yet, so it opens with an empty map.') +
+  (hasToken ? '' : ' Without a Mapbox token its basemap stays blank.')
+/** Phone title (`Export Error`, useExportFlow.ts:301-305) with the only body this arm can have:
+ *  its message is the thrown error's, and the browser's refusal is not one of those. */
+const CASE_MAP_EXPORT_FAILED_NOTICE = "Export Error — this browser wouldn't save the Case Map file."
+/** Phone verbatim (`useExportFlow.ts:918-924`). */
+const NO_CASE_SELECTED_NOTICE = 'No Case Selected — Please select a case before exporting its map.'
 /**
  * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
  * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
@@ -1042,6 +1067,60 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setIncidentForm(blankIncidentForm)
     store.getState().closeModal()
   }
+  /**
+   * "Export Map" (P5.4, decision D4) — the ONE export that is genuinely real in the browser.
+   *
+   * The phone's `handleExportCaseMap` builds the same self-contained HTML and hands it to the
+   * share sheet behind a Face ID + AES gate (`useExportFlow.ts`, ui-mapping 03:182). The demo
+   * has neither gate to honour — there is nothing to protect a file the visitor already has —
+   * so this is the build and the save, nothing else: a real `Blob`, a real `<a download>`, a
+   * real file they keep. No `PasswordModal` (decision D4 skips it: a password that protects
+   * nothing is the one thing this demo's honesty machinery has always refused).
+   *
+   * The whole case-map module — including the ~85 KB template — is behind a dynamic
+   * `import()` so it lands in its own chunk and /demo's First Load stays at its pinned 107 kB.
+   * Async, so the click is `void`-ed and the outcome arrives on the banner.
+   */
+  const exportCaseMap = () => {
+    // The viewer case is tab-local React state; its ROW is read from live store state, so an
+    // edit made since the last render exports as edited.
+    const target = store.getState().cases.find((c) => c.id === mapViewerCaseId) ?? null
+    if (!target) {
+      // Phone verbatim (`useExportFlow.ts:918-924`), joined `text1 — text2` like the notices
+      // above. Practically unreachable — the footer only renders inside a picked viewer case —
+      // but the phone guards it too, and a bridge that assumes its own precondition is how a
+      // dead button gets shipped.
+      setNotice(NO_CASE_SELECTED_NOTICE)
+      return
+    }
+    void (async () => {
+      const caseMap = await import('@/features/demo/engine/logic/case-map')
+      const locations = store.getState().locations.filter((l) => l.caseId === target.id)
+      const geojson = caseMap.buildCaseMapGeoJson(target, locations)
+      const html = caseMap.buildCaseMapHtml(
+        geojson,
+        caseMap.buildCaseMapMeta(target, clock.now().toISOString()),
+        // Same env var the live map, the geocoder and the autocomplete already read. Absent is
+        // a supported state on both sides: the case DATA is embedded and renders offline, and
+        // only the basemap tiles need the token (phone `resolveMapboxToken`, :56-67).
+        process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '',
+      )
+      const outcome = saveTextFile({
+        content: html,
+        filename: caseMap.caseMapFileName(target),
+        mimeType: caseMap.CASE_MAP_MIME_TYPE,
+      })
+      setNotice(
+        outcome.ok
+          ? caseMapExportedNotice({
+              hasSites: caseMap.hasPlottableFeatures(geojson),
+              hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
+            })
+          : CASE_MAP_EXPORT_FAILED_NOTICE,
+      )
+    })()
+  }
+
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (caseId) {
@@ -1873,7 +1952,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} />
       default:
         return placeholder(view)
     }
