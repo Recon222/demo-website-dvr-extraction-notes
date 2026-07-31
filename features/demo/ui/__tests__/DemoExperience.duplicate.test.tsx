@@ -158,6 +158,170 @@ describe('DemoExperience — location action chooser', () => {
     expect(store.getState().locations).toHaveLength(1)
   })
 
+  describe('New Location w/ Sub Info (the copy-to-a-new-address flow)', () => {
+    /** A source location with the request info a copy is supposed to carry. */
+    function sourceWithRequest(): DemoStore {
+      const { store } = setup()
+      act(() => {
+        const st = store.getState()
+        st.updateField('requesterName', 'Liam McHugh')
+        st.updateField('requesterBadge', '4471')
+        st.updateField('requesterUnit', 'Central Robbery')
+        st.updateField('requesterPhone', '905-555-0110')
+        st.updateField('requesterEmail', 'l.mchugh@example.ca')
+        st.updateField('locationContact', 'Sandeep Gill')
+        st.updateField('locationPhone', '905-555-0142')
+        st.updateField('form.scopes', [
+          { id: 'sc1', startDateTime: '2025-03-08 22:00:00', endDateTime: '2025-03-09 02:00:00', isActualTime: true, cameras: 'ch 3' },
+        ])
+      })
+      return store
+    }
+
+    const card = () => screen.getByRole('dialog', { name: 'New Location' })
+
+    it('swaps the chooser for the require-address card, pre-filled from the source', () => {
+      const store = sourceWithRequest()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+
+      expect(screen.queryByRole('dialog', { name: 'Duplicate Location' })).toBeNull()
+      expect(card()).toBeInTheDocument()
+      expect(store.getState().modal).toBe('newAddressLocation')
+      expect(screen.getByText('Submission info copied — enter the new address.')).toBeInTheDocument()
+      // Name pre-deduped from "New Location"; the on-site contact travels; the address does not.
+      expect(screen.getByLabelText('Location Name')).toHaveValue('New Location')
+      expect(screen.getByLabelText('Contact Person')).toHaveValue('Sandeep Gill')
+      expect(screen.getByLabelText('Contact Phone')).toHaveValue('905-555-0142')
+      expect(screen.getByLabelText('Street Address')).toHaveValue('')
+    })
+
+    it('gates Create on the new street address', () => {
+      const store = sourceWithRequest()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+
+      const create = within(card()).getByRole('button', { name: 'Create Location' })
+      expect(create).toBeDisabled()
+
+      fireEvent.click(create)
+      expect(store.getState().locations).toHaveLength(1) // nothing created
+
+      fireEvent.change(screen.getByLabelText('Street Address'), { target: { value: '99 Queen St W' } })
+      expect(within(card()).getByRole('button', { name: 'Create Location' })).toBeEnabled()
+    })
+
+    it('creates an independent location carrying the requester block, then opens it', () => {
+      const store = sourceWithRequest()
+      const sourceId = store.getState().currentLocationId
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info + Scopes' }))
+
+      fireEvent.change(screen.getByLabelText('Street Address'), { target: { value: '99 Queen St W' } })
+      fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Brampton' } })
+      fireEvent.click(within(card()).getByRole('button', { name: 'Create Location' }))
+
+      const created = store.getState().locations[1]
+      expect(created.locationName).toBe('New Location')
+      expect(created.streetAddress).toBe('99 Queen St W')
+      expect(created.city).toBe('Brampton')
+      expect(created.requesterName).toBe('Liam McHugh')
+      expect(created.requesterUnit).toBe('Central Robbery')
+      expect(created.requesterEmail).toBe('l.mchugh@example.ca')
+      expect(created.form.scopes).toHaveLength(1) // "+ Scopes"
+      expect(created.id).not.toBe(sourceId)
+
+      // The phone navigates into the wizard for this flow (unlike a plain duplicate).
+      expect(store.getState().currentLocationId).toBe(created.id)
+      expect(store.getState().view).toBe('submission')
+      expect(store.getState().modal).toBeNull()
+      expect(screen.getByTestId('demo-notification')).toHaveTextContent(
+        'Location Created — New Location created with copied submission info and scopes',
+      )
+    })
+
+    it('omits the scopes (and says so) in the submission-only mode', () => {
+      const store = sourceWithRequest()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+      fireEvent.change(screen.getByLabelText('Street Address'), { target: { value: '99 Queen St W' } })
+      fireEvent.click(within(card()).getByRole('button', { name: 'Create Location' }))
+
+      expect(store.getState().locations[1].form.scopes).toEqual([])
+      expect(screen.getByTestId('demo-notification')).toHaveTextContent(
+        'Location Created — New Location created with copied submission info',
+      )
+    })
+
+    it('numbers the default name past an existing "New Location"', () => {
+      const { store } = setup(['Main Store', 'New Location'])
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+
+      expect(screen.getByLabelText('Location Name')).toHaveValue('New Location (2)')
+    })
+
+    it('blocks a name typed into a sibling collision', () => {
+      const { store } = setup(['Main Store', 'Back Office'])
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+
+      fireEvent.change(screen.getByLabelText('Street Address'), { target: { value: '99 Queen St W' } })
+      fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: '  BACK OFFICE ' } })
+
+      expect(screen.getByRole('alert')).toHaveTextContent('A location with this name already exists in this case')
+      expect(within(card()).getByRole('button', { name: 'Create Location' })).toBeDisabled()
+      expect(store.getState().locations).toHaveLength(2)
+    })
+
+    it('Cancel drops the card without creating anything', () => {
+      const store = sourceWithRequest()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+      fireEvent.click(within(chooser()).getByRole('button', { name: 'New Location w/ Sub Info' }))
+      fireEvent.click(within(card()).getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.queryByRole('dialog', { name: 'New Location' })).toBeNull()
+      expect(store.getState().modal).toBeNull()
+      expect(store.getState().locations).toHaveLength(1)
+      expect(store.getState().view).toBe('cases')
+    })
+  })
+
+  describe('the two export actions (honest, not fake — plan D4)', () => {
+    it.each([
+      ['Export ZIP', "Export ZIP isn't available yet — it lands with the Export tab."],
+      ['Export GeoJSON', "Export GeoJSON isn't available yet — it lands with the Export tab."],
+    ])('%s closes the chooser and says what is really true', (label, message) => {
+      const { store } = setup()
+      render(<DemoExperience store={store} />)
+      expandCase()
+      openChooser('Main Store')
+
+      fireEvent.click(within(chooser()).getByRole('button', { name: label }))
+
+      expect(screen.queryByRole('dialog', { name: 'Duplicate Location' })).toBeNull()
+      expect(screen.getByTestId('demo-notification')).toHaveTextContent(message)
+      // Nothing was fabricated: no location, no navigation, no download claim.
+      expect(store.getState().locations).toHaveLength(1)
+      expect(store.getState().view).toBe('cases')
+    })
+  })
+
   it('the chooser scopes to sibling names of ITS case, not every location in the demo', () => {
     const { store } = setup(['Main Store'])
     act(() => {

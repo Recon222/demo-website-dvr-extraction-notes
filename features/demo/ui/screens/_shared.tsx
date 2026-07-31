@@ -182,15 +182,18 @@ export function Accordion({ title, children }: { title: string; children: ReactN
   )
 }
 
-/** Cancel / primary action row at the foot of a modal. */
+/** Cancel / primary action row at the foot of a modal. `submitDisabled` dims and blocks the
+ *  primary action (the phone's `Button disabled`) for callers with a required-field gate. */
 export function ModalActions({
   cancelLabel = 'Cancel',
   submitLabel,
+  submitDisabled,
   onCancel,
   onSubmit,
 }: {
   cancelLabel?: string
   submitLabel: string
+  submitDisabled?: boolean
   onCancel(): void
   onSubmit(): void
 }) {
@@ -199,7 +202,21 @@ export function ModalActions({
       <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {cancelLabel}
       </button>
-      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button
+        type="button"
+        disabled={submitDisabled}
+        onClick={onSubmit}
+        style={{
+          flex: 1,
+          textAlign: 'center',
+          padding: 13,
+          ...glassBtnPrimary,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: submitDisabled ? 'not-allowed' : 'pointer',
+          ...(submitDisabled ? { opacity: 0.45 } : {}),
+        }}
+      >
         {submitLabel}
       </button>
     </div>

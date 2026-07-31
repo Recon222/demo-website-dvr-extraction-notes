@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
-import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
+import { NewLocationModal, LOCATION_NAME_TAKEN_ERROR } from '@/features/demo/ui/screens/NewLocationModal'
 import { ImportModal, deriveTerminalOutcome, ERROR_MESSAGES } from '@/features/demo/ui/screens/ImportModal'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
@@ -43,12 +43,13 @@ describe('NewCaseModal', () => {
 
 describe('NewLocationModal', () => {
   const blankLoc = { locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }
+  const namedLoc = { ...blankLoc, locationName: 'Front entrance' }
 
   it('edits contact fields, captures GPS, and submits', () => {
     const onCaptureGps = vi.fn()
     const onSubmit = vi.fn()
     const onChange = vi.fn()
-    render(<NewLocationModal form={blankLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} onPickCoords={vi.fn()} />)
+    render(<NewLocationModal form={namedLoc} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={onCaptureGps} onPickCoords={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('Contact Person'), { target: { value: 'Sandeep' } })
     expect(onChange).toHaveBeenCalledWith('locationContact', 'Sandeep')
     fireEvent.change(screen.getByLabelText('Contact Phone'), { target: { value: '905-555-0142' } })
@@ -57,6 +58,83 @@ describe('NewLocationModal', () => {
     expect(onCaptureGps).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByText('Create Location'))
     expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('requires a name before Create is live (phone: blank name disables it)', () => {
+    const onSubmit = vi.fn()
+    render(<NewLocationModal form={blankLoc} onChange={vi.fn()} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={vi.fn()} onPickCoords={vi.fn()} />)
+    const create = screen.getByRole('button', { name: 'Create Location' })
+
+    expect(create).toBeDisabled()
+    fireEvent.click(create)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('flags a name already used in this case', () => {
+    const onSubmit = vi.fn()
+    render(
+      <NewLocationModal
+        form={{ ...blankLoc, locationName: '  main store ' }}
+        existingNames={['Main Store']}
+        onChange={vi.fn()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+        onCaptureGps={vi.fn()}
+        onPickCoords={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(LOCATION_NAME_TAKEN_ERROR)
+    expect(screen.getByRole('button', { name: 'Create Location' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Location' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  describe('requireAddress variant (the copy-to-a-new-address caller)', () => {
+    it('renders the subtitle and gates Create on the street address', () => {
+      const onSubmit = vi.fn()
+      const { rerender } = render(
+        <NewLocationModal
+          form={namedLoc}
+          subtitle="Submission info copied — enter the new address."
+          requireAddress
+          onChange={vi.fn()}
+          onSubmit={onSubmit}
+          onCancel={vi.fn()}
+          onCaptureGps={vi.fn()}
+          onPickCoords={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByText('Submission info copied — enter the new address.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Create Location' })).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: 'Create Location' }))
+      expect(onSubmit).not.toHaveBeenCalled()
+
+      rerender(
+        <NewLocationModal
+          form={{ ...namedLoc, streetAddress: '99 Queen St W' }}
+          subtitle="Submission info copied — enter the new address."
+          requireAddress
+          onChange={vi.fn()}
+          onSubmit={onSubmit}
+          onCancel={vi.fn()}
+          onCaptureGps={vi.fn()}
+          onPickCoords={vi.fn()}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Create Location' }))
+      expect(onSubmit).toHaveBeenCalledOnce()
+    })
+
+    it('leaves the plain caller ungated on the address', () => {
+      const onSubmit = vi.fn()
+      render(<NewLocationModal form={namedLoc} onChange={vi.fn()} onSubmit={onSubmit} onCancel={vi.fn()} onCaptureGps={vi.fn()} onPickCoords={vi.fn()} />)
+
+      expect(screen.queryByText('Submission info copied — enter the new address.')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Create Location' }))
+      expect(onSubmit).toHaveBeenCalledOnce()
+    })
   })
 })
 

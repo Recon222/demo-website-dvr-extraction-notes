@@ -24,7 +24,7 @@ describe('narration', () => {
   })
 
   it('has modal/launch-screen copy for every modal the bridge can open, plus ocr', () => {
-    for (const id of ['newCase', 'newLocation', 'import', 'duplicateLocation', 'ocr'] as const) {
+    for (const id of ['newCase', 'newLocation', 'import', 'duplicateLocation', 'newAddressLocation', 'ocr'] as const) {
       const n = MODAL_NARRATION[id]
       expect(n, `modal narration missing for "${id}"`).toBeTruthy()
       expect(n!.title.length).toBeGreaterThan(0)
