@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 import { TimeOffsetScreen, type TimeOffsetScreenProps } from '@/features/demo/ui/screens/TimeOffsetScreen'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
@@ -157,6 +157,11 @@ const usIsDst = (dateTime: string): boolean => {
 
 describe('DemoExperience — DST advisory wiring', () => {
   beforeEach(() => window.sessionStorage.clear())
+  // Restore the host-time spies in a hook, not at the end of a test body (review R-19): an
+  // inline restore is unreachable when an assertion above it throws, which leaks a stubbed
+  // clock/zone into every later test in the file — order-dependence that bites exactly when
+  // the run is already red.
+  afterEach(() => vi.restoreAllMocks())
 
   /** Seed a case + location with one real-time scope, then land on the Time Offset screen. */
   function bootAtTimeOffset(scope: { startDateTime: string; endDateTime: string }) {
