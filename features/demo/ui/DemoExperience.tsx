@@ -370,6 +370,32 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
+  // ---- DST advisory (P2.5) ---------------------------------------------------------------
+  // The phone recomputes this on every render of the Time-Offset result block, so it tracks
+  // the DVR-Applies-DST toggle and the scope edits live. Memoised here (review R-14) because
+  // scenario A additionally scans the year for the zone's transition dates — ~23 `isDst`
+  // probes — and the bridge re-renders on EVERY store write, doubled under StrictMode.
+  //
+  // Deps are exactly the advisory's inputs. `clock.now` / `clock.isDst` are module-level seam
+  // singletons, stable by construction. Honest consequence of memoising a clock read: "today"
+  // is frozen until one of these inputs changes — irrelevant at demo timescales, and the
+  // alternative (recompute per render) is what this finding is about.
+  const timeOffsetForAdvisory = currentLocation?.form.timeOffset ?? null
+  const scopesForAdvisory = currentLocation?.form.scopes
+  const dstAdvisory = useMemo(
+    () =>
+      timeOffsetForAdvisory
+        ? computeDstAdvisory({
+            scopes: scopesForAdvisory ?? [],
+            actualDateTime: capture.actualDateTime,
+            dvrAppliesDST: capture.dvrAppliesDST,
+            now: clock.now,
+            isDst: clock.isDst,
+          })
+        : null,
+    [timeOffsetForAdvisory, scopesForAdvisory, capture.actualDateTime, capture.dvrAppliesDST],
+  )
+
   // ---- Completion gate (P2.4, matrix G9) -------------------------------------------------
   // The phone's ONE runtime validation gate, evaluated against the OPEN LOCATION and the case
   // that OWNS it (`loc.caseId`) — never `currentCase` above, which is the selection-pair read.
@@ -1075,17 +1101,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'timeOffset': {
         const off = currentLocation?.form.timeOffset ?? null
-        // DST advisory: the phone recomputes it on every render of the result block, so it
-        // tracks the toggle and the scope edits live. `clock.now` is the UI's wall-clock seam
-        // (spy-able in tests) — the engine helper never reads an argless clock itself.
-        const dstAdvisory = off
-          ? computeDstAdvisory({
-              scopes: currentLocation?.form.scopes ?? [],
-              actualDateTime: capture.actualDateTime,
-              dvrAppliesDST: capture.dvrAppliesDST,
-              now: clock.now,
-            })
-          : null
         return (
           <TimeOffsetScreen
             dvrDateTime={capture.dvrDateTime}
