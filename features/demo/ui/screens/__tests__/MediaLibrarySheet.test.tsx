@@ -477,6 +477,44 @@ describe('the fullscreen preview (row 65)', () => {
     expect(screen.queryByRole('button', { name: 'View fullscreen' })).not.toBeInTheDocument()
   })
 
+  it('takes focus on open and hands it back to the opener on close (R-8)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    fireEvent.click(opener)
+
+    // `aria-modal` prunes everything outside this container, so focus must be INSIDE it —
+    // otherwise Tab walks the hidden controls behind the layer before reaching Close.
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(document.activeElement).toBe(layer)
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('takes the same focus path for a video — no autoFocus branch (R-8)', () => {
+    render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
+    fireEvent.click(tab('Video tab, 1 items'))
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    fireEvent.click(opener)
+
+    expect(document.activeElement).toBe(screen.getByTestId('media-fullscreen'))
+  })
+
+  it('does not force focus onto a stale opener that was removed while it was open (R-8)', () => {
+    // The guard that matters: `isConnected`. Closing after the opener is gone must not throw
+    // and must not blur something else the visitor moved to.
+    const { unmount } = render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    expect(screen.getByTestId('media-fullscreen')).toBeInTheDocument()
+
+    expect(() => unmount()).not.toThrow()
+  })
+
   it('self-cancels when the selection moves to another row', () => {
     render(
       <MediaLibrarySheet

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
@@ -308,19 +308,44 @@ function canFullscreen(item: MediaItem): boolean {
  *
  * It portals into the phone overlay root like every other overlay in this feature, so it pins to
  * the visible screen instead of scrolling with the sheet's list.
+ *
+ * FOCUS (R-8). `aria-modal="true"` prunes everything outside this container from the
+ * accessibility tree, so leaving focus on the "View fullscreen" button that opened it stranded a
+ * keyboard or screen-reader visitor OUTSIDE the only thing they could still perceive — Tab then
+ * walked every hidden control behind the layer before reaching Close. The two effects below are
+ * `AlertDialog`'s, verbatim in shape (`AlertDialog.tsx:55-61`): focus the container on mount
+ * (`tabIndex={-1}`, so the label is announced rather than just the first button), hand focus back
+ * to the opener on unmount, guarded by `isConnected` because the row that opened it may have been
+ * deleted meanwhile.
+ *
+ * The video branch's `autoFocus` is gone with it: it solved half the problem (entry, not exit) for
+ * one of the two media kinds, and two entry paths in one component is how the photo branch got
+ * missed in the first place.
  */
 function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
+  const layerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const opener = document.activeElement
+    layerRef.current?.focus()
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
   return (
     <PhoneOverlayPortal>
       <div
+        ref={layerRef}
         data-testid="media-fullscreen"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         // Phone container label (`Fullscreen ${media.type}: ${media.filename}`,
         // MediaPreviewFullscreen.tsx:73-75) — with the demo's own kind word for the type.
         aria-label={`Fullscreen ${item.kind}: ${item.filename}`}
-        style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}
+        style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto', outline: 'none' }}
       >
         {isPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element -- see MediaContent.
@@ -335,7 +360,6 @@ function MediaFullscreen({ item, onClose }: { item: MediaItem; onClose(): void }
             src={item.url}
             poster={item.poster}
             controls
-            autoFocus
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         )}
