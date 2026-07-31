@@ -25,8 +25,23 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const saveBtnRef = useRef<HTMLButtonElement | null>(null)
   const [printNotice, setPrintNotice] = useState<string | null>(null)
+  // R-47: teardown for the in-flight print attempt (armed beforeprint listener + pending
+  // verdict timer). Torn down at the start of the next attempt and on unmount — never
+  // mid-attempt, so a late success signal can still retract a wrong verdict.
+  const printAttemptCleanup = useRef<(() => void) | null>(null)
+
+  // Unmount: drop the armed listener and cancel any pending verdict timer (R-47).
+  useEffect(() => {
+    return () => {
+      printAttemptCleanup.current?.()
+    }
+  }, [])
 
   const printDocument = () => {
+    // A new attempt supersedes the previous one: kill its armed listener and pending verdict
+    // so an orphaned timer can never re-assert an old verdict over this attempt's outcome.
+    printAttemptCleanup.current?.()
+    printAttemptCleanup.current = null
     try {
       // The probe lives INSIDE the try (R-12): touching `print` on a cross-origin contentWindow
       // throws a SecurityError — the exact failure the sandbox rationale below documents — and
@@ -45,19 +60,30 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
       // (a) capability: an engine without the print events gives no positive signal at all,
       //     so degrade to absence-of-throw there instead of branding every save "blocked";
       // (b) timing: Blink/WebKit postpone the printing steps (and the beforeprint they fire)
-      //     while the frame is still loading, so the blocked verdict waits one macrotask for
-      //     a late signal instead of judging synchronously.
+      //     while the frame is still loading — and load can be several tasks out for a
+      //     data-URI-heavy document (the time-offset report embeds the OCR capture). The
+      //     verdict after one macrotask is therefore only the honest "no signal yet" reading:
+      //     the listener STAYS armed afterwards, and a late signal retracts the wrong notice
+      //     instead of being discarded (R-47).
       const canDetect = 'onbeforeprint' in win
       let dialogOpened = false
       const markOpened = () => {
         dialogOpened = true
+        setPrintNotice(null) // the signal proves the dialog — retract any wrong "blocked" verdict
       }
+      let verdictTimer: number | undefined
       win.addEventListener('beforeprint', markOpened)
+      const cleanup = () => {
+        win.removeEventListener('beforeprint', markOpened)
+        if (verdictTimer !== undefined) window.clearTimeout(verdictTimer)
+      }
+      printAttemptCleanup.current = cleanup
       try {
         win.focus() // some browsers print the focused frame's parent otherwise
         win.print()
       } catch (err) {
-        win.removeEventListener('beforeprint', markOpened)
+        cleanup()
+        printAttemptCleanup.current = null
         throw err // → outer catch renders the notice; a throw is a definitive verdict
       } finally {
         // R-16: win.focus() moved keyboard focus INTO the sandboxed frame — a scriptless
@@ -70,12 +96,17 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
         saveBtnRef.current?.focus()
       }
       if (!canDetect || dialogOpened) {
-        win.removeEventListener('beforeprint', markOpened)
+        // Settled synchronously: the success signal already fired, or no signal exists to wait
+        // for (degrade to absence-of-throw). Nothing left to hear — tear the attempt down.
+        cleanup()
+        printAttemptCleanup.current = null
         setPrintNotice(null)
       } else {
-        window.setTimeout(() => {
-          win.removeEventListener('beforeprint', markOpened)
-          setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+        verdictTimer = window.setTimeout(() => {
+          verdictTimer = undefined
+          if (!dialogOpened) setPrintNotice(PRINT_BLOCKED_NOTICE)
+          // The listener stays armed (until the next attempt or unmount): a beforeprint
+          // arriving after this interim verdict retracts the notice via markOpened (R-47).
         }, 0)
       }
     } catch {
