@@ -64,25 +64,55 @@ describe('TimeOffsetScreen', () => {
 })
 
 describe('OcrCaptureScreen', () => {
+  const ocrBase = {
+    dvrDraft: '2025-03-08 12:05:30',
+    onChangeDvrDraft: vi.fn(),
+    dateConfirmed: false,
+    onConfirmDate: vi.fn(),
+    onUseSample: vi.fn(),
+    onCapture: vi.fn(),
+    onCancel: vi.fn(),
+    onRetake: vi.fn(),
+    onConfirm: vi.fn(),
+  }
+  const parsed = {
+    ok: true as const,
+    dvrTime: '2025-03-08 12:05:30',
+    confidence: { label: 'High', color: '#10d177' },
+    actual: '2025-03-08 12:00:00',
+    assumedDate: null,
+    ambiguity: null,
+  }
+  /** A low-confidence resolution — what `disambiguateDateFormat` returns for a stale year. */
+  const ambiguity = {
+    chosenDate: '2024-06-07',
+    chosenFormat: 'MM-DD' as const,
+    alternativeDate: '2024-07-06',
+    confidence: 'low' as const,
+    reason: 'year_outside_proximity_window' as const,
+    chosenDistanceDays: 784,
+    alternativeDistanceDays: 755,
+  }
+
   it('runs the sample on the aim stage', () => {
     const onUseSample = vi.fn()
-    render(<OcrCaptureScreen result={null} onUseSample={onUseSample} onCapture={vi.fn()} onCancel={vi.fn()} onRetake={vi.fn()} onConfirm={vi.fn()} />)
+    render(<OcrCaptureScreen {...ocrBase} result={null} onUseSample={onUseSample} />)
     fireEvent.click(screen.getByText('Use sample DVR clock'))
-    expect(onUseSample).toHaveBeenCalledOnce()
+    expect(onUseSample).toHaveBeenCalledExactlyOnceWith('clean')
+  })
+
+  it('offers the two awkward sample frames the confirm step exists for', () => {
+    const onUseSample = vi.fn()
+    render(<OcrCaptureScreen {...ocrBase} result={null} onUseSample={onUseSample} />)
+    fireEvent.click(screen.getByText('Ambiguous date'))
+    expect(onUseSample).toHaveBeenCalledExactlyOnceWith('ambiguous')
+    fireEvent.click(screen.getByText('Time only'))
+    expect(onUseSample).toHaveBeenLastCalledWith('timeOnly')
   })
 
   it('confirms a parsed result', () => {
     const onConfirm = vi.fn()
-    render(
-      <OcrCaptureScreen
-        result={{ ok: true, dvrTime: '2025-03-08 12:05:30', confidence: { label: 'High', color: '#10d177' }, actual: '2025-03-08 12:00:00' }}
-        onUseSample={vi.fn()}
-        onCapture={vi.fn()}
-        onCancel={vi.fn()}
-        onRetake={vi.fn()}
-        onConfirm={onConfirm}
-      />,
-    )
+    render(<OcrCaptureScreen {...ocrBase} result={parsed} onConfirm={onConfirm} />)
     expect(screen.getByText('2025-03-08 12:05:30')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(onConfirm).toHaveBeenCalledOnce()
@@ -90,11 +120,87 @@ describe('OcrCaptureScreen', () => {
 
   it('shows the failed-parse branch and retakes', () => {
     const onRetake = vi.fn()
-    render(<OcrCaptureScreen result={{ ok: false, rawText: 'garbled 88:99' }} onUseSample={vi.fn()} onCapture={vi.fn()} onCancel={vi.fn()} onRetake={onRetake} onConfirm={vi.fn()} />)
+    render(<OcrCaptureScreen {...ocrBase} result={{ ok: false, rawText: 'garbled 88:99' }} onRetake={onRetake} />)
     expect(screen.getByText(/Couldn't read a timestamp/)).toBeInTheDocument()
     expect(screen.getByText(/garbled 88:99/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('Try again'))
     expect(onRetake).toHaveBeenCalledOnce()
+  })
+
+  it('exposes the parsed DVR time as an editable field, pre-filled with the read', () => {
+    render(<OcrCaptureScreen {...ocrBase} result={parsed} />)
+    // The demo's DateTimeField renders the value across a Date and a Time button.
+    expect(screen.getByLabelText('Set date')).toHaveTextContent('2025-03-08')
+    expect(screen.getByLabelText('Set time')).toHaveTextContent('12:05:30')
+  })
+
+  it('marks a corrected value as manually edited', () => {
+    const { rerender } = render(<OcrCaptureScreen {...ocrBase} result={parsed} />)
+    expect(screen.queryByText('Manually edited')).not.toBeInTheDocument()
+    rerender(<OcrCaptureScreen {...ocrBase} result={parsed} dvrDraft="2025-03-08 12:07:00" />)
+    expect(screen.getByText('Manually edited')).toBeInTheDocument()
+    // the read itself is still shown, unedited — it is the evidence line
+    expect(screen.getByText('2025-03-08 12:05:30')).toBeInTheDocument()
+  })
+
+  it('blocks the commit with the phone’s copy when the DVR time is empty', () => {
+    const onConfirm = vi.fn()
+    render(<OcrCaptureScreen {...ocrBase} result={parsed} dvrDraft="" onConfirm={onConfirm} />)
+    expect(screen.getByText(/DVR Time Required/)).toBeInTheDocument()
+    const commit = screen.getByText('Use this & calculate')
+    expect(commit).toBeDisabled()
+    fireEvent.click(commit)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('renders the ambiguity warning when the resolver was unsure', () => {
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, ambiguity }} />)
+    expect(screen.getByText('Date Format Ambiguity Detected')).toBeInTheDocument()
+    expect(screen.getByText(/Jun 7, 2024 \(MM-DD\)/)).toBeInTheDocument()
+    expect(screen.getByText('Jul 6, 2024')).toBeInTheDocument()
+  })
+
+  it('stays silent when the resolver was confident', () => {
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, ambiguity: { ...ambiguity, confidence: 'high' } }} />)
+    expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
+  })
+
+  it('stays silent when the date was never ambiguous', () => {
+    render(<OcrCaptureScreen {...ocrBase} result={parsed} />)
+    expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
+  })
+
+  it('holds the commit until an assumed date is confirmed', () => {
+    const onConfirm = vi.fn()
+    const onConfirmDate = vi.fn()
+    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', assumedDate: '2026-07-31' }
+    const { rerender } = render(
+      <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
+    )
+    expect(screen.getByText('No date on the DVR display')).toBeInTheDocument()
+    expect(screen.getByText('Use this & calculate')).toBeDisabled()
+
+    fireEvent.click(screen.getByText('The date is correct'))
+    expect(onConfirmDate).toHaveBeenCalledOnce()
+
+    rerender(
+      <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" dateConfirmed onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
+    )
+    expect(screen.getByText('Date confirmed')).toBeDisabled()
+    fireEvent.click(screen.getByText('Use this & calculate'))
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('also releases the commit when the operator corrects the assumed date instead of confirming it', () => {
+    const onConfirm = vi.fn()
+    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', assumedDate: '2026-07-31' }
+    // dateConfirmed stays false — the draft's date no longer IS the assumption.
+    render(<OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2025-03-08 12:05:30" onConfirm={onConfirm} />)
+    expect(screen.getByText('Manually edited')).toBeInTheDocument()
+    const commit = screen.getByText('Use this & calculate')
+    expect(commit).toBeEnabled()
+    fireEvent.click(commit)
+    expect(onConfirm).toHaveBeenCalledOnce()
   })
 })
 

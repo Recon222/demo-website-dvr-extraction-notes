@@ -39,7 +39,7 @@ import { SubmissionScreen, type SubmissionFields } from '@/features/demo/ui/scre
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 import { TimeOffsetScreen } from '@/features/demo/ui/screens/TimeOffsetScreen'
-import { OcrCaptureScreen, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
+import { OcrCaptureScreen, type OcrResult, type OcrSampleFrame } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
 import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
@@ -120,6 +120,30 @@ const blankImport: ImportState = { stage: 'picker', text: '', result: null, last
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
+
+/**
+ * The hardcoded DVR frames the OCR pipeline runs over. A browser has no camera, so every
+ * "capture" is one of these strings put through the real `cleanOcrText` → `readDvrTimestamp`
+ * path — nothing about the result is faked.
+ *
+ * `clean` is the marquee frame (year-first, unambiguous, stable offset against
+ * `SAMPLE_ACTUAL_TIME`). The other two exist so the confirmation step's two hard cases are
+ * reachable in the demo at all:
+ *  - `ambiguous` — 06 vs 07 with a year deliberately outside the resolver's proximity window
+ *    (`year < currentYear - 1`), which pins the result at `confidence: 'low'` for any visitor
+ *    from 2026 on, so `DateDisambiguationWarning` actually renders. A DVR whose clock is a
+ *    couple of years stale is the normal case in this domain, not a contrivance.
+ *  - `timeOnly` — a clock with no date, the `assumedDate` path.
+ */
+const OCR_SAMPLE_FRAMES: Record<OcrSampleFrame, string> = {
+  clean: '2025-03-08 12:05:30',
+  ambiguous: '06/07/2024 23:45:30',
+  timeOnly: '12:05:30',
+}
+/** Fallback "actual" instant when the visitor hasn't synced a real one yet. */
+const SAMPLE_ACTUAL_TIME = '2025-03-08 12:00:00'
+/** Fixed OCR score for the sample frames — no real recogniser to score against. */
+const OCR_SAMPLE_CONFIDENCE = 0.93
 
 /** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
 function sessionStorageOrNull(): StorageLike | null {
@@ -232,6 +256,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // newer run's "reset" would un-cancel the stale one and let it mutate the store.
   const importGen = useRef(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  // The operator's working DVR date/time on the confirm step. Held here (not in the screen)
+  // per the store-bridge rule, and committed to the store only by "Use this & calculate" —
+  // so Cancel/Retake leave no trace of a read the operator rejected.
+  const [ocrDraft, setOcrDraft] = useState('')
+  const [ocrDateConfirmed, setOcrDateConfirmed] = useState(false)
+  // Render-irrelevant OCR proof (raw/cleaned text + score) carried from the read to the
+  // commit, where it becomes `capture.ocr` → `timeOffset.ocr`.
+  const ocrProof = useRef<{ rawText: string; cleanedText: string; confidence: number } | null>(null)
   const [pdf, setPdf] = useState<PdfState | null>(null)
   // R-1: lets a COMPLETED location's confirmation flip back to the review form so the court
   // PDF is never a one-shot. UI-only escape hatch — the completed flag itself lives in the
@@ -329,7 +361,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // stale overlay (open modal, PDF preview, OCR confirm stage, map picker).
   const returnToCases = () => {
     setPdf(null)
-    setOcrResult(null)
+    resetOcr()
     setMapPickerOpen(false)
     const st = store.getState()
     st.setDrawerOpen(false)
@@ -648,29 +680,55 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       syncTimer.current = null
     }, 1100)
   }
-  const runOcrSample = () => {
-    const raw = '2025-03-08 12:05:30' // sample DVR clock
+  const resetOcr = () => {
+    setOcrResult(null)
+    setOcrDraft('')
+    setOcrDateConfirmed(false)
+    ocrProof.current = null
+  }
+  const runOcrSample = (frame: OcrSampleFrame) => {
+    const raw = OCR_SAMPLE_FRAMES[frame]
     const cleaned = cleanOcrText(raw)
     const reading = readDvrTimestamp(cleaned, clock.now().getTime())
-    const conf = getConfidenceLevel(0.93)
-    const st = store.getState()
-    if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
-    st.updateField('capture.method', 'ocr')
-    if (reading) st.updateField('capture.dvrDateTime', reading.dvrTime)
+    const conf = getConfidenceLevel(OCR_SAMPLE_CONFIDENCE)
+    // The capture instant is frozen here (the phone freezes it at the shutter) but written to
+    // the store only on commit — nothing about a rejected read should survive Cancel.
+    const actual = store.getState().capture.actualDateTime || SAMPLE_ACTUAL_TIME
+    ocrProof.current = { rawText: raw, cleanedText: cleaned, confidence: OCR_SAMPLE_CONFIDENCE }
+    setOcrDateConfirmed(false)
+    setOcrDraft(reading?.dvrTime ?? '')
     setOcrResult(
       reading
-        ? { ok: true, dvrTime: reading.dvrTime, confidence: { label: conf.message, color: conf.color }, actual: store.getState().capture.actualDateTime }
+        ? {
+            ok: true,
+            dvrTime: reading.dvrTime,
+            confidence: { label: conf.message, color: conf.color },
+            actual,
+            assumedDate: reading.assumedDate,
+            ambiguity: reading.ambiguity,
+          }
         : { ok: false, rawText: cleaned },
     )
   }
+  /** "Use this & calculate": the operator's (possibly corrected) value is what gets committed. */
   const confirmOcr = () => {
+    if (!ocrResult?.ok || !ocrDraft) return
+    const st = store.getState()
+    st.updateField('capture.method', 'ocr')
+    if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', ocrResult.actual)
+    st.updateField('capture.dvrDateTime', ocrDraft)
+    if (ocrProof.current) {
+      // parsedDateTime records what OCR READ; capture.dvrDateTime records what the operator
+      // COMMITTED. When they differ, the offset report can show the correction.
+      st.updateField('capture.ocr', { ...ocrProof.current, parsedDateTime: ocrResult.dvrTime })
+    }
     calcOffset()
     store.getState().closeLaunch()
-    setOcrResult(null)
+    resetOcr()
   }
   const cancelOcr = () => {
     store.getState().closeLaunch()
-    setOcrResult(null)
+    resetOcr()
   }
 
   // ---- PDF preview + completion ----
@@ -778,7 +836,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onUseCurrentTime={runTimeSync}
             onCalculate={calcOffset}
             onCaptureOcr={() => {
-              setOcrResult(null)
+              resetOcr()
               store.getState().launch('ocr')
             }}
             sync={capture.sync}
@@ -794,7 +852,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'ocr':
-        return <OcrCaptureScreen result={ocrResult} onUseSample={runOcrSample} onCapture={runOcrSample} onCancel={cancelOcr} onRetake={() => setOcrResult(null)} onConfirm={confirmOcr} />
+        return (
+          <OcrCaptureScreen
+            result={ocrResult}
+            dvrDraft={ocrDraft}
+            onChangeDvrDraft={setOcrDraft}
+            dateConfirmed={ocrDateConfirmed}
+            onConfirmDate={() => setOcrDateConfirmed(true)}
+            onUseSample={runOcrSample}
+            onCapture={() => runOcrSample('clean')}
+            onCancel={cancelOcr}
+            onRetake={resetOcr}
+            onConfirm={confirmOcr}
+          />
+        )
       case 'extractedScope': {
         const exs = currentLocation?.form.extractedScopes ?? []
         const ex = formList(exs, 'form.extractedScopes')
