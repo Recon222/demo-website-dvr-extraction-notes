@@ -196,7 +196,7 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     // so `url`/`poster` remain part of this maximal fixture. A live capture's blob URL is
     // deliberately stripped by `snapshotOf` — pinned separately below, so a regression there
     // can't hide behind this fixture's whole-state diff.
-    store.getState().addMedia('photo', {
+    store.getState().addMedia({
       id: 'm1',
       kind: 'photo',
       url: '/demo-media/sample-photo.jpg',
@@ -242,7 +242,7 @@ describe('media bytes never persist (v6 — plan §5 P4.1 / D2)', () => {
     const store = freshStore()
     const caseId = store.getState().createCase(newCaseInput())
     store.getState().addLocation(caseId, newLocationInput())
-    store.getState().addMedia('photo', {
+    store.getState().addMedia({
       id: 'live',
       kind: 'photo',
       url: 'blob:http://localhost/live-photo',
@@ -251,7 +251,7 @@ describe('media bytes never persist (v6 — plan §5 P4.1 / D2)', () => {
       caption: 'DVR rack',
       capturedAt: '2026-07-30 14:05:06',
     })
-    store.getState().addMedia('video', {
+    store.getState().addMedia({
       id: 'sample',
       kind: 'video',
       url: '/demo-media/sample-clip.mp4',

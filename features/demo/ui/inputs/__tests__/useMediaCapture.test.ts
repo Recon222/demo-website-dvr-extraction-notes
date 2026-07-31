@@ -2,12 +2,13 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_RECORDING_DURATION_MS } from '@/features/demo/engine/logic/media/recording'
-import { SAMPLE_MEDIA } from '@/features/demo/engine/logic/media/samples'
+import { NO_RECORDER_NOTICE, SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE } from '@/features/demo/engine/logic/media/samples'
 import {
   RECORDING_TICK_MS,
   useMediaCapture,
   type UseMediaCaptureOptions,
 } from '@/features/demo/ui/inputs/useMediaCapture'
+import { MEDIA_KINDS } from '@/features/demo/engine/types'
 import type { MediaDevicesLike, RecorderIo } from '@/features/demo/ui/inputs/capture-media'
 import type { ObjectUrlIo } from '@/features/demo/ui/inputs/object-urls'
 import {
@@ -62,45 +63,59 @@ function mount(over: Partial<UseMediaCaptureOptions> = {}, recorder?: RecorderIo
 }
 
 describe('capability reporting', () => {
-  it('reports sample-only when the page has no capture API (the suite default)', () => {
+  it('reports every kind as sample when the page has no capture API (the suite default)', () => {
     const { result } = renderHook(() => useMediaCapture({ facility: 'camera' }))
-    expect(result.current.capability).toEqual({
-      stream: false,
-      record: false,
-      objectUrls: expect.any(Boolean),
-      sampleOnly: true,
-    })
+    const { stream, record, objectUrls, modeFor } = result.current.capability
+    // `objectUrls` is deterministically true here, not incidental: §58a establishes that under
+    // Vitest the global `URL` is NODE's, which implements object URLs even though jsdom's
+    // `window.URL` does not. Asserting `expect.any(Boolean)` (R-31) asserted nothing.
+    expect({ stream, record, objectUrls }).toEqual({ stream: false, record: false, objectUrls: true })
+    expect(MEDIA_KINDS.map(modeFor)).toEqual(['sample', 'sample', 'sample'])
     expect(result.current.permission).toBe('unavailable')
   })
 
-  it('separates "can preview" from "can record" — a browser may do one and not the other', () => {
+  it('answers per operation: real photos, sample clips, on a browser with no MediaRecorder', () => {
+    // R-3: the defect this replaced was a single stored `sampleOnly`, which answered the PHOTO
+    // question and was consumed as the answer for everything.
     const { result } = mount({}, null)
     expect(result.current.capability.stream).toBe(true)
     expect(result.current.capability.record).toBe(false)
-    expect(result.current.capability.sampleOnly).toBe(false)
+    expect(result.current.capability.modeFor('photo')).toBe('live')
+    expect(result.current.capability.modeFor('video')).toBe('sample')
   })
 
-  it('reports record capability when a MediaRecorder exists', () => {
+  it('reports every kind live when a MediaRecorder exists', () => {
     const { result } = mount({}, fakeRecorderIo(fakeRecorder()))
     expect(result.current.capability.record).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['live', 'live', 'live'])
   })
 
-  it('falls to sample-only when object URLs are unavailable — captured bytes would be unviewable', () => {
-    const { result } = mount({ deps: { objectUrls: null } })
+  it('falls back for every kind when object URLs are unavailable — captured bytes would be unviewable', () => {
+    const { result } = mount({ deps: { objectUrls: null } }, fakeRecorderIo(fakeRecorder()))
     expect(result.current.capability.objectUrls).toBe(false)
-    expect(result.current.capability.sampleOnly).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['sample', 'sample', 'sample'])
   })
 
-  it('flips to sample-only once the machine reports no camera at all', async () => {
+  it('flips every kind to sample once the machine reports no camera at all', async () => {
     const { result } = mount({
       deps: { mediaDevices: devices({ getUserMedia: async () => Promise.reject(domError('NotFoundError')) }) },
     })
-    expect(result.current.capability.sampleOnly).toBe(false)
+    expect(result.current.capability.modeFor('photo')).toBe('live')
     await act(async () => {
       await result.current.open()
     })
     expect(result.current.permission).toBe('unavailable')
-    expect(result.current.capability.sampleOnly).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['sample', 'sample', 'sample'])
+  })
+
+  it('carries the sentence for the binding reason, keyed to this surface’s facility', () => {
+    expect(mount({}, null).result.current.capability.sampleNotice).toBe(NO_RECORDER_NOTICE.camera)
+    expect(mount({ facility: 'microphone' }, null).result.current.capability.sampleNotice).toBe(
+      NO_RECORDER_NOTICE.microphone,
+    )
+    expect(
+      mount({ deps: { mediaDevices: null } }, fakeRecorderIo(fakeRecorder())).result.current.capability.sampleNotice,
+    ).toBe(SAMPLE_MEDIA_NOTICE.camera)
   })
 })
 
@@ -510,5 +525,152 @@ describe('the 1-hour auto-stop', () => {
     // The readout must be frozen too — a ticking timer over a MediaRecorder that is emitting
     // nothing would display a duration the file does not contain.
     expect(result.current.elapsedMs).toBe(pausedAt)
+  })
+})
+
+
+describe('the browser ending a take on its own (R-13)', () => {
+  /** Open a stream and start a take, returning the driving fake recorder. */
+  async function rolling() {
+    const recorder = fakeRecorder('audio/webm')
+    const harness = mount({ facility: 'microphone' }, fakeRecorderIo(recorder))
+    await act(async () => {
+      await harness.result.current.open()
+    })
+    act(() => {
+      harness.result.current.startRecording()
+      recorder.emitData('bytes')
+    })
+    return { ...harness, recorder }
+  }
+
+  it('stamps the RECORDED length, not the visitor\'s reaction time', async () => {
+    // The defect: a take the browser ended at 10s, noticed at 30s, claimed 30s — an
+    // unmeasured number rendered as fact in review, in the library row and in the info panel.
+    const { result, recorder, advance } = await rolling()
+    advance(10_000)
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    advance(20_000)
+
+    expect(result.current.captured?.durationSec).toBe(10)
+  })
+
+  it('freezes the elapsed readout at the real end instead of counting on', async () => {
+    const { result, recorder, advance } = await rolling()
+    advance(10_000)
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    const atEnd = result.current.elapsedMs
+    advance(20_000)
+
+    expect(atEnd).toBe(10_000)
+    expect(result.current.elapsedMs).toBe(10_000)
+    expect(result.current.phase).toBe('stopped')
+  })
+
+  it('assembles the take rather than dropping it', async () => {
+    const { result, recorder } = await rolling()
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    expect(result.current.captured).toMatchObject({ kind: 'audio', url: 'blob:mint/1', sample: false })
+  })
+
+  it('a Stop pressed afterwards is a no-op, not a second assemble', async () => {
+    const { result, recorder, revoked } = await rolling()
+    await act(async () => {
+      recorder.emitStop()
+      await Promise.resolve()
+    })
+    const captured = result.current.captured
+    await act(async () => {
+      expect(await result.current.stopRecording()).toBeNull()
+    })
+    expect(result.current.captured).toBe(captured)
+    expect(revoked).toEqual([])
+  })
+
+  it('reports a self-ended take that produced nothing as a failure', async () => {
+    const recorder = fakeRecorder('audio/webm')
+    const { result } = mount({ facility: 'microphone' }, fakeRecorderIo(recorder))
+    await act(async () => {
+      await result.current.open()
+    })
+    act(() => {
+      result.current.startRecording()
+    })
+    await act(async () => {
+      recorder.emitStop() // no data ever arrived
+      await Promise.resolve()
+    })
+    expect(result.current.captured).toBeNull()
+    expect(result.current.failure).toMatchObject({ code: 'RECORDING_FAILED' })
+  })
+})
+
+
+describe('a stale failure never outlives its cause (R-14)', () => {
+  it('clears a frame-grab failure when a new acquisition starts', async () => {
+    // `failure` is `ownFailure ?? streamState.failure`, and the stream hook clears only its
+    // own half — so the grab sentence sat on top of every later acquisition state.
+    const { result } = mount({}, null)
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+    expect(result.current.failure).toMatchObject({ code: 'FRAME_GRAB_FAILED' })
+
+    await act(async () => {
+      await result.current.open()
+    })
+    expect(result.current.failure).toBeNull()
+  })
+
+  it('shows the NEW acquisition failure, not the old grab sentence', async () => {
+    let deny = false
+    const { result } = mount({
+      deps: {
+        mediaDevices: devices({
+          getUserMedia: async () => {
+            if (deny) throw domError('NotReadableError')
+            return fakeStream(['video', 'audio'])
+          },
+        }),
+      },
+    })
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+
+    deny = true
+    await act(async () => {
+      await result.current.selectDevice('cam-b')
+    })
+    expect(result.current.failure).toMatchObject({ code: 'DEVICE_BUSY' })
+  })
+
+  it('clears it on a device switch too', async () => {
+    const { result } = mount({}, null)
+    await act(async () => {
+      await result.current.open()
+    })
+    await act(async () => {
+      await result.current.capturePhoto(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ context: false }) })
+    })
+    await act(async () => {
+      await result.current.selectDevice('cam-a')
+    })
+    expect(result.current.failure).toBeNull()
   })
 })

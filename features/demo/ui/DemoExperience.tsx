@@ -69,7 +69,7 @@ import { OcrCaptureScreen, type OcrLiveRead, type OcrResult } from '@/features/d
 import { MediaCaptureScreen, type SaveMediaRequest } from '@/features/demo/ui/screens/MediaCaptureScreen'
 import { AudioRecordingFlow } from '@/features/demo/ui/screens/AudioRecordingFlow'
 import type { MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
-import { MEDIA_DELETED_NOTICE, buildMediaItem, type CapturedMedia } from '@/features/demo/engine/logic/media'
+import { MEDIA_DELETED_NOTICE, buildMediaItem, collectMediaUrls, type CapturedMedia } from '@/features/demo/engine/logic/media'
 import { readBrowserObjectUrls, revokeCapturedUrls } from '@/features/demo/ui/inputs/object-urls'
 import { ExtractedScopeScreen } from '@/features/demo/ui/screens/ExtractedScopeScreen'
 import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
@@ -665,7 +665,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       return false
     }
     const item = buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename, caption })
-    st.addMedia(captured.kind, item)
+    st.addMedia(item)
     setNotice(mediaSavedNotice(captured.kind, filename))
     st.closeLaunch()
     return true
@@ -699,7 +699,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const st = store.getState()
     // `ui-m…` joins the other UI-minted ids, which `maxIdSeq` re-seeds past on rehydrate so a
     // restored session cannot collide with them.
-    st.addMedia('audio', buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
+    st.addMedia(buildMediaItem({ id: `ui-m${uiSeq++}`, captured, filename: meta.filename, caption: meta.caption }))
     st.closeLaunch()
   }
   /**
@@ -718,7 +718,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // Absent wherever the API is (jsdom, a hardened browser) — nothing to revoke, and the store
     // write is what actually removes the row, so it must not be gated on the revocation.
     if (io !== null) revokeCapturedUrls(io, [item.url, item.poster])
-    store.getState().deleteMedia(item.kind, item.id)
+    store.getState().deleteMedia(item)
     setNotice(MEDIA_DELETED_NOTICE)
   }
 
@@ -1054,6 +1054,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const confirmDelete = () => {
     if (!pendingDelete) return
     const { kind, id } = pendingDelete
+    // R-2: sweep the doomed locations' captures BEFORE the store drops them. The store is sole
+    // owner of a saved capture's object URL (§58g), so once the rows are gone nothing in the
+    // page can reach the blobs and their bytes stay pinned for the tab's life — the natural
+    // demo loop (create → capture → delete → repeat) leaks a full photo or clip per cycle.
+    // Same shape as `deleteMediaItem`: revoke first, and never gate the store write on it.
+    const doomed = kind === 'case' ? locations.filter((l) => l.caseId === id) : locations.filter((l) => l.id === id)
+    const io = readBrowserObjectUrls()
+    if (io !== null) revokeCapturedUrls(io, collectMediaUrls(doomed))
     if (kind === 'case') {
       store.getState().deleteCase(id)
       setExpandedCaseId((prev) => (prev === id ? null : prev))

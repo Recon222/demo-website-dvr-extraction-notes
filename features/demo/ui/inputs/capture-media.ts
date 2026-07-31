@@ -17,6 +17,7 @@
  * unavailable/sample path is the DEFAULT tested contract.
  */
 
+import type { NormalizedCrop } from '@/features/demo/engine/logic/ocr-crop'
 import {
   captureFailure,
   classifyCaptureError,
@@ -202,11 +203,16 @@ export interface FrameGrabOptions {
   /** JPEG quality, 0–1. */
   quality?: number
   /**
-   * Normalized (0–1) sub-rectangle of the frame to keep. P4.7's OCR strip is the intended
-   * consumer: the phone crops to the DVR timestamp band before recognition, and cropping at
-   * grab time means the recognizer and the stored `OcrProof.imageDataUrl` see the same pixels.
+   * Sub-rectangle of the frame to keep. P4.7's OCR strip is the intended consumer: the phone
+   * crops to the DVR timestamp band before recognition, and cropping at grab time means the
+   * recognizer and the stored `OcrProof.imageDataUrl` see the same pixels.
+   *
+   * R-25: the canonical `NormalizedCrop`, not a structural re-declaration of its four numbers.
+   * The 0–1 unit is the whole contract here and it lived only in prose — a pixel-space rect
+   * satisfied the old inline shape, and the result is not a type error but a blank strip
+   * reported as a recognition failure. Type-only import, so no cycle.
    */
-  crop?: { x: number; y: number; width: number; height: number }
+  crop?: NormalizedCrop
   /** Also produce a data URL (P4.7 stores one on `OcrProof`). Off by default — a 1080p frame
    *  is a multi-megabyte base64 string, and the photo path only needs the blob. */
   includeDataUrl?: boolean
@@ -277,13 +283,31 @@ export async function grabVideoFrame(
   const context = canvas.getContext('2d')
   if (!context) return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
 
-  // `video` is typed structurally (only the two dimensions are read here), but drawImage
-  // needs the element itself — the cast is confined to this one call.
-  context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh)
+  // R-22: `drawImage` and `toDataURL` both THROW rather than returning a falsy value —
+  // `InvalidStateError` for a source element the browser considers unusable, `SecurityError`
+  // for a canvas tainted by cross-origin frames. Neither call site catches, so an escape was a
+  // floating rejection and a shutter press that visibly did nothing. The outcome union is the
+  // contract; a throw must arrive as the same typed failure the four checks above produce.
+  try {
+    // `video` is typed structurally (only the two dimensions are read here), but drawImage
+    // needs the element itself — the cast is confined to this one call.
+    context.drawImage(video as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, dw, dh)
+  } catch {
+    return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+  }
 
   const blob = await toBlobAsync(canvas, mimeType, options.quality)
   if (!blob || blob.size === 0) {
     return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+  }
+
+  let dataUrl: string | undefined
+  if (options.includeDataUrl === true) {
+    try {
+      dataUrl = canvas.toDataURL(mimeType, options.quality)
+    } catch {
+      return { ok: false, failure: captureFailure('FRAME_GRAB_FAILED', facility) }
+    }
   }
 
   return {
@@ -292,7 +316,7 @@ export async function grabVideoFrame(
     mimeType: blob.type === '' ? mimeType : blob.type,
     width: dw,
     height: dh,
-    ...(options.includeDataUrl === true ? { dataUrl: canvas.toDataURL(mimeType, options.quality) } : {}),
+    ...(dataUrl !== undefined ? { dataUrl } : {}),
   }
 }
 
@@ -306,7 +330,14 @@ function toBlobAsync(canvas: HTMLCanvasElement, mimeType: string, quality?: numb
       resolve(null)
       return
     }
-    canvas.toBlob((blob) => resolve(blob), mimeType, quality)
+    // R-22: a synchronous throw inside a Promise executor rejects the promise, which the
+    // callers `await` without a catch. `null` routes it into the existing FRAME_GRAB_FAILED
+    // check instead — one honest outcome rather than an unhandled rejection.
+    try {
+      canvas.toBlob((blob) => resolve(blob), mimeType, quality)
+    } catch {
+      resolve(null)
+    }
   })
 }
 
@@ -336,6 +367,18 @@ export type StartRecordingOutcome =
 export interface RecorderDeps {
   /** `null` means "no MediaRecorder on this page" → an `UNSUPPORTED` failure. */
   recorder: RecorderIo | null
+  /**
+   * The recorder stopped ON ITS OWN — nobody called `stop()` (R-13).
+   *
+   * A `MediaRecorder` ends when its tracks do: the camera is unplugged, the OS revokes the
+   * permission mid-take, a screen share is stopped from the browser's own bar. Without this
+   * signal the surface never learns, so its timer keeps counting a recorder that stopped
+   * minutes ago and the duration it finally stamps on the file is wall-clock, not recorded
+   * length — an unmeasured number rendered as fact in the review screen, the library row and
+   * the info panel. Fires exactly once, and never for an aborted take (which has no outcome
+   * by definition).
+   */
+  onEnded?(): void
 }
 
 /**
@@ -411,7 +454,11 @@ export function startStreamRecording(
     if (event.data && event.data.size > 0) chunks.push(event.data)
   }
   instance.onstop = () => {
+    // Nobody was waiting on a `stop()` we issued, so the browser ended this take itself.
+    // Read before `settle`, which flips the flag it depends on.
+    const selfEnded = !settled && !aborted && resolvePending === null
     settle(assemble())
+    if (selfEnded) deps.onEnded?.()
   }
   instance.onerror = () => {
     errored = true

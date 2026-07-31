@@ -8,7 +8,7 @@ import {
   PHONE_MEDIA_EXTENSIONS,
   VIDEO_MIME_CANDIDATES,
   beginRecording,
-  canStopRecording,
+  canStopAtElapsed,
   extensionForMimeType,
   formatDuration,
   formatFileSize,
@@ -20,6 +20,7 @@ import {
   recorderMimeCandidates,
   resumeRecording,
   stopRecording,
+  type RecordingState,
 } from '@/features/demo/engine/logic/media/recording'
 
 const T0 = 1_000_000
@@ -106,7 +107,11 @@ describe('out-of-phase transitions are identity no-ops', () => {
   })
 })
 
-describe('canStopRecording (the phone 500ms gate)', () => {
+describe('canStopAtElapsed (the phone 500ms gate)', () => {
+  /** How the only production consumer applies the gate: elapsed from state, then the rule. */
+  const canStopAt = (state: RecordingState, nowMs: number): boolean =>
+    canStopAtElapsed(state, recordedMs(state, nowMs))
+
   it('pins the phone constants', () => {
     expect(MIN_RECORDING_DURATION_MS).toBe(500)
     expect(MAX_RECORDING_DURATION_MS).toBe(60 * 60 * 1000)
@@ -114,18 +119,18 @@ describe('canStopRecording (the phone 500ms gate)', () => {
 
   it('is false below the minimum and true at exactly the minimum', () => {
     const state = beginRecording(T0)
-    expect(canStopRecording(state, T0 + 499)).toBe(false)
-    expect(canStopRecording(state, T0 + 500)).toBe(true)
+    expect(canStopAt(state, T0 + 499)).toBe(false)
+    expect(canStopAt(state, T0 + 500)).toBe(true)
   })
 
   it('is false for idle and stopped recorders whatever the elapsed figure', () => {
-    expect(canStopRecording(IDLE_RECORDING, T0 + 99_999)).toBe(false)
-    expect(canStopRecording(stopRecording(beginRecording(T0), T0 + 9_000), T0 + 99_999)).toBe(false)
+    expect(canStopAt(IDLE_RECORDING, T0 + 99_999)).toBe(false)
+    expect(canStopAt(stopRecording(beginRecording(T0), T0 + 9_000), T0 + 99_999)).toBe(false)
   })
 
   it('holds a paused recorder at its banked total rather than letting the clock unlock Stop', () => {
     const paused = pauseRecording(beginRecording(T0), T0 + 100)
-    expect(canStopRecording(paused, T0 + 100_000)).toBe(false)
+    expect(canStopAt(paused, T0 + 100_000)).toBe(false)
   })
 })
 
@@ -218,7 +223,8 @@ describe('extensionForMimeType', () => {
   it.each([
     ['video/mp4;codecs=avc1', 'video', 'mp4'],
     ['video/webm;codecs=vp9', 'video', 'webm'],
-    ['video/x-matroska;codecs=avc1', 'video', 'mp4'], // Chrome reports mp4-in-mkv this way
+    ['video/x-matroska;codecs=avc1', 'video', 'mkv'], // Chrome's H.264-in-Matroska — NOT an mp4
+    ['audio/x-matroska', 'audio', 'mka'],
     ['audio/mp4', 'audio', 'm4a'],
     ['audio/webm;codecs=opus', 'audio', 'webm'],
     ['audio/ogg;codecs=opus', 'audio', 'ogg'],
@@ -234,9 +240,12 @@ describe('extensionForMimeType', () => {
     expect(extensionForMimeType('VIDEO/WEBM', 'video')).toBe('webm')
   })
 
-  it('never stamps .mp4 on a WebM blob (the false-claim-in-a-filename pin)', () => {
+  it('never stamps .mp4 on a WebM or Matroska blob (the false-claim-in-a-filename pin)', () => {
+    // R-11: the Matroska row used to assert `.mp4` here, which made this test the one thing
+    // that would have blocked the honest branch.
     expect(extensionForMimeType('video/webm', 'video')).not.toBe('mp4')
     expect(extensionForMimeType('audio/webm', 'audio')).not.toBe('m4a')
+    expect(extensionForMimeType('video/x-matroska;codecs=avc1', 'video')).not.toBe('mp4')
   })
 
   it('falls back to the phone extension only when the MIME type says nothing', () => {

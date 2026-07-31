@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { ocrCropRegion } from '@/features/demo/engine/logic/ocr-crop'
 import {
   captureConstraints,
   grabVideoFrame,
@@ -9,6 +10,7 @@ import {
   readBrowserRecorder,
   startStreamRecording,
   stopStream,
+  type FrameGrabOptions,
   type MediaDevicesLike,
 } from '@/features/demo/ui/inputs/capture-media'
 import {
@@ -277,6 +279,17 @@ describe('grabVideoFrame', () => {
     expect(canvas.width).toBe(640)
     expect(canvas.height).toBe(480)
     expect(canvas.drawCalls[0].slice(1)).toEqual([0, 0, 640, 480, 0, 0, 640, 480])
+  })
+
+  it('takes the canonical NormalizedCrop, so the OCR strip and the grab share one unit (R-25)', () => {
+    // Type-level, asserted by construction: the crop `ocrCropRegion` produces is exactly what
+    // `grabVideoFrame` accepts. Before R-25 the option was a structural re-declaration and the
+    // 0–1 unit lived only in prose — a pixel-space rect compiled and produced a blank strip
+    // reported as a recognition failure.
+    const crop = ocrCropRegion(1920, 1080, 16 / 9)
+    expect(crop).not.toBeNull()
+    const options: FrameGrabOptions = { crop: crop ?? undefined }
+    expect(options.crop).toBe(crop)
   })
 
   it('crops to a normalized sub-rectangle (P4.7 OCR strip)', async () => {
@@ -566,5 +579,100 @@ describe('startStreamRecording', () => {
       ok: false,
       failure: { code: 'RECORDING_FAILED' },
     })
+  })
+})
+
+
+describe('a recorder the browser stops by itself (R-13)', () => {
+  it('signals onEnded when `stop` arrives with nobody waiting on it', () => {
+    // Tracks end for reasons nobody asked for: the camera is unplugged, the permission is
+    // revoked mid-take, a screen share is stopped from the browser's own bar.
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    recorder.emitStop()
+    expect(onEnded).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT signal when the stop was ours', async () => {
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    const pending = started.handle.stop()
+    recorder.emitStop()
+    await pending
+    expect(onEnded).not.toHaveBeenCalled()
+  })
+
+  it('does NOT signal for an abandoned take — it has no outcome by definition', () => {
+    const recorder = fakeRecorder('video/webm')
+    const onEnded = vi.fn()
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded,
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    started.handle.abort()
+    recorder.emitStop()
+    expect(onEnded).not.toHaveBeenCalled()
+  })
+
+  it('still hands the assembled bytes to a later stop()', async () => {
+    const recorder = fakeRecorder('video/webm')
+    const started = startStreamRecording(fakeStream(), 'video', {
+      recorder: fakeRecorderIo(recorder),
+      onEnded: () => {},
+    })
+    if (!started.ok) throw new Error('expected a handle')
+
+    recorder.emitData('bytes')
+    recorder.emitStop()
+    expect(await started.handle.stop()).toMatchObject({ ok: true })
+  })
+})
+
+
+describe('grabVideoFrame — a throwing canvas is a typed failure, not a dead shutter (R-22)', () => {
+  it.each([
+    ['drawImage', { throwOnDraw: true }],
+    ['toBlob', { throwOnBlob: true }],
+  ] as const)('turns a %s throw into FRAME_GRAB_FAILED', async (_call, over) => {
+    // Both sit outside the four explicit checks, and neither call site catches — an escape was
+    // a floating rejection and a shutter press that visibly did nothing.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), { createCanvas: () => fakeCanvas(over) }),
+    ).resolves.toMatchObject({ ok: false, failure: { code: 'FRAME_GRAB_FAILED' } })
+  })
+
+  it('turns a toDataURL SecurityError into FRAME_GRAB_FAILED rather than losing the whole grab', async () => {
+    // A canvas tainted by cross-origin frames throws here and nowhere else — the blob is fine,
+    // but the caller asked for a data URL and must not be handed a half-answer.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), {
+        createCanvas: () => fakeCanvas({ throwOnDataUrl: true }),
+        includeDataUrl: true,
+      }),
+    ).resolves.toMatchObject({ ok: false, failure: { code: 'FRAME_GRAB_FAILED' } })
+  })
+
+  it('does not touch toDataURL when no data URL was asked for', async () => {
+    // The throwing path must not become reachable for the photo shutter, which never wants one.
+    await expect(
+      grabVideoFrame(fakeVideo(640, 480), { createCanvas: () => fakeCanvas({ throwOnDataUrl: true }) }),
+    ).resolves.toMatchObject({ ok: true })
   })
 })

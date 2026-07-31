@@ -301,8 +301,12 @@ export interface DemoActions {
   /** Free-text tail commit — no-op when unchanged (clean blurs never write). */
   commitNotesFreeText(text: string): void
   applyImport(patch: MappedImport): void
-  addMedia(kind: MediaKind, item: MediaItem): void
-  deleteMedia(kind: MediaKind, id: string): void
+  /** R-23: the bucket is DERIVED from the item, never passed alongside it. The old
+   *  `(kind, item)` pair let `kind !== item.kind` compile, and the end state of that mismatch
+   *  is a library row filed under one tab and deleted from another — an undeletable capture. */
+  addMedia(item: MediaItem): void
+  /** Identified by the item itself, for the same reason. */
+  deleteMedia(item: Pick<MediaItem, 'kind' | 'id'>): void
 }
 
 /** Footer "Write my own notes…" modes: seed the free text from the current assembled
@@ -1064,10 +1068,10 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       }
     },
 
-    addMedia: (kind, item) => {
+    addMedia: (item) => {
       const id = get().currentLocationId
       if (!id) return
-      const bucket = mediaBucket(kind)
+      const bucket = mediaBucket(item.kind)
       set((s) => ({
         locations: s.locations.map((l) =>
           l.id === id
@@ -1077,7 +1081,7 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
       }))
     },
 
-    deleteMedia: (kind, mediaId) => {
+    deleteMedia: ({ kind, id: mediaId }) => {
       const id = get().currentLocationId
       if (!id) return
       const bucket = mediaBucket(kind)

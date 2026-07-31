@@ -5,6 +5,7 @@ import {
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
   buildMediaItem,
+  collectMediaUrls,
   defaultCaptureBasename,
   isDurableMediaUrl,
   isMediaAvailable,
@@ -262,5 +263,43 @@ describe('withoutEphemeralMedia (the location-graph sweep)', () => {
   it('handles an empty location list', () => {
     const empty: DemoLocation[] = []
     expect(withoutEphemeralMedia(empty)).toBe(empty)
+  })
+})
+
+describe('collectMediaUrls (the delete cascade’s input — R-2)', () => {
+  const location = (media: DemoLocation['form']['media']): DemoLocation =>
+    ({ id: 'l1', caseId: 'c1', form: { media } }) as unknown as DemoLocation
+
+  it('reaches every bucket and both URL slots', () => {
+    // A bucket left out of this sweep is a whole photo or clip pinned for the tab's life,
+    // with nothing left in the page holding a reference to it.
+    expect(
+      collectMediaUrls([
+        location({
+          photos: [item({ id: 'p', url: 'blob:p' })],
+          videos: [item({ id: 'v', kind: 'video', url: 'blob:v', poster: 'blob:vp' })],
+          audios: [item({ id: 'a', kind: 'audio', url: 'blob:a' })],
+        }),
+      ]),
+    ).toEqual(['blob:p', undefined, 'blob:v', 'blob:vp', 'blob:a', undefined])
+  })
+
+  it('spans every location handed to it', () => {
+    const one = location({ photos: [item({ url: 'blob:1' })], videos: [], audios: [] })
+    const two = location({ photos: [item({ url: 'blob:2' })], videos: [], audios: [] })
+    expect(collectMediaUrls([one, two])).toEqual(['blob:1', undefined, 'blob:2', undefined])
+  })
+
+  it('passes sample paths through unfiltered — revokeCapturedUrls is what no-ops on them', () => {
+    expect(
+      collectMediaUrls([
+        location({ photos: [item({ url: '/demo-media/sample-photo.jpg' })], videos: [], audios: [] }),
+      ]),
+    ).toEqual(['/demo-media/sample-photo.jpg', undefined])
+  })
+
+  it('returns nothing for empty inputs', () => {
+    expect(collectMediaUrls([])).toEqual([])
+    expect(collectMediaUrls([location({ photos: [], videos: [], audios: [] })])).toEqual([])
   })
 })

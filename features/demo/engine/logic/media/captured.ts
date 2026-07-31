@@ -161,6 +161,29 @@ export function isMediaAvailable(item: MediaItem): boolean {
 export const MEDIA_EXPIRED_NOTICE =
   "This capture lived in the tab's memory only and did not survive the refresh — the demo never writes captured media to storage."
 
+/**
+ * Every URL held by one location's three media buckets, `url` and `poster` alike.
+ *
+ * The delete cascade's input (R-2). Once a capture is saved the surface has `release`d its
+ * object URL and the store is sole owner (§58g), so a location dropped from the store takes
+ * the only remaining reference to its blobs with it — nothing is left in the page to revoke
+ * them, and the bytes stay pinned for the tab's life. Collecting the URLs BEFORE the store
+ * write is the only moment they are still reachable.
+ *
+ * Pure and shared so the case cascade and the location cascade cannot disagree about which
+ * buckets they sweep. Sample paths ride along untouched — `revokeCapturedUrls` no-ops on them.
+ */
+export function collectMediaUrls(locations: readonly DemoLocation[]): (string | undefined)[] {
+  const urls: (string | undefined)[] = []
+  for (const location of locations) {
+    const media = location.form.media
+    for (const bucket of [media.photos, media.videos, media.audios]) {
+      for (const item of bucket) urls.push(item.url, item.poster)
+    }
+  }
+  return urls
+}
+
 /** Drop the ephemeral URLs from one item, keeping everything else. Identity-preserving: an
  *  item with nothing to strip comes back as the same object. */
 export function withoutEphemeralMediaUrls(item: MediaItem): MediaItem {

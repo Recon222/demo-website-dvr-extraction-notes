@@ -113,7 +113,17 @@ export function fakeRecorderIo(
 
 /** A canvas stand-in: jsdom's own returns no 2d context and implements no `toBlob`. */
 export function fakeCanvas(
-  over: { context?: boolean; blob?: Blob | null; dataUrl?: string } = {},
+  over: {
+    context?: boolean
+    blob?: Blob | null
+    dataUrl?: string
+    /** Throw from `drawImage` — the browser's `InvalidStateError` for an unusable source. */
+    throwOnDraw?: boolean
+    /** Throw from `toBlob` — a synchronous throw inside the Promise executor. */
+    throwOnBlob?: boolean
+    /** Throw from `toDataURL` — the browser's `SecurityError` for a tainted canvas. */
+    throwOnDataUrl?: boolean
+  } = {},
 ): HTMLCanvasElement & { drawCalls: unknown[][] } {
   const drawCalls: unknown[][] = []
   const canvas = {
@@ -125,13 +135,18 @@ export function fakeCanvas(
         ? null
         : {
             drawImage: (...args: unknown[]) => {
+              if (over.throwOnDraw) throw domError('InvalidStateError')
               drawCalls.push(args)
             },
           },
     toBlob: (cb: (blob: Blob | null) => void) => {
+      if (over.throwOnBlob) throw domError('SecurityError')
       cb(over.blob === undefined ? new Blob(['jpeg-bytes'], { type: 'image/jpeg' }) : over.blob)
     },
-    toDataURL: () => over.dataUrl ?? 'data:image/jpeg;base64,AAAA',
+    toDataURL: () => {
+      if (over.throwOnDataUrl) throw domError('SecurityError')
+      return over.dataUrl ?? 'data:image/jpeg;base64,AAAA'
+    },
   }
   return canvas as unknown as HTMLCanvasElement & { drawCalls: unknown[][] }
 }

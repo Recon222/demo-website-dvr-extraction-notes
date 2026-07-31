@@ -37,11 +37,11 @@ function seed(): { store: DemoStore; otherLocationId: string } {
     otherLocationId = s.addLocation(caseId, { locationName: 'Other' })
 
     store.getState().switchLocation(otherLocationId)
-    store.getState().addMedia('photo', media({ id: 'other-photo', filename: 'elsewhere.jpg' }))
+    store.getState().addMedia(media({ id: 'other-photo', filename: 'elsewhere.jpg' }))
 
     store.getState().switchLocation(locId)
-    store.getState().addMedia('photo', media({ id: 'p1', filename: 'front-door.jpg' }))
-    store.getState().addMedia('video', media({ id: 'v1', kind: 'video', filename: 'lobby.mp4', durationSec: 95, url: 'blob:two' }))
+    store.getState().addMedia(media({ id: 'p1', filename: 'front-door.jpg' }))
+    store.getState().addMedia(media({ id: 'v1', kind: 'video', filename: 'lobby.mp4', durationSec: 95, url: 'blob:two' }))
     store.getState().setView('dvrInfo')
   })
   return { store, otherLocationId }
@@ -121,7 +121,7 @@ describe('deleting a capture (row 66)', () => {
       const caseId = s.createCase({ caseNumber: 'PR25-M', displayName: 'Media', unit: 'Robbery' })
       const locId = s.addLocation(caseId, { locationName: 'Site' })
       store.getState().switchLocation(locId)
-      store.getState().addMedia('photo', media({ id: 'p1', url: '/demo-media/sample-photo.jpg', sample: true }))
+      store.getState().addMedia(media({ id: 'p1', url: '/demo-media/sample-photo.jpg', sample: true }))
       store.getState().setView('dvrInfo')
     })
     render(<DemoExperience store={store} />)

@@ -93,10 +93,18 @@ export const NO_RECORDER_NOTICE: Readonly<Record<CaptureFacility, string>> = Obj
     'This browser can open a microphone but cannot record audio to a file, so the demo attached a bundled sample instead. Nothing was recorded.',
 })
 
-/** The facility a kind is captured with — photo and video both come from the camera. */
-export function facilityForKind(kind: MediaKind): CaptureFacility {
-  return kind === 'audio' ? 'microphone' : 'camera'
-}
+/**
+ * The third way a browser can leave a capture surface with nothing to show: the camera or
+ * microphone opens, a recorder exists, but `URL.createObjectURL` does not — so there is no way
+ * to hand the captured bytes to an `<img>`/`<video>`/`<audio>` (hardened or embedded WebViews).
+ *
+ * Facility-independent by construction: the sentence must not name a device, because both the
+ * "no camera" and the "cannot record" sentences would be false here — the device is open and
+ * the recorder works. Selected by `sampleFallbackNotice`'s reason priority (R-3 / folded S-3),
+ * which is what stopped this state from printing "exposes no camera to the page".
+ */
+export const NO_CAPTURE_STORAGE_NOTICE =
+  'This browser will not let the page hold on to a captured file, so the demo attached a bundled sample instead. Nothing was recorded.'
 
 /**
  * The base name the metadata form (P4.4) opens with — the ONE rule all three capture surfaces
