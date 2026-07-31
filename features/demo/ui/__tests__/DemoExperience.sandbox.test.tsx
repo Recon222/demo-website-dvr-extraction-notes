@@ -732,6 +732,33 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(store.getState().locations.length).toBe(1)
   })
 
+  it('a mid-batch THROW cannot deny the files that already landed (R-38): partial report, not a total-failure lie', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      runPdf
+        .mockResolvedValueOnce(okRun({ filename: 'good.pdf' }))
+        .mockRejectedValueOnce(new Error('boom mid-batch')) // file 2 THROWS (not a failure result)
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-PBT', displayName: 'PartialThrow', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'bad.pdf', { type: 'application/pdf' })] } })
+
+      // The catch reports through the tally: amber partial, never 'The import failed unexpectedly' alone.
+      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+      fireEvent.click(cta)
+      expect(await screen.findByText(/Imported 1 of 2 requests/)).toBeInTheDocument() // landed file reported
+      expect(screen.getByText(/The import failed unexpectedly/)).toBeInTheDocument() // synthetic failure row
+      expect(store.getState().locations.length).toBe(1) // exactly the landed file — visible, not denied
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {

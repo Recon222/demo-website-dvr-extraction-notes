@@ -71,6 +71,10 @@ export type ImportErrorCode =
   | 'PDF_READ_FAILED' // pdf.js could not load/parse the file (corrupt, encrypted, not a PDF)
   | 'MODEL_OUTPUT_UNPARSEABLE' // no JSON object in the model reply (parseAiJson threw)
   | 'NO_FIELDS_FOUND' // reply parsed but yielded zero usable fields
+  // Synthesized ONLY by the bridge's guardImportRun backstop for an unexpected throw
+  // (never by this module) — the phone's UNKNOWN_ERROR parity (§5.7.8). Deliberately
+  // unmapped in ERROR_MESSAGES: the backstop's own friendly string renders.
+  | 'UNEXPECTED_ERROR'
 
 /** The phone's error.details shape for import failures ({ stage, detail } — §5.7.8). */
 export interface ImportErrorDetails {

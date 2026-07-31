@@ -812,6 +812,12 @@ and confirmed **no invalid state is reachable today** — coherence is enforced 
 discipline across the run/cancel/retry call sites plus the pure `computeImportStage`
 derivation, not by the type.
 
+**Writer inventory update (fix-delta R-39):** the round-2 backstop rework made
+`guardImportRun`'s catch report through `finishImport`, and `finishImport` now pins
+`stage: 'progress'` in its own updater — so EVERY result write (normal completion and
+backstop alike) lands in a pairing `computeImportStage` renders, restoring the "every
+setImp writer traced" claim this acceptance rests on.
+
 **Accepted (for now), not fixed:** remodelling the run half as a discriminated union
 (`picker/paste` | progress payload | result payload — the `RetentionView` house shape)
 would ripple through every `setImp` spread in the bridge mid-fix-round for a defect that

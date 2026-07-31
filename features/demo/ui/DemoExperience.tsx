@@ -394,13 +394,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * Per-run stage forwarder. Token-guarded (p1-review R-24): every other import
    * checkpoint validates importGen, but the old bare setImp let a cancelled run's late
    * onStage('normalizing'|'done') drive a NEWER run's headline/bar — and, post-P1.5,
-   * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11).
+   * corrupt its frozen-on-failure stage. lastRealStage rides the same updater (R-11)
+   * and is mirrored into a ref so event-scope code (the guardImportRun catch) can read
+   * the run's real stage without an impure state read (fix-delta R-40).
    */
-  const importStageFor = (myGen: number) => (st: RunStageId) =>
-    setImp((s) => {
-      if (importGen.current !== myGen) return s // stale run — display writes drop too
-      return { ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }
-    })
+  const lastRealStageRef = useRef<ImportRealStageId | null>(null)
+  const importStageFor = (myGen: number) => (st: RunStageId) => {
+    if (importGen.current !== myGen) return // stale run — display writes drop too
+    if (st !== 'error') lastRealStageRef.current = st
+    setImp((s) => ({ ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }))
+  }
 
   // Exhaustive by construction (review M2): every FallbackMode must decide its notice
   // here — a new variant is a compile error, not a silently-missing warning. Only
@@ -506,19 +509,35 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // THE DWELL (P1.5, row 73): the stage stays 'progress' — computeImportStage keeps the
     // terminal up (its badge morphs into the outcome CTA) until onReviewImport acknowledges.
     // activeStage/batch are kept so the frozen bar and the batch-aware CTA copy stay truthful.
-    setImp((s) => ({ ...s, result, lastLocId: t.lastLocId }))
+    // `stage: 'progress'` is pinned explicitly (fix-delta R-39): every result write must
+    // land in a pairing computeImportStage renders — a backstop-reported throw can arrive
+    // before the run's first stage flip (deferred §36 writer inventory).
+    setImp((s) => ({ ...s, stage: 'progress', result, lastLocId: t.lastLocId }))
   }
 
   /**
-   * Last-resort backstop for the whole run (p1-review R-23b). Nothing in the pipeline
-   * is EXPECTED to throw (every callee guards internally), but if something ever does,
-   * the old shape hung the dwell forever: PickerStage's catch is unmounted by the
-   * stage flip (its setError is discarded — R-23a, P1.2's half) and finishImport was
-   * the only result writer. Breadcrumb + ERR log line + a failure result — which also
-   * releases the dwell through the normal CTA path. Token-checked so a superseded
-   * run's throw cannot clobber a newer run's state.
+   * Last-resort backstop for the whole run (p1-review R-23b; reworked by fix-delta
+   * R-38/R-39). Nothing in the pipeline is EXPECTED to throw (every callee guards
+   * internally), but if something ever does, the old shape hung the dwell forever:
+   * PickerStage's catch is unmounted by the stage flip (R-23a, P1.2's half) and
+   * finishImport was the only result writer.
+   *
+   * The catch tells the WHOLE truth (R-38): it takes the run's tally, pushes a
+   * synthetic failure row, and reports through finishImport — so files that already
+   * landed in the store are still shown (amber partial, per-file rows) instead of a
+   * total-failure card that denies them and invites duplicating Retry. finishImport
+   * also pins `stage: 'progress'` (R-39), so a throw landing before the first stage
+   * flip still renders as the failure dwell instead of a nowhere-state; the dwell
+   * then releases through the normal CTA path. Token-checked so a superseded run's
+   * throw cannot clobber a newer run's state.
    */
-  const guardImportRun = async (myGen: number, emitter: ImportLogEmitter, run: () => Promise<void>) => {
+  const guardImportRun = async (
+    myGen: number,
+    emitter: ImportLogEmitter,
+    tally: ImportTally,
+    totalFiles: number,
+    run: () => Promise<void>,
+  ) => {
     try {
       await run()
     } catch (e) {
@@ -526,15 +545,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       const detail = e instanceof Error ? e.message : String(e)
       emitter.log('ERR', '✗ import run threw unexpectedly', detail) // no-op if superseded/reset
       if (importGen.current !== myGen) return
-      setImp((s) => ({
-        ...s,
-        activeStage: 'error',
-        result: {
-          ok: false,
-          error: 'The import failed unexpectedly. Please try again.',
-          details: { stage: s.activeStage ?? 'extracting_text', detail },
-        },
-      }))
+      tally.failures.push({
+        filename: 'import',
+        error: 'The import failed unexpectedly. Please try again.',
+        code: 'UNEXPECTED_ERROR', // bridge-synthesized — the phone's UNKNOWN_ERROR parity
+        details: { stage: lastRealStageRef.current ?? 'extracting_text', detail },
+      })
+      setImp((s) => ({ ...s, activeStage: 'error' }))
+      finishImport(tally, emitter, totalFiles)
     }
   }
 
@@ -550,14 +568,17 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // One log run per import (a batch is ONE run, like the phone). beginRun clears the
     // previous run's retained lines; the emitter self-invalidates when superseded/reset.
     const emitter = importLogBus.beginRun(logClock)
-    await guardImportRun(myGen, emitter, async () => {
-      const total = files.length
+    const total = files.length
+    // Hoisted OUT of the guarded closure (R-38): the catch reports through this tally,
+    // so already-landed files stay visible even when a later file's run throws.
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    await guardImportRun(myGen, emitter, tally, total, async () => {
       if (total > 1) emitter.log('INIT', 'batch import', `${total} files`)
       else emitter.log('INIT', 'reading document…')
-      const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
       for (let i = 0; i < total; i++) {
         if (importGen.current !== myGen) return // cancelled, or a newer run started
-        setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
+        lastRealStageRef.current = 'extracting_text'
+      setImp((s) => ({ ...s, stage: 'progress', batch: { current: i + 1, total }, activeStage: 'extracting_text', lastRealStage: 'extracting_text', acknowledged: false }))
         emitter.log('FILE', `▸ file ${i + 1}/${total} '${files[i].name}'`)
         const res = await runPdfImport(files[i], { live: true, onStage: importStageFor(myGen), emitter })
         if (importGen.current !== myGen) return // cancelled while this file was processing
@@ -586,12 +607,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     const caseNumber = cases.find((c) => c.id === caseId)?.caseNumber ?? '—'
     const myGen = ++importGen.current // this run's token — any bump invalidates it
     const emitter = importLogBus.beginRun(logClock)
-    await guardImportRun(myGen, emitter, async () => {
+    const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
+    await guardImportRun(myGen, emitter, tally, 1, async () => {
       emitter.log('INIT', 'reading pasted text…')
+      lastRealStageRef.current = 'reading_model'
       setImp((s) => ({ ...s, stage: 'progress', batch: null, activeStage: 'reading_model', lastRealStage: 'reading_model', acknowledged: false }))
       const res = await runTextImport({ documentText, live: true, onStage: importStageFor(myGen), emitter })
       if (importGen.current !== myGen) return // cancelled, or a newer run started
-      const tally: ImportTally = { lastLocId: null, notice: undefined, locations: [], failures: [] }
       if (res.ok) await recordSuccess(caseId, caseNumber, res, tally, myGen, emitter)
       else tally.failures.push({ filename: res.filename ?? 'request', error: res.error, code: res.code, details: res.details, partialData: res.partialData })
       if (importGen.current !== myGen) return // invalidated during the geocode — don't overwrite a newer run's result
