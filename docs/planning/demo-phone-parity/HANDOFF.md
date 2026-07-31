@@ -74,7 +74,7 @@ Resume agents with SendMessage using the basename (without `.output`) of their t
 | Fonts (P1.1) — Fable | `a4ac7fe263be102c6.output` |
 | Glass tokens (P0.5) — Fable | `aca36de553446187a.output` |
 | Review-system port (done, resumable for review-system refinement) — Opus | `a388a76a7b0739c99.output` |
-| Verification harness / app driving — Opus | `adf24869c18c6bef3.output` |
+| Verification harness / app driving — Opus **v2** (v1 `adf24869c18c6bef3` hung 4h blocked on a computer-use access dialog, killed; v2 inherits its scripts + booted sim with a hard NO-COMPUTER-USE rule + interim-report duty) | `ac12740426479a4bb.output` |
 | Recon (done): doc-locator / demo-inventory / phone-inventory / parity-matrix — Opus | `ac59c0bc448ce5aed.output` / `a46f0f3ccdc81d89c.output` / `a0257d509da576d42.output` / `a9a9f02d2f5bea836.output` |
 
 Review workflow runs are NOT resumable as agents — each phase runs fresh via the Workflow tool with `scriptPath: <demo>/.claude/workflows/demo-phase-review.js` (see plan §6 for arg shapes; fix-delta needs `mode` + `priorReviewDoc`).
