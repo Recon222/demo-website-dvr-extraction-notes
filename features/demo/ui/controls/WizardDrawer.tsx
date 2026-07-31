@@ -68,15 +68,7 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
   partial: { background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' },
 }
 
-// ---- Media accordion ------------------------------------------------------
-// The phone's CustomDrawerContent.tsx:265-400 — THE entry point to every media surface.
-// Copy, a11y labels and hints are lifted verbatim from there (and ui-mapping 14 §
-// CustomDrawerContent). Icons are the web equivalents of the phone's Ionicons: this drawer
-// has no icon font, and the media rows are the one place in it where the icon carries meaning
-// (camera / mic / folder), so they are drawn as inline SVG in the drawer's existing stroke
-// colour rather than dropped.
-
-const iconStroke = '#99badd'
+// ---- Footer chrome --------------------------------------------------------
 
 /**
  * The app version the demo mirrors — the phone's `app.config.js:11` (`version: '1.0.0'`),
@@ -95,6 +87,16 @@ const SAVE_STATUS_COLOR: Record<SaveStateKind, string> = {
   unavailable: '#c9a227',
   failed: '#c9a227',
 }
+
+// ---- Media accordion ------------------------------------------------------
+// The phone's CustomDrawerContent.tsx:265-400 — THE entry point to every media surface.
+// Copy, a11y labels and hints are lifted verbatim from there (and ui-mapping 14 §
+// CustomDrawerContent). Icons are the web equivalents of the phone's Ionicons: this drawer
+// has no icon font, and the media rows are the one place in it where the icon carries meaning
+// (camera / mic / folder), so they are drawn as inline SVG in the drawer's existing stroke
+// colour rather than dropped.
+
+const iconStroke = '#99badd'
 
 /** Ionicons `albums-outline` — two stacked cards. */
 const AlbumsIcon = () => (
