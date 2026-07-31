@@ -106,6 +106,42 @@ describe('CasesScreen row actions — reveal', () => {
     expect(screen.queryByRole('group', { name: 'Actions for case PR25-A' })).not.toBeInTheDocument()
   })
 
+  it('a TOUCH hold leaves the tray open — the trailing contextmenu must not toggle it shut', () => {
+    // Review R-1, the defect at its call site. A touch hold fires the timer AND raises the OS
+    // `contextmenu`; both rows pass `toggleActions` as the callback, so a second fire read as
+    // open-then-close — the hold on the surface carrying Delete and Duplicate… appeared to do
+    // nothing at all. Desktop mouse never reproduced it (a left release raises no
+    // `contextmenu`), which is why every pre-R-1 test passed.
+    renderScreen({ expandedId: 'c1' })
+    const row = locationRow("Kim's Convenience")
+
+    fireEvent.pointerDown(row, { button: 0 })
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS)
+    })
+    fireEvent.contextMenu(row)
+    fireEvent.pointerUp(row)
+
+    expect(screen.getByRole('group', { name: "Actions for location Kim's Convenience" })).toBeInTheDocument()
+  })
+
+  it('the ⋯ trigger is outside the gesture — holding it does not double-toggle its own tray', () => {
+    // The trigger is a SIBLING of the row button the hook rides, so a press on it never reaches
+    // the hook (R-1's nested-control rule, achieved structurally here). Its own click is all
+    // that runs.
+    renderScreen({ expandedId: 'c1' })
+    const trigger = screen.getByRole('button', { name: "Actions for location Kim's Convenience" })
+
+    fireEvent.pointerDown(trigger, { button: 0 })
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS)
+    })
+    fireEvent.pointerUp(trigger)
+    fireEvent.click(trigger, { detail: 1 })
+
+    expect(screen.getByRole('group', { name: "Actions for location Kim's Convenience" })).toBeInTheDocument()
+  })
+
   it('swallows the click that ends the hold, so the row’s own action never fires', () => {
     // THE trap the phone doesn't have: its swipe and its tap are different gestures, but on the
     // web the hold ends in a click on an already-interactive row.

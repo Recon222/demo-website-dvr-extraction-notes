@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
-import { useLongPress } from '@/features/demo/ui/primitives/useLongPress'
+import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -130,8 +130,11 @@ function CaseRow({
 
   return (
     <div style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
-        <button type="button" onClick={() => onToggle(c.id)} style={{ flex: 1, textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none' }}>
+      {/* The hook rides the BUTTON, not this strip: it is the gesture surface, so its own
+          nested-control rule resolves to "this element" for a press anywhere inside, while the
+          ⋯ trigger beside it stays outside the gesture entirely (R-1). */}
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button type="button" onClick={() => onToggle(c.id)} {...longPress} style={{ flex: 1, textAlign: 'left', padding: 16, cursor: 'pointer', background: 'transparent', border: 'none', ...LONG_PRESS_SURFACE_STYLE }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{c.caseNumber}</div>
@@ -211,8 +214,9 @@ function LocationRow({
 
   return (
     <div style={{ marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }} {...longPress}>
-        <button type="button" onClick={() => onOpenLocation(loc.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+      {/* Same as the case header above: the hook rides the row BUTTON (R-1). */}
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button type="button" onClick={() => onOpenLocation(loc.id)} {...longPress} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', ...LONG_PRESS_SURFACE_STYLE }}>
           <div style={{ flex: 1, marginRight: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
             {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
