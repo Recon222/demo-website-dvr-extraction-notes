@@ -383,7 +383,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
   })
 
   it('import (PDF) failure: no location created, error shown', async () => {
-    runPdf.mockResolvedValue({ ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'scan.pdf' })
+    runPdf.mockResolvedValue({ ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'scan.pdf', code: 'PDF_SCANNED', details: { stage: 'extracting_text', detail: 'This PDF looks scanned.' } })
     const store = createDemoStore()
     const { container } = render(<DemoExperience store={store} />)
     act(() => {

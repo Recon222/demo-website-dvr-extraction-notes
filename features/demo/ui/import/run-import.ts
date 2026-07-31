@@ -84,7 +84,14 @@ export interface ImportPartialData {
   businessName?: string
 }
 
-/** Discriminated on `ok` — a success always carries the patch + counts; a failure carries the error. */
+/**
+ * Discriminated on `ok` — a success always carries the patch + counts; a failure
+ * carries the error. `code`/`details` are REQUIRED on the failure arm (p1-review
+ * R-29): every producer sets both, and optionality let a future failure path compile
+ * while silently dropping the row-79 enrichment (no friendly mapping, no Technical
+ * Details). The modal-level `ImportResult` keeps ITS optionality — DemoExperience
+ * legitimately builds code-less pre-pipeline guard failures there.
+ */
 export type ImportRunResult =
   | { ok: true; patch: MappedImport; fieldCount: number; timeFrameCount: number; warnings: ImportWarning[]; fallbackMode: FallbackMode; filename?: string }
   | {
@@ -93,9 +100,9 @@ export type ImportRunResult =
       warnings: ImportWarning[]
       fallbackMode: FallbackMode
       filename?: string
-      code?: ImportErrorCode
+      code: ImportErrorCode
       /** Raw failure context for the collapsible "Technical Details" block. */
-      details?: ImportErrorDetails
+      details: ImportErrorDetails
       /** Honest partial extraction results for the "Data Found" block. */
       partialData?: ImportPartialData
     }
