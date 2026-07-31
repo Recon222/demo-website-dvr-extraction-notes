@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { NotesScreen, type NotesScreenProps } from '@/features/demo/ui/screens/NotesScreen'
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
@@ -7,6 +7,18 @@ import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
 // The phone's section-editor surface (ui-mapping 08): section states, the five confirm
 // dialogs (exact copy), commit-on-blur-and-unmount, the taken-over banner, Copy all.
+
+// R-29: the clipboard stub is torn down after every test — jsdom's navigator has no
+// own `clipboard`, so restore means deleting the property (or reinstating a captured
+// descriptor if one ever exists).
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+afterEach(() => {
+  if (originalClipboard) {
+    Object.defineProperty(navigator, 'clipboard', originalClipboard)
+  } else {
+    delete (navigator as { clipboard?: unknown }).clipboard
+  }
+})
 
 function meta(over: Partial<NoteSectionMeta> = {}): NoteSectionMeta {
   return {
