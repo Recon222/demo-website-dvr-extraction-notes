@@ -4131,3 +4131,118 @@ sibling tests fail on a `findByTestId` timeout for a completely unrelated notice
 The working shape is a SEPARATE suite file with a top-level `vi.mock`, since vitest's module
 isolation is per file — `DemoExperience.case-map-chunk.test.tsx`. Worth knowing before the next
 agent tries to pin a lazy-import failure inline. **Trigger:** none — this is a note, not a debt.
+
+## 73. P5.2 (parity/p5-tab) — the Export tab: screen states not ported, decisions, and the seam P5.3 closes
+
+**Source:** parity plan §5 P5.2; matrix rows 7, 24, G7; phone `app/(tabs)/export.tsx`,
+`app/(tabs)/_layout.tsx`, `src/features/case-management/export-hub/components/*`, ui-mapping 04.
+Shipped as `features/demo/ui/screens/export/{ExportHub,ExportCaseCard,ExportLocationRow}.tsx`,
+the `TAB_VIEWS`/`TAB_LABELS` registry, and the bridge's selection state. Nothing below is a bug.
+
+### 73a. NOT PORTED — three of the hub's five screen states (loading / error / retry) and pagination
+
+The phone's `ExportHub` renders five states because `useCases` reads SQLite: a spinner until
+`hasLoaded`, an error state AHEAD of empty, a stale-data banner with Retry (BUG-037), and a
+`FlatList` with pull-to-refresh + `onEndReached` pagination. The demo's cases are already in
+memory in the session store and arrive as this render's own input — there is no read that can
+fail, no truncation to page past, and no second writer to refresh from. Faking any of them
+(least of all a "Couldn't load cases" banner over data that loaded fine) is the theatre the
+honesty rule exists to prevent. Empty and list are the two real states. **Trigger:** if the
+demo ever loads cases across an async boundary (a shareable session link, a server-backed
+sample dataset), port the error-ahead-of-empty precedence FIRST — it is the state whose absence
+would be a lie rather than a simplification.
+
+### 73b. NOT PORTED — the row-toggle haptic
+
+`ExportLocationRow.tsx:41` fires `Haptics.impactAsync(Light)` on every toggle, and the phone's
+a11y structure exists partly to guarantee exactly one haptic per press. The web has no
+equivalent that isn't a claim about a device the visitor may not be holding. **Trigger:** none.
+
+### 73c. Headerless by parity (decision, not an omission)
+
+The Export tab is the only tab screen with no title: `export.tsx` renders straight into
+`Screen` with no header, and ui-mapping 04 § Header records it. The demo's other tab screens
+(Cases, Dashboard) have big titles because the phone's do. Recorded so "the Export screen is
+missing its heading" isn't re-raised as a gap.
+
+### 73d. Prune on READ rather than in an effect (decision)
+
+Phone `export.tsx:51-69` re-validates the selection in a `useEffect` keyed on `cases`, because
+its list arrives asynchronously. The bridge instead calls `pruneSelection` in the render body
+(the same rule, one commit earlier), and every write starts from the pruned value rather than
+the raw state — so the state converges without a second render pass and there is never a frame
+in which a deleted location is still tickable. The raw `useState` may briefly hold a superset;
+it is unobservable, and writing it back would be the effect this deliberately avoids.
+**Trigger:** none, unless the demo's case list ever stops being synchronous (see 73a).
+
+### 73e. "This case's locations" is the RENDERED rows, not `DemoCase.locationIds` (decision)
+
+P5.1's brief offered `DemoCase` as a structural `ExportSelectableCase`. The bridge instead
+derives `{ id, locationIds }` from `caseCards` — the same view models the hub renders — and
+passes those to every engine call, while the card computes its tri-state from the rows it is
+drawing. The two are the same data today; deriving from the cards makes it impossible for the
+visible list, the checkbox state and the footer's N to disagree. A selection surface must only
+be able to select what it shows.
+
+### 73f. SEAM(P5.3) — what the modals package replaces, and with what
+
+Two grep-able markers in `ui/DemoExperience.tsx` (`// SEAM(P5.3): export flow dispatch`):
+
+1. `onExportPress` currently raises `EXPORT_RUN_NOTICE` ("Running an export isn't available yet
+   — it lands with the export modals."). P5.3's own seam note names the replacement exactly —
+   `requestExportFlow({ type, … })` keyed on `ExportSelectionPlan.dispatch`
+   (`'case' | 'location' | 'case-subset'`), ids travelling on the request. The join is
+   mechanical: the plan is already resolved once and already names the pipeline; the CTA must
+   NOT re-derive the branch (the export engine's invariant).
+2. `isExporting={false}` on the hub. P5.3 owns the flow state, so nothing can be running yet;
+   the literal becomes `isExporting(flow)` and the hub's already-built disabled treatment (case
+   checkbox, location rows, CTA — deliberately NOT Clear, matching the phone) goes live.
+
+Also for the reconciler: P5.2 retuned `EXPORT_ZIP_NOTICE` / `EXPORT_GEOJSON_NOTICE` from
+"it lands with the Export tab" (now false — the tab is here) to "it lands with the export
+flow". P5.3's `parity/p5-modals` routes those two call sites through the real flow instead;
+**P5.3's version supersedes this one** wherever the two branches touch.
+
+### 73g. RESIDUAL — Clear is not gated on a running export
+
+Ported as observed: the phone leaves the footer's Clear button enabled while every checkbox and
+the CTA lock during a run (`ExportHub.tsx:245-253` has no `disabled`), and ui-mapping 04 records
+it as observed-not-asserted. Kept identical rather than "fixed", so the demo doesn't silently
+diverge on a phone behaviour someone may have chosen. **Trigger:** if the phone ever gates it,
+gate it here in the same change.
+
+### 73h. RESIDUAL — the case status pill reads "Draft" where the phone's badge reads "Active"
+
+`CaseStatusBadge`'s `getStatusConfig` displays `CaseStatus.DRAFT` as **Active** (its own comment
+calls the enum rename a deferred follow-up); the demo's `caseStatusTheme` labels it **Draft**.
+Pre-existing and demo-wide — the Cases list and dashboard cards already read "Draft" — so the
+Export card reuses the same mapper rather than introducing a second vocabulary on one screen.
+**Trigger:** a single change to `screenData.caseStatusTheme` fixes every surface at once; do it
+there, never per-screen.
+
+### 73i. SETTLED — `isChapterId` now asks the registry (fixed here, recorded so it isn't re-derived)
+
+The store's guard was `v !== 'map' && !LAUNCHABLE.includes(v)`: a negative check that classified
+every FUTURE non-chapter view as a chapter. Adding the Export tab made `setView('export')` set
+`currentChapter: 'export'` — the value `closeLaunch()` returns to and the key
+`NARRATION[currentChapter]` is read with. It is now the positive `CHAPTERS.includes(v)`,
+matching `persistence.ts`'s own guard, and pinned by a test that loops the tab-only views rather
+than naming `map`. **No trigger — a decision, recorded because the same shape (a negative
+membership test standing in for a registry lookup) is what rotted.**
+
+### 73j. `TAB_LABELS` (engine) and `TAB_ICONS` (UI) are a pinned pair
+
+Tab order and labels live in `engine/content/screens.ts`; the SVG glyphs cannot (they are JSX —
+the `content/explore.ts` reason), so they live in `TabBar` as a total `Record<TabView, …>`. A tab
+added to the tuple therefore fails to compile until it has both. A test additionally pins that
+the rendered aria-labels equal the registry's, in registry order. **Trigger:** none; if the icon
+set ever moves to name-strings the way `DRAWER_DEFS.icon` does, fold both into one def list.
+
+### 73k. Refutation — ui-mapping 04's error-state copy is stale (the phone won)
+
+Doc line 20 quotes the hub's error state as `Couldn't load cases. Leave and reopen this tab to
+retry.`; the source renders `Couldn't load cases. {error}` plus a Retry button
+(`ExportHub.tsx:174-180`), and the doc's `ExportHub` line citations for the echo row/footer are
+~17 lines short because BUG-037's stale-data banner landed after the mapping. Immaterial to this
+package (73a ports neither state), but recorded so the next reader of that doc doesn't lift the
+dead sentence.

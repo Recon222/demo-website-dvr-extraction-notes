@@ -1,3 +1,4 @@
+import type { AppView } from '@/features/demo/engine/store/create-store'
 import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
 
 /**
@@ -306,4 +307,39 @@ export const MAP_NARRATION: ChapterNarration = {
     'Call / email the requester or contact straight from the card',
   ],
   tip: 'Pick a case, then tap a pin or a row to dive in.',
+}
+
+/**
+ * Rail copy for the **Export** tab (P5.2). Same shape as the map's: a tab destination rather
+ * than a guided chapter, so it lives outside the `ChapterId`-keyed record above.
+ *
+ * Describes the SELECTION surface, which is what this tab really is — deliberately stopping
+ * short of promising a download, because producing the package is a later package and the CTA
+ * says so itself.
+ */
+export const EXPORT_NARRATION: ChapterNarration = {
+  eyebrow: 'Evidence package',
+  title: 'Decide what leaves the building',
+  paras: [
+    'Open a case and tick the locations you need. The header checkbox arms the whole case; individual rows build a subset — and the footer names the exact artifact your selection would produce before you commit to it.',
+    'Arming the case is not the same gesture as ticking every location by hand, and the app keeps them apart: only the case checkbox promises the canonical package, the one that carries the interactive case map.',
+  ],
+  bullets: [
+    'One case at a time — a tick in another case moves the whole selection',
+    'Full case · single location · partial subset, each its own artifact',
+    'The footer states the artifact, the case number and the count before anything runs',
+  ],
+  tip: 'Arm a case from its header checkbox, then untick one location and watch the footer change its promise.',
+}
+
+/**
+ * Rail copy for the views that are NOT guided chapters and therefore cannot live in the
+ * `ChapterId`-keyed `NARRATION` record — the tab-only destinations. The bridge consults this
+ * between the launchable copy and the chapter copy, so an entry here for a view that IS a
+ * chapter would shadow that chapter's own copy: the keys are pinned by test to the tab-only
+ * views for exactly that reason.
+ */
+export const TAB_NARRATION: Partial<Record<AppView, ChapterNarration>> = {
+  map: MAP_NARRATION,
+  export: EXPORT_NARRATION,
 }

@@ -1,5 +1,5 @@
 import type { Variants } from 'motion/react'
-import { CHAPTERS, LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { CHAPTERS, LAUNCHABLE, isTabView, type TabView } from '@/features/demo/engine/content/screens'
 import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
 
 /**
@@ -12,8 +12,9 @@ import type { ChapterId, LaunchableId } from '@/features/demo/engine/types'
 
 export type SlideDirection = 'forward' | 'back' | 'none'
 
-// Includes the tab-only 'map' view: it has no tour position, so it intentionally fades ('none').
-type ViewId = ChapterId | LaunchableId | 'map'
+// Includes the tab-only views (Map, Export): they have no tour position, so they intentionally
+// fade ('none').
+type ViewId = ChapterId | LaunchableId | TabView
 
 /**
  * Direction of a screen change, from position in the tour order:
@@ -31,7 +32,7 @@ export function slideDirection(prev: ViewId, next: ViewId): SlideDirection {
   const a = order.indexOf(prev)
   const b = order.indexOf(next)
   if (process.env.NODE_ENV === 'development') {
-    const known = (id: string) => id === 'map' || order.includes(id) || (LAUNCHABLE as readonly string[]).includes(id)
+    const known = (id: string) => isTabView(id) || order.includes(id) || (LAUNCHABLE as readonly string[]).includes(id)
     for (const v of [prev, next]) {
       if (!known(v)) {
         console.warn(

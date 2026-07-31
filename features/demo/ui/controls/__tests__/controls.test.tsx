@@ -1,15 +1,37 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
+import { TAB_LABELS, TAB_VIEWS } from '@/features/demo/engine/content/screens'
 import { WizardDrawer, type DrawerItem } from '@/features/demo/ui/controls/WizardDrawer'
 
 describe('TabBar', () => {
-  it('renders the three tabs and calls onSelect', () => {
+  it('renders the four tabs and calls onSelect', () => {
     const onSelect = vi.fn()
     render(<TabBar active="cases" onSelect={onSelect} />)
     fireEvent.click(screen.getByLabelText('Dashboard'))
     expect(onSelect).toHaveBeenCalledWith('dashboard')
     expect(screen.getByLabelText('Map')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Export'))
+    expect(onSelect).toHaveBeenCalledWith('export')
+  })
+
+  it('takes its order and labels from the registry, and gives every tab an icon', () => {
+    // Order is DERIVED (TAB_VIEWS), never hand-listed in the component — the 4th tab needed no
+    // new button here and a 5th won't either.
+    const { container } = render(<TabBar active="export" onSelect={vi.fn()} />)
+    const buttons = Array.from(container.querySelectorAll('button'))
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(TAB_VIEWS.map((t) => TAB_LABELS[t]))
+    for (const b of buttons) expect(b.querySelector('svg'), `${b.getAttribute('aria-label')} has no icon`).not.toBeNull()
+  })
+
+  it('highlights the active tab only', () => {
+    const { container } = render(<TabBar active="export" onSelect={vi.fn()} />)
+    const stroke = (label: string) => {
+      const svg = container.querySelector(`button[aria-label="${label}"] svg`)!
+      return svg.getAttribute('stroke') ?? svg.getAttribute('fill')
+    }
+    expect(stroke('Export')).toBe('#4BA3D4')
+    expect(stroke('Map')).toBe('#5d7a9a')
   })
 })
 

@@ -61,4 +61,8 @@ export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   // no-location gate (a toast, not an empty sheet) on the one path that can hit it.
   { id: 'mediaLibrary', label: 'Media Library', covers: ['mediaLibrary'], jumpTo: 'submission' },
   { id: 'map', label: 'Case Map', covers: ['map'], jumpTo: 'map' },
+  // The Export tab (P5.2) — the 4th tab, and a destination in its own right, so it earns a row
+  // exactly as the map did. Listed last because it is the last tab; the run itself lands with
+  // P5.3, but the row is honest today: the tab exists and does what its rail copy describes.
+  { id: 'export', label: 'Export', covers: ['export'], jumpTo: 'export' },
 ]

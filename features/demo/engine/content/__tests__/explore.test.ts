@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
-import { CHAPTERS, WIZARD_SCREENS, LAUNCHABLE, DRAWER_DEFS } from '@/features/demo/engine/content/screens'
+import { CHAPTERS, WIZARD_SCREENS, LAUNCHABLE, DRAWER_DEFS, TAB_VIEWS } from '@/features/demo/engine/content/screens'
 import type { ModalId } from '@/features/demo/engine/types'
 
 // The exploration-manifest registry: the rail checklist's single source of truth.
 // Array order = numbering (repo convention — same as WIZARD_SCREENS and the marketing
 // feature catalog). These invariants are what make future additions safe: the owner
 // adds/regroups items freely; the cross-registry checks catch typos at test time.
-const KNOWN_TARGETS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map'])
+const KNOWN_TARGETS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, ...TAB_VIEWS])
 /** Exhaustive by construction, like `MODAL_IDS` in `store/persistence.ts`: a new `ModalId`
  *  is a COMPILE error here, which forces whoever adds one to decide whether the manifest
  *  should list it. The previous hand-written trio had already rotted — `editIncident`,
@@ -22,7 +22,7 @@ const MODAL_ID_SET: Record<ModalId, true> = {
   duplicateLocation: true,
   newAddressLocation: true,
 }
-const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, 'map', ...Object.keys(MODAL_ID_SET)])
+const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, ...TAB_VIEWS, ...Object.keys(MODAL_ID_SET)])
 
 describe('EXPLORE_ITEMS registry', () => {
   it('every jumpTo is a known view and every covers id is a known view/modal/launchable', () => {
@@ -48,10 +48,12 @@ describe('EXPLORE_ITEMS registry', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 
-  it('lists every wizard screen (labels shared with the drawer) plus dashboard, cases, import, and map', () => {
+  it('lists every wizard screen (labels shared with the drawer) plus every tab and import', () => {
     const ids = EXPLORE_ITEMS.map((i) => i.id)
     for (const w of WIZARD_SCREENS) expect(ids, `wizard screen "${w}" missing`).toContain(w)
-    for (const core of ['dashboard', 'cases', 'import', 'map']) expect(ids).toContain(core)
+    // Every tab destination is reachable from the manifest, not just the ones that predate it.
+    for (const t of TAB_VIEWS) expect(ids, `tab "${t}" missing`).toContain(t)
+    expect(ids).toContain('import')
     // Labels for wizard rows come from DRAWER_DEFS — one source, the drawer and the
     // manifest can never disagree.
     for (const d of DRAWER_DEFS) {
@@ -80,11 +82,12 @@ describe('EXPLORE_ITEMS registry', () => {
     expect(ids.slice(0, 5)).toEqual(['dashboard', 'cases', 'newCase', 'newLocation', 'import'])
   })
 
-  it('lists the three media surfaces after the wizard steps and before the map (§63g)', () => {
+  it('lists the three media surfaces after the wizard steps, then the tab-only destinations (§63g)', () => {
     const ids = EXPLORE_ITEMS.map((i) => i.id)
     // Positional, because the numbering is: the accordion sits after the step list in the
-    // drawer, so it sits after the step rows here.
-    expect(ids.slice(-4)).toEqual(['mediaCapture', 'audioRecording', 'mediaLibrary', 'map'])
+    // drawer, so it sits after the step rows here. Map and Export close the list — the two
+    // tabs that are not also chapters, in tab-bar order (P5.2).
+    expect(ids.slice(-5)).toEqual(['mediaCapture', 'audioRecording', 'mediaLibrary', 'map', 'export'])
     // …and after the LAST wizard screen specifically, not merely somewhere later.
     expect(ids.indexOf('mediaCapture')).toBe(ids.indexOf(WIZARD_SCREENS[WIZARD_SCREENS.length - 1]) + 1)
   })

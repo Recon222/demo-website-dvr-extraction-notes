@@ -8,8 +8,8 @@ import {
   type RestoreAllMode,
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
-import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
+import { isLaunchableId, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -58,6 +58,15 @@ import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/l
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
+import { ExportHub, type ExportFooterView } from '@/features/demo/ui/screens/export/ExportHub'
+import {
+  pruneSelection,
+  resolveExportPlan,
+  toggleCaseSelection,
+  toggleLocationSelection,
+  type ExportSelectableCase,
+  type ExportSelection,
+} from '@/features/demo/engine/logic/export'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
@@ -214,10 +223,20 @@ const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source loca
  * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
  * location-level export entry point, and hiding the section would misrepresent the surface —
  * but they resolve to an honest notice instead of a fabricated download, the same treatment the
- * map gives Call/Email. Re-point them at the real flows when the Export tab lands (P5).
+ * map gives Call/Email. Re-point them at the real flows when those land (P5.3 / P5.4).
+ *
+ * P5.2 retuned the copy: the Export tab now EXISTS, so promising these "land with the Export
+ * tab" while standing next to a built one would be the lie the honesty rule exists to prevent.
+ * What is still missing is the run itself.
  */
-const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
-const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the export flow."
+const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the export flow."
+/**
+ * SEAM(P5.3): the Export tab CTA's interim answer. The selection, the artifact decision and the
+ * footer are all real; the RUN is P5.3's package, so the press says so instead of miming
+ * progress. P5.3 deletes this constant when the flow replaces the handler.
+ */
+const EXPORT_RUN_NOTICE = "Running an export isn't available yet — it lands with the export modals."
 /**
  * The map's "Export Map" outcomes (P5.4). Unlike the two stubs above, this export is REAL —
  * the visitor ends up holding the file — so the copy is the phone's, plus whatever is true
@@ -405,6 +424,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
   const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
+  /**
+   * The Export tab's selection (P5.2). Tab-local and EPHEMERAL, exactly as the phone declares
+   * it — "never persisted; the Map tab's mapViewerCaseId precedent" (`app/(tabs)/export.tsx:37`)
+   * — so it lives beside `mapViewerCaseId` above rather than in the store: no slice, and
+   * nothing added to the sessionStorage snapshot. A selection that must be re-validated against
+   * the live data every time that data changes is state that only makes sense alongside it.
+   */
+  const [exportSelection, setExportSelection] = useState<ExportSelection | null>(null)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   // Which case the New Case sheet is serving. One modal id, two modes — the phone's own
@@ -524,13 +551,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
   // else an open LAUNCH SCREEN with an entry shows its own (§60k — the OCR camera; the two
-  // media launchables carry no entry by decision §59e and fall through), else the Map tab its
-  // contextual copy, else the current chapter's. The ?? guards an id with no narration
-  // entry — falls back to the chapter rather than blanking.
+  // media launchables carry no entry by decision §59e and fall through), else a TAB-ONLY
+  // destination (Map, Export) its contextual copy, else the current chapter's. Each ?? guards
+  // an id with no narration entry — it falls back to the chapter rather than blanking.
   const narration =
     (modal && MODAL_NARRATION[modal]) ??
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
-    (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+    TAB_NARRATION[view] ??
+    NARRATION[currentChapter]
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
   // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
@@ -551,6 +579,50 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+
+  // ---- Export tab (P5.2, matrix rows 7/24) ------------------------------------------------
+  /**
+   * What the export machine counts as "this case's locations": the rows the hub RENDERS.
+   * Derived from `caseCards` rather than straight from `DemoCase.locationIds` so the visible
+   * list, the tri-state checkbox and the footer's N can never disagree — a selection surface
+   * must only be able to select what it shows.
+   */
+  const exportCases = useMemo<ExportSelectableCase[]>(
+    () => caseCards.map((c) => ({ id: c.id, locationIds: c.locations.map((l) => l.id) })),
+    [caseCards],
+  )
+  /**
+   * Prune on READ rather than in an effect. The phone re-validates in a `useEffect` keyed on
+   * `cases` (`export.tsx:51-69`) because its list arrives asynchronously from SQLite; here the
+   * store IS this render's input, so the same rule runs as a derivation — no extra commit, and
+   * no window in which a deleted location is still tickable. `pruneSelection` returns the same
+   * reference when nothing changed, so this costs no identity churn. Every write below starts
+   * from this pruned value, never from the raw state, so the state converges on its own.
+   */
+  const exportView = pruneSelection(exportSelection, exportCases)
+  const armedExportCase = exportView ? (caseCards.find((c) => c.id === exportView.caseId) ?? null) : null
+  /**
+   * ONE decision for the footer AND the dispatch (the export engine's invariant): the artifact
+   * descriptor, the detail line, the CTA label and the pipeline a press runs are all the same
+   * `ExportSelectionPlan`. Nothing downstream re-derives the full-case / single / subset branch.
+   */
+  const exportFooter: ExportFooterView | null =
+    exportView && armedExportCase
+      ? { caseNumber: armedExportCase.caseNumber, plan: resolveExportPlan(exportView, armedExportCase.locations.length) }
+      : null
+  const toggleExportLocation = (caseId: string, locationId: string) =>
+    setExportSelection(toggleLocationSelection(exportView, caseId, locationId))
+  const toggleExportCase = (caseId: string) => setExportSelection(toggleCaseSelection(exportView, exportCases, caseId))
+  /**
+   * SEAM(P5.3): export flow dispatch.
+   *
+   * `exportFooter.plan.dispatch` already names the pipeline this press should run
+   * ('case' | 'location' | 'case-subset'). P5.3 owns `ExportFlowState`, the export modal stack
+   * and the run itself, and replaces this body with the flow request keyed on that field —
+   * the decision does NOT get made a second time here. Until then the press is answered
+   * honestly rather than silently swallowed: no fake progress, no fabricated ZIP.
+   */
+  const onExportPress = () => setNotice(EXPORT_RUN_NOTICE)
   // The open sheet's read-only report. Recomputed from the store, so a status action's
   // result is visible the instant it lands (the phone needs a refetch + toast for this).
   const actionSheetCase = useMemo(() => {
@@ -1697,7 +1769,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     })
   }
 
-  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
+  // The tab bar shows exactly on the tab destinations — derived from the registry (`TAB_VIEWS`),
+  // so the 4th tab needed no new arm here and a 5th won't either.
+  const tabView = isTabView(view) ? view : null
 
   function activeScreen() {
     // R-35: a wizard screen with no open location is a dead form (every keystroke silently
@@ -1967,6 +2041,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       case 'map':
         return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} />
+      case 'export':
+        return (
+          <ExportHub
+            cases={caseCards}
+            selection={exportView}
+            footer={exportFooter}
+            // SEAM(P5.3): export flow dispatch — nothing can be running until P5.3 owns the
+            // flow state, so this is a literal rather than a fabricated busy state.
+            isExporting={false}
+            onToggleCase={toggleExportCase}
+            onToggleLocation={toggleExportLocation}
+            onClearSelection={() => setExportSelection(null)}
+            onExportPress={onExportPress}
+          />
+        )
       default:
         return placeholder(view)
     }
@@ -2117,7 +2206,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
-          tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
+          tabBar={tabView ? <TabBar active={tabView} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           {/* Catches render throws in the mounted screen subtree — screen/modal/drawer/
               overlay COMPONENT renders, incl. portaled modals (portal errors propagate

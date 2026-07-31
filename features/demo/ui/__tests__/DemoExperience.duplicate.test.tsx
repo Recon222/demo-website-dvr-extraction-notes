@@ -369,8 +369,10 @@ describe('DemoExperience — location action chooser', () => {
 
   describe('the two export actions (honest, not fake — plan D4)', () => {
     it.each([
-      ['Export ZIP', "Export ZIP isn't available yet — it lands with the Export tab."],
-      ['Export GeoJSON', "Export GeoJSON isn't available yet — it lands with the Export tab."],
+      // Copy retuned by P5.2: the Export TAB now exists, so the notice names what is still
+      // missing (the run) instead of a surface the visitor can already open.
+      ['Export ZIP', "Export ZIP isn't available yet — it lands with the export flow."],
+      ['Export GeoJSON', "Export GeoJSON isn't available yet — it lands with the export flow."],
     ])('%s closes the chooser and says what is really true', (label, message) => {
       const { store } = setup()
       render(<DemoExperience store={store} />)
