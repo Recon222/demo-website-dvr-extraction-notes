@@ -691,6 +691,43 @@ describe('camera release while a capture is under review (R-7)', () => {
     expect(screen.getByLabelText('Live camera preview')).toBeInTheDocument()
   })
 
+  it('reopens the camera the VISITOR chose, not the browser default (FD-3)', async () => {
+    // The reopen was unpinned: `close()` keeps `selectedDeviceId`, so a bare `open()` came back
+    // on the default lens and the caption underneath silently followed it. Nothing asserted
+    // device identity across the round trip, so the swap was invisible to the suite too.
+    const h = harness({
+      live: true,
+      devices: [deviceInfo('cam-a', 'FaceTime HD'), deviceInfo('cam-b', 'Rear')],
+    })
+    mount(h)
+    await grant()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Switch camera' }))
+    })
+    expect(screen.getByText('Rear')).toBeInTheDocument()
+
+    const preview = screen.getByLabelText('Live camera preview')
+    Object.defineProperty(preview, 'videoWidth', { value: 640, configurable: true })
+    Object.defineProperty(preview, 'videoHeight', { value: 480, configurable: true })
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
+    })
+
+    // Open #1 unpinned (first acquisition), #2 the switch, #3 the reopen — which must carry the
+    // chosen device. `exact`, so an unplugged camera fails loudly as NO_DEVICE and routes to the
+    // honest panel rather than quietly opening a different lens.
+    expect(h.getUserMedia).toHaveBeenCalledTimes(3)
+    expect(h.getUserMedia.mock.calls[2][0]).toEqual({
+      video: { deviceId: { exact: 'cam-b' } },
+      audio: true,
+    })
+    expect(screen.getByText('Rear')).toBeInTheDocument()
+  })
+
   it('never opens a camera the visitor never had — the sample path retake stays silent', async () => {
     // The latch is the point: reopening unconditionally would fire a permission prompt at a
     // visitor who has been on the bundled sample the whole time and never asked for a camera.

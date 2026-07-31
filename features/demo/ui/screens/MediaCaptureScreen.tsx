@@ -253,6 +253,13 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
    * WE closed is reopened, so a sample-path visitor — who never had one — is never met with a
    * surprise permission prompt on Retake. `stopRecording` resolves its capture before this
    * fires, so there is no ordering hazard with the recorder.
+   *
+   * The reopen is PINNED to the device the visitor chose (review FD-3). `close()` deliberately
+   * leaves `selectedDeviceId` intact, so a bare `open()` would re-acquire the browser default
+   * and the caption underneath would silently follow it — the visitor's Switch-camera choice
+   * undone by a Retake, with nothing saying so. Pinning is `exact` inside `captureConstraints`,
+   * which is the point: a camera unplugged during review now fails loudly as `NO_DEVICE` and
+   * routes to the honest unavailable panel, rather than quietly opening a different lens.
    */
   const reopenAfterReviewRef = useRef(false)
   useEffect(() => {
@@ -263,9 +270,9 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
       }
     } else if (reopenAfterReviewRef.current) {
       reopenAfterReviewRef.current = false
-      void open()
+      void open(selectedDeviceId ?? undefined)
     }
-  }, [captured, stream, close, open])
+  }, [captured, stream, close, open, selectedDeviceId])
 
   const runBusy = useCallback(async (work: () => Promise<unknown>) => {
     setBusy(true)

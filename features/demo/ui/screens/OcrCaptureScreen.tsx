@@ -243,9 +243,12 @@ export function OcrCaptureScreen({
       }
     } else if (reopenOnAimRef.current) {
       reopenOnAimRef.current = false
-      void open()
+      // Pinned to the device the visitor chose (review FD-3, twin of the capture screen's):
+      // `close()` keeps `selectedDeviceId`, so a bare `open()` would silently drop them back
+      // to the browser default on Retake while the caption followed along.
+      void open(selectedDeviceId ?? undefined)
     }
-  }, [result, stream, close, open])
+  }, [result, stream, close, open, selectedDeviceId])
 
   const runLiveCapture = useCallback(
     async (video: HTMLVideoElement) => {
