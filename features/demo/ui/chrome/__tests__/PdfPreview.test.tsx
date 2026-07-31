@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
@@ -22,6 +22,14 @@ function stubDialogPrint(win: StubbableFrameWindow) {
   })
   win.print = print
   return print
+}
+
+/** Flush one macrotask inside act() — long enough for the component's deferred blocked-verdict
+ *  (and any deferred `beforeprint` dispatch scheduled before it) to settle (R-36). */
+async function settlePrintVerdict() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 describe('PdfPreview', () => {
@@ -126,14 +134,41 @@ describe('PdfPreview', () => {
       expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
     })
 
-    it('treats a print() that returns without opening the dialog as blocked — silent-ignore is not success (R-12)', () => {
+    it('treats a print() that returns without opening the dialog as blocked — silent-ignore is not success (R-12)', async () => {
       // Chromium's sandboxed behaviour: "Ignored call to 'print()'" — the call returns normally,
-      // no dialog, no beforeprint. Absence-of-throw must not be rewarded as a save.
+      // no dialog, no beforeprint. Absence-of-throw must not be rewarded as a save. The verdict
+      // is deferred one macrotask (R-36), hence the findBy.
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
       const win = frameWindow(container)
       win.print = vi.fn()
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
-      expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
+      expect(await screen.findByRole('status')).toHaveTextContent(/no PDF was saved/i)
+    })
+
+    it('does not brand the save "blocked" on an engine without the print events — no positive signal exists to read (R-36)', async () => {
+      // ~Safari/iOS ≤12-era engines never fire beforeprint. There the component must degrade to
+      // absence-of-throw (pre-R-12 behaviour) rather than report every successful save as blocked.
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      delete (win as { onbeforeprint?: unknown }).onbeforeprint // capability probe now fails
+      win.print = vi.fn()
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      await settlePrintVerdict()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('waits one macrotask for a deferred beforeprint — engines postpone printing while the frame is still loading (R-36)', async () => {
+      // Blink/WebKit defer the printing steps (and the beforeprint they fire) when print() is
+      // called on a frame that has not finished loading. The signal arriving a task late must
+      // not produce a definitive "no PDF was saved" over a dialog that then opens.
+      const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
+      const win = frameWindow(container)
+      win.print = vi.fn(() => {
+        setTimeout(() => win.dispatchEvent(new Event('beforeprint')), 0)
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      await settlePrintVerdict()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
     it('returns focus to the Save button after printing — Escape-to-close must survive a save — R-16', () => {
@@ -160,7 +195,7 @@ describe('PdfPreview', () => {
       expect(document.activeElement).toBe(saveBtn)
     })
 
-    it('a silently-ignored retry does NOT clear a prior failure notice (never a fake success) — R-12', () => {
+    it('a silently-ignored retry does NOT clear a prior failure notice (never a fake success) — R-12', async () => {
       const { container } = render(<PdfPreview title="t" html="<p>d</p>" onClose={vi.fn()} />)
       const win = frameWindow(container)
       win.print = () => {
@@ -170,6 +205,7 @@ describe('PdfPreview', () => {
       expect(screen.getByRole('status')).toBeInTheDocument()
       win.print = vi.fn() // second attempt swallowed silently — two failed saves, notice must survive
       fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
+      await settlePrintVerdict() // the deferred verdict must re-affirm the notice, not clear it
       expect(screen.getByRole('status')).toHaveTextContent(/no PDF was saved/i)
     })
   })
