@@ -19,6 +19,11 @@ export interface AddressPick {
   city: string
   /** [lng, lat] from the Mapbox retrieve feature — geocoded coordinates, when present. */
   coordinates?: { lng: number; lat: number }
+  /** Accuracy estimate in metres for those coordinates — present ONLY for a rooftop match.
+   *  Verbatim port of phone `mapbox-service.ts:246-247` ("Set accuracy estimate for rooftop
+   *  geocoding (approximately 5 meters)"); any other match quality carries no accuracy at all
+   *  rather than a made-up number. */
+  accuracyM?: number
 }
 
 interface Suggestion {
@@ -53,6 +58,7 @@ export function pickFromFeature(feature: unknown): AddressPick {
     streetAddress: ctx.address?.name ?? (typeof p.name === 'string' ? p.name : '') ?? '',
     city: ctx.place?.name ?? '',
     coordinates: extractCoordinates(f),
+    accuracyM: p.accuracy === 'rooftop' ? 5 : undefined,
   }
 }
 

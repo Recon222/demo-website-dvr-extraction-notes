@@ -736,7 +736,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: 0, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []

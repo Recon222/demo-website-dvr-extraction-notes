@@ -24,8 +24,9 @@ export interface SubmissionScreenProps {
   onNext(): void
   onBack(): void
   onMenu(): void
-  /** Fires when an address pick yields geocoded coordinates for this recovery location. */
-  onPickCoords(coords: { lat: number; lng: number }): void
+  /** Fires when an address pick yields geocoded coordinates for this recovery location.
+   *  `accuracyM` is present only for a rooftop match (see AddressAutocomplete). */
+  onPickCoords(coords: { lat: number; lng: number; accuracyM?: number }): void
 }
 
 export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, onMenu, onPickCoords }: SubmissionScreenProps) {
@@ -53,7 +54,7 @@ export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, 
             onPick={(p) => {
               onChange('streetAddress', p.streetAddress)
               onChange('city', p.city)
-              if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng })
+              if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM })
             }}
             placeholder="Start typing an address…"
           />

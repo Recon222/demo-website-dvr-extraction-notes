@@ -158,7 +158,7 @@ describe('coordinates', () => {
     expect(store.getState().cases.find((c) => c.id === id)?.incidentCoordinates).toBeUndefined()
   })
 
-  it('addLocation persists gps (accuracyM 0) when provided', () => {
+  it('addLocation persists gps as given — no fabricated accuracy for a geocoded pick', () => {
     const store = freshStore()
     const caseId = store.getState().createCase(newCaseInput())
     const locId = store.getState().addLocation(caseId, {
@@ -168,7 +168,6 @@ describe('coordinates', () => {
     expect(store.getState().locations.find((l) => l.id === locId)?.gps).toEqual({
       lat: 43.6087,
       lng: -79.6505,
-      accuracyM: 0,
       source: 'geocoded',
     })
   })
@@ -184,12 +183,12 @@ describe('coordinates', () => {
     const store = freshStore()
     const caseId = store.getState().createCase(newCaseInput())
     store.getState().addLocation(caseId, newLocationInput())
-    store.getState().updateField('gps', { lat: 43.7, lng: -79.4, accuracyM: 0, source: 'geocoded' })
+    store.getState().updateField('gps', { lat: 43.7, lng: -79.4, accuracyM: 8, source: 'gps' })
     expect(selectCurrentLocation(store.getState())?.gps).toEqual({
       lat: 43.7,
       lng: -79.4,
-      accuracyM: 0,
-      source: 'geocoded',
+      accuracyM: 8,
+      source: 'gps',
     })
   })
 })

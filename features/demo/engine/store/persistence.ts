@@ -58,9 +58,11 @@ export const PERSISTENCE_ENABLED = true
 
 /** Bump `SNAPSHOT_VERSION` (and the key's suffix with it) on any incompatible
  *  `PersistedState` shape change: older snapshots are then discarded silently at boot.
- *  v2: `LocationForm.completed` (R-1 — location-scoped completion gate). */
-export const SNAPSHOT_VERSION = 2
-export const SNAPSHOT_KEY = 'dvr-demo-state-v2'
+ *  v2: `LocationForm.completed` (R-1 — location-scoped completion gate).
+ *  v3: `GpsCoordinates.accuracyM` optional (P2.3 — a coordinate whose accuracy nobody
+ *      measured no longer carries a fabricated `0`). */
+export const SNAPSHOT_VERSION = 3
+export const SNAPSHOT_KEY = 'dvr-demo-state-v3'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -168,7 +170,7 @@ const cameraEntrySchema: z.ZodType<CameraEntry> = z.object({
   resolution: z.string(),
   recordingFps: z.string(),
   gps: z
-    .object({ lat: z.number(), lng: z.number(), accuracyM: z.number() } satisfies FullShape<
+    .object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() } satisfies FullShape<
       NonNullable<CameraEntry['gps']>
     >)
     .optional(),
@@ -271,7 +273,7 @@ const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
     .object({
       lat: z.number(),
       lng: z.number(),
-      accuracyM: z.number(),
+      accuracyM: z.number().optional(),
       source: z.enum(GPS_SOURCES),
     } satisfies FullShape<NonNullable<DemoLocation['gps']>>)
     .optional(),

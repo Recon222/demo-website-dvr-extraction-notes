@@ -8,12 +8,15 @@ vi.mock('@/features/demo/ui/inputs/AddressAutocomplete', () => ({
     label: string
     value: string
     onChange(v: string): void
-    onPick(p: { streetAddress: string; city: string; coordinates?: { lng: number; lat: number } }): void
+    onPick(p: { streetAddress: string; city: string; coordinates?: { lng: number; lat: number }; accuracyM?: number }): void
   }) => (
     <div>
       <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
       <button type="button" onClick={() => onPick({ streetAddress: '1450 Eglinton Ave W', city: 'Mississauga', coordinates: { lng: -79.6505, lat: 43.6087 } })}>
         mock-pick
+      </button>
+      <button type="button" onClick={() => onPick({ streetAddress: '1450 Eglinton Ave W', city: 'Mississauga', coordinates: { lng: -79.6505, lat: 43.6087 }, accuracyM: 5 })}>
+        mock-pick-rooftop
       </button>
     </div>
   ),
@@ -37,7 +40,24 @@ describe('DemoExperience — geocoded coordinates bridge', { timeout: 20000 }, (
     fireEvent.click(screen.getByText('Create Location'))
 
     const loc = store.getState().locations.find((l) => l.locationName === 'Rear Door')
-    expect(loc?.gps).toEqual({ lat: 43.6087, lng: -79.6505, accuracyM: 0, source: 'geocoded' })
+    // No accuracyM: a non-rooftop geocode measured nothing, and the demo stores no placeholder
+    // for it (a "±0m · Excellent" chip would be fabricated precision).
+    expect(loc?.gps).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+  })
+
+  it('carries the rooftop accuracy estimate through a New Location pick', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-ROOF', displayName: 'X', unit: 'Robbery' })
+      store.getState().openModal('newLocation')
+    })
+    fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'Roof Cam' } })
+    fireEvent.click(screen.getByText('mock-pick-rooftop'))
+    fireEvent.click(screen.getByText('Create Location'))
+
+    const loc = store.getState().locations.find((l) => l.locationName === 'Roof Cam')
+    expect(loc?.gps).toEqual({ lat: 43.6087, lng: -79.6505, accuracyM: 5, source: 'geocoded' })
   })
 
   it('a Submission address pick updates the current location gps', () => {
@@ -51,6 +71,6 @@ describe('DemoExperience — geocoded coordinates bridge', { timeout: 20000 }, (
     fireEvent.click(screen.getByText('mock-pick'))
 
     const loc = store.getState().locations.find((l) => l.locationName === 'Front Counter')
-    expect(loc?.gps).toEqual({ lat: 43.6087, lng: -79.6505, accuracyM: 0, source: 'geocoded' })
+    expect(loc?.gps).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
   })
 })
