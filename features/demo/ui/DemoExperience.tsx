@@ -801,8 +801,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             dvrTime: reading.dvrTime,
             confidence: { label: conf.message, color: conf.color },
             actual,
-            assumedDate: reading.assumedDate,
-            ambiguity: reading.ambiguity,
+            resolution: reading.resolution,
           }
         : { ok: false, rawText: cleaned },
     )
@@ -811,7 +810,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const confirmOcr = () => {
     // Same gate the CTA is disabled by — enforced here too so the commit path, not just the
     // button, is what refuses an empty draft or an unconfirmed assumed date.
-    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.assumedDate, ocrDateConfirmed)) return
+    if (!ocrResult?.ok || !isDvrDraftCommittable(ocrDraft, ocrResult.resolution, ocrDateConfirmed)) return
     const st = store.getState()
     st.updateField('capture.method', 'ocr')
     if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', ocrResult.actual)

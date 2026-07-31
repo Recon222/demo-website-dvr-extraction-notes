@@ -82,8 +82,7 @@ describe('OcrCaptureScreen', () => {
     dvrTime: '2025-03-08 12:05:30',
     confidence: { label: 'High', color: '#10d177' },
     actual: '2025-03-08 12:00:00',
-    assumedDate: null,
-    ambiguity: null,
+    resolution: { kind: 'exact' } as const,
   }
   /** A low-confidence resolution — what `disambiguateDateFormat` returns for a stale year. */
   const ambiguity = {
@@ -156,14 +155,14 @@ describe('OcrCaptureScreen', () => {
   })
 
   it('renders the ambiguity warning when the resolver was unsure', () => {
-    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, ambiguity }} />)
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity } }} />)
     expect(screen.getByText('Date Format Ambiguity Detected')).toBeInTheDocument()
     expect(screen.getByText(/Jun 7, 2024 \(MM-DD\)/)).toBeInTheDocument()
     expect(screen.getByText('Jul 6, 2024')).toBeInTheDocument()
   })
 
   it('stays silent when the resolver was confident', () => {
-    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, ambiguity: { ...ambiguity, confidence: 'high' } }} />)
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity: { ...ambiguity, confidence: 'high' } } }} />)
     expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
   })
 
@@ -175,7 +174,7 @@ describe('OcrCaptureScreen', () => {
   it('holds the commit until an assumed date is confirmed', () => {
     const onConfirm = vi.fn()
     const onConfirmDate = vi.fn()
-    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', assumedDate: '2026-07-31' }
+    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', resolution: { kind: 'assumed-date', assumedDate: '2026-07-31' } } as const
     const { rerender } = render(
       <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
     )
@@ -195,7 +194,7 @@ describe('OcrCaptureScreen', () => {
 
   it('also releases the commit when the operator corrects the assumed date instead of confirming it', () => {
     const onConfirm = vi.fn()
-    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', assumedDate: '2026-07-31' }
+    const timeOnly = { ...parsed, dvrTime: '2026-07-31 12:05:30', resolution: { kind: 'assumed-date', assumedDate: '2026-07-31' } } as const
     // dateConfirmed stays false — the draft's date no longer IS the assumption.
     render(<OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2025-03-08 12:05:30" onConfirm={onConfirm} />)
     expect(screen.getByText('Manually edited')).toBeInTheDocument()

@@ -4,8 +4,7 @@ import type { CSSProperties } from 'react'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
-import type { DateDisambiguationResult } from '@/features/demo/engine/logic/date-disambiguation'
-import { isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
+import { isDvrDraftCommittable, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
 import type { OcrSampleFrame } from '@/features/demo/engine/content/seed'
 
 export type OcrResult =
@@ -15,10 +14,8 @@ export type OcrResult =
       dvrTime: string
       confidence: { label: string; color: string }
       actual: string
-      /** Set when the frame carried no date: the assumed date the operator must confirm. */
-      assumedDate: string | null
-      /** Set when the date digits were ambiguous; drives the inline warning. */
-      ambiguity: DateDisambiguationResult | null
+      /** What the reader had to assume — drives the warning/blocker, exactly one at a time. */
+      resolution: DvrDateResolution
     }
   | { ok: false; rawText: string }
 
@@ -60,7 +57,7 @@ export function OcrCaptureScreen({
 }: OcrCaptureScreenProps) {
   if (result) {
     // The commit gate is the engine's (`isDvrDraftCommittable`) — this screen only reflects it.
-    const canCommit = result.ok && isDvrDraftCommittable(dvrDraft, result.assumedDate, dateConfirmed)
+    const canCommit = result.ok && isDvrDraftCommittable(dvrDraft, result.resolution, dateConfirmed)
     const dateNeedsConfirming = result.ok && Boolean(dvrDraft) && !canCommit
     const edited = result.ok && dvrDraft !== result.dvrTime
 
@@ -82,10 +79,11 @@ export function OcrCaptureScreen({
             </div>
 
             {/* Phone render order: the ambiguity warning sits between the captured evidence and
-                the correction field (ui-mapping 06, Confirmation Step content items 2–3). */}
-            {result.ambiguity && <DateDisambiguationWarning result={result.ambiguity} />}
+                the correction field (ui-mapping 06, Confirmation Step content items 2–3).
+                The union makes "warning AND blocker at once" unrepresentable — see R-23. */}
+            {result.resolution.kind === 'ambiguous' && <DateDisambiguationWarning result={result.resolution.ambiguity} />}
 
-            {result.assumedDate !== null && (
+            {result.resolution.kind === 'assumed-date' && (
               <div role="alert" style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>No date on the DVR display</div>
                 <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5, marginBottom: 12 }}>
