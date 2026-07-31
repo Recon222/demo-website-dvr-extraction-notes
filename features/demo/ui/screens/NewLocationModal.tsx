@@ -38,6 +38,12 @@ import type { DemoLocation } from '@/features/demo/engine/types'
  * state that OUTLIVES the modal, so an escaped late write would silently seed the NEXT location
  * the visitor creates.
  *
+ * TWO CALLERS, as on the phone (ui-mapping 11:69-72). "Add Location" on a case card mounts it
+ * plain; the duplicate flow's "New Location w/ Sub Info [+ Scopes]" actions mount it with
+ * `requireAddress` + `subtitle` + a pre-filled `form`. Only the plain caller exists in the demo
+ * today — the second is P3.5's to wire, and the props it needs are built and tested here so
+ * that wiring is a call-site change, not a component change.
+ *
  * Presentational: values in, callbacks out. The store lives in `DemoExperience`.
  */
 
@@ -67,6 +73,20 @@ export interface NewLocationModalProps {
    *  (phone `existingNames`, NewLocationModal.tsx:36-41). Uniqueness is per-case: the caller
    *  passes one case's siblings, never every name in the demo. */
   existingNames?: readonly string[]
+  /**
+   * The new-address-copy variant (phone `requireAddress`, NewLocationModal.tsx:54-59): a blank
+   * Street Address blocks Create Location, because the whole point of that flow is a NEW
+   * address. Off for the ordinary "Add Location" flow, where the phone shows the red asterisk
+   * on Street Address but never enforces it (ui-mapping 11:385) — a documented phone asymmetry
+   * the demo reproduces rather than "corrects".
+   *
+   * P3.5's DuplicateLocationModal is the caller (its "New Location w/ Sub Info [+ Scopes]"
+   * actions); it passes this together with `subtitle` and a pre-filled `form`.
+   */
+  requireAddress?: boolean
+  /** Optional header caption. The phone's only caller passes
+   *  "Submission info copied — enter the new address." (ui-mapping 11:76). */
+  subtitle?: string
   /** Partial patch — mirrors the phone's `handleLocationChange` (NewLocationModal.tsx:129-157)
    *  and `LocationFields`' own `onChange` shape, so a capture that writes coordinates and an
    *  address in one gesture is one write per gesture rather than one per field. */
@@ -94,6 +114,8 @@ export function NewLocationModal({
   form,
   draftId,
   existingNames = [],
+  requireAddress = false,
+  subtitle,
   onChange,
   onSubmit,
   onCancel,
@@ -108,7 +130,7 @@ export function NewLocationModal({
     locationName: form.locationName,
     streetAddress: form.streetAddress,
     existingNames,
-    requireAddress: false,
+    requireAddress,
   })
 
   const locationValues: LocationFieldValues = {
@@ -145,7 +167,7 @@ export function NewLocationModal({
   }
 
   return (
-    <ModalShell title={COPY.title} onClose={onCancel}>
+    <ModalShell title={COPY.title} subtitle={subtitle} onClose={onCancel}>
       <Field
         label={COPY.locationName}
         required

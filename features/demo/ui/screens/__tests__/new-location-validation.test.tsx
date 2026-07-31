@@ -16,20 +16,25 @@ const blank: NewLocationFields = {
 interface Options {
   form?: Partial<NewLocationFields>
   existingNames?: readonly string[]
+  requireAddress?: boolean
+  subtitle?: string
   onSubmit?: () => void
 }
 
-const renderModal = (o: Options = {}) =>
-  render(
-    <NewLocationModal
-      form={{ ...blank, ...o.form }}
-      existingNames={o.existingNames}
-      onChange={vi.fn()}
-      onSubmit={o.onSubmit ?? vi.fn()}
-      onCancel={vi.fn()}
-      gpsDeps={{ geolocation: null }}
-    />,
-  )
+const modal = (o: Options = {}) => (
+  <NewLocationModal
+    form={{ ...blank, ...o.form }}
+    existingNames={o.existingNames}
+    requireAddress={o.requireAddress}
+    subtitle={o.subtitle}
+    onChange={vi.fn()}
+    onSubmit={o.onSubmit ?? vi.fn()}
+    onCancel={vi.fn()}
+    gpsDeps={{ geolocation: null }}
+  />
+)
+
+const renderModal = (o: Options = {}) => render(modal(o))
 
 const submitButton = () => screen.getByRole('button', { name: 'Create Location' })
 const reason = () => screen.getByTestId('new-location-blocked')
@@ -106,19 +111,76 @@ describe('NewLocationModal — live duplicate-name check (matrix row 13)', () =>
     const { rerender } = renderModal({ form: { locationName: 'Main Store' }, existingNames: ['Main Store'] })
     expect(submitButton()).toHaveAttribute('aria-disabled', 'true')
 
-    rerender(
-      <NewLocationModal
-        form={{ ...blank, locationName: 'Main Store 2' }}
-        existingNames={['Main Store']}
-        onChange={vi.fn()}
-        onSubmit={vi.fn()}
-        onCancel={vi.fn()}
-        gpsDeps={{ geolocation: null }}
-      />,
-    )
+    rerender(modal({ form: { locationName: 'Main Store 2' }, existingNames: ['Main Store'] }))
     expect(screen.getByLabelText('Location Name')).not.toHaveAttribute('aria-invalid')
     expect(submitButton()).toHaveAttribute('aria-disabled', 'false')
     expect(reason()).toBeEmptyDOMElement()
+  })
+})
+
+describe('NewLocationModal — the requireAddress variant (P3.5\'s caller)', () => {
+  const named = { locationName: 'Rear Door' }
+
+  it('is OFF by default: a blank street submits, as the phone\'s Add Location flow does', () => {
+    // ui-mapping 11:385 — Street Address keeps its red asterisk but is only enforced for the
+    // new-address-copy flow. Reproduced, not "corrected".
+    const onSubmit = vi.fn()
+    renderModal({ form: named, onSubmit })
+
+    expect(submitButton()).toHaveAttribute('aria-disabled', 'false')
+    fireEvent.click(submitButton())
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('blocks a blank street when on, with the phone\'s copy', () => {
+    const onSubmit = vi.fn()
+    renderModal({ form: named, requireAddress: true, onSubmit })
+
+    expect(reason()).toHaveTextContent(NEW_LOCATION_BLOCK_MESSAGES.addressRequired)
+    expect(submitButton()).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(submitButton())
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('blocks a whitespace-only street when on', () => {
+    renderModal({ form: { ...named, streetAddress: '   ' }, requireAddress: true })
+    expect(submitButton()).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('submits once an address is entered', () => {
+    const onSubmit = vi.fn()
+    renderModal({ form: { ...named, streetAddress: '1450 Eglinton Ave W' }, requireAddress: true, onSubmit })
+
+    expect(reason()).toBeEmptyDOMElement()
+    fireEvent.click(submitButton())
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('still reports the name rules first — the address rule is last', () => {
+    const { rerender } = renderModal({ form: { locationName: '' }, requireAddress: true })
+    expect(reason()).toHaveTextContent(NEW_LOCATION_BLOCK_MESSAGES.nameRequired)
+
+    rerender(modal({ form: named, existingNames: ['Rear Door'], requireAddress: true }))
+    expect(reason()).toHaveTextContent(NEW_LOCATION_BLOCK_MESSAGES.duplicateName)
+  })
+
+  it('renders the caller\'s subtitle as the dialog description, keeping "New Location" as its name', () => {
+    const subtitle = 'Submission info copied — enter the new address.'
+    renderModal({ form: named, requireAddress: true, subtitle })
+
+    // The name has to stay stable: the phone uses ONE title for both instances of this modal
+    // (ui-mapping 11:75 — there is no "Edit Location" variant).
+    const dialog = screen.getByRole('dialog', { name: 'New Location' })
+    expect(screen.getByTestId('modal-subtitle')).toHaveTextContent(subtitle)
+    const describedBy = dialog.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)).toHaveTextContent(subtitle)
+  })
+
+  it('renders no subtitle for the plain Add Location caller', () => {
+    renderModal({ form: named })
+    expect(screen.queryByTestId('modal-subtitle')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'New Location' })).not.toHaveAttribute('aria-describedby')
   })
 })
 

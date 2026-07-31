@@ -30,17 +30,24 @@ const grid: CSSProperties = {
  *  phone's paste-text header shape (chevron-back · title · close, ImportPickerModal.tsx:642-661). */
 export function ModalShell({
   title,
+  subtitle,
   onClose,
   onBack,
   backLabel = 'Back',
   children,
 }: {
   title: string
+  /** One-line header caption under the title, rendered only when passed (phone
+   *  NewLocationModal.tsx:212-219 — its only caller is the new-address-copy flow). It becomes
+   *  the dialog's DESCRIPTION, never part of its accessible name: the name has to stay the
+   *  stable "New Location" both instances of that modal share. */
+  subtitle?: string
   onClose(): void
   onBack?(): void
   backLabel?: string
   children: ReactNode
 }) {
+  const subtitleId = `${useId()}-subtitle`
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -55,6 +62,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={subtitle ? subtitleId : undefined}
         style={{
           position: 'absolute',
           left: 0,
@@ -82,7 +90,14 @@ export function ModalShell({
                 </svg>
               </button>
             )}
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
+              {subtitle && (
+                <div id={subtitleId} data-testid="modal-subtitle" style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>
+                  {subtitle}
+                </div>
+              )}
+            </div>
           </div>
           <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
