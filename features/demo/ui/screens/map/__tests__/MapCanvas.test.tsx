@@ -1,15 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef } from 'react'
-import { render, waitFor } from '@testing-library/react'
-import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MAP_LOAD_ERROR, MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
+import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
+import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 
 // jsdom has no WebGL — mapbox-gl is always mocked. Map + Marker are constructable (regular fns).
-const { MapMock, mapInstance, MarkerMock, markerInstances } = vi.hoisted(() => {
+// The map stub carries every method MapCanvas reaches for (bounds/zoom for clustering,
+// source+layer for the proximity ring, unproject for long-press) plus a handler registry so a
+// test can drive 'error' / 'moveend' the way the real map would.
+const { MapMock, mapInstance, MarkerMock, markerInstances, handlers, sources, layers } = vi.hoisted(() => {
   const markerInstances: Array<{ _el: HTMLElement; setLngLat: ReturnType<typeof vi.fn>; addTo: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> }> = []
+  const handlers = new Map<string, Array<(payload?: unknown) => void>>()
+  const sources = new Map<string, { data: unknown; setData: ReturnType<typeof vi.fn> }>()
+  const layers = new Map<string, unknown>()
   const mapInstance = {
-    on: vi.fn((evt: string, cb: () => void) => { if (evt === 'load') cb() }),
+    on: vi.fn((evt: string, cb: (payload?: unknown) => void) => {
+      const list = handlers.get(evt) ?? []
+      list.push(cb)
+      handlers.set(evt, list)
+      if (evt === 'load') cb()
+    }),
     remove: vi.fn(), flyTo: vi.fn(), fitBounds: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn(),
+    getBounds: vi.fn(() => ({ getWest: () => -180, getSouth: () => -85, getEast: () => 180, getNorth: () => 85 })),
+    getZoom: vi.fn(() => 10),
+    getCenter: vi.fn(() => ({ lng: -79.65, lat: 43.61 })),
+    unproject: vi.fn(() => ({ lng: -79.7, lat: 43.7 })),
+    addSource: vi.fn((id: string, spec: { data: unknown }) => {
+      sources.set(id, { data: spec.data, setData: vi.fn() })
+    }),
+    getSource: vi.fn((id: string) => sources.get(id)),
+    removeSource: vi.fn((id: string) => { sources.delete(id) }),
+    addLayer: vi.fn((spec: { id: string }) => { layers.set(spec.id, spec) }),
+    getLayer: vi.fn((id: string) => layers.get(id)),
+    removeLayer: vi.fn((id: string) => { layers.delete(id) }),
   }
   const MapMock = vi.fn(function (_opts: { style?: string; container?: unknown }) { return mapInstance })
   const MarkerMock = vi.fn(function (opts: { element?: HTMLElement }) {
@@ -24,14 +49,20 @@ const { MapMock, mapInstance, MarkerMock, markerInstances } = vi.hoisted(() => {
     markerInstances.push(inst)
     return inst
   })
-  return { MapMock, mapInstance, MarkerMock, markerInstances }
+  return { MapMock, mapInstance, MarkerMock, markerInstances, handlers, sources, layers }
 })
 vi.mock('mapbox-gl', () => ({ default: { Map: MapMock, Marker: MarkerMock, accessToken: '' } }))
+
+/** Fire a registered map event the way mapbox would. */
+const emit = (evt: string, payload?: unknown) => (handlers.get(evt) ?? []).forEach((cb) => cb(payload))
 
 beforeEach(() => {
   MapMock.mockClear()
   MarkerMock.mockClear()
   markerInstances.length = 0
+  handlers.clear()
+  sources.clear()
+  layers.clear()
   Object.values(mapInstance).forEach((fn) => fn.mockClear?.())
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
@@ -39,6 +70,13 @@ afterEach(() => vi.unstubAllEnvs())
 
 const loc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'location', color: '#00BFFF' })
 const inc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'incident', color: '#e53935' })
+
+/** Ten pins within a few metres of each other — supercluster aggregates them below zoom 14. */
+const tightPins = Array.from({ length: 10 }, (_, i) => loc(`l${i}`, -79.6 + i * 0.0002, 43.6 + i * 0.0002))
+
+/** Markers of a kind that are still ON the map — a re-plot calls `.remove()` on the old set. */
+const elFor = (kind: string) =>
+  markerInstances.filter((m) => m._el.getAttribute('data-marker-kind') === kind && m.remove.mock.calls.length === 0)
 
 describe('MapCanvas — map lifecycle', () => {
   it('constructs a satellite-streets map in the container', async () => {
@@ -95,5 +133,216 @@ describe('MapCanvas — markers + fit', () => {
     await waitFor(() => expect(MarkerMock).toHaveBeenCalledTimes(1))
     unmount()
     await waitFor(() => expect(markerInstances[0].remove).toHaveBeenCalled())
+  })
+})
+
+describe('MapCanvas — clustering', () => {
+  it('collapses nearby location pins into one cluster bubble at the current zoom', async () => {
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    expect(elFor('location')).toHaveLength(0)
+    expect(elFor('cluster')[0]._el.getAttribute('data-cluster-count')).toBe('10')
+  })
+
+  it('leaves the incident out of the cluster', async () => {
+    render(<MapCanvas markers={[...tightPins, inc('c1', -79.6, 43.6)]} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    expect(elFor('incident')).toHaveLength(1)
+  })
+
+  it('breaks the pins apart once the camera is past the cluster max zoom', async () => {
+    mapInstance.getZoom.mockReturnValue(16)
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('location')).toHaveLength(10))
+    expect(elFor('cluster')).toHaveLength(0)
+    mapInstance.getZoom.mockReturnValue(10)
+  })
+
+  it('re-plots on every camera move, because clustering depends on the viewport', async () => {
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    mapInstance.getZoom.mockReturnValue(16)
+    emit('moveend')
+    await waitFor(() => expect(elFor('location')).toHaveLength(10))
+    mapInstance.getZoom.mockReturnValue(10)
+  })
+
+  it('tapping a cluster flies to its expansion zoom rather than selecting anything', async () => {
+    const onMarkerPress = vi.fn()
+    render(<MapCanvas markers={tightPins} onMarkerPress={onMarkerPress} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    fireEvent.click(elFor('cluster')[0]._el)
+    expect(onMarkerPress).not.toHaveBeenCalled()
+    expect(mapInstance.flyTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: expect.any(Array), zoom: expect.any(Number) }),
+    )
+  })
+})
+
+describe('MapCanvas — camera markers', () => {
+  const camera: MapCameraMarker = { id: 'l1:cam-1', locationId: 'l1', cameraName: 'Front entry', lng: -79.62, lat: 43.62, resolution: '1080p' }
+
+  it('plots the supplied cameras alongside the pins, un-clustered', async () => {
+    render(<MapCanvas markers={tightPins} cameras={[camera]} />)
+    await waitFor(() => expect(elFor('camera')).toHaveLength(1))
+    expect(elFor('cluster')).toHaveLength(1)
+  })
+
+  it('never re-fits the camera when only the camera markers change', async () => {
+    // The pin set keeps its identity across the rerender (MapScreen memoises `buildMarkers`), so
+    // the ONLY change is the camera list.
+    const pins = [loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]
+    const { rerender } = render(<MapCanvas markers={pins} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={pins} cameras={[camera]} />)
+    await waitFor(() => expect(elFor('camera')).toHaveLength(1))
+    expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+  })
+
+  it('a camera tap toggles its callout without selecting', async () => {
+    const onMarkerPress = vi.fn()
+    render(<MapCanvas markers={[]} cameras={[camera]} onMarkerPress={onMarkerPress} />)
+    await waitFor(() => expect(elFor('camera')).toHaveLength(1))
+    const el = elFor('camera')[0]._el
+    fireEvent.click(el.querySelector('[data-camera-button]')!)
+    expect(el.querySelector<HTMLElement>('[data-camera-callout]')!.style.display).toBe('block')
+    expect(onMarkerPress).not.toHaveBeenCalled()
+  })
+})
+
+describe('MapCanvas — proximity ring', () => {
+  const ring = generateRadiusCircle([-79.6, 43.6], 1)
+
+  it('adds a fill + line layer over one geojson source when a ring arrives', async () => {
+    render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} proximityRing={ring} />)
+    await waitFor(() => expect(mapInstance.addSource).toHaveBeenCalledTimes(1))
+    const layerIds = mapInstance.addLayer.mock.calls.map((c) => (c[0] as { id: string }).id)
+    expect(layerIds).toEqual(['demo-proximity-ring-fill', 'demo-proximity-ring-line'])
+    const paintOf = (call: number) =>
+      (mapInstance.addLayer.mock.calls[call][0] as unknown as { paint: Record<string, unknown> }).paint
+    expect(paintOf(0)['fill-color']).toBe('rgba(0, 191, 255, 0.15)')
+    expect(paintOf(1)).toMatchObject({ 'line-color': '#00BFFF', 'line-width': 2, 'line-opacity': 0.85 })
+  })
+
+  it('updates the existing source rather than re-adding it when the ring changes', async () => {
+    const { rerender } = render(<MapCanvas markers={[]} proximityRing={ring} />)
+    await waitFor(() => expect(mapInstance.addSource).toHaveBeenCalledTimes(1))
+    const bigger = generateRadiusCircle([-79.6, 43.6], 5)
+    rerender(<MapCanvas markers={[]} proximityRing={bigger} />)
+    await waitFor(() => expect(sources.get('demo-proximity-ring')!.setData).toHaveBeenCalledWith(bigger))
+    expect(mapInstance.addSource).toHaveBeenCalledTimes(1)
+  })
+
+  it('tears the layers and source down when the ring clears', async () => {
+    const { rerender } = render(<MapCanvas markers={[]} proximityRing={ring} />)
+    await waitFor(() => expect(mapInstance.addSource).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={[]} proximityRing={null} />)
+    await waitFor(() => expect(mapInstance.removeSource).toHaveBeenCalledWith('demo-proximity-ring'))
+    expect(mapInstance.removeLayer.mock.calls.map((c) => c[0])).toEqual([
+      'demo-proximity-ring-fill',
+      'demo-proximity-ring-line',
+    ])
+  })
+})
+
+describe('MapCanvas — long press', () => {
+  it('reports the un-projected coordinate after the hold', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    vi.advanceTimersByTime(500)
+    expect(onLongPress).toHaveBeenCalledWith(-79.7, 43.7)
+    vi.useRealTimers()
+  })
+
+  it('cancels on release before the threshold', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    vi.advanceTimersByTime(200)
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 120 })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('cancels when the pointer travels — a drag is a pan, not a long press', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerMove(canvas, { clientX: 160, clientY: 120 })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+})
+
+describe('MapCanvas — loading + error states', () => {
+  it('mounts a cover that reveals once the map has loaded', async () => {
+    render(<MapCanvas markers={[]} />)
+    const cover = screen.getByTestId('map-loading-cover')
+    await waitFor(() => expect(cover).toHaveStyle({ opacity: '0' }))
+  })
+
+  it('shows the retry overlay when mapbox fails BEFORE the first load', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // A style/token failure: the map never emits 'load'.
+    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
+      const list = handlers.get(evt) ?? []
+      list.push(cb)
+      handlers.set(evt, list)
+    })
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(handlers.get('error')).toBeTruthy())
+    emit('error', { error: new Error('style load failed') })
+    expect(await screen.findByTestId('map-error-overlay')).toHaveTextContent(MAP_LOAD_ERROR)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does NOT cover a working map when a transient tile error arrives after load', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    emit('error', { error: new Error('tile 404') })
+    await waitFor(() => expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument())
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('Retry rebuilds the map and clears the overlay', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
+      const list = handlers.get(evt) ?? []
+      list.push(cb)
+      handlers.set(evt, list)
+    })
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(handlers.get('error')).toBeTruthy())
+    emit('error', { error: new Error('style load failed') })
+    await screen.findByTestId('map-error-overlay')
+    fireEvent.click(screen.getByTestId('map-retry-button'))
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2))
+    expect(mapInstance.remove).toHaveBeenCalled()
+    expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument()
+    warn.mockRestore()
+  })
+})
+
+describe('MapCanvas — handle', () => {
+  it('reports the current camera centre', async () => {
+    const ref = createRef<MapCanvasHandle>()
+    render(<MapCanvas ref={ref} markers={[]} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    expect(ref.current!.getCenter()).toEqual([-79.65, 43.61])
   })
 })
