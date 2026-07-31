@@ -321,6 +321,21 @@ describe('shape guard (never crash boot)', () => {
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true, newCase: true })
   })
 
+  it('the media-library modal id is REGISTERED, so its visit survives a rehydrate (P4.2)', () => {
+    // Registry compliance, from the consumer's end: `MODAL_IDS` is `Record<ModalId, true>`, so
+    // a missing entry is a compile error — but a compile-time device proves nothing about the
+    // id the drawer's new row actually opens. An unregistered one would be dropped here
+    // silently, exactly like `holodeck` above, and the exploration manifest would forget the
+    // visitor ever opened the library.
+    const storage = seeded()
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { visited: Record<string, true> }
+    }
+    parsed.state.visited = { mediaLibrary: true, holodeck: true }
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.visited).toEqual({ mediaLibrary: true })
+  })
+
   it('Object.prototype key names in visited are dropped too — own-property guard, not `in` (R-7)', () => {
     const storage = seeded()
     const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {

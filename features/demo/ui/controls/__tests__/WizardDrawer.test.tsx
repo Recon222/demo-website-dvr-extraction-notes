@@ -4,7 +4,14 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 const items = [{ id: 'submission' as const, label: 'Submission', active: true }]
-const cb = { onClose: vi.fn(), onNavigate: vi.fn(), onBackToCases: vi.fn() }
+const cb = {
+  onClose: vi.fn(),
+  onNavigate: vi.fn(),
+  onBackToCases: vi.fn(),
+  onCaptureMedia: vi.fn(),
+  onRecordAudio: vi.fn(),
+  onOpenMediaLibrary: vi.fn(),
+}
 
 describe('WizardDrawer', () => {
   it('portals into the PhoneOverlayContext node when present (pins to the phone viewport, outside the scroller)', () => {
