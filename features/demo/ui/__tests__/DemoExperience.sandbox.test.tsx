@@ -41,11 +41,29 @@ beforeEach(() => {
   runPdf.mockReset()
 })
 
+/**
+ * P2.4 (G9): "Complete & Save" and "Preview / Export PDF" now run the phone's
+ * `finalSubmissionSchema` — OCC number, address, and at least one scope with BOTH times.
+ * `makeCompletable` gives a location the last two (the OCC number comes from its case's
+ * caseNumber), so the tests below keep exercising what they were written for. Locations that
+ * only need to EXIST deliberately do NOT get it — see the R-1 sibling test.
+ * The gate's own behaviour is covered in DemoExperience.completion-gate.test.tsx.
+ */
+const GATE_SCOPE = [
+  { id: 'sc-gate', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '' },
+]
+function makeCompletable(store: Store, locId: string) {
+  store.getState().switchLocation(locId)
+  store.getState().updateField('streetAddress', '1450 Eglinton Ave W')
+  store.getState().updateField('city', 'Mississauga')
+  store.getState().updateField('form.scopes', GATE_SCOPE)
+}
+
 function setupLocation(store: Store) {
   act(() => {
     const caseId = store.getState().createCase({ caseNumber: 'PR25-TEST', displayName: 'Test Case', unit: 'Robbery' })
     const locId = store.getState().addLocation(caseId, { locationName: 'Test Location' })
-    store.getState().switchLocation(locId)
+    makeCompletable(store, locId)
   })
 }
 
@@ -165,6 +183,8 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       const caseId = store.getState().createCase({ caseNumber: 'PR25-TWO', displayName: 'Two Sites', unit: 'Robbery' })
       l1 = store.getState().addLocation(caseId, { locationName: 'Site One' })
       l2 = store.getState().addLocation(caseId, { locationName: 'Site Two' })
+      makeCompletable(store, l1)
+      makeCompletable(store, l2)
       store.getState().switchLocation(l1)
       store.getState().setView('completion')
     })
@@ -254,6 +274,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     act(() => {
       caseA = store.getState().createCase({ caseNumber: 'CASE-A', displayName: 'A', unit: 'Robbery' })
       loc1 = store.getState().addLocation(caseA, { locationName: 'L1' })
+      makeCompletable(store, loc1)
       caseB = store.getState().createCase({ caseNumber: 'CASE-B', displayName: 'B', unit: 'Robbery' })
       // Force the incoherent pair the store actions no longer produce (defense in depth for
       // the bridge derivation): location L1 (case A) open while currentCaseId says B.
