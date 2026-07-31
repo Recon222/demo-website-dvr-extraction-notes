@@ -52,7 +52,7 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
 import { loadSnapshot, persistDemoStore, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
-import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
+import { cleanOcrText, readDvrTimestamp, getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
@@ -651,15 +651,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const runOcrSample = () => {
     const raw = '2025-03-08 12:05:30' // sample DVR clock
     const cleaned = cleanOcrText(raw)
-    const parsed = parseTimestampFromText(cleaned)
+    const reading = readDvrTimestamp(cleaned, clock.now().getTime())
     const conf = getConfidenceLevel(0.93)
     const st = store.getState()
     if (!st.capture.actualDateTime) st.updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     st.updateField('capture.method', 'ocr')
-    if (parsed) st.updateField('capture.dvrDateTime', parsed)
+    if (reading) st.updateField('capture.dvrDateTime', reading.dvrTime)
     setOcrResult(
-      parsed
-        ? { ok: true, dvrTime: parsed, confidence: { label: conf.message, color: conf.color }, actual: store.getState().capture.actualDateTime }
+      reading
+        ? { ok: true, dvrTime: reading.dvrTime, confidence: { label: conf.message, color: conf.color }, actual: store.getState().capture.actualDateTime }
         : { ok: false, rawText: cleaned },
     )
   }

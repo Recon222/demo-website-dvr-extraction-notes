@@ -3,7 +3,16 @@
  * app's text-cleaning-pipeline and timestamp-parser. Cleaning fixes the character slips a
  * DVR-display OCR makes (O→0, l→1, dropped colons) while protecting day/month/meridiem
  * words; the parser reads several common DVR timestamp formats into 'YYYY-MM-DD HH:MM:SS'.
+ *
+ * `readDvrTimestamp` sits on top of the parser and adds the two judgements the confirmation
+ * step has to put in front of a human: MM/DD-vs-DD/MM resolution, and a missing date.
  */
+
+import {
+  disambiguateDateFormat,
+  needsDisambiguation,
+  type DateDisambiguationResult,
+} from '@/features/demo/engine/logic/date-disambiguation'
 
 const OCR_CHAR_SUBS: Record<string, string> = {
   O: '0', o: '0', Q: '0', I: '1', l: '1', i: '1', S: '5', s: '5', Z: '2', z: '2', B: '8', G: '6',
@@ -67,8 +76,8 @@ function normalizeYear(year: string): string {
   return year
 }
 
-function fmtDT(y: string, mo: string, d: string, h: string, mi: string, s = '00'): string {
-  return `${y}-${mo}-${d} ${h}:${mi}:${s}`
+function fmtDT(y: string, mo: string, d: string, h: string, mi: string, s = '00'): TimestampParse {
+  return { kind: 'datetime', value: `${y}-${mo}-${d} ${h}:${mi}:${s}` }
 }
 
 function stripTimezone(text: string): string {
@@ -78,8 +87,22 @@ function stripTimezone(text: string): string {
   return c.trim()
 }
 
-/** Parse several common DVR timestamp formats → 'YYYY-MM-DD HH:MM:SS', or null. */
-export function parseTimestampFromText(text: string): string | null {
+/**
+ * What the OCR text actually carried.
+ *
+ * `time-only` exists because a DVR strip that shows just a clock (`12:05:30`) carries NO date,
+ * and inventing one is not a parse — it is a guess that goes on to define a scope boundary.
+ * The phone's parser does invent it (`src/features/ocr-time-capture/utils/timestamp-parser.ts`
+ * lines 260-266 stamp `new Date()` straight into the result); this port refuses to, so the
+ * confirm step can put the assumption in front of the operator (see `readDvrTimestamp`).
+ */
+export type TimestampParse =
+  | { kind: 'datetime'; value: string }
+  /** `HH:MM:SS` read off the frame — the frame showed no date. */
+  | { kind: 'time-only'; time: string }
+
+/** Parse several common DVR timestamp formats, or null when nothing timestamp-shaped is present. */
+export function parseTimestampFromText(text: string): TimestampParse | null {
   const s = stripTimezone(text.replace(/\s+/g, ' ').trim())
   const to24 = (h: string, mer?: string) => {
     let n = parseInt(h, 10)
@@ -131,17 +154,77 @@ export function parseTimestampFromText(text: string): string | null {
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h >= 0 && h <= 23)
       return fmtDT(normalizeYear(m[1]), m[2], m[3], m[4], m[5], m[6] || '00')
   }
-  // time-only HH:MM:SS → today's date.
-  // TODO(M2): "today" is a guess. The OCR chapter must have the user confirm the date
-  // before a time-only result is accepted as a scope (otherwise this is a BLOCK).
+  // time-only HH:MM:SS — reported as such. Resolved (with an operator confirmation) by
+  // readDvrTimestamp; this function never fabricates the missing date.
   if ((m = s.match(/^(\d{2}):(\d{2}):(\d{2})$/))) {
-    if (+m[1] <= 23 && +m[2] <= 59) {
-      const n = new Date()
-      const p = (x: number) => String(x).padStart(2, '0')
-      return fmtDT(String(n.getFullYear()), p(n.getMonth() + 1), p(n.getDate()), m[1], m[2], m[3])
-    }
+    if (+m[1] <= 23 && +m[2] <= 59) return { kind: 'time-only', time: `${m[1]}:${m[2]}:${m[3]}` }
   }
   return null
+}
+
+/** A year-first numeric date (`2025-03-08`) — unambiguous by construction, never disambiguated. */
+const YEAR_FIRST_DATE = /(?:^|\D)\d{4}[-/]\d{1,2}[-/]\d{1,2}/
+/** A year-last numeric date (`06/07/2024`, `13-03-25`) — the only shape that can be ambiguous. */
+const YEAR_LAST_DATE = /(?:^|\D)(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})(?!\d)/
+
+/** Everything the confirmation step needs to show — and to challenge — an OCR read. */
+export interface DvrTimestampReading {
+  /** The DVR date/time the confirm field is pre-filled with, `'YYYY-MM-DD HH:MM:SS'`. */
+  dvrTime: string
+  /**
+   * Set ONLY when the frame carried a time but no date: the `'YYYY-MM-DD'` that was assumed
+   * (today, off `currentTimeMs`) to make `dvrTime` well-formed. Its presence is the confirm
+   * step's instruction to block the commit until the operator confirms or corrects the date.
+   */
+  assumedDate: string | null
+  /**
+   * Set when the date digits were MM/DD-vs-DD/MM ambiguous. `dvrTime` already carries the
+   * resolver's `chosenDate`, so the field and the warning can never disagree.
+   */
+  ambiguity: DateDisambiguationResult | null
+}
+
+/**
+ * Read a DVR timestamp out of cleaned OCR text, resolving the two things a bare parse cannot
+ * decide on its own:
+ *
+ *  - **MM/DD vs DD/MM** — delegated verbatim to `disambiguateDateFormat`, gated exactly as the
+ *    phone gates it (`text-cleaning-pipeline.ts:2081`: year-last input only, both components
+ *    1..12). The resolver's `chosenDate` is written back into `dvrTime`, so the pre-filled field
+ *    always matches what `DateDisambiguationWarning` says was chosen.
+ *  - **A missing date** — reported through `assumedDate` rather than smuggled into `dvrTime`.
+ *
+ * Pure: `currentTimeMs` is the only clock input.
+ *
+ * NOTE (deliberate reuse, see deferred §37): the demo keeps ONE `date-disambiguation` module —
+ * the import-side port, which additionally rejects future readings and distrusts proximity for
+ * stale years. The phone's OCR feature keeps a proximity-only sibling copy. For a live DVR clock
+ * both extra rules land the same way a reviewer would: a month/day swap into the future is not a
+ * clock the operator should accept silently, and a years-stale reading is exactly the case where
+ * "closer to today" carries no signal. Both produce `confidence: 'low'` → the operator is warned.
+ */
+export function readDvrTimestamp(text: string, currentTimeMs: number): DvrTimestampReading | null {
+  const parse = parseTimestampFromText(text)
+  if (!parse) return null
+
+  if (parse.kind === 'time-only') {
+    const n = new Date(currentTimeMs)
+    const p = (x: number) => String(x).padStart(2, '0')
+    const assumedDate = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`
+    return { dvrTime: `${assumedDate} ${parse.time}`, assumedDate, ambiguity: null }
+  }
+
+  const plain = { dvrTime: parse.value, assumedDate: null, ambiguity: null }
+  if (YEAR_FIRST_DATE.test(text)) return plain
+  const m = text.match(YEAR_LAST_DATE)
+  if (!m) return plain
+  const first = parseInt(m[1], 10)
+  const second = parseInt(m[2], 10)
+  if (!needsDisambiguation(first, second)) return plain
+
+  const ambiguity = disambiguateDateFormat(first, second, parseInt(normalizeYear(m[3]), 10), currentTimeMs)
+  // parse.value is always 'YYYY-MM-DD HH:MM:SS' — swap the 10-char date, keep the time.
+  return { dvrTime: `${ambiguity.chosenDate}${parse.value.slice(10)}`, assumedDate: null, ambiguity }
 }
 
 export interface ConfidenceTier {
