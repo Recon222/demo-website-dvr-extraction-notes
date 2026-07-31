@@ -65,6 +65,13 @@ export {
 } from '@/features/demo/engine/logic/media/recording'
 
 export {
+  captureAvailability,
+  sampleFallbackNotice,
+  type CaptureAvailability,
+  type CaptureSupport,
+} from '@/features/demo/engine/logic/media/capability'
+
+export {
   MAX_CAPTION_LENGTH,
   MAX_FILENAME_LENGTH,
   MEDIA_EXPIRED_NOTICE,
@@ -103,6 +110,7 @@ export {
 } from '@/features/demo/engine/logic/media/library'
 
 export {
+  NO_CAPTURE_STORAGE_NOTICE,
   NO_RECORDER_NOTICE,
   SAMPLE_MEDIA,
   SAMPLE_MEDIA_BASE,

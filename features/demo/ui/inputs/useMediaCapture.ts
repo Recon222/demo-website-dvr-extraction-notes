@@ -8,15 +8,19 @@ import {
   IDLE_RECORDING,
   beginRecording,
   canStopAtElapsed,
+  captureAvailability,
   captureFailure,
   hasReachedMaxDuration,
   pauseRecording as pauseRecordingState,
   recordedMs,
   resumeRecording as resumeRecordingState,
+  sampleFallbackNotice,
   stopRecording as stopRecordingState,
   toSampleCapture,
+  type CaptureAvailability,
   type CaptureFacility,
   type CaptureFailure,
+  type CaptureSupport,
   type CapturedMedia,
   type RecordingPhase,
   type RecordingState,
@@ -64,15 +68,21 @@ import { useCaptureStream, type UseCaptureStreamReturn } from '@/features/demo/u
  *  `MM:SS` badge without waking the tab more than necessary. */
 export const RECORDING_TICK_MS = 200
 
-export interface CaptureCapability {
-  /** A live preview stream can be opened. */
-  stream: boolean
-  /** Video/audio can be recorded (needs `MediaRecorder`). */
-  record: boolean
-  /** Captured bytes can be turned into a viewable URL. */
-  objectUrls: boolean
-  /** Nothing live is possible here — the bundled sample is the only way forward. */
-  sampleOnly: boolean
+/**
+ * The three browser facts, plus the two answers derived from them.
+ *
+ * R-3: there is deliberately no stored `sampleOnly` boolean any more. "Can I go live?" is a
+ * question about an OPERATION, and one boolean answered it for photos while both capture
+ * screens consumed it for everything — which is how a browser with a camera but no
+ * `MediaRecorder` printed "This browser doesn't expose a camera to this page" over a live
+ * viewfinder. Ask `modeFor(kind)`; the rule itself lives in `engine/logic/media/capability.ts`
+ * so no surface re-derives it.
+ */
+export interface CaptureCapability extends CaptureSupport {
+  /** Can this kind be captured for real here, or only attached as a bundled sample? */
+  modeFor(kind: MediaKind): CaptureAvailability
+  /** The honest sentence for why THIS surface fell back, chosen by the binding reason. */
+  sampleNotice: string
 }
 
 export interface UseMediaCaptureOptions {
@@ -232,10 +242,17 @@ export function useMediaCapture(options: UseMediaCaptureOptions): UseMediaCaptur
   }, [recording.phase, now])
 
   const capability = useMemo<CaptureCapability>(() => {
-    const stream = streamState.permission !== 'unavailable'
-    const objectUrls = objectUrlIo !== null
-    return { stream, record: stream && recorderIo !== null, objectUrls, sampleOnly: !stream || !objectUrls }
-  }, [streamState.permission, recorderIo, objectUrlIo])
+    const support: CaptureSupport = {
+      stream: streamState.permission !== 'unavailable',
+      record: streamState.permission !== 'unavailable' && recorderIo !== null,
+      objectUrls: objectUrlIo !== null,
+    }
+    return {
+      ...support,
+      modeFor: (kind) => captureAvailability(support, kind),
+      sampleNotice: sampleFallbackNotice(support, options.facility),
+    }
+  }, [streamState.permission, recorderIo, objectUrlIo, options.facility])
 
   /** Replace the pending capture, revoking the URLs of the one it displaces — a retake must
    *  not leak the frame it replaces. Sample paths are not registry-owned, so `revoke` no-ops

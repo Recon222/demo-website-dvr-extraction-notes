@@ -2,12 +2,13 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_RECORDING_DURATION_MS } from '@/features/demo/engine/logic/media/recording'
-import { SAMPLE_MEDIA } from '@/features/demo/engine/logic/media/samples'
+import { NO_RECORDER_NOTICE, SAMPLE_MEDIA, SAMPLE_MEDIA_NOTICE } from '@/features/demo/engine/logic/media/samples'
 import {
   RECORDING_TICK_MS,
   useMediaCapture,
   type UseMediaCaptureOptions,
 } from '@/features/demo/ui/inputs/useMediaCapture'
+import { MEDIA_KINDS } from '@/features/demo/engine/types'
 import type { MediaDevicesLike, RecorderIo } from '@/features/demo/ui/inputs/capture-media'
 import type { ObjectUrlIo } from '@/features/demo/ui/inputs/object-urls'
 import {
@@ -62,45 +63,59 @@ function mount(over: Partial<UseMediaCaptureOptions> = {}, recorder?: RecorderIo
 }
 
 describe('capability reporting', () => {
-  it('reports sample-only when the page has no capture API (the suite default)', () => {
+  it('reports every kind as sample when the page has no capture API (the suite default)', () => {
     const { result } = renderHook(() => useMediaCapture({ facility: 'camera' }))
-    expect(result.current.capability).toEqual({
-      stream: false,
-      record: false,
-      objectUrls: expect.any(Boolean),
-      sampleOnly: true,
-    })
+    const { stream, record, objectUrls, modeFor } = result.current.capability
+    // `objectUrls` is deterministically true here, not incidental: §58a establishes that under
+    // Vitest the global `URL` is NODE's, which implements object URLs even though jsdom's
+    // `window.URL` does not. Asserting `expect.any(Boolean)` (R-31) asserted nothing.
+    expect({ stream, record, objectUrls }).toEqual({ stream: false, record: false, objectUrls: true })
+    expect(MEDIA_KINDS.map(modeFor)).toEqual(['sample', 'sample', 'sample'])
     expect(result.current.permission).toBe('unavailable')
   })
 
-  it('separates "can preview" from "can record" — a browser may do one and not the other', () => {
+  it('answers per operation: real photos, sample clips, on a browser with no MediaRecorder', () => {
+    // R-3: the defect this replaced was a single stored `sampleOnly`, which answered the PHOTO
+    // question and was consumed as the answer for everything.
     const { result } = mount({}, null)
     expect(result.current.capability.stream).toBe(true)
     expect(result.current.capability.record).toBe(false)
-    expect(result.current.capability.sampleOnly).toBe(false)
+    expect(result.current.capability.modeFor('photo')).toBe('live')
+    expect(result.current.capability.modeFor('video')).toBe('sample')
   })
 
-  it('reports record capability when a MediaRecorder exists', () => {
+  it('reports every kind live when a MediaRecorder exists', () => {
     const { result } = mount({}, fakeRecorderIo(fakeRecorder()))
     expect(result.current.capability.record).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['live', 'live', 'live'])
   })
 
-  it('falls to sample-only when object URLs are unavailable — captured bytes would be unviewable', () => {
-    const { result } = mount({ deps: { objectUrls: null } })
+  it('falls back for every kind when object URLs are unavailable — captured bytes would be unviewable', () => {
+    const { result } = mount({ deps: { objectUrls: null } }, fakeRecorderIo(fakeRecorder()))
     expect(result.current.capability.objectUrls).toBe(false)
-    expect(result.current.capability.sampleOnly).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['sample', 'sample', 'sample'])
   })
 
-  it('flips to sample-only once the machine reports no camera at all', async () => {
+  it('flips every kind to sample once the machine reports no camera at all', async () => {
     const { result } = mount({
       deps: { mediaDevices: devices({ getUserMedia: async () => Promise.reject(domError('NotFoundError')) }) },
     })
-    expect(result.current.capability.sampleOnly).toBe(false)
+    expect(result.current.capability.modeFor('photo')).toBe('live')
     await act(async () => {
       await result.current.open()
     })
     expect(result.current.permission).toBe('unavailable')
-    expect(result.current.capability.sampleOnly).toBe(true)
+    expect(MEDIA_KINDS.map(result.current.capability.modeFor)).toEqual(['sample', 'sample', 'sample'])
+  })
+
+  it('carries the sentence for the binding reason, keyed to this surface’s facility', () => {
+    expect(mount({}, null).result.current.capability.sampleNotice).toBe(NO_RECORDER_NOTICE.camera)
+    expect(mount({ facility: 'microphone' }, null).result.current.capability.sampleNotice).toBe(
+      NO_RECORDER_NOTICE.microphone,
+    )
+    expect(
+      mount({ deps: { mediaDevices: null } }, fakeRecorderIo(fakeRecorder())).result.current.capability.sampleNotice,
+    ).toBe(SAMPLE_MEDIA_NOTICE.camera)
   })
 })
 

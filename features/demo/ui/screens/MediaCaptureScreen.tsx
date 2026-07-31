@@ -5,7 +5,6 @@ import { useReducedMotion } from 'motion/react'
 
 import {
   CAPTURE_PERMISSION_COPY,
-  SAMPLE_MEDIA_NOTICE,
   captureFailureMessage,
   defaultCaptureBasename,
   formatDuration,
@@ -248,9 +247,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     }
   }, [])
 
+  // R-3: the answer for THIS mode, not one boolean for the whole screen. A browser with
+  // `getUserMedia` but no `MediaRecorder` (Safari ≤ 14.0, hardened WebViews) takes photos for
+  // real and can only attach a sample clip — the old `capability.sampleOnly` said "live" for
+  // both, so every video press printed "This browser doesn't expose a camera to this page"
+  // while the camera rendered behind the words.
+  const modeIsSample = capability.modeFor(mode) === 'sample'
+
   const onShutter = useCallback(() => {
     if (busy) return
-    if (capability.sampleOnly) {
+    if (modeIsSample) {
       captureSample(mode)
       return
     }
@@ -274,7 +280,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
   }, [
     busy,
     canStop,
-    capability.sampleOnly,
+    modeIsSample,
     capturePhoto,
     captureSample,
     deps?.createCanvas,
@@ -314,6 +320,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
     return (
       <ReviewStage
         captured={captured}
+        sampleNotice={capability.sampleNotice}
         maxDurationHit={maxDurationHit}
         onRetake={onRetake}
         onAccept={onAccept}
@@ -461,7 +468,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
           <div style={{ width: 48 }} />
           <ShutterButton
             mode={mode}
-            sampleOnly={capability.sampleOnly}
+            sampleOnly={modeIsSample}
             isRecording={isRecording}
             disabled={busy || (mode === 'video' && isRecording && !canStop)}
             onPress={onShutter}
@@ -667,12 +674,17 @@ function PermissionStage({
  */
 function ReviewStage({
   captured,
+  sampleNotice,
   maxDurationHit,
   onRetake,
   onAccept,
   onExit,
 }: {
   captured: CapturedMedia
+  /** Why the sample was attached — chosen by the capability's binding reason (R-3), not
+   *  hard-coded. A live-camera browser that simply cannot hold a file must not be told it has
+   *  no camera; that is the falsehood the unavailable panel already refuses to print. */
+  sampleNotice: string
   maxDurationHit: boolean
   onRetake(): void
   onAccept(meta: MetadataFormValue): void
@@ -766,7 +778,7 @@ function ReviewStage({
           >
             Sample data
           </div>
-          <div style={{ fontSize: 12, color: '#ffd07a', lineHeight: 1.45 }}>{SAMPLE_MEDIA_NOTICE.camera}</div>
+          <div style={{ fontSize: 12, color: '#ffd07a', lineHeight: 1.45 }}>{sampleNotice}</div>
         </div>
       )}
 

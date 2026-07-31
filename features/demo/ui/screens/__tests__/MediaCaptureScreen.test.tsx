@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
-import { CAPTURE_PERMISSION_COPY, MAX_RECORDING_DURATION_MS, SAMPLE_MEDIA } from '@/features/demo/engine/logic/media'
+import {
+  CAPTURE_PERMISSION_COPY,
+  MAX_RECORDING_DURATION_MS,
+  NO_RECORDER_NOTICE,
+  SAMPLE_MEDIA,
+} from '@/features/demo/engine/logic/media'
 import { RECORDING_TICK_MS } from '@/features/demo/ui/inputs/useMediaCapture'
 import {
   MediaCaptureScreen,
@@ -73,6 +78,8 @@ interface Harness {
 function harness(
   options: {
     live?: boolean
+    /** `live` with the recorder withheld — the Safari ≤ 14.0 / hardened-WebView shape (R-3). */
+    noRecorder?: boolean
     accept?: boolean
     devices?: MediaDeviceInfo[]
     getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>
@@ -98,7 +105,7 @@ function harness(
   return {
     deps: {
       mediaDevices,
-      recorder: options.live ? fakeRecorderIo(recorder) : null,
+      recorder: options.live && !options.noRecorder ? fakeRecorderIo(recorder) : null,
       objectUrls: io,
       now: () => nowMs,
       capturedAt: () => CAPTURED_AT,
@@ -587,5 +594,67 @@ describe('object-URL ownership (the saved photo must not blank)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retake image' }))
     expect(h.revoked).toContain('blob:mint/1')
+  })
+})
+
+
+// ---- Camera but no MediaRecorder (R-3) --------------------------------------
+
+describe('a browser that can preview but cannot record', () => {
+  it('takes REAL photos while offering only a sample clip', async () => {
+    // The per-operation answer in one test. Before R-3 a single `sampleOnly` boolean said
+    // "live" for both modes here, so the photo path was right and the video path was a dead end.
+    const h = harness({ live: true, noRecorder: true })
+    mount(h)
+    await grant()
+
+    expect(shutter('Take photo')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
+    expect(shutter('Attach sample clip')).toBeInTheDocument()
+  })
+
+  it('never prints "doesn\'t expose a camera" while the viewfinder is live', async () => {
+    // The falsehood R-3 exists to kill: every video press used to reach
+    // `startRecording()` → UNSUPPORTED → "This browser doesn't expose a camera to this page",
+    // rendered over a working camera.
+    const h = harness({ live: true, noRecorder: true })
+    mount(h)
+    await grant()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
+    await act(async () => {
+      fireEvent.click(shutter('Attach sample clip'))
+    })
+
+    expect(screen.queryByText(/doesn.t expose a camera/)).not.toBeInTheDocument()
+    expect(screen.getByText(NO_RECORDER_NOTICE.camera)).toBeInTheDocument()
+  })
+
+  it('attaches the bundled clip rather than failing the take', async () => {
+    const h = harness({ live: true, noRecorder: true })
+    mount(h)
+    await grant()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
+    await act(async () => {
+      fireEvent.click(shutter('Attach sample clip'))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save video' }))
+
+    expect(h.saved).toHaveLength(1)
+    expect(h.saved[0].captured).toMatchObject({ kind: 'video', url: SAMPLE_MEDIA.video.url, sample: true })
+  })
+
+  it('leaves the photo path on the live capture, notice and all', async () => {
+    const h = harness({ live: true, noRecorder: true })
+    mount(h)
+    await grant()
+
+    await act(async () => {
+      fireEvent.click(shutter('Take photo'))
+    })
+    // A real frame grab — so no sample notice at all on this branch.
+    expect(screen.queryByText(NO_RECORDER_NOTICE.camera)).not.toBeInTheDocument()
+    expect(screen.queryByText('Sample data')).not.toBeInTheDocument()
   })
 })
