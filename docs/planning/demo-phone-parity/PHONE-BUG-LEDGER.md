@@ -12,18 +12,19 @@ Consolidated 2026-07-31. File these as BUG-NNN in the phone repo's `docs/cleanup
 6. **Stale reverse-geocode overwrites a just-picked address** — `IncidentLocationForm.tsx:145-158` never consults `geocodeRequestRef` on address select; an in-flight lookup from the previous coordinates can settle afterward and clobber the pick, stranding "Looking up address…". (P3.6; demo abandons superseded lookups.)
 7. **Silent reverse-geocode failure in NewLocationModal** — `onReverseGeocodeError` unwired at that call site (ui-mapping `11-case-modals.md:386`); failures log to Sentry only, zero user feedback. (deferred §51)
 8. **OCR "assume today" is silent** — `timestamp-parser.ts:260-266` stamps `new Date()` for time-only frames and the confirm screen pre-fills it without telling the operator. Demo gates it behind explicit confirmation. (deferred §40b)
+9. **Audio recorder: the big Stop button's 500ms min-duration guard is inert** — only the Stop *pill* is gated; the phone's own ui-mapping calls the big button's guard "currently inert" (`10-audio.md:62/70`), so a sub-500ms take stops through the big button and lands on an error toast instead of being prevented. Demo binds the shared 500ms `canStop` gate to BOTH controls. (P4.6 report; deferred §61b)
 
 ## Copy / UX nits
 
-9. **CaseActionsSheet `Status:` line renders the raw lowercase enum** (`draft`/`complete`) instead of display copy. (deferred §49)
-10. **NewCaseModal's disabled-submit predicate makes its own validation messages unreachable** — the `disabled` check IS the `validateForm` check, so "Case number is required"/"Unit is required" are dead copy. (deferred §50a)
-11. **`DRAFT`→"Active" label rename** still deferred in `CaseStatusBadge` et al. (pre-existing, noted in ui-mapping cross-cutting patterns).
+10. **CaseActionsSheet `Status:` line renders the raw lowercase enum** (`draft`/`complete`) instead of display copy. (deferred §49)
+11. **NewCaseModal's disabled-submit predicate makes its own validation messages unreachable** — the `disabled` check IS the `validateForm` check, so "Case number is required"/"Unit is required" are dead copy. (deferred §50a)
+12. **`DRAFT`→"Active" label rename** still deferred in `CaseStatusBadge` et al. (pre-existing, noted in ui-mapping cross-cutting patterns).
 
 ## Doc-drift (fix the docs, not code)
 
-12. **The ">2σ GPS outlier filter" does not exist** — `gps-service.ts:276-282` picks the most accurate sample; the filter is documented fiction in `src/features/README.md:768` and `DOCUMENTATION-PLAN.md:2520` (accurate line: `location/README.md:276`). Do not implement it — it would change committed coordinates. (phone-inventory correction banner)
-13. **`resetProfile()` documented but not implemented** (user-profile docs vs store).
-14. **`app/README.md` says 3 tabs (actually 4); `constants/README.md` lists a ROUTES.TABS.SETTINGS that is a modal; arrival-departure documented 1–10 (store caps 20); `cloud-sync/README.md` `isLocked` formula wrong.** (phone-inventory audit flags)
+13. **The ">2σ GPS outlier filter" does not exist** — `gps-service.ts:276-282` picks the most accurate sample; the filter is documented fiction in `src/features/README.md:768` and `DOCUMENTATION-PLAN.md:2520` (accurate line: `location/README.md:276`). Do not implement it — it would change committed coordinates. (phone-inventory correction banner)
+14. **`resetProfile()` documented but not implemented** (user-profile docs vs store).
+15. **`app/README.md` says 3 tabs (actually 4); `constants/README.md` lists a ROUTES.TABS.SETTINGS that is a modal; arrival-departure documented 1–10 (store caps 20); `cloud-sync/README.md` `isLocked` formula wrong.** (phone-inventory audit flags)
 
 ## Back-port candidates (improvements, not bugs — matrix §4)
 
