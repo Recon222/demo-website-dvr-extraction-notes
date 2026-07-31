@@ -2,18 +2,237 @@
 
 **Lane:** `web-reviewer` (render + bundle performance, browser-API correctness, resource leaks,
 accessibility, CSS/style discipline, marketing↔demo isolation).
-**Branch:** `feat/parity-p2` @ `9f5c01a` · **Base:** `master` · **Diff:** `git diff master...feat/parity-p2`
-**Round:** 1 (initial). This file is the lane's persistent state — the fix-delta pass resumes from it.
-
-**Verdict:** 3 MAJOR · 2 MEDIUM · 3 MINOR · 0 BLOCKER.
-No bundle-boundary, chrome-scope, hydration, or leak breach. Every MAJOR is accessibility, and
-each has an in-repo correct pattern that this PR itself established (AlertDialog's focus contract,
-GpsCaptureControl's own sibling live regions, PickerStage's R-17 focus handling) — so all three are
-"apply the idiom you just wrote next door", not new design.
+**Branch:** `feat/parity-p2` · **Base:** `master`
+**Round 1 (initial):** @ `9f5c01a` — 3 MAJOR · 2 MEDIUM · 3 MINOR · 0 BLOCKER.
+**Round 2 (fix-delta):** @ `572022a` (fix commits after `e770d45`) — **all 8 findings FIXED**, 0 PARTIAL,
+0 UNFIXED. 2 new MINOR raised (1 residual of the round's own new idiom, 1 cross-lane routing note).
 
 ---
 
-## WEB-1 [MAJOR] features/demo/ui/screens/NotesScreen.tsx:96-156
+# FIX-DELTA (round 2) — verification @ `572022a`
+
+WEB-n → R-n mapping taken from the vetted doc's `**Lenses:**` lines
+(`docs/code-reviews/parity/p2/p2-review.md`).
+
+| Lane finding | Vetted as | Status | Pinned by |
+|---|---|---|---|
+| WEB-1 MAJOR — NotesScreen `ConfirmDialog` | R-5 | **FIXED** | `NotesScreen.test.tsx` "confirmations use the shared AlertDialog contract…(R-5)" |
+| WEB-2 MAJOR — CoordinateDisplay AT-unreachable status/metadata | R-6 | **FIXED** | 3 tests in `CoordinateDisplay.test.tsx` (accessible name ×2, live region outside the button) |
+| WEB-3 MAJOR — capture button strands focus on `<body>` | R-7 | **FIXED** | `submission-gps.test.tsx` "stays focused and inert for the whole capture…", "keeps focus on the control when the capture fails" |
+| WEB-4 MEDIUM — `SectionBlock` memo inert + unmemoised derivations | R-14 | **FIXED** | structural (useCallback/useMemo); DST site memoised too |
+| WEB-5 MEDIUM — copy-status timer untracked | R-12 | **FIXED** | `NotesScreen.test.tsx` "R-12: a re-copy re-arms the reset window…" |
+| WEB-6 MINOR — hard-coded `10` sample ceiling | R-10 | **FIXED** | 2 tests in the new `GpsCaptureControl.test.tsx` |
+| WEB-7 MINOR — blocked-CTA reasons unassociated/silent | R-15 | **FIXED** | live region + `aria-describedby` (see below) |
+| WEB-8 MINOR (cross-lane note) — OCR commit regenerates scopes unprompted | R-4 | **FIXED** | promoted to MAJOR by the aggregator on phone source; three-arm prompt shipped |
+
+**Gate re-checks.** `tsc --noEmit` exit 0. Blast-radius suites (CoordinateDisplay, GpsCaptureControl,
+AlertDialog, NotesScreen, submission-gps, DemoExperience.ocr) **75/75 pass** run serialized in 31.9 s.
+Boundary: the entire fix range touches only `features/demo/**` plus `docs/code-reviews/deferred.md` —
+no `package.json`, no marketing file, wall re-grepped clean. The only two timers added in the range are
+the tracked-and-cleared ones from R-12/R-31.
+
+> **Full-suite caveat (not a regression).** A single parallel run of all 85 UI files on this box
+> reported 29 failures, every one a bare `Test timed out in 5000ms` — including on a *synchronous*
+> test (`submission-gps.test.tsx:89`, `render` + `getByLabelText`, no async util involved). Wall 675 s
+> against 1646 s of test time = heavy contention. The same files pass 75/75 serialized. This is the
+> phase's documented `gate-import-flake.md` signature, not fix damage. See NEW-WEB-2 for a structural
+> observation it exposed.
+
+---
+
+## WEB-1 → R-5 — **FIXED**
+
+`ConfirmDialog` is **deleted** (−67 lines); all six confirmations now render through `AlertDialog`,
+which is the §39.1 consolidation target. Verified against every sub-claim I filed:
+
+- **Body copy exposed** — comes from the primitive's `aria-describedby` (`AlertDialog.tsx:44,76`);
+  the `body` prop became `message`. Pinned: the new NotesScreen test asserts focus moves in *and*
+  the described-by body carries the copy.
+- **Focus in/out** — inherited from `AlertDialog.tsx:55-61`.
+- **Escape-listener churn (my secondary claim)** — fixed at the root: `closeDialog = useCallback(…, [])`
+  (`NotesScreen.tsx:301`) is the single `onDismiss`/cancel identity for all six dialogs.
+- **Scrim contradiction (TYPESCRIPT-4, folded in)** — resolved by deletion; the demo now has exactly
+  one blocking-dialog semantic (inert scrim, Escape cancels).
+- **`DialogAction` vs `AlertAction` (TYPE-DESIGN-8)** — the local type is gone.
+
+The primitive was extended rather than duplicated: `AlertDialog.tsx:104-107` switches to
+`flexDirection: column` at 3+ actions, matching the OS multi-option shape. Reviewed for fallout —
+container height is auto, so `flex: 1` on column children distributes zero free space and button
+heights are unchanged; 1-2 action dialogs keep the existing row.
+
+**Residual, accepted, not re-filed:** after a destructive action the opener may have unmounted (e.g.
+"Reset to auto-generated" disappears once the section is no longer stale), so focus-restore no-ops via
+the `opener.isConnected` guard and focus lands on `<body>`. That guard is deliberate and predates this
+finding; it is the primitive's contract, not a NotesScreen defect.
+
+## WEB-2 → R-6 — **FIXED**
+
+`CoordinateDisplay.tsx` restructured exactly as suggested, and slightly better:
+
+- The `role="status"` copy region is now a **sibling** of the button inside a new wrapper `<div>`
+  (`:162-174`), with the comment naming why. `card` lost its `marginBottom` to the wrapper, so layout
+  is unchanged.
+- The metadata is folded into the accessible name via a composed `nameParts` array (`:108-113`),
+  which correctly omits the accuracy clause when nothing measured one — the R-18 optional-accuracy
+  case. Pinned by two `toHaveAccessibleName` tests plus one asserting
+  `getByTestId('coordinate-display').contains(status) === false`.
+
+Adjacent **R-31** (recovered by the aggregator from lane-typescript's routing note, on my surface):
+the confirmation now auto-clears after `COPY_RESET_MS = 1600` on a tracked handle cleared on re-arm
+and unmount — the R-12 idiom applied to the sibling component. Three tests. Verified: this closes the
+"'Coordinates Copied' still on screen minutes later" state my round-1 write-up noted in passing.
+
+## WEB-3 → R-7 — **FIXED** (divergence from my suggestion accepted — reasoning is sound)
+
+`disabled={busy || disabled}` → `aria-disabled={busy || disabled}` with a guarded handler
+(`GpsCaptureControl.tsx:126,154`). This is the *stronger* of the two options I offered, not the
+PickerStage idiom. **Judging §45a's reasoning: correct, and better than what I proposed.** PickerStage
+*repairs* focus after losing it — adequate for a sub-second clipboard read; the GPS stranding window is
+the whole 30-120 s capture and, as §45a notes, my suggestion only covered the failure path while
+`aria-disabled` never drops focus on the success path either. `aria-disabled` + guarded activation is
+also the ARIA APG's own recommendation for a control that must stay discoverable while inert.
+
+The consequence they flag is real and I verified the guard chain holds:
+- `onClick` early-returns on `busy || disabled` (`:133`);
+- two clicks in the same tick both see the pre-update `busy === false`, but `useGpsCapture`'s
+  `runningRef` mutex (`useGpsCapture.ts:86-87`) refuses the second — so removing the native `disabled`
+  did **not** widen the double-capture window;
+- pinned by a test that clicks during a capture and asserts one write, plus `aria-disabled` state
+  assertions across idle → busy → idle.
+
+## WEB-4 → R-14 — **FIXED**
+
+- `onRequestReset` → `requestReset = useCallback(…, [])` (`NotesScreen.tsx:305-309`).
+- All six bridge callbacks → `useCallback(…, [store])` (`DemoExperience.tsx:469-486`); the store ref is
+  stable, so they bind once for the mount.
+- `buildNotesSectionMeta` / `assembleNotesString` → `useMemo(…, [currentLocation])` (`:467,470`).
+
+With `meta`, both commit callbacks and `onRequestReset` all stable, `SectionBlock`'s memo now actually
+holds: a free-text keystroke re-renders only `NotesScreen`. The documented intent and the code agree.
+
+Also picked up the routing note folded into R-14: `computeDstAdvisory` moved out of the `timeOffset`
+render arm into a memo at the bridge top (`:373-395`) with deps that are exactly its inputs
+(`timeOffsetForAdvisory`, `scopesForAdvisory`, `capture.actualDateTime`, `capture.dvrAppliesDST` — all
+store references, stable between writes). The ~23 `isDst` probes per bridge render are gone. The
+honest consequence (a memoised clock read freezes "today" until an input changes) is stated in-code.
+
+## WEB-5 → R-12 — **FIXED**
+
+`copiedTimerRef` cleared on re-arm and in an unmount effect (`NotesScreen.tsx:277-294`) — the
+`syncTimer`/`PdfPreview` idiom I cited. Both halves I described are covered: the stacking case is
+pinned by "a re-copy re-arms the reset window — the earlier timer cannot wipe the later confirmation".
+
+## WEB-6 → R-10 — **FIXED**
+
+`resolvedConfig = config ?? buildGpsConfig()` computed once and handed to **both** the hook and the
+readout (`GpsCaptureControl.tsx:117-121`), so the displayed ceiling is by construction the one the loop
+uses. The duplicated literal is gone. Two tests pin it, including a caller-supplied ceiling (the P3.7
+shape). The readout also picked up R-18's optional accuracy correctly — it drops the `· best …` clause
+rather than printing `±0m`.
+
+## WEB-7 → R-15 — **FIXED**
+
+`OcrCaptureScreen.tsx:157-180`: the two blocked-reasons are wrapped in an always-mounted
+`role="status"` container (the correct live-region shape — region present before content changes, not
+mounted with it), and the CTA carries `aria-describedby={canCommit ? undefined : blockedId}` plus
+`aria-disabled` so it stays focusable and can be landed on to hear why.
+
+Verified the describedby can never dangle: `isDvrDraftCommittable` (`ocr.ts:259-267`) returns false in
+exactly two cases — empty draft, or unconfirmed-and-unchanged assumed date — and each renders one of the
+two message divs. No third blocked state exists, so the message is always present and always the right
+one.
+
+**Noted, not filed:** both message divs literally share `id={blockedId}`. They are strictly mutually
+exclusive (`!dvrDraft` vs `Boolean(dvrDraft) && …`), so no duplicate ID can exist in the document at
+once. Fragile if a third reason is ever added; the guard is the exclusivity, not the code shape.
+
+## WEB-8 → R-4 — **FIXED** (promoted to MAJOR by the aggregator; correctly)
+
+My round-1 note was filed MINOR and explicitly unverified against phone source. The aggregator
+verified it (`phone ocr-capture.tsx:288-317`) and promoted it — the right call: the phone *does* guard
+this, so it was silent destruction of operator work on a path the phone protects.
+
+The fix ships the phone's full three-arm shape (`OcrCaptureScreen.tsx:184-203`): Cancel /
+Keep My Edits / Regenerate Scopes, with `calcOffset(regenerate = true)` splitting scope regeneration
+off the offset calculation (`DemoExperience.tsx:841-848`). Defaulting `regenerate` to `true` keeps the
+Time Offset screen's own confirmed path byte-identical — `TimeOffsetScreen.tsx` was not touched, which
+is the correct blast-radius discipline.
+
+**Judging §44a (Escape ≠ Cancel here):** sound and worth the deliberate rule-break. The phone's Cancel
+on this alert is `router.push(TIME_OFFSET)` — it *discards the capture*. Wiring Escape to that would
+let a stray keypress throw away a read; instead Escape returns to the confirm step with the read,
+draft and date-confirmation intact. Least-destructive dismissal is the right default for a keyboard
+escape hatch, and it is documented in-file and in the ledger with a revisit trigger.
+
+---
+
+# NEW findings from the fix round
+
+## NEW-WEB-1 [MINOR] features/demo/ui/screens/OcrCaptureScreen.tsx:134
+
+**Claim.** The fix round adopted `aria-disabled` + guarded activation on two surfaces and wrote down
+why — but the *third* button in the same file, twenty lines above the one it fixed, still uses the
+native `disabled` attribute and reproduces the exact failure the round's own comment describes.
+
+**Evidence.** `OcrCaptureScreen.tsx:130-136`, the assumed-date panel's confirm button:
+
+```tsx
+<button type="button" onClick={onConfirmDate} disabled={dateConfirmed} …>
+  {dateConfirmed ? 'Date confirmed' : 'The date is correct'}
+</button>
+```
+
+versus the R-15 comment at `:157-162` on the CTA below it: *"`disabled` would also drop focus at the
+exact moment confirming the date re-enables it (the R-7 failure shape). The click is guarded instead."*
+And `deferred.md` §44b: *"this particular button's state flips while the operator is working on the
+screen … so `disabled` would drop focus to `<body>` at the exact moment the operator wants to press it."*
+
+That reasoning describes this button precisely: pressing "The date is correct" flips `dateConfirmed`
+→ the button the user just activated becomes `disabled` → browsers blur it → focus falls to `<body>`.
+The very next thing the operator wants is the commit CTA that this press just unblocked, and it is now
+several tabs away, with the `role="status"` blocked-reason announcing to a user whose focus is nowhere.
+
+**Why MINOR, not MAJOR.** Unlike R-7's 30-120 s window this is a single forward step in a small
+overlay, the state change is what the user intended, and the CTA is reachable. It is a completeness
+residual of the pattern this round established, not a new class of defect.
+
+**Suggested fix.** Same three-line shape as its neighbour: `aria-disabled={dateConfirmed}` and
+`if (dateConfirmed) return` at the top of the handler. (Or drop the disabling entirely — re-confirming
+is idempotent.)
+
+**Confidence.** High — mechanical, and the round has already written the argument for it.
+
+## NEW-WEB-2 [MINOR — cross-lane routing note] `vitest.config.mts` + `vitest.setup.ts`
+
+**Not a web-platform finding; recorded so it is not lost between lanes** (tests lane owns it). This is
+**not** a re-flag of the deliberate `asyncUtilTimeout: 5000` — it is about the budget that caps it.
+
+**Claim.** `vitest.config.mts` sets **no `testTimeout`**, so it is vitest's default **5000 ms** —
+exactly equal to the `asyncUtilTimeout: 5000` the phase introduced. A `findBy*`/`waitFor` that
+genuinely needs the raised budget can therefore never use it: the per-test timeout fires at the same
+instant. The raise is effective only inside `DemoExperience.sandbox.test.tsx`, which raised its own
+per-test timeout to 20000 ms — which is precisely the file the flake doc measured.
+
+**Evidence.** `vitest.config.mts` `test:` block contains `environment`, `globals`, `setupFiles`, `css`,
+`include`, `exclude`, `coverage` — no `testTimeout`. `vitest.setup.ts:24` `configure({ asyncUtilTimeout: 5000 })`.
+The setup comment itself says *"Deliberately well under that 20000 ms test timeout"* — true for the one
+file that sets it, not for the other 84. Observed live: this round's contended full-suite run produced
+29 failures, all `Test timed out in 5000ms`, none reaching the async-util budget's own error.
+
+**Suggested action.** Set a global `testTimeout` above `asyncUtilTimeout` (e.g. 15000) in
+`vitest.config.mts` so the async-util raise can actually take effect fleet-wide, and so a genuine hang
+still fails as a hang. Pairs with the existing ceiling pin in `__tests__/async-util-timeout.test.ts`.
+
+**Confidence.** High on the configuration fact and on the failure signature; the flake-cause
+attribution is the tests lane's to confirm.
+
+---
+
+# ROUND 1 (initial) — original findings, retained
+
+Line references below are as-of `9f5c01a`. See the fix-delta section above for current state.
+
+## WEB-1 [MAJOR] features/demo/ui/screens/NotesScreen.tsx:96-156 — **FIXED (R-5)**
 
 **Claim.** `NotesScreen`'s local `ConfirmDialog` is a second, weaker blocking-dialog implementation
 shipped in the same PR that introduced the shared `AlertDialog` primitive. It carries
@@ -22,439 +241,173 @@ focus, and (c) associates only the *title* (`aria-label={title}`) — the body c
 destructive consequence is stated, is not exposed at all. All six Notes confirmations (reset section,
 restore section, restore-all ×2, scrap-all) route through it.
 
-**Evidence.**
+**Evidence.** `NotesScreen.tsx:121-129` carried `aria-label={title}` with no `tabIndex={-1}`, no
+`aria-describedby`, and no focus effect (the only `useEffect` was the Escape listener at :107-113).
+The bar this PR set — `AlertDialog.tsx:41-61` — has `useId`-derived `aria-labelledby`/`aria-describedby`,
+`tabIndex={-1}`, and a focus-in/focus-restore effect, with four tests pinning it and `deferred.md:939-943`
+recording it as the §39.1 resolution.
 
-`NotesScreen.tsx:121-129` — the dialog element and its labelling:
+**Concrete failure mode.** Screen-reader + keyboard user presses "Write my own notes…" → the dialog
+mounts in a portal, focus stays on the now-obscured trigger. `aria-modal="true"` marks everything
+outside inert to AT, so the user is focused on an element the AT is told to ignore, with no
+announcement a dialog opened, and the sentences that matter (:378, :388, :397) are never associated.
+The two buttons on offer are "Start from current notes" and "Start blank" — the second wipes all seven
+sections (`create-store.ts:563-586`).
 
-```tsx
-<div
-  role="alertdialog"
-  aria-modal="true"
-  aria-label={title}
-  onClick={(e) => e.stopPropagation()}
-  ...
->
-  <div style={{ fontSize: 16, fontWeight: 700, ... }}>{title}</div>
-  <div style={{ fontSize: 13, lineHeight: 1.5, ... }}>{body}</div>
-```
+This is **not** the deferred item at `deferred.md:164-167` (a focus *trap* + return for
+`WizardDrawer`/`ModalShell`, both of which at least announce their own name).
 
-There is no `tabIndex={-1}`, no `aria-describedby`, and no focus effect anywhere in the component
-(the only `useEffect` is the Escape listener at :107-113).
+**Secondary.** The Escape effect keyed on `onCancel` with fresh inline closures at every call site
+(:360, :369, :383, :390, :402) — listener teardown/re-add every render, the exact anti-pattern this PR
+comments and fixes twice (`DemoExperience.tsx:356-358`, `TimeOffsetScreen.tsx:64-66`).
 
-The bar this PR set, `features/demo/ui/controls/AlertDialog.tsx:41-61`:
+**Suggested fix.** Render through `AlertDialog` (add a stacked-actions variant), or port the six lines.
+**Confidence.** High.
 
-```tsx
-const uid = useId(); const titleId = `${uid}-title`; const bodyId = `${uid}-body`
-...
-aria-labelledby={titleId} aria-describedby={bodyId} tabIndex={-1}
-...
-useEffect(() => {
-  const opener = document.activeElement
-  dialogRef.current?.focus()
-  return () => { if (opener instanceof HTMLElement && opener.isConnected) opener.focus() }
-}, [])
-```
+## WEB-2 [MAJOR] features/demo/ui/inputs/CoordinateDisplay.tsx:84-134 — **FIXED (R-6)**
 
-with its own docblock stating the reason ("so a screen reader hears title AND body, not just the
-first button"), and four tests pinning it (`controls/__tests__/AlertDialog.test.tsx` — described-by
-body, focus on mount, focus return on close). `docs/code-reviews/deferred.md:939-943` records the same
-contract as the P2.6 resolution of §39.1.
+**Claim.** The whole coordinate card is one `<button aria-label="…">` with the metadata spans **and**
+the `role="status"` copy region as descendants. Per ARIA, `button` has children-presentational
+descendants, and `aria-label` overrides the name computation — so an AT user gets neither the measured
+accuracy/rating/source nor "Unable to copy coordinates to clipboard".
 
-**Concrete failure mode.** Notes screen, screen-reader + keyboard user, "Write my own notes…" →
-`ConfirmDialog` mounts in a portal, focus stays on the now-obscured trigger. Because
-`aria-modal="true"` marks everything outside the dialog inert to AT, the user is left focused on an
-element the AT is being told to ignore, with no announcement that a dialog opened. Arrowing to the
-dialog they reach the title only; the sentence that matters — *"Auto-generation stops for every
-section"* (:397), *"sections you rewrote will be replaced"* (:388), *"keeping Additional Notes may
-repeat the restored sections"* (:378) — is never associated with the dialog. The two buttons on offer
-are "Start from current notes" and "Start blank"; the second wipes all seven sections
-(`create-store.ts:563-586`, `scrapAllNotes('blank')`).
+**Evidence.** `CoordinateDisplay.tsx:85-133`. The correct in-repo pattern is 40 lines away in the same
+PR: `GpsCaptureControl.tsx:162-173` places `role="status"` and `role="alert"` outside the button.
 
-This is **not** the deferred item at `deferred.md:164-167` (that defers a full focus *trap* + return
-for `WizardDrawer`/`ModalShell`, both of which at least announce their own name). Missing focus
-*entry* and a missing describedby on a brand-new destructive dialog is a different, larger gap — and
-the primitive that fixes it landed in this same branch.
+**Concrete failure mode.** The card announces only "GPS coordinates: 43.653226, -79.383184. Copy to
+clipboard, button". `defaultWriteClipboard` throws (:35-38) on any non-secure origin; the resulting
+failure line is never heard. The component's own comment (:76-78) says a blocked clipboard "must not
+look like a successful copy" — for AT it looked like nothing at all.
 
-**Secondary (same component, same fix).** `ConfirmDialog`'s Escape effect is keyed on `onCancel`
-(:107-113), and every call site passes a fresh inline `() => setDialog(null)` (:360, :369, :383, :390,
-:402) — so the `document` keydown listener is torn down and re-added on every `NotesScreen` render.
-That is the exact anti-pattern this PR calls out twice in its own comments
-(`DemoExperience.tsx:356-358`, `TimeOffsetScreen.tsx:64-66`) and solves with `useCallback`.
+**Suggested fix.** Move the status block out; fold accuracy/rating/source into the accessible name.
+**Confidence.** High.
 
-**Suggested fix.** Render the Notes confirmations through `AlertDialog` (it already supports
-`style: 'cancel' | 'destructive'` and an actions array; the only visual delta is the row-vs-stack
-button layout and the implicit Cancel, both cheap to add as a prop). If the stacked layout must
-stay, port the six lines: `useId` + `aria-labelledby`/`aria-describedby`, `tabIndex={-1}` + the
-focus-in/focus-restore effect, and wrap the `onCancel` closures in `useCallback`.
+## WEB-3 [MAJOR] features/demo/ui/inputs/GpsCaptureControl.tsx:131-141 — **FIXED (R-7)**
 
-**Confidence.** High — read in full context (component, both call paths, the primitive, its tests,
-and the ledger entries that could have excused it).
+**Claim.** The capture button disabled itself for the whole capture — up to 30 s on the default config
+(`gps.ts:128-138`) and 120 s with `PRECISE_GPS_CONFIG` (:142-147) — blurring the just-activated control
+and dropping keyboard focus to `<body>`. On failure the `role="alert"` (:169-173) then announced with
+focus nowhere.
 
-**Fix-delta check.** Dialog exposes both title and body to AT; focus enters on mount and returns to
-the opener on close; Escape listener identity stable. Re-read `NotesScreen.tsx:96-156` and the
-`setDialog` call sites.
+**Evidence.** `disabled={busy || disabled}` with `busy = isCapturing || reverseGeocoding` (:119); no
+ref, no focus effect. The repo's commented, tested idiom for this is `PickerStage.tsx:171-192`.
 
----
+**Concrete failure mode.** Keyboard user tabs to "Use Current Location", presses Enter, loses their
+place in a ~12-field form; on permission-denied there is no route back to the control. `aria-busy`
+annotates a node the user is no longer on.
 
-## WEB-2 [MAJOR] features/demo/ui/inputs/CoordinateDisplay.tsx:84-134
+**Suggested fix.** Re-focus on failure (PickerStage), or `aria-disabled` + early return.
+**Confidence.** High.
 
-**Claim.** The whole coordinate card is a single `<button aria-label="...">`, and the copy
-confirmation/failure live region plus the accuracy/source/rating metadata are rendered **inside** it.
-Per ARIA, `button` has *children presentational: true*, so its descendants are not exposed as
-separate accessibility objects; combined with the `aria-label` overriding the name computation, an
-assistive-tech user gets neither the measured accuracy nor any signal that the copy failed.
+## WEB-4 [MEDIUM] NotesScreen.tsx:171,421-431 + DemoExperience.tsx:1113-1130 — **FIXED (R-14)**
 
-**Evidence.** `CoordinateDisplay.tsx:85-133`:
+**Claim.** `SectionBlock`'s `memo` was inert — a fresh `onRequestReset` arrow per render (:427) plus
+inline `onCommitSection`/`onCommitAddendum` from the bridge (:1121-1126) meant no prop ever held
+identity, defeating the optimisation its own comment documents (:168-170). Separately
+`buildNotesSectionMeta` + `assembleNotesString` ran in the render body (:1114-1120) while every
+neighbouring derivation (`caseCards` :331, `mapData` :334-338, `gateOutcome` :349-352) is memoised.
 
-```tsx
-<button type="button" onClick={copy} style={card}
-        aria-label={`GPS coordinates: ${coordinates}. Copy to clipboard.`}>
-  ...
-  <span data-testid="coordinate-display-accuracy" ...>{formatAccuracy(accuracyM)}</span>
-  <span data-testid="coordinate-display-source"  ...>{sourceLabel}</span>
-  <span data-testid="coordinate-display-rating"  ...>{rating.label}</span>
-  ...
-  {copied !== 'idle' && (
-    <div role="status" ...>{copied === 'ok' ? COPY_LABELS.success : COPY_LABELS.failure}</div>
-  )}
-</button>
-```
+**Impact (stated honestly).** ~7 small subtrees re-reconciled per free-text keystroke, one full notes
+rebuild per store commit. `useAutoGrow` is dep-guarded, so no layout thrash — wasted reconciliation and
+a dead optimisation, not jank.
 
-The correct in-repo pattern is 40 lines away, in the sibling this PR added:
-`GpsCaptureControl.tsx:162-173` places `role="status"` (progress) and `role="alert"` (failure)
-as **siblings outside** the button, not inside it.
+**Suggested fix.** `useCallback` the arrow, hoist the bridge callbacks, `useMemo` the derivations.
+**Confidence.** High on the memo; Medium on the derivation's measured cost.
 
-**Concrete failure mode.** Submission screen, VoiceOver/NVDA user captures a fix and activates the
-coordinate card. The card announces "GPS coordinates: 43.653226, -79.383184. Copy to clipboard,
-button" and then nothing — a denied/unavailable clipboard (`defaultWriteClipboard` throws at :35-38
-on any non-secure origin or Firefox without `dom.events.asyncClipboard.clipboardItem`) renders
-"Unable to copy coordinates to clipboard" that the user never hears. The component's own comment at
-:76-78 says the point is that a blocked clipboard "must not look like a successful copy" — for AT it
-looks like nothing at all. Separately, `±8m · GPS · Good` — the forensic quality signal, whose tone
-is otherwise carried only by colour (`TONE_COLOR`, :22-26) — is unreachable, because a `button`'s
-inner text is not a separate stop for a screen reader and the `aria-label` replaces the name.
+## WEB-5 [MEDIUM] NotesScreen.tsx:343-351 — **FIXED (R-12)**
 
-**Suggested fix.** Move the `role="status"` block out of the `<button>` (sibling below it, as
-`GpsCaptureControl` does), and fold the metadata into the accessible name, e.g.
-`aria-label={`GPS coordinates: ${coordinates}${rating ? `, accuracy ${formatAccuracy(accuracyM)}, ${rating.label}` : ''}${sourceLabel ? `, source ${sourceLabel}` : ''}. Copy to clipboard.`}`.
+**Claim.** `setTimeout(() => setCopied('idle'), 1600)` with no teardown and no stacking guard, in a
+file whose siblings all track their timers (`DemoExperience.tsx:284-290`, `PdfPreview.tsx:28-33`).
+Two consequences: a fire on an unmounted tree (no-op under React 18), and stacked timers reverting the
+confirmation 1.6 s after the *first* click regardless of later ones.
+**Suggested fix.** Ref the handle, clear on re-arm and unmount. **Confidence.** High on mechanics.
 
-**Confidence.** High on the live region (spec-level children-presentational, and support for live
-regions nested in presentational-children roles is inconsistent across AT even where it works);
-High on the metadata being absent from the accessible name.
+## WEB-6 [MINOR] GpsCaptureControl.tsx:165 — **FIXED (R-10)**
 
-**Fix-delta check.** `role="status"` node is a DOM sibling of the button, not a descendant; accuracy
-+ rating + source appear in the accessible name. Re-read `CoordinateDisplay.tsx:84-134`.
+**Claim.** `config?.maxAttempts ?? 10` duplicates `GPS_CONFIG_STATIC.maxAttempts` (`gps.ts:111`).
+Correct today; drifts silently the moment the constant moves, in a component whose docblock promises
+"Every number on that line is measured" (:26-28). **Confidence.** High (latent, not live).
+
+## WEB-7 [MINOR] OcrCaptureScreen.tsx:122-130 — **FIXED (R-15)**
+
+**Claim.** The two reasons the commit CTA is blocked were plain, unassociated, non-live text beside a
+`disabled` (unfocusable) button, appearing/disappearing reactively with no announcement. The repo's
+idiom for blocking-validation messages is `role="alert"` (`CompletionScreen.tsx:77`,
+`OcrCaptureScreen.tsx:89`). **Confidence.** Medium-High; filed MINOR because the assumed-date branch is
+also stated in the `role="alert"` panel above.
+
+## WEB-8 [MINOR — cross-lane routing note] DemoExperience.tsx:811-827 — **FIXED (R-4, promoted MAJOR)**
+
+**Claim.** P2.5 gated recalculation behind a confirm on the `Calculate` button only; `confirmOcr` →
+`calcOffset()` → `generateExtractedScopes()` (:762-765, :824) reached the same destructive regeneration
+with no prompt. Reachable: generate scopes → edit them → re-capture OCR → "Use this & calculate" →
+edits gone. **Confidence.** High on the demo-internal inconsistency; phone source unavailable to this
+lane (the aggregator verified it and promoted the finding).
 
 ---
 
-## WEB-3 [MAJOR] features/demo/ui/inputs/GpsCaptureControl.tsx:131-141
+# Checked and clean (inventory — re-verified at `572022a`)
 
-**Claim.** The capture button disables itself for the entire duration of a capture, which blurs the
-just-activated control and drops keyboard focus to `<body>` — for up to 30 s on the default config
-and 120 s with `PRECISE_GPS_CONFIG`. On failure the `role="alert"` message then announces with focus
-nowhere. The repo has an explicit, commented, tested idiom for exactly this scenario and it is not
-applied here.
+**Bundle & boundary — CRITICAL bucket, all clear.** The wall holds (`grep` over `components`,
+`app/(default)`, `lib`, `app/layout.tsx` returns only the guard test and a comment in
+`phone-frame.tsx:7`). The whole fix range touches only `features/demo/**` + `deferred.md`;
+`package.json` unchanged across both rounds. Heavy deps still lazy (`mapbox-gl` via `await import` at
+`MapCanvas.tsx:122`, `pdfjs-dist` at `pdf-extract.ts:21`); `@mapbox/search-js-core` static, matching
+the pre-existing shape (`AddressAutocomplete.tsx:13`, `import/geocode.ts:3`). `app/demo/page.tsx` still
+`next/dynamic(..., { ssr: false })`. No `'use client'` added to a marketing layout.
 
-**Evidence.** `GpsCaptureControl.tsx:131-141`:
+**Resource leaks — clear.** The only timers added in the fix range are R-12's and R-31's, both tracked
+and cleared on re-arm *and* unmount. `persistDemoStore(store, null)` short-circuits to `NOOP_HANDLE`
+before subscribing (`persistence.ts:531`), so wiring injected test stores through the real path (R-2)
+adds no subscription and no timer. `PdfPreview`'s R-47 teardown, `DemoExperience`'s `syncTimer` +
+pagehide listener, and `AlertDialog`'s Escape listener all still dispose. No `createObjectURL` anywhere.
 
-```tsx
-<button type="button" onClick={onClick} disabled={busy || disabled} aria-busy={busy} ...>
-```
+**Browser-API correctness — clear.** No browser global at module scope: `readBrowserGeolocation()`
+reads `navigator` at call time (`capture-gps.ts:37-41`), `defaultWriteClipboard` capability-checks
+`navigator.clipboard?.writeText`, `reverseGeocode` reads the token inside the function.
+`aria-disabled` did not widen the double-activation window — `useGpsCapture`'s `runningRef` is the real
+mutex and is test-pinned. `useGpsCapture`'s unmount abort now also fires on a *location switch*
+(`LocationFields.tsx:182` keys the control on `locationId`), which is a strict improvement to the
+abort contract. Hydration N/A (`ssr: false`). `localStorage` still absent; sessionStorage still behind
+`sessionStorageOrNull()`; snapshot key/version still bumped together.
 
-with `busy = isCapturing || reverseGeocoding` (:119). Budgets: `buildGpsConfig()` →
-`timeoutMs = 30_000` (`engine/logic/gps.ts:128-138`); `PRECISE_GPS_CONFIG.timeoutMs = 120_000`
-(:142-147), which the docblock at :17-19 says P3.7 will mount. Failure surfaces at :169-173.
+**Render performance — clear and improved.** WEB-4/R-14 closed the two sites I raised plus the DST
+advisory. Still no whole-store subscription, no selector returning a fresh object, no new
+single-consumer state on the bridge.
 
-The established pattern, `features/demo/ui/screens/import/PickerStage.tsx:171-192`:
+**Accessibility — the three MAJORs closed; the round's idioms are now consistent** except NEW-WEB-1.
+`AlertDialog` is the single blocking-dialog primitive (labelledby + describedby + focus in/out +
+Escape); live regions sit outside their buttons; `aria-disabled` + guarded click is the new inert-control
+idiom on two surfaces; `role="switch"` + `switchKeyDown` unchanged.
 
-```
-// R-17 focus management. ... The clipboard card is disabled while its read is in
-// flight — a failure re-enables it, and focus returns to it so a keyboard user isn't
-// stranded on <body> while the role="alert" banner announces.
-useEffect(() => {
-  if (!isReadingClipboard && clipboardErrored.current) {
-    clipboardErrored.current = false
-    clipboardCardRef.current?.focus()
-  }
-}, [isReadingClipboard])
-```
+**CSS & style discipline — clear.** No `className` in `features/demo/ui`; `demo.css` untouched in both
+rounds; no new keyframes; device-frame math untouched. `AlertDialog`'s new column variant is inline
+`CSSProperties`, per the demo's convention.
 
-**Concrete failure mode.** Submission screen, keyboard-only user tabs to "Use Current Location" and
-presses Enter. The button disables → browsers blur the disabled element and focus falls to `<body>`.
-The user's place in a ~12-field form is lost; resuming means tabbing from the top of the document.
-If the capture then fails (permission denied is the common case), the `role="alert"` fires while
-focus is on `<body>`, so a screen-reader user hears the message but has no route back to the control
-that produced it. `aria-busy` does not mitigate either half — it annotates a node the user is no
-longer on.
+**Deliberate choices honoured (not re-flagged).** D10; the §M13 2σ refutation; `asyncUtilTimeout: 5000`
+itself (NEW-WEB-2 is about the *test* timeout that caps it, a different fact); `AlertDialog`'s
+non-dismissing scrim; `aria-modal` without a focus trap (`deferred.md:164-167`) and PickerStage's
+deliberate *omission* of `aria-modal` (:262-268); phone bugs not copied; snapshot v4 union;
+orchestrator merge-integration commits; the OCR today-guess gate; ledger §29-§45. Fix-round
+judgement calls read and accepted: §44a (Escape ≠ Cancel), §44b (`aria-disabled` CTA), §44c
+(`calcOffset` default), §45a (R-7 took the stronger option).
 
-**Suggested fix.** Keep a ref on the button and re-focus it when `isCapturing` goes false with a
-`failure` present (the PickerStage effect, verbatim). Optionally prefer `aria-disabled` + an early
-return in `onClick` over the `disabled` attribute so focus is never lost in the first place — that is
-the stronger fix, but the PickerStage-shaped one is the in-repo precedent.
-
-**Confidence.** High — behaviour is uniform across Chrome/Firefox/Safari, the code path is
-unconditional, and no test pins the current focus behaviour as deliberate
-(`screens/__tests__/submission-gps.test.tsx` covers capture/geocode/failure copy, not focus).
-
-**Fix-delta check.** Focus returns to the capture button when a capture ends in failure; ideally
-focus is never dropped during the busy window. Re-read `GpsCaptureControl.tsx:107-176`.
+**Not run.** `pnpm build` — `package.json` unchanged, no import moved between static and lazy, no
+marketing file in either range, so the route table and per-route First Load JS cannot have moved.
 
 ---
 
-## WEB-4 [MEDIUM] features/demo/ui/screens/NotesScreen.tsx:171,421-431 + DemoExperience.tsx:1113-1130
+## Observations for the next round (no action required)
 
-**Claim.** `SectionBlock`'s `memo` is inert: every prop it receives is a fresh identity on every
-render, so the stated optimisation ("Memo'd — free-text keystrokes re-render the parent editor",
-:168-170) never engages. Separately, the Notes view-model is rebuilt from scratch on every bridge
-render while the screen is open, unlike every neighbouring derivation in `DemoExperience`, which is
-memoised.
-
-**Evidence.** `NotesScreen.tsx:421-431` — a new arrow per render for the memoised child:
-
-```tsx
-{sections.map((meta) => (
-  <SectionBlock
-    key={meta.id}
-    meta={meta}
-    onCommitSection={onCommitSection}
-    onCommitAddendum={onCommitAddendum}
-    onRequestReset={(id, label, deleted) =>          // ← new identity every render
-      setDialog(deleted ? { kind: 'restoreSection', id, label } : { kind: 'reset', id, label })
-    }
-  />
-))}
-```
-
-and `DemoExperience.tsx:1121-1126` — `onCommitSection` / `onCommitAddendum` are themselves inline
-arrows recreated on every bridge render, so even the two forwarded props never hold identity.
-
-`DemoExperience.tsx:1114-1120` — unmemoised derivation in the render body:
-
-```tsx
-sections={buildNotesSectionMeta(currentLocation)}
-copyAllText={currentLocation ? assembleNotesString(currentLocation.form.notesSections, currentLocation.form.notesFreeText) : ''}
-```
-
-`buildNotesSectionMeta` runs all seven formatters (via `freshSectionContent` for the staleness
-baseline) and `assembleNotesString` re-concatenates the whole document. Compare the same file's
-`caseCards` (:331), `mapViewerCase`/`mapData` (:334-338) and `gateOutcome` (:349-352), all `useMemo`d.
-
-**Impact (stated honestly).** Modest: ~7 small subtrees re-reconciled per keystroke in the free-text
-box, and one full notes rebuild per store commit while the Notes view is active. `useAutoGrow`'s
-effect is dep-guarded on `value`, so there is no layout thrash — this is wasted reconciliation and a
-dead optimisation, not a jank report. Flagged because the memo's own comment documents an intent the
-code does not deliver, and because the cost grows with the section content (cameras/scopes lists).
-
-**Suggested fix.** `useCallback` the `onRequestReset` arrow in `NotesScreen` (it only closes over
-`setDialog`), hoist the three bridge callbacks to stable identities (`useCallback` over `store`),
-and wrap the two derivations in `useMemo` keyed on `currentLocation`.
-
-**Confidence.** High on the memo being defeated (mechanical); Medium on the derivation being worth
-memoising (correct-by-convention, low measured cost today).
-
-**Fix-delta check.** `SectionBlock` no longer re-renders when only `freeDraft` changes.
-
----
-
-## WEB-5 [MEDIUM] features/demo/ui/screens/NotesScreen.tsx:343-351
-
-**Claim.** The "Copy all" status timer has no teardown and no stacking guard.
-
-**Evidence.**
-
-```tsx
-const copyAll = async () => {
-  try { await navigator.clipboard.writeText(copyAllText); setCopied('done') }
-  catch { setCopied('failed') }
-  setTimeout(() => setCopied('idle'), 1600)     // never cleared, never tracked
-}
-```
-
-The in-repo reference for a tracked one-shot is `DemoExperience.tsx:284-290` (`syncTimer` ref +
-`clearTimeout` on unmount) and `PdfPreview.tsx:28-33 / 105-110` (this PR's own R-47 work, which
-tracks and cancels its verdict timer).
-
-**Concrete failure mode.** Two, both small: (1) "Copy all" then "Continue →" inside 1.6 s leaves a
-timer that fires `setCopied` on an unmounted tree — a no-op under React 18, but an untracked timer in
-a file whose siblings all track theirs; (2) repeated clicks stack timers, so the confirmation label
-reverts to "Copy all" 1.6 s after the *first* click regardless of later ones — the visitor can see the
-"Copied ✓" flicker off mid-interaction.
-
-**Suggested fix.** Hold the handle in a ref, `clearTimeout` before re-arming and in an unmount
-effect (the `syncTimer` shape).
-
-**Confidence.** High on the mechanics; Medium on user-visible impact (the stacking case is real but
-cosmetic).
-
-**Fix-delta check.** Timer handle cleared on re-arm and on unmount.
-
----
-
-## WEB-6 [MINOR] features/demo/ui/inputs/GpsCaptureControl.tsx:165
-
-**Claim.** The live sample readout hard-codes the attempt ceiling instead of reading the config the
-capture actually used.
-
-**Evidence.**
-
-```tsx
-{`Sample ${progress.samplesTaken} of ${config?.maxAttempts ?? 10} · best ${formatAccuracy(progress.bestAccuracyM)}`}
-```
-
-The default path (`config` undefined) resolves to `buildGpsConfig()` →
-`GPS_CONFIG_STATIC.maxAttempts` (`engine/logic/gps.ts:111`), which is `10` today — so the number is
-correct **now**. It is a second copy of a constant the engine owns, in a component whose docblock
-promises "Every number on that line is measured, never simulated" (:26-28). If
-`GPS_CONFIG_STATIC.maxAttempts` ever moves, this line silently misstates the ceiling to the visitor
-(e.g. "Sample 5 of 10" on a loop that stops at 5) with no test to catch it —
-`submission-gps.test.tsx:219-...` asserts the counter, not the denominator's provenance.
-
-**Suggested fix.** `(config ?? buildGpsConfig()).maxAttempts`, or have `useGpsCapture` return the
-resolved config.
-
-**Confidence.** High (latent-drift, not a live defect — severity set accordingly).
-
----
-
-## WEB-7 [MINOR] features/demo/ui/screens/OcrCaptureScreen.tsx:122-130
-
-**Claim.** The two reasons the commit CTA is blocked are plain, unassociated, non-live text next to a
-`disabled` button — so the reason is undiscoverable by keyboard (a disabled button is not focusable)
-and unannounced when it appears.
-
-**Evidence.**
-
-```tsx
-{!dvrDraft && <div style={{ ...label12, marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
-{dateNeedsConfirming && <div style={{ ...label12, marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
-...
-<button type="button" onClick={onConfirm} disabled={!canCommit} ...>Use this &amp; calculate</button>
-```
-
-Both lines appear/disappear reactively as the operator edits `dvrDraft`. The repo's idiom for exactly
-this — a blocking-validation message — is `role="alert"`, used in this same PR at
-`CompletionScreen.tsx:77` for the gate's "Required Fields Missing" card and at
-`OcrCaptureScreen.tsx:89` for the unreadable-frame notice.
-
-**Suggested fix.** Give the two hint lines `role="status"` (or `role="alert"`) and reference them
-from the CTA with `aria-describedby`; alternatively use `aria-disabled` + a no-op handler so the
-button stays focusable and can carry its own reason.
-
-**Confidence.** Medium-High. Filed MINOR because the same information is also stated inside the
-`role="alert"` assumed-date panel above (:100-104) for the assumed-date branch — only the empty-draft
-branch is fully silent.
-
----
-
-## WEB-8 [MINOR — cross-lane routing note] features/demo/ui/DemoExperience.tsx:811-827
-
-**Not a web-platform finding; recorded here so it is not lost between lanes** (belongs to the
-flow/silent-failure lane).
-
-**Claim.** P2.5 added a confirmation before a recalculation that wipes edited extracted scopes, but
-it guards only the `Calculate` button. The OCR commit path reaches the same destructive action with
-no confirmation.
-
-**Evidence.** `TimeOffsetScreen.tsx:52-58` gates `onCalculate` behind `AlertDialog` when
-`hasExtractedScopes`, with the rationale "the demo's `generateExtractedScopes` replaces the list the
-same way, and its Extracted-Scope screen is editable — so the guard is load-bearing here, not
-ceremony." But `confirmOcr` (`DemoExperience.tsx:824`) calls `calcOffset()`, which is
-`store.calculateOffset(); store.generateExtractedScopes()` (:762-765) — regenerating the list
-wholesale with no prompt. Reachable: generate scopes → edit them on the Extracted Scope screen →
-re-capture OCR → "Use this & calculate" → edits gone.
-
-**Suggested action.** Verify against the phone (does its OCR confirm re-run the generator, and does
-it prompt?) and either route this path through the same confirm or record the divergence in the
-ledger.
-
-**Confidence.** High on the demo-internal inconsistency; unverified against phone source (not
-available in this worktree).
-
----
-
-## Checked and clean (inventory for the fix-delta pass)
-
-**Bundle & boundary — CRITICAL bucket, all clear.**
-- The wall holds: `grep -rn "features/demo" components app/\(default\) lib app/layout.tsx` returns
-  only the guard test and a comment reference in `components/marketing/phone-frame.tsx:7`. No file
-  under `app/` or `components/` is touched by this diff at all (`git diff --stat`), so
-  `phone-frame.test.tsx` and `chrome-scope.test.tsx` cannot have regressed.
-- `package.json` is unchanged — no new dependency, no bundle rationale needed.
-- Heavy deps stay lazy: `mapbox-gl` only via `await import` inside the effect
-  (`MapCanvas.tsx:122`), `pdfjs-dist` via `await import` (`ui/import/pdf-extract.ts:21`). Neither is
-  touched by this PR.
-- `reverse-geocode.ts` statically imports `@mapbox/search-js-core` — the *existing* shape for this
-  dep (`AddressAutocomplete.tsx:13`, `ui/import/geocode.ts:3`), so it adds nothing to the demo chunk.
-- `app/demo/page.tsx` still mounts through `next/dynamic(..., { ssr: false })`; unchanged.
-- No `'use client'` added to a marketing layout or server component (marketing untouched).
-
-**Resource leaks — all new listeners/timers torn down.** Full sweep of the changed UI files for
-`setTimeout|setInterval|addEventListener|createObjectURL|requestAnimationFrame`:
-`AlertDialog.tsx:51` (removed in cleanup), `PdfPreview.tsx:75/105/122` (the R-47 rework tracks and
-cancels the armed listener + verdict timer on supersede *and* unmount — verified correct),
-`DemoExperience.tsx:299` (pagehide, removed) and `:771` (`syncTimer`, cleared at :288-290),
-`capture-gps.ts:68` (a bounded retry `setTimeout` whose only continuation is abort-checked at the
-loop head — worst case one 500 ms orphan promise, no state write). The one gap is WEB-5. No
-`createObjectURL` anywhere. No new `Map`/marker creation.
-
-**Browser-API correctness — all clear.**
-- No browser global at module scope: `readBrowserGeolocation()` reads `navigator` at call time and
-  says so (`capture-gps.ts:37-41`); `defaultWriteClipboard` capability-checks
-  `navigator.clipboard?.writeText` (`CoordinateDisplay.tsx:34-39`); `reverseGeocode` reads
-  `process.env.NEXT_PUBLIC_MAPBOX_TOKEN` inside the function and returns `null` without it;
-  `usePhoneScale`'s pattern is untouched.
-- Geolocation is the newly-arrived API and is handled to the lane's standard: permission denial is
-  terminal and surfaced verbatim, `UNSUPPORTED` (jsdom / insecure origin / hardened browser) is a
-  named, visible failure, `maximumAge: 0` so no cached fix can be passed off as a capture, and there
-  is deliberately **no** fabricated-coordinate fallback. `vitest.setup.ts` still leaves
-  `navigator.geolocation` undefined, so `UNSUPPORTED` is the default tested contract.
-- `useGpsCapture` gets the unmount contract right: `abortedRef` guards every post-await write, a
-  separate `runningRef` is the real re-entry mutex (state can't be), and `capture` keeps a stable
-  identity by reading options through a ref.
-- Hydration: not applicable — the whole subtree is `ssr: false`. `GpsCaptureControl`'s render-time
-  `window.matchMedia` read (:72) is safe for that reason and matches the PickerStage/R-14 precedent.
-- `localStorage` still appears nowhere; sessionStorage access stays behind `sessionStorageOrNull()`.
-  Snapshot key/version bumped together (`SNAPSHOT_VERSION = 4`, `dvr-demo-state-v4`) so v2/v3
-  snapshots are discarded rather than mis-parsed.
-- `reverseGeocode`'s fetch has no `AbortController`, matching its sibling `ui/import/geocode.ts`;
-  it soft-fails to `null`, warns once, and its only post-await writes are React state on a possibly
-  unmounted tree (no-op). Not filed — established pattern, no new user-visible failure.
-
-**Render performance.** No new state added to the `DemoExperience` bridge with a single consumer —
-`gateErrors`/`alert` are Completion-scoped and read by the screen + the alert host; `geocodeEnabled`
-and the notes drafts correctly live in the leaf components. Every store read is a selective
-`useStore(store, selector)`; no whole-store subscription. No selector returns a fresh object/array.
-`gateOutcome`, `caseCards`, `mapData`, `explore` are memoised. Findings WEB-4 is the only render-path
-issue.
-
-**Accessibility — what's right.** `AlertDialog` (labelledby + describedby + focus in/out + Escape,
-all tested); `role="switch"` + `aria-checked` + `switchKeyDown` on the Geocode toggle; `aria-busy`
-on the capture button; `role="status"` for GPS progress and the reverse-geocode notice; `role="alert"`
-for GPS failure, the completion gate card, the disambiguation warning, the no-date panel; `aria-label`
-on the icon-only capture control and on every new textarea; decorative SVGs `aria-hidden`; the
-`required` marker added to the address field. Findings WEB-1/2/3/7 are the gaps.
-
-**CSS & style discipline — all clear.** No `className` anywhere in the changed `features/demo/ui`
-files (inline `CSSProperties` throughout, per the inverted convention). `demo.css` untouched — no new
-global, no new keyframe; `spin` (used by the new `Spinner`) and `screenIn` (used by `AlertDialog`)
-both already exist under `[data-demo-root]` (`demo.css:85`, `:92`). Device-frame math untouched. The
-`Spinner` gates its animation on `prefers-reduced-motion` in JS, matching the demo's JS-gating
-convention; `AlertDialog`'s 0.2 s `screenIn` is ungated but identical in kind to the four existing
-overlays (ModalShell/ExitDialog/PdfPreview/PickerSheet) — a sweep-level item, not a new gap, so not
-filed.
-
-**Next.js idioms.** No route handler, `generateMetadata`, `next/image` or `next/font` surface
-touched. No new dynamic route.
-
-**Deliberate choices honoured (not re-flagged).** D10 DVR-passthrough (§39.5); the §M13 2σ
-refutation; `asyncUtilTimeout: 5000` with its measured evidence; `AlertDialog`'s non-dismissing scrim;
-`aria-modal` without a focus trap (the repo-wide deferral at `deferred.md:164-167`, and the
-PickerStage confirm's deliberate *omission* of `aria-modal` at `PickerStage.tsx:262-268`); phone bugs
-not copied; snapshot v4 union; the orchestrator merge-integration commits; the OCR today-guess gate;
-ledger §29-§42. The drawer's colour-only completion dots (`deferred §23`) were also not re-filed;
-no *new* colour-only state signal was introduced (WEB-2's rating carries a text label — its problem
-is exposure, not colour).
-
-**Not run.** `pnpm build` — skipped deliberately: `package.json` is unchanged, no import shape moved
-between static and lazy, and no marketing file is in the diff, so the route table and per-route First
-Load JS cannot have moved. Re-run it in the fix-delta pass only if a fix introduces an import.
+- **Cancel placement differs between the two 3-action dialogs** shipped in this round. NotesScreen's
+  `restoreAll`/`scrapAll` declare Cancel **last** (`NotesScreen.tsx:334-338, 366-370`); the OCR
+  recalculate prompt declares it **first** (`OcrCaptureScreen.tsx:188-192`). Both comments claim
+  phone-verbatim button order — and both may be faithful to their respective phone declaration arrays,
+  since RN's `Alert.alert` on iOS re-positions a `style: 'cancel'` button to the bottom regardless of
+  declaration order, while `AlertDialog` renders declaration order literally. Not filed as a finding:
+  confirming which placement matches the device needs phone-side rendering evidence this lane does not
+  have. Worth one screenshot on the phone before beta; if iOS does reorder, the OCR prompt's Cancel
+  should move to the end (or `AlertDialog` should sort `style: 'cancel'` last itself, which would make
+  every future caller correct by construction).
+- **`blockedId` is shared by two sibling divs** in `OcrCaptureScreen` (see WEB-7 above) — safe only
+  because the two conditions are strictly complementary.
