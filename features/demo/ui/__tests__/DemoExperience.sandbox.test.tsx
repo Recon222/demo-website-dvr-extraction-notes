@@ -704,6 +704,34 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('0%')
   })
 
+  it('E2E partial batch: the amber "Batch partially failed" path through the real bridge (R-6)', async () => {
+    // One ok + one failed file, driven through processPdfFiles/finishImport/
+    // deriveTerminalOutcome for real — the only seam where a tally bug could turn a
+    // dropped-evidence run into a clean-success lie with every unit test green.
+    runPdf
+      .mockResolvedValueOnce(okRun({ filename: 'good.pdf' }))
+      .mockResolvedValueOnce({ ok: false, warnings: [], fallbackMode: 'none', error: 'This PDF looks scanned.', filename: 'scan.pdf', code: 'PDF_SCANNED', details: { stage: 'extracting_text', detail: 'no selectable text' } })
+    const store = createDemoStore()
+    const { container } = render(<DemoExperience store={store} />)
+    act(() => {
+      store.getState().createCase({ caseNumber: 'PR25-PART', displayName: 'Partial', unit: 'Robbery' })
+      store.getState().openModal('import')
+    })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'scan.pdf', { type: 'application/pdf' })] } })
+
+    // The dwell CTA is the amber partial — counts in the VISIBLE accname (R-3), never green.
+    const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+    expect(cta).toHaveTextContent('Review import →')
+    expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not success green
+    expect(cta.style.border).not.toContain('rgba(16, 209, 119')
+
+    fireEvent.click(cta)
+    expect(await screen.findByText(/Imported 1 of 2 requests/)).toBeInTheDocument()
+    expect(screen.getByText(/scan\.pdf/)).toBeInTheDocument() // the failed file is named
+    expect(store.getState().locations.length).toBe(1)
+  })
+
   it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
