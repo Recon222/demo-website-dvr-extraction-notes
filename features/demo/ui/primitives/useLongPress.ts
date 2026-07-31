@@ -110,7 +110,33 @@ export interface LongPressHandlers {
 
 export function useLongPress(
   onLongPress: () => void,
-  { enabled = true, delayMs = LONG_PRESS_MS }: { enabled?: boolean; delayMs?: number } = {},
+  {
+    enabled = true,
+    delayMs = LONG_PRESS_MS,
+    contextMenu = true,
+  }: {
+    enabled?: boolean
+    delayMs?: number
+    /**
+     * Whether a `contextmenu` that is NOT a touch hold's trailing event — a right-click, or the
+     * keyboard menu key — should run the callback as a second way in (R-19).
+     *
+     * Default `true`, which is the tray callers' behaviour and worth keeping: right-click to
+     * open a row's action menu is what a desktop context menu is FOR, and the tray it opens is
+     * exactly the menu the browser's own would have covered.
+     *
+     * `false` for a DESTRUCTIVE callback. On the media rows the hold opens a delete
+     * confirmation, so the default meant an ordinary right-click — a reflex, often just aiming
+     * for Copy or Inspect — put a destructive dialog on screen with no hold and no press. The
+     * opt-out also stops suppressing the browser's menu in that case: suppression exists so the
+     * OS menu cannot cover what the hold just opened, and when nothing opens there is nothing to
+     * cover, so taking the menu away would be a second unrelated loss.
+     *
+     * A TOUCH hold's trailing `contextmenu` is unaffected either way — it is still consumed and
+     * still suppressed, because that one IS the gesture that just fired.
+     */
+    contextMenu?: boolean
+  } = {},
 ): LongPressHandlers {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const origin = useRef<{ x: number; y: number } | null>(null)
@@ -189,15 +215,25 @@ export function useLongPress(
     },
     onContextMenu: (e) => {
       if (!enabled) return
-      // Suppressed whole-element, nested controls included: the browser menu must not cover the
-      // tray, and on touch this is the same gesture as the hold, so the OS selection menu must
-      // not appear over it either.
-      e.preventDefault()
       clear()
       if (fired.current) {
-        fired.current = false // this gesture already ran the callback — consume, don't repeat
+        // A TOUCH hold's trailing event: this gesture already ran the callback, so consume it
+        // rather than repeat it — and suppress the OS selection menu, which would otherwise
+        // appear over whatever the hold just opened. Unconditional: this arm is the same
+        // gesture as the hold, whatever `contextMenu` says (R-19).
+        e.preventDefault()
+        fired.current = false
         return
       }
+      // Not a hold — a right-click, or the keyboard menu key.
+      if (!contextMenu) {
+        // Opted out because the callback is destructive (R-19). Nothing opens, so nothing needs
+        // covering: leave the browser's own menu alone rather than take it away for free.
+        return
+      }
+      // Suppressed whole-element, nested controls included: the browser menu must not cover the
+      // tray this is about to open.
+      e.preventDefault()
       cb.current()
     },
     onClickCapture: (e) => {

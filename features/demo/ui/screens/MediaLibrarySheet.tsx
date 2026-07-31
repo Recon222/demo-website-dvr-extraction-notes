@@ -535,8 +535,15 @@ function MediaRow({
    * The visible Delete button is not optional decoration: a hold is undiscoverable, unreachable
    * from a keyboard and unannounced to a screen reader, so the primitive's own contract is that
    * it is an accelerator and never the only way in.
+   *
+   * `contextMenu: false` (R-19) — the ONE call site of the three whose callback is destructive.
+   * The primitive's default treats a right-click as a second way to open what a hold opens,
+   * which is right for the two tray callers and wrong here: an ordinary right-click, often just
+   * reaching for Copy or Inspect, put a delete confirmation on screen with no hold and no press.
+   * Opting out also gives the browser's own menu back on these rows — suppression exists to stop
+   * the OS menu covering what the hold opened, and nothing opens on this path.
    */
-  const longPress = useLongPress(onRequestDelete)
+  const longPress = useLongPress(onRequestDelete, { contextMenu: false })
 
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid rgba(30,58,95,0.35)' }}>

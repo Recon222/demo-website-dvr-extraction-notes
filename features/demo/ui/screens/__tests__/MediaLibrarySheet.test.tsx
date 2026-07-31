@@ -396,6 +396,19 @@ describe('delete (row 66)', () => {
       expect(screen.getByText('Delete Media')).toBeInTheDocument()
     })
 
+    it('a right-click raises no delete confirmation, and keeps the browser menu (R-19)', () => {
+      const onDelete = vi.fn()
+      render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }), onDelete })} />)
+
+      const prevented = !fireEvent.contextMenu(screen.getByRole('button', { name: 'Photo: front-door.jpg' }))
+
+      // A reflex right-click — often just reaching for Copy or Inspect — must not put a
+      // destructive dialog on screen, and must not silently lose the browser's own menu.
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(onDelete).not.toHaveBeenCalled()
+      expect(prevented).toBe(false)
+    })
+
     it('a tap selects the row and raises nothing', () => {
       render(
         <MediaLibrarySheet
