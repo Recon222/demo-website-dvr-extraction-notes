@@ -321,6 +321,21 @@ describe('shape guard (never crash boot)', () => {
     expect(loadSnapshot(storage)?.visited).toEqual({ cases: true, newCase: true })
   })
 
+  it('the media-library modal id is REGISTERED, so its visit survives a rehydrate (P4.2)', () => {
+    // Registry compliance, from the consumer's end: `MODAL_IDS` is `Record<ModalId, true>`, so
+    // a missing entry is a compile error — but a compile-time device proves nothing about the
+    // id the drawer's new row actually opens. An unregistered one would be dropped here
+    // silently, exactly like `holodeck` above, and the exploration manifest would forget the
+    // visitor ever opened the library.
+    const storage = seeded()
+    const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
+      state: { visited: Record<string, true> }
+    }
+    parsed.state.visited = { mediaLibrary: true, holodeck: true }
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)?.visited).toEqual({ mediaLibrary: true })
+  })
+
   it('Object.prototype key names in visited are dropped too — own-property guard, not `in` (R-7)', () => {
     const storage = seeded()
     const parsed = JSON.parse(storage.map.get(SNAPSHOT_KEY) ?? '{}') as {
@@ -686,5 +701,92 @@ describe('isLive — the handle’s honesty signal (R-2)', () => {
     expect(handle.isLive()).toBe(true)
     handle.dispose()
     warn.mockRestore()
+  })
+})
+
+/**
+ * P4.2 / matrix row 80 — `saveState()` is the same fact `isLive()` reports, carrying WHY.
+ * The drawer's status line needs the reason: `isLive()` collapses "never wired", "nothing
+ * written yet" and "the write failed" into one `false`, and those want three different
+ * sentences. `isLive()` is DERIVED from this, so the two can never disagree.
+ */
+describe('saveState — the reason behind isLive (row 80)', () => {
+  it('is `unavailable` for the NOOP handle: never wired, so nothing was ever pending', () => {
+    const handle = persistDemoStore(freshStore(), null)
+    expect(handle.saveState()).toEqual({ kind: 'unavailable' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is `pending` on a wired handle before the first write lands — NOT `unavailable`', () => {
+    // The distinction this method exists for: a visitor who has not typed yet must not be
+    // told their browser isn't storing the session.
+    const handle = persistDemoStore(freshStore(), new FakeStorage())
+    expect(handle.saveState()).toEqual({ kind: 'pending' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+  })
+
+  it('is `saved` with the injected write timestamp once a write lands', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage(), { now: () => 1_700_000_000_000 })
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 1_700_000_000_000 })
+    expect(handle.isLive()).toBe(true)
+    handle.dispose()
+  })
+
+  it('re-stamps `at` on every landed write, so recency tracks the LAST save', () => {
+    let t = 1_000
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage(), { now: () => t })
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 1_000 })
+
+    t = 61_000
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState()).toEqual({ kind: 'saved', at: 61_000 })
+    handle.dispose()
+  })
+
+  it('is `failed` — not `unavailable` — when a write throws and the snapshot is cleared', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const handle = persistDemoStore(store, storage)
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    expect(handle.saveState().kind).toBe('saved')
+
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+    store.getState().setView('cases')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+
+    expect(handle.saveState()).toEqual({ kind: 'failed' })
+    expect(handle.isLive()).toBe(false)
+    handle.dispose()
+    warn.mockRestore()
+  })
+
+  it('defaults its clock to the host when no `now` is injected', () => {
+    const store = freshStore()
+    const handle = persistDemoStore(store, new FakeStorage())
+    const before = Date.now()
+    store.getState().setView('dashboard')
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    const state = handle.saveState()
+    expect(state.kind).toBe('saved')
+    // Fake timers move Date.now() with the clock, so the stamp is the host time AT THE WRITE
+    // (one debounce after the change) — not the wiring time, and not a hard-coded constant.
+    if (state.kind === 'saved') {
+      expect(state.at).toBe(Date.now())
+      expect(state.at).toBe(before + SAVE_DEBOUNCE_MS)
+    }
+    handle.dispose()
   })
 })

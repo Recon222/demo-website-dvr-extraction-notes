@@ -48,6 +48,7 @@ import {
   type IncidentLocationValues,
 } from '@/features/demo/engine/logic/incident-location'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { MediaLibrarySheet } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -91,6 +92,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, NoteSectionId, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -210,6 +212,15 @@ const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source loca
  */
 const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
 const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+/**
+ * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
+ * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
+ * `text1: 'No Location'` / `text2: 'Select a location first.'`) — joined `text1 — text2` like
+ * the P3.5 notices, because the demo's banner is one line. As on the phone, the drawer stays
+ * OPEN behind it: the visitor's next move is to go pick a location, and closing the menu would
+ * take the way there away.
+ */
+const NO_LOCATION_NOTICE = 'No Location — Select a location first.'
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -417,6 +428,29 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }, [injectedStore, store])
 
+  /**
+   * The drawer footer's save-status line (P4.2, matrix row 80).
+   *
+   * Sampled when the drawer OPENS, not continuously: the fact lives on the persistence handle
+   * (a ref, deliberately — R-2's "read it when you're about to make a claim, never capture it
+   * at mount"), and a status line is exactly such a claim. `flush()` first, so a write still
+   * inside its 250ms debounce lands before we describe it — otherwise a visitor who types and
+   * immediately opens the menu is told the age of the write BEFORE theirs.
+   *
+   * Cleared on close so the next open can never show a stale reading. A missing handle counts
+   * as `unavailable` — same rule as `saveProgress`: never assume a wired handle.
+   */
+  const [saveStatus, setSaveStatus] = useState<SaveStatusView | null>(null)
+  useEffect(() => {
+    if (!drawerOpen) {
+      setSaveStatus(null)
+      return
+    }
+    const handle = persistenceRef.current
+    handle?.flush()
+    setSaveStatus(describeSaveStatus(handle?.saveState() ?? { kind: 'unavailable' }, clock.now().getTime()))
+  }, [drawerOpen])
+
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
   // else the Map tab its contextual copy, else the current chapter's. The ?? guards a
@@ -583,6 +617,33 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const commitNotesFreeText = useCallback((text: string) => store.getState().commitNotesFreeText(text), [store])
 
   const openMenu = () => store.getState().setDrawerOpen(true)
+
+  // ---- drawer Media accordion (P4.2, matrix row 80) ----
+  // The phone's three rows. Capture/Record push a route and close the drawer; both targets are
+  // LAUNCHABLES here (`launch`, never `setView`), so they leave `currentChapter` alone and
+  // `closeLaunch` returns to the wizard step the visitor came from — the OCR rule, applied to
+  // the two media screens. Neither renders yet (P4.3/P4.6): `view` falls through to the honest
+  // `placeholder`, which is the correct interim behaviour, not a dead click.
+  const launchMediaCapture = () => {
+    const st = store.getState()
+    st.launch('mediaCapture')
+    st.setDrawerOpen(false)
+  }
+  const launchAudioRecording = () => {
+    const st = store.getState()
+    st.launch('audioRecording')
+    st.setDrawerOpen(false)
+  }
+  /** The one row the phone gates: no location selected → toast, and the drawer stays open. */
+  const openMediaLibrary = () => {
+    const st = store.getState()
+    if (!st.currentLocationId) {
+      setNotice(NO_LOCATION_NOTICE)
+      return
+    }
+    st.openModal('mediaLibrary')
+    st.setDrawerOpen(false)
+  }
 
   // Error-boundary recovery: land back on Cases with every transient overlay cleared
   // (store AND local), so the re-rendered subtree can't immediately re-throw from a
@@ -1664,6 +1725,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       }
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
+      case 'mediaLibrary':
+        // P4.2 registered the id and the entry point; P4.5 replaces the sheet's BODY. The row
+        // that opens it is gated on a location, so this never mounts against nothing.
+        return <MediaLibrarySheet onClose={() => store.getState().closeModal()} />
       case 'duplicateLocation':
         // Rendered only with an open dupState — the chooser's six actions all need the source
         // it was opened for, so a state-less mount would be a modal with nothing behind it.
@@ -1815,6 +1880,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               store.getState().setView('cases')
               store.getState().setDrawerOpen(false)
             }}
+            onCaptureMedia={launchMediaCapture}
+            onRecordAudio={launchAudioRecording}
+            onOpenMediaLibrary={openMediaLibrary}
+            saveStatus={saveStatus}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
               the demo has no always-mounted screen to hold it, so the phone's caseData=null
