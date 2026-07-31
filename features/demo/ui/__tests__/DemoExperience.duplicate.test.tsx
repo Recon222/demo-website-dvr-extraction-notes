@@ -176,7 +176,8 @@ describe('DemoExperience — location action chooser', () => {
     fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'back office' } })
 
     expect(screen.getByRole('alert')).toHaveTextContent('A location with this name already exists in this case')
-    expect(within(chooser()).getByRole('button', { name: 'Duplicate Location' })).toBeDisabled()
+    // `aria-disabled`, not `disabled` — R-3 brought this chooser onto §56d's house gate.
+    expect(within(chooser()).getByRole('button', { name: 'Duplicate Location' })).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(within(chooser()).getByRole('button', { name: 'Duplicate Location' }))
     expect(store.getState().locations).toHaveLength(2) // nothing created
   })

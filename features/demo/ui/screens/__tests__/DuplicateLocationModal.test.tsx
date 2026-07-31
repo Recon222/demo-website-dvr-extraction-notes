@@ -109,15 +109,23 @@ describe('DuplicateLocationModal', () => {
   })
 
   describe('name gating', () => {
-    it('shows the phone error and disables ONLY the duplicates when the name is taken', () => {
+    // R-3 migrated these from `toBeDisabled()` to the `aria-disabled` semantic: §56d's house
+    // rule is that a keystroke-flipping gate never uses the `disabled` attribute, because it
+    // drops keyboard focus to <body> mid-edit and takes the actions out of the a11y tree
+    // without saying why. `toBeEnabled()` on the ungated four still reads correctly — they
+    // carry neither attribute.
+    it('shows the phone error and blocks ONLY the duplicates when the name is taken', () => {
       const p = props({ name: 'main store  ', existingNames: ['Main Store', 'Back Office'] })
       render(<DuplicateLocationModal {...p} />)
 
       // Trimmed + case-insensitive, like every other name comparison in the app.
       expect(screen.getByRole('alert')).toHaveTextContent(NAME_TAKEN_ERROR)
       expect(screen.getByLabelText('Location Name')).toHaveAttribute('aria-invalid', 'true')
-      expect(btn('Duplicate Location')).toBeDisabled()
-      expect(btn('Duplicate Location with Scopes')).toBeDisabled()
+      expect(btn('Duplicate Location')).toHaveAttribute('aria-disabled', 'true')
+      expect(btn('Duplicate Location with Scopes')).toHaveAttribute('aria-disabled', 'true')
+      // Blocked, but still focusable and still explained.
+      expect(btn('Duplicate Location')).not.toBeDisabled()
+      expect(btn('Duplicate Location')).toHaveAccessibleDescription(NAME_TAKEN_ERROR)
       // The other four ignore the name field entirely.
       expect(btn('New Location w/ Sub Info')).toBeEnabled()
       expect(btn('New Location w/ Sub Info + Scopes')).toBeEnabled()
@@ -126,25 +134,52 @@ describe('DuplicateLocationModal', () => {
       expect(btn('Cancel')).toBeEnabled()
     })
 
-    it('disables the duplicates on a blank name, with no error text', () => {
+    it('blocks the duplicates on a blank name AND says why (R-3)', () => {
       const p = props({ name: '   ' })
       render(<DuplicateLocationModal {...p} />)
 
+      // Not an inline FIELD error — an untouched form must not open shouting (that arm belongs
+      // to the collision check). The reason lives in the live region the buttons point at.
       expect(screen.queryByRole('alert')).toBeNull() // empty is not "taken"
-      expect(btn('Duplicate Location')).toBeDisabled()
-      expect(btn('Duplicate Location with Scopes')).toBeDisabled()
+      expect(screen.getByTestId('duplicate-location-blocked')).toHaveTextContent('Location name is required')
+      expect(btn('Duplicate Location')).toHaveAttribute('aria-disabled', 'true')
+      expect(btn('Duplicate Location with Scopes')).toHaveAttribute('aria-disabled', 'true')
+      // Before R-3 this arm was silent: two primary actions vanished from the tab order with
+      // nothing said anywhere about why.
+      expect(btn('Duplicate Location')).toHaveAccessibleDescription('Location name is required')
+    })
+
+    it('keeps the blocked actions focusable — the whole reason `disabled` is banned here', () => {
+      const p = props({ name: '' })
+      render(<DuplicateLocationModal {...p} />)
+      const action = btn('Duplicate Location')
+      action.focus()
+      expect(document.activeElement).toBe(action)
+    })
+
+    it('says nothing while the name is usable', () => {
+      const p = props({ name: 'Main Store - Copy', existingNames: ['Main Store'] })
+      render(<DuplicateLocationModal {...p} />)
+      expect(screen.getByTestId('duplicate-location-blocked')).toBeEmptyDOMElement()
+      expect(btn('Duplicate Location')).toHaveAttribute('aria-disabled', 'false')
     })
 
     it('emits nothing while gated', () => {
-      // What this pins is the OUTCOME (no duplicate intent escapes on a colliding name), not
-      // the mechanism: the `disabled` attribute and the commit-path guard share one predicate,
-      // and a DOM click can only exercise the first. The second is the phone's belt-and-braces
-      // for a future caller that renders the buttons enabled.
+      // Since R-3 this pins the MECHANISM as well as the outcome: the buttons are
+      // `aria-disabled`, so these clicks genuinely reach the handler and the commit-path guard
+      // is what refuses them. Under the old `disabled` attribute the click never landed and the
+      // guard was untested.
       const p = props({ name: 'Main Store' })
       render(<DuplicateLocationModal {...p} />)
       fireEvent.click(btn('Duplicate Location'))
       fireEvent.click(btn('Duplicate Location with Scopes'))
       expect(p.onDuplicate).not.toHaveBeenCalled()
+
+      // …and a blank name is refused by the same guard.
+      const blank = props({ name: '  ' })
+      render(<DuplicateLocationModal {...blank} />)
+      fireEvent.click(screen.getAllByRole('button', { name: 'Duplicate Location' })[1])
+      expect(blank.onDuplicate).not.toHaveBeenCalled()
     })
 
     it('clears the error once the name is free again', () => {
@@ -154,7 +189,7 @@ describe('DuplicateLocationModal', () => {
 
       rerender(<DuplicateLocationModal {...p} name="Main Store - Copy" />)
       expect(screen.queryByRole('alert')).toBeNull()
-      expect(btn('Duplicate Location')).toBeEnabled()
+      expect(btn('Duplicate Location')).toHaveAttribute('aria-disabled', 'false')
     })
   })
 
