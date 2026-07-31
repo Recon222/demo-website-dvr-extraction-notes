@@ -759,6 +759,43 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     }
   })
 
+  it('an aborted batch reports its FULL size and names the casualty (R-46): 3 files, throw on file 2', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      runPdf
+        .mockResolvedValueOnce(okRun({ filename: 'a.pdf' })) // lands
+        .mockRejectedValueOnce(new Error('boom mid-batch')) // file 2 THROWS — the loop aborts here
+      // c.pdf is never attempted: the arity where derived (locations+failures) and real
+      // totals diverge, and the one the R-38 pin's 2-file/throw-on-last shape cannot see.
+      const store = createDemoStore()
+      const { container } = render(<DemoExperience store={store} />)
+      act(() => {
+        store.getState().createCase({ caseNumber: 'PR25-AB3', displayName: 'AbortedBatch', unit: 'Robbery' })
+        store.getState().openModal('import')
+      })
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input, { target: { files: [
+        new File(['a'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['b'], 'b.pdf', { type: 'application/pdf' }),
+        new File(['c'], 'c.pdf', { type: 'application/pdf' }),
+      ] } })
+
+      // The visitor selected THREE — the denominator must say three, at the CTA moment…
+      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 3, 2 need attention/ })
+      fireEvent.click(cta)
+      expect(await screen.findByText(/Imported 1 of 3 requests/)).toBeInTheDocument() // …and in the result view
+      // …and both casualties are named, instead of one row spelled 'import'.
+      expect(screen.getByText(/b\.pdf — The import failed unexpectedly/)).toBeInTheDocument()
+      expect(screen.getByText(/c\.pdf — Not attempted — the import stopped/)).toBeInTheDocument()
+      expect(screen.queryByText(/^import — /)).not.toBeInTheDocument()
+      expect(runPdf).toHaveBeenCalledTimes(2) // c.pdf really was never attempted
+      expect(store.getState().locations.length).toBe(1)
+      expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
+    } finally {
+      errSpy.mockRestore()
+    }
+  })
+
   it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
