@@ -4,6 +4,10 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { NoteSectionId } from '@/features/demo/engine/types'
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
+// R-22: the store's own mode unions (via the engine barrel — exported for exactly this
+// call site), never re-declared inline: a widened store union must reach this surface
+// as a compile error, not compile clean while the UI can never emit the new member.
+import type { RestoreAllMode, ScrapAllMode } from '@/features/demo/engine'
 import { WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 
@@ -33,8 +37,8 @@ export interface NotesScreenProps {
   onCommitSection(id: NoteSectionId, text: string): void
   onCommitAddendum(id: NoteSectionId, text: string): void
   onResetSection(id: NoteSectionId): void
-  onScrapAll(mode: 'current' | 'blank'): void
-  onRestoreAll(mode: 'keep' | 'clear'): void
+  onScrapAll(mode: ScrapAllMode): void
+  onRestoreAll(mode: RestoreAllMode): void
   onCommitFreeText(text: string): void
   onNext(): void
   onBack(): void
