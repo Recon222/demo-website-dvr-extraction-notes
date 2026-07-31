@@ -762,7 +762,15 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
   it('an unexpected pipeline THROW cannot hang the dwell: failure result + breadcrumb (R-23b)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      runPdf.mockRejectedValue(new Error('boom from the pipeline')) // a throw, not a failure result
+      // Advance a real stage before throwing (R-49): the backstop's reported stage must be
+      // the one the run actually reached, which is carried ONLY by the lastRealStageRef
+      // forwarder write in importStageFor. Deleting that write leaves tsc and the rest of
+      // the suite green while Technical Details silently reverts to the coarse entry seed —
+      // exactly the wrong-but-plausible diagnostic R-40 exists to prevent.
+      runPdf.mockImplementation(async (_file, input) => {
+        input.onStage?.('normalizing')
+        throw new Error('boom from the pipeline') // a throw, not a failure result
+      })
       const store = createDemoStore()
       const { container } = render(<DemoExperience store={store} />)
       act(() => {
@@ -777,7 +785,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       // …and the released card carries the friendly copy + the raw throw in Technical Details.
       expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
-      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the pipeline')
+      const details = screen.getByTestId('import-technical-details')
+      expect(details).toHaveTextContent('boom from the pipeline')
+      expect(details).toHaveTextContent('"stage": "normalizing"') // the stage reached, not the entry seed
+      expect(details).not.toHaveTextContent('"stage": "extracting_text"')
       expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
       expect(store.getState().locations.length).toBe(0)
     } finally {
@@ -803,7 +814,12 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.click(cta)
       expect(await screen.findByText('The import failed unexpectedly. Please try again.')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Technical Details' }))
-      expect(screen.getByTestId('import-technical-details')).toHaveTextContent('boom from the text pipeline')
+      const details = screen.getByTestId('import-technical-details')
+      expect(details).toHaveTextContent('boom from the text pipeline')
+      // The paste flow seeds the mirror to 'reading_model' BEFORE calling runImport, so this
+      // path pins the seed write, not the `?? 'extracting_text'` default (which the pre-seed
+      // R-45 test above owns) — the p1-r2 doc's R-49 note has these two the other way round.
+      expect(details).toHaveTextContent('"stage": "reading_model"')
       expect(errSpy).toHaveBeenCalledWith('[demo/import] import run threw unexpectedly', expect.any(Error))
       expect(store.getState().locations.length).toBe(0)
     } finally {
