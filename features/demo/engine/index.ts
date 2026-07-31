@@ -57,6 +57,35 @@ export {
   type FinalSubmissionInput,
   type FinalSubmissionOutcome,
 } from '@/features/demo/engine/logic/final-submission'
+export { abbreviateStreetTypes, formatAddress } from '@/features/demo/engine/logic/address-format'
+export {
+  ACCURACY_MODE_TARGET_M,
+  ACCURACY_RATINGS,
+  GPS_ACCURACY_MODES,
+  GPS_CONFIG_STATIC,
+  GPS_ERROR_CODES,
+  GPS_MESSAGES,
+  PRECISE_GPS_CONFIG,
+  buildGpsConfig,
+  formatAccuracy,
+  getAccuracyRating,
+  gpsSourceLabel,
+  gpsTimeoutMessage,
+  meetsTargetAccuracy,
+  selectBestSample,
+  toGpsFix,
+  validateCoordinates,
+  type AccuracyRating,
+  type AccuracyRatingLabel,
+  type AccuracyTone,
+  type GpsAccuracyMode,
+  type GpsCaptureOutcome,
+  type GpsConfig,
+  type GpsErrorCode,
+  type GpsFailure,
+  type GpsFix,
+  type GpsSample,
+} from '@/features/demo/engine/logic/gps'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 

@@ -54,9 +54,11 @@ export interface NewLocationInput {
   requesterEmail?: string
   locationContact?: string
   locationPhone?: string
-  /** Geocoded coordinates from the address pick. Recovery locations are geocode-only (no manual
-   *  entry — a DVR always has a street address). `accuracyM` is filled in by the store (0). */
-  gps?: { lat: number; lng: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
+  /** Geocoded coordinates from the address pick. Recovery locations are geocode-only at CREATE
+   *  time (no manual entry — a DVR always has a street address); the Submission screen's GPS
+   *  capture re-stamps them with `source: 'gps'` later. `accuracyM` is carried through as given
+   *  — absent unless Mapbox reported a rooftop match (phone mapbox-service.ts:246-247). */
+  gps?: { lat: number; lng: number; accuracyM?: number; source: Exclude<(typeof GPS_SOURCES)[number], 'gps'> }
 }
 
 // ---- State ---------------------------------------------------------------
@@ -252,7 +254,7 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         requesterEmail: input.requesterEmail ?? '',
         locationContact: input.locationContact ?? '',
         locationPhone: input.locationPhone ?? '',
-        gps: input.gps ? { ...input.gps, accuracyM: 0 } : undefined,
+        gps: input.gps ? { ...input.gps } : undefined,
         form: blankLocationForm(),
       }
       set((s) => ({

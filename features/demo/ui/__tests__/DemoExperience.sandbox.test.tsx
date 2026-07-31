@@ -327,7 +327,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     await releaseDwell()
     await screen.findByText('Import complete')
     expect(forwardGeocodeMock).toHaveBeenCalledWith('1450 Eglinton Ave W, Mississauga')
-    expect(store.getState().locations[0]?.gps).toEqual({ lat: 43.61, lng: -79.65, accuracyM: 0, source: 'geocoded' })
+    expect(store.getState().locations[0]?.gps).toEqual({ lat: 43.61, lng: -79.65, source: 'geocoded' })
   })
 
   it('import: an unresolvable address still creates the location (non-blocking, no pin)', async () => {

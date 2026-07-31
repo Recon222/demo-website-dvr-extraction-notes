@@ -58,6 +58,7 @@ import { OCR_SAMPLE_FRAMES, OCR_SAMPLE_CONFIDENCE, SAMPLE_ACTUAL_TIME, type OcrS
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { computeDstAdvisory } from '@/features/demo/engine/logic/dst-advisory'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
 import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
@@ -895,7 +896,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
 
   const previewTimeOffset = () => {
     const off = currentLocation?.form.timeOffset
-    const addr = currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') : ''
+    const addr = formatAddress(currentLocation?.businessName, currentLocation?.streetAddress, currentLocation?.city)
     setPdf({
       title: 'Time-Offset Calibration',
       html: generateTimeOffsetDoc({
@@ -953,7 +954,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: 0, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        // `onCoordinates` is the ONE coordinate write path for this screen — a GPS capture and an
+        // address pick both arrive here already stamped with their own source (P2.3).
+        return (
+          <SubmissionScreen
+            occNumber={currentCase?.caseNumber ?? ''}
+            fields={fields}
+            coordinates={currentLocation?.gps}
+            onChange={(f, v) => store.getState().updateField(f, v)}
+            onCoordinates={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: c.source })}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
@@ -1100,7 +1114,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const off = currentLocation?.form.timeOffset
         const summary: CompletionSummary = {
           occNumber: currentCase?.caseNumber ?? '—',
-          location: currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') || currentLocation.locationName : '—',
+          location: currentLocation
+            ? formatAddress(currentLocation.businessName, currentLocation.streetAddress, currentLocation.city) || currentLocation.locationName
+            : '—',
           dvr: currentLocation?.form.dvr.dvrTypeBrand || '—',
           offset: off ? `${off.formattedDifference} ${off.direction}` : null,
           scopes: currentLocation?.form.scopes.length ?? 0,

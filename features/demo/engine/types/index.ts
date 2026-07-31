@@ -96,11 +96,21 @@ export interface TimeOffsetData {
   ocr?: OcrProof
 }
 
-/** A GPS fix: latitude/longitude with the achieved accuracy in metres. */
+/**
+ * A coordinate pair with the accuracy achieved when it was obtained, in metres.
+ *
+ * `accuracyM` is OPTIONAL because not every source measures one — exactly as on the phone,
+ * where `coordinateAccuracy?: number` (LocationForm.tsx:34, CoordinateDisplay.tsx:25) and the
+ * accuracy/rating chip renders only when it is defined (CoordinateDisplay.tsx:138-166). A GPS
+ * capture always carries a measured radius; a geocoded pick carries 5 m only when Mapbox
+ * reports a rooftop match (phone mapbox-service.ts:246-247) and nothing otherwise. Filling a
+ * placeholder `0` here would render as "±0m · Excellent" — fabricated precision on a
+ * coordinate nobody measured.
+ */
 export interface GpsCoordinates {
   lat: number
   lng: number
-  accuracyM: number
+  accuracyM?: number
 }
 
 export interface CameraEntry {
