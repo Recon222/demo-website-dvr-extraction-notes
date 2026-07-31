@@ -4,11 +4,7 @@ import { getProfile } from '@/features/demo/engine/content/profiles'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
-import {
-  assembleNotesString,
-  extractNotesRelevantData,
-  reconcileSections,
-} from '@/features/demo/engine/logic/notes'
+import { extractNotesRelevantData, reconcileSections } from '@/features/demo/engine/logic/notes'
 import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
@@ -261,7 +257,8 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     dvr: form?.dvr,
     cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps })),
     export: form?.export,
-    notes: loc ? assembleNotesString(notesSections, loc.form.notesFreeText) : undefined,
+    notesSections,
+    notesFreeText: form?.notesFreeText,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
   }
 }
