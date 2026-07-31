@@ -116,6 +116,7 @@ export function Field({
   onChange,
   placeholder,
   hint,
+  error,
   multiline,
 }: {
   label: string
@@ -124,8 +125,13 @@ export function Field({
   onChange(value: string): void
   placeholder?: string
   hint?: string
+  /** Validation message. Reddens the border and REPLACES `hint` — the phone's shared
+   *  TextInput renders "an error line (red) OR a helper-text line, error always wins"
+   *  (ui-mapping 11 § shared `TextInput`). */
+  error?: string
   multiline?: boolean
 }) {
+  const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
@@ -138,13 +144,27 @@ export function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           aria-label={label}
+          aria-invalid={error ? true : undefined}
           rows={3}
-          style={{ ...fieldInput, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} style={fieldInput} />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          style={boxStyle}
+        />
       )}
-      {hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>}
+      {error ? (
+        <div role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+          {error}
+        </div>
+      ) : (
+        hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>
+      )}
     </div>
   )
 }
@@ -170,18 +190,38 @@ export function ModalActions({
   submitLabel,
   onCancel,
   onSubmit,
+  submitBlocked,
 }: {
   cancelLabel?: string
   submitLabel: string
   onCancel(): void
   onSubmit(): void
+  /**
+   * Required fields are unsatisfied: the primary action reads as unavailable (dimmed +
+   * `aria-disabled`) but STILL FIRES `onSubmit`.
+   *
+   * The caller MUST guard — this prop is presentation + a11y only. That is deliberate: the
+   * phone hard-`disabled`s the button (`NewCaseModal.tsx:445`), which makes its own
+   * `validateForm` messages ("Case number is required" / "Unit is required") permanently
+   * unreachable, so a visitor is told *that* they can't submit but never *why*. Letting the
+   * click through so the handler can surface those verbatim messages keeps the phone's copy
+   * real instead of shipping it dead, and follows the in-repo `aria-disabled`-over-`disabled`
+   * precedent set by the GPS capture button (deferred §45a). Enforcement is unchanged: the
+   * caller's validate-and-return blocks the submit.
+   */
+  submitBlocked?: boolean
 }) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
         {cancelLabel}
       </button>
-      <button type="button" onClick={onSubmit} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button
+        type="button"
+        onClick={onSubmit}
+        aria-disabled={submitBlocked ? true : undefined}
+        style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', ...(submitBlocked ? { opacity: 0.5 } : {}) }}
+      >
         {submitLabel}
       </button>
     </div>

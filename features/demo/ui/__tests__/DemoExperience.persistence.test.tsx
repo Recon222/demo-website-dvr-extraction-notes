@@ -15,9 +15,12 @@ describe('DemoExperience — sessionStorage persistence wiring (P0.4)', { timeou
   beforeEach(() => window.sessionStorage.clear())
   afterEach(() => window.sessionStorage.clear())
 
+  // Unit is filled because P3.3's required-field gate (matrix row 11) blocks the submit
+  // while Case Number OR Unit is blank — same two fields the phone requires.
   const createCaseViaUi = (caseNumber: string) => {
     fireEvent.click(screen.getByRole('button', { name: 'New case' }))
     fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: caseNumber } })
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'Robbery' } })
     fireEvent.click(screen.getByText('Create Case'))
   }
 

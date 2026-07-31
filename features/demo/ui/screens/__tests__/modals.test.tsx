@@ -26,9 +26,12 @@ describe('NewCaseModal', () => {
   it('edits fields (incl. accordion, incident, notes) and submits', () => {
     const onChange = vi.fn()
     const onSubmit = vi.fn()
-    render(<NewCaseModal form={blankCase} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-1' } })
-    expect(onChange).toHaveBeenCalledWith('caseNumber', 'PR25-1')
+    // The modal is controlled, so typing does not change `form` — the required fields
+    // (Case Number / Unit, P3.3's gate) have to be satisfied by the props for the submit
+    // half of this test to reach `onSubmit`. Gate behaviour itself: NewCaseModal.gate.test.
+    render(<NewCaseModal form={{ ...blankCase, caseNumber: 'PR25-1', unit: 'Robbery' }} onChange={onChange} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Case Number'), { target: { value: 'PR25-2' } })
+    expect(onChange).toHaveBeenCalledWith('caseNumber', 'PR25-2')
     // accordion fields are in the DOM even while collapsed
     fireEvent.change(screen.getByLabelText('Coordinator Name'), { target: { value: 'M. Reyes' } })
     expect(onChange).toHaveBeenCalledWith('vcName', 'M. Reyes')

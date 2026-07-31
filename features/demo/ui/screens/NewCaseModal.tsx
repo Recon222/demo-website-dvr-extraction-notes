@@ -82,16 +82,55 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
   )
 }
 
+/** The two required fields, and the phone's verbatim messages for them
+ *  (`NewCaseModal.tsx:135-150`). Unit is the ONLY required metadata field — OIC and
+ *  Video/Canvas Coordinator are optional on the phone and stay optional here. */
+interface RequiredFieldErrors {
+  caseNumber?: string
+  unit?: string
+}
+
+function validateRequired(form: NewCaseFields): RequiredFieldErrors {
+  const errors: RequiredFieldErrors = {}
+  if (!form.caseNumber.trim()) errors.caseNumber = 'Case number is required'
+  if (!form.unit.trim()) errors.unit = 'Unit is required'
+  return errors
+}
+
 export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModalProps) {
+  // Set only by a blocked submit attempt, and cleared field-by-field as the visitor types —
+  // so the modal never opens shouting at an untouched form (the phone's `errors` state has
+  // the same lifecycle: written by validateForm, never on mount).
+  const [errors, setErrors] = useState<RequiredFieldErrors>({})
   const latR = parseCoordinate(form.incidentLatitude, 'lat')
   const lngR = parseCoordinate(form.incidentLongitude, 'lng')
   const showChip = latR.ok && lngR.ok
   const sourceLabel = form.incidentCoordinateSource === 'geocoded' ? 'Geocoded' : 'Manual'
+
+  const blocked = Object.keys(validateRequired(form)).length > 0
+
+  /** Mirrors the phone's `handleSubmit` → `validateForm` gate: a failed validation sets the
+   *  field errors and returns without submitting. */
+  const handleSubmit = () => {
+    const found = validateRequired(form)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+    onSubmit()
+  }
+
+  /** Typing into a field that is currently flagged clears its message immediately. */
+  const change = (field: keyof NewCaseFields, value: string) => {
+    if (field === 'caseNumber' || field === 'unit') {
+      setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+    }
+    onChange(field, value)
+  }
+
   return (
     <ModalShell title="New Case" onClose={onCancel}>
-      <Field label="Case Number" required value={form.caseNumber} onChange={(v) => onChange('caseNumber', v)} placeholder="OCC2025-001" hint="Locked once the case is created — it names the evidence folder." />
+      <Field label="Case Number" required value={form.caseNumber} onChange={(v) => change('caseNumber', v)} placeholder="OCC2025-001" hint="Locked once the case is created — it names the evidence folder." error={errors.caseNumber} />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />
-      <Field label="Unit" required value={form.unit} onChange={(v) => onChange('unit', v)} placeholder="Investigation unit" />
+      <Field label="Unit" required value={form.unit} onChange={(v) => change('unit', v)} placeholder="Investigation unit" error={errors.unit} />
 
       <Accordion title="Officer in Charge">
         <Field label="OIC Name" value={form.oicName} onChange={(v) => onChange('oicName', v)} placeholder="Officer in charge" />
@@ -155,7 +194,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel }: NewCaseModa
       <Field label="Notes" multiline value={form.notes} onChange={(v) => onChange('notes', v)} placeholder="Case notes…" />
 
       <div style={{ marginTop: 4 }}>
-        <ModalActions submitLabel="Create Case" onCancel={onCancel} onSubmit={onSubmit} />
+        <ModalActions submitLabel="Create Case" onCancel={onCancel} onSubmit={handleSubmit} submitBlocked={blocked} />
       </div>
     </ModalShell>
   )
