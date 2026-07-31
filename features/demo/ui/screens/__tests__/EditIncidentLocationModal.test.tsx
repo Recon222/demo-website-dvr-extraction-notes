@@ -9,27 +9,21 @@ import {
 } from '@/features/demo/ui/inputs/LocationFields'
 import { caseToIncidentValues, type IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
 import type { DemoCase } from '@/features/demo/engine/types'
+import { demoCase } from '@/features/demo/engine/store/__tests__/test-utils'
 
 type Reverse = (lat: number, lng: number) => Promise<{ streetAddress: string; city: string } | null>
 
-const seededCase: DemoCase = {
-  id: 'c1',
+const seededCase: DemoCase = demoCase({
   caseNumber: 'PR25-1',
   displayName: 'Kim B&E',
   unit: 'Central Robbery',
   oicName: 'Liam McHugh',
-  oicBadge: '4471',
-  vcName: '',
-  vcBadge: '',
   incidentBusinessName: 'Kim Convenience',
   incidentStreetAddress: '1450 Eglinton Ave W',
   incidentCity: 'Mississauga',
   incidentCoordinates: { lat: 43.5, lng: -79.5, source: 'geocoded' },
-  notes: '',
-  status: 'draft',
-  createdLabel: 'Just now',
   locationIds: [],
-}
+})
 
 /** Drives the modal the way the bridge does: seed once, then apply patches. */
 function Host({

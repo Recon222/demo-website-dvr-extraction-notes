@@ -3,43 +3,11 @@ import { toCaseCards, toCaseSheet, caseStatusTheme, locationStatusTheme } from '
 import { MAP_PIN_COLORS, STATUS_LABEL } from '@/features/demo/ui/screens/map/mapTokens'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoCase, DemoLocation, LocationForm } from '@/features/demo/engine/types'
+import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 
-const aCase = (over: Partial<DemoCase> = {}): DemoCase => ({
-  id: 'c1',
-  caseNumber: 'PR25-0001',
-  displayName: 'Case One',
-  unit: 'Robbery',
-  oicName: 'L. McHugh',
-  oicBadge: '4471',
-  vcName: '',
-  vcBadge: '',
-  incidentBusinessName: '',
-  incidentStreetAddress: '',
-  incidentCity: '',
-  notes: '',
-  status: 'draft',
-  createdLabel: 'Mar 9, 2025',
-  locationIds: ['l1'],
-  ...over,
-})
+const aCase = (over: Partial<DemoCase> = {}): DemoCase => demoCase({ displayName: 'Case One', createdLabel: 'Mar 9, 2025', ...over })
 
-const aLoc = (over: Partial<DemoLocation> = {}): DemoLocation => ({
-  id: 'l1',
-  caseId: 'c1',
-  locationName: "Kim's Convenience",
-  businessName: '',
-  streetAddress: '1450 Eglinton Ave W',
-  city: 'Mississauga',
-  requesterName: '',
-  requesterBadge: '',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: '',
-  locationContact: '',
-  locationPhone: '',
-  form: blankLocationForm(),
-  ...over,
-})
+const aLoc = (over: Partial<DemoLocation> = {}): DemoLocation => demoLocation(over)
 
 describe('toCaseCards', () => {
   it('maps personnel, status theme, and location rows', () => {

@@ -4,6 +4,7 @@ import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/New
 import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
 import { caseToCaseForm } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
+import { demoCase } from '@/features/demo/engine/store/__tests__/test-utils'
 
 /**
  * P3.3 / matrix row 11 — the required-field gate.
@@ -220,8 +221,7 @@ describe('NewCaseModal — submit-failure banner', () => {
  * confirmation Alert (the one immutable field is already locked).
  */
 describe('NewCaseModal — edit mode', () => {
-  const existing: DemoCase = {
-    id: 'c1',
+  const existing: DemoCase = demoCase({
     caseNumber: 'PR25-0098213',
     displayName: "Kim's Convenience — B&E",
     unit: 'Central Robbery',
@@ -234,10 +234,8 @@ describe('NewCaseModal — edit mode', () => {
     incidentCity: 'Mississauga',
     incidentCoordinates: { lat: 43.6087, lng: -79.6505, source: 'geocoded' },
     notes: 'Rear camera covers the loading bay.',
-    status: 'draft',
-    createdLabel: 'Just now',
     locationIds: [],
-  }
+  })
 
   function renderEdit(over: Partial<NewCaseFields> = {}, onSubmit = vi.fn(), onChange = vi.fn()) {
     render(
