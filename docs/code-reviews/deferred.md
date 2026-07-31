@@ -838,3 +838,37 @@ manifest's "exactly one active row" invariant.
 **Trigger to revisit:** the next field whose validity depends on `stage`/`result`
 pairings (a third correlated field is the tell), or any bug traced to an incoherent
 `ImportState` pairing — model the union then, in a dedicated change.
+
+---
+
+## 37. Four hand-rolled address joins — fold into P2.3's `formatAddress` when it lands
+
+**Source:** P2.4 (parity/p2-gate), self-logged while porting `finalSubmissionSchema`.
+
+**What:** the demo builds a location's display address by joining
+`businessName`/`streetAddress`/`city` in four places, from three slightly different
+expressions:
+
+| Site | Expression |
+|---|---|
+| `engine/store/selectors.ts:223` (`selectCaseNotesData`) | `filter(Boolean).join(', ')` |
+| `engine/store/create-store.ts:377` (`generateNotes`) | `filter(Boolean).join(', ')` |
+| `ui/DemoExperience.tsx` (Completion summary + time-offset doc) | `filter(Boolean).join(', ')`, with a `\|\| locationName` fallback on the summary only |
+| `engine/logic/final-submission.ts` (`toFinalSubmissionInput`, new) | `.map(trim).filter(Boolean).join(', ')` — **trims**, and deliberately has no name fallback |
+
+The gate's version trims because the phone's `address` is only ever written by
+`formatAddress` (`src/lib/utils/address-formatting.ts:102-119`), which trims each component
+and drops the blanks — without it a three-space address clears a gate the phone blocks. So
+the gate is correct and the other three are merely untrimmed, which is invisible today
+(nothing writes whitespace-only components) but is a second definition of "the address".
+
+**Why deferred:** P2.3 (submission depth, matrix row 29) is concurrently porting
+`formatAddress` — including the street-type abbreviation the demo has no equivalent of.
+Introducing a fifth, competing helper here while that lands would be the exact drift this
+entry is about, and the gate's own behaviour is fully pinned by tests either way.
+
+**Trigger:** when P2.3's `formatAddress` port lands, make it the single producer: the gate's
+`toFinalSubmissionInput`, `selectCaseNotesData`, `generateNotes` and the bridge's two summary
+joins all call it, and this entry is struck. Keep the two deliberate differences explicit at
+the call sites — the gate must NOT take the `locationName` fallback (a location with no
+address must not pass), and the summary card must keep it (display, not validation).
