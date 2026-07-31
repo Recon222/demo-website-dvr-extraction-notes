@@ -257,6 +257,40 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(el.scrollTop).toBe(100) // un-pinned: the tail must not fight the operator
   })
 
+  it('keyboard scrolling unpins too (R-2, WCAG 2.1.1): the log is focusable and scroll keys arm the pin', () => {
+    const { emitter } = setup()
+    const el = mockLogMetrics(1000, 200)
+    nextFrame()
+    act(() => {
+      emitter.log('INIT', 'a')
+      emitter.log('OK', 'b')
+    })
+    nextFrame()
+    // A first-class keyboard target: reachable by Tab, named for AT, not a second live region.
+    expect(el).toHaveAttribute('tabindex', '0')
+    expect(el).toHaveAttribute('role', 'log')
+    expect(el).toHaveAttribute('aria-live', 'off')
+    expect(el).toHaveAttribute('aria-label', 'Import log')
+    // ArrowUp + the resulting scroll away from the bottom → unpin, pill appears.
+    fireEvent.keyDown(el, { key: 'ArrowUp' })
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    expect(screen.getByTestId('jump-to-latest-pill')).toBeInTheDocument()
+    act(() => emitter.log('OK', 'c'))
+    nextFrame()
+    expect(el.scrollTop).toBe(100) // un-pinned: the tail must not fight the keyboard user
+    // PageDown back near the bottom re-pins (same 80px threshold as every gesture).
+    fireEvent.keyDown(el, { key: 'PageDown' })
+    el.scrollTop = 750
+    fireEvent.scroll(el)
+    expect(screen.queryByTestId('jump-to-latest-pill')).not.toBeInTheDocument()
+    // A non-scroll key is NOT user scroll intent — it must not arm the pin gate.
+    fireEvent.keyDown(el, { key: 'a' })
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    expect(screen.queryByTestId('jump-to-latest-pill')).not.toBeInTheDocument()
+  })
+
   it('programmatic scrolls never flip the pin (no wheel/touch preceding the scroll event)', () => {
     const { emitter } = setup()
     const el = mockLogMetrics(1000, 200)

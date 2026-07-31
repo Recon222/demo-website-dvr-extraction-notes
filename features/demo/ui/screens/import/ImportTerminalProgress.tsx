@@ -353,6 +353,9 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
 
 const EMPTY_SET: ReadonlySet<number> = new Set()
 
+/** Keys that scroll a focused scroll container — user intent for the pin (R-2). */
+const SCROLL_KEYS: ReadonlySet<string> = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '])
+
 export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = importLogBus }: ImportTerminalProgressProps) {
   const { lines, epoch } = useImportLog(true, bus)
   const reduce = useReducedMotion()
@@ -427,6 +430,20 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
   const markUserScroll = useCallback(() => {
     userScrollRef.current = true
   }, [])
+  /**
+   * Keyboard scrolling is user intent too (p1-review R-2, WCAG 2.1.1): scrollbars are
+   * hidden inside the phone frame and wheel/touch were the only pin producers, so a
+   * keyboard user could never unpin (the tail re-yanked them) and the jump pill never
+   * mounted for them. Scroll keys arm the same flag the wheel does; the resulting
+   * scroll event settles the pin exactly like every other user gesture. Pointer-down
+   * covers any future visible-scrollbar surface for free.
+   */
+  const handleKeyDown = useCallback(
+    (e: { key: string }) => {
+      if (SCROLL_KEYS.has(e.key)) markUserScroll()
+    },
+    [markUserScroll],
+  )
   const handleScroll = useCallback(() => {
     if (!userScrollRef.current) return // programmatic tail scroll — never flips the pin
     userScrollRef.current = false
@@ -491,9 +508,18 @@ export function ImportTerminalProgress({ stage, outcome, batch, onReview, bus = 
           data-testid="terminal-log"
           ref={logRef}
           style={logStyle}
+          // First-class keyboard target (R-2): focusable, named, and scroll keys count
+          // as user intent. role="log" is implicitly aria-live="polite" — explicitly
+          // off, so the terminal-status headline stays the sole polite region.
+          tabIndex={0}
+          role="log"
+          aria-live="off"
+          aria-label="Import log"
           onScroll={handleScroll}
           onWheel={markUserScroll}
           onTouchMove={markUserScroll}
+          onPointerDown={markUserScroll}
+          onKeyDown={handleKeyDown}
         >
           {lines.map((line) => (
             <TerminalLine key={line.seq} line={line} expanded={expandedSeqs.has(line.seq)} onToggleDetail={toggleDetail} />
