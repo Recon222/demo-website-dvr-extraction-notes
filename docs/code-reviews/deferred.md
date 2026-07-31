@@ -3858,3 +3858,129 @@ The deferral itself stands — the no-op predates P4 and was outside the round's
 **Trigger (strengthened per FD-7):** the NEXT P4.7-territory round, not merely "next time the
 code is open" — R-1's guard pattern (refuse + notice) now sits one file away in the audio
 save path, and this sibling should adopt it then.
+
+---
+
+## 70. P5.1 (parity/p5-engine) — the export engine port: non-ports, adaptations, and the contract P5.2/P5.3 inherit
+
+**Source:** parity plan §5 P5.1; phone `src/hooks/useExportFlow.ts`,
+`src/features/case-management/export-hub/types.ts`, `app/(tabs)/export.tsx`,
+`src/features/case-management/services/pdf-export-service.ts`, `src/components/export/*`.
+Shipped as `features/demo/engine/logic/export/{selection,validation,stage,flow}.ts`. Nothing
+below is a bug; each is a deliberate boundary of the port.
+
+### 70a. The persistence verdict — export state is EPHEMERAL (settled, not deferred)
+
+The phone's own comment is decisive: "Tab-local selection (never persisted; the Map tab's
+`mapViewerCaseId` precedent)" (`app/(tabs)/export.tsx:37-38`), and the prune-on-refresh effect
+(`:51-69`) exists precisely because the selection is only meaningful against live data. The
+demo already mirrors that precedent literally — its own `mapViewerCaseId` is
+`useState` in `ui/DemoExperience.tsx:377`, outside `PersistedState`. So the export selection
+and the flow state are DemoExperience-local `useState` driven by these pure transitions;
+`engine/store/persistence.ts` and `SNAPSHOT_VERSION` (6) were not touched, and the barrel test
+pins their absence from the store. **No trigger — this is a decision, recorded so a later
+"shouldn't the selection survive a refresh?" is answered without re-deriving it.**
+
+### 70b. NOT PORTED — the biometric gate (`useProtectedExport`)
+
+Every phone dispatch runs inside `executeProtectedExport(..., 'export_zip')`. A browser tab has
+no Face ID, and the demo's biometric surface is the P8 splash animation, which is theatre by
+agreement. **Why deferred:** a fabricated gate is a fake security claim on an evidence app.
+**Trigger:** none foreseen — reopen only if the demo ever gains a real WebAuthn step.
+
+### 70c. NOT PORTED — the password round-trip and `resolvePasswordPolicy`
+
+Decision D4 skips PasswordModal (matrix row 26), so `ExportFlowState` has no
+`pendingExportType` / `showPasswordModal` / `defaultPasswordForModal`, and the flow's entry
+guard is `stage !== 'idle'` alone rather than the phone's `isExporting || pendingExportType`.
+`resolvePasswordPolicy` (off / auto-with-saved / prompt) and the `encryptionNote` suffix that
+threads through every phone alert are absent with it. **Trigger:** if real client-side
+encryption ever ships (D4 explicitly leaves the door shut for now), the policy function is a
+20-line port and the guard grows a second term.
+
+### 70d. NOT PORTED — the post-export result-alert taxonomy
+
+`useExportFlow`'s success alerts (`:229-576`) branch on `shareWarning`, `pdfResults.failureCount`,
+`geojsonFailures` and `caseMapFailed`. None of those states is producible here: there is no
+share sheet, no filesystem, and no PDF pipeline that can partially fail. Porting the branches
+would mean inventing failure modes; the honest terminal treatment (D4's "download isn't
+available in the demo") belongs to P5.3 and P5.4 instead. The BLOCKING half of the taxonomy —
+which is reachable — IS ported verbatim as `EXPORT_ALERTS`. **Trigger:** P5.4's real case-map
+download may want the phone's "Export Complete (Not Shared)" shape if a browser download can
+genuinely fail silently; evaluate then, against a real failure, not a hypothetical one.
+
+### 70e. NOT PORTED — `validateLocationForPdf`'s corrupted-`formData` guard
+
+Phone `pdf-export-service.ts:113-122` returns the single error "Location data is corrupted or
+missing" when `location.formData` is not an object. It guards a nullable SQLite JSON blob. The
+demo's `LocationForm` is total by type and the sessionStorage snapshot is Zod-guarded before it
+reaches the store, so no path can produce the state it catches. **Why deferred:** an
+unreachable branch ships with a test that pins nothing. **Trigger:** if the demo ever accepts
+an externally-authored location payload (an import format that carries a whole `form`), add the
+guard with that entry point.
+
+### 70f. Deviations from the phone's validator shape (accepted)
+
+- **Synchronous, not `async`.** The phone's `validateLocationsForPdf` /
+  `validateLocationSubsetForPdf` are async only because they `await getCaseWithLocations`. The
+  demo holds the rows in the session store; a fabricated Promise would add a render gap the
+  demo does not have, and `applyValidation` is written against the sync shape.
+- **No `directoryName`** on `LocationPdfValidation`. It names the location's folder inside the
+  ZIP; there is no filesystem, and `ExportModal.tsx:204-216` never reads it.
+
+### 70g. Copy adaptations (2) — everything else is verbatim
+
+- `EXPORT_ALERTS.noCaseSelected` takes the SUBSET handler's generic wording ("Please select a
+  case before exporting.", `useExportFlow.ts:820-821`) rather than `handleExportZip`'s "Please
+  create a case from the Home screen before exporting." (`:655-656`) — the latter instructs a
+  screen the demo does not have.
+- `EXPORT_ALERTS.caseUnavailable` drops "Refresh the list and" from
+  `export.tsx:148-149` — the demo's list IS the live store; there is nothing to refresh.
+
+### 70h. One deliberate strengthening over the phone
+
+`proceedWithExport` returns SILENTLY when `caseId` is null (`useExportFlow.ts:725-728`),
+leaving the validation modal latched with a live Continue — the exact shape PR-89 fixed
+everywhere else in that file. The arm is unreachable on the phone, which is why it survived.
+`continueValidatedExport` here consumes the modal and raises `caseUnavailable` instead, the
+treatment the phone's own Export tab gives that condition (`export.tsx:142-152`). Recorded so a
+reviewer diffing against the phone sees a decision, not a drift.
+
+### 70i. RESIDUAL — the entry guard does not cover an open validation prompt
+
+Ported verbatim: `isExporting` is `stage !== 'idle'`, and opening the prompt resets the stage
+(the phone calls `resetExportState()` first, `:673-679`). So while the prompt is up, a second
+CTA press would pass the guard. On both platforms the modal physically covers the CTA, which is
+why the phone never hardened it. **Trigger:** if P5.2 ever renders the Export tab's footer
+CTA outside the modal's scrim (or adds a keyboard shortcut for it), add `|| showValidationModal`
+to `isExporting` and pin it — do NOT let a bare re-press reach `requestExport`.
+
+### 70j. CONTRACT for P5.2/P5.3 — the shell must advance the stage in the same handler
+
+`requestExport` returns `{ kind: 'run', state }` with the state UNTOUCHED for the three
+single-artifact pipelines (`location`, `location-geojson`, `case-map`), because on the phone
+their stages come from the service's `onStageChange` callback rather than the handler. The
+consequence is that `isExporting` stays false until the shell calls `advanceStage`, so the
+shell must do so in the same event handler it starts the run. Faithful to the phone, and safe
+in React (one handler per event), but it is a contract rather than a structural guarantee.
+**Trigger:** if P5.3's pipeline ever starts a run across an `await` boundary before its first
+`advanceStage`, move the stage flip into `requestExport`'s run arm.
+
+### 70k. FLAG for P5.2/P5.3 — two ported strings are forward-looking claims
+
+`resolveExportPlan`'s artifact line ("CASE ZIP · CANONICAL · INCLUDES CASE MAP", …) and
+`describeValidationPrompt`'s summary ("The ZIP will be created without any PDF notes.") describe
+the artifact the flow is ABOUT. They are lifted verbatim because the matrix quotes them as
+contract strings and softening them would leave the visitor unable to tell what they just
+agreed to. The honesty rule is satisfied at the TERMINAL step, which is D4's own placement and
+P5.3's territory. **Trigger:** P5.3 must land the honest "downloads aren't available here"
+notice at the end of every ZIP pipeline; if it doesn't, these two strings become the demo's
+only statement about the artifact and the pair reads as a fake success.
+
+### 70l. `DEMO_EXPORT_STAGES` — a new guard rail, not a port
+
+`STAGE_MESSAGES` is ported whole (contract, row 25), but `'sharing'` ("Opening share dialog...")
+precedes a real OS share sheet the browser has no equivalent of. `DEMO_EXPORT_STAGES`
+(`validating` / `generating` / `zipping`) is the subset the simulated pipeline may enter, so
+P5.3 has something to assert against rather than a comment. **Trigger:** none — delete it only
+if a browser share target ever makes `'sharing'` truthful.
