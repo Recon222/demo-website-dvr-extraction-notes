@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
+
 import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
 
 /**
@@ -68,13 +70,17 @@ export function validateFinalSubmission(input: FinalSubmissionInput): FinalSubmi
  * `location.caseId` (the R-19 law — "the open location owns the case"), never from a
  * separately tracked case selection.
  *
- * The address join mirrors every other demo consumer (`selectCaseNotesData`,
- * `generateNotes`, the Completion summary card) with one addition: components are trimmed
- * first, because the phone's `address` is only ever written by `formatAddress`
- * (`src/lib/utils/address-formatting.ts:102-119`), which trims each component and drops the
- * blank ones. Without that, a location whose address is three spaces would clear a gate the
- * phone would block. The location NAME is deliberately not a fallback here — the summary
- * card falls back to it for display, but a location with no address must not pass.
+ * The address goes through the shared `formatAddress` — the single producer of a composed
+ * address since P2.3 landed it (deferred §38's strike-trigger). That matters beyond tidiness:
+ * the phone's `address` is only ever written by its own `formatAddress`
+ * (`src/lib/utils/address-formatting.ts:102-119`), so gating on anything else would validate a
+ * different string from the one the PDF header, the notes body and the Cases row display.
+ * Emptiness semantics are what the gate actually depends on and they are identical — each
+ * component trimmed, blanks dropped — so a whitespace-only address still fails `min(1)`
+ * exactly as it does on the phone.
+ *
+ * The location NAME is deliberately not a fallback here — the summary card falls back to it
+ * for display, but a location with no address must not pass.
  */
 export function toFinalSubmissionInput(
   location: DemoLocation | null,
@@ -83,10 +89,7 @@ export function toFinalSubmissionInput(
   return {
     occNumber: owningCase?.caseNumber ?? '',
     address: location
-      ? [location.businessName, location.streetAddress, location.city]
-          .map((part) => part.trim())
-          .filter(Boolean)
-          .join(', ')
+      ? formatAddress(location.businessName, location.streetAddress, location.city)
       : '',
     scopes:
       location?.form.scopes.map((s) => ({

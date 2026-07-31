@@ -6,6 +6,7 @@ import {
   validateFinalSubmission,
   type FinalSubmissionInput,
 } from '@/features/demo/engine/logic/final-submission'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoCase, DemoLocation, ScopeEntry } from '@/features/demo/engine/types'
 
@@ -156,6 +157,19 @@ describe('toFinalSubmissionInput (demo-shape derivation)', () => {
     expect(
       toFinalSubmissionInput(demoLocation({ businessName: '', streetAddress: '' }), demoCase()).address,
     ).toBe('Mississauga')
+  })
+
+  it('composes the address through the shared formatAddress — one producer (deferred §38)', () => {
+    // §38's strike-trigger: when P2.3's formatAddress landed it became the single producer of
+    // a composed address. The observable tell is the street-type abbreviation, which only
+    // formatAddress applies — a private join here would leave "Avenue" unabbreviated and the
+    // gate would be reading a different string from the PDF header, notes and Cases row.
+    const out = toFinalSubmissionInput(
+      demoLocation({ businessName: '', streetAddress: '1450 Eglinton Avenue', city: 'Mississauga' }),
+      demoCase(),
+    )
+    expect(out.address).toBe('1450 Eglinton Ave, Mississauga')
+    expect(out.address).toBe(formatAddress('', '1450 Eglinton Avenue', 'Mississauga'))
   })
 
   it('treats a whitespace-only address as absent (phone formatAddress trims each component)', () => {
