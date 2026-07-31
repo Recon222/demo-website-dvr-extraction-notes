@@ -1,338 +1,146 @@
-# Lane: silent-failures — parity P1 (PR #30)
+# Lane: silent-failures — parity P1 (PR #30) — FIX-DELTA
 
 - **Lane:** silent-failures (`.claude/agents/silent-failure-hunter.md`)
-- **Mode:** INITIAL (full review of the diff)
-- **Diff under review:** `git diff master...feat/parity-p1` — 58 files, +4427/−329
+- **Mode:** FIX-DELTA (re-review of the six-branch fix round merged after review commit `4a1f807`)
+- **Diff under review:** `git diff master...feat/parity-p1`; fix delta = `git diff 4a1f807..feat/parity-p1`
+  (27 files, +1067/−252)
 - **Refs read:** `.claude/agents/silent-failure-hunter.md`, `features/demo/CLAUDE.md`,
-  `docs/code-reviews/deferred.md` (incl. new §33/§34/§35), `docs/planning/demo-phone-parity/demo-inventory.md`
-- **Files traced in full (not just hunks):**
-  `engine/logic/import-log.ts`, `engine/logic/import-normalize.ts`, `engine/store/create-store.ts`,
-  `engine/store/persistence.ts`, `engine/store/selectors.ts`, `engine/logic/time.ts`,
+  `docs/code-reviews/parity/p1/p1-review.md` (aggregated), my prior
+  `docs/code-reviews/parity/p1/lane-silent-failures.md`, `docs/code-reviews/deferred.md`
+  (incl. the new §15 residual, §35 addendum, §36)
+- **Fix commits verified (mine):** `a32b929` (R-1/R-32) · `acd8af9` (R-24/R-11) · `b94809a` (R-25) ·
+  `087e56b` (R-23a) · `d8af20d` (R-23b) · `0bf7c9e` + `6dbffdf` (R-12/R-16) · `fe1614c` (R-26) ·
+  `77949ca` (R-9)
+- **Files re-read in full (not just hunks):** `ui/screens/import/ImportTerminalProgress.tsx`,
+  `ui/screens/import/PickerStage.tsx`, `ui/screens/import/TerminalLine.tsx`,
   `ui/DemoExperience.tsx`, `ui/import/run-import.ts`, `ui/import/useImportLog.ts`,
-  `ui/import/extract-client.ts`, `ui/import/pdf-extract.ts`, `ui/chrome/PdfPreview.tsx`,
-  `ui/screens/ImportModal.tsx`, `ui/screens/_shared.tsx`,
-  `ui/screens/import/{ImportTerminalProgress,TerminalLine,PickerStage,PasteStage,import-flow-mode}.tsx|ts`,
-  `app/demo/error.tsx`, `ui/demo.css` + the font-var mechanical changes.
+  `ui/screens/ImportModal.tsx`, `ui/chrome/PdfPreview.tsx`, `engine/logic/import-log.ts`,
+  `engine/logic/import-flow-mode.ts`, `engine/store/persistence.ts`, `engine/store/selectors.ts`,
+  `engine/store/create-store.ts` (`applyImport` / `generateExtractedScopes`), `engine/index.ts`
+- **Gate run in-worktree:** `npx tsc --noEmit` — clean (no output). Test runs left to the test lane
+  (known flake class under contention).
 
-**Explicitly not re-flagged** (orchestrator's deliberate-choice list + deferred.md): the D5 honesty
-adaptations (§33), the html2pdf non-ship and print-only save (§34), the P1.5 non-ports — dry-run,
-unmapped `PDF_SCANNED`/`NO_FIELDS_FOUND`, single-failure card, proxy 503/network absent from the
-failure map (§35), the `T+seconds.xx` gutter, the deliberate no-virtualization decision, the
-"nothing leaves this phone" omission, the dwell itself, R-34's duplicated value-guards, the dwell
-test migrations, and pre-existing tracked §15 (`roundTo5Min` half) / §18 / §28.
-
-**Verified-clean highlights** (checked and found sound — recording so a later pass doesn't re-open them):
-
-- `FallbackMode` notice switch (`DemoExperience.tsx:387-402`) is still `never`-guarded and exhaustive;
-  the new `emitFallback` switch (`run-import.ts:108-124`) is exhaustive by the same construction, and
-  *every* sample substitution emits a `sample fallback:` NORM line before the result is built.
-- `extract-client.ts`'s 503-vs-everything-else split and all three `console.warn` breadcrumbs are intact.
-- `pdf-extract.ts`'s deliberate teardown swallow is untouched; `runPdfImport` still narrows on
-  `PdfExtractionError` and now additionally preserves the raw message in `details.detail`.
-- The blank-record guard (`fieldCount === 0 && timeFrameCount === 0` → `ok:false`, deferred §3) survives
-  and gained honest `partialData`; `occurrenceNumber` is deliberately excluded from `fieldCount`.
-- Generation-token discipline on the *store-writing* path is complete: `applySuccess` re-checks after the
-  geocode await (`DemoExperience.tsx:419`), the batch loop re-checks before each file and after each file
-  (`:508`, `:512`, `:516`), and `finishImport` is unreachable from an invalidated run. `importLogBus`
-  carries its own equivalent `runToken` (`import-log.ts:99,122`) so a cancelled run's late lines drop.
-- `useImportLog`'s rAF coalescer is correct under interleaved `reset`/`line` batches, replaces the pending
-  batch before `setView` (no lost lines), and cancels the pending frame on unmount.
-- `openImport` resets `imp` before opening (`DemoExperience.tsx:358`), so the stale-result-on-reopen hazard
-  the new `onCancel` reset targets is closed on *all* modal-open paths.
-- Font migration is complete — no bare `'JetBrains Mono'` / `'Share Tech Mono'` families remain under
-  `features/demo/`, and `--font-jbmono` / `--font-stmono` are both defined in `app/layout.tsx`.
-- `app/demo/error.tsx`'s R-31 breadcrumb is ungated and carries the cause. Correct.
+**Explicitly not re-flagged** (orchestrator's deliberate-choice list + deferred.md): trust-line
+*wording* (`'sample import · in-browser'` after a post-POST fallback — the underclaim there is the
+accepted wording, not the scoping), the dwell semantics, D5 adaptations, the html2pdf non-ship,
+§35 non-ports, §36's flat `ImportState`, the picker-vs-terminal reduced-motion asymmetry (both
+commit bodies justify it), the `import-flow-mode.ts` move (a rename), pre-existing §15
+(`roundTo5Min` half) / §18 / §28.
 
 ---
 
-## SILENT-FAILURES-1 [MAJOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:81-86
+## Fix-delta: every prior finding from this lane
 
-**Claim.** `deriveTrust` is **run-scoped and sticky**: the first `sample fallback:` line anywhere in the
-run latches the trust line to `sample` for the rest of the run. In a *batch* import that means every
-file processed **after** the first fallback is described to the visitor as `sample import · in-browser`
-while its extracted document text is in fact being POSTed to `/api/extract` and forwarded to a cloud
-model. This is an **underclaim of data exposure** — the exact direction the function's own docstring
-says is never safe.
+| Prior | Aggregated | Verdict | Fix commit |
+|---|---|---|---|
+| SILENT-FAILURES-1 | R-1 (MAJOR) | **FIXED** | `a32b929` |
+| SILENT-FAILURES-2 | R-24 | **FIXED** | `acd8af9` |
+| SILENT-FAILURES-3 | R-25 | **PARTIAL** — single-file/last-file closed, mixed batch open (→ new SILENT-FAILURES-1) | `b94809a` |
+| SILENT-FAILURES-4 | R-23 | **FIXED** (both halves) | `087e56b` + `d8af20d` |
+| SILENT-FAILURES-5 | R-12 | **FIXED** (both holes) | `0bf7c9e` |
+| SILENT-FAILURES-6 | R-26 | **FIXED** (option (a), with ledger entry) | `fe1614c` |
+| SILENT-FAILURES-7 | R-9 | **FIXED** | `77949ca` |
 
-**Evidence.**
+### SF-1 / R-1 — `deriveTrust` sticky latch mid-batch — **FIXED**
 
-- `ImportTerminalProgress.tsx:81-86` — the derivation returns on the first match and never resets:
-  ```ts
-  export function deriveTrust(lines: readonly ImportLogLine[]): TerminalTrust {
-    for (const line of lines) {
-      if (line.level === 'NORM' && line.text.startsWith('sample fallback:')) return 'sample'
-    }
-    return 'cloud'
-  }
-  ```
-- `ImportTerminalProgress.tsx:74-79` states the rule it is violating: *"overclaiming exposure is safe;
-  underclaiming never is."*
-- The bus is **one run per batch**, not per file — `DemoExperience.tsx:502` (`importLogBus.beginRun`) is
-  called once, outside the `for` loop at `:507-515`, and the comment at `:500-501` says so explicitly
-  ("a batch is ONE run, like the phone"). So file 1's fallback line stays in `lines` for files 2..N.
-- The stale value is rendered in two places: the terminal title bar (`:474-476`) and — worse — the
-  per-file processing badge (`:549-552`), which composes it as
-  `File ${batch.current} of ${batch.total} · sample import · in-browser`. That is a per-file claim about
-  a file that is going to the cloud.
-- No test covers it: `__tests__/ImportTerminalProgress.test.tsx:137-148` only exercises single-line inputs.
-
-**Adversarial sequence.** Visitor selects 3 PDFs. File 1's `/api/extract` call returns 502 (or the fetch
-rejects) → `run-import.ts:157-158` sets `fallbackMode='error'` → `emitFallback` emits
-`NORM "sample fallback: couldn't reach the live model — importing the sample request"`. Files 2 and 3
-then succeed live (`run-import.ts:145` emits `AI Request → /api/extract`, the document text leaves the
-browser). Throughout files 2 and 3 the badge reads **"File 2 of 3 · sample import · in-browser"** and the
-title bar reads **"sample import · in-browser"**.
-
-**Suggested fix.** Make the derivation **segment-scoped**, matching how the log is already segmented: scan
-only the lines at/after the last `FILE`-level marker (emitted at `DemoExperience.tsx:510` for every file),
-or equivalently reset the latch on each `FILE` line. Minimal patch:
+`ImportTerminalProgress.tsx:101-108` is now the accumulator form, resetting at every `FILE` marker:
 
 ```ts
 export function deriveTrust(lines: readonly ImportLogLine[]): TerminalTrust {
   let trust: TerminalTrust = 'cloud'
   for (const line of lines) {
-    if (line.level === 'FILE') trust = 'cloud'          // new file → back to the live path
-    else if (line.level === 'NORM' && line.text.startsWith('sample fallback:')) trust = 'sample'
+    if (line.level === 'FILE') trust = 'cloud'
+    else if (line.level === 'NORM' && line.text.startsWith(SAMPLE_FALLBACK_PREFIX)) trust = 'sample'
   }
   return trust
 }
 ```
-Add a batch case to the `deriveTrust` unit test (FILE → sample fallback → FILE → AI Request must read
-`cloud`). Note this also keeps the single-file behaviour byte-identical, so the existing pins hold.
 
-**Confidence.** High — grounded in the emit ordering in `DemoExperience.tsx:502/507-515` and
-`run-import.ts:145/157-158`, and in the component's own stated invariant.
+Verified the segment markers exist on the only path that needs them: `DemoExperience.tsx:561` emits
+`FILE` **before** `runPdfImport` for every batch file, and `runTextImportFlow` emits no `FILE` at all
+(`:590`), so paste/single-file behaviour is byte-identical. The R-32 half landed with it —
+`SAMPLE_FALLBACK_PREFIX` (`run-import.ts:124`) is the single typed contract feeding `emitFallback`'s
+three lines (`:135/138/141`), `deriveTrust` (`:105`), and the tests. Batch unit case + a component
+mid-batch re-label case are pinned (`ImportTerminalProgress.test.tsx`, `a32b929`).
 
----
+Adversarial re-trace: 3 PDFs, file 1 → 502 → `sample fallback:` NORM; file 2 → live. Badge at file 2
+now reads `File 2 of 3 · cloud model via server proxy`. The underclaim is gone.
+Ring-cap interaction re-checked: eviction can only drop an *older* `FILE`/fallback line, which
+degrades to the `cloud` default — the overclaim direction the docstring calls safe.
 
-## SILENT-FAILURES-2 [MINOR] features/demo/ui/DemoExperience.tsx:382
+### SF-2 / R-24 — un-tokened `onImportStage` — **FIXED**
 
-**Claim.** `onImportStage` is the one import-pipeline callback with **no generation-token re-check**. A
-cancelled/superseded run's late `onStage` still writes `activeStage` into the live `imp` state, so a
-stale run can drive a newer run's terminal headline and progress bar. With P1.5 this got more
-load-bearing: `activeStage` is now retained through the dwell and is what freezes the bar on a failure —
-and the code states the invariant it can break ("failure keeps the bar where the pipeline stopped — a
-full bar on a failed run would be a lie", `ImportTerminalProgress.tsx:382-384`).
-
-**Evidence.**
-
-- `DemoExperience.tsx:382` — no token, no guard:
-  ```ts
-  const onImportStage = (st: RunStageId) => setImp((s) => ({ ...s, activeStage: st }))
-  ```
-- The same callback instance is handed to every run (`:511`, `:539`), and cancellation does **not** abort
-  the in-flight pipeline — `onCancel` (`:861-868`) only bumps `importGen` and resets the bus. `runImport`
-  keeps calling `onStage?.('normalizing')` / `('done')` / `('error')` (`run-import.ts:162,190,195`) after
-  the fetch settles.
-- Every *other* post-await write is guarded (`:419`, `:508`, `:512`, `:516`, `:540`, `:544`) — this is the
-  one omission, so it reads as an oversight rather than a decision.
-
-**Adversarial sequence.** Run A (paste import) is waiting on `/api/extract` (proxy timeout is 30 s).
-Visitor hits ✕, reopens Import, starts run B on a PDF. Run B is at `extracting_text` (headline
-"Extracting text from PDF…", bar 0 %). Run A's fetch settles and fires `onStage('normalizing')` then
-`onStage('done')` → run B's terminal jumps to "Normalizing extracted data… 55 %" then
-"Saving to case… 80 %" while run B is still reading the PDF. If run B then fails, the "frozen" bar is
-frozen at run A's stage, not run B's.
-
-**Suggested fix.** Bind the callback to the run's generation, mirroring every other checkpoint:
+`DemoExperience.tsx:399-403` replaces the bare setter with a per-run forwarder:
 
 ```ts
 const importStageFor = (myGen: number) => (st: RunStageId) =>
-  setImp((s) => (importGen.current === myGen ? { ...s, activeStage: st } : s))
-// …and pass `onStage: importStageFor(myGen)` at :511 and :539.
+  setImp((s) => {
+    if (importGen.current !== myGen) return s // stale run — display writes drop too
+    return { ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }
+  })
 ```
 
-**Confidence.** High on the mechanism; medium on visitor impact (display-only — no store write and no
-result is affected, both of those remain token-guarded).
+Both call sites pass it (`:562`, `:592`). The R-11 `lastRealStage` rides the same updater, so the
+frozen-bar-on-failure stage is now sourced from the bridge (`ImportTerminalProgress.tsx:430`) instead
+of a never-rendered component ref. The cancel→newer-run scenario I traced is pinned end-to-end
+(`DemoExperience.sandbox.test.tsx`, "a cancelled run's late onStage cannot drive a newer run's
+terminal"). No stage checkpoint is left un-tokened: `:440`, `:559`, `:563`, `:567`, `:593`, `:597`,
+plus the new `:528`.
 
----
+### SF-3 / R-25 — outcome CTA carried no sample attribution — **PARTIAL**
 
-## SILENT-FAILURES-3 [MINOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:294-310
+`ctaView` now takes `trust` and, on `'sample'`, renders the success/partial sub as
+`'sample import — review →'` in amber (`ImportTerminalProgress.tsx:343-347, 618`). That closes the
+single-file and paste cases exactly as suggested, and is pinned.
 
-**Claim.** The outcome CTA carries **no sample attribution**. Combined with P1.5's dwell, a
-sample-substituted import can now complete, write a location into the visitor's case, and be dismissed
-without the `fallbackNotice` copy or the `isSample` badge ever rendering — the two loudest pieces of the
-honesty machinery both live behind the CTA tap. Pre-P1.5 the modal auto-flipped to the result view, so
-the notice was always painted at least once.
+**It does not close the batch case, and the R-1 fix is why:** `trust` is now the *current segment's*
+mode, so a run whose substitution happened on any file other than the last derives `'cloud'` at CTA
+time and the attribution silently disappears. Filed below as SILENT-FAILURES-1 (the R-25 fix and the
+R-1 fix each verified in isolation; the interaction is what leaks).
 
-**Evidence.**
+### SF-4 / R-23 — unreachable, breadcrumb-free PickerStage catch + hangable dwell — **FIXED**
 
-- `ImportTerminalProgress.tsx:294-310` — the success CTA is a green check with
-  `headline/title: 'Import ready for review'`, `sub: 'Review import →'`. Nothing about the substitution.
-- `finishImport` (`DemoExperience.tsx:485-488`) deliberately leaves `stage:'progress'`, so the notice
-  (`ImportModal.tsx:241-243`) and the `isSample` badge (`ImportResultAccordion.tsx:41`) render only after
-  `onReviewImport` (`DemoExperience.tsx:845`).
-- Closing during the dwell discards the result outright: `onCancel` → `setImp(blankImport)`
-  (`DemoExperience.tsx:866`). `ModalShell` also closes on Escape (`_shared.tsx:44-50`), so one keystroke
-  is enough.
-- Nothing persistent marks the created location: `grep isSample` returns only `importResultData.ts:40,104`
-  and `ImportResultAccordion.tsx:41` — all in the ephemeral result view. `DemoLocation` has no sample flag,
-  so after dismissal the fictional business name / address / phone / DVR model / time frames are
-  indistinguishable from a real extraction.
-- Mitigating (why this is MINOR, not MAJOR): the dwell terminal *does* announce it twice — the amber
-  `NORM "sample fallback: …"` log line and the `sample import · in-browser` trust line. Both are on screen
-  at the moment of the CTA. The announcement exists; only its prominence regressed.
+(a) Both `PickerStage` catches now breadcrumb before the (production-discarded) `setError`:
+`PickerStage.tsx:207` and `:253` — `console.error('[demo/import] import run threw', e)`. The
+comments state plainly that the console line is the *only* signal once the stage flip unmounts them.
 
-**Suggested fix.** Put the attribution on the one element the visitor must look at to leave the dwell.
-`ImportTerminalProgress` already computes `trust`; thread it into `ctaView` and, when `trust === 'sample'`,
-render the success/partial `sub` as e.g. `'sample import — review →'` (and keep the amber `partial`
-palette for `success` + `sample`). Cheap, additive, and it keeps the notice honest on the close path.
+(b) `guardImportRun` (`DemoExperience.tsx:521-539`) wraps both run bodies (`:553`, `:589`):
+breadcrumb → `ERR` log line (no-op if superseded) → token check → a failure `result`, which releases
+the dwell through the normal `See error details →` path. Pinned with a *rejecting* `runPdfImport`
+(`DemoExperience.sandbox.test.tsx`, "an unexpected pipeline THROW cannot hang the dwell"), asserting
+the breadcrumb, the friendly copy, the raw throw under Technical Details, and zero locations created.
+Residual (new, minor) about what the backstop does to a *partially successful* batch is filed below
+as SILENT-FAILURES-2.
 
-**Confidence.** High on the mechanism and the trace; the severity call reflects that the terminal's own
-two signals are genuinely present.
+### SF-5 / R-12 — blocked-print detection — **FIXED** (both holes)
 
----
+`PdfPreview.tsx:29-65`. The `contentWindow`/`print` probe is inside the `try` (`:34-38`), so the
+cross-origin `SecurityError` the sandbox comment documents renders the honest notice instead of
+escaping. Success is now a **positive** signal: a `beforeprint` listener on the framed window
+(`:44-48`), with `setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)` at `:61` — a
+silently-ignored `print()` no longer clears a prior notice. The "two failed saves leave no notice"
+regression is pinned (`PdfPreview.test.tsx`, "notice must survive"), as is the silent-ignore case and
+the cross-origin probe. R-16's focus return sits in the inner `finally` (`:52-60`) so it runs on the
+dialog, throw, and silent-ignore branches alike.
 
-## SILENT-FAILURES-4 [MINOR] features/demo/ui/screens/import/PickerStage.tsx:145-156
+*Residual risk, not filed as a finding (no file:line defect I can ground):* the detection now depends
+on `beforeprint` firing **synchronously on the framed window**. That is what the HTML printing steps
+specify and what the stub models, but if some engine fires it on the top-level window or
+asynchronously, a *successful* save would render the blocked notice. That is the safe (overclaim)
+direction, and a one-line widening (`window.addEventListener('beforeprint', markOpened)` alongside
+the frame listener) would absorb it if a browser matrix ever shows it.
 
-**Claim.** `startPdfImport`'s catch is **unreachable in practice and breadcrumb-free**. The parent flips
-the stage to `'progress'` on its first `setImp`, which unmounts `PickerStage`; any later throw from
-`processPdfFiles` lands in a catch whose `setError` is discarded by React on an unmounted component, with
-no `console` line. The dwell makes the consequence worse than before: `stage` stays `'progress'` and
-`result` stays `null` forever, so the terminal spins indefinitely with **zero** signal to visitor or
-operator.
+### SF-6 / R-26 — relocation comment overstated its coverage — **FIXED**
 
-**Evidence.**
+`selectors.ts:74-84` now names the two covered boundaries and states that the third (scope-row
+edit/add after an offset) deliberately does not warn, with the reason (per-keystroke `updateField`
+writes would reproduce the spam R-33 removed). `deferred.md` §15 carries the residual with a concrete
+un-defer trigger (P2.4/G8, when scope writes gain a commit boundary). Option (a) of my suggested fix,
+taken cleanly; the visitor surface (`adjustedScopesPartial`) is untouched.
 
-- `PickerStage.tsx:145-156`:
-  ```ts
-  const startPdfImport = async (files: File[]) => {
-    setIsReadingFile(true)
-    try { await props.onPdfFilesSelected(files) }
-    catch { setError(PICKER_COPY.fileReadFailed) }   // no console breadcrumb
-    finally { setIsReadingFile(false) }
-  }
-  ```
-- The unmount happens inside the awaited call, before anything that could realistically throw:
-  `DemoExperience.tsx:509` sets `stage:'progress'` on the first loop iteration; `ImportModal.tsx:191-199`
-  renders `PickerStage` only while `stage === 'picker'`.
-- No other surface catches it: `processPdfFiles` (`:492-518`) has no `try`, and the terminal has no
-  timeout/failsafe — `finishImport` is the only writer of `result`.
-- This is deferred §18's shape ("async handlers with no top-level `.catch()`"), and I re-verified its
-  latency claim still holds — `extractPdfText`, `requestExtraction` (incl. its `JSON.stringify`),
-  `parseNormalizeMap`, `forwardGeocode` and the new dev-only `calculateCorrectedTimeRange` probe in
-  `applyImport` are all internally guarded, so nothing throws **today**. The finding is that the new
-  handling *looks* like it closed §18 when it did not.
+### SF-7 / R-9 — rehydrated dangling `currentCaseId` — **FIXED**
 
-**Suggested fix.** Two lines, no refactor: (a) add `console.error('[demo/import] import run threw', e)` in
-the `PickerStage` catch so the operator gets a breadcrumb even after unmount; (b) wrap the body of
-`processPdfFiles` / `runTextImportFlow` in a `try/catch` that sets a failure result
-(`setImp(s => ({ ...s, result: { ok:false, error: 'Import failed unexpectedly.' } }))`) — that also
-releases the dwell instead of hanging it. Alternatively, note in §18 that the catch is decorative and the
-trigger has not fired.
-
-**Confidence.** High on the unreachability and the missing breadcrumb; the "would hang forever" outcome is
-conditional on a throw that no current call site can produce.
-
----
-
-## SILENT-FAILURES-5 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:28-41
-
-**Claim.** `printDocument` treats *"`win.print()` returned normally"* as success and clears any prior
-notice — but a browser that refuses to open the print dialog **returns normally too**. The file's own
-sandbox comment documents exactly that behaviour ("a sandboxed document without [`allow-modals`] silently
-ignores `print()` — 'Ignored call to `print()`' in Chromium"), so the honest-failure path is built on a
-signal that the known failure mode does not produce.
-
-**Evidence.**
-
-- `PdfPreview.tsx:28-41`:
-  ```ts
-  if (!win || typeof win.print !== 'function') { setPrintNotice(PRINT_BLOCKED_NOTICE); return }
-  try { win.focus(); win.print(); setPrintNotice(null) } catch { setPrintNotice(PRINT_BLOCKED_NOTICE) }
-  ```
-  The only detected failures are a missing `contentWindow` and a **thrown** exception.
-- `PdfPreview.tsx:79-89` — the sandbox comment states the silent-ignore semantics as the reason
-  `allow-modals` is present. That is the same class of failure the notice is supposed to cover.
-- Secondary, concrete regression: `setPrintNotice(null)` on the "success" branch **clears** the notice. If
-  click 1 is blocked (notice shown) and click 2 is silently ignored (no throw), the visitor ends up with
-  *no* error message at all after two failed saves. This is the "worse the second time" shape.
-- `PRINT_BLOCKED_NOTICE` (`:14-16`) claims "never a fake success" — the code cannot currently honour that
-  claim for the documented failure mode.
-
-**Suggested fix.** Use a positive signal instead of the absence of a throw. `window.print()` fires
-`beforeprint` on the framed window in every engine that actually opens the dialog:
-
-```ts
-let opened = false
-const onBefore = () => { opened = true }
-win.addEventListener('beforeprint', onBefore)
-try { win.focus(); win.print() } catch { /* fall through to the notice */ }
-win.removeEventListener('beforeprint', onBefore)
-setPrintNotice(opened ? null : PRINT_BLOCKED_NOTICE)
-```
-At minimum, stop clearing the notice on the unverified-success branch (leave the previous notice standing).
-
-**Confidence.** High that the detection is incomplete-by-construction and that the second-click clear is a
-real downgrade; medium on how often a real browser silently ignores `print()` with `allow-modals` set
-(I could not exercise a browser matrix here).
-
----
-
-## SILENT-FAILURES-6 [MINOR] features/demo/engine/store/selectors.ts:77-84
-
-**Claim.** R-33 moved the non-canonical-scope breadcrumb from the render-scoped selector to "the
-boundaries that create the condition", naming two (`generateExtractedScopes`, `applyImport`). There is a
-**third** boundary it doesn't cover — adding or editing a requested-scope row *after* the offset exists —
-and on that path no warn fires anywhere. The comment's coverage claim is therefore stronger than the code.
-
-**Evidence.**
-
-- `selectors.ts:77-84` — the catch is now deliberately silent, citing coverage at the two event boundaries.
-- `create-store.ts:442-461` — the `applyImport` warn is gated on `off && patch._import.timeFrames.length`,
-  i.e. **import-after-offset** only.
-- `create-store.ts:356-358` — the `generateExtractedScopes` warn fires only on Calculate/Regenerate
-  (`DemoExperience.tsx:551-554`, `:724`).
-- The uncovered path: `DemoExperience.tsx:666` `onAdd={() => sc.add(blankScope())}` writes a scope row with
-  empty `startDateTime`/`endDateTime` through `updateField`. With an offset already committed,
-  `calculateCorrectedTimeRange` throws for that row (`time.ts:50-54` fails loud on an unparseable date) →
-  `selectAdjustedScopes` drops it silently. `generateExtractedScopes` is not re-run, and `applyImport` is
-  not involved.
-- Visitor-facing surface is intact: the adjusted column stays blank and
-  `selectors.ts:234` (`adjustedScopesPartial`) still annotates the generated document — this is an
-  *operator observability* gap only, hence MINOR.
-
-**Suggested fix.** Either (a) narrow the comment in `selectors.ts:77-84` to say which boundaries are
-covered and log the gap in deferred.md §15 alongside the still-open `roundTo5Min` half, or (b) emit the
-same dev-warn from the scope-list write path (the `updateField('form.scopes', …)` branch in
-`create-store.ts`) when an offset is present, keeping it event-scoped as R-33 intends.
-
-**Confidence.** High on the uncovered path; low-to-medium on impact (a freshly added, still-empty row is
-self-evidently blank to the visitor).
-
----
-
-## SILENT-FAILURES-7 [MINOR] features/demo/engine/store/persistence.ts:419-426
-
-**Claim.** R-32's pair-coherence repair derives `currentCaseId` from `openLocation.caseId` **without the
-`caseIds.has(...)` validation the previous code applied**. A snapshot whose open location points at a case
-that isn't in `cases` now rehydrates a *dangling* `currentCaseId` where it used to rehydrate `null`. The
-comment frames rehydration as "the one construction path that ingests state the engine didn't produce",
-which is exactly the posture that argues for validating it.
-
-**Evidence.**
-
-- `persistence.ts:418-426`:
-  ```ts
-  const caseIds = new Set(d.cases.map((c) => c.id))
-  const openLocation = d.currentLocationId !== null ? d.locations.find(...) : undefined
-  const currentLocationId = openLocation ? openLocation.id : null
-  const currentCaseId = openLocation
-    ? openLocation.caseId                                   // ← never checked against caseIds
-    : d.currentCaseId !== null && caseIds.has(d.currentCaseId) ? d.currentCaseId : null
-  ```
-  `caseIds` is now consulted only on the *no-location* branch. The pre-R-32 code validated both.
-- `persistedStateSchema` (`:311+`) is a shape guard only — it does not enforce referential integrity
-  between `locations[].caseId` and `cases[].id`, and `loadSnapshot` has no other filter for dangling
-  `caseId`s.
-- Downstream, a dangling `currentCaseId` makes `selectCurrentCase` return `null` while a location is open,
-  and `completeCase(loc.caseId)` (`create-store.ts:227-237`) stamps the location but silently matches no
-  case — a "Complete & Save" that half-lands.
-- **Reachability is low and I want to be honest about it:** the engine has no `deleteCase`/`deleteLocation`
-  action (grep returns nothing), so engine-produced snapshots always satisfy the invariant. This is a
-  hand-tampered / corrupted-sessionStorage path only, i.e. a defensive-hardening gap, not a live defect.
-
-**Suggested fix.** One condition:
+`persistence.ts:419-422` — the open-location lookup now also requires the owning case:
 
 ```ts
 const openLocation =
@@ -340,13 +148,160 @@ const openLocation =
     ? d.locations.find((l) => l.id === d.currentLocationId && caseIds.has(l.caseId))
     : undefined
 ```
-That keeps the R-32 law ("the open location owns the case") and restores the R-15 dangling-id drop for the
-case half — a location whose owner is missing simply isn't reopened, which the existing
-`currentLocationId === null` branch (`:430-433`) already handles by restoring to `'cases'`.
 
-**Confidence.** High that the validation was dropped; low on reachability (documented above).
+Exactly the one-condition fix. An orphaned open location drops whole, the `currentLocationId === null`
+branch (`:434-437`) restores the view to `'cases'`, and the location DATA still survives. Red-first
+test added in `persistence.test.ts`.
 
 ---
+
+## New findings (fix-introduced only)
+
+## SILENT-FAILURES-1 [MAJOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:433
+
+**Claim.** The R-1 fix made `trust` **segment-scoped** and the R-25 fix wired the CTA's sample
+attribution to that same `trust`. In a batch whose substitution happened on any file but the last,
+the dwell now carries **no substitution signal at all**: the title-bar trust line reads
+`cloud model via server proxy`, the CTA reads the muted `Review import →` over a green
+"Batch complete — 2 of 2 locations", and the amber `sample fallback:` line has scrolled above the
+fold. Before this fix round the sticky latch kept the title bar reading `sample import · in-browser`
+in exactly this case — wrongly attributed per-file (that was R-1), but *present*. The run-level
+"something was substituted" signal at the dwell was lost as a side effect of fixing R-1.
+
+**Evidence.**
+
+- `ImportTerminalProgress.tsx:433` — one derivation feeds both surfaces:
+  ```ts
+  const trust = useMemo(() => deriveTrust(lines), [lines])   // :433 — segment-scoped since R-1
+  const cta = outcome === null ? null : ctaView(outcome, isBatchRun, trust)  // :435
+  const trustLine = TRUST_LINE[trust]                        // :511 → title bar :543-545
+  ```
+- `deriveTrust` resets on every `FILE` line (`:104`); `DemoExperience.tsx:561` emits one `FILE` per
+  batch file. So after the last file's marker, an earlier file's fallback is invisible to the
+  derivation.
+- `ctaView`'s attribution is gated on that value (`:344-347`), so the amber
+  `'sample import — review →'` sub simply doesn't render.
+- The bridge already holds the run-scoped truth and does not pass it down:
+  `DemoExperience.tsx:473` — `tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)` — so
+  `result.notice` is set for the run, but the notice only paints **after** the CTA tap
+  (`ImportModal.tsx:259-261, 275-277`).
+- The close path discards the result view while the location persists: `onCancel` →
+  `setImp(blankImport)` (`DemoExperience.tsx:916-923`); the sample-substituted location was already
+  written by `applySuccess` (`:445-449`). `ModalShell` closes on Escape (`_shared.tsx`), so one
+  keystroke is enough. `DemoLocation` still has no sample flag (`grep isSample` → only
+  `importResultData.ts:40,104` and `ImportResultAccordion.tsx:41`, all ephemeral).
+- Uncovered by tests: the R-25 pin (`ImportTerminalProgress.test.tsx`, "a sample-substituted run
+  marks the CTA itself") emits a bare `NORM` fallback line with **no `FILE` markers**, i.e. only the
+  single-segment shape. The R-6 e2e partial-batch test uses two `fallbackMode:'none'` files.
+
+**Adversarial sequence.** Visitor picks `a.pdf` + `b.pdf`. `a.pdf`'s `/api/extract` returns 502 →
+`fallbackMode='error'` → the fictional SAMPLE request is imported as a location. `b.pdf` succeeds
+live. At the dwell the visitor sees: headline "Batch complete", title bar
+"cloud model via server proxy", a green CTA "Batch complete — 2 of 2 locations / Review import →",
+and a log tail showing `b.pdf`'s ~15 lines + `DONE batch complete` (the 260px panel cannot also show
+`a.pdf`'s fallback line). They press Escape. Two locations are in the case; one is entirely fictional
+(business name, address, phone, DVR model, time frames) and nothing ever said so.
+
+**Suggested fix.** Keep `deriveTrust` segment-scoped for the live per-file labels (that is R-1's
+point) and give the CTA a **run-scoped** signal. Either:
+
+```ts
+// (a) in ImportTerminalProgress — sibling of deriveTrust, no FILE reset
+export function runHadSampleFallback(lines: readonly ImportLogLine[]): boolean {
+  return lines.some((l) => l.level === 'NORM' && l.text.startsWith(SAMPLE_FALLBACK_PREFIX))
+}
+const cta = outcome === null ? null : ctaView(outcome, isBatchRun, runHadSampleFallback(lines) ? 'sample' : 'cloud')
+```
+
+or (b), avoiding a second prose scan entirely: pass the bridge's own run-scoped truth down —
+`ImportModal` already has `result`, so `runHadSample={result?.ok === true && result.notice !== undefined}`
+into the terminal. Add a batch case to the R-25 pin (FILE → fallback → FILE → live → success outcome
+must still read `sample import — review →`).
+
+**Confidence.** High — derivation, emit ordering, and both consumer sites are all in-file; the only
+soft edge is "the amber line has scrolled off", which depends on row height (the panel is
+`minHeight: 260` and a live file emits ~15 lines).
+
+## SILENT-FAILURES-2 [MINOR] features/demo/ui/DemoExperience.tsx:529
+
+**Claim.** `guardImportRun`'s catch replaces the whole result with a **total-failure** card, but the
+run's `tally` is local to the closure it aborted — so any files that already succeeded are dropped
+from the report while their locations remain written in the store. The visitor is told "Import
+failed" and the case silently gains locations they were told did not import. The backstop that exists
+to make a throw honest is itself the un-honest surface for a partial batch.
+
+**Evidence.**
+
+- `DemoExperience.tsx:529-537` — the catch builds a failure result with no `locations`/`failures`
+  and never consults the run's tally:
+  ```ts
+  setImp((s) => ({ ...s, activeStage: 'error',
+    result: { ok: false, error: 'The import failed unexpectedly. Please try again.',
+              details: { stage: s.activeStage ?? 'extracting_text', detail } } }))
+  ```
+- The tally is created *inside* the guarded body (`:557`) and is unreachable from the catch; the
+  successes it holds were already committed to the store by `applySuccess`
+  (`store.getState().addLocation(...)` + `applyImport(...)`, `:445-449`) before the throw.
+- Downstream the card renders the aggregate failure only (`ImportModal.tsx:235-249`) — no
+  `FailuresCard`, no location rows — and `Try again` re-runs from the picker, so a second pass would
+  duplicate the locations that did land.
+- **Reachability is low and I want to be honest about it:** no callee throws today. I re-verified the
+  new-code neighbours — `applyImport`'s dev probe is fully try-wrapped (`create-store.ts:451-459`),
+  `generateExtractedScopes` isolates per entry (`:337-356`), `forwardGeocode` returns `null`,
+  `emitter.log` cannot throw (`import-log.ts:126-132`). This is the same latency caveat the backstop
+  itself is built on.
+- Secondary, same catch: it sets `result` without touching `stage`, so a throw landing *before* the
+  first `stage:'progress'` write (`:560` / `:591`) would leave `computeImportStage` returning
+  `'picker'` and the failure result rendered nowhere — the console breadcrumb would be the only
+  signal. The window is one `emitter.log` call wide, so this is a completeness note, not a live path.
+
+**Suggested fix.** Hoist the tally so the backstop can tell the truth about a partial run — e.g. move
+the `try/catch` inside each run body around the loop, or pass the tally into `guardImportRun` and
+have the catch call `finishImport(tally, emitter, total)` after pushing a synthetic failure row for
+the file that threw. Cheapest alternative if the shape is not worth changing: have the catch fall
+back to `stage: s.stage === 'progress' ? s.stage : 'result'` and word the copy so it cannot deny
+locations that landed ("The import failed unexpectedly — some files may already have been imported;
+check the case."). Add a test: two files, second `runPdfImport` rejects, assert the first location is
+still reported (and not silently orphaned).
+
+**Confidence.** High on the mechanism and the store-write ordering; low on reachability (stated
+above) — hence MINOR.
+
+---
+
+## Verified clean in the fix delta (recording so a later pass doesn't re-open them)
+
+- **No breadcrumb was removed.** The delta only *adds* `console.error` lines
+  (`PickerStage.tsx:207,253`, `DemoExperience.tsx:525`). `extract-client.ts`'s 503-vs-everything-else
+  split and its three warns are untouched (the file is not in the delta at all); `pdf-extract.ts` is
+  untouched.
+- **The exhaustive fallback machinery survives every fix.** `fallbackNotice`'s `never` arm
+  (`DemoExperience.tsx:408-423`), `emitFallback`'s `never` arm (`run-import.ts:132-148`), and
+  `ctaView`'s `never` arm (`ImportTerminalProgress.tsx:389-393`) are all intact; the R-25 change
+  threads a value through `ctaView` without touching its exhaustiveness.
+- **R-29's required `code`/`details`** (`run-import.ts:100-113`) is honoured by all three failure
+  producers (`:204-212`, `:220-227`, `:249-257`); `runPdfImport`'s `{ ...result, filename }` spread
+  preserves them. `ERROR_MESSAGES` is now `Partial<Record<ImportErrorCode, string>>`
+  (`ImportModal.tsx:61`) and the load-bearing `|| result.error` fallback (`:243`) still renders the
+  deliberately-unmapped `PDF_SCANNED` / `NO_FIELDS_FOUND` strings verbatim.
+- **R-30's `businessName` removal** did not disturb the honest partial path: `partialData` is still
+  built from the model-read OCC# (`run-import.ts:203`) and `DataFoundCard` still renders it
+  (`ImportModal.tsx:172-180`).
+- **The blank-record guard (deferred §3)** survives untouched: `run-import.ts:198-213`
+  (`fallbackMode === 'none' && fieldCount === 0 && timeFrameCount === 0` → `ok:false`).
+- **R-11's `lastRealStage`** cannot lie in the freeze direction: it is only ever written to a
+  non-`'error'` stage (`DemoExperience.tsx:402`), and `effectiveStage`
+  (`ImportTerminalProgress.tsx:430`) falls to `PREPARING` rather than a stale band when it is null.
+- **R-2's new pin arming** (`onPointerDown` / `onKeyDown`, `ImportTerminalProgress.tsx:563-564`)
+  cannot flip the pin from a programmatic tail scroll: an armed flag is only consumed by the next
+  `scroll` event, and every sequence I traced (expand-detail while pinned / while scrolled up /
+  jump-pill) settles to the same pin value the user already had.
+- **R-34's `readonly`** (`import-log.ts:44-53`) did not weaken the run-token isolation
+  (`:127`, `:134`) or the `getLines()` copy (`:145`); `useImportLog`'s coalescer is unchanged and
+  still cancels its frame on unmount (`useImportLog.ts:98-103`).
+- **R-10's barrel removal** left no dangling importer (every consumer uses the internal path;
+  `barrel.test.ts` now pins `importLogBus`/`createImportLogBus` *off* the surface).
+- `npx tsc --noEmit` clean in-worktree.
 
 ## Silent Failure Hunter Summary
 
@@ -354,19 +309,21 @@ case half — a location whose owner is missing simply isn't reopened, which the
 |---|---|
 | BLOCKER | 0 |
 | MAJOR | 1 |
-| MINOR | 6 |
+| MINOR | 1 |
 
-- **Fallback honesty (every substitution announced):** yes for the *result* path (notice switch, per-card
-  `isSample`, every `FallbackMode` transition emits a log line) — but the terminal's trust line
-  **inverts** the claim mid-batch (SILENT-FAILURES-1) and the CTA carries no attribution
-  (SILENT-FAILURES-3).
-- **Failure-cause distinctions preserved:** yes. `ImportErrorCode` + `details.detail` + `partialData`
-  strictly *add* cause information; the 503/non-503 split and all `extract-client` breadcrumbs survive.
-- **Partial results flagged (not silently short):** yes. `extractedScopesPartial` / `adjustedScopesPartial`
-  are intact; the new `applyImport` counter follows the `generateExtractedScopes` model-citizen pattern.
-- **Async cancellation / stale-write safety:** one gap — `onImportStage` (SILENT-FAILURES-2). Every
-  store-writing checkpoint is correctly tokened, and the log bus carries its own `runToken`.
-- **Operator breadcrumbs intact:** yes, with one relocation (R-33, SILENT-FAILURES-6) and one missing new
-  breadcrumb (SILENT-FAILURES-4). No prior-review breadcrumb was deleted; R-31 and R-38 *added* honest ones.
+- **Prior findings:** 6 of 7 FIXED, 1 PARTIAL (R-25 — the mixed-batch remainder is SILENT-FAILURES-1).
+- **Fallback honesty (every substitution announced):** *at the dwell*, no for the mixed batch
+  (SILENT-FAILURES-1); yes on every other path — the notice switch, `result.notice`, the per-card
+  `isSample` badge and the amber log line all survive.
+- **Failure-cause distinctions preserved:** yes — required `code`/`details`, union-keyed
+  `ERROR_MESSAGES`, the 503/non-503 split, and the typed `SAMPLE_FALLBACK_PREFIX` all strictly add
+  cause information.
+- **Partial results flagged (not silently short):** one gap, throw-conditional
+  (SILENT-FAILURES-2); `extractedScopesPartial` / `adjustedScopesPartial` untouched.
+- **Async cancellation / stale-write safety:** complete — the last un-tokened callback (`onStage`)
+  is now guarded, and the new backstop is token-checked too.
+- **Operator breadcrumbs intact:** yes, plus three added by this round.
 
-**Verdict: REVISE** — fix SILENT-FAILURES-1 before merge; the six MINORs are opportunistic.
+**Verdict: APPROVE-WITH-FIXES** — SILENT-FAILURES-1 is a 3-line additive fix and should land before
+merge (it is the honesty bar on the demo's marquee surface); SILENT-FAILURES-2 is opportunistic or a
+`deferred.md` line.

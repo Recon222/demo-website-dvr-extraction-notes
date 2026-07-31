@@ -1,129 +1,48 @@
-# Lane: typescript — parity P1 (PR #30)
+# Lane: typescript — parity P1 (PR #30) — FIX-DELTA
 
 - **Lane:** typescript (`.claude/agents/typescript-reviewer.md`)
-- **Mode:** INITIAL (full review of the diff)
-- **Diff:** `git diff master...feat/parity-p1` — 58 files, +4427/−329
-- **Contracts read:** root `CLAUDE.md`, `features/demo/CLAUDE.md` (binding), `.claude/agents/typescript-reviewer.md`, `docs/code-reviews/deferred.md` §18/§29–§35
-- **Gates run in the worktree:**
+- **Mode:** FIX-DELTA (re-review of the six-branch fix round merged into `feat/parity-p1` after review commit `4a1f807`)
+- **Fix-round diff:** `git diff 4a1f807..feat/parity-p1` — 27 files, +1067/−252 · 32 non-merge commits
+- **Refs read:** `docs/code-reviews/parity/p1/p1-review.md` (aggregated), the prior `lane-typescript.md` (TS-1…TS-8), `features/demo/CLAUDE.md` (binding), root `CLAUDE.md`, `.claude/agents/typescript-reviewer.md`
+- **Prior lane findings in scope:** TS-1→R-7 · TS-2→R-8 · TS-3→R-10 · TS-4→R-9 · TS-5→R-11 · TS-6→R-2 (merged, settled MAJOR) · TS-7→R-12 · TS-8→R-13
+- **Gates re-run in this worktree:**
   - `pnpm exec tsc --noEmit` → **clean** (exit 0, no diagnostics)
-  - `pnpm test` → **131 files / 1048 tests passed**
-- **Verdict:** no BLOCKER, no MAJOR. 8 MINOR findings below.
-
-## Architecture sweeps (all clean)
-
-| Rule | Sweep | Result |
-|---|---|---|
-| Store bridge | `grep -rn "useStore" features/demo/ui` | only `DemoExperience.tsx`. `useImportLog` subscribes to the **bus**, not the store — bus is engine-owned pipeline state, same shape as the existing `onStage` callback. ✓ |
-| Engine purity | `features/demo/engine/logic/import-log.ts` read in full | no React import, no `'use client'`, no module-scope `window`/`document`. ✓ |
-| Marketing ↔ demo wall | `grep -rn "features/demo" components app/(default) lib` | only the guard test + a comment reference. ✓ |
-| Deep-barrel imports from `app/`/`lib/`/`components/` | grep | `app/api/extract/route.ts` (pre-existing on master) and `app/demo/__tests__/error.test.tsx` (test-only, justified inline). No new runtime breach. ✓ |
-| Registry-derived ordering | `WIZARD_SCREENS` used via `includes()` in the R-35 guard and `loadSnapshot`; no hand-typed step numbers added | ✓ |
-| Determinism seam | grep of added lines for `Date.now`/`Math.random` | zero hits outside comments. The bus takes an injected `now: () => number`; `DemoExperience.logClock` reads through the existing `clock` seam at event scope. ✓ |
-| `any` / `as any` / `@ts-` | grep of added lines | zero hits. ✓ |
-| `console.log` | grep of added lines | zero. New `console.warn`s (`applyImport` breadcrumb, `error.tsx` R-31) match the established operator-breadcrumb convention. ✓ |
-| `isolatedModules` | new barrel re-exports use inline `type` modifiers | ✓ |
-| Async generation tokens | `processPdfFiles` / `runTextImportFlow` / `applySuccess` | every `await` is followed by an `importGen` check before any store or `setImp` write; the log emitter carries its own `runToken`. ✓ |
-| Exhaustive unions | `emitFallback`, `fallbackNotice`, `ctaView` | all three close with `const exhaustive: never = …`. ✓ |
-| Silent-`catch` | R-33 removal in `selectAdjustedScopes` | compensated: `adjustedScopesPartial` (selectors.ts:234) still surfaces the condition into the PDF (case-notes.ts:135-139), and the two event-scope warns exist. ✓ |
-
-Deliberate choices listed by the orchestrator (D5 honesty adaptations, the html2pdf non-ship, the P1.5 non-ports, `T+seconds.xx`, no web virtualization, the trust-line wording, the R-34 duplication, the dwell test migrations, the merge-integration fixes, and all P0-era decisions) were treated as settled and are not re-flagged.
+  - `pnpm exec vitest run features/demo/ui/chrome/__tests__/PdfPreview.test.tsx features/demo/ui/screens/import features/demo/engine/logic/__tests__ features/demo/ui/import/__tests__` → **26 files / 314 tests passed**
+  - `pnpm exec vitest run features/demo/ui/__tests__ features/demo/ui/screens/__tests__ features/demo/engine/store/__tests__ features/demo/engine/__tests__` → **44 files / 375 tests passed**
+- **Verdict:** all 8 prior lane findings **FIXED**. 0 BLOCKER, 0 MAJOR, 3 MINOR new (fix-introduced).
 
 ---
 
-## TYPESCRIPT-1 [MINOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:13
+## Fix-delta — prior findings
 
-**Claim:** `TERM_ROW` is imported but never used in this file — dead import.
+| Prior | Final ID | Sev | Status | Fix commit |
+|---|---|---|---|---|
+| TS-1 | R-7 | MINOR | **FIXED** | `bd68a0d` |
+| TS-2 | R-8 | MINOR | **FIXED** | `a0d3ad6` |
+| TS-3 | R-10 | MINOR | **FIXED** | `e6d5f20` |
+| TS-4 | R-9 | MINOR | **FIXED** | `77949ca` |
+| TS-5 | R-11 | MINOR | **FIXED** | `acd8af9` |
+| TS-6 | R-2 | MAJOR | **FIXED** | `a7497ed` |
+| TS-7 | R-12 | MINOR | **FIXED** | `0bf7c9e` |
+| TS-8 | R-13 | MINOR | **FIXED** | `8d52011` |
 
-**Evidence:**
-```ts
-// ImportTerminalProgress.tsx:13
-import { TerminalLine, TERM_ROW } from '@/features/demo/ui/screens/import/TerminalLine'
-```
-`grep -rn "TERM_ROW" features app lib components` returns hits only inside `TerminalLine.tsx` itself, `TerminalLine.test.tsx`, and this import line. The file's own palette lives in the local `TERM_CHROME`/`C` objects (lines 140-160). Nothing here reads `TERM_ROW`.
+### TS-1 / R-7 — dead `TERM_ROW` import — **FIXED**
 
-`tsconfig.json` does not set `noUnusedLocals`, and there is no ESLint config file in the repo, so neither gate catches it — it survives to the bundle as a live binding on the `TerminalLine` module (harmless, but it falsely implies a coupling that does not exist).
+`features/demo/ui/screens/import/ImportTerminalProgress.tsx:17` is now
+`import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'` — `TERM_ROW` is gone from the import list. A scripted unused-identifier sweep over all seven changed source files (`ImportTerminalProgress.tsx`, `TerminalLine.tsx`, `ImportModal.tsx`, `PdfPreview.tsx`, `PickerStage.tsx`, `DemoExperience.tsx`, `run-import.ts`) reports **zero** unused imports, so the fix did not trade one dead binding for another.
 
-**Suggested fix:** `import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'`.
+### TS-2 / R-8 — `ERROR_MESSAGES` untied from `ImportErrorCode` — **FIXED**
 
-**Confidence:** High — verified by grep over the whole repo.
+`ImportModal.tsx:61` is now `export const ERROR_MESSAGES: Partial<Record<ImportErrorCode, string>>` — exactly the suggested shape. A typo'd/renamed code is now a compile error, and the read at `:243` (`(result.code && ERROR_MESSAGES[result.code]) || result.error`) honestly types `string | undefined`, so the load-bearing `|| result.error` fallback for the deliberately-unmapped `PDF_SCANNED` / `NO_FIELDS_FOUND` codes is visible to the compiler. Doc comment updated in place (`:57-59`).
 
----
+### TS-3 / R-10 — consumer-less engine-barrel re-exports — **FIXED**
 
-## TYPESCRIPT-2 [MINOR] features/demo/ui/screens/ImportModal.tsx:55
+`features/demo/engine/index.ts:46-49` replaces the eleven re-exports with an explicit NOTE that the module is internal-path-only and that the barrel must not advertise the mutable `importLogBus` singleton. `barrel.test.ts:14` now pins the absence (`importLogBus`, `createImportLogBus` added to the "should no longer be exported" list). Verified no consumer regressed: every importer still uses `@/features/demo/engine/logic/import-log` and `tsc` is clean. Consistency check: the newly-relocated `engine/logic/import-flow-mode.ts` is likewise *not* re-exported from the barrel — same convention.
 
-**Claim:** `ERROR_MESSAGES` is typed `Record<string, string>`, which unties the friendly-copy map from the `ImportErrorCode` union it is supposed to key. A renamed or misspelled code compiles clean and silently stops mapping, and reads are typed `string` when they are `undefined` at runtime.
+### TS-4 / R-9 — dangling `currentCaseId` on rehydration — **FIXED**
 
-**Evidence:**
-```ts
-// ImportModal.tsx:55-58
-export const ERROR_MESSAGES: Record<string, string> = {
-  PDF_READ_FAILED: 'This PDF could not be read. It may be corrupted or password-protected.',
-  MODEL_OUTPUT_UNPARSEABLE: "The model's reply couldn't be read as form data. Please try the import again.",
-}
-// :225
-{(result.code && ERROR_MESSAGES[result.code]) || result.error}
-```
-Failure scenario: rename `PDF_READ_FAILED` → `PDF_UNREADABLE` in `run-import.ts:66-71` (the `ImportErrorCode` union) and update `runPdfImport`'s `code:` literals. `tsc --noEmit` passes — the map key is just an unconstrained string — and the failure card silently degrades from *"This PDF could not be read. It may be corrupted or password-protected."* to the raw pipeline string *"Could not read this PDF."*. The existing test only asserts the current key (`modals.test.tsx:206`), so it would also stay green if the union member were renamed without touching the map.
+`features/demo/engine/store/persistence.ts:422-425` now applies the pair law to the location itself:
 
-Secondary: with `Record<string, string>`, `ERROR_MESSAGES[result.code]` is typed `string` but is `undefined` for `PDF_SCANNED`/`NO_FIELDS_FOUND` — `modals.test.tsx:214-215` asserts `toBeUndefined()` against a value the type system claims is a `string`. The `|| result.error` fallback is load-bearing but the type says it can never fire.
-
-This is the same class of guard-drift the branch already fixed twice (R-34's satisfiable-by-comment token check, R-39's `FullShapeIn`-alone gap).
-
-**Suggested fix:**
-```ts
-export const ERROR_MESSAGES: Partial<Record<ImportErrorCode, string>> = { … }
-```
-Keeps the map deliberately partial (the §5.7.8 precedent for unmapped codes), makes a typo'd/stale key a compile error, and types the read as `string | undefined` so the `|| result.error` fallback is honest.
-
-**Confidence:** High for the type hole; the concrete breakage is latent (requires a future rename), hence MINOR.
-
----
-
-## TYPESCRIPT-3 [MINOR] features/demo/engine/index.ts:46-57
-
-**Claim:** The eleven new import-log re-exports on the engine's internal barrel have **no consumer** — every real importer reaches the module by its aliased internal path.
-
-**Evidence:**
-```ts
-// engine/index.ts:46-57
-export {
-  createImportLogBus, importLogBus, clipDetail, IMPORT_LOG_MAX_LINES,
-  type ImportLogBus, type ImportLogEmitter, type ImportLogEvent,
-  type ImportLogLevel, type ImportLogLine, type ImportLogListener,
-} from '@/features/demo/engine/logic/import-log'
-```
-`grep -rn "from '@/features/demo/engine'"` over `features app lib components` returns exactly two hits: the barrel's own header comment and `engine/__tests__/barrel.test.ts`. Every actual consumer imports `@/features/demo/engine/logic/import-log` directly — `run-import.ts:26`, `useImportLog.ts:29`, `DemoExperience.tsx:62`, `ImportModal.tsx:18`, `ImportTerminalProgress.tsx:9`, `TerminalLine.tsx:5`. `barrel.test.ts` does not assert any of the new names, so the block is not even pinned by a test.
-
-The reviewer contract lists "a new export on `engine/index.ts` with no consumer" as a finding; the practical cost is that the barrel now advertises a surface (including the mutable module singleton `importLogBus`) that nothing consumes through it.
-
-**Suggested fix:** either drop the block, or pick one and route the UI imports through the barrel so the surface is real. If it is intentionally forward-looking, say so in a comment next to it so a future dead-export sweep does not delete it.
-
-**Confidence:** High.
-
----
-
-## TYPESCRIPT-4 [MINOR] features/demo/engine/store/persistence.ts:419-426
-
-**Claim:** The R-32 pair-coherence rewrite derives `currentCaseId` from the open location **without** validating that the location's `caseId` resolves to a case in the snapshot — the one id in the rehydrated selection that is no longer checked against the entity set.
-
-**Evidence:**
-```ts
-// persistence.ts:418-426
-const caseIds = new Set(d.cases.map((c) => c.id))
-const openLocation =
-  d.currentLocationId !== null ? d.locations.find((l) => l.id === d.currentLocationId) : undefined
-const currentLocationId = openLocation ? openLocation.id : null
-const currentCaseId = openLocation
-  ? openLocation.caseId            // ← never checked against caseIds
-  : d.currentCaseId !== null && caseIds.has(d.currentCaseId)
-    ? d.currentCaseId
-    : null
-```
-Before this change (master), `currentCaseId` was always `null` or a member of `caseIds`. Now a snapshot whose open location carries a `caseId` that is absent from `d.cases` rehydrates a dangling `currentCaseId`. The schema does no cross-entity referential check (`demoLocationSchema.caseId` is a bare `z.string()`, persistence.ts:258).
-
-Failure scenario: hand-edited/partially-truncated `sessionStorage` snapshot (same threat model the file already defends against — see the R-7 `hasOwnProperty` note at :305-309) with `currentLocationId: 'l1'`, `locations: [{ id: 'l1', caseId: 'c9', … }]`, `cases: []`. On boot, `currentLocation` is non-null so the R-35 no-location notice does **not** fire (`DemoExperience.tsx:622`) — the visitor gets a live wizard — while `currentCase` resolves to `null` (`DemoExperience.tsx:289`). Consequence: `SubmissionScreen` renders `occNumber=''` (:656), the generated court document header gets `occNumber: '—'` (:776), and "Complete & Save" calls `completeCase(loc.caseId)` against a case that does not exist — the location's `completed` flag flips but no case card turns green (a silent half-write). The old code could not produce that state.
-
-**Suggested fix:** apply the same law to the location itself — drop the open location when its owning case is missing, so the pair is either fully coherent or fully empty (and the existing wizard→`cases` fallback at :430-433 then fires):
 ```ts
 const openLocation =
   d.currentLocationId !== null
@@ -131,145 +50,222 @@ const openLocation =
     : undefined
 ```
 
-**Confidence:** High on the code path; the trigger requires a snapshot the engine cannot itself produce today (there is no case-delete action), hence MINOR.
+Byte-for-byte the suggested one-condition fix. `currentCaseId` is therefore again always `null` or a member of `caseIds`, and an orphaned open location falls through to the existing wizard→`'cases'` fallback at `:432-436`. The comment block at `:412-421` states the widened invariant. Store/persistence suites green (375 tests).
 
----
+### TS-5 / R-11 — freeze-the-bar keyed off the last *rendered* stage — **FIXED**
 
-## TYPESCRIPT-5 [MINOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:371-376
+The component-side `lastViewRef` + effect is gone. `ImportTerminalProgress.tsx:430-431` now reads:
 
-**Claim:** The "freeze the last real stage" behaviour keys off the last **rendered** stage, not the last **reached** stage. Because the pipeline fires `onStage('normalizing')` and the following `onStage('done'|'error')` inside the same microtask, React auto-batching collapses them into one render — so the 55% normalize band never appears in production, and a normalize-stage failure freezes the progress bar at 15% while the log says it failed at normalizing.
-
-**Evidence:**
 ```ts
-// ImportTerminalProgress.tsx:371-376
-const lastViewRef = useRef<{ message: string; percent: number } | null>(null)
-const stageView = stage && stage !== 'error' ? STAGE_VIEW[stage] : null
-useEffect(() => {
-  if (stageView) lastViewRef.current = stageView   // ← only stages that actually RENDER are recorded
-}, [stageView])
-const running = stageView ?? lastViewRef.current ?? PREPARING
+const effectiveStage = stage === 'error' ? lastRealStage : stage
+const running = effectiveStage ? STAGE_VIEW[effectiveStage] : PREPARING
 ```
-The pipeline side (`run-import.ts:162-203`) runs, after the `await requestExtraction(...)` resolves:
-```
-onStage('normalizing')          // :162
-… parseNormalizeMap (synchronous) …
-onStage('error')                // :195  (catch branch)   — or onStage('done') at :190
-```
-Both `setImp` calls land in the same promise continuation, so React batches them into a single commit whose `activeStage` is already `'error'`/`'done'`. The intermediate `'normalizing'` view is never committed, the `useEffect` never runs for it, and `lastViewRef.current` still holds `reading_model` (15%).
 
-The branch's own integration test demonstrates the collapse — `terminal-integration.test.tsx:19-29` captures `lastStage` and it is already `'done'` when `runImport` returns. The unit test that pins the freeze (`ImportTerminalProgress.test.tsx`, `"stage 'error' freezes the last real stage's headline and percent"`) passes only because it *manually* rerenders with `stage: 'normalizing'` first — a sequence production never produces.
+and the truth is tracked in the bridge's **functional updater**, which sees states that never commit — `DemoExperience.tsx:399-403`:
 
-Failure scenario: a live model reply that is not JSON → `MODEL_OUTPUT_UNPARSEABLE`. The terminal log shows `✗ failed at normalizing` (ERR), but the frozen progress track reads 15% (`Extracting fields from document...`), i.e. it reports a stop point the pipeline had already passed. Secondary: with no `NEXT_PUBLIC_MAPBOX_TOKEN`, `forwardGeocode` resolves without yielding to a macrotask, so a *successful* run's bar goes 0 → 15 → 100 and the 55%/80% bands are never seen either.
-
-**Suggested fix:** carry the last non-error stage in the state that already survives batching, rather than inferring it from render history — e.g. in `DemoExperience.onImportStage` (`DemoExperience.tsx:382`):
 ```ts
-const onImportStage = (st: RunStageId) =>
-  setImp((s) => ({ ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }))
+const importStageFor = (myGen: number) => (st: RunStageId) =>
+  setImp((s) => {
+    if (importGen.current !== myGen) return s
+    return { ...s, activeStage: st, lastRealStage: st === 'error' ? s.lastRealStage : st }
+  })
 ```
-(the functional updater sees the queued `'normalizing'` even when the commits are batched) and have the terminal freeze on `lastRealStage`. Alternatively assign `lastViewRef.current = stageView` during render instead of in an effect — cheaper, but it still cannot recover a stage that was never rendered.
 
-**Confidence:** High on the mechanism (React 18/19 auto-batching of promise-continuation updates, confirmed by the branch's own `lastStage` capture). Presentational impact only → MINOR.
+This is the exact fix the finding proposed, and it lands R-24's token guard in the same updater. Type hygiene is real, not nominal: `ImportRealStageId = Exclude<ImportStageId, 'error'>` (`run-import.ts:33`) is the same union `STAGE_VIEW` is keyed by (`Exclude<RunStageId,'error'>`), so a future stage addition breaks the build rather than the bar. Traced the batch loop: `lastRealStage` is re-seeded to `'extracting_text'` at each file head (`DemoExperience.tsx:560`) and to `'reading_model'` on the paste path (`:591`), and cleared on Retry (`:910`) — no cross-file leakage. Normalize-failure now freezes at 55%, pinned by `ImportTerminalProgress.test.tsx` (`terminal-progress-fill` = `'55%'`).
 
----
+### TS-6 / R-2 — keyboard users could never unpin the log — **FIXED**
 
-## TYPESCRIPT-6 [MINOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:417-427, 484-486
+`ImportTerminalProgress.tsx:556-564` makes the log a first-class keyboard target and arms the pin from keyboard + pointer:
 
-**Claim:** The "only user scrolls may unpin" gate is armed exclusively by `onWheel`/`onTouchMove`, so a scrollbar drag or a keyboard-driven scroll cannot unpin the tail — the next appended line yanks the reader back to the bottom.
-
-**Evidence:**
 ```tsx
-// :484-486
+tabIndex={0}
+role="log"
+aria-live="off"
+aria-label="Import log"
 onScroll={handleScroll}
 onWheel={markUserScroll}
 onTouchMove={markUserScroll}
-// :420-427
-const handleScroll = useCallback(() => {
-  if (!userScrollRef.current) return // programmatic tail scroll — never flips the pin
-  …
-}, [])
-```
-`markUserScroll` is the only writer of `userScrollRef.current = true` (:417-419). A mouse user dragging the log panel's scrollbar thumb fires `scroll` but no `wheel`/`touchmove`, so `handleScroll` returns before ever calling `setPinned(false)`; `pinnedRef.current` stays `true` and the tail effect (:414) resets `scrollTop` to the bottom on the next committed line. Same for focus-driven scrolling when a detail-row disclosure button (`TerminalLine.tsx:152`) is reached by Tab and the browser scrolls it into view.
-
-The phone original gated on RN drag gestures, which cover *all* user scrolling on a touch surface; the web translation leaves two input paths uncovered. The jump-to-latest pill (:509) also never appears in these cases, because it renders on `!pinned`.
-
-**Suggested fix:** also arm the flag from pointer/keyboard input on the log container, e.g. `onPointerDown={markUserScroll}` (fires for scrollbar-thumb presses) and `onKeyDown={markUserScroll}`, keeping `onWheel`/`onTouchMove`. (Flagged here because it is event-wiring logic; if the orchestrator prefers, it belongs equally to the web lane.)
-
-**Confidence:** High on the code path; UX-only impact → MINOR.
-
----
-
-## TYPESCRIPT-7 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:29-33
-
-**Claim:** The guard that is supposed to produce the honest "print was blocked" notice sits **outside** the `try` that is meant to catch the exact exception the file documents — a cross-origin `SecurityError` on `contentWindow.print` would escape as an uncaught error in the click handler instead of rendering `PRINT_BLOCKED_NOTICE`.
-
-**Evidence:**
-```ts
-// PdfPreview.tsx:28-41
-const printDocument = () => {
-  const win = frameRef.current?.contentWindow
-  if (!win || typeof win.print !== 'function') {   // ← property access is OUTSIDE the try
-    setPrintNotice(PRINT_BLOCKED_NOTICE)
-    return
-  }
-  try {
-    win.focus()
-    win.print()
-    …
-  } catch { setPrintNotice(PRINT_BLOCKED_NOTICE) }
-}
-```
-The component's own sandbox comment (:79-89) states the failure mode precisely: *"a fully-sandboxed `srcDoc` frame is an opaque origin, so the parent touching `contentWindow.print` throws a cross-origin SecurityError"*. Reading `win.print` on an opaque-origin window is that access. So the one scenario the notice exists for is the one scenario the notice cannot cover — the visitor gets an unhandled throw (caught only by `DemoErrorBoundary` if it propagates) rather than *"Your browser blocked the print dialog for this preview — no PDF was saved."*
-
-Not reachable today: the sandbox value is `allow-modals allow-same-origin` and is pinned by `PdfPreview.test.tsx`. This is a robustness gap in the honesty path, not a live defect.
-
-**Suggested fix:** move the whole probe inside the `try`:
-```ts
-try {
-  const win = frameRef.current?.contentWindow
-  if (!win || typeof win.print !== 'function') throw new Error('print unavailable')
-  win.focus(); win.print(); setPrintNotice(null)
-} catch { setPrintNotice(PRINT_BLOCKED_NOTICE) }
+onPointerDown={markUserScroll}
+onKeyDown={handleKeyDown}
 ```
 
-**Confidence:** High on the code shape; latent → MINOR.
+`SCROLL_KEYS` (`:401`) is the aggregator's list verbatim plus `' '`, and `aria-live="off"` is applied per the aggregator's own correction to WEB-1 (so `terminal-status` stays the sole polite region). The optional `onPointerDown` arming from TS-6 was taken too.
 
----
+I re-traced the "programmatic tail scroll never flips the pin" invariant against the two new arming paths and it holds: `handleScroll` still hard-gates on `userScrollRef` and consumes it (`:489-496`), and the only ways the new arming can be spuriously set (Space on a disclosure button, pointerdown on a row) are followed either by no `scroll` event at all, or by a scroll that lands near the bottom and re-pins — never by a spurious *unpin*. No regression.
 
-## TYPESCRIPT-8 [MINOR] features/demo/ui/screens/import/TerminalLine.tsx:132
+### TS-7 / R-12 — blocked-print probe outside the `try` (+ SF's false-success half) — **FIXED**
 
-**Claim:** A `as string` assertion is used where a local narrowing constant would give the compiler the same information without an assertion.
+`PdfPreview.tsx:29-65`: the `contentWindow` / `typeof win.print` probe is now the first statement **inside** the `try` (`:34-38`), and success is a positive `beforeprint` signal rather than absence-of-throw (`:44-61`). Both halves of the merged finding are addressed, and both are pinned by new tests (cross-origin getter throw → notice; `print()` that returns without firing `beforeprint` → notice; a silently-ignored retry does not clear a prior notice). See **TYPESCRIPT-2** and **TYPESCRIPT-3** below for two residuals the new code introduces.
 
-**Evidence:**
+### TS-8 / R-13 — `as string` assertion in `TerminalLine` — **FIXED**
+
+`TerminalLine.tsx:135-137`:
+
 ```ts
-// TerminalLine.tsx:131-132
-const hasDetail = line.detail !== undefined
-const isDump = hasDetail && (line.detail as string).length > DETAIL_AT_HIDE_THRESHOLD
-```
-`hasDetail` is an aliased condition over a **mutable** property of a non-`const`-narrowable reference, so TS 5.7's aliased-condition analysis does not narrow `line.detail` — hence the assertion. It is safe today, but it is an unchecked assertion in a strict codebase whose house rule is "fix the type instead", and it would survive silently if `ImportLogLine.detail` were ever widened (e.g. to `string | string[]`).
-
-**Suggested fix:**
-```ts
+// const local so the narrowing carries (no assertion needed — p1-review R-13).
 const detail = line.detail
 const hasDetail = detail !== undefined
-const isDump = hasDetail && detail.length > DETAIL_AT_HIDE_THRESHOLD
 ```
-(`detail` is a `const` local, so the truthiness check narrows it and the assertion disappears; the JSX below can render `{detail}` too.)
 
-**Confidence:** High.
+The assertion is gone, `{detail}` is rendered from the narrowed local (`:173`), and the `DETAIL_AT_HIDE_THRESHOLD` / `isDump` machinery it existed for was removed wholesale by the R-15 fix. `tsc` clean.
 
 ---
 
-## Things checked and deliberately NOT filed
+## Architecture re-sweeps (post-fix — all clean)
 
-- **`useImportLog` rAF coalescer** (`ui/import/useImportLog.ts`) — traced reset/append/eviction interleavings; batch object is swapped before `setView`, updater is pure, element identity is preserved across commits so `TerminalLine`'s `memo` holds. No stale-commit path found.
-- **Import log bus run isolation** (`engine/logic/import-log.ts`) — `runToken`/`epoch` are bumped together in `clearRun`, emitters capture their token, `subscribe` iterates a copy. Late lines from a cancelled run are provably dropped (pinned by `DemoExperience.import-log.test.tsx`).
-- **Generation-token discipline** in `processPdfFiles`/`runTextImportFlow`/`applySuccess` — every `await` is followed by an `importGen` re-check before any store or `setImp` write, including the geocode round-trip. Matches the documented H1/H2 pattern.
-- **Async handlers without a top-level `.catch()`** (`onRun` → `runPasteImport`) — already tracked as deferred §18, and `PickerStage` now wraps its two entry points in `try/catch` anyway. Not re-filed.
-- **`deriveTrust` over a 400-line ring** — considered whether cap eviction could drop the `sample fallback:` line and flip the trust line back to `cloud`. `emitFallback` fires per file, and a single run emits ~15 lines, so the retained window always contains a recent fallback line when one applies. Not reachable.
-- **`create-store.applyImport` R-27 breadcrumb** (`create-store.ts:446-462`) — dev-gated, counts and surfaces, mirrors the `generateExtractedScopes` pattern; the `loc.form.scopes` access narrows via the `off = loc?.…` aliased condition (tsc clean).
-- **`selectAdjustedScopes` now-empty `catch`** (`selectors.ts:78-84`) — verified the condition is still surfaced through `adjustedScopesPartial` (`selectors.ts:234` → `pdf/case-notes.ts:135-139`) plus the two event-scope warns. Correctly compensated.
-- **`persistedStateSchema` device-1 annotation** (`persistence.ts:314`) — the `z.ZodType<PersistedState, z.ZodTypeDef, unknown>` annotation still permits `.safeParse`, no `ZodObject`-only method is used downstream, and the `satisfies FullShapeIn<…>` device is preserved.
-- **`PdfPreview` iframe** — `srcDoc` + `sandbox="allow-modals allow-same-origin"` with `allow-scripts` OFF; document generators (`engine/logic/pdf/*`) are untouched by this diff, so the escape helper's coverage is unchanged.
-- **P1.1 font migration** — every `'Share Tech Mono'` / `'JetBrains Mono'` occurrence under `features/demo/ui` now leads with the correct `var(--font-stmono)` / `var(--font-jbmono)`; the root layout supplies both variables and `/demo` sits inside it. (`fonts.test.ts` only scans `.tsx`; no `.ts` file under `ui/` carries a font stack today, so the gap is latent — noted, not filed.)
-- **R-35 no-location notice** (`DemoExperience.tsx:619-624`) — registry-derived membership test, `completion` exemption is explicit, and `setView('cases')` keeps `currentChapter` coherent (`create-store.ts:286-291`).
-- **Reopening the import modal with stale `imp` state** — refuted: `openImport` (`DemoExperience.tsx:355-359`) already calls `setImp(blankImport)` on every open.
+| Rule | Sweep | Result |
+|---|---|---|
+| Store bridge | `grep -rn "useStore" features/demo/ui` | zero hits outside `DemoExperience.tsx` ✓ |
+| Engine purity | `grep` for `from 'react'` / `'use client'` / `window.` / `document.` under `features/demo/engine` (non-test) | only two doc-comment mentions of `window.sessionStorage` in `persistence.ts`; the relocated `engine/logic/import-flow-mode.ts` is pure, React-free, no `'use client'` ✓ |
+| Marketing ↔ demo wall | `grep -rn "features/demo" components lib "app/(default)"` | guard test + one comment only ✓ |
+| Deep-barrel from `app/`/`lib/`/`components/` | grep | unchanged from master (`app/api/extract/route.ts`, test-only `app/demo/__tests__/error.test.tsx`) ✓ |
+| Registry-derived ordering | no step literals added; `WIZARD_SCREENS` still consulted via `includes()` | ✓ |
+| Determinism seam | grep of all `+` lines in `4a1f807..HEAD` for `Date.now` / `Math.random` | zero hits ✓ |
+| `any` / `as any` / `@ts-` | grep of added lines | only two `@ts-expect-error` **compile pins** in `import-log.test.ts` (deliberate R-34 readonly proofs) ✓ |
+| `console.log` / `key={index}` | grep of added lines | zero ✓ |
+| `isolatedModules` | new type re-exports/imports all carry inline `type` | ✓ |
+| Single-declaration unions | `ImportUiStage` now declared once (`engine/logic/import-flow-mode.ts:26`), consumed by `ImportModal.tsx:72` and `DemoExperience.tsx:97`; pipeline `ImportStageId` consistently aliased `RunStageId` at all four sites | ✓ (R-31) |
+| Async generation tokens | `importStageFor`, `guardImportRun`, `processPdfFiles`, `runTextImportFlow`, `applySuccess` | every post-`await` write is token-checked; `onImportStage` was the last hole and is now closed ✓ |
+| Exhaustive unions | `emitFallback`, `fallbackNotice`, `ctaView` | all still close with `const exhaustive: never` ✓ |
+
+The file **rename** `ui/screens/import/import-flow-mode.ts` → `engine/logic/import-flow-mode.ts` (R-21/R-31) was judged as a rename: the body is unchanged apart from the doc block, no consumer was left dangling (`grep` for `import-flow-mode` returns only the new path), and the module stays outside the engine barrel by the same convention as `import-log`.
+
+---
+
+## TYPESCRIPT-1 [MINOR] features/demo/ui/screens/import/ImportTerminalProgress.tsx:435
+
+**Claim:** R-1's segment-scoped `deriveTrust` and R-25's sample-attributed CTA landed in the same fix round and now contradict each other. The CTA is a **whole-run summary** (its counts say so) but it is fed the **current-file** trust value. In a mixed batch whose *last* file went to the cloud, the sample substitution is no longer marked anywhere on the dwell surface — the exact hole R-25 was opened to close, reopened for batches.
+
+**Evidence:**
+
+One `trust` value now serves two different scopes:
+
+```ts
+// ImportTerminalProgress.tsx:433-435
+const trust = useMemo(() => deriveTrust(lines), [lines])          // segment-scoped (R-1)
+const isBatchRun = batch !== null && batch.total > 1
+const cta = outcome === null ? null : ctaView(outcome, isBatchRun, trust)   // run-scoped consumer
+```
+
+`deriveTrust` resets on every `FILE` marker (`:101-108`, R-1 — correct for the live title bar and processing badge). `ctaView` uses that same value for the run summary (`:344-347`):
+
+```ts
+const reviewSub =
+  trust === 'sample'
+    ? { sub: 'sample import — review →', subColor: C.warning }
+    : { sub: 'Review import →', subColor: C.textSecondary }
+```
+
+**Failure scenario (3-PDF batch, transient proxy failure on file 1):**
+`DemoExperience.tsx:561` emits `FILE ▸ file 1/3` → file 1's `/api/extract` returns 502 → `emitFallback` emits `NORM sample fallback: couldn't reach the live model…` (`run-import.ts:141`) → trust = `sample`. `DemoExperience.tsx:561` then emits `FILE ▸ file 2/3` → trust resets to `cloud`; files 2–3 succeed live and emit no fallback line. Final `lines` end on a `cloud` segment, so at the CTA moment:
+
+- title bar (`:543`) reads `cloud model via server proxy`
+- CTA sub (`:618`) reads `Review import →` in muted grey, **not** the amber `sample import — review →`
+- the only remaining trace is file 1's `sample fallback:` log line, ~38 lines above the tail in a `minHeight: 260` panel that auto-tails while pinned (`:469`) — off-screen
+
+Escape during the dwell then discards the result (`DemoExperience.tsx:917-918` → `blankImport`), so the `notice` and per-card `isSample` badge that `finishImport` did build (`:472`, `buildImportedLocationView(fallbackMode)`) never paint. Net: a sample-substituted location's substitution is unmarked on the whole dwell surface.
+
+This is strictly *worse than pre-fix* for this case: before `a32b929`, the run-scoped latch meant the title bar still read `sample import · in-browser` at the CTA moment. Neither test covers it — the R-1 batch tests (`ImportTerminalProgress.test.tsx:194-228`) assert only the live badge/title, and the R-25 CTA test (`:490-501`) uses a run with no `FILE` markers at all.
+
+**Suggested fix:** keep the segment-scoped value for the live surfaces and give the run summary its own run-scoped derivation:
+
+```ts
+const trust = useMemo(() => deriveTrust(lines), [lines])                   // title bar + processing badge
+const runHadSample = useMemo(
+  () => lines.some((l) => l.level === 'NORM' && l.text.startsWith(SAMPLE_FALLBACK_PREFIX)),
+  [lines],
+)
+const cta = outcome === null ? null : ctaView(outcome, isBatchRun, runHadSample ? 'sample' : 'cloud')
+```
+
+(Single-file and paste runs are unchanged — one segment means the two values coincide, so every existing pin holds.) Add the missing batch case to the R-25 test: `FILE → sample fallback → FILE → AI Request`, outcome `success`, expect the amber sub.
+
+**Confidence:** High — mechanism verified line-by-line against `deriveTrust`, `ctaView`, the batch emit sites in `DemoExperience.processPdfFiles`, and both suites' coverage gaps.
+
+---
+
+## TYPESCRIPT-2 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:48-61
+
+**Claim:** The new positive success signal is torn down in a **synchronous** `finally` and read on the very next statement, so it can only ever be observed if the browser dispatches `beforeprint` synchronously inside `print()`. Any browser or state where printing is deferred yields a definitive *"no PDF was saved"* notice for a print that does happen — a fake **failure**, the mirror of the fake success R-12 removed.
+
+**Evidence:**
+
+```ts
+// PdfPreview.tsx:44-61
+let dialogOpened = false
+const markOpened = () => { dialogOpened = true }
+win.addEventListener('beforeprint', markOpened)
+try {
+  win.focus()
+  win.print()
+} finally {
+  win.removeEventListener('beforeprint', markOpened)   // ← listener gone before print can defer
+  window.focus()
+  saveBtnRef.current?.focus()
+}
+setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)   // ← decided synchronously
+```
+
+The listener's lifetime is exactly the synchronous extent of `print()`. Two concrete deferral paths exist in shipping engines:
+
+- **Blink** (`LocalDOMWindow::print`) early-returns with `should_print_when_finished_loading_ = true` when the frame is still loading, then prints on load completion. This component prints a `srcDoc` frame (`:114`) that begins loading at mount, so a click during that window returns without firing `beforeprint`; the notice claims a blocked print, and the dialog then opens anyway. (Narrow — human click latency usually clears the load — but it is a real ordering, not a hypothetical.)
+- **WebKit** dispatches `beforeprint` from its print-begin path rather than inline in `DOMWindow::print()`, and carries the same `isLoading()` deferral. Ordering relative to `print()` returning is not guaranteed by the HTML spec text the fix relies on.
+
+The new tests model dispatch as synchronous by construction (`stubDialogPrint` calls `win.dispatchEvent(new Event('beforeprint'))` *inside* the stubbed `print`, `PdfPreview.test.tsx:20-27`), so no test can catch this.
+
+**Suggested fix:** keep the listener alive past the synchronous window and only downgrade after a macrotask — preserving the "silent ignore is not success" property while removing the sync-dispatch assumption:
+
+```ts
+win.addEventListener('beforeprint', markOpened)
+try { win.focus(); win.print() } finally { window.focus(); saveBtnRef.current?.focus() }
+if (dialogOpened) setPrintNotice(null)
+else setTimeout(() => {
+  win.removeEventListener('beforeprint', markOpened)
+  setPrintNotice(dialogOpened ? null : PRINT_BLOCKED_NOTICE)
+}, 0)
+```
+
+**Confidence:** High on the code shape and on the fact that the signal cannot survive a deferred dispatch (the listener is provably removed first). Medium on which shipping browser hits it — hence MINOR, not MAJOR.
+
+---
+
+## TYPESCRIPT-3 [MINOR] features/demo/ui/chrome/PdfPreview.tsx:58
+
+**Claim:** The R-16 fix's `window.focus()` does nothing for the stated purpose (it does not move DOM focus out of the iframe) and is a jsdom `Not implemented` emitter — the very next line, `saveBtnRef.current?.focus()`, is what actually satisfies the finding.
+
+**Evidence:**
+
+```ts
+} finally {
+  win.removeEventListener('beforeprint', markOpened)
+  // R-16: win.focus() moved keyboard focus INTO the sandboxed frame …
+  window.focus()                    // :58 — top-level window activation, not DOM focus
+  saveBtnRef.current?.focus()       // :59 — this is what returns focus to the parent chrome
+}
+```
+
+Focusing a parent-document element implicitly blurs the frame, so `:59` alone restores the Escape listener's reachability. `window.focus()` on the top-level window requests browser-window activation; it changes nothing about `document.activeElement`. The R-16 tests assert only `document.activeElement === saveBtn` (`PdfPreview.test.tsx`, both R-16 cases), so they pass identically without `:58`.
+
+Cost: jsdom does not implement `Window.focus`, so every print-path test now prints `Not implemented: Window's focus() method` to the virtual console — **20 lines** in the targeted `PdfPreview.test.tsx` + import-screens run, and it leaks into the demo-UI run too. (The pre-existing `win.focus()` at `:50` is load-bearing — it makes the right document print — so only `:58` is removable.)
+
+**Suggested fix:** delete line 58; keep `win.focus()` at `:50` and `saveBtnRef.current?.focus()` at `:59`. If the browser-window activation is genuinely wanted, gate it so tests don't trip it, and say why in the comment.
+
+**Confidence:** High — verified by reading both R-16 test assertions and by observing the console output across two independent vitest runs in this worktree.
+
+---
+
+## Checked and deliberately NOT filed
+
+- **`guardImportRun` backstop** (`DemoExperience.tsx:519-536`) — traced every throw site inside both `run` closures. The catch is token-checked before its `setImp`, `emitter.log` self-invalidates on a superseded run, `details.stage` reads the *pre-update* `s.activeStage` correctly, and the failure result releases the dwell through the normal CTA path (`computeImportStage` sees `stage: 'progress'` + non-null result + `acknowledged: false`). The only pre-`stage:'progress'` throw sites are `emitter.log` calls, which cannot throw. Sound.
+- **`importStageFor` token guard (R-24)** — the stale branch returns the *same* state object, so React bails out of the re-render rather than committing a no-op. Correct shape.
+- **One-frame trust lag mid-batch** — `setImp` (batch counter) commits in a microtask while the `FILE` log line commits on the next rAF (`useImportLog.scheduleFrame`), so the badge can read `File 2 of 3 · sample import · in-browser` for ≤1 frame. Sub-frame transient, and strictly better than the pre-fix permanent mislabel. Not a defect.
+- **Ring-cap eviction vs. segment scoping** — eviction is FIFO, so a segment's `FILE` marker can never be evicted while a later line of that same segment survives. `deriveTrust` cannot be desynchronised by the 400-line cap.
+- **`motion/react` `useReducedMotion` adoption (R-18)** — read the installed implementation (`framer-motion@12.42.0/.../use-reduced-motion.mjs` + `motion-dom/.../reduced-motion/index.mjs`): `initPrefersReducedMotion()` runs *before* `useState(prefersReducedMotion.current)`, so it genuinely seeds on the first render (no armed-animation flash). The module-global `hasReducedMotionListener` cache is exactly the property PickerStage documented as its reason to refuse the hook — the asymmetry is coherent, not accidental. Deliberate per the orchestrator; not re-flagged.
+- **`ActionCard`'s `ref` prop** (`PickerStage.tsx:131, 142`) — React 19 ref-as-prop on a function component; typed `Ref<HTMLButtonElement>`, `tsc` clean, and both R-17 focus restores are behaviourally pinned (`PickerStage.test.tsx:226, 236`).
+- **`prefersReducedMotion()` render-scope `matchMedia` read** (`PickerStage.tsx:98-99`) — a browser-global read at render scope, but not a determinism-seam violation (the rule names `Date.now`/`Math.random`), guarded by `typeof window !== 'undefined'`, and the demo is `ssr: false`. Deliberate and documented.
+- **`SAMPLE_FALLBACK_PREFIX` living in `run-import.ts` rather than `import-log.ts`** — orchestrator-declared deliberate (disjointness across fix branches). No import cycle introduced; `pdfjs-dist` stays behind a dynamic `import()` in `pdf-extract.ts`, so the terminal's new value import adds no module-graph weight.
+- **`ImportRunResult` required `code`/`details` (R-29)** — verified all three failure constructions set both, and that the modal-level `ImportResult` keeps its optionality for `DemoExperience`'s code-less pre-pipeline guards (`processPdfFiles:546`, `runTextImportFlow:583/589`, `guardImportRun:529`). `tsc` proves no producer was missed.
+- **`ImportPartialData.businessName` removal (R-30)** — the `Business:` render branch is gone from `DataFoundCard` (`ImportModal.tsx:172-180`); no other consumer referenced it.
+- **`ImportLogLine` readonly (R-34)** — `getLines(): readonly ImportLogLine[]` plus readonly fields; checked every consumer (`deriveTrust`, `useImportLog` flush, `TerminalLine`) — all read-only already, and the two `@ts-expect-error` pins in `import-log.test.ts` are compile proofs, not suppressions.
+- **`selectAdjustedScopes` R-26 comment narrowing** — the comment now names two of three boundaries and points at deferred §15 for the third. Accurate against the code.
+- **Known flake class** (5s userEvent/waitFor timeouts under multi-agent contention) — not observed in either of my runs (689 tests green across two invocations); not filed, per the orchestrator.
