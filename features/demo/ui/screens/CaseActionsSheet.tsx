@@ -90,23 +90,29 @@ export function CaseActionsSheet({
   onClose,
 }: CaseActionsSheetProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null)
-  const reportRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const [metrics, setMetrics] = useState<{ bodyHeight: number | null; contentHeight: number | null }>({
     bodyHeight: null,
     contentHeight: null,
   })
 
-  // Measure once on mount and again whenever either box resizes (the phone's onLayout +
-  // onContentSizeChange pair). The state update is reference-preserving on unchanged
+  // Measure on mount and again whenever either box resizes — the phone's onLayout +
+  // onContentSizeChange pair. The state update is reference-preserving on unchanged
   // measurements, so the observer cannot drive a render loop.
+  //
+  // The CONTENT element is observed, never the scroller: the scroller's own box is what
+  // `maxHeight` pins, so once the cap is applied it stops changing size and would never
+  // report content that grew behind it. The content wrapper is uncapped (it carries the
+  // panel's padding, like the phone's `contentContainerStyle`), so its height is the real
+  // signal.
   useLayoutEffect(() => {
     const body = bodyRef.current
-    const report = reportRef.current
-    if (!body || !report) return
+    const content = contentRef.current
+    if (!body || !content) return
     const measure = () =>
       setMetrics((prev) => {
         const bodyHeight = body.clientHeight
-        const contentHeight = report.scrollHeight
+        const contentHeight = content.offsetHeight
         return prev.bodyHeight === bodyHeight && prev.contentHeight === contentHeight
           ? prev
           : { bodyHeight, contentHeight }
@@ -115,7 +121,7 @@ export function CaseActionsSheet({
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(measure)
     ro.observe(body)
-    ro.observe(report)
+    ro.observe(content)
     return () => ro.disconnect()
   }, [])
 
@@ -167,7 +173,6 @@ export function CaseActionsSheet({
     <ModalShell title={caseData.caseNumber} subtitle={subtitle} onClose={onClose} fillBody footer={footer}>
       <div ref={bodyRef} style={{ flex: 1, minHeight: 0 }}>
         <div
-          ref={reportRef}
           data-case-report
           style={{
             maxHeight,
@@ -176,9 +181,13 @@ export function CaseActionsSheet({
             borderRadius: 12,
             border: GLASS.border,
             background: 'rgba(13,27,42,0.6)',
-            padding: 18,
+            // No padding here — it belongs to the content wrapper (the phone's
+            // `contentContainerStyle`), so the panel's inset scrolls with the report
+            // instead of clipping its last row, and the wrapper measures a true height.
+            overflowX: 'hidden',
           }}
         >
+          <div ref={contentRef} data-case-report-content style={{ padding: 18 }}>
           {caseData.groups.map((group, i) => (
             <Fragment key={group.id}>
               {i > 0 && <div style={{ height: 1, background: '#1e3a5f', opacity: 0.6, margin: '12px 0' }} />}
@@ -222,6 +231,7 @@ export function CaseActionsSheet({
               </div>
             </Fragment>
           ))}
+          </div>
         </div>
       </div>
     </ModalShell>

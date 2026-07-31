@@ -43,6 +43,9 @@ export interface DashboardScreenProps {
  */
 function useLongPress(onLongPress: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A touch hold fires our timer at 500ms AND raises the OS `contextmenu` a moment later.
+  // Without this latch that one gesture would open the sheet twice.
+  const firedRef = useRef(false)
   const clear = useCallback(() => {
     if (timer.current !== null) {
       clearTimeout(timer.current)
@@ -57,8 +60,10 @@ function useLongPress(onLongPress: () => void) {
       if (e.button !== 0) return // secondary buttons arrive as contextmenu below
       if (e.target instanceof Element && e.target.closest('button')) return
       clear()
+      firedRef.current = false
       timer.current = setTimeout(() => {
         timer.current = null
+        firedRef.current = true
         onLongPress()
       }, LONG_PRESS_MS)
     },
@@ -66,8 +71,12 @@ function useLongPress(onLongPress: () => void) {
     onPointerLeave: clear,
     onPointerCancel: clear,
     onContextMenu: (e: ReactMouseEvent<HTMLDivElement>) => {
-      e.preventDefault()
+      e.preventDefault() // no browser menu over the sheet, and no OS selection menu mid-hold
       clear()
+      if (firedRef.current) {
+        firedRef.current = false // the hold already opened it — swallow the trailing event
+        return
+      }
       onLongPress()
     },
   }

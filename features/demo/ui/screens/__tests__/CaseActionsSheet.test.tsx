@@ -206,8 +206,11 @@ describe('CaseActionsSheet — the report reacts to measurement', () => {
     expect(report.style.maxHeight).toBe('')
 
     const body = report.parentElement as HTMLElement
+    // The CONTENT wrapper is what gets measured — the scroller's own box is pinned by the
+    // cap and would stop reporting growth once applied.
+    const content = document.querySelector('[data-case-report-content]') as HTMLElement
     Object.defineProperty(body, 'clientHeight', { configurable: true, value: 300 })
-    Object.defineProperty(report, 'scrollHeight', { configurable: true, value: 900 })
+    Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 900 })
     act(() => fire?.())
 
     expect(report.style.maxHeight).toBe('300px')

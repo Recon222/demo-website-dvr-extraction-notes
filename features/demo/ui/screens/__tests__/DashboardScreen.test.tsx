@@ -144,6 +144,20 @@ describe('DashboardScreen — Case Actions entry points (the phone long-press)',
     expect(prevented).toBe(true)
   })
 
+  it('a touch hold that also raises contextmenu opens the sheet ONCE', () => {
+    vi.useFakeTimers()
+    const { onCaseActions, cardEl } = renderOne()
+    fireEvent.pointerDown(cardEl, { button: 0 })
+    act(() => void vi.advanceTimersByTime(500))
+    // iOS/Android raise the OS context menu at the end of the same hold.
+    fireEvent.contextMenu(cardEl)
+    expect(onCaseActions).toHaveBeenCalledTimes(1)
+
+    // …and the latch does not swallow a genuine right-click afterwards.
+    fireEvent.contextMenu(cardEl)
+    expect(onCaseActions).toHaveBeenCalledTimes(2)
+  })
+
   it('the ⋯ button opens the sheet — the keyboard/screen-reader path', () => {
     const { onCaseActions } = renderOne()
     const btn = screen.getByRole('button', { name: 'Case actions for PR25-0001' })
