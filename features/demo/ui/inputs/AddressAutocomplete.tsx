@@ -93,12 +93,16 @@ export function AddressAutocomplete({
   onChange,
   onPick,
   placeholder,
+  required,
 }: {
   label: string
   value: string
   onChange(value: string): void
   onPick(parts: AddressPick): void
   placeholder?: string
+  /** Renders the shared `Field` required marker (" *"). Phone: Street Address is `required`
+   *  on every LocationForm caller (LocationForm.tsx:188, ui-mapping 05:57). */
+  required?: boolean
 }) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   const sessionRef = useRef<AddressSession | null>(null)
@@ -164,7 +168,10 @@ export function AddressAutocomplete({
 
   return (
     <div ref={boxRef} style={{ marginBottom: 14, position: 'relative' }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
+        {label}
+        {required && <span style={{ color: '#ff4757' }}> *</span>}
+      </div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

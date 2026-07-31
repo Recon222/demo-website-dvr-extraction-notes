@@ -736,7 +736,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           locationPhone: currentLocation?.locationPhone ?? '',
         }
         // SubmissionFields keys are DemoLocation field names, so each key is a valid updateField path as-is.
-        return <SubmissionScreen occNumber={currentCase?.caseNumber ?? ''} fields={fields} onChange={(f, v) => store.getState().updateField(f, v)} onPickCoords={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: 'geocoded' })} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        // `onCoordinates` is the ONE coordinate write path for this screen — a GPS capture and an
+        // address pick both arrive here already stamped with their own source (P2.3).
+        return (
+          <SubmissionScreen
+            occNumber={currentCase?.caseNumber ?? ''}
+            fields={fields}
+            coordinates={currentLocation?.gps}
+            onChange={(f, v) => store.getState().updateField(f, v)}
+            onCoordinates={(c) => store.getState().updateField('gps', { lat: c.lat, lng: c.lng, accuracyM: c.accuracyM, source: c.source })}
+            onNext={onNext}
+            onBack={onPrev}
+            onMenu={openMenu}
+          />
+        )
       }
       case 'requestedScope': {
         const scopes = currentLocation?.form.scopes ?? []
