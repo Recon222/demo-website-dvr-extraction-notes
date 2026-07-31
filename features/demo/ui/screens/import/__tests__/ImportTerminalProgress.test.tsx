@@ -462,6 +462,19 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
   })
 
+  it('a sample-substituted run marks the CTA itself: amber "sample import — review →" sub (R-25)', () => {
+    // With the dwell, the notice + per-card badge only paint after the tap and Escape
+    // discards them — the CTA moment must carry the substitution on its own.
+    const { emitter, rerenderWith } = setup()
+    act(() => emitter.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`))
+    nextFrame()
+    rerenderWith({ outcome: SUCCESS })
+    const cta = screen.getByTestId('terminal-review-cta')
+    expect(cta).toHaveTextContent('sample import — review →')
+    expect(cta).not.toHaveTextContent('Review import →')
+    expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
+  })
+
   it('failure in a batch run reads "Batch failed" (no counts — phone parity, outcome carries none)', () => {
     const { rerenderWith } = setup({ batch: { current: 3, total: 3 } })
     rerenderWith({ stage: 'error', outcome: { status: 'failure' } })

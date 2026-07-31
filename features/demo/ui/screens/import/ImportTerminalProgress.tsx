@@ -325,6 +325,7 @@ interface CtaView {
   headline: string
   title: string
   sub: string
+  subColor: string
   a11y: string
 }
 
@@ -332,8 +333,18 @@ interface CtaView {
  * Phone cta switch, copy + colours verbatim (ImportTerminalProgress.tsx:233-281).
  * Exhaustive: a future TerminalOutcome variant is a compile error, not a silent
  * fall-through to the failure treatment.
+ *
+ * Sample attribution (p1-review R-25): with the P1.5 dwell, the result notice +
+ * per-card badge only paint AFTER the CTA tap — Escape during the dwell used to
+ * discard a sample-substituted import with the substitution never marked on this
+ * surface. When the run's trust is 'sample', the success/partial sub carries the
+ * attribution in the amber warning colour, so the CTA moment itself says so.
  */
-function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
+function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, trust: TerminalTrust): CtaView {
+  const reviewSub =
+    trust === 'sample'
+      ? { sub: 'sample import — review →', subColor: C.warning }
+      : { sub: 'Review import →', subColor: C.textSecondary }
   switch (outcome.status) {
     case 'success': {
       const batch = outcome.totalFiles > 1
@@ -346,7 +357,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         title: batch
           ? `Batch complete — ${outcome.successCount} of ${outcome.totalFiles} location${outcome.totalFiles === 1 ? '' : 's'}`
           : 'Import ready for review',
-        sub: 'Review import →',
+        ...reviewSub,
         a11y: 'Review the import before it saves',
       }
     }
@@ -359,7 +370,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         bg: 'rgba(255,217,61,0.10)',
         headline: 'Batch partially failed',
         title: `Batch partially failed — ${outcome.successCount} of ${outcome.totalFiles}, ${failed} need${failed === 1 ? 's' : ''} attention`,
-        sub: 'Review import →',
+        ...reviewSub,
         a11y: 'Review the import — some files failed',
       }
     }
@@ -372,6 +383,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean): CtaView {
         headline: isBatchRun ? 'Batch failed' : 'Import failed',
         title: isBatchRun ? 'Batch failed' : 'Import failed',
         sub: 'See error details →',
+        subColor: C.textSecondary,
         a11y: 'See error details',
       }
     default: {
@@ -420,7 +432,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
 
   const trust = useMemo(() => deriveTrust(lines), [lines])
   const isBatchRun = batch !== null && batch.total > 1
-  const cta = outcome === null ? null : ctaView(outcome, isBatchRun)
+  const cta = outcome === null ? null : ctaView(outcome, isBatchRun, trust)
   const headline = cta ? cta.headline : running.message
   // Success/partial land at 100 (the phone's complete band); failure keeps the bar
   // where the pipeline stopped — a full bar on a failed run would be a lie.
@@ -603,7 +615,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
             {cta.icon}
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
               <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
-              <span style={badgeSubStyle}>{cta.sub}</span>
+              <span style={{ ...badgeSubStyle, color: cta.subColor }}>{cta.sub}</span>
             </span>
             <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
           </button>
