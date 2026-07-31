@@ -66,7 +66,7 @@ describe('CompletionScreen', () => {
     const onPreviewPdf = vi.fn()
     const onComplete = vi.fn()
     const onChange = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText(/PR25-0098213/)).toBeInTheDocument()
     expect(screen.getByText('00:05:30 AHEAD OF')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. X' } })
@@ -79,15 +79,29 @@ describe('CompletionScreen', () => {
 
   it('shows the location-complete state with a way back to the review form (R-1)', () => {
     const onReviewAgain = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onReviewAgain={onReviewAgain} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onReviewAgain={onReviewAgain} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText('Location Complete')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Review / Export again'))
     expect(onReviewAgain).toHaveBeenCalledOnce()
   })
 
+  it('renders the phone’s Required Fields Missing card, one `- rule` line each (P2.4/G9)', () => {
+    render(<CompletionScreen summary={summary} validationErrors={['OCC number is required', 'Address is required']} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    const card = screen.getByRole('alert')
+    expect(card).toHaveTextContent('Required Fields Missing')
+    expect(card).toHaveTextContent('- OCC number is required')
+    expect(card).toHaveTextContent('- Address is required')
+  })
+
+  it('never shows the card on the completed confirmation — nothing left to fix there', () => {
+    render(<CompletionScreen summary={summary} validationErrors={['OCC number is required']} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('disables Complete & Save when no location is open (R-1: no silent no-op)', () => {
     const onComplete = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete={false} canComplete={false} dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete={false} canComplete={false} dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     const btn = screen.getByRole('button', { name: 'Complete & Save' })
     expect(btn).toBeDisabled()
     fireEvent.click(btn)

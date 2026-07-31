@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
@@ -22,6 +22,7 @@ import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
 import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
+import { AlertDialog, type AlertAction } from '@/features/demo/ui/controls/AlertDialog'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -56,6 +57,7 @@ import { cleanOcrText, parseTimestampFromText, getConfidenceLevel } from '@/feat
 import { getCurrentFormattedTime } from '@/features/demo/engine/logic/time'
 import { parseCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { simulateNtpSync } from '@/features/demo/engine/logic/time-sync'
+import { toFinalSubmissionInput, validateFinalSubmission } from '@/features/demo/engine/logic/final-submission'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
@@ -117,6 +119,32 @@ interface ImportState {
   acknowledged: boolean
 }
 const blankImport: ImportState = { stage: 'picker', text: '', result: null, lastLocId: null, activeStage: null, lastRealStage: null, batch: null, acknowledged: false }
+
+/** An open in-phone alert (the phone's `Alert.alert(title, message, buttons)` payload). */
+interface AlertState {
+  title: string
+  message: string
+  actions: readonly AlertAction[]
+}
+
+/** Phone copy, verbatim — `app/(form)/completion.tsx:373-374`. */
+const MISSING_FIELDS_TITLE = 'Missing Required Fields'
+const MISSING_FIELDS_BODY = 'Please fill in all required fields to complete the case. Save progress instead?'
+/**
+ * Phone copy, verbatim (`completion.tsx:331-332`) plus ONE honest line. The phone's "Save
+ * Progress" writes the location to SQLite; the demo's equivalent is the sessionStorage
+ * snapshot (P0.4/D2) that is already being written continuously — true, but bounded by the
+ * tab, and the demo says so rather than implying a database. Same language as the /demo error
+ * page's "this tab's session snapshot".
+ */
+const PROGRESS_SAVED_TITLE = 'Progress Saved'
+const PROGRESS_SAVED_BODY =
+  'You can continue this location later from the Cases screen.\n\n' +
+  'Your work stays in this browser tab — it survives a refresh, but closing the tab starts fresh.'
+
+/** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
+ *  can call it every render without looping on a fresh array identity. */
+const dropGateErrors = (prev: readonly string[]): readonly string[] => (prev.length === 0 ? prev : [])
 
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
@@ -298,6 +326,41 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
   const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
+
+  // ---- Completion gate (P2.4, matrix G9) -------------------------------------------------
+  // The phone's ONE runtime validation gate, evaluated against the OPEN LOCATION and the case
+  // that OWNS it (`loc.caseId`) — never `currentCase` above, which is the selection-pair read.
+  // Same R-19 law the completion action follows: trusting the pair here would validate an
+  // unrelated case's occurrence number against this location's address and scopes.
+  const gateOwnerCase = currentLocation ? (cases.find((c) => c.id === currentLocation.caseId) ?? null) : null
+  const gateOutcome = useMemo(
+    () => validateFinalSubmission(toFinalSubmissionInput(currentLocation, gateOwnerCase)),
+    [currentLocation, gateOwnerCase],
+  )
+  /** Messages from the last BLOCKED attempt — the phone's `validationErrors` state. */
+  const [gateErrors, setGateErrors] = useState<readonly string[]>([])
+  const [alert, setAlert] = useState<AlertState | null>(null)
+  // Stable identity: AlertDialog keys its Escape listener on `onDismiss`, so a fresh closure
+  // per render would tear down and re-add the listener on every store update.
+  const closeAlert = useCallback(() => setAlert(null), [])
+
+  // Auto-clear, mirroring the phone's effect (`completion.tsx:115-125`): the card disappears
+  // the moment the operator fixes the underlying data — they never have to re-tap to find out.
+  useEffect(() => {
+    if (gateOutcome.ok) setGateErrors(dropGateErrors)
+  }, [gateOutcome])
+  // Errors belong to the location they were computed for. On the phone the screen remounts per
+  // location; here the bridge outlives the switch, so drop them rather than show location A's
+  // list over location B's form.
+  useEffect(() => {
+    setGateErrors(dropGateErrors)
+  }, [currentLocationId])
+  // The phone's Alert is OS-modal — nothing can navigate under it. The demo's rail sits OUTSIDE
+  // the phone and can jump views, so an alert left standing over another screen would misstate
+  // what it is blocking. Leaving Completion closes it.
+  useEffect(() => {
+    if (view !== 'completion') setAlert(null)
+  }, [view])
 
   // Derive DVR retention (total window + per-scope overwrite countdown) from the earliest
   // recorded date + scopes. Clock is read here (never at render). The persisted
@@ -718,7 +781,79 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   }
 
   // ---- PDF preview + completion ----
-  const previewCaseNotes = () => setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+
+  /**
+   * Run the gate against LIVE store state, not the render-time snapshot above: a click handler
+   * created in an earlier render would otherwise judge stale data. `gateOutcome` (render scope)
+   * exists only to drive the auto-clear.
+   */
+  const runGate = () => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId) ?? null
+    const owner = loc ? (st.cases.find((c) => c.id === loc.caseId) ?? null) : null
+    return validateFinalSubmission(toFinalSubmissionInput(loc, owner))
+  }
+
+  /** The blocked alert's second arm (`completion.tsx:377` → `handleSaveProgress`). */
+  const saveProgress = () => {
+    setAlert({
+      title: PROGRESS_SAVED_TITLE,
+      message: PROGRESS_SAVED_BODY,
+      actions: [
+        {
+          label: 'OK',
+          onPress: () => {
+            setAlert(null)
+            store.getState().setView('cases') // phone: router.dismissTo('/(tabs)/cases')
+          },
+        },
+      ],
+    })
+  }
+
+  const previewCaseNotes = () => {
+    // The phone gates the PDF on the same schema (`handlePreviewPdf`, completion.tsx:170-178).
+    // DEVIATION (deliberate): the phone alerts with `validationErrors.join('\n')` read from
+    // React state that `validateRequiredFields()` only just called `setValidationErrors` on —
+    // so its FIRST blocked tap shows an empty alert body. We alert with the errors this run
+    // produced. Logged for the phone-repo follow-up ledger; copying the bug is not parity.
+    const outcome = runGate()
+    if (!outcome.ok) {
+      setGateErrors(outcome.errors)
+      setAlert({
+        title: MISSING_FIELDS_TITLE,
+        message: outcome.errors.join('\n'),
+        actions: [{ label: 'OK', onPress: closeAlert }],
+      })
+      return
+    }
+    setGateErrors(dropGateErrors)
+    setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+  }
+
+  /** "Complete & Save" — gated, then the existing location-scoped completion, untouched. */
+  const completeLocation = () => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId)
+    if (!loc) return // canComplete already disables the CTA; belt and braces for the R-19 law
+    const outcome = runGate()
+    if (!outcome.ok) {
+      setGateErrors(outcome.errors)
+      setAlert({
+        title: MISSING_FIELDS_TITLE,
+        message: MISSING_FIELDS_BODY,
+        actions: [
+          { label: 'Cancel', style: 'cancel', onPress: closeAlert },
+          { label: 'Save Progress', onPress: saveProgress },
+        ],
+      })
+      return
+    }
+    setGateErrors(dropGateErrors)
+    st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
+    setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
+  }
+
   const previewTimeOffset = () => {
     const off = currentLocation?.form.timeOffset
     const addr = currentLocation ? [currentLocation.businessName, currentLocation.streetAddress, currentLocation.city].filter(Boolean).join(', ') : ''
@@ -923,17 +1058,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // it keeps the CTA correct even if a future writer slips). The only disabling
             // condition left is "no location open", which is exactly what the disabled hint says.
             canComplete={!!currentLocation}
+            validationErrors={gateErrors}
             dateTimeCompleted={currentLocation?.form.dateTimeCompleted ?? ''}
             completedBy={currentLocation?.form.completedBy ?? ''}
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
-            onComplete={() => {
-              const st = store.getState()
-              const loc = st.locations.find((l) => l.id === st.currentLocationId)
-              if (loc) st.completeCase(loc.caseId) // the case that OWNS the location — always coherent
-              setReviewAgainFor(null) // re-completing from review-again returns to the confirmation
-            }}
+            onComplete={completeLocation}
             onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
             onBackToCases={() => store.getState().setView('cases')}
@@ -1071,6 +1202,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             }}
           />
           {pdf && <PdfPreview title={pdf.title} html={pdf.html} onClose={() => setPdf(null)} />}
+          {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
+              every other overlay, like an OS alert does. */}
+          {alert && <AlertDialog title={alert.title} message={alert.message} actions={alert.actions} onDismiss={closeAlert} />}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>
