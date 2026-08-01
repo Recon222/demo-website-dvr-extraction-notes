@@ -316,6 +316,22 @@ describe('BootSequence', () => {
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
+    it('takes its window listener back on unmount, by identity (R-19)', () => {
+      // Pinned rather than left as a recorded choice, because R-7 made the ordering of this
+      // listener against `ExitDialog`'s load-bearing: a leaked handler would keep answering
+      // Escape for a tree that no longer exists.
+      const add = vi.spyOn(window, 'addEventListener')
+      const remove = vi.spyOn(window, 'removeEventListener')
+      const { unmount } = render(<BootSequence video={null} onComplete={vi.fn()} />)
+      const handler = add.mock.calls.find(([type]) => type === 'keydown')?.[1]
+      expect(handler).toBeDefined()
+
+      unmount()
+      expect(remove.mock.calls.some(([type, fn]) => type === 'keydown' && fn === handler)).toBe(true)
+      add.mockRestore()
+      remove.mockRestore()
+    })
+
     it('Escape does what SKIP does', () => {
       const onComplete = vi.fn()
       render(<BootSequence video={null} onComplete={onComplete} />)

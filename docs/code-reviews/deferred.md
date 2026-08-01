@@ -6121,3 +6121,71 @@ it in the snapshot would mean deciding whether a refresh mid-scan resumes the sc
 
 **Trigger:** a second consumer needing to know the gate is up (an analytics hook, a deep link
 that should bypass boot). Then it moves — and the bypass question gets answered on the way.
+
+## 88. P8 review round 1 — the fix round's dispositions (19/19 fixed, 0 deferred)
+
+**Source:** `docs/code-reviews/parity/p8/p8-review-r1-vetted.md` (REVISE — 0B/6M/13m, R-1..R-19),
+executed against its own 17-row dependency-ordered grouping. Every finding is FIXED; nothing was
+deferred and nothing was refuted. Both amendment obligations (A1, A2) landed in §87d. The entries
+below record only the four decisions a later reader could otherwise mistake for drift.
+
+### 88a. RECORDED — what the R-1 family cost, and why the severity ruling was right
+
+Four sub-defects on one seam, all invisible at `BOOT_VIDEO === null`, all arming together on
+drop-in day. The fix round confirmed the aggregator's central reasoning by accident: the R-17
+probe (flip the constant, run the bridge suite) reds nothing now, and before the round it red
+three tests — so the "no re-review needed" promise in §87d had been false in a way only the flip
+itself would reveal, which is exactly the day nobody re-opens the files.
+
+**The two shapes worth carrying forward.** First, a handler wired to a phase-less callback
+(`onError={skip}`) on an element that exists in EVERY phase: the mount was deliberately early (the
+phone's preload trick, correctly ported) and the handler was written for the late phase only.
+Where an element's lifetime is wider than its handler's intent, the handler must read the phase.
+Second, an unbounded wait whose exit belongs to something outside the app — `ended` — with no
+ceiling. `PHASE_MS.video = null` was and remains the right statement about the MACHINE; what was
+missing was the component's own timeout. Both are worth a look at any future "wait for an external
+event" phase.
+
+### 88b. RULED — `bootSurface` is the last hand partition over `BootPhase`, and it is a record
+
+R-11a's deny-list is gone, and the growth probe now yields four compile errors for a new phase
+(`PHASE_MS`, `SURFACE`, `HUD_STATE`, `nextBootPhase`'s switch) where it used to yield three, none
+of which was the surface. The opacity check at the container is DELIBERATELY still an inline
+partition: the review struck the lane item that wanted it converted, because it is an allow-list
+whose default (fully visible) is the safe side for every realistic insertion. Don't "finish the
+job" by converting it — that reverses a ruling.
+
+**`BootHudState` is now DEFINED by `BOOT_HUD_STATES`**, and `BootPhase` is not (it stays a written
+union, with `BOOT_PHASES` read off `PHASE_MS`). Two mechanisms, one guarantee, chosen per union:
+the small closed one is cheapest as a tuple; the seven-member one reads better as a union and
+already had a total record to derive from.
+
+### 88c. RECORDED — the R-9 comment was wrong in the way R-9 is about
+
+While fixing R-9 the probe showed the replacement comment had inherited the original's error:
+it claimed `HUD_STATE` helps close the branch set. It does not — `HUD_STATE` is keyed by
+`BootPhase`, so growing `BootHudState` leaves it green. Adding a member yields exactly ONE
+`TS2741`, in `SplashScreen`'s `statusBody`. Both comments now say that, with the probe result in
+them. §84a's lesson, encountered inside the fix for a §84a-shaped finding: when a comment names a
+guarantee, run it.
+
+### 88d. RECORDED — R-19 was pinned, not left as the recorded choice the review offered
+
+The review allowed leaving the gate's window-keydown cleanup unpinned. R-7's fix changed the
+calculus: `ExitDialog`'s `stopPropagation` makes the ORDERING of that listener load-bearing, so a
+leaked handler is no longer merely a no-op `setPhase` on a dead tree — it would keep answering
+Escape underneath a live dialog. Pinned by identity (the handler added is the handler removed).
+
+### 88e. RECORDED — R-12's seam, and the four assertions it moved
+
+`visited` seeds `{}` now; the landing view is marked by the bridge replaying `setView` on the
+current view once nothing covers it. The alternative — marking from `endBoot` alone — would have
+left the ~30 `boot=false` suites unlit, and fabricating the row's state in the rail would have
+been a worse lie than the one being fixed. Four engine assertions moved, each of which had
+encoded the claim that P8.1 falsified (`boot marks the cases view visited`, the `setView`
+idempotence expectation, `reset()`'s boot record, and the selectors' "boot view" line).
+
+**Not a trigger, a note:** `visit()` stays idempotent and the mark is replayed on every non-boot
+mount, so a restored snapshot's record is never rewritten. If a future surface needs "seen this
+session" as distinct from "seen ever", that distinction does not exist here and adding it is a
+new decision, not a bug fix.
