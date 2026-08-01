@@ -118,11 +118,19 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
   // Timed phases. `null` means this phase waits on something else — the visitor's tap, the
   // video's `ended` — so no timer is armed and nothing advances on its own.
   useEffect(() => {
+    // Reduced motion collapses HERE, not at the next dwell (review R-14). `advance`'s identity
+    // moves when the preference flips, which tore down the pending timer and re-armed it at FULL
+    // length — so the machine's from-any-phase promise was honored up to 800 ms late for a
+    // visitor who had just asked for less motion. `idle` still waits for the gesture.
+    if (reduceMotion) {
+      if (phase !== 'idle' && phase !== 'done') setPhase('done')
+      return
+    }
     const ms = bootPhaseDurationMs(phase)
     if (ms === null) return
     const timer = setTimeout(advance, ms)
     return () => clearTimeout(timer)
-  }, [phase, advance])
+  }, [phase, advance, reduceMotion])
 
   // Completion fires once, even if the parent hands us a fresh `onComplete` identity every render.
   const completedRef = useRef(false)

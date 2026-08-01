@@ -337,6 +337,22 @@ describe('BootSequence', () => {
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
+    it('collapses a dwell already in flight, at the next deadline (R-14)', () => {
+      motionState.reduce = false
+      const onComplete = vi.fn()
+      const { rerender } = render(<BootSequence video={null} onComplete={onComplete} />)
+      tapScanner()
+      tick(SCAN_MS)
+      tick(AUTHORIZED_MS - 100) // 700 ms into the 800 ms beat
+
+      // The visitor turns the preference on mid-sequence.
+      motionState.reduce = true
+      rerender(<BootSequence video={null} onComplete={onComplete} />)
+
+      // Honored now — not after a fresh full dwell, which is what re-arming `advance` used to do.
+      expect(onComplete).toHaveBeenCalledOnce()
+    })
+
     it('never plays the intro video', () => {
       const onComplete = vi.fn()
       const play = vi.fn()
@@ -346,6 +362,14 @@ describe('BootSequence', () => {
       tapScanner()
       expect(onComplete).toHaveBeenCalledOnce()
       expect(play).not.toHaveBeenCalled()
+    })
+
+    it('passes the preference DOWN to the HUD, not just into its own timers (R-15)', () => {
+      // Both halves are pinned in isolation; this is the composition. Dropping the prop in a
+      // props-tidying pass would ship the 8 s flicker to exactly the visitors who opted out — on
+      // `idle`, the phase reduced-motion visitors sit on until they choose to move.
+      const { container } = render(<BootSequence video={null} onComplete={vi.fn()} />)
+      expect(container.innerHTML).not.toContain('flicker')
     })
 
     it('drops the opacity transition rather than animating the exit', () => {
