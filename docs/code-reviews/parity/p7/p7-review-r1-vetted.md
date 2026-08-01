@@ -378,3 +378,141 @@ hole (R-1b twin, `app/(form)/completion.tsx:127-133`).
 | typescript MED-1 / MED-2 / MED-3 / MED-4 / LOW / Obs-1..4 | R-4 / R-8 / R-11 / R-5 / R-11 / struck·noted·R-13·R-25 |
 | web W-1 / W-2 / W-3 / W-4 / W-5 / W-6 / W-7 / W-8 / W-9 / W-10 (+flake) | R-6 / R-7 / R-9 / R-10 / R-31 / R-32 / R-33 / R-34 / R-32 / R-32 (struck) |
 | type-design M1 / M2 / M3 / M4 / L1 / L2 / L3 / L4 / L5 / L6 / L7 | R-20 / R-21 / R-22 / R-23 / R-24 / R-25 / R-26 / R-27 / R-28 / R-29 / R-30 |
+
+---
+
+# Fix-delta r1 verdict
+
+**Head:** `2f57ba1` (four fix branches merged; lane delta sections at `0af1e64`) · **260 files /
+3402 tests** green · cold `tsc --noEmit` clean · `/demo` First Load 107 kB unmoved.
+**Aggregator spot-check (duty 2), re-run at source and reverted:** third-tool probe — `'ocr'`
+appended to `ADDITIVE_FORM_STEP_IDS`, `tsc` errors grouped by file:
+`content/form-customization.ts` ×2 (both registries **pre-dating R-20**) ·
+`controls.test.tsx` ×11 · `WizardDrawer.test.tsx` ×8 · `a11y.test.tsx` ×1 —
+**`selectors.ts` and `WizardDrawer.tsx`, the two files commit `e7eb681` and §86c name, error
+zero times.** Both lanes' reports confirmed exactly; tree clean and tsc exit 0 after revert.
+
+## VERDICT: APPROVE AFTER MICRO-ROUND
+
+**All 34 r1 findings closed** — 29 FIXED (many by stronger mechanisms than proposed: R-11's
+lookup-narrowing, R-21's totality loop, R-22's compile-level narrowing, R-26's non-empty tuple),
+4 ledgered-as-ruled (R-32/R-33 via §80g/§84b; A1–A4 all discharged), 1 stands-as-recorded (T-6).
+**0 not-fixed, 0 regressions on prior findings.** Lane verdicts: typescript APPROVE-w-c ·
+type-design APPROVE · web APPROVE · tests APPROVE-w-c · silent-failures APPROVE.
+
+The delta produced **9 vetted items from 11 raw** (2 merges). Two gate the merge as a
+micro-round; five ride with it; two are records. No blocker, no major — the micro-round is
+required not by runtime harm but by the round's own §84a discipline: FD-1 is a compile-time
+guarantee **asserted in a fix commit, a doc comment, and ledger §86c** that the compiler does
+not enforce, and FD-2 is a test named for a two-sided invariant that pins neither side. A fix
+round may not close by over-claiming; those two texts become true or the claims come out.
+
+## Delta findings
+
+### GATES (the micro-round)
+
+**FD-1 [gate] — R-20's residual: the totality claim is asserted, not proven, at both named
+sites** *(merged: typescript NEW-MEDIUM + type-design N1 — one defect, two lenses)* · **Owner P7.3**
+`selectors.ts:158-161` ends in `Object.fromEntries(…) as Record<AdditiveFormStepId, boolean>` —
+the cast absorbs a widened tuple, so the selector can never error; `WizardDrawer.tsx:334-344`
+hand-builds two spreads reading two of three keys — no unread-key check exists, so the drawer
+end has no gate at all. The only R-20-contributed gate is **incidental**: three test files'
+`mediaTools` prop literals, which an ordinary shared-factory refactor would silently delete,
+restoring §82b's exact phone defect (a grid switch that moves nothing). **Fix (~10 lines, both
+halves):** return a total object *literal* from `selectMediaToolsVisible` (drop the cast), and
+build the accordion rows from a `TOOL_ROWS: Record<AdditiveFormStepId, …>` filtered by
+`mediaTools[id]` with the ungated library row appended — the lane-typescript sketch. **Plus the
+text obligation:** correct §86c and the selector doc comment (and note the commit-message
+overclaim in the micro-round PR comment). *Optional same-commit rider:* `buildDefaults`'s
+identical `fromEntries … as Record` shape (typescript delta obs 1) — recorded, not gating.
+
+**FD-2 [gate] — R-29's layer test re-types both neighbours' z-indexes, so the invariant it is
+named for is unpinned in both directions** *(tests N-1, lane-MEDIUM; mutation-verified: sheet
+22→40 → 100 green; picker 31/32→20/21 → 404 green)* · **Owner: P7.2 end-to-end** (ruling on the
+split ownership question: this is the R-29 chain's residual and R-29 was P7.2's; the two
+one-line `export const` additions land in P7.1's chrome files — `SETTINGS_SHEET_Z` in
+`SettingsModal.tsx`, `PICKER_SHEET_Z` in `PickerSheet.tsx` — **inside P7.2's commit**; P7.1 is
+not woken for two exported constants). Rewrite the assertion relationally
+(`SETTINGS_SHEET_Z + MODAL_LAYER.overSheet` strictly between the two exports), which also
+retires `_shared.tsx:112`'s third copy of the literal 22.
+
+### RIDES (same micro-round, same owners' commits)
+
+**FD-3 — W-11: `role="region"` is the feature's only landmark, shipped by the same round whose
+R-10 commit argues "a landmark inside a dialog is noise"** · **P7.1** · one word
+(`region`→`group` at `ExportSecurityPane.tsx:100`; the test's `getByRole` moves with it).
+
+**FD-4 — the correlated-optional chrome pair in `_shared.tsx`** *(merged: web W-12 + type-design
+N2 — same file, same pattern, one commit)* · **P7.1** · (a) `Toggle`'s `controls?`/`expanded?`
+become one `disclosure?: { controls: string; expanded: boolean }` — the split pair permits the
+exact shape that loses axe's disclosure carve-out; (b) `SelectField`'s `label?`/`a11yLabel?`
+become the name-required union (`RetentionView` precedent) so a nameless control is
+unrepresentable. Both are traps today, not bugs — every caller is correct.
+
+**FD-5 — tests N-2: R-28's second direction is vacuous by construction** (the `others` filter
+removes every id that could trip it; probe: the exact described collision passes) · **P7.3** ·
+delete it and say so, or re-aim at the whole `FORM_STEPS` id space. Direction 1 carries the real
+guarantee either way.
+
+**FD-7 — SF D-1: `persisted: boolean` collapses three `SaveState` kinds onto the `unavailable`
+wording** — a `failed` (quota) tab is told "this browser isn't storing the session", the wrong
+diagnosis for the case R-3 was filed about · **P7.2** · **ruling: take `SaveStateKind`**, not
+the cause-neutral copy — the pane is already the third consumer of this fact, and naming the
+mode is this round's own pattern (R-23, R-7, R-29). `describeSaveStatus` already owns the
+sentences.
+
+**FD-8 — §85a gains §86a's boundary sentence** (SF recorded suggestion: a value autofilled
+*before* hiding stays put — "already entered") so the R-1b/R-2b twins read as one rule, not two
+decisions · **P7.2** · one sentence in the ledger commit.
+
+### RECORDS (no code, carried in the micro-round PR comment / deferred)
+
+**FD-6 — tests N-3:** R-26's merged commit message cites TS2739; the actual diagnostic is
+TS2322. Unamendable post-merge; one corrective line in the micro-round PR comment (P7.3).
+
+**FD-9 — the multi-file vitest flake, second occurrence** (web delta, handed to tests with
+evidence): clean tree this time — retires the "concurrent build" theory; first instance was
+impossible-from-source, pointing at worker/module-registry crosstalk in the vitest pool. **Not a
+P7 code defect and not this PR's gate.** File as an infra deferred item against
+`vitest.config.mts` pool/isolation settings, with lane-web's reproduction command attached.
+1-in-8 multi-file recurrence means the micro-delta should re-run any red multi-file suite solo
+before reading it as a failure.
+
+## Surviving-items table
+
+| ID | Sev | What | Owner | Disposition |
+|---|---|---|---|---|
+| FD-1 | minor (gate) | R-20 totality asserted not proven (selector cast + hand-built drawer rows) + §86c/doc-comment overclaim | P7.3 | micro-round |
+| FD-2 | minor (gate) | z-layer invariant unpinned both directions; literals re-typed | P7.2 | micro-round |
+| FD-3 | minor | lone landmark contradicts R-10's stated rule | P7.1 | rides |
+| FD-4 | minor | `Toggle` disclosure pair + `SelectField` nameless union | P7.1 | rides |
+| FD-5 | minor | R-28 direction 2 vacuous | P7.3 | rides |
+| FD-6 | record | TS2739→TS2322 citation | P7.3 | PR comment |
+| FD-7 | minor | `persisted` collapses SaveState kinds — take `SaveStateKind` | P7.2 | rides |
+| FD-8 | record | §85a boundary sentence | P7.2 | rides (ledger) |
+| FD-9 | record | vitest pool flake ×2 | infra | deferred item, not gating |
+
+**Micro-round shape:** three commits (P7.3: FD-1+FD-5, comment carries FD-6 · P7.2: FD-2+FD-7+FD-8
+· P7.1: FD-3+FD-4), then a **targeted micro-delta**, warm lanes only: typescript+type-design
+re-run the third-tool probe (must now redden `selectors.ts` or `WizardDrawer.tsx`),
+tests re-runs both z-mutations (must redden), web eyeballs FD-3/FD-4, silent-failures reads
+FD-7's arm. No full five-lane pass needed; full suite + cold tsc at the micro-round head.
+
+## PR-comment paragraph (for PR #36)
+
+> **Fix-delta r1 aggregate: APPROVE AFTER MICRO-ROUND.** All 34 vetted r1 findings are closed
+> (29 fixed — several by stronger mechanisms than the review proposed — 4 ledgered as ruled,
+> 1 stood as recorded), with zero regressions and zero not-fixed; the four fix branches also
+> discharged all four wording obligations (A1–A4) and the phone bug-20 filing checks out
+> line-for-line. The delta surfaced 9 items (from 11 raw, 2 cross-lane merges), none a runtime
+> defect. Two gate a micro-round on the round's own §84a discipline: **FD-1** — R-20's commit,
+> doc comment and §86c all claim "adding a tool breaks at the selector and at the drawer", and
+> an aggregator-re-run probe shows neither file errors (the only gates are two pre-R-20
+> registries and three test files' prop literals — a fixture refactor away from nothing);
+> ~10 lines make the claim true. **FD-2** — the new z-layer test re-types both neighbours'
+> z-indexes as literals and survives either neighbour moving (mutation-verified both
+> directions); export the two constants and assert the relation. Five small items ride with the
+> same three owner commits (region→group; the two correlated-optional chrome unions;
+> R-28's vacuous second direction; `SaveStateKind` for the profile pane's withdrawn arm; the
+> §85a boundary sentence), and two are records (the TS2322 citation; the vitest-pool flake —
+> filed as infra, not gating). Micro-delta: warm lanes re-probe FD-1/FD-2 only.
