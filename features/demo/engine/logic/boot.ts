@@ -34,8 +34,17 @@
  */
 export type BootPhase = 'idle' | 'scanning' | 'authorized' | 'video' | 'holding' | 'fading' | 'done'
 
-/** The `SplashScreen` HUD's three branches. `SplashScreen`'s `AuthState` aliases this, so the
- *  machine and the component cannot drift. */
+/**
+ * The `SplashScreen` HUD's three branches.
+ *
+ * `SplashScreen`'s `AuthState` aliases this, which makes the NAME undriftable — no more. The
+ * comment here used to claim the alias stopped the two from drifting at all (review R-9, the
+ * §84a shape). What actually closes the BRANCH SET is one total record, and it is not in this
+ * file: `HUD_STATE` below is keyed by `BootPhase`, so growing THIS union leaves it untouched.
+ * `SplashScreen`'s `statusBody` is `Record<BootHudState, ReactNode>` and is the only thing that
+ * turns a fourth member into a compile error — verified by probe: adding one yields exactly one
+ * `TS2741`, there.
+ */
 export type BootHudState = 'idle' | 'scanning' | 'authorized'
 
 // ---------------------------------------------------------------------------
