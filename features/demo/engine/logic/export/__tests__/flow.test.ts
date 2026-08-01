@@ -58,6 +58,58 @@ function promptedWith(request: ExportRequest, result = FAIL): ExportFlowState {
   return validated.state
 }
 
+describe('EXPORT_ALERTS — matrix row 28 contract strings', () => {
+  it('carries the phone\'s copy verbatim, with the two adaptations §70g declares', () => {
+    // One literal block, the STAGE_MESSAGES shape: every other assertion in this file reads
+    // these constants back through the machine, which pins the ROUTING but would stay green
+    // under any copy mutation. Verified against phone source (`src/hooks/useExportFlow.ts`
+    // :328-332, :782-785, :819-822, :919-922; `app/(tabs)/export.tsx`:135-137, :147-149).
+    expect(EXPORT_ALERTS).toEqual({
+      noCaseSelected: {
+        title: 'No Case Selected',
+        // ADAPTED (§70g): the subset handler's generic wording (:820-821), not
+        // handleExportZip's "…create a case from the Home screen…" (:655-656) — the demo has
+        // no Home screen to send anyone to.
+        message: 'Please select a case before exporting.',
+      },
+      noCaseSelectedForMap: {
+        title: 'No Case Selected',
+        message: 'Please select a case before exporting its map.',
+      },
+      noLocationSelected: {
+        title: 'No Location Selected',
+        message: 'Please create a location first.',
+      },
+      noSelection: {
+        title: 'Export Error',
+        message: 'No locations are selected. Please select locations and try again.',
+      },
+      caseUnavailable: {
+        title: 'Export Error',
+        // ADAPTED (§70g): the phone says "Refresh the list and re-select." (export.tsx:148) —
+        // the demo's list IS the live store, so there is nothing to refresh.
+        message: 'The selected case is no longer available. Re-select and try again.',
+      },
+      missingSubsetPayload: {
+        title: 'Export Error',
+        message: 'No locations were selected for this export. Please re-select and try again.',
+      },
+    })
+  })
+
+  it('gives every alert a non-empty title and message', () => {
+    for (const [name, alert] of Object.entries(EXPORT_ALERTS)) {
+      expect(alert.title.trim(), name).not.toBe('')
+      expect(alert.message.trim(), name).not.toBe('')
+    }
+  })
+
+  it('is frozen, so no consumer can rewrite a contract string in place', () => {
+    expect(Object.isFrozen(EXPORT_ALERTS)).toBe(true)
+    expect(Object.isFrozen(EXPORT_ALERTS.noSelection)).toBe(true)
+  })
+})
+
 describe('requestExport — entry guard and preconditions', () => {
   it('ignores a second press while an export is in flight', () => {
     const busy = state({ stage: 'zipping' })
