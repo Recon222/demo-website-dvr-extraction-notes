@@ -359,6 +359,14 @@ describe('About pane', () => {
     expect(screen.queryByText('iOS')).not.toBeInTheDocument()
   })
 
+  it('R-18: prints the address too, so a machine with no mail handler is not left with silence', () => {
+    // A `mailto:` with no registered handler does nothing observable — no navigation, no error.
+    // The note can no longer promise it opens; the address is on screen either way.
+    renderPane('about')
+    expect(screen.getByTestId('about-support-address')).toHaveTextContent('kcfva.dev@gmail.com')
+    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent('it opens your mail client')
+  })
+
   it('wires Contact Support as a REAL mailto to the site’s published address', () => {
     renderPane('about')
     const link = screen.getByTestId('about-contact-support')
