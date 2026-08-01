@@ -2970,7 +2970,18 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
               selectDrawerItems, …) executes above this boundary; a throw there is
               caught by the route-level net, app/demo/error.tsx.
               Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
-          <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
+          {/* The gate lives INSIDE this boundary, so a render throw in the boot subtree used to
+              be unrecoverable: "Return to Cases" cleared the error and landed on Cases, but
+              `booting` was untouched, so `BootSequence` remounted, threw again, and the card came
+              back — while SKIP and Escape were inside the thrown subtree. Ending the boot is
+              part of returning (review R-8). */}
+          <DemoErrorBoundary
+            view={view}
+            onReturnToCases={() => {
+              endBoot()
+              returnToCases()
+            }}
+          >
           {/* The boot gate (P8.1) renders INSTEAD of the screen tree, not over it — the phone's
               root layout returns the splash early and never mounts the app beneath it
               (`app/_layout.tsx:214-222`). Nothing underneath means no z-index race with the
