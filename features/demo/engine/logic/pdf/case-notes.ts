@@ -97,6 +97,15 @@ export interface CaseNotesData {
    */
   extractedScopesPartial?: boolean
   arrivalDepartures?: CaseNotesArrival[]
+  /**
+   * The Completion screen's two fields, which the phone prints as its own
+   * `COMPLETION INFORMATION` section (`case-notes-template.ts:331-348`) and the demo did not
+   * carry until P7.2 — `completedBy` is where the analyst profile's name lands, so leaving it
+   * out would have made the profile pane's "carries it into the Case Notes report" untrue.
+   * The section is gated on either having a value, exactly like the phone's `hasCompletionInfo`.
+   */
+  dateTimeCompleted?: string
+  completedBy?: string
   generatedAt?: string
 }
 
@@ -275,6 +284,20 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
     <table><thead><tr><th>Arrival</th><th>Departure</th></tr></thead><tbody>${adRows}</tbody></table></div>`
     : ''
 
+  // Phone `COMPLETION INFORMATION` (case-notes-template.ts:331-348), same position (after
+  // arrival/departure, before the footer) and the same `hasCompletionInfo` gate: the section
+  // appears when EITHER field has a value, and each row is dropped individually when its own is
+  // empty — which `row()` already does.
+  // `formatDocDate` answers 'N/A' for an unset value, so the date is formatted only when there
+  // is one — otherwise the row's own empty-value drop would never fire.
+  const completionRows =
+    row('Date & Time Completed:', d.dateTimeCompleted ? formatDocDate(d.dateTimeCompleted) : '') +
+    row('Completed By:', d.completedBy)
+  const completionSection = completionRows
+    ? `
+  <div class="section"><div class="section-title">Completion Information</div><div class="info-grid">${completionRows}</div></div>`
+    : ''
+
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>FVU Case Notes - ${e(
     d.occNumber,
   )}</title><style>${CASE_NOTES_STYLES}</style></head><body>
@@ -300,6 +323,7 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   ${exportSection}
   ${notesSection}
   ${adSection}
+  ${completionSection}
   <div class="footer"><p>Report generated on ${e(d.generatedAt || nowStamp())}</p><p>Forensic Video Unit - Case Report System v1.0</p></div>
   </body></html>`
 }

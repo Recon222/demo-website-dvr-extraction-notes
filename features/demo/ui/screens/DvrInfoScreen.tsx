@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { DvrInformation } from '@/features/demo/engine/types'
+import type { DvrInformation, FormFieldId } from '@/features/demo/engine/types'
 import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import {
@@ -30,12 +30,14 @@ export interface DvrInfoScreenProps {
   /** Derived retention view (total window + per-scope countdown), computed by the bridge. */
   retention: RetentionView
   onChange(field: keyof DvrInformation, value: string): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
 }
 
-export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu }: DvrInfoScreenProps) {
+export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext, onBack, onMenu }: DvrInfoScreenProps) {
   // Custom Resolution/FPS mode — mirrors the phone's dvr-information.tsx:69-74,124-142:
   // local state seeded from the stored value (a saved free-text value reopens in custom
   // mode); selecting the `custom` sentinel reveals the free-text input and leaves the
@@ -61,29 +63,63 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
     }
   }
 
+  // Three section cards, each hidden once it has nothing left to hold — a titled card with an
+  // empty body reads as a bug. The store's cascade hides the whole SCREEN when the last field
+  // anywhere on it goes off, so an all-empty render is unreachable.
+  const show = {
+    dvrLocation: isFieldVisible('dvr.dvrLocation'),
+    dvrTypeBrand: isFieldVisible('dvr.dvrTypeBrand'),
+    serialModelNumber: isFieldVisible('dvr.serialModelNumber'),
+    dvrUsername: isFieldVisible('dvr.dvrUsername'),
+    dvrPassword: isFieldVisible('dvr.dvrPassword'),
+    numberOfChannels: isFieldVisible('dvr.numberOfChannels'),
+    activeCameras: isFieldVisible('dvr.activeCameras'),
+    resolution: isFieldVisible('dvr.resolution'),
+    recordingFps: isFieldVisible('dvr.recordingFps'),
+    recordingSchedule: isFieldVisible('dvr.recordingSchedule'),
+    firstRecordedDate: isFieldVisible('dvr.firstRecordedDate'),
+    totalDvrRetention: isFieldVisible('dvr.totalDvrRetention'),
+    daysUntilOverwritten: isFieldVisible('dvr.daysUntilOverwritten'),
+  }
+  const showBasics = show.dvrLocation || show.dvrTypeBrand || show.serialModelNumber || show.dvrUsername || show.dvrPassword
+  const showRecording = show.numberOfChannels || show.activeCameras || show.resolution || show.recordingFps || show.recordingSchedule
+  const showRetention = show.firstRecordedDate || show.totalDvrRetention || show.daysUntilOverwritten
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="DVR Information" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
+        {showBasics && (
         <SectionCard title="Basic DVR Details">
-          <Field label="DVR Location" value={dvr.dvrLocation} onChange={(v) => onChange('dvrLocation', v)} placeholder="e.g., Manager's office" />
-          <Field label="DVR Type / Brand" value={dvr.dvrTypeBrand} onChange={(v) => onChange('dvrTypeBrand', v)} placeholder="e.g., Hikvision, Dahua" />
-          <Field label="Serial / Model Number" value={dvr.serialModelNumber} onChange={(v) => onChange('serialModelNumber', v)} placeholder="Serial or model" />
-          <Field label="DVR Username" value={dvr.dvrUsername} onChange={(v) => onChange('dvrUsername', v)} placeholder="e.g., admin" />
-          <Field label="DVR Password" value={dvr.dvrPassword} onChange={(v) => onChange('dvrPassword', v)} placeholder="Login password" />
+          {show.dvrLocation && <Field label="DVR Location" value={dvr.dvrLocation} onChange={(v) => onChange('dvrLocation', v)} placeholder="e.g., Manager's office" />}
+          {show.dvrTypeBrand && <Field label="DVR Type / Brand" value={dvr.dvrTypeBrand} onChange={(v) => onChange('dvrTypeBrand', v)} placeholder="e.g., Hikvision, Dahua" />}
+          {show.serialModelNumber && <Field label="Serial / Model Number" value={dvr.serialModelNumber} onChange={(v) => onChange('serialModelNumber', v)} placeholder="Serial or model" />}
+          {show.dvrUsername && <Field label="DVR Username" value={dvr.dvrUsername} onChange={(v) => onChange('dvrUsername', v)} placeholder="e.g., admin" />}
+          {show.dvrPassword && <Field label="DVR Password" value={dvr.dvrPassword} onChange={(v) => onChange('dvrPassword', v)} placeholder="Login password" />}
         </SectionCard>
+        )}
 
+        {showRecording && (
         <SectionCard title="Recording Configuration">
-          <Field label="Channels" value={dvr.numberOfChannels} onChange={(v) => onChange('numberOfChannels', v)} placeholder="e.g., 16" />
-          <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />
-          <SelectField label="Resolution" value={customResolution ? CUSTOM_VALUE : dvr.resolution} onChange={handleResolutionSelect} options={RESOLUTION_OPTIONS} />
-          {customResolution && (
-            <Field label="Custom Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} placeholder="e.g., 1440x900" />
+          {show.numberOfChannels && <Field label="Channels" value={dvr.numberOfChannels} onChange={(v) => onChange('numberOfChannels', v)} placeholder="e.g., 16" />}
+          {show.activeCameras && <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />}
+          {show.resolution && (
+            <>
+              <SelectField label="Resolution" value={customResolution ? CUSTOM_VALUE : dvr.resolution} onChange={handleResolutionSelect} options={RESOLUTION_OPTIONS} />
+              {customResolution && (
+                <Field label="Custom Resolution" value={dvr.resolution} onChange={(v) => onChange('resolution', v)} placeholder="e.g., 1440x900" />
+              )}
+            </>
           )}
-          <SelectField label="Recording FPS" value={customFps ? CUSTOM_VALUE : dvr.recordingFps} onChange={handleFpsSelect} options={FPS_OPTIONS} />
-          {customFps && (
-            <Field label="Custom FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} placeholder="e.g., 12" />
+          {show.recordingFps && (
+            <>
+              <SelectField label="Recording FPS" value={customFps ? CUSTOM_VALUE : dvr.recordingFps} onChange={handleFpsSelect} options={FPS_OPTIONS} />
+              {customFps && (
+                <Field label="Custom FPS" value={dvr.recordingFps} onChange={(v) => onChange('recordingFps', v)} placeholder="e.g., 12" />
+              )}
+            </>
           )}
+          {show.recordingSchedule && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Recording Schedule</div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -122,23 +158,32 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
               })}
             </div>
           </div>
+          )}
         </SectionCard>
+        )}
 
+        {showRetention && (
         <SectionCard title="Retention">
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>First Recorded Date</div>
-          <div style={{ marginBottom: 14 }}>
-            <DateField value={dvr.firstRecordedDate} onChange={(v) => onChange('firstRecordedDate', v)} />
-          </div>
+          {show.firstRecordedDate && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>First Recorded Date</div>
+              <div style={{ marginBottom: 14 }}>
+                <DateField value={dvr.firstRecordedDate} onChange={(v) => onChange('firstRecordedDate', v)} />
+              </div>
+            </>
+          )}
 
           {retention.totalRetention != null ? (
             <>
+              {show.totalDvrRetention && (
               <div style={{ marginBottom: 14, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#7a9fc4', letterSpacing: 0.3 }}>Total DVR Retention</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{retention.totalRetention} days</div>
                 <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>From the earliest recorded date to today.</div>
               </div>
+              )}
 
-              {retention.scopes.length > 0 && (
+              {show.daysUntilOverwritten && retention.scopes.length > 0 && (
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#cdd9e6', marginBottom: 8 }}>Retention status by scope</div>
                   {retention.scopes.map((s) => {
@@ -159,11 +204,18 @@ export function DvrInfoScreen({ dvr, retention, onChange, onNext, onBack, onMenu
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', padding: '4px 2px' }}>
-              Pick the first recorded date to calculate total retention and per-scope overwrite countdowns.
+            // R-8: the placeholder names a control, so it may only appear while that control is
+            // on the screen. With First Recorded Date switched off in the Form Fields grid and
+            // either retention output left on, this card's whole body used to be an instruction
+            // to use a picker three clicks away in Settings.
+            <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', padding: '4px 2px' }} data-testid="dvr-retention-empty">
+              {show.firstRecordedDate
+                ? 'Pick the first recorded date to calculate total retention and per-scope overwrite countdowns.'
+                : 'Turn First Recorded Date back on in Settings → Form Fields to calculate retention.'}
             </div>
           )}
         </SectionCard>
+        )}
 
         <WizardNext label="Continue →" onClick={onNext} />
       </div>

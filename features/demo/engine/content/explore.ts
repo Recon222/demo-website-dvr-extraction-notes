@@ -20,7 +20,18 @@ import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
  * (pinned in `selectors.test.ts`).
  */
 export interface ExploreItem {
-  /** Stable slug (tests, future analytics). */
+  /**
+   * Stable slug (tests, future analytics) — and, since P7.3, LOAD-BEARING at runtime:
+   * `selectExploreStatus` drops a row whose id names a form step the visitor has switched off
+   * (`isKnownFormStep(item.id) && !resolveStepVisible(...)`).
+   *
+   * It stays a bare `string` because most rows are not steps at all (`newCase`, `mediaLibrary`,
+   * `map`, `settings`), but that means the join is by CONVENTION: a step row whose slug drifts
+   * from its `FormStepId` silently stops being filterable, and a non-step row that happens to
+   * collide with one would be filtered spuriously. Both directions are pinned by
+   * `explore-step-ids.test.ts` — every row whose `jumpTo` is a wizard screen must carry that
+   * screen's id here, and no other row may (review R-28).
+   */
   id: string
   /** Rail display name. */
   label: string
@@ -65,4 +76,9 @@ export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   // exactly as the map did. Listed last because it is the last tab; the run itself lands with
   // P5.3, but the row is honest today: the tab exists and does what its rail copy describes.
   { id: 'export', label: 'Export', covers: ['export'], jumpTo: 'export' },
+  // Settings (P7.1) — a modal, so it takes the `newCase`/`newLocation`/`import`/`mediaLibrary`
+  // treatment: route to a screen that carries its opener (the gear sits on the Cases AND
+  // Dashboard headers) and let the visitor press it. Listed LAST because it is chrome around
+  // the app rather than a step through it — the tabs stay the tail of the journey.
+  { id: 'settings', label: 'Settings', covers: ['settings'], jumpTo: 'cases' },
 ]

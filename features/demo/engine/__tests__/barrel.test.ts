@@ -43,6 +43,12 @@ describe('features/demo/engine barrel', () => {
     expect('SEED_CASE' in surface).toBe(false)
     expect('SEED_LOCATION' in surface).toBe(false)
     expect(demo.SAMPLE_REQUEST_DOC).toContain('PR25-0098213') // survives: the live-import fallback
-    expect(demo.FORENSIC.wizardScreens.length).toBe(10)
+    // P7.3 replaced the single hardcoded `FORENSIC` config with the real three-profile
+    // defaults; the legacy shape is gone from the barrel on purpose.
+    expect('FORENSIC' in surface).toBe(false)
+    expect('getProfile' in surface).toBe(false)
+    expect(demo.FORM_STEPS.length).toBe(12)
+    expect(demo.FORM_FIELDS.length).toBe(58)
+    expect(Object.values(demo.PROFILE_DEFAULTS.forensic.steps).every(Boolean)).toBe(true)
   })
 })

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 /**
@@ -24,6 +25,8 @@ export interface DashboardScreenProps {
   onOpenLocation(locationId: string): void
   /** Long-press / right-click / the ⋯ button on a case card — opens the Case Actions Sheet. */
   onCaseActions(caseId: string): void
+  /** The header gear (P7.1) — phone `MainHeader.onSettingsPress`, wired identically here. */
+  onSettings(): void
 }
 
 /**
@@ -40,12 +43,15 @@ export interface DashboardScreenProps {
  */
 
 /** The dashboard "Recent Activity" timeline: the 5 most recent cases, newest first. */
-export function DashboardScreen({ cases, onOpenLocation, onCaseActions }: DashboardScreenProps) {
+export function DashboardScreen({ cases, onOpenLocation, onCaseActions, onSettings }: DashboardScreenProps) {
   const recent = cases.slice(0, DASHBOARD_CASE_LIMIT)
   return (
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 16px' }}>
         <div style={{ fontSize: 30, fontWeight: 700, color: '#f0f4f8' }}>Dashboard</div>
+        {/* The phone's `MainHeader` puts the gear at the right of BOTH tab headers, with the
+            New Case folder beside it on Cases only (`MainHeader.tsx:49-74`). Same here. */}
+        <SettingsGearButton onClick={onSettings} />
       </div>
       <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 11, color: '#7a9fc4', textTransform: 'uppercase', letterSpacing: 1.5, margin: '8px 0 16px 42px' }}>
         Recent Activity

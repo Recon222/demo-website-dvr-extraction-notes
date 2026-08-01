@@ -1,5 +1,6 @@
 'use client'
 
+import type { FormFieldId } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 
@@ -14,13 +15,17 @@ export interface ArrivalDepartureScreenProps {
   onChange(index: number, patch: Partial<ArrivalRow>): void
   onAdd(): void
   onRemove(index: number): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
 }
 
 /** On-site visit arrival/departure pairs (optional chain-of-custody detail). */
-export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, onNext, onBack, onMenu }: ArrivalDepartureScreenProps) {
+export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFieldVisible, onNext, onBack, onMenu }: ArrivalDepartureScreenProps) {
+  const showArrival = isFieldVisible('arrival.arrivalDateTime')
+  const showDeparture = isFieldVisible('arrival.departureDateTime')
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Arrival / Departure" onBack={onBack} onMenu={onMenu} />
@@ -32,8 +37,8 @@ export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, onNe
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Visit {i + 1}</div>
               <button type="button" onClick={() => onRemove(i)} style={{ cursor: 'pointer', color: '#ff7a85', fontSize: 13, background: 'transparent', border: 'none' }}>Remove</button>
             </div>
-            <DateTimeField label="Arrival" value={a.arrival} onChange={(v) => onChange(i, { arrival: v })} />
-            <DateTimeField label="Departure" value={a.departure} onChange={(v) => onChange(i, { departure: v })} />
+            {showArrival && <DateTimeField label="Arrival" value={a.arrival} onChange={(v) => onChange(i, { arrival: v })} />}
+            {showDeparture && <DateTimeField label="Departure" value={a.departure} onChange={(v) => onChange(i, { departure: v })} />}
           </div>
         ))}
         <AddRowButton label="+ Add Visit" onClick={onAdd} />

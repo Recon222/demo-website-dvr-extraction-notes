@@ -1,5 +1,6 @@
 'use client'
 
+import type { FormFieldId } from '@/features/demo/engine/types'
 import { DateTimeField, Field, SectionCard, WizardHeader } from '@/features/demo/ui/screens/_shared'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
@@ -27,6 +28,8 @@ export interface CompletionScreenProps {
   dateTimeCompleted: string
   completedBy: string
   onChange(field: 'dateTimeCompleted' | 'completedBy', value: string): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
+  isFieldVisible(id: FormFieldId): boolean
   onPreviewPdf(): void
   onPreviewTimeOffsetPdf(): void
   /** Opens the export scope chooser (phone `setShowExportSheet(true)`, completion.tsx:554). */
@@ -101,13 +104,22 @@ export function CompletionScreen(p: CompletionScreenProps) {
           <Row label="Scopes / Cameras" value={`${p.summary.scopes} / ${p.summary.cameras}`} />
           <Row label="Export" value={p.summary.export} />
         </div>
+        {/* The card goes when both its entries do — the summary above and the export actions
+            below are chrome, not fields, and neither is switchable. Completion is a must-stay
+            screen precisely so those actions stay reachable. */}
+        {(p.isFieldVisible('completion.dateTimeCompleted') || p.isFieldVisible('completion.completedBy')) && (
         <SectionCard title="Completion Details">
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Date / Time Completed</div>
-            <DateTimeField label="Date / Time Completed" value={p.dateTimeCompleted} onChange={(v) => p.onChange('dateTimeCompleted', v)} />
-          </div>
-          <Field label="Completed By" value={p.completedBy} onChange={(v) => p.onChange('completedBy', v)} placeholder="Analyst name" />
+          {p.isFieldVisible('completion.dateTimeCompleted') && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Date / Time Completed</div>
+              <DateTimeField label="Date / Time Completed" value={p.dateTimeCompleted} onChange={(v) => p.onChange('dateTimeCompleted', v)} />
+            </div>
+          )}
+          {p.isFieldVisible('completion.completedBy') && (
+            <Field label="Completed By" value={p.completedBy} onChange={(v) => p.onChange('completedBy', v)} placeholder="Analyst name" />
+          )}
         </SectionCard>
+        )}
         <button type="button" onClick={p.onPreviewPdf} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 13, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10, width: '100%' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
           Preview / Export PDF

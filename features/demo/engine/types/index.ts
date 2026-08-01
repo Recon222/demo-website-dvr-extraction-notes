@@ -12,8 +12,54 @@
  */
 
 // ---- Profiles ---------------------------------------------------------------
-export const PROFILES = ['forensic', 'canvas'] as const
+/** The phone's three deployment profiles (`src/features/form-customization/types:15-17`).
+ *  `limited` joined the union with P7.3 — the demo previously modelled only the two the old
+ *  `getProfile` switch knew about. Persisted via `z.enum(PROFILES)`, so widening this tuple is
+ *  a persisted-shape change: it rode the SNAPSHOT_VERSION 6→7 bump. */
+export const PROFILES = ['forensic', 'limited', 'canvas'] as const
 export type Profile = (typeof PROFILES)[number]
+
+// ---- The analyst's own profile ----------------------------------------------
+/**
+ * Who the analyst IS — the demo's port of the phone's `UserProfile`
+ * (`src/features/settings/user-profile/types.ts:11-28`, P7.2, matrix row 86).
+ *
+ * NOT to be confused with `Profile` above: that one is the FORM profile (which wizard screens
+ * and fields are shown); this one is the person filling them in. The phone keeps them in
+ * separate stores for the same reason.
+ *
+ * All seven fields are strings with empty-string defaults (`DEFAULT_USER_PROFILE`), and the two
+ * `*Start` fields hold the demo's canonical `'YYYY-MM-DD HH:MM:SS'` wall-clock string (the phone
+ * stores an ISO date there) which `computeCareerDuration` renders as `"12 years, 3 months"`.
+ *
+ * **`name` is the only field with a consumer today**: it autofills Completion's `completedBy`,
+ * which is what carries it into the Case Notes PDF header. The other six are groundwork for the
+ * will-say document — kept whole, typed, persisted and exported from this barrel so that feature
+ * inherits a real profile rather than re-deriving one.
+ *
+ * **The phone's eighth field, `agencyLogoUri`, is deliberately absent** (matrix row 86: it
+ * "exists on the type as `[Future]`, has no UI, and must not be built"). On the phone it is a
+ * declared-but-unimplemented member that is never written and never read; modelling it here would
+ * add a key to the snapshot shape guard, the defaults and the save transform to guard an absence
+ * — the same three-dead-things argument that kept `devOnly` off `SettingsCategory` (deferred
+ * §80a). Adding it later is a v-bump and three lines.
+ */
+export interface UserProfile {
+  /** Analyst's full name — autofills "Completed By" on the Completion screen. */
+  name: string
+  /** Badge / ID number. */
+  badgeNumber: string
+  /** When the analyst started in the forensic-video / investigative field. [Will Say] */
+  timeInFieldStart: string
+  /** When the analyst started at their current agency. [Will Say] */
+  timeAtAgencyStart: string
+  /** Current employer / police service. [Will Say] */
+  currentAgency: string
+  /** Unit / section name (e.g. "Forensic Video Unit"). [Will Say] */
+  unitName: string
+  /** Free-form qualifications, education, certifications. [Will Say] */
+  qualifications: string
+}
 
 // ---- Screen identifiers -----------------------------------------------------
 /** The 10 in-drawer wizard screens, in Next/Back order. */
@@ -56,6 +102,11 @@ export type ModalId =
    *  overlay, whose visibility is DERIVED from the export machine (`resolveExportModalMode`)
    *  exactly as on the phone. */
   | 'exportScope'
+  /** The Settings sheet (P7.1 — phone `SettingsModal`), opened by the gear on the Home and
+   *  Cases headers. ONE id for the whole master/detail surface: which pane is open is local
+   *  state inside the sheet on both sides (phone `SettingsModal.tsx:53`), and it dies with the
+   *  sheet, so it is neither a modal id nor a snapshot field. */
+  | 'settings'
 
 /** The two flavours every duplicate action carries (phone `DuplicateMode`,
  *  `duplicate-location-service.ts:23`): submission info alone, or submission info plus a
@@ -379,8 +430,165 @@ export interface DrawerDef {
   icon: string
 }
 
-export interface ProfileConfig {
-  id: Profile
-  wizardScreens: WizardScreenId[]
-  hiddenFields: string[]
+// ---- Form customization (P7.3, matrix A2 / decision D9) ---------------------
+/**
+ * The two additive capture TOOLS the drawer's Media accordion opens. They are launchables,
+ * never linear nav targets — the same split the phone makes with `additive: true`
+ * (`config/wizard-steps.ts:109-125`).
+ *
+ * `ocr` is deliberately absent: it is a step INSIDE Time Offset, launched by a button on an
+ * always-on screen, not a toggleable tool (the phone's Decision OD-1, `types/index.ts:22-26`).
+ * `satisfies` pins membership in `LaunchableId`; the tuple's EXHAUSTIVENESS over
+ * `Exclude<LaunchableId, 'ocr'>` is pinned by test — a new launchable must be classified here
+ * or explicitly excluded, never silently omitted.
+ */
+export const ADDITIVE_FORM_STEP_IDS = ['mediaCapture', 'audioRecording'] as const satisfies readonly LaunchableId[]
+export type AdditiveFormStepId = (typeof ADDITIVE_FORM_STEP_IDS)[number]
+
+/** Everything the Form Fields settings pane can switch: the 10 wizard screens + the 2 tools. */
+export type FormStepId = WizardScreenId | AdditiveFormStepId
+
+/** `field-capable` → the row expands into per-field toggles; `screen-only` → a note. */
+export type FormStepClassification = 'field-capable' | 'screen-only'
+
+export interface FormStepDef {
+  readonly id: FormStepId
+  /** Row label. Linear steps take the drawer's label; the tools take the accordion's. */
+  readonly label: string
+  /** DERIVED from registry position — never hand-typed (the house ordering rule). */
+  readonly order: number
+  readonly classification: FormStepClassification
+  /** A drawer-accordion tool rather than a linear wizard step. */
+  readonly additive?: boolean
+}
+
+/**
+ * A step in the LINEAR flow — its id is narrowed to `WizardScreenId`, which is what makes
+ * `selectVisibleWizardScreens` a route-safe list without a cast (review R-22). The registry
+ * builds these from `DRAWER_DEFS`, so the narrowing is proved at construction rather than
+ * asserted afterwards; an additive tool cannot be typed into the linear list at all.
+ */
+export interface LinearFormStepDef extends FormStepDef {
+  readonly id: WizardScreenId
+  readonly additive?: false
+}
+
+/**
+ * Canonical id for every user-facing wizard field, VERBATIM from the phone's `FieldId` union
+ * (`src/features/form-customization/types/index.ts:44-112`) so the two grids are diffable
+ * id-for-id. The prefix is the phone's screen name, which is NOT always the demo's
+ * `WizardScreenId` (`scope.` = `requestedScope`, `dvr.` = `dvrInfo`, …) — `FormFieldDef.screen`
+ * carries the demo id, and `storeKey` carries the DEMO store key, which is where the two apps
+ * genuinely differ (`arrival.arrivalDateTime` → `arrival`, `camera.latitude` → `gps.lat`).
+ */
+export type FormFieldId =
+  // submission
+  | 'submission.occNumber'
+  | 'submission.requesterName'
+  | 'submission.requesterBadgeNumber'
+  | 'submission.requesterUnit'
+  | 'submission.requesterPhone'
+  | 'submission.requesterEmail'
+  | 'submission.businessName'
+  | 'submission.streetAddress'
+  | 'submission.city'
+  | 'submission.address'
+  | 'submission.latitude'
+  | 'submission.longitude'
+  | 'submission.coordinateAccuracy'
+  | 'submission.coordinateSource'
+  | 'submission.locationContact'
+  | 'submission.locationPhone'
+  // requestedScope (array: scopes)
+  | 'scope.startDateTime'
+  | 'scope.endDateTime'
+  | 'scope.isActualTime'
+  | 'scope.cameras'
+  // arrivalDeparture (array: arrivalDepartures)
+  | 'arrival.arrivalDateTime'
+  | 'arrival.departureDateTime'
+  // timeOffset
+  | 'timeoffset.dvrDateTime'
+  | 'timeoffset.actualDateTime'
+  | 'timeoffset.dvrAppliesDST'
+  // extractedScope (array: extractedScopes)
+  | 'extracted.startDateTime'
+  | 'extracted.endDateTime'
+  | 'extracted.cameras'
+  // dvrInfo
+  | 'dvr.dvrLocation'
+  | 'dvr.dvrTypeBrand'
+  | 'dvr.serialModelNumber'
+  | 'dvr.dvrUsername'
+  | 'dvr.dvrPassword'
+  | 'dvr.numberOfChannels'
+  | 'dvr.activeCameras'
+  | 'dvr.recordingSchedule'
+  | 'dvr.resolution'
+  | 'dvr.recordingFps'
+  | 'dvr.firstRecordedDate'
+  | 'dvr.totalDvrRetention'
+  | 'dvr.daysUntilOverwritten'
+  // cameras (array: cameras)
+  | 'camera.cameraName'
+  | 'camera.resolution'
+  | 'camera.recordingFps'
+  | 'camera.latitude'
+  | 'camera.longitude'
+  | 'camera.coordinateAccuracy'
+  | 'camera.coordinateSource'
+  | 'camera.coordinateCapturedAt'
+  // exportInfo
+  | 'export.exportMedia'
+  | 'export.fileType'
+  | 'export.sizeGb'
+  | 'export.mediaPlayerIncluded'
+  | 'export.mediaProvidedVia'
+  // notes
+  | 'notes.notesSections'
+  | 'notes.notesFreeText'
+  // completion
+  | 'completion.dateTimeCompleted'
+  | 'completion.completedBy'
+
+export interface FormFieldDef {
+  readonly id: FormFieldId
+  /** The DEMO screen that hosts the input. */
+  readonly screen: FormStepId
+  /** Row label — the phone's, verbatim. */
+  readonly label: string
+  /**
+   * The demo store key this field writes: a `LocationForm`/`DemoLocation` member for a flat
+   * field, or the entry-property name for an array screen. ABSENT for a field the demo
+   * derives at render time and stores nowhere (`dvr.daysUntilOverwritten`) — pinned by test,
+   * so "no store key" is a stated fact about two ids and not a hole anything can fall into.
+   */
+  readonly storeKey?: string
+  /** Fields sharing a group toggle atomically (the two GPS blocks). */
+  readonly group?: string
+}
+
+/**
+ * The visitor's sparse deviations from the active profile's defaults — only ids they actually
+ * changed. A later edit to `PROFILE_DEFAULTS` therefore still flows through for untouched ids.
+ */
+export interface FormOverrides {
+  readonly steps: Readonly<Partial<Record<FormStepId, boolean>>>
+  readonly fields: Readonly<Partial<Record<FormFieldId, boolean>>>
+}
+
+/**
+ * Everything the visibility resolver reads. `DemoState` satisfies it STRUCTURALLY, so every
+ * resolver call site can pass the store state directly — no wrapper object allocated per call,
+ * which is what keeps `useStore(store, (s) => resolveFieldVisible(id, s))` loop-safe.
+ */
+export interface FormVisibility {
+  readonly profile: Profile
+  readonly formOverrides: FormOverrides
+}
+
+/** Per-profile out-of-the-box visibility. TOTAL over both id spaces. */
+export interface ProfileDefaults {
+  readonly steps: Readonly<Record<FormStepId, boolean>>
+  readonly fields: Readonly<Record<FormFieldId, boolean>>
 }

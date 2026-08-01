@@ -59,6 +59,8 @@ describe('WizardDrawer', () => {
     onRecordAudio: vi.fn(),
     onOpenMediaLibrary: vi.fn(),
     saveStatus: null,
+    // Both capture tools in the flow — the forensic default. The P7.3 gating has its own arm.
+    mediaTools: { mediaCapture: true, audioRecording: true },
   })
 
   it('renders nothing when closed', () => {

@@ -22,7 +22,7 @@ const card = (over: Partial<CaseCard> = {}): CaseCard => ({
   ...over,
 })
 
-const base = { onOpenLocation: vi.fn(), onCaseActions: vi.fn() }
+const base = { onOpenLocation: vi.fn(), onCaseActions: vi.fn(), onSettings: vi.fn() }
 
 afterEach(() => {
   vi.useRealTimers()
@@ -128,7 +128,7 @@ describe('DashboardScreen — Case Actions entry points (the phone long-press)',
     vi.useFakeTimers()
     const onOpenLocation = vi.fn()
     const onCaseActions = vi.fn()
-    render(<DashboardScreen onOpenLocation={onOpenLocation} onCaseActions={onCaseActions} cases={[card({ locations: [loc(1), loc(2)] })]} />)
+    render(<DashboardScreen {...base} onOpenLocation={onOpenLocation} onCaseActions={onCaseActions} cases={[card({ locations: [loc(1), loc(2)] })]} />)
     const pill = screen.getByText('Location 1')
     fireEvent.pointerDown(pill, { button: 0 })
     act(() => void vi.advanceTimersByTime(1000))

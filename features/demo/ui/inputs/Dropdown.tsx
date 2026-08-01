@@ -15,6 +15,19 @@ export interface DropdownProps {
    *  '1920x1080 (1080p)'). */
   options: ReadonlyArray<string | PickerOption>
   placeholder?: string
+  /**
+   * Names the bottom sheet and its menu WITHOUT rendering the visible label line (R-9).
+   *
+   * The settings panes deliberately omit `label` — phone parity, since every phone settings
+   * `Picker` leaves its own `label` prop unset and renders the label as a separate line above.
+   * `PaneGroup`'s `role="group"` restores the TRIGGER's context, but a group boundary cannot
+   * reach the sheet that opens on top of it: both the dialog and the menu collapsed to the
+   * placeholder literal, so three pickers in one scroll all announced "Select an option,
+   * dialog" with nothing identifying which setting was being changed.
+   *
+   * `label` still wins when present — the wizard callers are unaffected.
+   */
+  a11yLabel?: string
 }
 
 /**
@@ -29,7 +42,10 @@ export function Dropdown({
   onChange,
   options,
   placeholder = 'Select an option',
+  a11yLabel,
 }: DropdownProps) {
+  /** Visible label first, then the invisible one, then the historic literal. */
+  const sheetName = label || a11yLabel || 'Select an option'
   const [open, setOpen] = useState(false)
   // Accessible name = label + current selection (review R-10): an aria-label would
   // override the trigger's text content and hide the selection — including the
@@ -109,8 +125,8 @@ export function Dropdown({
 
       {/* Bottom sheet (shared chrome with the date/time pickers) */}
       {open && (
-        <PickerSheet title={label || 'Select an option'} onClose={() => setOpen(false)}>
-          <div role="menu" aria-label={label || 'Select an option'}>
+        <PickerSheet title={sheetName} onClose={() => setOpen(false)}>
+          <div role="menu" aria-label={sheetName}>
             {opts.map((o) => {
               const selected = o.value === value
               return (

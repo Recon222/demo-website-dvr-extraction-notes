@@ -74,6 +74,21 @@ export interface LocationFieldsProps {
   values: LocationFieldValues
   /** Partial patch — mirrors the phone's `onChange(updates: Partial<LocationFormValues>)`. */
   onChange(updates: Partial<LocationFieldValues>): void
+  /**
+   * Whether the coordinate group — the capture control, its lookup notice, the coordinate card,
+   * AND the coordinate half of an address pick — is part of this deployment's form (P7.3, the
+   * `submission.*` coordinate group). The three text fields above it are always-on, so they have
+   * no switch of their own.
+   *
+   * The write half is not optional garnish (P7 review R-2b, owner-ruled): with the group off,
+   * `onPick` must not stamp `lat`/`lng`/`accuracyM`/`coordinateSource`, or the visitor carries
+   * coordinates they cannot see, verify or clear into the Map pin and the exported case map.
+   * Only NEW stamping is suppressed — anything captured before the switch was flipped stays.
+   *
+   * Optional and defaulting to ON: the New Location modal mounts this component too, and a
+   * create-time capture is not a wizard field the profile grid governs.
+   */
+  showGps?: boolean
   /** Test seams. */
   deps?: UseGpsCaptureOptions['deps']
   reverseGeocode?: typeof defaultReverseGeocode
@@ -117,7 +132,7 @@ const LOOKUP_NOTICE_COPY: Record<Exclude<LookupNotice, 'none'>, string> = {
   partial: REVERSE_GEOCODE_PARTIAL,
 }
 
-export function LocationFields({ locationId, values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
+export function LocationFields({ locationId, values, onChange, showGps = true, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
   // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
   // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
   // settings store; the demo has no settings surface until P7, so it lives here for now.
@@ -211,10 +226,16 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
           // picked on. A pick that resolves after a switch writes street/city AND coordinates
           // stamped `'geocoded'`; dropping it is the same call the geocode path makes.
           if (!canWriteFor(locationId)) return
+          // P7 R-2(b): the coordinate half of the pick is governed by the SAME switch that
+          // governs the coordinate display. Street and city are always-on and always write; the
+          // coordinates do not, because a switch that hides a value while the app keeps writing
+          // it invisibly is the dishonesty the gate was invented to remove, one level down —
+          // and these reach the Map pin and the exported case map. Coordinates captured BEFORE
+          // the group was hidden stay put: that is the pane footnote's "already entered" case.
           onChange({
             streetAddress: p.streetAddress,
             city: p.city,
-            ...(p.coordinates
+            ...(showGps && p.coordinates
               ? { lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM, coordinateSource: 'geocoded' as const }
               : {}),
           })
@@ -229,6 +250,8 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
         onChange={(v) => onChange({ city: v })}
         placeholder={LOCATION_FIELD_LABELS.cityPlaceholder}
       />
+      {showGps && (
+      <>
       <GpsCaptureControl
         key={locationId ?? '—'}
         // Remount on a location switch so `useGpsCapture`'s unmount abort fires for an
@@ -251,6 +274,8 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
           accuracyM={values.accuracyM}
           source={values.coordinateSource}
         />
+      )}
+      </>
       )}
     </>
   )

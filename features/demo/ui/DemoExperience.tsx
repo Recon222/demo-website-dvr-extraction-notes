@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, isTabOnlyView, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, isTabOnlyView, isTabView, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -67,6 +67,14 @@ import {
   type ExportSelectableCase,
   type ExportSelection,
 } from '@/features/demo/engine/logic/export'
+import { SettingsModal } from '@/features/demo/ui/screens/settings/SettingsModal'
+import { toSettingsSections } from '@/features/demo/ui/screens/settings/settingsData'
+import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
+import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
+import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
+import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
+import { nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
+import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
@@ -126,7 +134,7 @@ import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
-import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
+import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus, selectMediaToolsVisible } from '@/features/demo/engine/store/selectors'
 import { loadSnapshot, persistDemoStore, type PersistenceHandle, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
@@ -144,9 +152,9 @@ import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
-import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import { describeSaveStatus, type SaveStateKind, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, FormFieldId, FormStepId, MediaItem, MediaKind, NoteSectionId, OcrProof, Profile, ScopeEntry, UserProfile } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -430,6 +438,15 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCaseId = useStore(store, (s) => s.currentCaseId)
   const drawerOpen = useStore(store, (s) => s.drawerOpen)
   const capture = useStore(store, (s) => s.capture)
+  /** The active form profile — the Settings "Form Fields" row's preview, and half of the
+   *  visibility resolver's input (P7.3). */
+  const profile = useStore(store, (s) => s.profile)
+  // P7.3: subscribed so a Settings toggle re-renders the bridge — the wizard's visibility
+  // closures, the drawer, the rail checklist and the pane all read through it.
+  const formOverrides = useStore(store, (s) => s.formOverrides)
+  /** The ANALYST's profile (P7.2) — the User Profile pane, the master row's preview, and the
+   *  Completion screen's `completedBy` autofill. */
+  const userProfile = useStore(store, (s) => s.userProfile)
 
   // Screen-transition direction: computed once per `view` change and held stable through the
   // animation (mutating refs during render = the "previous prop" pattern — no effect, no re-render,
@@ -600,14 +617,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
     (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
     NARRATION[currentChapter]
-  // The manifest recomputes when the visit record, the active view, or the open modal
-  // changes — all three are selectExploreStatus inputs (read via store.getState()), and
-  // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
-  // stale on modal close (only `modal` flips then; visited/view are reference-unchanged).
+  // The manifest recomputes when the visit record, the active view, the open modal, or the form
+  // VISIBILITY changes — all five are selectExploreStatus inputs (read via store.getState()).
+  // The anchor is modal → view → chapter, so `modal` must be a dep or the active row goes stale
+  // on modal close (only `modal` flips then; visited/view are reference-unchanged). `profile`
+  // and `formOverrides` joined the selector with P7.3, which filters out rows for steps the
+  // visitor has switched off (`selectors.ts`'s `resolveStepVisible` call): without them here,
+  // toggling Cameras off with the Settings sheet OPEN left a Cameras row and an inflated
+  // denominator on the rail beside the pane that had just removed it (review R-4), self-healing
+  // only when closing the sheet happened to flip `modal`.
   const explore = useMemo(
     () => selectExploreStatus(store.getState()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal ARE the selector's inputs, read through getState
-    [store, visited, view, modal],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal/profile/formOverrides ARE the selector's inputs, read through getState
+    [store, visited, view, modal, profile, formOverrides],
   )
   // Exit flow: leaving with unlit manifest rows opens the before-you-go dialog;
   // all-explored lets the link navigate normally. Dialog state is UI-only.
@@ -620,6 +642,108 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+
+  // ---- Settings (P7.1, matrix rows 81–84 + 87–93 + A1, decision D6) -----------------------
+  /**
+   * The settings record lives HERE, in bridge state, and nowhere else.
+   *
+   * Not in the store and not in the sessionStorage snapshot (deferred §80c): every value is
+   * cosmetic by D6's ruling — real, typed, changeable, and read by nothing downstream — and
+   * `SNAPSHOT_VERSION`'s three compile-time devices exist to move when the persisted SHAPE
+   * genuinely changes, not when a stub gains a field. It resets with the tab, alongside the
+   * other ephemeral bridge state above.
+   */
+  const [settings, setSettings] = useState<DemoSettings>(DEFAULT_SETTINGS)
+  const patchSettings = useCallback(
+    (patch: Partial<DemoSettings>) => setSettings((s) => ({ ...s, ...patch })),
+    [],
+  )
+  const openSettings = useCallback(() => store.getState().openModal('settings'), [store])
+  /** Save from the profile editor (P7.2) — the whole trimmed record, committed in one write. */
+  const saveUserProfile = useCallback(
+    (next: UserProfile) => store.getState().updateUserProfile(next),
+    [store],
+  )
+  /**
+   * What is this tab's persistence layer doing? Sampled when the Settings sheet OPENS (review
+   * R-3; widened from a boolean to the KIND by FD-7, so the quota case gets its own sentence
+   * instead of being told the browser stores nothing).
+   *
+   * The User Profile pane's opening sentence promises refresh survival, and `persistence.ts`'s
+   * `isLive()` doc makes gating such a sentence on the handle a rule, not a preference. Sampled
+   * exactly like the drawer's save-status line — `flush()` first so a write still inside its
+   * 250 ms debounce lands before we describe it, then read — and re-sampled on every open, so a
+   * write failure that revoked the promise mid-session demotes the very next visit to the pane.
+   * A missing handle counts as `unavailable`: never assume a wired handle.
+   */
+  const [profileSaveState, setProfileSaveState] = useState<SaveStateKind>('unavailable')
+  useEffect(() => {
+    if (modal !== 'settings') return
+    const handle = persistenceRef.current
+    handle?.flush()
+    setProfileSaveState(handle?.saveState().kind ?? 'unavailable')
+  }, [modal])
+
+  // ---- Form customization (P7.3, matrix A2, decision D9) ----------------------------------
+  /**
+   * The pane and the wizard both read visibility through these two — the resolver, bound to the
+   * live state. `formOverrides` is subscribed above so a toggle re-renders the bridge; the
+   * closures then read `store.getState()`, which keeps them free of the object-returning
+   * selector trap while still being recreated on every change that matters.
+   */
+  const isFormStepVisible = useCallback(
+    (id: FormStepId) => resolveStepVisible(id, store.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profile/formOverrides ARE the inputs, read through getState
+    [store, profile, formOverrides],
+  )
+  const isFormFieldVisible = useCallback(
+    (id: FormFieldId) => resolveFieldVisible(id, store.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profile/formOverrides ARE the inputs, read through getState
+    [store, profile, formOverrides],
+  )
+  /**
+   * Applying a profile CLEARS the visitor's overrides, so it confirms first when there are any —
+   * the phone's own rule (`ProfilePicker.tsx:41-49`), through this app's blocking primitive
+   * instead of `Alert.alert`. Re-picking the active profile is a no-op on both sides.
+   */
+  const applyFormProfile = useCallback(
+    (next: Profile) => {
+      const st = store.getState()
+      if (next === st.profile) return
+      const apply = () => {
+        store.getState().applyFormProfile(next)
+        setAlert(null)
+      }
+      const dirty =
+        Object.keys(st.formOverrides.steps).length > 0 || Object.keys(st.formOverrides.fields).length > 0
+      if (!dirty) {
+        apply()
+        return
+      }
+      setAlert({
+        title: 'Apply profile?',
+        message: `Switching to ${PROFILE_LABELS[next]} resets your custom field choices to that profile's defaults.`,
+        actions: [
+          { label: 'Cancel', style: 'cancel', onPress: () => setAlert(null) },
+          { label: 'Apply', style: 'destructive', onPress: apply },
+        ],
+      })
+    },
+    [store],
+  )
+  const settingsSections = useMemo(
+    () =>
+      toSettingsSections({
+        settings,
+        // P7.2: the live name. `settingsPreview` trims it and falls back to the phone's own
+        // `Not set` literal when it is empty, so the row needs nothing else from here.
+        profileName: userProfile.name,
+        // P7.3: the live form profile, now changeable from the pane this row opens. The PROFILE,
+        // not a label — `settingsPreview` owns the `FORM_PROFILE_SHORT` mapping (R-21).
+        formProfile: profile,
+      }),
+    [settings, profile, userProfile.name],
+  )
 
   // ---- Export tab (P5.2, matrix rows 7/24) ------------------------------------------------
   /**
@@ -707,7 +831,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     [mapViewerCase, locations, mapViewerCaseId],
   )
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
-  const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
+  // Visibility-aware (P7.3): a hidden field is not something the visitor can still fill, so it
+  // must not hold a dot amber forever. The map pin deliberately does NOT pass this — see the
+  // selector's note.
+  const drawerStatus = selectDrawerStatus(currentLocation, store.getState()) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   // ---- DST advisory (P2.5) ---------------------------------------------------------------
@@ -876,6 +1003,61 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     if (view === 'notes') store.getState().reconcileNotes()
   }, [store, view, currentLocationId])
 
+  /**
+   * Autofill Completion's **Completed By** from the analyst profile (P7.2) — the phone's effect,
+   * semantics included (`app/(form)/completion.tsx:127-134`):
+   *
+   * ```
+   * useEffect(() => {
+   *   if (!hydrated) return
+   *   if (!completedBy && profileName.trim()) updateField('completedBy', profileName.trim())
+   * }, [hydrated])                    // ← deps: hydration ALONE
+   * ```
+   *
+   * Three properties follow from that dependency list, and this port keeps all three:
+   *
+   * 1. **Once per arrival**, not continuously — `view`/`currentLocationId` here stand in for the
+   *    phone's screen mount (the bridge outlives navigation, so the screen's own remount is not
+   *    available as a trigger; this is the `reconcileNotes` precedent directly above).
+   * 2. **A typed value is never overwritten.** The field is only filled when it is EMPTY, and
+   *    neither `completedBy` nor the profile name is a dependency, so typing over the autofilled
+   *    name — or clearing it — survives for as long as the screen stays open. On the phone the
+   *    same guard also protects a value loaded from SQLite. What that does NOT mean (review A1,
+   *    deferred §85a): a field left empty, including one the visitor deliberately cleared, is
+   *    filled again on the NEXT arrival — the phone's effect re-runs on every screen mount, so
+   *    this is parity, not a leak. "Survives" is scoped to the open screen.
+   * 3. **Editing the profile later does not rewrite finished locations** (phone
+   *    `user-profile/README.md`, workflow step 4): a location that already carries a name keeps
+   *    it, whatever the profile says afterwards.
+   *
+   * There is no hydration gate to port: the phone needs one because AsyncStorage rehydrates
+   * asynchronously and an early read would autofill from empty defaults; the demo's snapshot is
+   * applied synchronously at store creation, so the profile is already whatever it will be by the
+   * time any view can be 'completion'.
+   *
+   * From here the value follows the phone's own path: the store → the Case Notes PDF header.
+   *
+   * **The visibility guard is NOT part of that dependency contract** (review R-1b). It reads the
+   * resolver at fill time, changes nothing about WHEN the effect runs, and exists because a write
+   * must not outlive the visibility decision that hid its field: with `Completed By` switched off
+   * in the Form Fields grid, the input is not rendered, so a value written here could not be seen,
+   * edited or cleared — yet it printed in the Case Notes document's Completion Information section
+   * and turned the drawer dot green (`counted([])` ⇒ `'complete'`). The pane's own footnote covers
+   * data "already entered"; this is data the app would CREATE after being told not to. The phone
+   * has the same hole (`completion.tsx:127-133` never consults its `showCompletedBy`, resolved two
+   * lines away at `:58-59`) — filed as PHONE-BUG-LEDGER item 20.
+   */
+  useEffect(() => {
+    if (view !== 'completion') return
+    const s = store.getState()
+    const location = s.locations.find((l) => l.id === s.currentLocationId)
+    if (!location || location.form.completedBy) return
+    if (!resolveFieldVisible('completion.completedBy', s)) return
+    const name = s.userProfile.name.trim()
+    if (!name) return
+    s.updateField('form.completedBy', name)
+  }, [store, view, currentLocationId])
+
   // Notes wiring (R-14): stable callback identities + memoised derivations, so
   // SectionBlock's memo actually holds — the store ref is stable, so these bind once.
   const notesMeta = useMemo(() => buildNotesSectionMeta(currentLocation), [currentLocation])
@@ -1027,12 +1209,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     listEditHandlers(list, (next) => store.getState().updateField(path, next))
 
   // ---- rail / chapter nav ----
+  // Derived from the VISIBLE step set (P7.3): a screen the visitor's profile switched off is
+  // skipped by Continue and by Back, so the wizard's spine and the drawer's list are the same
+  // list. The pre-wizard chapters are never filterable, so Back from the first visible step
+  // still lands on Cases.
   const onNext = () => {
-    const n = nextChapter(currentChapter)
+    const n = nextVisibleChapter(currentChapter, store.getState())
     if (n) store.getState().setView(n)
   }
   const onPrev = () => {
-    const p = prevChapter(currentChapter)
+    const p = prevVisibleChapter(currentChapter, store.getState())
     if (p) store.getState().setView(p)
   }
 
@@ -2241,10 +2427,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'splash':
         return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
       case 'dashboard':
-        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} />
+        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} onSettings={openSettings} />
       case 'cases':
         return (
           <CasesScreen
+            onSettings={openSettings}
             cases={caseCards}
             expandedId={expandedCaseId}
             onToggle={(id) => setExpandedCaseId((prev) => (prev === id ? null : id))}
@@ -2275,6 +2462,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // address pick both arrive here already stamped with their own source (P2.3).
         return (
           <SubmissionScreen
+            isFieldVisible={isFormFieldVisible}
             occNumber={currentCase?.caseNumber ?? ''}
             locationId={currentLocation?.id}
             fields={fields}
@@ -2292,6 +2480,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const sc = formList(scopes, 'form.scopes')
         return (
           <RequestedScopeScreen
+            isFieldVisible={isFormFieldVisible}
             scopes={scopes}
             onChange={sc.change}
             onAdd={() => sc.add(blankScope())}
@@ -2307,6 +2496,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const v = formList(visits, 'form.arrivalDepartures')
         return (
           <ArrivalDepartureScreen
+            isFieldVisible={isFormFieldVisible}
             visits={visits}
             onChange={v.change}
             onAdd={() => v.add(blankVisit())}
@@ -2385,12 +2575,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')
         return (
           <CamerasScreen
+            isFieldVisible={isFormFieldVisible}
             cameras={cams}
             onChange={cam.change}
             onAdd={() => cam.add(blankCamera())}
@@ -2411,6 +2602,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'exportInfo':
         return (
           <ExportInfoScreen
+            isFieldVisible={isFormFieldVisible}
             data={currentLocation?.form.export ?? EMPTY_FORM.export}
             onChange={(f, v) => store.getState().updateField(`form.export.${f}`, v)}
             onToggleMediaPlayer={() => store.getState().updateField('form.export.mediaPlayerIncluded', !currentLocation?.form.export.mediaPlayerIncluded)}
@@ -2453,6 +2645,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         }
         return (
           <CompletionScreen
+            isFieldVisible={isFormFieldVisible}
             summary={summary}
             // Truthful, LOCATION-scoped gate (R-1): the confirmation shows only for the
             // location that was actually completed — the case-level status only colors the
@@ -2565,6 +2758,38 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onSelect={selectExportScope}
             onCancel={() => store.getState().closeModal()}
             disabled={exportBusy}
+          />
+        )
+      case 'settings':
+        // The whole Settings surface behind ONE modal id (P7.1) — which pane is open is local
+        // state inside the sheet, exactly as on the phone.
+        return (
+          <SettingsModal
+            sections={settingsSections}
+            // The bridge is the pane resolver so the shell never has to know about the store.
+            // Both store-connected panes branch HERE, before the fall-through to the default
+            // map: their data is the STORE's, not the settings record's. `renderSettingsPane`
+            // takes `StubPaneId` and no longer ACCEPTS a bridge-owned id, so a branch that goes
+            // missing is a compile error rather than a pane rendered without its data.
+            // `SettingsPaneProps` stays as it is — it is the eight settings-backed panes'
+            // contract, not a base class for these two.
+            renderPane={(id) =>
+              id === 'user-profile' ? (
+                <UserProfilePane profile={userProfile} onSave={saveUserProfile} saveState={profileSaveState} />
+              ) : id === 'form-customization' ? (
+                <FormFieldsPane
+                  profile={profile}
+                  isStepVisible={isFormStepVisible}
+                  isFieldVisible={isFormFieldVisible}
+                  onApplyProfile={applyFormProfile}
+                  onToggleStep={(stepId, on) => store.getState().setFormStepVisible(stepId, on)}
+                  onToggleField={(fieldId, on) => store.getState().setFormFieldVisible(fieldId, on)}
+                />
+              ) : (
+                renderSettingsPane(id, { settings, onChange: patchSettings })
+              )
+            }
+            onClose={() => store.getState().closeModal()}
           />
         )
       case 'editIncident':
@@ -2736,6 +2961,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onRecordAudio={launchAudioRecording}
             onOpenMediaLibrary={openMediaLibrary}
             saveStatus={saveStatus}
+            mediaTools={selectMediaToolsVisible(store.getState())}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
               the demo has no always-mounted screen to hold it, so the phone's caseData=null

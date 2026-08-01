@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { WizardScreenId } from '@/features/demo/engine/types'
+import type { AdditiveFormStepId, WizardScreenId } from '@/features/demo/engine/types'
+import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -41,6 +43,16 @@ export interface WizardDrawerProps {
    * there would be a claim about a state nobody has looked at.
    */
   saveStatus: SaveStatusView | null
+  /**
+   * Which capture TOOLS the visitor's form profile leaves in the accordion (P7.3). The phone
+   * gates the same two rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`); the
+   * Media Library row is ungated on both sides — it browses what is already captured, so it
+   * has nothing to do with which capture screens are in the flow.
+   *
+   * IMPORTED, not re-declared (R-20): the key space is the additive-tool id space, so a third
+   * tool cannot be added to the registry and silently never reach this accordion.
+   */
+  mediaTools: Readonly<Record<AdditiveFormStepId, boolean>>
 }
 
 const itemButton: CSSProperties = {
@@ -69,13 +81,6 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
 }
 
 // ---- Footer chrome --------------------------------------------------------
-
-/**
- * The app version the demo mirrors — the phone's `app.config.js:11` (`version: '1.0.0'`),
- * which is what its own drawer footer renders via `Constants.expoConfig?.version`. A literal
- * here rather than a read: the demo is a separate deployable and has no Expo config to ask.
- */
-const APP_VERSION = '1.0.0'
 
 /**
  * Save-status tone. Redundant with the wording (the text already says which state it is), so
@@ -157,6 +162,53 @@ interface MediaRow {
   onSelect(): void
 }
 
+/** The accordion's three `onSelect` handlers, passed as one object so `TOOL_ROWS` stays a
+ *  declaration rather than a closure over component scope. */
+interface MediaHandlers {
+  onCaptureMedia(): void
+  onRecordAudio(): void
+  onOpenMediaLibrary(): void
+}
+
+/**
+ * One row builder per additive capture tool — a TOTAL `Record` over `AdditiveFormStepId`
+ * (fix-delta FD-1).
+ *
+ * R-20 keyed the visibility prop by this id space but left the drawer hand-building two
+ * independent `...(mediaTools.x ? [row] : [])` spreads. Reading two of three keys off a total
+ * record is not a TypeScript error — there is no unread-key check — so the drawer end had no
+ * gate at all: a third tool compiled clean here and silently never reached the accordion, which
+ * is §82b's exact phone defect (a grid switch that moves nothing). A total record makes "wired
+ * at the drawer" a compile fact, and it is why the row defs stay in this file: they carry JSX,
+ * which `ADDITIVE_STEP_LABELS`' own comment says cannot live in the engine.
+ */
+const TOOL_ROWS: Record<AdditiveFormStepId, (h: MediaHandlers) => MediaRow> = {
+  mediaCapture: (h) => ({
+    key: 'capture',
+    label: 'Capture Media',
+    ariaLabel: 'Open camera to capture media',
+    icon: <CameraIcon />,
+    onSelect: h.onCaptureMedia,
+  }),
+  audioRecording: (h) => ({
+    key: 'audio',
+    label: 'Record Audio',
+    ariaLabel: 'Record audio note',
+    icon: <MicIcon />,
+    onSelect: h.onRecordAudio,
+  }),
+}
+
+/** The library row is UNGATED on both sides — it browses what is already captured, so it has
+ *  nothing to do with which capture screens are in the flow. Appended after the gated tools. */
+const libraryRow = (h: MediaHandlers): MediaRow => ({
+  key: 'library',
+  label: 'Media Library',
+  ariaLabel: 'Open media library',
+  icon: <FolderOpenIcon />,
+  onSelect: h.onOpenMediaLibrary,
+})
+
 /**
  * The drawer's Media section (matrix row 80's missing half).
  *
@@ -228,8 +280,10 @@ export function WizardDrawer({
   onRecordAudio,
   onOpenMediaLibrary,
   saveStatus,
+  mediaTools,
 }: WizardDrawerProps) {
   const reduce = useReducedMotion()
+  const mediaHandlers: MediaHandlers = { onCaptureMedia, onRecordAudio, onOpenMediaLibrary }
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -328,9 +382,9 @@ export function WizardDrawer({
               {/* Appended AFTER the step list, exactly like the phone (CustomDrawerContent.tsx:265). */}
               <MediaAccordion
                 rows={[
-                  { key: 'capture', label: 'Capture Media', ariaLabel: 'Open camera to capture media', icon: <CameraIcon />, onSelect: onCaptureMedia },
-                  { key: 'audio', label: 'Record Audio', ariaLabel: 'Record audio note', icon: <MicIcon />, onSelect: onRecordAudio },
-                  { key: 'library', label: 'Media Library', ariaLabel: 'Open media library', icon: <FolderOpenIcon />, onSelect: onOpenMediaLibrary },
+                  // Derived from the id space, in registry order — never hand-listed (FD-1).
+                  ...ADDITIVE_FORM_STEP_IDS.filter((id) => mediaTools[id]).map((id) => TOOL_ROWS[id](mediaHandlers)),
+                  libraryRow(mediaHandlers),
                 ]}
               />
             </div>
@@ -341,12 +395,14 @@ export function WizardDrawer({
                   {saveStatus.text}
                 </div>
               )}
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>DVR Extraction Notes</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>{APP_NAME}</div>
               {/* The phone renders `v{Constants.expoConfig?.version}` here — this is the same
                   chrome, labelled for what the visitor is actually looking at. The version is
                   the app's (phone `app.config.js:11`), and this is its demo, not a build of it;
-                  a bare "v1.0.0" in a browser would imply otherwise. */}
-              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>Interactive demo · v{APP_VERSION}</div>
+                  a bare "v1.0.0" in a browser would imply otherwise. Both literals moved to
+                  `engine/content/app-info.ts` at P7.1, when the About pane became a second
+                  reader — see that module's note. */}
+              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>{DEMO_VERSION_LINE}</div>
             </div>
           </motion.div>
         )}

@@ -26,6 +26,10 @@ const MODAL_ID_SET: Record<ModalId, true> = {
   // Offset — and the module note above says why that shape gets no row of its own. The Export
   // TAB is a destination and will bring its own row (P5.2).
   exportScope: true,
+  // LISTED (P7.1): unlike `exportScope`, Settings is a destination in its own right — eleven
+  // categories behind a gear on two headers — so it earns a row, on the same terms as the other
+  // modal rows above.
+  settings: true,
 }
 const KNOWN_COVER_IDS = new Set<string>([...CHAPTERS, ...LAUNCHABLE, ...TAB_VIEWS, ...Object.keys(MODAL_ID_SET)])
 
@@ -87,14 +91,24 @@ describe('EXPLORE_ITEMS registry', () => {
     expect(ids.slice(0, 5)).toEqual(['dashboard', 'cases', 'newCase', 'newLocation', 'import'])
   })
 
-  it('lists the three media surfaces after the wizard steps, then the tab-only destinations (§63g)', () => {
+  it('lists the three media surfaces after the wizard steps, then the tab-only destinations, then Settings (§63g, P7.1)', () => {
     const ids = EXPLORE_ITEMS.map((i) => i.id)
     // Positional, because the numbering is: the accordion sits after the step list in the
-    // drawer, so it sits after the step rows here. Map and Export close the list — the two
-    // tabs that are not also chapters, in tab-bar order (P5.2).
-    expect(ids.slice(-5)).toEqual(['mediaCapture', 'audioRecording', 'mediaLibrary', 'map', 'export'])
+    // drawer, so it sits after the step rows here. Map and Export follow — the two tabs that
+    // are not also chapters, in tab-bar order (P5.2) — and Settings closes the list, being
+    // chrome AROUND the app rather than a step through it (P7.1).
+    expect(ids.slice(-6)).toEqual(['mediaCapture', 'audioRecording', 'mediaLibrary', 'map', 'export', 'settings'])
     // …and after the LAST wizard screen specifically, not merely somewhere later.
     expect(ids.indexOf('mediaCapture')).toBe(ids.indexOf(WIZARD_SCREENS[WIZARD_SCREENS.length - 1]) + 1)
+  })
+
+  it('routes the Settings row to a screen that carries its opener', () => {
+    // The gear sits on the Cases AND Dashboard headers; the row jumps to Cases, the same
+    // treatment the three case-management modal rows get.
+    const settings = EXPLORE_ITEMS.find((i) => i.id === 'settings')
+    expect(settings?.label).toBe('Settings')
+    expect(settings?.covers).toEqual(['settings'])
+    expect(settings?.jumpTo).toBe('cases')
   })
 
   it('labels the media rows with the drawer accordion’s own visible text', () => {

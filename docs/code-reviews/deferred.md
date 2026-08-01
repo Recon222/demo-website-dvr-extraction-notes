@@ -5114,3 +5114,890 @@ merged head it no longer does — and that is NOT a weak pin. R-4's structural s
 after R-9) removed the pin/camera coupling the mutation needed; the pin still reddens when that
 coupling is restored. Recorded so nobody re-derives it from the commit message and concludes the
 test is hollow.
+
+---
+
+## 80. P7.1 — Settings shell + stub panes: rulings, residuals, and one stale spec
+
+**Source:** parity package P7.1 (`parity/p7-shell`) — master plan §5 P7.1, matrix rows 81–84 +
+87–93 + A1, owner decision D6 ("full Settings replica; every pane built visually, honest stub
+behavior everywhere except User Profile and Form Customization").
+
+### 80a. RECORDED — the Developer pane (row 94) is absent, and there is no `devOnly` member
+
+**What:** the phone's eleventh category, `Developer` (`settings-catalog.tsx:260-268`), is not in
+the demo catalog. Nor is the mechanism that hides it: `SettingsCategory` has no `devOnly` and no
+`badge` field, and `getVisibleCategories()`'s `__DEV__` filter has no port.
+
+**Why:** the row is `devOnly: true` on the phone, so it exists in no build a user can install —
+the demo would be replicating a surface its source of truth never ships. The owner ruled it
+permanently out (matrix §7 D6: "Row 94 (Developer, `__DEV__`-only) stays out"), and plan §5 P7.1
+asks for the omission to be documented, which this is. Modelling the field anyway would leave a
+type member with exactly one possible value, one filter with nothing to filter, and a badge slot
+in the nav bar with no producer — three dead things guarding an absence.
+
+**Trigger:** none. This is a closed decision, recorded so a future reader does not "fix" the
+missing row or re-add `devOnly` to make the catalog "match".
+
+### 80b. LEDGERED — the Location pane does not drive the real GPS capture
+
+**What:** `gpsAccuracyMode` / `gpsTimeout` / `showAccuracyWarning` render, change, and are read
+by nothing. The demo's GPS capture is genuinely real (P2.3/P3.4/P3.7) and runs at
+`buildGpsConfig()`'s own defaults — `balanced` / 30 s — which are exactly the values the pane
+opens on, so the pane is *correct on arrival* and inert thereafter. The incident-pin and
+per-camera captures force `PRECISE_GPS_CONFIG` and are meant to ignore the setting on both
+sides.
+
+**Why deferred:** it is the one stub in this package that could plausibly be made real, and D6
+did not ask for it. Wiring crosses two other packages' screens (`SubmissionScreen`,
+`NewLocationModal`), and the third value (`showAccuracyWarning`) has no consumer at all — the
+accuracy chip renders unconditionally — so "wire the pane" is really three changes of different
+sizes wearing one name.
+
+**The recipe, so the next agent does not re-derive it:** `GpsCaptureControl` already takes an
+optional `config: GpsConfig`. Thread `buildGpsConfig(settings.gpsAccuracyMode,
+settings.gpsTimeout * 1000)` from the bridge → `SubmissionScreen` → its `GpsCaptureControl`, and
+the same through `NewLocationModal`. Leave `CameraGpsCapture` and the incident form alone: their
+`PRECISE_GPS_CONFIG` is phone-parity, not an oversight. `showAccuracyWarning` needs a consumer
+built first.
+
+**Trigger:** the next feature touch to the GPS capability, or any review finding that the
+Location pane's honesty note is carrying weight the code should carry. `buildGpsConfig`'s own doc
+comment points here.
+
+### 80c. RECORDED — Settings persist NOTHING this round, and P7.2/P7.3 own their own calls
+
+**What:** the whole `DemoSettings` record lives in `DemoExperience`'s `useState` and dies with
+the tab. It is not in the store, not in `snapshotOf`, and `SNAPSHOT_VERSION` stays at 6.
+
+**Why:** every value is cosmetic by D6's ruling — real and typed, but read by nothing — and a
+persisted value implies a value that matters. The snapshot guard is three compile-time devices
+that move TOGETHER (`as const` union tuples consumed by `z.enum`, `satisfies FullShape`/
+`FullShapeIn` on every shape literal, and `SNAPSHOT_VERSION` + key suffix bumped in the same
+edit); spending that ceremony on a stub would blunt it for the change that needs it.
+
+**For P7.2 / P7.3 specifically:** a profile and a 57-toggle override set are exactly the kind of
+state a visitor expects to survive a refresh, so each package makes its OWN persistence call —
+and if it says yes, moves all three devices in one commit. Settings values must not be swept in
+alongside: they are a different decision with a different answer.
+
+**Trigger:** none for the settings record. If a future package needs one of these values to
+survive a refresh, that value has stopped being cosmetic and the pane owning it stops being a
+stub — re-open the whole pane, not just the field.
+
+### 80d. LEDGERED — `showImportProcessDetails` has no consumer
+
+**What:** the Appearance pane's second switch toggles a real value that nothing reads. On the
+phone it opens and closes the on-device model's inputs and outputs in the live import terminal
+(`GeneralSettingsSection.tsx:29-35`); the demo's terminal always prints its full log.
+
+**Why deferred:** the import terminal is P1.3/P1.4 territory with its own documented trust
+scoping, and adding a verbosity gate means deciding WHICH lines are "process details" — a log
+taxonomy question, not a settings one. The pane names the gap explicitly rather than leaving a
+visitor to discover it mid-import.
+
+**Trigger:** the next feature touch to `ImportTerminalProgress` or the log bus's level set.
+
+### 80e. RECORDED — ui-mapping 12's Cloud Sync spec is stale; the phone has moved
+
+**What:** `docs/ui-mapping/12-settings.md` (fact-checked 2026-07-16) documents the Cloud Sync
+pane as a locked toggle plus an info box reading "Cloud sync is not available in this build."
+That build is gone. The live component is the BYO-Supabase agency-cloud status home —
+provisioning wizard, enrollment QR, user management, paused-project recovery banner, disconnect
+(`CloudSyncSettingsSection.tsx:129-277`) — and its master-row preview now answers
+`Paused`/`Connected` before falling back to On/Off (`settings-catalog.tsx:146-152`), where the
+doc records only On/Off. `useCloudSyncSettings.isLocked` is likewise no longer `!__DEV__`; it is
+`!configured && !__DEV__` (`useCloudSyncSettings.ts:27`).
+
+**What P7.1 built instead:** the shape the demo can honestly hold — the description lifted
+verbatim from the LIVE component (it describes what the app genuinely does), one disabled
+toggle, and an honest note naming the real feature. Plan §2 puts "cloud sync / agency-cloud /
+Supabase / canvas-hub anything" out of scope wholesale, and D6 widens the SETTINGS surface, not
+that exclusion.
+
+**Trigger:** none for the demo. Recorded because the next agent to read ui-mapping 12 for this
+pane will otherwise build the wrong thing — and because a future ui-mapping refresh should pick
+this up.
+
+### 80f. RECORDED — the deliberate non-ports, in one place
+
+Four phone behaviours are absent by decision, each with its reason at the site:
+
+1. **Media Capture's three GPS-permission notes.** Driven by a real
+   `Location.getForegroundPermissionsAsync()` read, and the granted arm asserts "GPS coordinates
+   will be embedded in captured media" — false here, because the demo writes no EXIF. Reading
+   the browser's geolocation permission purely to print that would be the fabricated-capability
+   trap D6 forbids.
+2. **Media Capture's non-iOS codec branch** (`disabled` picker + "Android devices use their
+   default codec"). The demo's frame is an iPhone and a browser is not Android; printing that
+   note would tell a third platform's story.
+3. **Export Security's inline password form.** D4 already skipped `PasswordModal`, and nothing
+   the demo produces is encrypted. A password field in a surface that stores nothing invites a
+   real secret into a demo — worse than an absent control. The status line and the Set-password
+   affordance still render, inert.
+4. **Security's `!isAvailable` branch.** Its button calls `Linking.openSettings()` (no web
+   equivalent) and its copy tells the reader to go enrol a fingerprint — advice that is nonsense
+   in a browser tab.
+
+**Trigger:** none. Re-flagging any of these as a parity gap should be answered with this entry.
+
+### 80g. LEDGERED — the Settings sheet has no focus trap (inherits §7)
+
+**What:** `SettingsModal` carries `role="dialog"` + `aria-modal="true"` + Escape (popping the
+detail before closing, phone parity), and it moves focus into the detail pane on open and back to
+the opening ROW on close. What it does not do is confine Tab to the sheet — the same residual
+`WizardDrawer` and `ModalShell` carry under §7.
+
+**Why deferred:** it is one behaviour shared by every overlay in this feature, and solving it per
+surface is how three subtly different traps end up in the codebase. §7's trigger already names
+the pass that should own it.
+
+**Trigger:** §7's — a broader keyboard-nav/a11y pass, or before beta. Add this surface to that
+pass's inventory.
+
+**AMENDED (P7 review r1, obligation A4 riding R-32) — the inventory, itemised.** The summary
+above ("moves focus into the detail pane on open and back to the opening ROW on close") reads as
+"focus handling here is complete". It is complete INSIDE the sheet and absent at its boundary,
+and the overlay-stack pass owns three items this entry did not name:
+
+1. **Nested `aria-modal` with no background suppression (web W-6).** The profile editor
+   (`ModalShell` `elevation={4}`) opens from inside `SettingsModal`; both assert
+   `aria-modal="true"` as DOM siblings in the same portal root and neither marks the other
+   `inert`. A virtual-cursor user can browse straight out of the editor into the Settings content
+   underneath and back, with no boundary — the failure mode the APG warns about for stacked
+   dialogs. The z-index mechanics themselves were walked and verified sound (21/22 · 25/26 ·
+   31/32 · 60/61); this is purely the AT boundary. NEW with P7 — §7/§80g/§81d did not cover it.
+2. **A second Escape-collision instance (web W-9).** `AlertDialog` and `SettingsModal` both
+   register document-level `keydown`, so one Escape on the "Apply profile?" confirm dismisses the
+   alert AND pops the Settings detail. Identical mechanism to §81d, which names only the profile
+   editor; the pass's inventory should carry both, plus `PickerSheet`-inside-`ModalShell`.
+3. **Focus is never returned to the gear (web W-10).** Closing the sheet — ×, scrim, or Escape
+   from the master list — unmounts everything and drops focus to `<body>`;
+   `SettingsGearButton` is not re-focused. Covered by §7's "focus restored to the trigger on
+   close", but not visible from this entry's summary.
+
+**Trigger:** unchanged (§7's). The obligation discharged here is that the pass's inventory names
+all three.
+
+---
+
+## 81. P7.2 — User Profile: rulings, the v7 bump, and one overlay residual
+
+**Source:** parity package P7.2 (`parity/p7-profile`) — master plan §5 P7.2, matrix rows 85/86,
+ui-mapping 12 § User Profile. The pane and its editor are REAL (decision D6 exempts this surface
+and Form Customization from the honest-stub treatment).
+
+**Amended by the P7 fix round — see §85.** Three statements in this section were completed there:
+the autofill now consults field visibility before writing (§85a, review R-1b), the pane's
+"kept for this browser tab" promise is conditional on the persistence handle (§85b, R-3), and
+§85a carries the corrected description of the autofill's re-entry behaviour (A1).
+
+### 81a. RECORDED — no `resetProfile()`, and `agencyLogoUri` is absent from the TYPE, not just the UI
+
+**What:** the editor offers no reset/clear action and no agency-logo control, and the demo's
+`UserProfile` has seven members where the phone's has eight.
+
+**Why:** both are matrix row 86's explicit instructions, and both hold up at source.
+`resetProfile()` is documented on the phone (`user-profile/README.md` Public API) and does not
+exist — its store declares exactly `updateProfile` and `isProfileComplete`
+(`store/user-profile-store.ts:19-22`). Building a demo control for it would be implementing the
+phone's documentation instead of the phone.
+
+`agencyLogoUri` is real on the phone's type (`types.ts:26-27`) but marked `[Future]`, has no UI by
+the modal's own inline comment (`UserProfileModal.tsx:46`), and is never written or read anywhere.
+Carrying it here would mean a key in `DEFAULT_USER_PROFILE`, a key in the snapshot shape guard
+(`FullShape` makes that mandatory, not optional) and a branch in `trimProfile` — three live things
+guarding an absence, which is the same argument that kept `devOnly` off `SettingsCategory` (§80a).
+
+**Trigger:** none for the reset. For the logo: whenever the will-say document actually renders one.
+It is then a `SNAPSHOT_VERSION` bump plus three lines, all in one commit.
+
+### 81b. RECORDED — the profile persists (P7.2's answer to §80c), the Settings values still do not
+
+**What:** `SNAPSHOT_VERSION` 6 → 7, key `dvr-demo-state-v7`, `PersistedState` gains `userProfile`,
+and `userProfileSchema` carries `satisfies FullShape<UserProfile>`. `DemoSettings` is untouched and
+stays in `DemoExperience`'s `useState`.
+
+**Why:** §80c asked each of P7.2/P7.3 to make its own persistence call. A profile is not cosmetic —
+it is data the visitor typed, and its name reaches the Case Notes document through Completion's
+`completedBy` — so it earns the snapshot and the three compile-time devices moving together. The
+Settings record has neither property and was correctly left out.
+
+**For the P7.3 merge:** P7.3 takes its own 6 → 7 on its branch; the orchestrator unifies both
+shapes under one v7 and re-runs both round-trip suites (the P3-era precedent). P7.2's fixture
+additions are marked `[P7.2 fixture]` / `[P7.2 fixture addition]` so the reconcile is mechanical.
+
+**Trigger:** none.
+
+### 81c. RECORDED — `reset()` carries the profile across
+
+**What:** `reset()` is no longer literally `initialState()`; it preserves `userProfile`.
+
+**Why:** the phone cannot reset identity at all — it lives in its own AsyncStorage store precisely
+because it is app-level config and not case data (`user-profile/README.md`), and there is no
+`resetProfile()` (see §81a). "Start over" means the visitor's CASES go. The tab still forgets the
+profile, because the snapshot is per-tab and dies with it. Pinned both ways in
+`engine/store/__tests__/user-profile-state.test.ts`.
+
+**Trigger:** if a visible "Start over" control ever ships and the owner wants it to wipe identity
+too, this is one line and one test.
+
+### 81d. LEDGERED — one Escape over the profile editor also pops the Settings detail
+
+**What:** with the editor open over the Settings sheet, a single Escape closes the editor AND
+returns the sheet to its master list (probe-verified: `editorOpen=false detailOpen=false
+sheetOpen=true`). Expected: the editor closes and the User Profile pane stays.
+
+**Why it happens:** every overlay in this feature registers its OWN document-level `keydown`
+listener — `ModalShell`, `PickerSheet`, `SettingsModal` — so an Escape runs all of them.
+`SettingsModal` mounted first, so its listener is first in the list; `stopImmediatePropagation`
+from the editor cannot un-run it. It is not new behaviour either: a `PickerSheet` opened inside a
+`ModalShell` closes both the same way, and has since P1.
+
+**Why deferred:** the fix is an overlay STACK (only the topmost surface answers Escape), which is
+shared infrastructure for five surfaces. The obvious local shortcut is actively wrong: moving
+`ModalShell` to a capture-phase listener would make it fire BEFORE its own nested `PickerSheet`,
+so Escape in an open date picker would close the modal underneath it — capture order inverts the
+nesting order, which is exactly the order that must win. Solving this per surface is how three
+subtly different rules end up in the codebase — the same reasoning §80g and §7 already carry.
+
+**Deliberately not pinned:** a test asserting today's behaviour would read as a specification for
+it. The behaviour is recorded here instead.
+
+**Trigger:** §7's / §80g's — the broader keyboard-nav/a11y pass. Add "one Escape per overlay,
+topmost first" to that pass's inventory.
+
+### 81e. RECORDED — the demo's Case Notes document was missing the phone's Completion Information section
+
+**What:** P7.2 added `dateTimeCompleted` + `completedBy` to `CaseNotesData`, the selector and the
+generated document (phone `case-notes-template.ts:331-348`, same position and the same
+`hasCompletionInfo` gate).
+
+**Why it is in this package:** the gap predates it — neither completion field reached the report —
+but the profile pane's honest note says the name is "what carries it into the Case Notes report",
+and the matrix row says the same. Shipping the autofill without the section would have made a
+claim about the demo that the demo did not honour, which is the one failure mode this surface is
+not allowed to have.
+
+**Trigger:** none. Recorded so the next reader of `pdf/case-notes.ts` knows the section arrived
+with the profile and not with P2's document work.
+
+---
+
+## 82. P7.3 — Form Customization (D9): the grid's fidelity, three demo-better calls, and the v7 shape
+
+**Source:** parity package P7.3 (`parity/p7-formcustom`) — master plan §5 P7.3, matrix row A2,
+owner decision D9 ("Form Customization in FULL — profile chips AND the toggle grid, wired to the
+live visibility selectors"). Spec: phone `src/features/form-customization/` (README + source).
+
+### 82a. RECORDED — the grid is 12 rows × **50** field toggles, not 57
+
+**What:** the matrix (row A2) and the plan both say "57 field toggles". The phone's registry
+holds **58** `FieldId`s (`config/field-registry.ts:19-97`; counted: submission 16, scope 4,
+arrival 2, timeoffset 3, extracted 3, dvr 13, camera 8, export 5, notes 2, completion 2), and
+**50** of them are rendered as switches — the other 8 live on the three `screen-only` steps
+(Time Offset, Extracted Video Scope, Notes), whose rows expand into an explanatory line on the
+phone too (`FormCustomizationSection.tsx:128-131`). Of the 50, seven render LOCKED (the
+always-on set), so 43 actually move.
+
+**Why:** recorded rather than "fixed" because nothing is wrong — the demo ports all 58 ids and
+renders exactly the 50 the phone renders. The number in the matrix was an estimate made before
+the registry was read.
+
+**Trigger:** none. A reviewer counting switches and finding 50 should be answered with this
+entry; the count itself is pinned by test (`FormFieldsPane.test.tsx`, "reaches all 58 registry
+fields…" asserts 50 rendered against the registry).
+
+### 82b. DEMO-BETTER — the submission coordinate group gates here; on the phone it gates nothing
+
+**What:** `submission.latitude` / `.longitude` / `.coordinateAccuracy` / `.coordinateSource` are
+in the phone's settings grid as a toggleable group, and **no screen reads them**: the phone's 35
+`useFieldVisible` call sites (`app/(form)/*.tsx`) cover every other switchable field and skip
+these four. `submission.tsx:54-60` gates the five requester fields and the two contact fields
+and nothing else, so the GPS block renders unconditionally. The demo gates it —
+`LocationFields` takes `showGps`, and the capture control + lookup notice + coordinate card go
+with it.
+
+**Why not left at parity:** the honesty rule cuts against shipping a switch that moves nothing,
+and the group is already in the registry with a lock-free default, so the phone's own intent is
+legible. Filed for the phone as ledger item 19.
+
+**Completed by the P7 review's A2 ruling — see §86a.** The gate described here is the DISPLAY
+half; hiding the group also suppresses NEW coordinate stamping in `onPick`. Read the two
+together: this entry says why the gate exists, §86a says how far it reaches.
+
+**Trigger:** none here. If the phone wires its four ids, the two apps converge with no demo
+change.
+
+### 82c. RECORDED — there is no Reset control, on either side
+
+**What:** the phone's store has `resetToProfileDefaults` (`form-customization-store.ts:156`) and
+**nothing calls it** — `FormCustomizationSection.tsx` renders the picker and the rows and no
+reset affordance. The demo therefore ships no Reset button either, and the equivalent store
+action was removed rather than left caller-less.
+
+**Why:** re-stamping a profile clears every override (`applyFormProfile`), so the capability is
+reachable on both sides by picking another chip and picking back — pinned by test
+(`form-customization-actions.test.ts`, "is the reset path"). Adding a control the source of
+truth does not have is a parity delta a reviewer would have to re-adjudicate.
+
+**Trigger:** the phone growing a Reset affordance, or an owner call that the demo wants one. The
+store action is a four-line re-add (`set({ formOverrides: blankFormOverrides() })`).
+
+### 82d. RECORDED — the `limited` blurb promises a reduction its defaults do not deliver
+
+**What:** `ProfilePicker.tsx:25` reads "Comprehensive, lightly reduced (SPC/SOCO)" while
+`config/profiles.ts:13` states, and its off-lists confirm, "limited: comprehensive — nothing
+off". Both apps ship a profile whose copy describes a trim that does not exist.
+
+**Why carried:** the copy is lifted verbatim per the plan's fidelity rule. What the demo adds is
+a DERIVED line beneath it (`describeProfile` → "Hides nothing — every screen and field is on." /
+"Hides 1 screen · 12 fields."), counted from the same map the resolver reads, so the visitor
+gets the truth from a number that cannot drift. Filed for the phone as ledger item 18.
+
+**Trigger:** the phone deciding what `limited` should actually reduce. The off-list is a
+one-array edit in `content/profiles.ts` on this side.
+
+### 82e. RECORDED — section cards collapse when their last field goes, which the phone does not do
+
+**What:** hiding every requester field drops the whole "Requester Information" card; the same for
+the three DVR cards and Completion Details. The phone gates each field individually and leaves
+the `SectionCard` standing, so a fully-trimmed section renders as a title over nothing.
+
+**Why:** a titled card with an empty body reads as a rendering bug, and the store's cascade
+already guarantees a fully-emptied SCREEN never renders at all (it hides itself), so this only
+ever affects a partially-trimmed screen. Deliberate, pinned by test
+(`field-visibility.test.tsx`, "a section card goes when its last field does"). Not filed as a
+phone bug — it is a presentation choice, not a defect.
+
+**Trigger:** none. Re-flagging it as a parity gap should be answered with this entry.
+
+### 82f. RECORDED — three surfaces beyond the wizard follow visibility, and one deliberately does not
+
+**What:** switching a screen off removes it from the drawer list (`selectDrawerItems`), from the
+Next/Back spine (`nextVisibleChapter`/`prevVisibleChapter`), and from the rail's exploration
+checklist (`selectExploreStatus`) — the last because an unlit row for an unreachable screen is
+what the exit dialog lists as something the visitor missed. The two capture TOOLS likewise drop
+out of the drawer's Media accordion (phone parity, `CustomDrawerContent.tsx:61-62`), while the
+Media Library row stays on both sides.
+
+The one that does not follow: the map pin / Cases row / exported case-map status
+(`selectLocationMapStatus`) counts every field regardless. It answers "how far along is this
+LOCATION", which must not change because the reader's device runs a different profile — see the
+note on `selectDrawerStatus`, whose `visibility` parameter is optional for exactly this split.
+
+**Also deleted this round:** `nextChapter`/`prevChapter` in `content/screens.ts`. A second pair
+of walkers that ignores visibility is how a screen ends up hidden from the drawer and still
+reachable by Continue.
+
+**Trigger:** none — recorded so the asymmetry between the drawer dot and the map pin is not
+"fixed" into agreement.
+
+### 82g. RECORDED — no hydration gate, and none is needed
+
+**What:** the phone's feature ships `useFormCustomizationHydration` plus a 3-second fail-open
+deadline, because AsyncStorage rehydrates ASYNCHRONOUSLY and the wizard would otherwise paint
+the forensic default and flip. The demo has no equivalent and needs none: `loadSnapshot` runs
+SYNCHRONOUSLY inside `createDemoStore`, so the first frame already has the persisted profile.
+
+**Why recorded:** so nobody ports the gate (or its `HYDRATION_FALLBACK_MS`) looking for parity —
+it would be a spinner guarding a value that is already there.
+
+**Trigger:** the demo ever moving persistence off `sessionStorage` onto an async backend. At
+that point the gate becomes necessary, and the phone's fail-open deadline is the pattern.
+
+### 82h. RECORDED — the resolver's hidden-current fallback has no reachable trigger today
+
+**What:** `nextVisibleChapter`/`prevVisibleChapter` fall back to the neighbours by registry
+position when the CURRENT chapter is itself hidden (the phone's `getNextStep` does the same,
+`visibility-resolver.ts:65-73`). In the demo that state is currently unreachable: Settings opens
+only from the Home and Cases headers (P7.1), so a visitor cannot switch off the screen they are
+standing on, and a v7 snapshot pairs the view with the overrides that produced it.
+
+**Why kept:** it is four lines, it is the phone's behaviour, and the alternative (returning
+`null`) strands a visitor on a dead screen the moment any new Settings entry point appears —
+including the obvious one, a gear inside the wizard drawer.
+
+**Trigger:** adding a Settings entry point reachable from a wizard screen. At that point also
+decide whether the bridge should NAVIGATE off a screen that has just been hidden, which this
+package deliberately did not build.
+
+### 82i. RECORDED — the v7 persisted shape, for the P7.2 merge reconcile
+
+**What:** `SNAPSHOT_VERSION` 6 → 7 (`SNAPSHOT_KEY` `dvr-demo-state-v7`), carrying TWO changes
+from this branch:
+
+1. `PROFILES` widened `'forensic' | 'canvas'` → `+ 'limited'` (a tuple-backed union widening,
+   consumed by `z.enum(PROFILES)`);
+2. `PersistedState` gained `formOverrides: { steps: Partial<Record<FormStepId, boolean>>;
+   fields: Partial<Record<FormFieldId, boolean>> }`, schema'd as
+   `z.record(z.string(), z.boolean())` on both halves and FILTERED on load to known ids (the
+   `visited` rule — a settings preference from another build is never worth wiping a case).
+
+P7.2 takes its own 6→7 bump on its branch; the collision is expected and the orchestrator
+unifies both shapes under ONE v7. Nothing else in `snapshotOf` changed.
+
+**Trigger:** the merge. Both round-trip suites must be re-run on the merged head — this branch's
+additions are named `v7 (P7.3)` in `persistence.test.ts`'s maximal fixture and in the
+`form-customization overrides (v7 — P7.3)` describe block.
+
+
+---
+
+## 83. P7 wave-B merge — how P7.2 and P7.3 were unified (the reconcile both branches asked for)
+
+**Source:** the merge of `parity/p7-formcustom` (P7.3) into `feat/parity-p7`, which already held
+`parity/p7-profile` (P7.2). Eight conflicted files. §81b and §82i each predicted the collision and
+handed the reconcile to the integrator; this is what it decided, so the P7 review does not
+re-litigate it.
+
+### 83a. RECORDED — ONE v7, carrying both packages' shape changes
+
+**What:** `SNAPSHOT_VERSION = 7` and `SNAPSHOT_KEY = 'dvr-demo-state-v7'` are shared. The single v7
+entry in `persistence.ts`'s version-history comment lists all three changes and credits both
+packages: (a) `userProfile` (P7.2), (b) `formOverrides` (P7.3), (c) `PROFILES` widened to include
+`'limited'` (P7.3). `PersistedState` carries both new keys; `persistedStateSchema`,`snapshotOf` and
+`loadSnapshot`'s return each name both.
+
+**Why one:** neither branch shipped, so no snapshot ever existed at "P7.2's v7" or "P7.3's v7"
+separately — bumping to 8 for the second would only invent a version nothing ever wrote. All three
+compile-time devices survive the union intact: `z.enum(PROFILES)` still consumes the domain's own
+`as const` tuple (device 3, the only one that closes a union WIDENING), every shape literal still
+carries `satisfies FullShape`/`FullShapeIn` (device 2), and the version and the key still move
+together in one edit.
+
+**Trigger:** none. A future shape change bumps to 8 normally.
+
+### 83b. RECORDED — `BRIDGE_PANE_IDS` won the pane-partition device; `STORE_CONNECTED_PANE_IDS` was dropped
+
+**What:** both packages independently split `SettingsCategoryId` into "the bridge resolves it" and
+"this registry resolves it", and named the split differently — P7.2's
+`STORE_CONNECTED_PANE_IDS` / `StorePaneId` vs P7.3's `BRIDGE_PANE_IDS` / `BridgePaneId` (+
+`isBridgePaneId`). One survives: `BRIDGE_PANE_IDS = ['user-profile', 'form-customization']`, with
+`StubPaneId = Exclude<SettingsCategoryId, BridgePaneId>` narrowing `renderSettingsPane`'s parameter
+exactly as both authors intended.
+
+**Why that one:** it is the strictly richer device and the smaller total diff. It carries
+`as const satisfies readonly SettingsCategoryId[]` (a typo'd id in the tuple is a compile error, not
+a silently-never-matching branch), and it ships the `isBridgePaneId` guard that lets
+`panes.test.tsx` derive `STUB_PANE_IDS` from the CATALOG rather than from
+`Object.keys(SETTINGS_PANES)` — which turns the registry-completeness assertion from a tautology
+into a real partition check. P7.3 also wrote it anticipating P7.2's id joining the tuple, so
+absorbing `'user-profile'` was the one-line edit its own seam note promised. Both names appear
+nowhere outside `panes/index.tsx` and `panes.test.tsx`, so the rename cost nothing at the call sites.
+
+**What the merged partition test pins** (the union of both suites' assertions, one test):
+`Object.keys(SETTINGS_PANES)` equals the catalog minus the bridge ids; the two sets together are
+the whole catalog; and no bridge id also sits in the map (P7.2's "resolved twice" guard).
+
+**Trigger:** none. A third store-connected pane is one tuple entry, one `renderPane` branch, one
+deletion from `SETTINGS_PANES`.
+
+### 83c. RECORDED — the bridge holds both branches, and P7.2's autofill was untouched
+
+**What:** `DemoExperience`'s `renderPane` now branches `'user-profile'` → `UserProfilePane`, then
+`'form-customization'` → `FormFieldsPane`, then falls through to `renderSettingsPane`. Both preview
+wirings coexist in `settingsSections` (`profileName: userProfile.name` from P7.2,
+the form profile from P7.1/P7.3 — see 83d for the shape that line settled on). P7.2's Completion `completedBy` autofill effect and P7.3's
+visibility closures were not modified by the merge.
+
+**Verified at the merge:** P7.3's claim that it left the `settingsSections` memo byte-unchanged
+holds — its branch still carried the P7.1 placeholder `profileName: ''` and deps `[settings,
+profile]`, so the block auto-merged to P7.2's live-name version with no hand edit. Two stale SEAM
+comments (`SEAM(P7.3)` on the `profile` subscription and on `formProfileLabel`) were retired in the
+same pass, since the seam they pointed at is now closed.
+
+**Trigger:** none.
+
+### 83d. FIXED (R-21) — the preview context takes the PROFILE, not a label, and the dead `??` is gone
+
+**What R-21 caught:** 83c retired the two `SEAM(P7.3)` comments but left the seam's *shape*.
+`SettingsPreviewContext.formProfileLabel` was a bare `string` — P7.1's honest choice while no
+profile store existed — even though the closed `Profile` union and its total label map
+(`FORM_PROFILE_SHORT`, itself an alias of `PROFILE_LABELS`) both live in that same file, and the
+bridge's `FORM_PROFILE_SHORT[profile] ?? profile` fallback was unreachable by the type.
+
+**Fixed, per the review's fix shape:** the member is `formProfile: Profile`; `settingsPreview`'s
+`'form-customization'` arm does the `FORM_PROFILE_SHORT[…]` mapping itself, which is where the
+phone does it (`useFormCustomizationPreview`, settings-catalog.tsx:158-167); the bridge passes
+`formProfile: profile` and the `??` is deleted with its now-unused import. A fourth profile is now
+a compile error in the label map rather than a raw id rendered on the master row. The suite's
+seam-era test ("shows whatever label the caller supplies") became a totality assertion over
+`PROFILES`.
+
+`profileName` stays a bare `string` deliberately — it is free text the visitor typed, and the
+blank case IS the domain (the phone's `Not set` literal). Only the closed one was narrowed.
+
+**Trigger:** none. Recorded here because the widened parameter was merge residue, not a P7.1
+oversight — the shape was correct for the package that wrote it and outlived its seam.
+
+---
+
+## 84. P7 review r1 — P7.1's fix round (shell + chrome): dispositions and the two ledgered items
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` — P7.1's routed findings
+(majors R-5, R-6 lead, R-7; minors R-9, R-10, R-11, R-14, R-18, R-19, R-25 lead, R-30, R-32,
+R-34), fixed on `parity/p7-fix-shell`. Obligation **A4** is discharged in §80g above.
+
+### 84a. RECORDED — the recurring shape this round fixed, so it is not re-introduced
+
+Nine of the twelve were the same defect wearing different clothes: **a doc comment naming the
+right idiom while the code shipped half of it.** `aria-disabled` citing `ModalActions` without
+its `aria-describedby` (R-6); the `AlertDialog` "role + labelledby" idiom ported without the role
+(R-10); a slider bound to a scalar under a percentage readout (R-7); seven `as const` tuples
+written to close a hole and eight casts left open beside them (R-11); a count typed into prose
+next to the registry that disproved it (R-5); a test asserting a box exists to prove its text
+does (R-14).
+
+The lesson for future rounds in this territory: when a comment names a precedent, **open the
+precedent**. Every one of these was one to four lines away from being right, and every one
+passed review-by-reading because the comment described the correct behaviour.
+
+### 84b. LEDGERED (R-33, fix-or-ledger → ledgered) — the settings record still lives in the bridge
+
+**What:** `DemoSettings` (22 fields) is `useState` in `DemoExperience` with one consumer, so
+every slider step re-renders the whole phone subtree — `activeScreen()`, `activeModal()`, the
+drawer, the rail. §80c settled *store vs bridge*; it never addressed *bridge vs sheet*.
+
+**Why deferred, not fixed:** the fix is to move the state into `SettingsModal` and invert the
+pane resolution so `renderPane` narrows to bridge ids only. That is a structural change to
+`DemoExperience`'s render body — the ONE file all three P7 fix branches were editing
+concurrently this round (P7.2 on the autofill effect, P7.3 on the explore memo). Restructuring
+the bridge mid-round would have manufactured exactly the merge conflict the split was designed
+to avoid, for a bounded perf cost the lane itself rated MEDIUM and blessed deferring.
+
+**The design is already settled**, which is why this is cheap later: the `BRIDGE_PANE_IDS` /
+`StubPaneId` partition (§83b) expresses precisely the split the fix needs — `SettingsModal`
+calls `renderSettingsPane` itself for stub panes, and `renderPane` becomes
+`(id: BridgePaneId) => ReactNode`. `settingsSections` either moves with it or keeps being passed
+down as today.
+
+**Trigger:** the next structural touch to `DemoExperience`'s modal region, or any profiling that
+shows the drag cost mattering. Not before P7 merges — the whole point of deferring it was to
+keep three branches off one file.
+
+### 84c. RECORDED — R-19's ruling: the Export Security row withdrew its claim, the switches stayed live
+
+The row previewed `On`/`Off` from the two encryption flags, phone-verbatim. "On" means "the next
+export is encrypted" on the phone and means nothing here: no pipeline encrypts, the ZIP paths end
+in the D4 notice, and the two exports that ARE real (case-map HTML, printed PDFs) go out
+unprotected.
+
+Ruled **fix, not ledger**, and specifically: withdraw the row's claim (`'Not applied'`, true in
+every switch state) while leaving the switches live. D6's cosmetic arm is about controls that
+*render state*; it was never a licence for a derived READOUT to assert a capability. The sibling
+Cloud Sync pane had already drawn this line by holding its toggle inert — this is the same line
+drawn one level up, at the preview instead of the control.
+
+### 84d. RECORDED — R-25's second half rides this branch by the aggregator's instruction
+
+`DEFAULT_USER_PROFILE` (`engine/logic/user-profile.ts`, P7.2's file) took the same one-line
+`Readonly<…>` annotation as `DEFAULT_SETTINGS`. The vetted doc's R-25 body says "P7.2's file
+rides the same commit" while its owner-routing table lists the half under P7.2 — read both ways,
+a finding drops. It is a pure annotation with no behavioural surface, so it was done here and
+flagged to the integrator: if P7.2's branch carries the same line, either copy can go.
+
+### 84e. AVAILABLE — one duplicate derivation left for the integrator
+
+R-5 exported `SWITCHABLE_FORM_FIELDS` from `form-customization.ts` (the field-capable filter).
+`FormFieldsPane.test.tsx` still re-derives the same filter inline to reach its `toHaveLength(50)`
+assertion. Consuming the export there is a two-line dedup and would make the 50 a single source
+across copy, registry and test — deliberately not done from this branch, because that file is
+P7.3's and was being edited concurrently.
+
+**Trigger:** the P7 fix-round integration, or P7.3's next touch to that suite.
+
+### 84f. RECORDED (fix-delta micro-round) — the two correlated-optional traps this round created
+
+Both riders were shapes the r1 fix round introduced while fixing something else, and both were
+correct at every call site — traps, not bugs. Recorded because the round's own lesson (84a: "when
+a comment names a precedent, open the precedent") has a twin: **when a fix adds two props that
+are only meaningful together, it has added a third state nobody wants.**
+
+- **FD-3 — `role="region"` (from R-34).** It made the demo the owner of exactly one landmark, in
+  the same round whose R-10 commit argues a landmark inside a dialog is noise. The whole settings
+  surface is inside a `role="dialog"`; a landmark there adds a document-level navigation stop for
+  a block already reachable from the switch that reveals it. Now a named `group`, which gives
+  `aria-controls` its target with none of the landmark semantics.
+- **FD-4 — two correlated-optional pairs in `_shared.tsx`.** `Toggle`'s `controls?`/`expanded?`
+  (from R-34) permitted a switch advertising a disclosure relationship while withholding its
+  state — the shape that loses axe's disclosure carve-out. `SelectField`'s `label?`/`a11yLabel?`
+  (from R-9) permitted a picker with NEITHER, whose trigger, sheet title and menu all announce
+  the bare placeholder. Both are now closed by type: one `disclosure` member, and a
+  `SelectFieldName` union on the `RetentionView` precedent. Compile-probed — all three impossible
+  states are diagnostics (TS2741 on the split disclosure, TS2322 on both nameless/double-named
+  pickers); reverted.
+
+**Trigger:** none — closed. Kept as the pattern note for the next a11y fix in this chrome.
+
+---
+
+## 85. P7 review round 1 — P7.2's fix dispositions (R-1, R-3, R-29, R-25 half)
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` — the P7.2-owned findings, fixed
+on `parity/p7-fix-profile`. One commit per finding.
+
+### 85a. FIXED (R-1b) + A1 — the autofill's two corrections, and the corrected sentence
+
+**The write (R-1b).** The Completed-By autofill now returns early when
+`resolveFieldVisible('completion.completedBy', s)` is false. It previously wrote past the
+visitor's own OFF: the input is not rendered, so the value could not be seen, edited or cleared,
+yet it printed in the Case Notes document's Completion Information section (§81e) and greened the
+drawer dot (`counted([])` ⇒ `'complete'`). The pane's footnote covers data "already entered"; this
+was data the app CREATED after being told not to — the same shape as R-2's coordinate stamping.
+The dependency list is byte-identical: the guard reads the resolver at fill time and changes
+nothing about when the effect runs.
+
+**The boundary, in the same words as its twin (FD-8, §86a):** only NEW writing is suppressed. A
+name autofilled — or typed — BEFORE the field was switched off stays exactly where it is; hiding a
+field is not a request to delete what it already holds, and a settings toggle that erased entered
+data would be the opposite failure. R-1b and R-2b are one rule read at two sites: *a hidden field
+accepts no new writes, and loses none of its old ones.*
+
+**The contract (R-1a).** That dependency list is now pinned by two tests, one per plausible
+"fix", each verified red under its mutation. The suite was mutation-blind because every shipped
+test either arrived with a name already present or changed the profile from another view.
+
+**A1 — the amendment.** The PR body's *"fills once, only into an empty field, typing survives"*
+overclaims by omission. The accurate sentence, for the body and for anyone describing this effect:
+
+> **Completed-By autofill:** fills once **per arrival** at Completion, only into a field that is
+> both **empty and visible**; typing over it — or clearing it — survives **while the screen stays
+> open**, and a later profile edit never rewrites a location that already carries a name. A field
+> left empty, *including one the visitor cleared*, is filled again on the **next arrival** — phone
+> parity, since the phone's effect re-runs on every screen mount. The dependency list
+> `[store, view, currentLocationId]` is what makes all of that true; don't "fix" it.
+
+The re-entry refill is behaviour, not a defect: it is what the phone does, and §81's own effect
+comment was accurate about the open-screen case — it simply never said what happens on the next
+arrival. The comment now says both.
+
+**Phone twin filed:** PHONE-BUG-LEDGER item 20 — `completion.tsx:127-133` never reads the
+`showCompletedBy` it resolves at `:59`, with the same two downstream consequences (the court PDF
+prints it; the PDF validator's non-empty gate is silently satisfied).
+
+**Trigger:** none — closed. Re-flagging the re-entry refill should be answered with this entry.
+
+### 85b. FIXED (R-3) — the pane's storage promise is gated on the persistence handle
+
+**What:** `UserProfilePane` takes `persisted: boolean` and swaps its opening clause; the bridge
+samples `saveState().kind === 'saved'` when the Settings sheet OPENS, `flush()`-first, exactly
+like the drawer's save-status line.
+
+**Why it was a major:** `persistence.ts`'s `isLive()` doc states the rule in bold — any surface
+promising refresh survival must gate that sentence on the handle — and both other promise sites
+already did. A private-browsing or quota-exhausted tab (OCR data-URLs are the big payload) reaches
+`{ kind: 'failed' }`, the snapshot is CLEARED, and an unconditional "kept for this browser tab"
+kept promising storage that no longer existed.
+
+**Sampling, not subscribing — deliberate:** the fact is read when the surface is about to make the
+claim (R-2's rule), and re-read on every open, so a mid-session failure demotes the next visit. A
+live subscription would put a persistence read in the render path of a pane that is usually shut.
+
+**Trigger:** none. A third promise site should copy this shape rather than invent a fourth.
+
+### 85c. FIXED (R-29) — `ModalShell.elevation` is a named two-member union
+
+`MODAL_LAYER = { base: 0, overSheet: 4 } as const` + `ModalLayer`. The invariant is a RANGE —
+above the overlays sharing the phone-overlay root, strictly below `PickerSheet`'s 31/32 so the
+pickers a sheet CONTAINS still land on top — and a bare `number` let a caller break either end
+while reading as valid. Pinned against both neighbours plus the rendered `z-index`.
+
+**Trigger:** a third layer is a member here, next to the values it must sit between — never a
+number at a call site.
+
+### 85d. FIXED (R-25, P7.2 half) — `DEFAULT_USER_PROFILE` keeps `Object.freeze`'s `Readonly<T>`
+
+The `: UserProfile` annotation widened it straight back, so a write compiled and threw at runtime
+instead of being refused. Pinned by a declared-but-never-called `@ts-expect-error` probe —
+executing it would prove the runtime half, not the type half. R-25's `settings-values.ts` half is
+P7.1's and is deliberately untouched here.
+
+**Trigger:** none.
+
+### 85f. FIXED (FD-2 / FD-7) — the fix-delta micro-round
+
+**FD-2 (gate).** R-29's layer test re-typed both neighbours' z-indexes, so the two-sided invariant
+it was named for pinned neither side (the lane moved the Settings sheet 22→40 and the picker
+31/32→20/21 with the suite green both times). Both ends are now exported by the surfaces that own
+them — `SETTINGS_SHEET_Z` (`SettingsModal.tsx`, bound to `_shared`'s new `MODAL_SHEET_Z` because
+that sheet paints on the shared shell layer by value) and `PICKER_SHEET_Z` (`PickerSheet.tsx`, its
+SCRIM: the lowest layer it paints on, which is the one an opener must be under) — and the assertion
+is relational. `_shared.tsx`'s own `21 +`/`22 +` literals are retired with them. Per the ownership
+ruling the two `export const`s landed inside this package's commit rather than waking P7.1.
+
+**FD-7.** `persisted: boolean` became `saveState: SaveStateKind`. Three states are "not saved" and
+they are not the same news; the quota case (`failed`) — the one R-3 was filed about — was being
+told the browser stores nothing. Four clauses, exhaustive via `assertNever`.
+
+**Trigger:** none for either. The z-ordering has one home per end now; a third overlay layer joins
+`MODAL_LAYER` and is bounded by the same two exports.
+
+### 85e. RECORDED — the rider (lane-typescript Obs-2) landed with R-1a's tests
+
+`user-profile-state.test.ts` now covers the symmetric v7 discard — the whole `userProfile` member
+deleted — beside P7.3's `delete parsed.state.formOverrides` equivalent. Both v7 members are
+required; a payload missing either is discarded, never defaulted.
+
+**Trigger:** none.
+
+## 86. P7 review round 1 — P7.3's fix dispositions, the A2 write-side ruling, and the A3 reset decision
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` (REVISE — 0B/7M/27m), the
+P7.3-owned rows of its routing table: majors R-2, R-4, R-6 (RowSwitch half); minors R-8, R-12,
+R-13, R-15, R-16, R-17, R-20, R-22, R-23, R-24, R-26, R-27, R-28, R-31. All seventeen are FIXED;
+nothing in this package was deferred. The entries below record the two rulings the doc attached
+to this owner (A2, A3) and the four decisions a later reader could otherwise mistake for drift.
+
+### 86a. RULED (A2, rides R-2) — the coordinate gate governs WRITES, not just pixels
+
+**What §82b said:** the demo invented a gate the phone does not have, because the phone's four
+`submission.*` coordinate ids are in its settings grid with no `useFieldVisible` reader — a
+switch that moves nothing. §82b described the demo's version as "the capture control + lookup
+notice + coordinate card go with it", i.e. display.
+
+**What it now means:** display **and** stamping. With the group hidden, `LocationFields`'
+`onPick` no longer writes `lat`/`lng`/`accuracyM`/`coordinateSource`; street and city are
+always-on and still write. The aggregator's ruling, and it is right on this project's own terms —
+a switch that governs what the visitor SEES while the app keeps writing what they cannot see,
+verify or clear re-creates the dishonesty the gate was invented to remove, one level down, and
+those coordinates reach the Map pin and the exported case map.
+
+**The boundary, stated once:** only NEW stamping is suppressed. A coordinate captured before the
+switch was flipped stays exactly where it is — that is the pane footnote's "already entered"
+case, and removing it would be the opposite failure (a settings toggle deleting evidence).
+
+**§82b stands as written**; this entry completes it rather than replacing it. The phone-side
+half is unchanged: ledger item 19 still asks the phone to gate its four ids at all.
+
+### 86b. RULED (A3, rides R-13) — `reset()` preserves the whole settings family
+
+**What was decided:** `reset()` now carries `userProfile`, `profile` AND `formOverrides` across.
+Previously it preserved the first (P7.2's branch, §81c) and wiped the other two (P7.3's) — two
+answers to one question, reached independently, reconciled nowhere, and asserted nowhere in
+either direction (the reviewer's probe flipped the behaviour and 280 tests stayed green).
+
+**Why preserve, not wipe:** all three are device-level configuration that the phone cannot reset
+at all, and both feature READMEs say so in the same words — `user-profile`'s "kept separate from
+the SQLite-backed case data", `form-customization/README.md:12-13`'s "device-level config —
+never case data". `reset()`'s own doc already scopes "start over" to the visitor's CASES. Which
+form a deployment runs is a configuration OF the wizard, not a thing the wizard holds.
+
+**What still forgets it:** the tab. The snapshot is per-tab and dies with it, and the one caller
+that exists — the route error net's "Start fresh" — clears the snapshot BEFORE it resets, so a
+genuinely poisoned session still boots clean.
+
+**Trigger:** an owner ruling the other way. If it comes, change all three together — the point
+of this entry is that the family has one rule, not that the rule is preserve.
+
+### 86c. RECORDED — three shapes hardened from "pinned by test" to "pinned by type"
+
+Each was a real gap the review found, and in each case the fix moved the guarantee down a level
+rather than adding another assertion:
+
+- **R-22** — `selectVisibleWizardScreens` cast `FormStepId` → `WizardScreenId` and explained that
+  a test would catch a leak. `LinearFormStepDef` (`id: WizardScreenId`, `additive?: false`) now
+  carries the narrowing from `DRAWER_DEFS` to the router, so an additive tool in the linear list
+  is a compile failure. The registry test's `additive !== true` assertion stopped typechecking as
+  a meaningful comparison — which is the finding restated.
+- **R-20** — the drawer's tool set was `{ capture, audio }`, ad-hoc names re-declared at the
+  consumer, so a third additive tool would have compiled everywhere and silently never reached
+  the accordion. The prop is now `Readonly<Record<AdditiveFormStepId, boolean>>`, imported rather
+  than re-declared, which closes the drift between selector and consumer.
+  **AMENDED (fix-delta FD-1) — the first attempt did NOT close the gap this bullet claimed, and
+  the claim is the §84a shape re-introduced by a fix commit.** `Readonly<Record<…>>` on the
+  signature is not a compile gate when the value is produced by
+  `Object.fromEntries(…) as Record<…>` (the cast absorbs a widened tuple) and consumed by two
+  hand-written `...(mediaTools.x ? [row] : [])` spreads (TypeScript has no unread-key check).
+  The reviewer's third-tool probe errored **zero** times in the two files this entry named. It is
+  true now, and by the device the rest of the feature uses: a total object LITERAL in
+  `selectMediaToolsVisible`, and a total `TOOL_ROWS: Record<AdditiveFormStepId, …>` at the drawer
+  with the rows derived from `ADDITIVE_FORM_STEP_IDS` and the ungated library row appended.
+  Re-probe: `selectors.ts` ×1 and `WizardDrawer.tsx` ×1, both required before a third tool
+  compiles. See §86g.
+- **R-24** — `ProfileDefaults` was typed total, documented total, built with `{} as Record<…>`
+  and read back with `?? false`. Built by mapping the registries in one expression; both
+  fallbacks deleted. **Scope, stated precisely (fix-delta typescript obs 1):** `buildDefaults`
+  still ends in `Object.fromEntries(…) as Record<…>` — the same assert-don't-prove shape as
+  R-20's, and it is NOT a compile gate. It cannot be one: the key spaces are 12 and 58 ids read
+  off the registries at runtime, so a literal would be the registries written twice. The proof
+  is `content.test.ts`'s per-key totality pin, named in the code, and that is what this bullet
+  claims — nothing more.
+
+### 86d. RECORDED — `selectDrawerStatus`'s second argument is a required MODE (R-23)
+
+The drawer-dot vs map-pin split (§82f) was expressed by argument ABSENCE, so a caller who simply
+forgot got the map-pin semantics silently. The parameter is now required and its type names both
+readings: `FormVisibility | 'count-all'` (`COUNT_ALL_FIELDS`). §82f's reasoning is unchanged —
+the drawer asks "what is left for ME to fill" and the map asks "how far along is this LOCATION" —
+only the way a caller states which one is.
+
+### 86e. RECORDED — what the a11y half of this round did and did not cover
+
+R-6's RowSwitch half and R-31 are fixed here: locked grid switches point `aria-describedby` at
+their own "Always on" pill (so the reason is the pill's existing words, not new copy), and the
+row expander stopped baking `expanded`/`collapsed` into its accessible name.
+
+**Not covered here, by routing:** the shared `Toggle` + stub-pane half of R-6, and R-9/R-10/R-32/
+R-34 — all P7.1's. A reader auditing accessibility across the Settings surface should read this
+entry together with P7.1's, not conclude from the grid's fix that the surface is done.
+
+### 86f. RECORDED — the two dead-code deletions, so neither reads as an accident
+
+`checkArray` (R-16) lost its last caller when the dots became visibility-aware and was deleted
+rather than kept as an untested near-twin of `countedArray`. Nothing else in P7.3 was removed
+this round. The earlier `nextChapter`/`prevChapter` and `FORENSIC`/`getProfile` deletions are
+§82f's and §82's, not this round's.
+
+### 86g. RECORDED (fix-delta FD-1, gate) — R-20's totality is now proven at both ends
+
+**What the delta found:** three texts — commit `e7eb681`, `selectors.ts`'s doc comment and §86c —
+all stated that a third `AdditiveFormStepId` "breaks here and at the drawer until both are wired".
+The aggregator's probe (append `'ocr'` to the tuple, satisfy the two pre-existing registries)
+produced errors in `content/form-customization.ts` ×2 — both registries that were already total
+BEFORE R-20 — and **zero** in `selectors.ts` and `WizardDrawer.tsx`, the two files the claim
+named. The new tool would have appeared as a switchable row in the Form Fields grid with no
+accordion row behind it: §82b's exact phone defect, a switch that moves nothing, re-introduced by
+the commit that claimed to prevent it.
+
+**Why neither end forced:**
+
+- `Object.fromEntries(…) as Record<AdditiveFormStepId, boolean>` — `fromEntries` returns
+  `{[k: string]: boolean}`, so the assertion CLAIMS totality; a widened tuple is absorbed by the
+  cast and can never break the function.
+- the drawer's `rows` was two independent `...(mediaTools.x ? [row] : [])` spreads. Reading two of
+  three keys off a total `Record` is not an error — TypeScript has no unread-key check — so that
+  end had no gate at all.
+
+**Fixed by the device the rest of the feature already uses** (`MODAL_IDS`, `STEP_CLASSIFICATION`,
+`ADDITIVE_STEP_LABELS` — which is why the probe's pass 1 caught two of them): a total object
+LITERAL in `selectMediaToolsVisible`, and a total `TOOL_ROWS: Record<AdditiveFormStepId,
+(h: MediaHandlers) => MediaRow>` at the drawer, with the accordion's rows derived from
+`ADDITIVE_FORM_STEP_IDS` (registry order, never hand-listed) and the ungated library row appended.
+The row builders stay in `WizardDrawer.tsx` because they carry JSX — the reason
+`ADDITIVE_STEP_LABELS`' own comment gives for keeping labels out of the engine.
+
+**Re-probe after the fix:** `selectors.ts` ×1 (`TS2741: Property 'ocr' is missing`) and
+`WizardDrawer.tsx` ×1. Both must be satisfied before a third tool compiles, which is what the
+three texts said all along. §86c's R-20 bullet is amended in place rather than deleted, so the
+overclaim and its correction stay legible together.
+
+**The incidental gate R-20 did leave** — three test files' `mediaTools` prop literals — is no
+longer load-bearing. It was the only thing standing between a third tool and a silent miss, and
+an ordinary shared-factory refactor of those fixtures would have removed it without a word.
+
+### 86h. RECORDED (fix-delta FD-5) — R-28's second direction was vacuous, and is now one honest pin
+
+**What:** the "lets no OTHER row collide with a form-step id" test filtered `others` by
+`!WIZARD_SCREENS.includes(i.id)` — which removes precisely the ids that could trip it — and then
+allowlisted the only two survivors that could be form steps. The assertion could not fail; the
+lane's probe (re-pointing the non-step `settings` row at `audioRecording`, the exact collision the
+test describes) passed.
+
+**Re-aimed rather than deleted.** The guarantee worth having spans the whole `FORM_STEPS` id
+space, both directions at once: **every one of the 12 step ids is carried by exactly one explore
+row.** A drifted slug drops that count to 0; a colliding non-step row raises it to 2. That single
+assertion covers what direction 1 covered for the ten linear screens AND the two additive tools
+direction 1 never reached, and it is the pin that actually reddens under the lane's probe.
+Direction 1 keeps the routing half it alone asserts (each wizard-screen row jumps to its own
+screen).

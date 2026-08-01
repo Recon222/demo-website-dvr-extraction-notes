@@ -1,6 +1,6 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
-import { getProfile } from '@/features/demo/engine/content/profiles'
+import type { AdditiveFormStepId, DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
@@ -39,7 +39,11 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
       : EXPLORE_ITEMS.some((it) => it.covers.includes(state.view))
         ? state.view
         : state.currentChapter
-  return EXPLORE_ITEMS.map((item, i) => ({
+  // A row for a screen the visitor's profile has switched OFF can never light — and the exit
+  // dialog lists unlit rows as things they missed. Drop those rows (P7.3): the checklist tracks
+  // THIS visitor's flow, not the maximal one. Numbering stays positional over what remains,
+  // which is the same rule the registry has always used.
+  return EXPLORE_ITEMS.filter((item) => !isKnownFormStep(item.id) || resolveStepVisible(item.id, state)).map((item, i) => ({
     id: item.id,
     number: String(i + 1).padStart(2, '0'),
     label: item.label,
@@ -124,13 +128,43 @@ export function selectLocationsForCase(s: DemoState, caseId: string): DemoLocati
   return s.locations.filter((l) => l.caseId === caseId)
 }
 
+/**
+ * The wizard screens currently in the flow — the visible LINEAR steps, resolved through the
+ * active profile and the visitor's overrides (P7.3). No cast: `LINEAR_FORM_STEPS` is built from
+ * `DRAWER_DEFS` and typed `LinearFormStepDef`, so the ids ARE `WizardScreenId` and an additive
+ * tool leaking into the linear list is a compile failure rather than a bad route at runtime.
+ */
 export function selectVisibleWizardScreens(s: DemoState): WizardScreenId[] {
-  return getProfile(s.profile).wizardScreens
+  return getVisibleFormSteps(s).map((step) => step.id)
 }
 
 export function selectDrawerItems(s: DemoState): DrawerDef[] {
-  const visible = new Set(selectVisibleWizardScreens(s))
+  const visible = new Set<string>(selectVisibleWizardScreens(s))
   return DRAWER_DEFS.filter((d) => visible.has(d.id))
+}
+
+/**
+ * Whether the drawer's Media accordion should offer each capture tool — the phone gates both
+ * rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
+ * gated on either side: it browses what is already captured.
+ *
+ * A TOTAL OBJECT LITERAL over `AdditiveFormStepId`, which is the whole point (R-20, corrected by
+ * the fix-delta's FD-1). The ad-hoc `capture`/`audio` keys this used to carry meant a third
+ * additive tool compiled everywhere and silently never reached the accordion — §82b's exact
+ * phone defect, a grid switch that moves nothing.
+ *
+ * R-20's first attempt kept `Object.fromEntries(ADDITIVE_FORM_STEP_IDS.map(…)) as Record<…>`,
+ * which CLAIMS totality rather than proving it: `fromEntries` returns `{[k: string]: boolean}`
+ * and the assertion absorbs a widened tuple, so adding a key could never break this function.
+ * A literal is what the rest of this feature uses for exactly this job (`MODAL_IDS`,
+ * `STEP_CLASSIFICATION`, `ADDITIVE_STEP_LABELS`) and it is why those caught the same probe.
+ * `WizardDrawer`'s `TOOL_ROWS` is the other half — a new tool must be wired in both.
+ */
+export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
+  return {
+    mediaCapture: resolveStepVisible('mediaCapture', s),
+    audioRecording: resolveStepVisible('audioRecording', s),
+  }
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------
@@ -145,17 +179,8 @@ function checkFields(values: Array<string | undefined>): DrawerStatus {
   return n === values.length ? 'complete' : 'partial'
 }
 
-/** no items / all-blank items → empty · every item fully filled → complete · else partial */
-function checkArray<T>(items: T[], fields: (item: T) => Array<string | undefined>): DrawerStatus {
-  if (items.length === 0) return 'empty'
-  const per = items.map((it) => checkFields(fields(it)))
-  if (per.every((d) => d === 'complete')) return 'complete'
-  if (per.every((d) => d === 'empty')) return 'empty'
-  return 'partial'
-}
-
 /**
- * Extracted scopes diverge from checkArray on purpose: a present-but-blank GENERATED scope reads
+ * Extracted scopes diverge from `countedArray` on purpose: a present-but-blank GENERATED scope reads
  * 'partial', not 'empty' (only generateExtractedScopes populates this list, and a blank cameras
  * field legitimately → amber). 'empty' is reserved for 0 items.
  */
@@ -171,8 +196,28 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * DVR `serialModelNumber` and export `mediaPlayerIncluded` (a screen goes green without them).
  * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
  * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
+ *
+ * **The second argument is a MODE, not a configuration** (review R-23). The two consumers ask
+ * genuinely different questions, so the mode is named rather than signalled by absence:
+ *
+ * - a `FormVisibility` ⇒ *"what is left for ME to fill"* — a HIDDEN field stops being counted,
+ *   which is what the phone does (`use-section-completion.ts` reads the store +
+ *   `resolveFieldVisible`). Without it a canvas visitor's DVR dot could never go green: five of
+ *   its nine counted fields are hidden, so they are permanently empty AND unfillable.
+ * - `'count-all'` ⇒ *"how far along is this LOCATION"* — every counted field counts, because the
+ *   map pin and the exported case map must not read differently on a reader whose device runs a
+ *   different profile.
+ *
+ * A screen whose counted fields are ALL hidden reads 'complete': there is nothing outstanding.
  */
-export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScreenId, DrawerStatus> {
+/** The map-pin / exported-case-map reading: grade the location, not this device's form. */
+export const COUNT_ALL_FIELDS = 'count-all'
+export type DrawerStatusMode = FormVisibility | typeof COUNT_ALL_FIELDS
+
+export function selectDrawerStatus(
+  loc: DemoLocation | null,
+  mode: DrawerStatusMode,
+): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
     return {
       submission: 'empty',
@@ -189,15 +234,68 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
   }
   const f = loc.form
   const dvr = f.dvr
+  // Counted values, each paired with the toggle that governs it. `counted` drops the hidden ones
+  // (when a visibility is supplied) and reads an all-hidden list as 'complete'.
+  const shown = (id: FormFieldId) => mode === COUNT_ALL_FIELDS || resolveFieldVisible(id, mode)
+  const counted = (entries: ReadonlyArray<readonly [FormFieldId, string | undefined]>): DrawerStatus => {
+    const values = entries.filter(([id]) => shown(id)).map(([, v]) => v)
+    return values.length === 0 ? 'complete' : checkFields(values)
+  }
+  const countedArray = <T,>(
+    items: T[],
+    fields: (item: T) => ReadonlyArray<readonly [FormFieldId, string | undefined]>,
+  ): DrawerStatus => {
+    if (items.length === 0) return 'empty'
+    const per = items.map((it) => counted(fields(it)))
+    if (per.every((d) => d === 'complete')) return 'complete'
+    if (per.every((d) => d === 'empty')) return 'empty'
+    return 'partial'
+  }
   return {
-    submission: checkFields([loc.requesterName, loc.requesterBadge, loc.requesterPhone, loc.requesterEmail, loc.businessName, loc.streetAddress, loc.city, loc.locationContact, loc.locationPhone]),
-    requestedScope: checkArray(f.scopes, (s) => [s.startDateTime, s.endDateTime, s.cameras]),
-    arrivalDeparture: checkArray(f.arrivalDepartures, (a) => [a.arrival, a.departure]),
+    submission: counted([
+      ['submission.requesterName', loc.requesterName],
+      ['submission.requesterBadgeNumber', loc.requesterBadge],
+      ['submission.requesterPhone', loc.requesterPhone],
+      ['submission.requesterEmail', loc.requesterEmail],
+      ['submission.businessName', loc.businessName],
+      ['submission.streetAddress', loc.streetAddress],
+      ['submission.city', loc.city],
+      ['submission.locationContact', loc.locationContact],
+      ['submission.locationPhone', loc.locationPhone],
+    ]),
+    requestedScope: countedArray(f.scopes, (s) => [
+      ['scope.startDateTime', s.startDateTime],
+      ['scope.endDateTime', s.endDateTime],
+      ['scope.cameras', s.cameras],
+    ]),
+    arrivalDeparture: countedArray(f.arrivalDepartures, (a) => [
+      ['arrival.arrivalDateTime', a.arrival],
+      ['arrival.departureDateTime', a.departure],
+    ]),
     timeOffset: checkFields([f.timeOffset?.dvrDateTime, f.timeOffset?.actualDateTime]),
     extractedScope: checkExtractedScopes(f.extractedScopes),
-    dvrInfo: checkFields([dvr.dvrLocation, dvr.dvrTypeBrand, dvr.dvrUsername, dvr.dvrPassword, dvr.numberOfChannels, dvr.activeCameras, dvr.resolution, dvr.recordingFps, dvr.firstRecordedDate]),
-    cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
-    exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
+    dvrInfo: counted([
+      ['dvr.dvrLocation', dvr.dvrLocation],
+      ['dvr.dvrTypeBrand', dvr.dvrTypeBrand],
+      ['dvr.dvrUsername', dvr.dvrUsername],
+      ['dvr.dvrPassword', dvr.dvrPassword],
+      ['dvr.numberOfChannels', dvr.numberOfChannels],
+      ['dvr.activeCameras', dvr.activeCameras],
+      ['dvr.resolution', dvr.resolution],
+      ['dvr.recordingFps', dvr.recordingFps],
+      ['dvr.firstRecordedDate', dvr.firstRecordedDate],
+    ]),
+    cameras: countedArray(f.cameras, (c) => [
+      ['camera.cameraName', c.cameraName],
+      ['camera.resolution', c.resolution],
+      ['camera.recordingFps', c.recordingFps],
+    ]),
+    exportInfo: counted([
+      ['export.exportMedia', f.export.exportMedia],
+      ['export.fileType', f.export.fileType],
+      ['export.sizeGb', f.export.sizeGb],
+      ['export.mediaProvidedVia', f.export.mediaProvidedVia],
+    ]),
     // Phone rule (use-section-completion:293): two-state only — any section content,
     // any addendum, or a non-blank free-text tail → complete; never 'partial'.
     notes:
@@ -205,7 +303,10 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
       isFilled(f.notesFreeText)
         ? 'complete'
         : 'empty',
-    completion: checkFields([f.dateTimeCompleted, f.completedBy]),
+    completion: counted([
+      ['completion.dateTimeCompleted', f.dateTimeCompleted],
+      ['completion.completedBy', f.completedBy],
+    ]),
   }
 }
 
@@ -226,7 +327,7 @@ export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
   // Field-derived aggregation only grades locations still in progress. This keeps the Cases
   // row/map pin consistent with the card the same action turned green.
   if (loc.form.completed) return 'complete'
-  return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
+  return aggregateMapStatus(Object.values(selectDrawerStatus(loc, COUNT_ALL_FIELDS)))
 }
 
 /** Assemble the current case + location into the Case Notes PDF input shape. */
@@ -279,5 +380,10 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     // possibly-under-reported recovered-footage line instead of shipping it silently.
     extractedScopesPartial: form?.extractedScopesPartial,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
+    // The phone's Completion Information section (P7.2). `completedBy` is where the analyst
+    // profile's name arrives, via the Completion screen's autofill — this is the last hop of
+    // "the profile reaches the court document".
+    dateTimeCompleted: form?.dateTimeCompleted,
+    completedBy: form?.completedBy,
   }
 }

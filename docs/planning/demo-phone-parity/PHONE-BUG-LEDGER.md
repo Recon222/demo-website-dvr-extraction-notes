@@ -31,3 +31,25 @@ Consolidated 2026-07-31. File these as BUG-NNN in the phone repo's `docs/cleanup
 ## Back-port candidates (improvements, not bugs — matrix §4)
 
 B2 clock-injected datetime parts · B3 `RetentionView` derivation · B4 incident-coordinate UX + strict `parseCoordinate` · B5 `motion.ts` as the Reanimated port template · the demo's D10 extracted-scope passthrough comments as documentation of intent · B6 `encodeJsonForScriptTag` (`</script>` in a location name closes the phone's data tag early; the map's bare `catch {}` at `case-map.app.js:109` then renders a blank map with zero feedback — demo escapes `<`; back-port is additive since `buildCaseMapHtml`'s signature is unchanged).
+
+## Added by P7.3 (2026-08-01) — numbered after the existing list to keep every reference above stable
+
+18. *(copy / UX nit)* **The `limited` form profile's blurb promises a reduction it does not make** — `form-customization/components/ProfilePicker.tsx:25` reads "Comprehensive, lightly reduced (SPC/SOCO)", while `config/profiles.ts:13` states and its off-lists confirm that limited drops nothing at all (its defaults are byte-identical to forensic). Either give `limited` an off-list or change the copy. Demo carries the copy verbatim and pairs it with a derived "Hides nothing" count. (deferred §82d)
+19. *(genuine bug — dead control)* **The Settings grid's submission GPS group toggles nothing** — `submission.latitude` / `.longitude` / `.coordinateAccuracy` / `.coordinateSource` are a togglable group in `config/field-registry.ts:31-34`, and no screen reads them: the 35 `useFieldVisible` call sites across `app/(form)/*.tsx` cover every other switchable field, and `submission.tsx:54-60` gates the five requester fields plus the two contact fields only — the GPS capture control and coordinate card render unconditionally. Switching the group off in Settings appears to take (the store writes the override) and changes nothing on screen. Fix is one `showGps`-style gate in `submission.tsx` around `<LocationForm/>`'s GPS block. Demo gates it. (deferred §82b)
+
+## Added by the P7 fix round (2026-08-01) — same append-only rule: 1–19 keep their numbers
+
+20. *(genuine bug — a write that outlives the operator's own "off")* **The Completion screen's
+    Completed-By autofill never consults that field's visibility.** `app/(form)/completion.tsx:59`
+    resolves `showCompletedBy = useFieldVisible('completion.completedBy')` and uses it in exactly
+    one place — the render gate at `:492`. The autofill effect at `:127-133` writes
+    `updateField('completedBy', profileName.trim())` without reading it. So with Completed By
+    switched off in Settings → Form Fields, opening Completion with a user profile saved silently
+    stamps the analyst's name into a field the operator has hidden and therefore cannot see, edit
+    or clear — and it does not stay put: `case-notes-template.ts:341-345` prints `Completed By:`
+    on any non-empty value (gated on `hasValue`, not on visibility), so it reaches the court
+    document; and `case-notes-validator.ts:53` (which requires `completedBy` non-empty) is
+    silently satisfied by it, so the PDF gate stops asking. Same shape as item 19 — a Settings
+    switch whose decision the write path does not honour — but the other way round: 19 is a
+    toggle that changes nothing, this is a toggle the app overrides. **Fix is one line** before
+    the write: `if (!showCompletedBy) return`. Demo gates it (deferred §85a; review R-1b).

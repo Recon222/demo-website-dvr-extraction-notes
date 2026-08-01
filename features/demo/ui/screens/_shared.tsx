@@ -18,6 +18,33 @@ export function switchKeyDown(activate: () => void) {
   }
 }
 
+/**
+ * The layers a `ModalShell` may sit on (review R-29). The numbers are OFFSETS added to the
+ * shell's own lifted `21` (scrim) / `22` (sheet):
+ *
+ * - `base` — the prototype's own layer, used by every sheet that opens over a screen.
+ * - `overSheet` — for a sheet opened from INSIDE another sheet, which today is the User Profile
+ *   editor over the Settings sheet (the demo's only modal-over-modal). 25/26: above the Settings
+ *   sheet's 22, and below `PickerSheet`'s 31/32, so the date pickers the editor itself opens still
+ *   render over it. Without an explicit layer the winner would be DOM insertion order — true
+ *   today, and true for no reason a reader of either file could see.
+ *
+ * Add a member here rather than passing a number at a call site: the constraint is the ORDER of
+ * these values against each other and against `PickerSheet`, and it is only checkable in one place.
+ */
+export const MODAL_LAYER = { base: 0, overSheet: 4 } as const
+export type ModalLayer = (typeof MODAL_LAYER)[keyof typeof MODAL_LAYER]
+
+/**
+ * The two z-indexes a `ModalShell` paints on at `MODAL_LAYER.base` — scrim, then panel one above
+ * it. Named and exported rather than inlined (review FD-2) because they are one END of an
+ * ordering that spans three files: a sheet opened from inside another sheet lands at
+ * `SETTINGS_SHEET_Z + MODAL_LAYER.overSheet` and must stay strictly under `PICKER_SHEET_Z`. An
+ * invariant asserted against re-typed literals is asserted against nothing.
+ */
+export const MODAL_SCRIM_Z = 21
+export const MODAL_SHEET_Z = 22
+
 const grid: CSSProperties = {
   position: 'absolute',
   inset: 0,
@@ -41,6 +68,7 @@ export function ModalShell({
   onBack,
   backLabel = 'Back',
   fillBody = false,
+  elevation = MODAL_LAYER.base,
   footer,
   children,
 }: {
@@ -54,6 +82,18 @@ export function ModalShell({
   onBack?(): void
   backLabel?: string
   fillBody?: boolean
+  /**
+   * Which layer this sheet sits on. `MODAL_LAYER.base` (the default, every caller before the
+   * profile editor) leaves the lifted values 21/22 exactly as they were.
+   *
+   * A two-member union, not a number (review R-29): the invariant is a RANGE — above the other
+   * overlays that portal into the same phone-overlay root, and strictly below `PickerSheet`'s
+   * 31/32 so the pickers a sheet CONTAINS still land on top of it — and a bare `number` let any
+   * caller pick a value that breaks either end while reading as valid. With two named members the
+   * type carries what the comment carried alone, and a new layer has to be added here, next to
+   * the values it must sit between.
+   */
+  elevation?: ModalLayer
   footer?: ReactNode
   children: ReactNode
 }) {
@@ -67,7 +107,7 @@ export function ModalShell({
   }, [onClose])
   const content = (
     <>
-      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
+      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: MODAL_SCRIM_Z + elevation, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -79,7 +119,7 @@ export function ModalShell({
           right: 0,
           top: 34,
           bottom: 0,
-          zIndex: 22,
+          zIndex: MODAL_SHEET_Z + elevation,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           background: '#0d1b2a',
@@ -394,22 +434,119 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
 }
 
 /** A labelled dropdown bound to a string value — the custom picker matching the phone app.
- *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`). */
-export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
-  return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
+ *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`).
+ *
+ *  `label` is OPTIONAL (P7.1): every settings picker on the phone leaves the shared `Picker`'s
+ *  own `label` prop unset and renders the label as a separate line above it (ui-mapping 12
+ *  documents this on all six of them — it is why their bottom sheets read "Select an option").
+ *  Omitting it here reproduces that exactly, and `Dropdown` already handles the absence, sheet
+ *  title included. Wizard callers pass it as before.
+ *
+ *  A label-less caller MUST pass `a11yLabel` (R-9): the sheet that opens on top of the trigger
+ *  is outside `PaneGroup`'s `role="group"` boundary, so without it the dialog and its menu both
+ *  announce the bare placeholder. `SelectFieldName` is what makes that a compile error rather
+ *  than a convention (FD-4) — see its own note. */
+export function SelectField({ label, a11yLabel, value, onChange, options }: SelectFieldProps) {
+  return <Dropdown label={label} a11yLabel={a11yLabel} value={value} onChange={onChange} options={options} placeholder="Select…" />
+}
+
+/**
+ * Naming, as a union: a `SelectField` is either visibly labelled or invisibly labelled, never
+ * neither (FD-4, the `RetentionView` precedent — "the union makes the impossible state
+ * unrepresentable").
+ *
+ * Two independent optionals permitted a THIRD state neither caller wants: no `label`, no
+ * `a11yLabel`, and a picker whose trigger, sheet title and menu all announce the bare
+ * placeholder. Every call site is correct today; this closes the shape, not a bug.
+ *
+ * The `label?: undefined` arm is load-bearing — without it, excess-property checking lets an
+ * object literal satisfy the a11y arm while also carrying a `label`, which is the very
+ * combination the phone-parity rule forbids for the settings pickers.
+ */
+export type SelectFieldName =
+  /** Visibly labelled (the wizard callers): `Dropdown` renders the line AND names the sheet. */
+  | { label: string; a11yLabel?: undefined }
+  /** Invisibly labelled (the six settings pickers): no visible line, sheet + menu still named. */
+  | { label?: undefined; a11yLabel: string }
+
+export type SelectFieldProps = SelectFieldName & {
+  value: string
+  onChange(value: string): void
+  options: ReadonlyArray<string | PickerOption>
 }
 
 /** A labelled on/off switch (keyboard-operable). */
-export function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick(): void }) {
+export function Toggle({
+  label,
+  on,
+  onClick,
+  disabled = false,
+  describedBy,
+  disclosure,
+}: {
+  label: string
+  on: boolean
+  onClick(): void
+  /**
+   * The switch states its value but refuses to change it (P7.1). `aria-disabled` + an inert
+   * handler, never the `disabled` attribute — this is a `role="switch"` div, and the house rule
+   * (`ModalActions.submitBlocked`, the GPS capture button's §45a precedent) is that a control
+   * stays focusable so a keyboard visitor can reach it and hear WHY it is unavailable from the
+   * copy beside it.
+   */
+  disabled?: boolean
+  /**
+   * Id of the element carrying that WHY — required in practice whenever `disabled` is set
+   * (R-6).
+   *
+   * The rule this control cites has two halves and P7.1 shipped one. `aria-disabled` announces
+   * a STATE ("dimmed"); it carries no reason, and in focus mode a screen reader reads only the
+   * focused node's name/role/state — never an unlabelled sibling. So "hear WHY from the copy
+   * beside it" was true of the pixels and false of the accessibility tree, and a visitor could
+   * not tell "deliberately locked" from "broken". The cited precedent does both halves
+   * (`ModalActions` at :346-347), as does every other inert control in this feature
+   * (`DuplicateLocationModal.tsx:95`, `OcrCaptureScreen.tsx:445`, `MediaCaptureScreen.tsx:737`).
+   *
+   * Applied only while `disabled`: an enabled switch has no reason to point at.
+   */
+  describedBy?: string
+  /**
+   * This switch reveals a block (R-34): the id it reveals, and whether it is revealed right now.
+   * Flipping a settings switch that inserts a whole configuration block announced "on" and
+   * nothing else; `aria-controls` + `aria-expanded` name what appeared, so a focus-mode visitor
+   * gets the signal a sighted one does.
+   *
+   * ONE member, not two optionals (FD-4). The split pair permitted `controls` without
+   * `expanded` — a switch advertising a disclosure relationship while withholding its state,
+   * which is exactly the shape that loses axe's disclosure carve-out and announces a control
+   * that governs something unknown. The two facts arrive together or not at all, so the type
+   * says so. Same move as R-7's required `valueText` and R-23/R-29's nameable modes.
+   */
+  disclosure?: { controls: string; expanded: boolean }
+}) {
+  const activate = () => {
+    if (!disabled) onClick()
+  }
   return (
     <div
       role="switch"
       aria-checked={on}
+      aria-disabled={disabled || undefined}
+      aria-describedby={disabled ? describedBy : undefined}
+      aria-controls={disclosure?.controls}
+      aria-expanded={disclosure?.expanded}
       aria-label={label}
       tabIndex={0}
-      onClick={onClick}
-      onKeyDown={switchKeyDown(onClick)}
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}
+      onClick={activate}
+      onKeyDown={switchKeyDown(activate)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: '4px 0',
+        opacity: disabled ? 0.55 : 1,
+      }}
     >
       <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
       <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>

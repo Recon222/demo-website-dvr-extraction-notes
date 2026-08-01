@@ -5,7 +5,7 @@ import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inp
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import type { DemoLocation } from '@/features/demo/engine/types'
+import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -58,6 +58,9 @@ export interface SubmissionScreenProps {
   /** Fires whenever a coordinate lands — from a GPS capture (`gps`) or an address pick
    *  (`geocoded`). One write path, so the two sources can never stamp inconsistently. */
   onCoordinates(coords: SubmissionCoordinates): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). The three address
+   *  components are always-on, so they carry no gate; everything else on the screen does. */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
@@ -90,6 +93,7 @@ export function SubmissionScreen({
   locationId,
   fields,
   coordinates,
+  isFieldVisible,
   onChange,
   onCoordinates,
   onNext,
@@ -124,6 +128,16 @@ export function SubmissionScreen({
     }
   }
 
+  // A section card with a title and nothing under it reads as broken, so the requester block
+  // goes when its last field does. Location Information always keeps the address components
+  // (always-on), and Case Information is the always-on OCC number.
+  const showRequester =
+    isFieldVisible('submission.requesterName') ||
+    isFieldVisible('submission.requesterBadgeNumber') ||
+    isFieldVisible('submission.requesterUnit') ||
+    isFieldVisible('submission.requesterPhone') ||
+    isFieldVisible('submission.requesterEmail')
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Submission Details" onBack={onBack} onMenu={onMenu} />
@@ -132,17 +146,19 @@ export function SubmissionScreen({
           <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
           <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
+        {showRequester && (
         <SectionCard title="Requester Information">
-          <Field label={COPY.requesterName} value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder={COPY.requesterNamePlaceholder} />
-          <Field label={COPY.requesterBadge} value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder={COPY.requesterBadgePlaceholder} />
-          <Field label={COPY.requesterUnit} value={fields.requesterUnit} onChange={(v) => onChange('requesterUnit', v)} placeholder={COPY.requesterUnitPlaceholder} hint={COPY.requesterUnitHint} />
-          <Field label={COPY.requesterPhone} value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder={COPY.requesterPhonePlaceholder} />
-          <Field label={COPY.requesterEmail} value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder={COPY.requesterEmailPlaceholder} />
+          {isFieldVisible('submission.requesterName') && <Field label={COPY.requesterName} value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder={COPY.requesterNamePlaceholder} />}
+          {isFieldVisible('submission.requesterBadgeNumber') && <Field label={COPY.requesterBadge} value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder={COPY.requesterBadgePlaceholder} />}
+          {isFieldVisible('submission.requesterUnit') && <Field label={COPY.requesterUnit} value={fields.requesterUnit} onChange={(v) => onChange('requesterUnit', v)} placeholder={COPY.requesterUnitPlaceholder} hint={COPY.requesterUnitHint} />}
+          {isFieldVisible('submission.requesterPhone') && <Field label={COPY.requesterPhone} value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder={COPY.requesterPhonePlaceholder} />}
+          {isFieldVisible('submission.requesterEmail') && <Field label={COPY.requesterEmail} value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder={COPY.requesterEmailPlaceholder} />}
         </SectionCard>
+        )}
         <SectionCard title="Location Information">
-          <LocationFields locationId={locationId} values={locationValues} onChange={handleLocationChange} deps={gpsDeps} reverseGeocode={reverseGeocode} />
-          <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />
-          <Field label={COPY.contactPhone} value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder={COPY.contactPlaceholder} />
+          <LocationFields locationId={locationId} values={locationValues} onChange={handleLocationChange} showGps={isFieldVisible('submission.latitude')} deps={gpsDeps} reverseGeocode={reverseGeocode} />
+          {isFieldVisible('submission.locationContact') && <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />}
+          {isFieldVisible('submission.locationPhone') && <Field label={COPY.contactPhone} value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder={COPY.contactPlaceholder} />}
         </SectionCard>
         <WizardNext label="Next: Requested Scope" onClick={onNext} />
       </div>

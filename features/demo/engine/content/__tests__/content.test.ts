@@ -2,7 +2,17 @@ import { describe, it, expect } from 'vitest'
 import { CHAPTERS, TAB_VIEWS, isTabOnlyView } from '@/features/demo/engine/content/screens'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
 import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
-import { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
+import { SWITCHABLE_FORM_FIELDS } from '@/features/demo/engine/content/form-customization'
+import {
+  DEFAULT_PROFILE,
+  PROFILE_BLURBS,
+  PROFILE_DEFAULTS,
+  PROFILE_LABELS,
+  describeProfile,
+} from '@/features/demo/engine/content/profiles'
+import { ALWAYS_ON_FIELDS, FORM_FIELDS, FORM_STEPS } from '@/features/demo/engine/content/form-customization'
+import { PROFILES, type Profile } from '@/features/demo/engine/types'
 
 describe('narration', () => {
   it('has non-empty copy for every tour chapter', () => {
@@ -30,6 +40,21 @@ describe('narration', () => {
       expect(n!.title.length).toBeGreaterThan(0)
       expect(n!.paras.length).toBeGreaterThan(0)
     }
+  })
+
+  it('quotes the Settings registries rather than hand-typed counts (R-5)', () => {
+    // The paragraph shipped "Eleven categories … 57 form fields" over a surface rendering ten
+    // and fifty. Both numbers are now read from the registries the pane itself renders, so this
+    // pin fails the moment a category or a switchable field is added or removed WITHOUT the
+    // copy following — which is the whole failure mode, since prose has no other gate.
+    const para = MODAL_NARRATION.settings!.paras[0]
+    expect(SETTINGS_CATEGORY_IDS).toHaveLength(10)
+    expect(SWITCHABLE_FORM_FIELDS).toHaveLength(50)
+    expect(para).toContain('Ten categories')
+    expect(para).toContain(`${SWITCHABLE_FORM_FIELDS.length} form fields`)
+    // The two stale literals must never come back.
+    expect(para).not.toContain('Eleven categories')
+    expect(para).not.toContain('57 form fields')
   })
 
   it('carries copy for exactly the tab destinations that are NOT chapters (Map, Export)', () => {
@@ -60,13 +85,72 @@ describe('seed content (the sample request survives as the live-import fallback)
 })
 
 describe('profiles', () => {
-  it('forensic profile exposes all 10 wizard screens with nothing hidden', () => {
-    expect(FORENSIC.id).toBe('forensic')
-    expect(FORENSIC.wizardScreens.length).toBe(10)
-    expect(FORENSIC.hiddenFields).toEqual([])
+  it('covers all three profiles with total default maps', () => {
+    expect([...PROFILES]).toEqual(['forensic', 'limited', 'canvas'])
+    for (const id of PROFILES) {
+      const d = PROFILE_DEFAULTS[id]
+      expect(Object.keys(d.steps).sort()).toEqual(FORM_STEPS.map((s) => s.id).sort())
+      expect(Object.keys(d.fields).sort()).toEqual(FORM_FIELDS.map((f) => f.id).sort())
+      expect(PROFILE_LABELS[id].length).toBeGreaterThan(0)
+      expect(PROFILE_BLURBS[id].length).toBeGreaterThan(0)
+    }
+    expect(DEFAULT_PROFILE).toBe('forensic')
   })
 
-  it('getProfile returns the forensic config for "forensic"', () => {
-    expect(getProfile('forensic')).toBe(FORENSIC)
+  it('ships forensic and limited identical, and canvas reduced by the phone off-lists', () => {
+    expect(PROFILE_DEFAULTS.limited).toEqual(PROFILE_DEFAULTS.forensic)
+    expect(Object.values(PROFILE_DEFAULTS.forensic.steps).every(Boolean)).toBe(true)
+    expect(Object.values(PROFILE_DEFAULTS.forensic.fields).every(Boolean)).toBe(true)
+
+    const offSteps = FORM_STEPS.filter((s) => !PROFILE_DEFAULTS.canvas.steps[s.id]).map((s) => s.id)
+    expect(offSteps).toEqual(['cameras'])
+    const offFields = FORM_FIELDS.filter((f) => !PROFILE_DEFAULTS.canvas.fields[f.id]).map((f) => f.id)
+    expect(offFields).toEqual([
+      'submission.requesterName',
+      'submission.requesterBadgeNumber',
+      'submission.requesterUnit',
+      'submission.requesterPhone',
+      'submission.requesterEmail',
+      'dvr.dvrLocation',
+      'dvr.serialModelNumber',
+      'dvr.numberOfChannels',
+      'dvr.activeCameras',
+      'dvr.recordingSchedule',
+      'dvr.resolution',
+      'dvr.recordingFps',
+      'camera.cameraName',
+      'camera.resolution',
+      'camera.recordingFps',
+      'camera.latitude',
+      'camera.longitude',
+      'camera.coordinateAccuracy',
+      'camera.coordinateSource',
+      'camera.coordinateCapturedAt',
+    ])
+  })
+
+  it('never lets a profile default hide a mandatory field', () => {
+    for (const id of PROFILES) {
+      for (const field of Array.from(ALWAYS_ON_FIELDS)) {
+        expect(PROFILE_DEFAULTS[id].fields[field], `${id} hides mandatory "${field}"`).toBe(true)
+      }
+    }
+  })
+
+  it('falls back to the default profile when asked about one that is not in the universe', () => {
+    // Same defence-in-depth as the resolver's `profileDefaultsFor` (pinned in
+    // form-visibility.test.ts): a throw here would throw inside the settings pane's render.
+    expect(describeProfile('nope' as Profile)).toEqual(describeProfile(DEFAULT_PROFILE))
+    expect(describeProfile('nope' as Profile)).toEqual({ steps: 0, fields: 0 })
+  })
+
+  it('describes each profile by COUNTING its defaults, never by its blurb', () => {
+    // The reduction line the pane renders. `limited` is the reason it exists: the phone's blurb
+    // calls it "lightly reduced" while its defaults drop nothing — the derived count says 0/0.
+    expect(describeProfile('forensic')).toEqual({ steps: 0, fields: 0 })
+    expect(describeProfile('limited')).toEqual({ steps: 0, fields: 0 })
+    // Canvas: 1 screen, and 12 fields — the 20 off-list ids MINUS the 8 that live on the screen
+    // it already hides, counted once as the screen rather than twice.
+    expect(describeProfile('canvas')).toEqual({ steps: 1, fields: 12 })
   })
 })

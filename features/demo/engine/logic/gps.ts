@@ -129,8 +129,14 @@ export interface GpsConfig {
 /**
  * The demo's default capture config. The phone reads mode + timeout from the Location
  * settings pane, whose defaults are `balanced` / 30 s (phone settings README:325,
- * `DEFAULT_LOCATION_SETTINGS`); the demo has no settings surface until P7, so it pins those
- * same defaults rather than inventing new ones.
+ * `DEFAULT_LOCATION_SETTINGS`); the demo pins those same defaults rather than inventing new
+ * ones.
+ *
+ * P7.1 UPDATE: the demo now HAS a Location settings pane, and it opens showing exactly these
+ * two defaults — but nothing routes its values here yet. That is decision D6's stub line, and
+ * the pane says so in its own words. Wiring it is one prop each through `SubmissionScreen` and
+ * `NewLocationModal` to `GpsCaptureControl`'s existing optional `config`; see deferred §80b for
+ * the recipe and its trigger.
  */
 export function buildGpsConfig(
   mode: GpsAccuracyMode = 'balanced',

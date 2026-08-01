@@ -12,7 +12,10 @@ import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
  * the five phone keys, the forced-precise config, and the max-50 row gate.
  */
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+// `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
+// is the baseline these option/render tests are about. The gating arms live in
+// `field-visibility.test.tsx`.
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 const camera = (id: string, o: Partial<CameraEntry> = {}): CameraEntry => ({
   id,
