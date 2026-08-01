@@ -47,23 +47,32 @@ describe('BootSequence', () => {
     })
 
     it('runs SCANNING → AUTHORIZED → app on the phone-pinned dwells', () => {
+      // Every assertion here is a BOUNDARY (review R-4): one tick short of the dwell the phase
+      // must still be showing, one tick later it must have moved. Asserting only after the full
+      // dwell is monotone in the tick amount — the whole 1.2 s could collapse to
+      // `setTimeout(advance, 0)` and this test stayed green, under its own name.
       const onComplete = vi.fn()
       render(<BootSequence video={null} onComplete={onComplete} />)
 
       tapScanner()
       expect(screen.getByText('SCANNING')).toBeInTheDocument()
 
-      tick(SCAN_MS)
+      tick(SCAN_MS - 1)
+      expect(screen.getByText('SCANNING')).toBeInTheDocument()
+      tick(1)
       expect(screen.getByText('AUTHORIZED')).toBeInTheDocument()
       expect(screen.getByText('ACCESS GRANTED')).toBeInTheDocument()
-      expect(onComplete).not.toHaveBeenCalled()
 
       // The visible sequence is over at SCAN_MS + AUTHORIZED_MS — the plan's ~1.2 s. The fade
       // that follows is the exit, not part of it.
-      tick(AUTHORIZED_MS)
+      tick(AUTHORIZED_MS - 1)
+      expect(screen.getByText('AUTHORIZED')).toBeInTheDocument()
+      tick(1)
       expect(onComplete).not.toHaveBeenCalled()
 
-      tick(FADE_MS)
+      tick(FADE_MS - 1)
+      expect(onComplete).not.toHaveBeenCalled()
+      tick(1)
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
@@ -112,7 +121,10 @@ describe('BootSequence', () => {
       expect(onComplete).not.toHaveBeenCalled()
 
       fireEvent.ended(video)
-      tick(HOLD_MS)
+      // The phone's 500 ms beat after the video, on the same boundary shape as the scan dwells.
+      tick(HOLD_MS - 1)
+      expect(video.style.opacity).toBe('1') // still holding, not yet fading
+      tick(1)
       expect(onComplete).not.toHaveBeenCalled()
       tick(FADE_MS)
       expect(onComplete).toHaveBeenCalledOnce()
