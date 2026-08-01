@@ -609,6 +609,24 @@ describe('shape guard (never crash boot)', () => {
     expect(snapshot?.currentChapter).toBe('timeOffset')
   })
 
+  it('a tampered `splash` view restores to Cases — the gate never runs as a screen (R-10)', () => {
+    // No writer for this state exists (boot is a gate, not a view), so it can only arrive by hand
+    // editing sessionStorage — which `loadSnapshot` used to accept, because 'splash' IS a chapter.
+    const storage = new FakeStorage()
+    const { store } = workedStore()
+    store.getState().setView('cases')
+    saveNow(store, storage)
+    const raw = JSON.parse(storage.getItem(SNAPSHOT_KEY) as string)
+    raw.state.view = 'splash'
+    raw.state.currentChapter = 'splash'
+    storage.setItem(SNAPSHOT_KEY, JSON.stringify(raw))
+
+    const snapshot = loadSnapshot(storage)
+    expect(snapshot).not.toBeNull()
+    expect(snapshot?.view).toBe('cases')
+    expect(snapshot?.currentChapter).toBe('cases')
+  })
+
   it('the map tab view restores as-is (its picker has a coherent empty state)', () => {
     const storage = new FakeStorage()
     const { store } = workedStore()

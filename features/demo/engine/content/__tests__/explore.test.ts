@@ -70,7 +70,7 @@ describe('EXPLORE_ITEMS registry', () => {
     }
   })
 
-  it('excludes splash (unreachable until the deferred video entry)', () => {
+  it('excludes splash — boot is the gate to everywhere, not a destination to explore (P8.1)', () => {
     expect(EXPLORE_ITEMS.some((i) => i.id === 'splash' || i.covers.includes('splash'))).toBe(false)
   })
 

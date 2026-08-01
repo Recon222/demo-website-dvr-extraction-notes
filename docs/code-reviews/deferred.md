@@ -6001,3 +6001,240 @@ assertion covers what direction 1 covered for the ten linear screens AND the two
 direction 1 never reached, and it is the pin that actually reddens under the lane's probe.
 Direction 1 keeps the routing half it alone asserts (each wizard-screen row jumps to its own
 screen).
+
+## 87. P8.1 — splash + biometric boot: the deliberate omissions and the two open ends
+
+**Source:** implementation of P8.1 (plan §5 P8, matrix rows 1–2, owner decision D7). Nothing here
+came from a review; these are the calls the package made, written down so a later reader does not
+mistake any of them for an oversight. Rows 1 and 2 are CLOSED by this package; row 3 is not, by
+instruction.
+
+### 87a. NOT BUILT (by instruction) — the Lock Screen, matrix row 3
+
+**What:** the phone's foreground re-auth overlay — `LockScreen` + `GridBackground`, the
+module-level `globalAuthLock`, `MIN_AUTH_INTERVAL_MS` 1000, the provider's 2 s cooldown and its
+`background → active` AppState filter (`src/features/biometrics/components/LockScreen.tsx`,
+`AuthenticationProvider.tsx:110-161`, ui-mapping 14 § LockScreen).
+
+**Why deferred:** D7 ratified rows 1–2 and explicitly left row 3 unbuilt; the matrix's own
+recommendation says why — "a demo has no background/foreground cycle to justify it"
+(`00-surface-parity-matrix.md:285`). A browser tab has no analog of the phone's re-lock trigger:
+the closest events (`visibilitychange`, `blur`) fire on a tab switch, which is not the same act
+and would re-gate a visitor who never left. Every safety device in the phone's version exists to
+stop an auth prompt loop, and there is no prompt here to loop.
+
+**Trigger:** an owner ruling that the demo should re-gate on tab return. If it comes, it is a
+second `BootSequence` mount with `videoSrc: null`, not a new component — but it needs a decided
+answer to "what event means the visitor left" first, and that answer is the actual work.
+
+### 87b. RULED — the boot HUD is NOT wired to Settings' `appLockEnabled`
+
+**What:** the phone skips its HUD entirely when app lock is off and goes straight to the video
+(`AuthenticatedSplashScreen.tsx:126-130`), and the demo has a live, persisted `appLockEnabled`
+switch in the Security pane. They are deliberately not connected: boot always shows the scan.
+
+**Why:** binding them would give a *security* toggle authority over a *decorative* animation.
+The switch would appear to do something while protecting nothing, which is a larger dishonesty
+than the animation is — and it would directly contradict `SecurityPane`'s own standing note that
+none of those switches can do anything in a browser. The demo's boot HUD earns its place by
+gating nothing at all; the moment a security control drives it, it starts implying it does.
+
+Two consequences a reviewer will notice and should not re-flag: the demo shows the HUD where a
+default-configured phone (`appLockEnabled: false`, `DEFAULT_BIOMETRIC_SETTINGS`) would show only
+the video — D7 commissioned the scan, so that is the point of the package, not a drift; and the
+phone's `BiometricsUnavailableScreen` branch (matrix row 4, OUT-OF-SCOPE) has no counterpart here
+for the same reason it has none in the Security pane.
+
+**Trigger:** the demo gaining any real gate — a password-protected export, a shareable session
+link. At that point a security switch has something true to control and the question reopens.
+
+### 87c. RECORDED — the deviations from the phone, and why each one is not a gap
+
+- **SKIP and Escape.** The phone's splash cannot be skipped. This one can, from every phase. The
+  phone's dwell is an OS biometric prompt the user is actively answering; this one is 1.2 s of
+  decoration in front of the content, and later an intro video of unknown length. Unskippable,
+  it would hold a keyboard or AT visitor in front of a decoration with no exit — the §84a family
+  of "the idiom was named and half-shipped", one level up. The control is focusable in every
+  phase and Escape does the same thing.
+- **No `failed` state.** `ScannerState` has four members; `BootHudState` has three. There is no
+  authentication to fail, so a failure branch — and the phone's `TAP TO RETRY` hint with it —
+  would be theatre about an event that never happened.
+- **`TAP TO SCAN` where the phone says `INITIALIZING`.** The phone auto-triggers its prompt
+  after 500 ms; a browser has nothing to trigger, and a gesture is the honest substitute. The
+  string is the prototype's, kept.
+- **Reduced motion skips the intro video entirely.** Not "plays it without the fade" — skips it.
+  A visitor who has asked for less motion has not asked for a shorter animation, and the house
+  idiom is instant-complete (`ScreenStage.tsx:39-49`, `ExportModal.tsx:158`'s R-18 note).
+- **A rail checklist jump lifts the gate.** The rail is a demo-only surface outside the phone, so
+  it stays clickable while boot is up. Left alone, a jump would move the phone behind the curtain
+  and read as a dead control; it now ends the boot as well as setting the view, so naming a
+  destination takes you there.
+
+### 87d. AVAILABLE — the intro video ships as a slot, not as a file
+
+**What:** `BOOT_VIDEO` is `null`. Every phase behind it — `video`, `holding` (the phone's 500 ms
+`HOLD_DURATION_MS`), `fading` — is implemented and tested against a fake source, including the
+`ended` advance, the error path, and the preload-behind-the-HUD mount the phone uses
+(`AuthenticatedSplashScreen.tsx:249-269`).
+
+**The drop-in is one constant.** The full procedure is written on `BOOT_VIDEO` in
+`features/demo/engine/logic/boot.ts`: file into `public/demo-media/`, fill in the constant. The
+engine suite asserts it is still null, so the change announces itself.
+
+**AMENDED after the P8 review (round 1) — this entry twice claimed more than the code delivered,
+and both claims were on the no-re-review path this entry exists to promise:**
+
+- *"two constants"* (R-1d / R-17, obligation A2) was two constants **plus three bridge-test
+  edits**: `videoSrc` and `videoPoster` were independent optionals that could be half-flipped
+  without a type error, and `DemoExperience.boot.test.tsx`'s `runSequence` hard-coded the
+  null-source phase path, stalling in `video`. Both are closed: the pair is now one
+  `BootVideo | null`, so a half-flip is `TS2741` at the constant and the prop, and `runSequence`
+  fires `ended` when a video element is present. Re-probed after the fix — constant flipped, the
+  bridge suite is green and only the engine guard reds, which is the intended announcement.
+- *"the load/decode/**autoplay-rejection** error path"* (R-5, obligation A1) overclaimed the
+  third arm: jsdom's `play()` returns `undefined`, so `started instanceof Promise` was false in
+  every committed test and the `.catch` was never attached. The code was right; the coverage claim
+  was not. A rejecting-`play()` test was added in the fix round, so the sentence above is now
+  true — and the arm it covers is the likeliest field failure of the three (iOS Low Power Mode
+  blocks muted autoplay outright).
+
+**ONE THING TO DO ON DROP-IN DAY (§88f, ledgered from the campaign-final fix-delta, S5).** The
+stall watchdog budgets TOTAL wall clock from phase entry, not time-since-progress: an intro that
+rebuffers for more than `VIDEO_OVERRUN_MS` in aggregate is faded out as stalled even though it was
+making progress. Sound and graceful today — every path ends in a breadcrumbed fade — and with no
+real file there is nothing to measure it against, which is why it was not reworked. With the file
+in hand, watch one playback on a throttled connection; if it cuts, move the watchdog to a
+progress basis (`onTimeUpdate` writing a ref, watchdog re-armed from last progress). This line
+lives here rather than in a review doc so it cannot be missed on the day it matters.
+
+**Trigger:** the owner supplying the bunker-doors file.
+
+### 87e. RECORDED — where boot sits relative to persistence, and what that cost
+
+The sequence runs on **every mount**, including a refresh that rehydrates a live snapshot. A
+browser refresh is the demo's cold start, and the phone re-runs its splash on every cold start
+while `isAuthenticated` resets to false (`biometrics/README.md` § Common Pitfalls 1) — so a
+returning visitor sees it again, exactly as a returning phone user does.
+
+What that forced: boot had to be a **gate**, not a `view`. `view` is in the snapshot
+(`persistence.ts`), so a `view: 'splash'` boot would have thrown away the restored position on
+every refresh and undone half of what P0.4 exists to do. Instead `booting` is mount-scoped bridge
+state (the phone's `showSplash`), it renders instead of the screen tree, and it touches no
+navigation — the restored view is still underneath when it lifts. `persistence.ts` and
+`SNAPSHOT_VERSION` were not touched.
+
+The residual: `booting` is bridge state, so it is invisible to the store's tests and to anything
+that reasons about the demo from `DemoState` alone. That is the same trade §80c/§84b already made
+for `DemoSettings`, and for the same reason — it is ephemeral, it has one consumer, and putting
+it in the snapshot would mean deciding whether a refresh mid-scan resumes the scan.
+
+**Trigger:** a second consumer needing to know the gate is up (an analytics hook, a deep link
+that should bypass boot). Then it moves — and the bypass question gets answered on the way.
+
+## 88. P8 review round 1 — the fix round's dispositions (19/19 fixed, 0 deferred)
+
+**Source:** `docs/code-reviews/parity/p8/p8-review-r1-vetted.md` (REVISE — 0B/6M/13m, R-1..R-19),
+executed against its own 17-row dependency-ordered grouping. Every finding is FIXED; nothing was
+deferred and nothing was refuted. Both amendment obligations (A1, A2) landed in §87d. The entries
+below record only the four decisions a later reader could otherwise mistake for drift.
+
+### 88a. RECORDED — what the R-1 family cost, and why the severity ruling was right
+
+Four sub-defects on one seam, all invisible at `BOOT_VIDEO === null`, all arming together on
+drop-in day. The fix round confirmed the aggregator's central reasoning by accident: the R-17
+probe (flip the constant, run the bridge suite) reds nothing now, and before the round it red
+three tests — so the "no re-review needed" promise in §87d had been false in a way only the flip
+itself would reveal, which is exactly the day nobody re-opens the files.
+
+**The two shapes worth carrying forward.** First, a handler wired to a phase-less callback
+(`onError={skip}`) on an element that exists in EVERY phase: the mount was deliberately early (the
+phone's preload trick, correctly ported) and the handler was written for the late phase only.
+Where an element's lifetime is wider than its handler's intent, the handler must read the phase.
+Second, an unbounded wait whose exit belongs to something outside the app — `ended` — with no
+ceiling. `PHASE_MS.video = null` was and remains the right statement about the MACHINE; what was
+missing was the component's own timeout. Both are worth a look at any future "wait for an external
+event" phase.
+
+### 88b. RULED — `bootSurface` is the last hand partition over `BootPhase`, and it is a record
+
+R-11a's deny-list is gone, and the growth probe now yields four compile errors for a new phase
+(`PHASE_MS`, `SURFACE`, `HUD_STATE`, `nextBootPhase`'s switch) where it used to yield three, none
+of which was the surface. The opacity check at the container is DELIBERATELY still an inline
+partition: the review struck the lane item that wanted it converted, because it is an allow-list
+whose default (fully visible) is the safe side for every realistic insertion. Don't "finish the
+job" by converting it — that reverses a ruling.
+
+**CORRECTED (campaign-final fix-delta, S2): "the last hand partition" is off by two.** Three
+inline `BootPhase` partitions remain in `BootSequence.tsx`, and an auditor stopping at this
+entry's original wording would walk past two of them. All three are safe-by-default, which is why
+none was converted:
+
+| Site | Partition | A new phase defaults to |
+|---|---|---|
+| `:126` | `phase !== 'idle' && phase !== 'done'` (R-14 reduced-motion collapse) | collapsing — the visitor's stated preference wins |
+| `:171`/`:173` | `phase === 'video' \|\| phase === 'holding'` (R-1a error scope) | the degrade-and-continue arm, not the fade-out arm |
+| `:264` | `phase === 'fading' \|\| phase === 'done'` (container opacity) | fully visible — the review STRUCK the lane item that wanted this one converted |
+
+`bootSurface` is the only partition that pointed the unsafe way, and it is the one that became a
+record. Don't "finish the job" on `:264` — that reverses a ruling.
+
+**`BootHudState` is now DEFINED by `BOOT_HUD_STATES`**, and `BootPhase` is not (it stays a written
+union, with `BOOT_PHASES` read off `PHASE_MS`). Two mechanisms, one guarantee, chosen per union:
+the small closed one is cheapest as a tuple; the seven-member one reads better as a union and
+already had a total record to derive from.
+
+### 88c. RECORDED — the R-9 comment was wrong in the way R-9 is about
+
+While fixing R-9 the probe showed the replacement comment had inherited the original's error:
+it claimed `HUD_STATE` helps close the branch set. It does not — `HUD_STATE` is keyed by
+`BootPhase`, so growing `BootHudState` leaves it green. Adding a member yields exactly ONE
+`TS2741`, in `SplashScreen`'s `statusBody`. §84a's lesson, encountered inside the fix for a
+§84a-shaped finding: when a comment names a guarantee, run it.
+
+**AMENDED (campaign-final fix-delta, S1).** "Both comments now say that" was true of `boot.ts`
+only — `SplashScreen` shipped R-9 still crediting `HUD_STATE`, and still carrying the retired
+"cannot drift" line on the `AuthState` alias. The campaign-final aggregation ruled the cause
+immaterial and very likely a destroyed concurrent edit; the tree says otherwise and the tree is
+checkable: commit `9602d29` ADDED the uncorrected text, and the follow-up correction was a
+`python3 -c` `.replace()` whose pattern never matched (backticks inside a double-quoted shell
+string) and which — unlike every other edit in that round — carried no `assert`. A silently
+no-op'd replace, reported as done. Both comments say it now, in the same commit as this sentence.
+The transferable rule is the one the round already used everywhere else and broke here once:
+**a scripted edit asserts its own pattern, or it did not happen.**
+
+### 88d. RECORDED — R-19 was pinned, not left as the recorded choice the review offered
+
+The review allowed leaving the gate's window-keydown cleanup unpinned. R-7's fix changed the
+calculus: `ExitDialog`'s `stopPropagation` makes the ORDERING of that listener load-bearing, so a
+leaked handler is no longer merely a no-op `setPhase` on a dead tree — it would keep answering
+Escape underneath a live dialog. Pinned by identity (the handler added is the handler removed).
+
+### 88e. RECORDED — R-12's seam, and the four assertions it moved
+
+`visited` seeds `{}` now; the landing view is marked by the bridge replaying `setView` on the
+current view once nothing covers it. The alternative — marking from `endBoot` alone — would have
+left the ~30 `boot=false` suites unlit, and fabricating the row's state in the rail would have
+been a worse lie than the one being fixed. Four engine assertions moved, each of which had
+encoded the claim that P8.1 falsified (`boot marks the cases view visited`, the `setView`
+idempotence expectation, `reset()`'s boot record, and the selectors' "boot view" line).
+
+**Not a trigger, a note:** `visit()` stays idempotent and the mark is replayed on every non-boot
+mount, so a restored snapshot's record is never rewritten. If a future surface needs "seen this
+session" as distinct from "seen ever", that distinction does not exist here and adding it is a
+new decision, not a bug fix.
+
+### 88f. LEDGERED (campaign-final fix-delta, S5) — the watchdog's basis is wall clock, not progress
+
+**What:** `VIDEO_CEILING_MS` / `VIDEO_OVERRUN_MS` bound the `video` phase from the moment it is
+entered. A long intro that rebuffers repeatedly can exhaust that budget while genuinely playing,
+and be faded out as a stall — which the constant's own comment used to deny in absolute terms.
+The comment now says what the mechanism does.
+
+**Why deferred, not fixed:** three lanes converged on the shape being sound — every terminal state
+is a graceful, breadcrumbed fade, and under R-1's own use-day rule this rates LOW *at the drop-in
+too*, so it does not inherit R-1's must-fix. The rework (an `onTimeUpdate` ref plus a re-armed
+watchdog) is the code-heaviest survivor of the round, and with `BOOT_VIDEO === null` there is no
+file to tune it against: the numbers would be guesses twice over.
+
+**Trigger:** the owner's D7 drop-in. The instruction is written beside the drop-in procedure in
+§87d, not only here, so the fixer on that day meets it without reading this ledger.

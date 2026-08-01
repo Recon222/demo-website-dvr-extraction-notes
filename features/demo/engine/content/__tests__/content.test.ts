@@ -57,6 +57,16 @@ describe('narration', () => {
     expect(para).not.toContain('57 form fields')
   })
 
+  it('the splash chapter says whose biometric gate it is describing (P8.1)', () => {
+    // This copy was written while the chapter was unreachable. P8.1 put it on screen beside a
+    // simulated scanner, so the two lines that read as first-person claims had to name the phone:
+    // the demo's honesty rule does not let a browser tab imply an authentication happened.
+    expect(NARRATION.splash.paras[0]).toMatch(/^On the phone, every session starts behind Face ID\./)
+    expect(NARRATION.splash.tip).toContain('simulated scan')
+    expect(NARRATION.splash.tip).toContain('nothing is authenticated here')
+    expect(NARRATION.splash.tip).not.toMatch(/to authenticate\.$/)
+  })
+
   it('carries copy for exactly the tab destinations that are NOT chapters (Map, Export)', () => {
     // Since R-27 the KEY SPACE is closed by the type: `Record<TabOnlyView, ChapterNarration>`
     // makes a missing tab-only entry and a chapter/launchable entry — which the bridge would

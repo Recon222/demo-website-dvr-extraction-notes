@@ -70,8 +70,14 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
 })
 
 describe('visited tracking (the exploration manifest source)', () => {
-  it('boot marks the cases view visited (you start there)', () => {
-    expect(freshStore().getState().visited).toEqual({ cases: true })
+  it('boots having seen nothing — the landing screen is marked by whoever lands on it (R-12)', () => {
+    // Seeding `{ cases: true }` was true until P8.1 put a gate in front of the app, and then it
+    // claimed a screen the visitor had not been shown yet. The bridge replays `setView` on the
+    // current view once nothing is covering it, so the mark arrives with the pixels.
+    expect(freshStore().getState().visited).toEqual({})
+    const store = freshStore()
+    store.getState().setView(store.getState().view)
+    expect(store.getState().visited).toEqual({ cases: true })
   })
 
   it('setView records each view, idempotently', () => {
@@ -79,7 +85,7 @@ describe('visited tracking (the exploration manifest source)', () => {
     store.getState().setView('dashboard')
     store.getState().setView('map')
     store.getState().setView('dashboard') // re-visit — no-op
-    expect(store.getState().visited).toEqual({ cases: true, dashboard: true, map: true })
+    expect(store.getState().visited).toEqual({ dashboard: true, map: true })
   })
 
   it('launch records the launch-only screen; openModal records the modal', () => {
@@ -111,12 +117,12 @@ describe('visited tracking (the exploration manifest source)', () => {
     expect(store.getState().visited.ocr).toBe(true)
   })
 
-  it('reset() clears visited back to the boot record', () => {
+  it('reset() clears visited back to the boot record (nothing seen)', () => {
     const store = freshStore()
     store.getState().setView('dashboard')
     store.getState().openModal('import')
     store.getState().reset()
-    expect(store.getState().visited).toEqual({ cases: true })
+    expect(store.getState().visited).toEqual({})
   })
 })
 
