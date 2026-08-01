@@ -44,7 +44,23 @@ async function addLocation(page, name, extra = {}) {
   // 'Business/Location Name' field, which is a strict-mode violation.
   await dlg.getByLabel('Location Name', { exact: true }).fill(name);
   if (extra.city) await dlg.getByLabel('City').fill(extra.city);
-  if (extra.business) await dlg.getByLabel('Business Name').fill(extra.business);
+  // The field is 'Business/Location Name' (NOT 'Business Name' — that label does not exist
+  // and silently times out at 30 s on fill).
+  if (extra.business) await dlg.getByLabel('Business/Location Name').fill(extra.business);
+  if (extra.address) await dlg.getByLabel('Street Address').fill(extra.address);
+  // Plot the location so it appears on the map. The address autocomplete yields NO
+  // suggestions without a Mapbox token, so "Use Current Location" is the only way to
+  // attach coordinates. Caller moves the fix via context.setGeolocation() beforehand.
+  if (extra.gps) {
+    const gps = p.getByRole('button', { name: /Use Current Location/i }).first();
+    if (await gps.count()) {
+      await gps.click();
+      await p.locator('[data-testid="gps-capture-spinner"]')
+        .waitFor({ state: 'detached', timeout: 20000 })
+        .catch(() => {});
+      await page.waitForTimeout(900);
+    }
+  }
   await dlg.getByRole('button', { name: 'Create Location' }).click();
   await p.getByText(name).first().waitFor();
 }

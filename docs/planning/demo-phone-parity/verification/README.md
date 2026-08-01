@@ -225,6 +225,50 @@ adds **two shims you must not remove**:
 
 Pass `open({ camera: 'deny' })` to exercise the denied/no-camera branch instead.
 
+### Mapbox token — REQUIRED for any map-depth work (P6)
+
+Without `NEXT_PUBLIC_MAPBOX_TOKEN`, `MapCanvas` early-returns the `[data-map-fallback]`
+"Map preview unavailable" panel. **Clustering, the proximity ring and long-press then do not
+exist to test at all** — a run against the tokenless fallback proves nothing about them. A
+usable `pk.` token lives in the phone repo's `.env` (read-only use — never write to that repo):
+
+```bash
+TOK=$(grep -oE "EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=pk\.[A-Za-z0-9._-]+" \
+      /Users/fvadev/Developer/extraction-notes/DVR-Extraction-Notes-ReactNative/.env | cut -d= -f2)
+NEXT_PUBLIC_MAPBOX_TOKEN="$TOK" pnpm dev --port 3001
+```
+
+### Plotting locations on the map
+
+The address autocomplete returns **zero suggestions** without a Mapbox token, so addresses
+cannot be geocoded that way. Coordinates come from **"Use Current Location"**
+(`GpsCaptureControl`, mounted inside the *New Location* modal). `lib.js` grants `geolocation`
+and seeds a fix; move it per location and pass `gps: true`:
+
+```js
+await context.setGeolocation({ latitude: l.lat, longitude: l.lng, accuracy: 8 });
+await addLocation(page, l.name, { ...l, gps: true });
+```
+
+Space four locations ~15 m apart and two several km away to get one cluster bubble plus two
+single pins.
+
+### Measuring long-press placement honestly
+
+Pressing arbitrary canvas fractions usually reports `0 of 6 locations` — **not** a placement
+bug, just a point genuinely >1 km from any pin. Anchor presses to real marker positions:
+
+```js
+const markers = await page.evaluate(() => [...document.querySelectorAll('.mapboxgl-marker')]
+  .map(m => { const r = m.getBoundingClientRect();
+              return { cx: r.x + r.width/2, cy: r.y + r.height/2, txt: m.textContent.trim() }; }));
+// press ~26px OFF a marker — markers themselves are excluded from the gesture by design
+```
+
+A correct build yields `4 of 6` next to the "4" cluster bubble and `1 of 6` next to each single
+pin. Always run the negative control too: a **right-button** stationary hold must NOT arm
+proximity (`aria-label` stays `Activate proximity mode`).
+
 Drivers (Playwright, installed in this directory):
 
 ```bash
@@ -242,6 +286,8 @@ HEADED=1 ...                      # watch it run
 | `05-import-p1.js` | the P1 import experience: 3-card picker → paste step → live terminal → dwell → result |
 | `06-p4-media.js` | P4: drawer Media accordion, capture (gate → live → mode pills → review), audio recorder, media library, OCR viewfinder, time-offset |
 | `07-p4-ocr-pdf.js` | P4 surfaces 5 & 6 live-camera: landscape viewfinder with a real stream, then the Time-Offset PDF image-block check LIVE vs SAMPLE |
+| `08-p56-export-map.js` | P5: export hub (accordion, tri-state, footer), validation prompt, progress overlay, D4 terminal; plus the map pass |
+| `09-p56-map-depth.js` | P6 against a REAL Mapbox render: clustering, filters, empty states, proximity presets, long-press placement + right-button negative control, case-map download |
 | `lib.js` / `flows.js` | shared open/shot/step helpers and case/location/wizard sub-flows |
 | `probe.js` | scratch introspection — dumps the phone frame's text and every button name |
 
@@ -298,6 +344,20 @@ Viewport is pinned to 1440×1000 in `lib.js` — height ≥ 840 forces `usePhone
   `flows.createCase`.
 * **`getByLabel('Location Name')` needs `{ exact: true }`** — it otherwise also matches the
   New Location dialog's `Business/Location Name`, a strict-mode violation.
+* **The business field is `Business/Location Name`, not `Business Name`.** The latter label
+  does not exist and `fill()` sits there for the full 30 s timeout. Fixed in `flows.addLocation`.
+* **Export checkboxes are `<button role="checkbox">`.** An explicit `role` overrides the
+  implicit one, so `getByRole('button', …)` never matches them and they are invisible to a
+  button dump. Use `getByRole('checkbox', …)`, and read `aria-checked` for the real tri-state
+  (`false` / `true` / `mixed`) rather than inferring it from a screenshot.
+* The export trigger is labelled **`Export Full Case (N locations)`** — a `/^Export/` matcher
+  also hits the tab-bar `Export` button.
+* **Phone dev-client wedge (hit during the P5/P6 pass, unresolved).** The app parked on
+  "Downloading 100%…" forever. Metro was alive but had served a 1-module bundle; `--clear`
+  fixed Metro (3984 modules) but the client still never finished, across five
+  terminate/launch cycles and a deep-link reconnect, with a completely silent OS log. If you
+  meet this, go straight to reinstalling / rebuilding the dev build rather than re-running the
+  relaunch loop.
 * **Sample mode substitutes content.** With no `OLLAMA_API_KEY`, `/api/extract` returns
   `503 NOT_CONFIGURED` and `run-import.ts` falls back to the fixed `SAMPLE_EXTRACTION`. The
   result screen therefore shows **Kim's Convenience / 2025-03-08** regardless of what was
@@ -340,8 +400,12 @@ $SP/baselines/
     ├── p4/                            18   drawer Media, capture gate/live/pills/review,
     │                                       audio idle→rec→preview, library tabs/row/delete,
     │                                       OCR viewfinder + result, time-offset
-    └── p4-live/                        7   live-camera OCR landscape + the Time-Offset PDF
-                                            image-block check, LIVE vs SAMPLE
+    ├── p4-live/                        7   live-camera OCR landscape + the Time-Offset PDF
+    │                                       image-block check, LIVE vs SAMPLE
+    ├── p56/                           21   export hub + tri-state + validation prompt +
+    │                                       progress overlay + D4 terminal (+ downloads/)
+    └── p56-map/                       14   REAL Mapbox: clustering, filters, empty states,
+                                            proximity presets, long-press (+ downloads/)
 ```
 
 Phone P4 set (`baselines/phone/p4/`, 8): drawer Media collapsed/expanded, capture screen

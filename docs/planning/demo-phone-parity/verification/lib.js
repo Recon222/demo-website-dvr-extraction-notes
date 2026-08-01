@@ -48,7 +48,14 @@ async function open({ headless = true, slowMo = 0, camera = 'fake' } = {}) {
     viewport: VIEWPORT,
     deviceScaleFactor: 2,
     reducedMotion: 'reduce', // makes ScreenStage cross-slides instant
-    permissions: camera === 'fake' ? ['camera', 'microphone'] : [],
+    permissions: camera === 'fake'
+      ? ['camera', 'microphone', 'geolocation']
+      : ['geolocation'],
+    // The map needs PLOTTED locations, and the demo's address autocomplete returns nothing
+    // without a Mapbox token — so coordinates can only come from "Use Current Location"
+    // (GpsCaptureControl, mounted in the New Location modal). Seed a fix here and move it
+    // per-location with `context.setGeolocation(...)` to lay out a cluster.
+    geolocation: { latitude: 43.5890, longitude: -79.6441, accuracy: 8 },
   });
   // Headless Chromium quirk (measured, not guessed): with the fake-device flags,
   // getUserMedia({video:true}) resolves, but ANY request including audio — {video,audio}
