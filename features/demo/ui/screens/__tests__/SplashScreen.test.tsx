@@ -33,6 +33,18 @@ describe('SplashScreen', () => {
       ).toBeInTheDocument()
     })
 
+    it('is readable: the disclosure clears WCAG AA over the boot background (R-6)', () => {
+      // The honesty string must not be the least readable text on a screen full of decoration.
+      // rgba(153,186,221,α) over #000314: α 0.55 → 3.59:1 (fails), 0.65 → 4.65, 0.70 → 5.27.
+      render(<SplashScreen authState="idle" onScan={vi.fn()} />)
+      const alpha = Number(
+        /rgba\(\s*153,\s*186,\s*221,\s*([\d.]+)\s*\)/.exec(
+          screen.getByTestId('boot-disclosure').style.color,
+        )?.[1],
+      )
+      expect(alpha).toBeGreaterThanOrEqual(0.65)
+    })
+
     it('never claims Face ID happened here — only that the phone uses it', () => {
       render(<SplashScreen authState="authorized" onScan={vi.fn()} />)
       const faceId = screen.getByText(/Face ID/)

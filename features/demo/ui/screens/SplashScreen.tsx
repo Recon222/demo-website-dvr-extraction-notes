@@ -108,8 +108,16 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
       </div>
 
       {/* The standing disclosure. Same line `SecurityPane` draws: no sensor exists behind a
-          browser tab, so nothing here may read as an authentication that happened. */}
+          browser tab, so nothing here may read as an authentication that happened.
+
+          The alpha is load-bearing, not taste (review R-6). At the 0.55 this shipped with, the
+          one string carrying the package's honesty claim was the LEAST readable text on the
+          surface — 3.59:1 over `#000314`, a Level-AA failure, while every decorative string
+          around it passed (BIOMETRIC LOCK 5.50, AUTHORIZED 10.15, SKIP 8.22). A low-vision
+          visitor was shown a convincing biometric gate and could not read the caption saying it
+          was fake. 0.70 measures 5.27:1: comfortably over 4.5, still visually subordinate. */}
       <div
+        data-testid="boot-disclosure"
         style={{
           marginTop: 30,
           maxWidth: 250,
@@ -117,7 +125,7 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           fontSize: 11,
           lineHeight: 1.5,
           letterSpacing: 0.3,
-          color: 'rgba(153,186,221,0.55)',
+          color: 'rgba(153,186,221,0.70)',
         }}
       >
         Simulated scan — a browser tab has no biometric sensor. On the phone this is Face ID.
