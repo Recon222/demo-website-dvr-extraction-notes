@@ -93,9 +93,22 @@ export function readBrowserDownloadIo(): DownloadIo | null {
   }
 }
 
+/**
+ * What `saveTextFile` can honestly report (review R-2).
+ *
+ * `requested`, NOT `ok`. `HTMLAnchorElement.click()` is fire-and-forget in every browser: a
+ * suppressed download throws nothing and returns nothing. Chrome's automatic-download blocking,
+ * a blocking extension, a hardened or enterprise profile, transient user activation expiring —
+ * every one of them returns normally. Detection is not merely unimplemented here, it is
+ * impossible, so the type stops implying a verified write and the caller's copy stops claiming
+ * one. The only truthful statement is "the browser was asked".
+ *
+ * `unavailable` = this environment has no file-saving primitives at all. `failed` = it has
+ * them and the attempt threw — a genuinely observed failure, and the only kind there is.
+ */
 export type SaveFileOutcome =
-  | { ok: true; filename: string }
-  | { ok: false; reason: 'unavailable' | 'failed' }
+  | { requested: true; filename: string }
+  | { requested: false; reason: 'unavailable' | 'failed' }
 
 export interface SaveTextFileInput {
   content: string
@@ -104,10 +117,13 @@ export interface SaveTextFileInput {
 }
 
 /**
- * Save `content` as `filename`. Returns an outcome; never throws.
+ * ASK the browser to save `content` as `filename`. Returns an outcome; never throws.
  *
- * `unavailable` = this environment cannot save files at all. `failed` = it can, and the
- * attempt did not work — logged, because an object-URL or DOM failure would otherwise be
+ * "Ask" is the whole contract — see `SaveFileOutcome`. A `requested: true` means the blob was
+ * minted and the anchor clicked without throwing; whether a file reached the visitor's disk is
+ * not observable from here, and no amount of code makes it so.
+ *
+ * A `failed` is logged, because an object-URL or DOM refusal would otherwise be
  * indistinguishable from a visitor dismissing their own download dialog, forever, with no
  * signal (the treatment `ui/import/geocode.ts` and `reverse-geocode.ts` already use).
  *
@@ -120,17 +136,17 @@ export function saveTextFile(
   input: SaveTextFileInput,
   io: DownloadIo | null = readBrowserDownloadIo(),
 ): SaveFileOutcome {
-  if (!io) return { ok: false, reason: 'unavailable' }
+  if (!io) return { requested: false, reason: 'unavailable' }
 
   const registry = createObjectUrlRegistry(io.urls)
   let url: string | null = null
   try {
     url = registry.create(io.toBlob(input.content, input.mimeType))
     io.clickDownloadAnchor(url, input.filename)
-    return { ok: true, filename: input.filename }
+    return { requested: true, filename: input.filename }
   } catch (e) {
-    console.warn('[demo/download-file] saving failed — no file was written:', e)
-    return { ok: false, reason: 'failed' }
+    console.warn('[demo/download-file] the save attempt threw — nothing was handed to the browser:', e)
+    return { requested: false, reason: 'failed' }
   } finally {
     if (url !== null) io.defer(() => registry.revokeAll())
   }

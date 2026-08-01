@@ -315,16 +315,28 @@ const caseMapCoverageClause = (coverage: CaseMapCoverage): string => {
   }
   return ''
 }
+/**
+ * A REQUEST claim, not a completion claim (review R-2).
+ *
+ * The phone's string is `Case Map exported successfully.` — true there, because its service
+ * awaits a filesystem write and a share sheet. In a browser `HTMLAnchorElement.click()` is
+ * fire-and-forget: Chrome's automatic-download blocking, an extension, a hardened profile or
+ * an expired user activation all return normally and drop the file. Detection is impossible,
+ * so the sentence stops asserting what it cannot know and says exactly what happened — the
+ * browser was asked, here is the filename, look in your downloads.
+ */
 const caseMapExportedNotice = ({
+  filename,
   coverage,
   mapIsEmpty,
   hasToken,
 }: {
+  filename: string
   coverage: CaseMapCoverage
   mapIsEmpty: boolean
   hasToken: boolean
 }): string =>
-  'Success — Case Map exported successfully.' +
+  `Case Map ready — your browser was asked to save ${filename}. Check your downloads.` +
   caseMapCoverageClause(coverage) +
   // Whether ANYTHING plots — the incident scene counts here, and only here. Gating the
   // empty-map sentence on the old any-feature predicate is what kept it silent on a case with
@@ -1332,8 +1344,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         mimeType: caseMap.CASE_MAP_MIME_TYPE,
       })
       setNotice(
-        outcome.ok
+        outcome.requested
           ? caseMapExportedNotice({
+              filename: outcome.filename,
               // Over the SAME locations the builder was handed, so the count on screen can
               // never disagree with the file.
               coverage: caseMap.summariseCaseMapCoverage(locations),

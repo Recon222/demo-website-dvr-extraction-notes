@@ -42,7 +42,7 @@ describe('saveTextFile', () => {
     const { io, clicks, blobs, revoked, runDeferred } = stubIo()
     const outcome = saveTextFile({ content: '<html>map</html>', filename: 'Case-Map.html', mimeType: 'text/html' }, io)
 
-    expect(outcome).toEqual({ ok: true, filename: 'Case-Map.html' })
+    expect(outcome).toEqual({ requested: true, filename: 'Case-Map.html' })
     expect(blobs).toEqual([{ content: '<html>map</html>', mimeType: 'text/html' }])
     expect(clicks).toEqual([{ url: 'blob:stub/0', filename: 'Case-Map.html' }])
     // Not yet revoked — revoking in the click's own tick cancels the download in some browsers.
@@ -53,7 +53,7 @@ describe('saveTextFile', () => {
 
   it('reports `unavailable` where the browser cannot save at all', () => {
     expect(saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, null)).toEqual({
-      ok: false,
+      requested: false,
       reason: 'unavailable',
     })
   })
@@ -66,7 +66,7 @@ describe('saveTextFile', () => {
       },
     })
     expect(saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, io)).toEqual({
-      ok: false,
+      requested: false,
       reason: 'failed',
     })
     expect(warn).toHaveBeenCalled()
@@ -86,7 +86,7 @@ describe('saveTextFile', () => {
         revoke: () => undefined,
       },
     })
-    expect(saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, io).ok).toBe(false)
+    expect(saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, io).requested).toBe(false)
     expect(defer).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalled()
   })
@@ -147,7 +147,7 @@ describe('readBrowserDownloadIo', () => {
       { content: '<html>real</html>', filename: 'Real-Case-Map.html', mimeType: 'text/html' },
       io,
     )
-    expect(outcome).toEqual({ ok: true, filename: 'Real-Case-Map.html' })
+    expect(outcome).toEqual({ requested: true, filename: 'Real-Case-Map.html' })
 
     // A genuine object URL was minted and put on a genuine `download` anchor…
     expect(anchors).toHaveLength(1)

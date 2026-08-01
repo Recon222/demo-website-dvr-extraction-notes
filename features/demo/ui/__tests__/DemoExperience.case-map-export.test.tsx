@@ -113,12 +113,16 @@ describe('DemoExperience — Export Map', () => {
     expect(html).toContain("var TOKEN = 'pk.test'")
   })
 
-  it('confirms with the phone’s success copy', async () => {
+  it('claims only what it can know — the browser was ASKED (review R-2)', async () => {
+    // `HTMLAnchorElement.click()` is fire-and-forget; a suppressed download throws nothing. The
+    // phone's "exported successfully" is true on a filesystem and unknowable in a tab.
     openMap()
     fireEvent.click(screen.getByTestId('export-map-button'))
-    expect(await screen.findByTestId('demo-notification')).toHaveTextContent(
-      'Success — Case Map exported successfully.',
+    const notice = await screen.findByTestId('demo-notification')
+    expect(notice).toHaveTextContent(
+      'Case Map ready — your browser was asked to save MapCase-Case-Map.html. Check your downloads.',
     )
+    expect(notice).not.toHaveTextContent('exported successfully')
   })
 
   it('names the locations left off the map, even when the incident pin is on it (review R-1)', async () => {
