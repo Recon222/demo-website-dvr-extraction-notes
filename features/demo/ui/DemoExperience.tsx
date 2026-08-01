@@ -2146,8 +2146,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     stage: exportFlow.stage,
   })
 
-  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
-
   // The tab bar shows exactly on the tab destinations — derived from the registry (`TAB_VIEWS`),
   // so the 4th tab needed no new arm here and a 5th won't either.
   const tabView = isTabView(view) ? view : null
