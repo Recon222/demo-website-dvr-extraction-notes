@@ -24,6 +24,13 @@ import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 const FLY_ZOOM = 16
 const CALL_UNAVAILABLE = "Calling isn't available in the demo."
 const EMAIL_UNAVAILABLE = "Email isn't available in the demo."
+/**
+ * Proximity analysis lives in a lazily-fetched chunk (Turf). When that fetch fails — a
+ * post-redeploy `ChunkLoadError`, an offline blip, a blocking proxy — the honest answer is to
+ * say so and leave the control OFF, never to light up "Proximity ON" over a map that is not
+ * filtering (§49a/R-9: a control must not assert what it cannot do).
+ */
+const PROXIMITY_UNAVAILABLE = "Proximity analysis couldn't load. Check your connection and try again."
 
 /** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
 const NO_CAMERAS: MapCameraMarker[] = []
@@ -113,17 +120,35 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   // the demo's own chunk. `proximityModule` is state (not just a ref) so the first computed
   // result renders as soon as it resolves.
   const [proximityModule, setProximityModule] = useState<ProximityModule | null>(null)
-  const proximityLoadRef = useRef<Promise<ProximityModule> | null>(null)
+  const proximityLoadRef = useRef<Promise<ProximityModule | null> | null>(null)
   const [proximityActive, setProximityActive] = useState(false)
   const [proximityCenter, setProximityCenter] = useState<[number, number] | null>(null)
   const [proximityRadius, setProximityRadius] = useState<RadiusPreset>(DEFAULT_PROXIMITY_RADIUS)
 
-  const loadProximity = useCallback((): Promise<ProximityModule> => {
+  /**
+   * Fetch the Turf chunk once, and — on failure — leave NOTHING poisoned (review R-2).
+   *
+   * The memoised promise is the trap: a rejected promise parked in the ref makes the
+   * `if (!proximityLoadRef.current)` guard short-circuit forever, so off→on never re-attempts and
+   * the feature is dead for the session. The repo already learned this once —
+   * `ocr-recognize.ts:76-80`: "a boot that failed must not poison every later attempt with the
+   * same rejection". So the catch (a) nulls the ref, (b) reverts the toggle the caller optimistically
+   * set, (c) says so out loud in the UI and in the console.
+   */
+  const loadProximity = useCallback((): Promise<ProximityModule | null> => {
     if (!proximityLoadRef.current) {
-      proximityLoadRef.current = import('@/features/demo/ui/screens/map/mapProximity').then((mod) => {
-        setProximityModule(mod)
-        return mod
-      })
+      proximityLoadRef.current = import('@/features/demo/ui/screens/map/mapProximity')
+        .then((mod) => {
+          setProximityModule(mod)
+          return mod
+        })
+        .catch((err: unknown) => {
+          proximityLoadRef.current = null
+          console.warn('[demo/map] the proximity module failed to load — proximity stays off:', err)
+          setProximityActive(false)
+          setNotice(PROXIMITY_UNAVAILABLE)
+          return null
+        })
     }
     return proximityLoadRef.current
   }, [])
