@@ -56,6 +56,8 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
   const anyEncryption = settings.zipEncryptionEnabled || settings.singleFileEncryptionEnabled
   // R-6 — the inert Set-password button's reason, which is the note already beneath it.
   const passwordReasonId = `${useId()}-password-reason`
+  // R-34 — the region both switches reveal, so each can point at what it opens.
+  const configId = `${useId()}-encryption-options`
 
   return (
     <div data-testid="settings-pane-export-security">
@@ -73,10 +75,14 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         and share one password, mode, and strength.
       </PaneDescription>
 
+      {/* R-34: each switch names the region it opens. Either one reveals it — the phone's
+          shared-config architecture — so both carry the same `aria-controls`. */}
       <div style={{ marginBottom: 16 }}>
         <Toggle
           label="Encrypt ZIP exports (case, location)"
           on={settings.zipEncryptionEnabled}
+          controls={configId}
+          expanded={anyEncryption}
           onClick={() => onChange({ zipEncryptionEnabled: !settings.zipEncryptionEnabled })}
         />
       </div>
@@ -84,12 +90,14 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         <Toggle
           label="Encrypt single-file shares (GeoJSON, Map, reports)"
           on={settings.singleFileEncryptionEnabled}
+          controls={configId}
+          expanded={anyEncryption}
           onClick={() => onChange({ singleFileEncryptionEnabled: !settings.singleFileEncryptionEnabled })}
         />
       </div>
 
       {anyEncryption && (
-        <div data-testid="export-security-shared-config">
+        <div id={configId} role="region" aria-label="Encryption options" data-testid="export-security-shared-config">
           <PaneGroup label="Export Mode" help="Choose how passwords are handled during export.">
             <PaneRadioGroup
               label="Export Mode"

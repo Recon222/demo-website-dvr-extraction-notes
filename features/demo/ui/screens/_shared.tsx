@@ -428,6 +428,8 @@ export function Toggle({
   onClick,
   disabled = false,
   describedBy,
+  controls,
+  expanded,
 }: {
   label: string
   on: boolean
@@ -455,6 +457,14 @@ export function Toggle({
    * Applied only while `disabled`: an enabled switch has no reason to point at.
    */
   describedBy?: string
+  /**
+   * Id of the region this switch reveals (R-34). Flipping a settings switch that inserts a whole
+   * configuration block below it announced "on" and nothing else; `aria-controls` + `expanded`
+   * name what appeared, so a focus-mode visitor gets the same signal a sighted one does.
+   */
+  controls?: string
+  /** Whether `controls` is currently revealed. Only meaningful alongside `controls`. */
+  expanded?: boolean
 }) {
   const activate = () => {
     if (!disabled) onClick()
@@ -465,6 +475,8 @@ export function Toggle({
       aria-checked={on}
       aria-disabled={disabled || undefined}
       aria-describedby={disabled ? describedBy : undefined}
+      aria-controls={controls}
+      aria-expanded={controls ? expanded : undefined}
       aria-label={label}
       tabIndex={0}
       onClick={activate}

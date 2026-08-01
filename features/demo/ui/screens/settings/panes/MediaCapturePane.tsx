@@ -114,8 +114,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
           options={MAX_DURATION_OPTIONS}
           onChange={(maxVideoDuration) => onChange({ maxVideoDuration })}
         />
+        {/* R-34: this note APPEARS in response to the picker above it, so a focus-mode visitor
+            gets no signal it arrived. `role="status"` is the repo's idiom for exactly that
+            (`MediaCaptureScreen.tsx:530`) — polite, so it never interrupts the picker itself. */}
         {settings.maxVideoDuration === 0 && (
-          <PaneNote tone="warning">
+          <PaneNote tone="warning" role="status">
             Warning: Unlimited recording may result in very large files and storage issues.
           </PaneNote>
         )}
@@ -142,7 +145,9 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
           onClick={() => onChange({ shutterSound: !settings.shutterSound })}
         />
         {!settings.shutterSound && (
-          <PaneNote tone="warning">Note: Silent capture may not be legal in all regions. Check local laws.</PaneNote>
+          <PaneNote tone="warning" role="status">
+            Note: Silent capture may not be legal in all regions. Check local laws.
+          </PaneNote>
         )}
       </PaneGroup>
 

@@ -81,16 +81,24 @@ const NOTE_TONE: Record<PaneNoteTone, { fg: string; border: string; bg: string }
 export function PaneNote({
   tone = 'info',
   id,
+  role,
   children,
 }: {
   tone?: PaneNoteTone
   id?: string
+  /**
+   * `'status'` for a note that APPEARS in response to a control (R-34) — a polite live region,
+   * the repo's existing idiom (`MediaCaptureScreen.tsx:530`). Omit for a note that is simply
+   * part of the pane: a static live region announces nothing and costs a needless AT boundary.
+   */
+  role?: 'status'
   children: ReactNode
 }) {
   const t = NOTE_TONE[tone]
   return (
     <div
       id={id}
+      role={role}
       data-pane-note={tone}
       style={{
         padding: 13,

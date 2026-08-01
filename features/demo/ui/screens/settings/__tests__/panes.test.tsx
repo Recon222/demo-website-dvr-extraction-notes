@@ -173,6 +173,18 @@ describe('Media Capture pane', () => {
     ).toBeInTheDocument()
   })
 
+  it('R-34: a note that APPEARS in response to a control announces itself', () => {
+    renderPane('media-capture', patch({ maxVideoDuration: 0 }))
+    expect(screen.getByRole('status')).toHaveTextContent(/Unlimited recording/)
+  })
+
+  it('R-34: static notes are NOT live regions — only the reactive ones are', () => {
+    // The pane's always-present copy must not become an AT boundary; a static live region
+    // announces nothing and costs a needless one.
+    renderPane('media-capture')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('fires the phone’s silent-capture legal note for real', () => {
     renderPane('media-capture', patch({ shutterSound: false }))
     expect(screen.getByText(/Silent capture may not be legal in all regions/)).toBeInTheDocument()
@@ -271,6 +283,34 @@ describe('Export Security pane', () => {
       </div>,
     )
     expect(screen.getByTestId('export-security-shared-config')).toBeInTheDocument()
+  })
+
+  it('R-34: both switches name the region they reveal, and it is a named region', () => {
+    // Flipping either switch inserts two radio groups, a status line, an inert button and two
+    // notes. AT previously announced "on" and nothing else.
+    const { unmount } = render(
+      <div>{renderSettingsPane('export-security', { settings: DEFAULT_SETTINGS, onChange: vi.fn() })}</div>,
+    )
+    const zip = screen.getByRole('switch', { name: 'Encrypt ZIP exports (case, location)' })
+    expect(zip).toHaveAttribute('aria-expanded', 'false')
+    const controls = zip.getAttribute('aria-controls')
+    expect(controls).toBeTruthy()
+    // Nothing to point at yet — the region only exists once revealed.
+    expect(document.getElementById(controls as string)).toBeNull()
+    unmount()
+
+    render(
+      <div>
+        {renderSettingsPane('export-security', { settings: patch({ zipEncryptionEnabled: true }), onChange: vi.fn() })}
+      </div>,
+    )
+    const openZip = screen.getByRole('switch', { name: 'Encrypt ZIP exports (case, location)' })
+    expect(openZip).toHaveAttribute('aria-expanded', 'true')
+    const region = screen.getByRole('region', { name: 'Encryption options' })
+    expect(region).toHaveAttribute('id', openZip.getAttribute('aria-controls'))
+    // Both switches open the same shared block — the phone's architecture — so both name it.
+    expect(screen.getByRole('switch', { name: 'Encrypt single-file shares (GeoJSON, Map, reports)' }))
+      .toHaveAttribute('aria-controls', region.getAttribute('id'))
   })
 
   it('renders both radio groups with the phone’s testids, and they emit', () => {
