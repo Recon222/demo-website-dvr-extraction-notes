@@ -38,7 +38,11 @@
  */
 
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
-import type { ExportStage, ProgressInfo } from '@/features/demo/engine/logic/export/stage'
+import type {
+  DemoExportStage,
+  ExportStage,
+  ProgressInfo,
+} from '@/features/demo/engine/logic/export/stage'
 import type { CasePdfValidationResult } from '@/features/demo/engine/logic/export/validation'
 
 // ---- Vocabulary ------------------------------------------------------------------------
@@ -395,9 +399,18 @@ export function cancelValidation(state: ExportFlowState): ExportFlowState {
   }
 }
 
-/** A stage tick from the running pipeline (phone's `onStageChange` callback). No-op when the
- *  stage is unchanged, so a repeated tick cannot wake a subscriber. */
-export function advanceStage(state: ExportFlowState, stage: ExportStage): ExportFlowState {
+/**
+ * A stage tick from the running pipeline (phone's `onStageChange` callback). No-op when the
+ * stage is unchanged, so a repeated tick cannot wake a subscriber.
+ *
+ * Takes `DemoExportStage`, not `ExportStage` (review R-16): `'sharing'` renders "Opening share
+ * dialog..." and there is no share sheet in a browser tab, so the only way into it was a typo
+ * the compiler used to accept. `'idle'` is excluded for the same structural reason — returning
+ * to rest is `resetExportFlow`'s job, which also clears the counter and the location name; an
+ * `advanceStage(state, 'idle')` would have left both behind for the next run to inherit.
+ * §70l promised this constant would be "something to assert against rather than a comment".
+ */
+export function advanceStage(state: ExportFlowState, stage: DemoExportStage): ExportFlowState {
   if (state.stage === stage) return state
   return { ...state, stage }
 }

@@ -152,10 +152,13 @@ describe('pruneSelection — re-validating against live data', () => {
     expect(pruneSelection(sel('case-a', ['a-deleted']), CASES)).toBeNull()
   })
 
-  it('DISARMS the full-case intent when a location is dropped from the set', () => {
+  it('KEEPS the intent when the dropped ids were never the case\'s', () => {
+    // The set shrinks, but what it loses is a ghost the case never had — the survivors still
+    // cover every location of the armed case, so "export the whole case" still describes the
+    // selection exactly. (The genuine disarm is the next test: the SET is intact and the CASE
+    // grew underneath it.)
     const next = pruneSelection(sel('case-a', ['a1', 'a2', 'a3', 'a-deleted'], true), CASES)
     expect(ids(next)).toEqual(['a1', 'a2', 'a3'])
-    // Still covers all three survivors, so the intent still describes the selection.
     expect(next?.armedFullCase).toBe(true)
   })
 
@@ -198,7 +201,13 @@ describe('caseCheckboxState — per-card tri-state', () => {
   })
 
   it('reads none for a case with no locations — never a ticked box over nothing', () => {
+    // The phone needs an explicit `hasLocations` gate here because its `allSelected` compares
+    // the counts directly and `0 === 0` is true. This implementation answers the empty case on
+    // the way past, via the zero check ORDERED AHEAD of the length comparison — so what keeps
+    // the phone's bug closed is that ordering, and reversing the two returns reopens it.
     expect(caseCheckboxState(sel('case-empty', []), CASE_EMPTY)).toBe('none')
+    // The armed-on-this-card path, where the ordering is what does the work.
+    expect(caseCheckboxState(sel('case-empty', ['ghost']), CASE_EMPTY)).toBe('none')
   })
 
   it('ignores selected ids the card does not own', () => {

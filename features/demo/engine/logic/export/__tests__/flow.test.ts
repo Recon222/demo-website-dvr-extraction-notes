@@ -18,7 +18,10 @@ import {
   type ExportRequest,
   type ValidatedExportRun,
 } from '@/features/demo/engine/logic/export/flow'
-import { resolveExportModalMode } from '@/features/demo/engine/logic/export/stage'
+import {
+  DEMO_EXPORT_STAGES,
+  resolveExportModalMode,
+} from '@/features/demo/engine/logic/export/stage'
 import {
   validateLocationsForPdf,
   type CasePdfValidationResult,
@@ -54,6 +57,58 @@ function promptedWith(request: ExportRequest, result = FAIL): ExportFlowState {
   if (validated.kind !== 'prompt') throw new Error(`expected prompt, got ${validated.kind}`)
   return validated.state
 }
+
+describe('EXPORT_ALERTS — matrix row 28 contract strings', () => {
+  it('carries the phone\'s copy verbatim, with the two adaptations §70g declares', () => {
+    // One literal block, the STAGE_MESSAGES shape: every other assertion in this file reads
+    // these constants back through the machine, which pins the ROUTING but would stay green
+    // under any copy mutation. Verified against phone source (`src/hooks/useExportFlow.ts`
+    // :328-332, :782-785, :819-822, :919-922; `app/(tabs)/export.tsx`:135-137, :147-149).
+    expect(EXPORT_ALERTS).toEqual({
+      noCaseSelected: {
+        title: 'No Case Selected',
+        // ADAPTED (§70g): the subset handler's generic wording (:820-821), not
+        // handleExportZip's "…create a case from the Home screen…" (:655-656) — the demo has
+        // no Home screen to send anyone to.
+        message: 'Please select a case before exporting.',
+      },
+      noCaseSelectedForMap: {
+        title: 'No Case Selected',
+        message: 'Please select a case before exporting its map.',
+      },
+      noLocationSelected: {
+        title: 'No Location Selected',
+        message: 'Please create a location first.',
+      },
+      noSelection: {
+        title: 'Export Error',
+        message: 'No locations are selected. Please select locations and try again.',
+      },
+      caseUnavailable: {
+        title: 'Export Error',
+        // ADAPTED (§70g): the phone says "Refresh the list and re-select." (export.tsx:148) —
+        // the demo's list IS the live store, so there is nothing to refresh.
+        message: 'The selected case is no longer available. Re-select and try again.',
+      },
+      missingSubsetPayload: {
+        title: 'Export Error',
+        message: 'No locations were selected for this export. Please re-select and try again.',
+      },
+    })
+  })
+
+  it('gives every alert a non-empty title and message', () => {
+    for (const [name, alert] of Object.entries(EXPORT_ALERTS)) {
+      expect(alert.title.trim(), name).not.toBe('')
+      expect(alert.message.trim(), name).not.toBe('')
+    }
+  })
+
+  it('is frozen, so no consumer can rewrite a contract string in place', () => {
+    expect(Object.isFrozen(EXPORT_ALERTS)).toBe(true)
+    expect(Object.isFrozen(EXPORT_ALERTS.noSelection)).toBe(true)
+  })
+})
 
 describe('requestExport — entry guard and preconditions', () => {
   it('ignores a second press while an export is in flight', () => {
@@ -315,6 +370,19 @@ describe('cancelValidation', () => {
 describe('stage and progress ticks', () => {
   it('advances the stage', () => {
     expect(advanceStage(state(), 'generating').stage).toBe('generating')
+  })
+
+  it('refuses the stages the demo cannot honestly enter (R-16)', () => {
+    // "Opening share dialog..." precedes a real OS share sheet; a browser tab has none, so the
+    // only route into it was a typo the compiler accepted. `'idle'` belongs to resetExportFlow,
+    // which also clears the counter and the location name.
+    // @ts-expect-error 'sharing' is not a DemoExportStage
+    expect(() => advanceStage(state(), 'sharing')).not.toThrow()
+    // @ts-expect-error 'idle' is not a DemoExportStage — resetExportFlow owns the return to rest
+    expect(() => advanceStage(state({ stage: 'zipping' }), 'idle')).not.toThrow()
+    for (const stage of DEMO_EXPORT_STAGES) {
+      expect(advanceStage(state(), stage).stage).toBe(stage)
+    }
   })
 
   it('is a no-op — by reference — for a repeated stage tick', () => {

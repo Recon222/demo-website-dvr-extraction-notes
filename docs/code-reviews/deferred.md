@@ -4376,3 +4376,93 @@ rules exist to prevent. Pinned in `DemoExperience.export.test.tsx` ("Continue re
 the prompt was ARMED for"), which moves the open location out from under an open prompt.
 **Trigger for P5.2:** nothing to do — dispatch through `requestExportFlow` and the arm is taken
 from the request. Do NOT add a second Continue path that supplies its own case id.
+
+---
+
+## 75. P5.1 fix round (parity/p5-fix-engine) — R-12/R-15/R-16/R-25/R-26 dispositions
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`, the P5.1-routed minors.
+Four FIXED, one DEFERRED with the reviewer's own sanction. None refuted. Territory this round
+was `engine/logic/export/` only — three sibling agents were editing the UI/flow/case-map layers
+in parallel.
+
+### 75a. R-16 — `DEMO_EXPORT_STAGES` is now `advanceStage`'s parameter type (FIXED, `64a22e0`)
+
+§70l promised the constant would be "something to assert against rather than a comment" and
+then asserted nothing — `DemoExportStage` had zero uses, so `advanceStage(state, 'sharing')`
+compiled and would have printed "Opening share dialog..." in a browser with no share sheet.
+The signature now takes `DemoExportStage`; all seven call sites already conformed.
+
+A second exclusion the review did not name is now load-bearing too: `'idle'` is out because the
+return to rest belongs to `resetExportFlow`, which ALSO clears the counter and the location
+name — an `advanceStage(state, 'idle')` would have left both behind for the next run to
+inherit. Two `@ts-expect-error` probes pin both exclusions (tsc's unused-directive check is
+what keeps a probe honest), plus a loop over every member that must still pass.
+
+### 75b. R-26 — the dead guard deleted, the real invariant pinned (FIXED, `0b167f1`)
+
+`caseCheckboxState`'s `locationIds.length === 0` early return was unreachable-equivalent: the
+later `selectedCount === 0` check answers the empty case identically on every input. Deleted,
+along with the test's false claim to pin it.
+
+What actually keeps the phone's bug closed is now named in both the doc comment and the test:
+the phone needs an explicit `hasLocations` gate because its `allSelected` compares counts
+directly and `0 === 0` is true (`ExportCaseCard.tsx:82`); here the zero check is ORDERED AHEAD
+of the length comparison. **Mutation-verified** — swapping the two returns makes the empty case
+read `'all'` and the retitled test goes red (1 failed / 40 passed). A second assertion covers
+the armed-on-this-card path, where the ordering does the work.
+
+### 75c. R-25 — the misnamed prune test (FIXED, `0b167f1`, grouped with R-26)
+
+`selection.test.ts:155` was named "DISARMS the full-case intent when a location is dropped"
+while correctly asserting the intent is KEPT. Renamed to "KEEPS the intent when the dropped ids
+were never the case's", with the distinction from the genuine disarm (set intact, case grew
+underneath) spelled out and the covering test named. Grouped with 75b: same defect class — a
+test describing something other than what it defends — in one file.
+
+### 75d. R-12 — the contract strings pinned against the phone (FIXED, `c89c9ca`)
+
+Every existing assertion read `EXPORT_ALERTS` back THROUGH the machine, pinning the routing
+while staying green under any copy mutation (the tests lane proved it with `MUTANT-COPY-*`).
+One literal `toEqual` block now mirrors the `STAGE_MESSAGES` shape, with all six strings
+re-verified against phone source before writing. The two §70g adaptations are annotated INSIDE
+the expectation, so the block documents them rather than quietly baking them in.
+**Mutation-verified** (`'Please create a location first.'` → `MUTANT-COPY`: 1 failed / 45
+passed). Riders: no alert may ship blank, and the record stays frozen.
+
+**Half NOT fixed here:** `noSelection` still has no production caller. That is R-13, routed to
+ORCHESTRATOR-SEAM — the fix is in `DemoExperience.tsx`'s `onExportPress`, outside this round's
+territory.
+
+### 75e. R-15 — the three-part validation arm: DEFERRED (the reviewer's sanctioned outcome)
+
+**What:** the prompt's arm is decomposed into two engine fields (`pendingValidatedExport` +
+`pendingSubsetLocationIds`, `flow.ts:162,164`) plus a shell `useRef`
+(`pendingExportCaseId`, `DemoExperience.tsx:764`), hand-reassembled at Continue.
+`ValidatedExportRun` already pairs all three, so `pendingValidatedRun: ValidatedExportRun | null`
+would delete the second field, the reassembly, the bridge ref and both its assignments.
+
+**Why deferred:** the fix has no coherent engine-only half. Changing `ExportFlowState`'s shape
+changes `continueValidatedExport`'s signature (the case id stops being a parameter), which is a
+`DemoExperience.tsx` edit — a file this round was explicitly barred from and which a sibling
+agent was concurrently rewriting for R-5/R-6/R-7/R-14/R-17/R-18/R-22. Landing the engine half
+alone would not compile; landing both would collide on the exact lines the sibling was editing.
+Blast radius measured, not estimated: 8 files reference the three fields, 3 of them outside
+this round's territory (`ui/DemoExperience.tsx`, `ui/screens/ExportModal.tsx`,
+`ui/__tests__/DemoExperience.export.test.tsx`). The review anticipated this — "**a recorded
+deferral with trigger is an acceptable outcome** — but it must be recorded in the ledger, not
+left silent."
+
+**The risk it leaves standing is real, not theoretical.** §74l records that P5.3's first draft
+re-derived the case at Continue from the open location, which is correct only while every
+validated dispatch comes from Completion; the Export tab breaks that assumption and the bug
+was a scope escalation. That near-miss IS the evidence an incomplete arm invites caller
+mistakes. What holds the line today is `caaaea2`'s test ("Continue resumes the case the prompt
+was ARMED for") plus §74l's standing instruction not to add a second Continue path.
+
+**Trigger:** the NEXT round that opens `engine/logic/export/flow.ts` and `DemoExperience.tsx`
+together — one agent, one commit, no concurrent editor on the bridge. Collapse to
+`pendingValidatedRun: ValidatedExportRun | null`, drop the `caseId` parameter from
+`continueValidatedExport`, and delete the ref. Keep the `missingSubsetPayload` alert at the
+REQUEST boundary (`requestExport`'s empty-`locationIds` arm): that one guards a caller mistake
+the type cannot express, unlike the post-arm backstop the collapse makes unrepresentable.

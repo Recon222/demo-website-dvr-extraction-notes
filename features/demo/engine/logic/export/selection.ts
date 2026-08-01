@@ -171,15 +171,18 @@ export type CaseCheckboxState = (typeof CASE_CHECKBOX_STATES)[number]
  * card's own locations, and only when the selection is armed on that card's case — the
  * one-case rule means every other card reads `'none'`.
  *
- * A case with no locations is `'none'`, never `'all'`: the phone's `allSelected` is gated on
- * `hasLocations` for exactly this reason (an empty case would otherwise render a ticked
- * "everything is selected" box over nothing).
+ * A case with no locations is `'none'`, never `'all'` — an empty case must not render a ticked
+ * "everything is selected" box over nothing. The phone needs an explicit `hasLocations` gate
+ * for this because its `allSelected` compares the counts directly (`0 === 0` is `true`,
+ * `ExportCaseCard.tsx:82`). Here the ZERO CHECK BELOW ORDERS AHEAD of that comparison, which
+ * answers the empty case on the way past; the separate guard this function used to carry was
+ * unreachable-equivalent dead code (review R-26). The ordering is therefore load-bearing —
+ * swapping the two returns re-opens the phone's bug — and is pinned as such.
  */
 export function caseCheckboxState(
   selection: ExportSelection | null,
   caseData: ExportSelectableCase,
 ): CaseCheckboxState {
-  if (caseData.locationIds.length === 0) return 'none'
   if (!selection || selection.caseId !== caseData.id) return 'none'
   const selectedCount = caseData.locationIds.reduce(
     (count, id) => count + (selection.locationIds.has(id) ? 1 : 0),
