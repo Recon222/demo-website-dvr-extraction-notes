@@ -337,6 +337,13 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
       if (d.kind === 'cluster') {
         const el = createClusterEl(d)
         el.addEventListener('click', () => expandCluster(d))
+        // Keyboard operation for the focusable bubble (review R-7b) — the `switchKeyDown` idiom
+        // from `ui/screens/_shared.tsx`, applied to an imperatively-built element.
+        el.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return
+          event.preventDefault()
+          expandCluster(d)
+        })
         return new mod.default.Marker({ element: el, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(map)
       }
       const el = createMarkerEl(d)

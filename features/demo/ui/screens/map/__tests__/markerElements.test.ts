@@ -32,6 +32,13 @@ describe('markerElements — pins', () => {
     expect(el.style.background).toContain('rgb(0, 191, 255)')
   })
 
+  it('hides unnamed pins from the accessibility tree — the sheet row is their keyboard twin', () => {
+    expect(createMarkerEl({ id: 'l1', lng: -79.6, lat: 43.6, kind: 'location', color: '#00BFFF' }).getAttribute('aria-hidden')).toBe('true')
+    expect(createMarkerEl({ id: 'c1', lng: -79.6, lat: 43.6, kind: 'incident', color: '#e53935' }).getAttribute('aria-hidden')).toBe('true')
+    // The cluster is NOT hidden — it has a name and is the only on-map route to its members.
+    expect(createClusterEl(cluster(4)).getAttribute('aria-hidden')).toBeNull()
+  })
+
   it('renders the incident as an SVG teardrop', () => {
     const el = createMarkerEl({ id: 'c1', lng: -79.6, lat: 43.6, kind: 'incident', color: '#e53935' })
     expect(el.getAttribute('data-marker-kind')).toBe('incident')
@@ -46,6 +53,10 @@ describe('markerElements — cluster bubble', () => {
     expect(el.getAttribute('data-cluster-count')).toBe('12')
     expect(el.getAttribute('aria-label')).toBe('Cluster of 12 locations')
     expect(el.textContent).toBe('12')
+  })
+
+  it('is focusable — below the cluster ceiling it is the only on-map route to its members', () => {
+    expect(createClusterEl(cluster(12)).tabIndex).toBe(0)
   })
 
   it('sizes the disc off the phone step expression (16 / 22 / 28 radius)', () => {

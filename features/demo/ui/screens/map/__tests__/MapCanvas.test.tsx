@@ -193,6 +193,22 @@ describe('MapCanvas — clustering', () => {
   })
 })
 
+describe('MapCanvas — cluster keyboard access (review R-7b)', () => {
+  it('expands on Enter and on Space, not on other keys', async () => {
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    const bubble = elFor('cluster')[0]._el
+
+    fireEvent.keyDown(bubble, { key: 'Tab' })
+    expect(mapInstance.flyTo).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(bubble, { key: 'Enter' })
+    await waitFor(() => expect(mapInstance.flyTo).toHaveBeenCalledTimes(1))
+    fireEvent.keyDown(bubble, { key: ' ' })
+    await waitFor(() => expect(mapInstance.flyTo).toHaveBeenCalledTimes(2))
+  })
+})
+
 describe('MapCanvas — camera markers', () => {
   const camera: MapCameraMarker = { id: 'l1:cam-1', locationId: 'l1', cameraName: 'Front entry', lng: -79.62, lat: 43.62, resolution: '1080p' }
 
