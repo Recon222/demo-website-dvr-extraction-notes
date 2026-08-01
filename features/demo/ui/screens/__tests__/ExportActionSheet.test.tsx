@@ -108,25 +108,59 @@ describe('ExportActionSheet — disabled (bound to isExporting)', () => {
   })
 })
 
+describe('ExportActionSheet — focus management', () => {
+  it('takes focus on mount, so the sheet is announced and its keys are reachable', () => {
+    renderSheet()
+    expect(screen.getByRole('menu')).toHaveFocus()
+  })
+
+  it('hands focus back to the opener when it closes', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+
+    const { unmount } = render(<ExportActionSheet options={OPTIONS} onSelect={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByRole('menu')).toHaveFocus()
+
+    unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+
+  it('does not chase a focus target that left the document', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { unmount } = render(<ExportActionSheet options={OPTIONS} onSelect={vi.fn()} onCancel={vi.fn()} />)
+
+    opener.remove() // the Completion form re-rendered underneath the scrim
+    expect(() => unmount()).not.toThrow()
+  })
+})
+
 describe('ExportActionSheet — keyboard traversal', () => {
+  /**
+   * Keydown dispatches at `document.activeElement`, so these bubble from wherever focus really
+   * is (review R-7) — never fired directly at the container, which a browser never does. The
+   * mount effect leaves focus ON the menu, which is the state the primary path opens in.
+   */
   it('moves focus down and wraps, because role="menu" promises it', () => {
     renderSheet()
-    const sheet = screen.getByRole('menu')
     const [location, full, cancel] = screen.getAllByRole('menuitem')
 
-    fireEvent.keyDown(sheet, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
     expect(location).toHaveFocus()
-    fireEvent.keyDown(sheet, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
     expect(full).toHaveFocus()
-    fireEvent.keyDown(sheet, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
     expect(cancel).toHaveFocus()
-    fireEvent.keyDown(sheet, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
     expect(location).toHaveFocus()
   })
 
-  it('ArrowUp from the sheet lands on the last row', () => {
+  it('ArrowUp from the freshly-opened sheet lands on the last row', () => {
     renderSheet()
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
     expect(screen.getByTestId('export-option-cancel')).toHaveFocus()
   })
 })
