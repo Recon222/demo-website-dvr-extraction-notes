@@ -15,14 +15,18 @@ export interface LocationDetailCardProps {
    *  this CTA is the sole entry to row 23). The id is the CASE id (incident items carry it). */
   onEditIncident(caseId: string): void
   /**
-   * Location variant only — whether THIS location's cameras are currently plotted on the map.
-   * Drives the toggle's label + expanded state; defaults to hidden, exactly as the phone's
-   * `camerasShown` does (LocationDetailCard.tsx:119-123, 348).
+   * Location variant only — the cameras toggle, as ONE optional object (review R-16).
+   *
+   * Two independent optional props could express `camerasShown: true` with no `onToggleCameras`:
+   * cameras plotted on the map with no way to hide them again. Pairing them makes that state
+   * unrepresentable — the shown flag cannot exist without the handler that clears it.
    */
-  camerasShown?: boolean
-  /** Location variant only — flips the cameras on/off. The row is only rendered when the
-   *  location has geolocated cameras AND a handler exists to act on the press. */
-  onToggleCameras?(): void
+  cameras?: {
+    /** Whether THIS location's cameras are currently plotted (phone `camerasShown`). */
+    shown: boolean
+    /** Flips them on/off. */
+    onToggle(): void
+  }
 }
 
 const container: CSSProperties = { padding: '14px 16px 24px' }
@@ -115,9 +119,9 @@ export function LocationDetailCard({
   onEmail,
   onGoToLocation,
   onEditIncident,
-  camerasShown = false,
-  onToggleCameras,
+  cameras,
 }: LocationDetailCardProps) {
+  const camerasShown = cameras?.shown ?? false
   const back = (
     <button type="button" onClick={onBack} style={backBtn}>
       {'‹'} All Locations
@@ -165,11 +169,11 @@ export function LocationDetailCard({
           only when the location HAS geolocated cameras (phone: `cameraCount > 0`,
           LocationDetailCard.tsx:509) and a handler exists to act on the press — a button that
           cannot do what it says is the demo's honesty rule (§49a). */}
-      {item.cameras.length > 0 && onToggleCameras && (
+      {item.cameras.length > 0 && cameras && (
         <button
           type="button"
           data-testid="detail-cameras-toggle"
-          onClick={onToggleCameras}
+          onClick={cameras.onToggle}
           // `aria-pressed`, not `aria-expanded` (review R-20): this button toggles markers on a
           // map, it does not disclose an adjacent region — and `MapControls` next door already
           // uses `aria-pressed` for all four of its toggle groups. (The camera MARKER's own

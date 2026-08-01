@@ -118,3 +118,19 @@ describe('mapFilters — the shared empty state is not a shared mutable', () => 
     expect(toggleStatus(EMPTY_MAP_FILTERS.statuses, 'started')).not.toBe(EMPTY_MAP_FILTERS.statuses)
   })
 })
+
+describe('mapFilters — the pill registry is exhaustive by construction (review R-17)', () => {
+  it('lists every LocationMapStatus, in the phone pill order', () => {
+    // Derived from a `satisfies Record<LocationMapStatus, number>`, so a fourth status cannot be
+    // added to the union without adding it here — `toggleStatus` re-derives THROUGH this list
+    // and would otherwise drop the new member silently.
+    expect([...MAP_FILTER_STATUSES]).toEqual(['started', 'working', 'complete'])
+  })
+
+  it('round-trips every registered status through toggleStatus', () => {
+    for (const status of MAP_FILTER_STATUSES) {
+      expect(toggleStatus([], status)).toEqual([status])
+      expect(toggleStatus([status], status)).toEqual([])
+    }
+  })
+})

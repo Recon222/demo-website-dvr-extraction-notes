@@ -2,7 +2,7 @@ import turfCircle from '@turf/circle'
 import turfDistance from '@turf/distance'
 import { point } from '@turf/helpers'
 import type { Feature, Polygon } from 'geojson'
-import { countLocations, countStatuses, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { countLocations, narrowProjection, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
 
 /**
  * Proximity analysis — the demo's port of the phone's `proximity-service.ts` + `useProximity.ts`,
@@ -77,16 +77,9 @@ export function computeProximity(
   radiusKm: number,
 ): ProximityResult {
   const items = itemsWithinRadius(data.items, center, radiusKm)
-  const keptIds = new Set(items.filter((i) => i.kind === 'location').map((i) => i.id))
-  const incidentKept = items.some((i) => i.kind === 'incident')
 
   return {
-    data: {
-      pins: data.pins.filter((p) => keptIds.has(p.id)),
-      incident: incidentKept ? data.incident : null,
-      items,
-      statusCounts: countStatuses(items),
-    },
+    data: narrowProjection(data, items),
     ring: generateRadiusCircle(center, radiusKm),
     locationCount: countLocations(items),
   }

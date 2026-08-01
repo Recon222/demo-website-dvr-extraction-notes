@@ -114,6 +114,25 @@ export function countStatuses(items: readonly SheetItem[]): { started: number; w
   return counts
 }
 
+/**
+ * Re-derive a whole projection from a narrowed row set (review R-15).
+ *
+ * `pins`, `incident` and `statusCounts` are all pure functions of `items`, and the diff had
+ * three sites hand-rolling that relationship — `toMapData`, `applyMapFilters` and
+ * `computeProximity`, the last two with a byte-identical `keptIds` filter. `countStatuses` was
+ * already shared by all three; this finishes the job for the other two fields, so a narrowing
+ * stage cannot leave a pin whose row is gone (or vice versa).
+ */
+export function narrowProjection(data: MapData, items: SheetItem[]): MapData {
+  const keptIds = new Set(items.filter((i) => i.kind === 'location').map((i) => i.id))
+  return {
+    pins: data.pins.filter((p) => keptIds.has(p.id)),
+    incident: items.some((i) => i.kind === 'incident') ? data.incident : null,
+    items,
+    statusCounts: countStatuses(items),
+  }
+}
+
 /** "N locations" — cameras and the incident pin never inflate it (phone MapHost.tsx:250-254). */
 export function countLocations(items: readonly SheetItem[]): number {
   return items.filter((i) => i.kind === 'location').length

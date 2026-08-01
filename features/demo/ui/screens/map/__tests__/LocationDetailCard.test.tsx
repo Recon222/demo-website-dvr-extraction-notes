@@ -72,7 +72,7 @@ describe('LocationDetailCard — cameras toggle', () => {
   const withCameras = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Rear')] })
 
   it('is absent when the location has no geolocated cameras', () => {
-    render(<LocationDetailCard item={fullLoc} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={fullLoc} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
     expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
   })
 
@@ -81,8 +81,15 @@ describe('LocationDetailCard — cameras toggle', () => {
     expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
   })
 
+  it('cannot be shown without a way to hide it — the two are ONE prop (review R-16)', () => {
+    // `{ shown, onToggle }` is a single object, so `shown: true` with no handler is
+    // unrepresentable; omitting the object hides the row entirely.
+    render(<LocationDetailCard item={withCameras} {...cb()} />)
+    expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
+  })
+
   it('offers "Show cameras (N)" while hidden, with the phone accessibility label', () => {
-    render(<LocationDetailCard item={withCameras} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={withCameras} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
     const toggle = screen.getByTestId('detail-cameras-toggle')
     expect(toggle).toHaveTextContent('Show cameras (2)')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
@@ -90,7 +97,7 @@ describe('LocationDetailCard — cameras toggle', () => {
   })
 
   it('flips to "Hide cameras (N)" when shown', () => {
-    render(<LocationDetailCard item={withCameras} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={withCameras} {...cb()} cameras={{ shown: true, onToggle: vi.fn() }} />)
     const toggle = screen.getByTestId('detail-cameras-toggle')
     expect(toggle).toHaveTextContent('Hide cameras (2)')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
@@ -98,19 +105,19 @@ describe('LocationDetailCard — cameras toggle', () => {
   })
 
   it('singularises a lone camera in the accessibility label', () => {
-    render(<LocationDetailCard item={sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front')] })} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front')] })} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
     expect(screen.getByTestId('detail-cameras-toggle')).toHaveAccessibleName('Show 1 camera on the map')
   })
 
   it('fires the toggle', () => {
     const onToggleCameras = vi.fn()
-    render(<LocationDetailCard item={withCameras} {...cb()} onToggleCameras={onToggleCameras} />)
+    render(<LocationDetailCard item={withCameras} {...cb()} cameras={{ shown: false, onToggle: onToggleCameras }} />)
     fireEvent.click(screen.getByTestId('detail-cameras-toggle'))
     expect(onToggleCameras).toHaveBeenCalledTimes(1)
   })
 
   it('never appears on the incident variant', () => {
-    render(<LocationDetailCard item={incItem} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={incItem} {...cb()} cameras={{ shown: true, onToggle: vi.fn() }} />)
     expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
   })
 })
@@ -121,7 +128,7 @@ describe('LocationDetailCard — cameras without a GPS fix are counted, not hidd
 
   it('reads "N of M" when the wizard lists more cameras than the map can plot', () => {
     const item = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Till')], cameraTotal: 5 })
-    render(<LocationDetailCard item={item} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={item} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
     const toggle = screen.getByTestId('detail-cameras-toggle')
     expect(toggle).toHaveTextContent('Show cameras (2 of 5)')
     expect(toggle).toHaveAccessibleName('Show 2 cameras on the map (3 without a GPS fix)')
@@ -129,7 +136,7 @@ describe('LocationDetailCard — cameras without a GPS fix are counted, not hidd
 
   it('stays a plain count when every camera plots', () => {
     const item = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Till')] })
-    render(<LocationDetailCard item={item} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={item} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
     expect(screen.getByTestId('detail-cameras-toggle')).toHaveTextContent('Show cameras (2)')
   })
 

@@ -318,8 +318,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
       onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
       onGoToLocation={(id) => onGoToLocation?.(id)}
       onEditIncident={onEditIncident}
-      camerasShown={camerasShown}
-      onToggleCameras={handleToggleCameras}
+      cameras={{ shown: camerasShown, onToggle: handleToggleCameras }}
     />
   ) : null
 

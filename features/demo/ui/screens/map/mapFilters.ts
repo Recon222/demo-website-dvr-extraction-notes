@@ -1,5 +1,5 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
-import { countStatuses, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { narrowProjection, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
 
 /**
  * Map filter pipeline — the demo's port of the phone's `map-data-service` filter functions
@@ -19,8 +19,24 @@ import { countStatuses, type MapData, type SheetItem } from '@/features/demo/ui/
  * `useMapFilter` with no store slice and no AsyncStorage write, so it dies with the screen.
  */
 
-/** The three filterable statuses, in the phone's pill order (`MapControls.tsx:66`). */
-export const MAP_FILTER_STATUSES: readonly LocationMapStatus[] = ['started', 'working', 'complete']
+/**
+ * The filterable statuses, in the phone's pill order (`MapControls.tsx:66`).
+ *
+ * The order is DERIVED from an exhaustive `Record` (review R-17) rather than hand-listed. A
+ * fourth `LocationMapStatus` would otherwise compile everywhere — `toggleStatus` re-derives
+ * THROUGH this registry, so the new member would be silently dropped from every toggle and its
+ * pill would be permanently un-toggleable. Both siblings in `mapTokens.ts` are already
+ * exhaustive `Record`s; this brings the third into line.
+ */
+const STATUS_PILL_ORDER = {
+  started: 0,
+  working: 1,
+  complete: 2,
+} satisfies Record<LocationMapStatus, number>
+
+export const MAP_FILTER_STATUSES: readonly LocationMapStatus[] = (
+  Object.keys(STATUS_PILL_ORDER) as LocationMapStatus[]
+).sort((a, b) => STATUS_PILL_ORDER[a] - STATUS_PILL_ORDER[b])
 
 export interface MapFilterState {
   /** Active status pills. Empty = no status filter (phone: `statuses` undefined). */
@@ -95,12 +111,8 @@ export function applyMapFilters(data: MapData, filters: MapFilterState): MapData
   const items = data.items.filter(
     (item) => matchesStatusFilter(item, filters.statuses) && matchesSearchFilter(item, filters.searchText),
   )
-  const keptIds = new Set(items.filter((i) => i.kind === 'location').map((i) => i.id))
-
-  return {
-    pins: data.pins.filter((p) => keptIds.has(p.id)),
-    incident: data.incident,
-    items,
-    statusCounts: countStatuses(items),
-  }
+  // The incident always survives both predicates, so deriving it from the surviving rows gives
+  // the same answer as carrying it through — and cannot drift from `items` the way a carried
+  // copy could.
+  return narrowProjection(data, items)
 }
