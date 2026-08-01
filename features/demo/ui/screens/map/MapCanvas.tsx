@@ -211,7 +211,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   const gqlRef = useRef<MapboxGl | null>(null)
   const clusterModRef = useRef<ClusterModule | null>(null)
   const indexRef = useRef<ClusterIndex | null>(null)
-  const markerObjsRef = useRef<MapboxMarker[]>([])
+  // Pins and cameras are plotted by SEPARATE effects into SEPARATE refs (review R-4): pin
+  // membership is a function of the viewport (clustering), camera membership is not, and a
+  // camera's open callout lives in its DOM element — re-creating it on every `moveend` wiped the
+  // bubble and silently flipped its `aria-expanded` back to false.
+  const pinObjsRef = useRef<MapboxMarker[]>([])
+  const cameraObjsRef = useRef<MapboxMarker[]>([])
   // Live refs so fresh callback identities never force the map or the markers to rebuild.
   const onMarkerPressRef = useRef(onMarkerPress)
   onMarkerPressRef.current = onMarkerPress
@@ -301,8 +306,10 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     return () => {
       mounted = false
       readyRef.current = false
-      markerObjsRef.current.forEach((m) => m.remove())
-      markerObjsRef.current = []
+      pinObjsRef.current.forEach((m) => m.remove())
+      pinObjsRef.current = []
+      cameraObjsRef.current.forEach((m) => m.remove())
+      cameraObjsRef.current = []
       indexRef.current = null
       map?.remove()
       mapRef.current = null
@@ -311,15 +318,15 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, attempt])
 
-  // Re-plot every marker for the current viewport. Called on data change AND on every 'moveend',
-  // because which pins are clustered is a function of the camera.
-  const renderMarkers = useCallback(() => {
+  // Re-plot the PINS for the current viewport. Called on data change AND on every 'moveend',
+  // because which pins are clustered is a function of the camera. Cameras are not here.
+  const renderPins = useCallback(() => {
     const map = mapRef.current
     const mod = gqlRef.current
     const clusterMod = clusterModRef.current
     if (!map || !mod || !clusterMod) return
 
-    markerObjsRef.current.forEach((m) => m.remove())
+    pinObjsRef.current.forEach((m) => m.remove())
 
     const index = indexRef.current
     const plotted: PlottedMarker[] = index
@@ -339,13 +346,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         .addTo(map)
     })
 
-    const cameraObjs = cameras.map((camera) =>
-      new mod.default.Marker({ element: createCameraEl(camera), anchor: 'center' })
-        .setLngLat([camera.lng, camera.lat])
-        .addTo(map),
-    )
-
-    markerObjsRef.current = [...pinObjs, ...cameraObjs]
+    pinObjsRef.current = pinObjs
 
     function expandCluster(cluster: ClusterDescriptor): void {
       const currentIndex = indexRef.current
@@ -356,9 +357,27 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         onError: (error) => console.warn('[demo/map] cluster expansion failed:', error),
       })
     }
-  }, [markers, cameras])
+  }, [markers])
 
-  renderRef.current = renderMarkers
+  /**
+   * Re-plot the CAMERA markers. Runs only when the camera list itself changes — never on a map
+   * move — so an open callout survives a pan, a `flyTo` settling, or any pin re-cluster. The
+   * phone holds the same state in React and memoises its camera markers on toggle/selection,
+   * explicitly not on camera moves (`CaseMapView.tsx:386-393`).
+   */
+  const renderCameras = useCallback(() => {
+    const map = mapRef.current
+    const mod = gqlRef.current
+    if (!map || !mod) return
+    cameraObjsRef.current.forEach((m) => m.remove())
+    cameraObjsRef.current = cameras.map((camera) =>
+      new mod.default.Marker({ element: createCameraEl(camera), anchor: 'center' })
+        .setLngLat([camera.lng, camera.lat])
+        .addTo(map),
+    )
+  }, [cameras])
+
+  renderRef.current = renderPins
 
   // Rebuild the cluster index whenever the plotted pin set changes — clustering must always
   // reflect what is on the map, so this one DOES key on identity and runs eagerly.
@@ -400,12 +419,17 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     fitToPoints(map, fitPointsRef.current)
   }, [ready, fitKey])
 
-  // Re-plot after any index rebuild or camera change. Declared AFTER the index effect so it runs
-  // second within the same commit and always reads the fresh index.
+  // Re-plot the pins after any index rebuild. Declared AFTER the index effect so it runs second
+  // within the same commit and always reads the fresh index.
   useEffect(() => {
     if (!ready) return
-    renderMarkers()
-  }, [ready, markers, cameras, renderMarkers])
+    renderPins()
+  }, [ready, markers, renderPins])
+
+  useEffect(() => {
+    if (!ready) return
+    renderCameras()
+  }, [ready, cameras, renderCameras])
 
   // The proximity ring — a fill + border line under every marker, matching the phone's
   // ProximityRing layers (fill rgba(0,191,255,0.15), line #00BFFF width 2 opacity 0.85).

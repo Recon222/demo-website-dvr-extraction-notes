@@ -241,6 +241,27 @@ describe('MapCanvas — camera markers', () => {
     expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
   })
 
+  it('an open callout SURVIVES a map move — cameras are not part of the moveend re-plot', async () => {
+    render(<MapCanvas markers={tightPins} cameras={[camera]} />)
+    await waitFor(() => expect(elFor('camera')).toHaveLength(1))
+    const before = elFor('camera')[0]._el
+    fireEvent.click(before.querySelector('[data-camera-button]')!)
+    expect(before.querySelector<HTMLElement>('[data-camera-callout]')!.style.display).toBe('block')
+
+    // A pan (or a settling flyTo) re-clusters the pins…
+    mapInstance.getZoom.mockReturnValue(16)
+    emit('moveend')
+    await waitFor(() => expect(elFor('location')).toHaveLength(10))
+    mapInstance.getZoom.mockReturnValue(10)
+
+    // …and leaves the camera marker — and its open bubble — exactly as they were.
+    const after = elFor('camera')
+    expect(after).toHaveLength(1)
+    expect(after[0]._el).toBe(before)
+    expect(before.querySelector<HTMLElement>('[data-camera-callout]')!.style.display).toBe('block')
+    expect(before.querySelector('[data-camera-button]')!.getAttribute('aria-expanded')).toBe('true')
+  })
+
   it('a camera tap toggles its callout without selecting', async () => {
     const onMarkerPress = vi.fn()
     render(<MapCanvas markers={[]} cameras={[camera]} onMarkerPress={onMarkerPress} />)
