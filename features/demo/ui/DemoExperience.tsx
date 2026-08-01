@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, isTabOnlyView, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, isTabOnlyView, isTabView, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -137,7 +137,7 @@ import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
-import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus } from '@/features/demo/engine/store/selectors'
+import { selectDrawerItems, selectDrawerStatus, selectCaseNotesData, selectAdjustedScopes, selectExploreStatus, selectMediaToolsVisible } from '@/features/demo/engine/store/selectors'
 import { loadSnapshot, persistDemoStore, type PersistenceHandle, type StorageLike } from '@/features/demo/engine/store/persistence'
 import { maxIdSeq } from '@/features/demo/engine/store/helpers'
 import { cleanOcrText, readDvrTimestamp, getConfidenceLevel, isDvrDraftCommittable } from '@/features/demo/engine/logic/ocr'
@@ -1121,12 +1121,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     listEditHandlers(list, (next) => store.getState().updateField(path, next))
 
   // ---- rail / chapter nav ----
+  // Derived from the VISIBLE step set (P7.3): a screen the visitor's profile switched off is
+  // skipped by Continue and by Back, so the wizard's spine and the drawer's list are the same
+  // list. The pre-wizard chapters are never filterable, so Back from the first visible step
+  // still lands on Cases.
   const onNext = () => {
-    const n = nextChapter(currentChapter)
+    const n = nextVisibleChapter(currentChapter, store.getState())
     if (n) store.getState().setView(n)
   }
   const onPrev = () => {
-    const p = prevChapter(currentChapter)
+    const p = prevVisibleChapter(currentChapter, store.getState())
     if (p) store.getState().setView(p)
   }
 
@@ -2862,6 +2866,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onRecordAudio={launchAudioRecording}
             onOpenMediaLibrary={openMediaLibrary}
             saveStatus={saveStatus}
+            mediaTools={selectMediaToolsVisible(store.getState())}
           />
           {/* The dashboard's long-press sheet (P3.2). Mounted only while a case is open —
               the demo has no always-mounted screen to hold it, so the phone's caseData=null

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { snapshotOf } from '@/features/demo/engine/store/persistence'
@@ -114,6 +114,60 @@ describe('applying a profile', () => {
     fireEvent.click(screen.getByTestId('fc-profile-forensic'))
     expect(store.getState()).toBe(before)
     expect(screen.queryByText('Apply profile?')).not.toBeInTheDocument()
+  })
+})
+
+describe('the wizard runs on the visible step set', () => {
+  function seedInWizard(view: 'dvrInfo' | 'exportInfo' | 'submission' = 'dvrInfo'): DemoStore {
+    const store = createDemoStore()
+    act(() => {
+      const caseId = store.getState().createCase({ caseNumber: 'PR25-F', displayName: 'Flow', unit: 'FVU' })
+      const locId = store.getState().addLocation(caseId, { locationName: 'Site' })
+      store.getState().switchLocation(locId)
+      store.getState().applyFormProfile('canvas') // hides Cameras
+      store.getState().setView(view)
+    })
+    return store
+  }
+
+  it('skips a hidden screen going forward', () => {
+    const store = seedInWizard('dvrInfo')
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
+    expect(store.getState().view).toBe('exportInfo')
+  })
+
+  it('skips it going back too', () => {
+    const store = seedInWizard('exportInfo')
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(store.getState().view).toBe('dvrInfo')
+  })
+
+  it('still leaves the wizard for Cases from the first step', () => {
+    const store = seedInWizard('submission')
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(store.getState().view).toBe('cases')
+  })
+
+  it('drops the hidden screen from the drawer and from the rail checklist', () => {
+    const store = seedInWizard('dvrInfo')
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().setDrawerOpen(true))
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    expect(within(drawer).queryByText('Cameras')).not.toBeInTheDocument()
+    expect(within(drawer).getByText('DVR Information')).toBeInTheDocument()
+  })
+
+  it('drops a switched-off capture tool from the drawer accordion', () => {
+    const store = seedInWizard('dvrInfo')
+    act(() => store.getState().setFormStepVisible('audioRecording', false))
+    render(<DemoExperience store={store} />)
+    act(() => store.getState().setDrawerOpen(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Media section' }))
+    expect(screen.queryByRole('button', { name: 'Record audio note' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open camera to capture media' })).toBeInTheDocument()
   })
 })
 

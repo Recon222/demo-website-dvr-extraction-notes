@@ -18,8 +18,6 @@ export {
   DRAWER_DEFS,
   chapterNumber,
   wizardNumber,
-  nextChapter,
-  prevChapter,
 } from '@/features/demo/engine/content/screens'
 export { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 export { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'

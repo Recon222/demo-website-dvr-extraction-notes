@@ -42,6 +42,13 @@ export interface WizardDrawerProps {
    * there would be a claim about a state nobody has looked at.
    */
   saveStatus: SaveStatusView | null
+  /**
+   * Which capture TOOLS the visitor's form profile leaves in the accordion (P7.3). The phone
+   * gates the same two rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`); the
+   * Media Library row is ungated on both sides — it browses what is already captured, so it
+   * has nothing to do with which capture screens are in the flow.
+   */
+  mediaTools: { capture: boolean; audio: boolean }
 }
 
 const itemButton: CSSProperties = {
@@ -222,6 +229,7 @@ export function WizardDrawer({
   onRecordAudio,
   onOpenMediaLibrary,
   saveStatus,
+  mediaTools,
 }: WizardDrawerProps) {
   const reduce = useReducedMotion()
   useEffect(() => {
@@ -322,8 +330,12 @@ export function WizardDrawer({
               {/* Appended AFTER the step list, exactly like the phone (CustomDrawerContent.tsx:265). */}
               <MediaAccordion
                 rows={[
-                  { key: 'capture', label: 'Capture Media', ariaLabel: 'Open camera to capture media', icon: <CameraIcon />, onSelect: onCaptureMedia },
-                  { key: 'audio', label: 'Record Audio', ariaLabel: 'Record audio note', icon: <MicIcon />, onSelect: onRecordAudio },
+                  ...(mediaTools.capture
+                    ? [{ key: 'capture', label: 'Capture Media', ariaLabel: 'Open camera to capture media', icon: <CameraIcon />, onSelect: onCaptureMedia }]
+                    : []),
+                  ...(mediaTools.audio
+                    ? [{ key: 'audio', label: 'Record Audio', ariaLabel: 'Record audio note', icon: <MicIcon />, onSelect: onRecordAudio }]
+                    : []),
                   { key: 'library', label: 'Media Library', ariaLabel: 'Open media library', icon: <FolderOpenIcon />, onSelect: onOpenMediaLibrary },
                 ]}
               />

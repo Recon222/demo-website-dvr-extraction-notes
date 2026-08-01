@@ -108,14 +108,8 @@ export function wizardNumber(id: WizardScreenId): number {
   return WIZARD_SCREENS.indexOf(id) + 1
 }
 
-/** The next chapter in tour order, or null at the end / for an unknown id. */
-export function nextChapter(id: ChapterId): ChapterId | null {
-  const i = CHAPTERS.indexOf(id)
-  return i >= 0 && i < CHAPTERS.length - 1 ? CHAPTERS[i + 1] : null
-}
-
-/** The previous chapter in tour order, or null at the start / for an unknown id. */
-export function prevChapter(id: ChapterId): ChapterId | null {
-  const i = CHAPTERS.indexOf(id)
-  return i > 0 ? CHAPTERS[i - 1] : null
-}
+// The unfiltered `nextChapter`/`prevChapter` walkers lived here until P7.3. They are superseded
+// by `logic/form-visibility`'s `nextVisibleChapter`/`prevVisibleChapter`, which walk the same
+// registry through the active profile — and which the resolver suite pins as IDENTICAL to the
+// raw chain under forensic. Keeping a second pair that ignores visibility is how a screen ends
+// up hidden from the drawer and still reachable by Continue.
