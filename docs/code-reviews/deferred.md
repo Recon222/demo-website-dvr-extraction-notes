@@ -4759,6 +4759,38 @@ length floor), and the UI test's own assertion proves the consequence the commen
 clause names. Left as written; the finding's substance (nothing pinned the inlining) is fixed
 where it belongs, in the artifact's own suite.
 
+### 78h. Fix-delta micro-round (parity/p5-fix2-casemap) — D-1/D-3/D-4/D-5/D-6/D-10/D-12
+
+All seven FIXED, none refuted. Three carry a decision worth keeping:
+
+- **D-1** is the correction to 78a's own framing. §78a said `hasPlottableFeatures` and
+  `hasPlottedLocations` answered two different questions; there were in fact THREE, and the
+  terminal was reading the wrong one for the third. "Has site framing" (§71g's refusal), "has
+  any sites" (`plottedLocations > 0`) and "is empty" (`features.length === 0`) diverge on a
+  camera-only collection — reachable through P3.7's crosshair on a typed-not-picked location —
+  where the file renders camera pins and the sentence said it was blank. All three are now
+  enumerated in `hasPlottableFeatures`'s doc, which also records that it has **no production
+  reader today, deliberately**, so a dead-export sweep does not take the §71g predicate with it.
+
+- **D-10**: the pending state moved to the accessible NAME rather than gaining an sr-only
+  `role="status"` region. `pending` is normally false — the chunk lands while the map is still
+  drawing — and a live region that fires for a few hundred milliseconds on arrival at a screen
+  is noise. A disabled control is still read by a browse cursor, so the name reaches the same
+  person without the interruption. **Trigger:** if the chunk ever becomes slow enough that
+  `pending` is routinely observable (a much larger template, a compression step), revisit — a
+  live region earns its keep at that point.
+
+- **D-12** removed `hasPlottedLocations`; **D-5** removed the second copy of the plotted gate.
+  Both were the same species — a value derived from something that already existed, kept in
+  sync by hand — and both had already produced the thing the species produces: fixture pairs
+  that could contradict each other, and a count that could disagree with the file. §78a's
+  trigger is corrected in place rather than left to be read alongside its own correction.
+
+**Costs accepted, on the record:** `summariseCaseMapCoverage` now builds each location's feature
+twice per export (once to count, once to collect). At demo scale that is tens of objects on a
+button press. It buys structural agreement between the sentence and the artifact, which is the
+one thing this whole finding family has been about.
+
 ### 78g. Residual — the thin `mapbox-gl` mock in the sibling map suites
 
 `MapCanvas` does `new Marker(...).setLngLat(...).addTo(map)` (`MapCanvas.tsx:160-162`), which
