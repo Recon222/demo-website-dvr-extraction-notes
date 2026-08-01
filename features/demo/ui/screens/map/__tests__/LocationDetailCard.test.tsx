@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
+import { LocationDetailCard, cameraCountLabel } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { cameraMarker, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 
 const fullLoc = sheetLocation({
@@ -85,7 +85,7 @@ describe('LocationDetailCard — cameras toggle', () => {
     render(<LocationDetailCard item={withCameras} {...cb()} onToggleCameras={vi.fn()} />)
     const toggle = screen.getByTestId('detail-cameras-toggle')
     expect(toggle).toHaveTextContent('Show cameras (2)')
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).toHaveAccessibleName('Show 2 cameras on the map')
   })
 
@@ -93,7 +93,7 @@ describe('LocationDetailCard — cameras toggle', () => {
     render(<LocationDetailCard item={withCameras} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
     const toggle = screen.getByTestId('detail-cameras-toggle')
     expect(toggle).toHaveTextContent('Hide cameras (2)')
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(toggle).toHaveAccessibleName('Hide 2 cameras on the map')
   })
 
@@ -112,5 +112,31 @@ describe('LocationDetailCard — cameras toggle', () => {
   it('never appears on the incident variant', () => {
     render(<LocationDetailCard item={incItem} {...cb()} camerasShown onToggleCameras={vi.fn()} />)
     expect(screen.queryByTestId('detail-cameras-toggle')).not.toBeInTheDocument()
+  })
+})
+
+// ---- partial camera results (review R-19) ---------------------------------------------------
+describe('LocationDetailCard — cameras without a GPS fix are counted, not hidden', () => {
+  const cam = (id: string, cameraName: string) => cameraMarker({ id, cameraName })
+
+  it('reads "N of M" when the wizard lists more cameras than the map can plot', () => {
+    const item = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Till')], cameraTotal: 5 })
+    render(<LocationDetailCard item={item} {...cb()} onToggleCameras={vi.fn()} />)
+    const toggle = screen.getByTestId('detail-cameras-toggle')
+    expect(toggle).toHaveTextContent('Show cameras (2 of 5)')
+    expect(toggle).toHaveAccessibleName('Show 2 cameras on the map (3 without a GPS fix)')
+  })
+
+  it('stays a plain count when every camera plots', () => {
+    const item = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Till')] })
+    render(<LocationDetailCard item={item} {...cb()} onToggleCameras={vi.fn()} />)
+    expect(screen.getByTestId('detail-cameras-toggle')).toHaveTextContent('Show cameras (2)')
+  })
+
+  it('formats the label directly', () => {
+    expect(cameraCountLabel(2, 5)).toBe('2 of 5')
+    expect(cameraCountLabel(2, 2)).toBe('2')
+    // Never invent a bigger denominator than the numerator.
+    expect(cameraCountLabel(3, 2)).toBe('3')
   })
 })

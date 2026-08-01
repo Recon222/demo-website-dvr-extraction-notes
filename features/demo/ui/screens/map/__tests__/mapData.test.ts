@@ -164,3 +164,24 @@ describe('toMapData — camera markers', () => {
     expect(item.cameras).toEqual([])
   })
 })
+
+describe('toMapData — cameraTotal', () => {
+  it('counts every camera the location has, plotted or not (review R-19)', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-4', displayName: 'Partial', unit: 'R' })
+    const locId = store.getState().addLocation(caseId, { locationName: 'Rear door', gps: { lat: 43.6, lng: -79.6, source: 'geocoded' } })
+    store.getState().switchLocation(locId)
+    store.getState().updateField('form.cameras', [
+      { id: 'c1', cameraName: 'A', resolution: '', recordingFps: '' },
+      { id: 'c2', cameraName: 'B', resolution: '', recordingFps: '' },
+      { id: 'c3', cameraName: 'C', resolution: '', recordingFps: '' },
+    ])
+    store.getState().setCameraGps('c1', { lat: 43.6001, lng: -79.6001, source: 'gps', capturedAt: '2026-07-31T12:00:00.000Z' })
+    const s = store.getState()
+    const item = toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+      .items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toHaveLength(1)
+    expect(item.cameraTotal).toBe(3)
+  })
+})

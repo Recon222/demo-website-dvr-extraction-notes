@@ -20,6 +20,9 @@ import { countStatuses } from '@/features/demo/ui/screens/map/mapData'
  */
 
 export function sheetLocation(over: Partial<LocationSheetItem> = {}): LocationSheetItem {
+  // `cameraTotal` defaults to the plotted count so a fixture is coherent unless it deliberately
+  // says otherwise (the "some cameras have no GPS fix" case).
+  const cameras = over.cameras ?? []
   return {
     kind: 'location',
     id: 'l1',
@@ -38,7 +41,8 @@ export function sheetLocation(over: Partial<LocationSheetItem> = {}): LocationSh
     locationContact: '',
     locationPhone: '',
     coordinateSource: 'geocoded',
-    cameras: [],
+    cameras,
+    cameraTotal: cameras.length,
     ...over,
   }
 }

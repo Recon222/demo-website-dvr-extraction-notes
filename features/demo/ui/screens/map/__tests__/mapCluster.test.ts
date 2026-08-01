@@ -83,8 +83,17 @@ describe('mapCluster — bbox normalisation', () => {
     expect(normalizeBbox([-200, -90, 200, 90])).toEqual(WORLD_BBOX)
   })
 
-  it('clamps a partly out-of-range viewport instead of dropping it', () => {
-    expect(normalizeBbox([-190, -95, -70, 50])).toEqual([-180, -90, -70, 50])
+  it('passes a wrapped viewport through — supercluster normalises and hemisphere-splits it', () => {
+    // Clamping -190 to -180 discarded the slice past the antimeridian that the library would
+    // have fetched (supercluster/index.js:89-101). Review R-25.
+    const wrapped = [-190, -95, -70, 50] as const
+    expect(normalizeBbox(wrapped)).toBe(wrapped)
+  })
+
+  it('still finds points through a wrapped bbox', () => {
+    const index = buildClusterIndex([loc('l1', -179.5, 20)])
+    // A viewport straddling the antimeridian, expressed as mapbox reports it.
+    expect(index.markersFor([170, 0, 190, 40], 10)).toHaveLength(1)
   })
 })
 

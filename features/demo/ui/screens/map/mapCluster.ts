@@ -89,13 +89,27 @@ export function abbreviateCount(count: number): string {
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}k`
 }
 
-/** Clamp a viewport bbox into supercluster's accepted range (mapbox reports wrapped longitudes
- *  once the user pans past the antimeridian; an unclamped bbox returns nothing). */
+/**
+ * Guard the viewport bbox against values supercluster genuinely cannot use.
+ *
+ * ONLY non-finite values (review R-25). The previous version also clamped longitudes into
+ * ±180 with a comment claiming an unclamped wrapped bbox "returns nothing" — untrue of the
+ * library, and the clamp was lossy: `getClusters` self-normalises with
+ * `((lng + 180) % 360 + 360) % 360 - 180`, clamps latitude itself, and when the normalised
+ * `minLng > maxLng` it SPLITS the query across the two hemispheres and concatenates
+ * (supercluster/index.js:89-101). Clamping -190 to -180 threw away the wrapped slice the
+ * library would have fetched. Near-zero blast radius for Ontario data — filed because the
+ * comment would have been trusted.
+ *
+ * The whole-world short-circuit stays: it is a cheap answer to a query the library would have
+ * to normalise anyway, and `WORLD_BBOX` is what the caller falls back to when it cannot read
+ * the viewport at all.
+ */
 export function normalizeBbox(bbox: ClusterBbox): ClusterBbox {
   const [w, s, e, n] = bbox
   if (!Number.isFinite(w) || !Number.isFinite(s) || !Number.isFinite(e) || !Number.isFinite(n)) return WORLD_BBOX
   if (e - w >= 360) return WORLD_BBOX
-  return [Math.max(w, -180), Math.max(s, -90), Math.min(e, 180), Math.min(n, 90)]
+  return bbox
 }
 
 /**

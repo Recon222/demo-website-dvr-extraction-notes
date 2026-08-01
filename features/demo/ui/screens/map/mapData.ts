@@ -67,6 +67,15 @@ export interface LocationSheetItem {
   /** This location's geolocated cameras (P3.7 per-camera GPS). Empty when none has a fix —
    *  which is what hides the detail card's cameras toggle, phone LocationDetailCard.tsx:509. */
   cameras: MapCameraMarker[]
+  /**
+   * How many cameras the location has IN TOTAL, plotted or not (review R-19).
+   *
+   * `cameras` is a partial result — a camera with no GPS fix is silently absent from it — and
+   * the repo's standard for a partial result is to count it and say so rather than to hand back
+   * a shorter list (`generateExtractedScopes` counts, flags and dev-warns). Without this the
+   * toggle reads "Show cameras (2)" for a location the wizard lists five cameras on.
+   */
+  cameraTotal: number
 }
 
 export interface IncidentSheetItem {
@@ -195,6 +204,7 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
       locationPhone: l.locationPhone,
       coordinateSource: l.gps!.source,
       cameras: toCameraMarkers(l),
+      cameraTotal: l.form.cameras.length,
     })
   }
 

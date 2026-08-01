@@ -58,6 +58,15 @@ const camerasToggle = (active: boolean): CSSProperties => ({
   cursor: 'pointer',
 })
 
+/**
+ * "2" when every camera plots, "2 of 5" when some have no GPS fix (review R-19). A camera the
+ * wizard lists but the map cannot place is a partial result, and the repo counts partial results
+ * rather than quietly shortening the list.
+ */
+export function cameraCountLabel(plotted: number, total: number): string {
+  return total > plotted ? `${plotted} of ${total}` : String(plotted)
+}
+
 /** Stand-in for the phone's Ionicons `videocam` / `videocam-outline`: the demo has no icon font,
  *  so the camcorder is drawn inline — filled when the cameras are shown, outlined when hidden. */
 function CamcorderGlyph({ filled }: { filled: boolean }) {
@@ -161,13 +170,19 @@ export function LocationDetailCard({
           type="button"
           data-testid="detail-cameras-toggle"
           onClick={onToggleCameras}
-          aria-expanded={camerasShown}
-          aria-label={`${camerasShown ? 'Hide' : 'Show'} ${item.cameras.length} camera${item.cameras.length === 1 ? '' : 's'} on the map`}
+          // `aria-pressed`, not `aria-expanded` (review R-20): this button toggles markers on a
+          // map, it does not disclose an adjacent region — and `MapControls` next door already
+          // uses `aria-pressed` for all four of its toggle groups. (The camera MARKER's own
+          // `aria-expanded` is correct: that one really does disclose its callout.)
+          aria-pressed={camerasShown}
+          aria-label={`${camerasShown ? 'Hide' : 'Show'} ${item.cameras.length} camera${item.cameras.length === 1 ? '' : 's'} on the map${
+            item.cameraTotal > item.cameras.length ? ` (${item.cameraTotal - item.cameras.length} without a GPS fix)` : ''
+          }`}
           style={camerasToggle(camerasShown)}
         >
           <CamcorderGlyph filled={camerasShown} />
           <span>
-            {camerasShown ? `Hide cameras (${item.cameras.length})` : `Show cameras (${item.cameras.length})`}
+            {`${camerasShown ? 'Hide' : 'Show'} cameras (${cameraCountLabel(item.cameras.length, item.cameraTotal)})`}
           </span>
         </button>
       )}
