@@ -663,6 +663,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     (next: UserProfile) => store.getState().updateUserProfile(next),
     [store],
   )
+  /**
+   * Is this tab genuinely storing? Sampled when the Settings sheet OPENS (review R-3).
+   *
+   * The User Profile pane's opening sentence promises refresh survival, and `persistence.ts`'s
+   * `isLive()` doc makes gating such a sentence on the handle a rule, not a preference. Sampled
+   * exactly like the drawer's save-status line — `flush()` first so a write still inside its
+   * 250 ms debounce lands before we describe it, then read — and re-sampled on every open, so a
+   * write failure that revoked the promise mid-session demotes the very next visit to the pane.
+   * A missing handle counts as "not storing": never assume a wired handle.
+   */
+  const [profilePersisted, setProfilePersisted] = useState(false)
+  useEffect(() => {
+    if (modal !== 'settings') return
+    const handle = persistenceRef.current
+    handle?.flush()
+    setProfilePersisted(handle?.saveState().kind === 'saved')
+  }, [modal])
 
   // ---- Form customization (P7.3, matrix A2, decision D9) ----------------------------------
   /**
@@ -2751,7 +2768,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // contract, not a base class for these two.
             renderPane={(id) =>
               id === 'user-profile' ? (
-                <UserProfilePane profile={userProfile} onSave={saveUserProfile} />
+                <UserProfilePane profile={userProfile} onSave={saveUserProfile} persisted={profilePersisted} />
               ) : id === 'form-customization' ? (
                 <FormFieldsPane
                   profile={profile}

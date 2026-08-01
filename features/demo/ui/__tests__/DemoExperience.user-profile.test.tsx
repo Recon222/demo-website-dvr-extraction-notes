@@ -99,6 +99,23 @@ describe('refresh survival (v7)', { timeout: 20000 }, () => {
     openProfilePane()
     expect(screen.getByTestId('user-profile-section-name')).toHaveTextContent(`Name: ${NAME}`)
   })
+
+  it('promises refresh survival only when the handle says the tab is storing [R-3]', () => {
+    // The real path: sessionStorage is live, so the pane may make the promise.
+    render(<DemoExperience />)
+    openProfilePane()
+    expect(screen.getByTestId('settings-pane-stub-note')).toHaveTextContent(/kept for this browser tab/)
+  })
+
+  it('withdraws it when there is no persistence at all [R-3]', () => {
+    // An injected store is deliberately wired to a NULL backend, so the handle reports
+    // `unavailable` — the pane must not promise storage that is not happening.
+    render(<DemoExperience store={createDemoStore()} />)
+    openProfilePane()
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).toHaveTextContent(/isn’t storing the session/)
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+  })
 })
 
 describe('Completed By autofill (phone completion.tsx:127-134)', () => {
