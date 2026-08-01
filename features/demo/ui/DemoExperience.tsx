@@ -659,7 +659,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * full-case / single / subset decision is never made a second time here (§73/§74 contract).
    */
   const onExportPress = () => {
-    if (!exportFooter || !exportView) return
+    // LOUD backstops (R-13), the phone's PR-90/89 doctrine that `flow.ts` already carries
+    // verbatim: "on an evidence app a silent return reads as success". Unreachable today — the
+    // footer that owns this button renders only when both are non-null — but they are derived
+    // from a list this component does not own, and a silent `return` here would make a future
+    // divergence look like a completed export. Both strings are P5.1's ported taxonomy;
+    // `noSelection` had no caller until now.
+    if (!exportView) {
+      raiseExportAlert(EXPORT_ALERTS.noSelection)
+      return
+    }
+    if (!exportFooter) {
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
     const { dispatch } = exportFooter.plan
     // CLOSED with `assertNever` (R-3), like every other union consumer in the flow. The trailing
     // `else` this replaces made a widened `dispatch` compile straight into the subset arm — at
