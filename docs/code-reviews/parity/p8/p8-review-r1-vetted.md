@@ -503,3 +503,119 @@ Ledger: fix-round dispositions land in **§88+** per the PR body's reservation.
 | web L1 | R-7 |
 | web L2 | R-14 |
 | web L3 | R-18 |
+
+---
+
+# Fix-delta r1 — CAMPAIGN-FINAL AGGREGATION
+
+**Range:** `41f4a93..15b683b` (fix round 1, R-1..R-19; §88) · lane sections committed `eed92b8`
+**Aggregator:** Fable (same role) · **Gates at the fix head:** 265 files / **3473 tests** green ·
+cold `tsc` clean (two lanes independently) · `pnpm build` exit 0, `/demo` First Load **107 kB
+byte-identical** · every lane re-ran its original probes inverted rather than reading the diff.
+
+## VERDICT: APPROVE FOR MERGE — conditional on ONE rider commit
+
+**All 19 vetted findings FIXED (32/32 raw lane dispositions, 0 partial, 0 refuted). Both
+amendment obligations (A1, A2) executed and independently verified — §87d's autoplay claim and
+the "one constant" drop-in headline are now *measured* statements (the drop-in was performed
+against the full suite: exactly one red, the intended announcement). Six low/nit survivors, all
+1–5 lines: four ride the rider, one is ledgered with a trigger, one is recorded by comment.**
+
+Three fixes were closed by moving invariants to the compiler rather than adding assertions
+(`BootVideo`, `SURFACE`, `BOOT_PHASES`/`BOOT_HUD_STATES` derivations) — the strongest outcome the
+r1 doc asked for. The lanes also caught the round improving on the spec four times (the loader-side
+splash fix preserving a real restored position; the fade-not-cut error exits; the duration-derived
+watchdog bound; the `hadFocus` guard) — all four judged sound here, none smuggled: §88a disclosed
+the one behavioral extension.
+
+## The dedupe ruling: type-design N1 + web's disclosed incident are one story
+
+**Settled by the committed tree** (re-read here, not taken from either lane): at `15b683b`,
+`boot.ts:38-47` carries the corrected R-9 comment *with the probe output embedded*, while
+`SplashScreen.tsx` still carries **both** retired claims — the statusBody comment credits
+`HUD_STATE` with a compile-force the probe disproved (N1a), and the alias comment still says
+"cannot drift" (N1b). §88c's "Both comments now say that" is therefore **false of the merged
+tree** — half-true, boot.ts only.
+
+**Is the destroyed-edit hypothesis confirmable from the §88c text? No.** §88c asserts the
+SplashScreen correction but does not quote its replacement text, so the ledger alone cannot
+distinguish *edit-made-then-destroyed* from *edit-claimed-but-never-made*. It is, however, the
+best explanation of the joint evidence: the incident names exactly a one-line uncommitted
+SplashScreen edit concurrent with the lane runs; N1a's fix is exactly one line; and the boot.ts
+half of the same claimed pair demonstrably had its mechanism run (the probe output is *in* the
+comment), which makes claimed-but-never-made the out-of-character reading. Ruled **very likely,
+unproven — and immaterial to disposition**: the tree needs the same three comment edits under
+either explanation, and §88c needs the same one-line amendment. The typescript lane's §88c check
+("corrected comments in both files") over-reported on the SplashScreen half — it verified the
+diagnostic and generalized; type-design's reading is the accurate one (lane hygiene, below).
+
+## Survivor dispositions (6 items, ruled on the merits)
+
+| # | Survivor | Lane | Ruling |
+|---|---|---|---|
+| S1 | The comment trio: `SplashScreen.tsx` N1a (wrong mechanism credited) + N1b (retired "cannot drift" claim) + `boot.ts:32` N1c (stale `videoSrc` identifier) — plus the §88c amendment | type-design N1 (+ the incident) | **RIDER.** Comment-only, but this defect class — a comment naming a guarantee the code doesn't carry — is what R-9 *was*, and the campaign cannot close on a ledger claim the tree contradicts. |
+| S2 | §88b's "last hand partition" is off by two — three inline `BootPhase` partitions exist post-round (`:126` R-14 collapse, `:171/:173` R-1a error scope, `:264` opacity), all safe-by-default | typescript N2 | **RIDER** (one sentence in §88b naming all three with the safe-default column). A growth-safety auditor stopping at "one remains" would miss two; docs-accuracy is this doc's own product. |
+| S3 | The boot→app focus hand-off fires unconditionally — a keyboard rail-jump yanks focus from the rail into the phone | web new-LOW (probe F1d) | **RIDER.** Live today, an internal inconsistency with the `hadFocus` guard the same commit introduced, and the fix is one guard: at effect time the gate is already unmounted, so orphaned focus sits at `<body>` while rail-held focus is still on the rail — `if (was && !booting && document.activeElement === document.body)` distinguishes them exactly. Flip F1d's expectation into the suite. |
+| S4 | `boot={false}` satisfies the route guard's `\bboot\b` | tests FD-1d (nit) | **RIDER** (one assertion: `expect(page).not.toMatch(/\bboot=\{false\}/)`, or tighten the positive to require no `={false}`). The guard exists for the silent regression; the debugging-leftover is the one silent variant it still admits. |
+| S5 | The stall watchdog budgets total wall clock from phase entry, not time-since-progress — a healthy long/rebuffering intro can be cut against the constant's own "never to cut a healthy intro short" | typescript N1 | **LEDGER with trigger** (the D7 drop-in), + the comment honesty line in the rider. Adjudicated against SF/web, who both *accepted* the shape: the mechanism is sound and every probe terminates in a graceful, breadcrumbed fade — under the R-1 use-day rule this is **LOW at the drop-in too**, so it does not inherit R-1's must-fix. What is false today is the comment's absolute claim: the rider aligns it ("a healthy intro that rebuffers more than `VIDEO_OVERRUN_MS` total is treated as stalled"), and the ledger line rides the drop-in note so the fixer on that day sees it. The progress-basis rework (`onTimeUpdate` ref + re-arm, the code-heaviest survivor) is the trigger's work, not tonight's. |
+| S6 | The R-14 dwell-re-arm class recurring on R-1a's `videoFailed` seam — a pre-video failure re-runs the current dwell once, bounded, terminating | silent-failures observation-LOW | **RECORDED by comment** (rides the rider's comment edits) — SF's own offered disposition: one sentence on the dwell effect saying the re-arm is accepted for this input. The mechanical fix (ref-read `liveVideo`) is declined: one-shot, cosmetic, on a failure path, and it would touch a seam five green probes currently pin. |
+
+## The rider (merge precondition — single commit, P8.1's warm agent)
+
+One commit, ~10 lines total, no behavioral change except S3's one-line guard:
+
+1. **S1** — the three comment edits (point N1a at `statusBody`; narrow N1b to name-only; rename
+   N1c's identifier) + one sentence amending §88c (the SplashScreen half was absent from the
+   merged tree — restored here; the incident recorded).
+2. **S5/S6 comment lines** — align `VIDEO_CEILING_MS`'s comment with the wall-clock mechanism;
+   one accepted-re-arm sentence on the dwell effect. *(Optional, same commit: move the R-2 doc
+   comment off R-12's effect and onto its own — TD's placement note.)*
+3. **S2** — the one-sentence §88b correction (three inline partitions, all safe-by-default).
+4. **S3** — the `document.activeElement === document.body` guard + the F1d test flip.
+5. **S4** — the `boot={false}` negative assertion.
+
+**Ledgered with trigger** (lands in the closing ledger entry): S5's progress-basis watchdog,
+trigger = the owner's D7 drop-in — the line belongs beside the drop-in procedure so it cannot be
+missed on the day it matters.
+
+## Lane hygiene (final)
+
+- **Web's disclosed incident** — a blind `git checkout` in the shared worktree destroyed a
+  concurrent uncommitted one-line `SplashScreen.tsx` edit (almost certainly §88c's missing half,
+  per the ruling above). Disclosed promptly, damage bounded to one comment line, and now a
+  standing rule: probe reverts name their own files; never checkout a shared tree wholesale.
+  The isolation discipline three other lanes used (private detached worktrees) is the pattern.
+- The typescript lane's §88c verification over-reported ("both files") — corrected by
+  type-design's tree-accurate reading; recorded so the audit trail shows which is authoritative.
+- Everything else was exemplary to the end: every disposition above rests on an inverted re-run
+  of the original probe, the author's own mutation table was spot-checked nine ways by the tests
+  lane, and one first-reading artifact (R-6's pin) was caught and resolved *against the suite*
+  by the lane itself before it became a false finding.
+
+## FINAL ARC (PR-comment-ready, for the campaign's last PR)
+
+> **P8 fix round — final arc.** The initial review vetted 34 raw findings across five lanes into
+> 19 (0 blockers / 6 majors / 13 minors), the crux being the video drop-in robustness family: six
+> converging MEDIUMs on the two-constant seam §87d advertises as needing no re-review, ruled
+> must-fix on deliverable-contract grounds — a defect on a no-review path carries its use-day
+> severity. The fix round closed **19/19** in 17 commits, three of them by moving the invariant
+> into the compiler (`BootVideo | null` collapses the correlated pair and makes the drop-in ONE
+> constant; `SURFACE` retires the last unsafe hand partition; the phase and HUD lists are now
+> derived, so the totality tests are total). The fix-delta re-review re-ran every original probe
+> inverted — **32/32 raw dispositions FIXED, 0 partial, 0 refuted** at 265 files / 3473 tests,
+> cold `tsc` clean, `/demo` First Load 107 kB byte-identical. Both overclaim obligations were
+> discharged empirically: the autoplay-rejection arm is now genuinely reached (a rejecting
+> `play()` stub past jsdom's stub), and the drop-in was *performed* against the full suite —
+> exactly one red, the intentional announcement guard. Six low/nit survivors remain, all 1–5
+> lines: four land in a single rider commit (the R-9 comment trio + §88b/§88c ledger accuracy +
+> a `document.activeElement` guard completing R-2's own `hadFocus` discipline + a `boot={false}`
+> negative pin on the route guard); the watchdog's progress-basis is ledgered against the D7
+> drop-in; the dwell-re-arm observation is recorded in-code. With the rider merged, the boot
+> phase ships hardened end to end: a broken intro video now degrades to the tested no-video route
+> with four distinguishable operator breadcrumbs instead of silently deleting the sequence — and
+> the honesty disclosure it once deleted is now legible at WCAG AA (5.27:1), focus-handed,
+> Escape-scoped, and pinned by 165+ tests plus four compile-forced total records. This closes the
+> demo↔phone parity campaign's final phase.
+
+*(Aggregator note: this appendix is uncommitted by contract — the orchestrator commits it with
+the closing ledger entry.)*
