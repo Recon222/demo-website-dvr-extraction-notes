@@ -551,6 +551,14 @@ export function loadSnapshot(
   const isWizardScreen = (v: string): boolean => (WIZARD_SCREENS as readonly string[]).includes(v)
   let restoredChapter: ChapterId = currentChapter
   let restoredView: AppView = (LAUNCHABLE as readonly string[]).includes(view) ? currentChapter : view
+  // `splash` is a `ChapterId` but never a destination: boot is a GATE above the stage, not a view
+  // (§87e), so nothing in the app writes it — three independent sweeps found no writer. Only a
+  // hand-edited snapshot can carry it, and restoring onto it would run the gate a SECOND time as
+  // a screen and then discard the restored position, which is exactly the failure §87e exists to
+  // prevent (review R-10). Narrowing what the loader ACCEPTS, same as the launchable line above
+  // and the `visited` key-set widening: no shape changed, so no `SNAPSHOT_VERSION` bump.
+  if (restoredChapter === 'splash') restoredChapter = 'cases'
+  if (restoredView === 'splash') restoredView = restoredChapter
   if (currentLocationId === null) {
     if (isWizardScreen(restoredChapter)) restoredChapter = 'cases'
     if (isWizardScreen(restoredView)) restoredView = restoredChapter

@@ -2471,9 +2471,12 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     }
     switch (view) {
       case 'splash':
-        // Not reached by navigation any more — boot is a gate above the stage, not a view — but
-        // `splash` is still a `ChapterId`, so a restored snapshot can carry it and the arm has to
-        // render something real. It renders the same sequence, and lands on Cases.
+        // Unreachable, and now unreachable by CONSTRUCTION rather than by convention: boot is a
+        // gate above the stage, nothing writes this view, and since review R-10 `loadSnapshot`
+        // normalizes a hand-edited `splash` snapshot away before it reaches the store. The arm
+        // stays as the honest total-switch answer — `splash` is a `ChapterId`, so the switch must
+        // have a branch for it, and a branch that renders the real sequence and lands on Cases is
+        // a better answer than `null` if some future writer ever appears.
         return (
           <BootSequence video={BOOT_VIDEO} onComplete={() => store.getState().setView('cases')} />
         )
