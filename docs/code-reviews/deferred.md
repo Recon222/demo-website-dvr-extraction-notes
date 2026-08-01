@@ -4623,11 +4623,17 @@ the main suite leaks the preference into neighbouring renders.
 
 `console.warn` before the dialog, and a non-`Error` throw now gets a plain sentence instead of
 `String(e)`. Deliberately NOT one of the ported `EXPORT_ALERTS` bodies — those name a specific
-cause, and naming the wrong one is worse than naming none. **No test:** the catch's only reachable
-trigger is a subset dispatch carrying a foreign id, which arrives from the Export tab, whose suite
-is P5.2's territory this round. **Trigger:** whoever next touches `DemoExperience.export-tab.test.tsx`
-should add it there — dispatch a subset whose ids the case does not own and assert the
-`Validation Error` dialog plus that no pipeline started.
+cause, and naming the wrong one is worse than naming none.
+
+**RE-DISPOSITIONED, fix-delta D-9 — the carried test is not merely unwritten, it is
+unreachable-by-construction; do NOT write it.** The trigger this entry originally handed to
+P5.2's suite ("dispatch a subset whose ids the case does not own") cannot occur: the tab's
+selected ids and the validator's rows derive from the identical predicate over the same store
+snapshot in the same render, so a foreign id has no way in. The catch stays as a LOUD backstop
+under the §70e precedent — an unreachable guard kept because its silent alternative is what the
+feature's worst failure mode looks like — and the throw itself is already pinned at the engine
+level (`validation.test.ts:209-231`). **No trigger.** Reopen only if a caller ever hands the
+bridge ids from outside the store snapshot that produced them.
 
 ### 77h. R-14 — NOT ACTIONED by P5.3, and why (FLAG for the orchestrator)
 
@@ -4764,3 +4770,44 @@ Not fixed here: those files are P6.1's territory and the change is a mock swap t
 conflict with an in-flight map package. **Trigger:** P6.1's first round — lift the chainable
 mock into a shared local (or a `__mocks__/mapbox-gl.ts`) so a map render failure cannot hide
 behind test timing again.
+
+### 77i. Fix-delta micro-round (parity/p5-fix2-modals) — D-2, D-7, D-11
+
+**D-2 (MAJOR, fix-introduced) — FIXED at the primitive.** `AlertDialog` no longer reads
+`document.activeElement` in its mount effect. A module-scope `pointerdown`/`keydown` CAPTURE
+listener records the activation origin, and the mount effect reads that. Capture-phase runs
+before the click handler, before a self-disabling control disables itself, and before HTML's
+focus fixup moves focus to `<body>` — the three-step sequence that made the old read capture the
+viewport and land a dismissing keyboard visitor at document start.
+
+Two properties worth keeping in mind before anyone "simplifies" this:
+
+- **The tracker is installed at MODULE scope, not on mount.** A listener armed when the dialog
+  mounts has already missed the gesture that opened it. This is the reason it is not a hook.
+- **The two validity checks are ASYMMETRIC on purpose.** At capture the origin is checked only
+  for `isConnected`; at restore it is also checked for `disabled`. Adding the disabled check to
+  the capture side re-breaks D-2 exactly — at mount the opener is very often disabled, because
+  disabling it is what raised the dialog. (This was caught by the new test during the fix round,
+  not by review.)
+
+Scope note: this retires the pre-existing `ExportHub.tsx:234` sibling too — every self-disabling
+opener in the demo now restores correctly, without touching either call site.
+
+**D-7 — FIXED.** The reduced-motion pin was a negative (`not.toHaveStyle(<exact string>)`), which
+a `spin 3s` mutation satisfied while still rotating. Now the positive
+`style.animation === ''`, the idiom `ExportHub.test.tsx:237` already uses. Probe: the slow-spin
+mutation reddens it.
+
+**D-11 — FIXED.** `runZipPipeline` takes `ZipExportRun` rather than `SimulatedExportRun`, which
+excluded only `case-map` and so nominally accepted a `location-geojson` run that returns from
+`startExportRun` before the pipeline is reached.
+
+**Not ours this round, noted for the record:** D-8's ruling (trim the vacuous runtime `expect`
+wrappers around load-bearing `@ts-expect-error` directives to bare directives when these files
+are next touched) applies to `exportNotices.test.ts` and `ExportModal.test.tsx`. Left alone
+deliberately — the ruling says "when next touched", and touching them for decoration alone in a
+micro-round is churn against a review-frozen tree.
+
+**Cross-bucket interaction (P5.4's D-10):** their sr-only/`aria-busy` decision on the Export Map
+button is now the ONLY remaining focus concern at that site — the restore half is handled here,
+in the primitive, for every caller.
