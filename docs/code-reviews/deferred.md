@@ -6001,3 +6001,103 @@ assertion covers what direction 1 covered for the ten linear screens AND the two
 direction 1 never reached, and it is the pin that actually reddens under the lane's probe.
 Direction 1 keeps the routing half it alone asserts (each wizard-screen row jumps to its own
 screen).
+
+## 87. P8.1 — splash + biometric boot: the deliberate omissions and the two open ends
+
+**Source:** implementation of P8.1 (plan §5 P8, matrix rows 1–2, owner decision D7). Nothing here
+came from a review; these are the calls the package made, written down so a later reader does not
+mistake any of them for an oversight. Rows 1 and 2 are CLOSED by this package; row 3 is not, by
+instruction.
+
+### 87a. NOT BUILT (by instruction) — the Lock Screen, matrix row 3
+
+**What:** the phone's foreground re-auth overlay — `LockScreen` + `GridBackground`, the
+module-level `globalAuthLock`, `MIN_AUTH_INTERVAL_MS` 1000, the provider's 2 s cooldown and its
+`background → active` AppState filter (`src/features/biometrics/components/LockScreen.tsx`,
+`AuthenticationProvider.tsx:110-161`, ui-mapping 14 § LockScreen).
+
+**Why deferred:** D7 ratified rows 1–2 and explicitly left row 3 unbuilt; the matrix's own
+recommendation says why — "a demo has no background/foreground cycle to justify it"
+(`00-surface-parity-matrix.md:285`). A browser tab has no analog of the phone's re-lock trigger:
+the closest events (`visibilitychange`, `blur`) fire on a tab switch, which is not the same act
+and would re-gate a visitor who never left. Every safety device in the phone's version exists to
+stop an auth prompt loop, and there is no prompt here to loop.
+
+**Trigger:** an owner ruling that the demo should re-gate on tab return. If it comes, it is a
+second `BootSequence` mount with `videoSrc: null`, not a new component — but it needs a decided
+answer to "what event means the visitor left" first, and that answer is the actual work.
+
+### 87b. RULED — the boot HUD is NOT wired to Settings' `appLockEnabled`
+
+**What:** the phone skips its HUD entirely when app lock is off and goes straight to the video
+(`AuthenticatedSplashScreen.tsx:126-130`), and the demo has a live, persisted `appLockEnabled`
+switch in the Security pane. They are deliberately not connected: boot always shows the scan.
+
+**Why:** binding them would give a *security* toggle authority over a *decorative* animation.
+The switch would appear to do something while protecting nothing, which is a larger dishonesty
+than the animation is — and it would directly contradict `SecurityPane`'s own standing note that
+none of those switches can do anything in a browser. The demo's boot HUD earns its place by
+gating nothing at all; the moment a security control drives it, it starts implying it does.
+
+Two consequences a reviewer will notice and should not re-flag: the demo shows the HUD where a
+default-configured phone (`appLockEnabled: false`, `DEFAULT_BIOMETRIC_SETTINGS`) would show only
+the video — D7 commissioned the scan, so that is the point of the package, not a drift; and the
+phone's `BiometricsUnavailableScreen` branch (matrix row 4, OUT-OF-SCOPE) has no counterpart here
+for the same reason it has none in the Security pane.
+
+**Trigger:** the demo gaining any real gate — a password-protected export, a shareable session
+link. At that point a security switch has something true to control and the question reopens.
+
+### 87c. RECORDED — the deviations from the phone, and why each one is not a gap
+
+- **SKIP and Escape.** The phone's splash cannot be skipped. This one can, from every phase. The
+  phone's dwell is an OS biometric prompt the user is actively answering; this one is 1.2 s of
+  decoration in front of the content, and later an intro video of unknown length. Unskippable,
+  it would hold a keyboard or AT visitor in front of a decoration with no exit — the §84a family
+  of "the idiom was named and half-shipped", one level up. The control is focusable in every
+  phase and Escape does the same thing.
+- **No `failed` state.** `ScannerState` has four members; `BootHudState` has three. There is no
+  authentication to fail, so a failure branch — and the phone's `TAP TO RETRY` hint with it —
+  would be theatre about an event that never happened.
+- **`TAP TO SCAN` where the phone says `INITIALIZING`.** The phone auto-triggers its prompt
+  after 500 ms; a browser has nothing to trigger, and a gesture is the honest substitute. The
+  string is the prototype's, kept.
+- **Reduced motion skips the intro video entirely.** Not "plays it without the fade" — skips it.
+  A visitor who has asked for less motion has not asked for a shorter animation, and the house
+  idiom is instant-complete (`ScreenStage.tsx:39-49`, `ExportModal.tsx:158`'s R-18 note).
+
+### 87d. AVAILABLE — the intro video ships as a slot, not as a file
+
+**What:** `BOOT_VIDEO_SRC` / `BOOT_VIDEO_POSTER` are `null`. Every phase behind them — `video`,
+`holding` (the phone's 500 ms `HOLD_DURATION_MS`), `fading` — is implemented and tested against a
+fake source, including the `ended` advance, the load/decode/autoplay-rejection error path that
+ends the sequence rather than stranding the visitor, and the preload-behind-the-HUD mount the
+phone uses (`AuthenticatedSplashScreen.tsx:249-269`).
+
+**The drop-in is two constants.** The full procedure is written on `BOOT_VIDEO_SRC` in
+`features/demo/engine/logic/boot.ts`: file into `public/demo-media/`, flip the constants. The
+engine suite asserts they are still null, so the change announces itself.
+
+**Trigger:** the owner supplying the bunker-doors file.
+
+### 87e. RECORDED — where boot sits relative to persistence, and what that cost
+
+The sequence runs on **every mount**, including a refresh that rehydrates a live snapshot. A
+browser refresh is the demo's cold start, and the phone re-runs its splash on every cold start
+while `isAuthenticated` resets to false (`biometrics/README.md` § Common Pitfalls 1) — so a
+returning visitor sees it again, exactly as a returning phone user does.
+
+What that forced: boot had to be a **gate**, not a `view`. `view` is in the snapshot
+(`persistence.ts`), so a `view: 'splash'` boot would have thrown away the restored position on
+every refresh and undone half of what P0.4 exists to do. Instead `booting` is mount-scoped bridge
+state (the phone's `showSplash`), it renders instead of the screen tree, and it touches no
+navigation — the restored view is still underneath when it lifts. `persistence.ts` and
+`SNAPSHOT_VERSION` were not touched.
+
+The residual: `booting` is bridge state, so it is invisible to the store's tests and to anything
+that reasons about the demo from `DemoState` alone. That is the same trade §80c/§84b already made
+for `DemoSettings`, and for the same reason — it is ephemeral, it has one consumer, and putting
+it in the snapshot would mean deciding whether a refresh mid-scan resumes the scan.
+
+**Trigger:** a second consumer needing to know the gate is up (an analytics hook, a deep link
+that should bypass boot). Then it moves — and the bypass question gets answered on the way.
