@@ -72,13 +72,24 @@ export function caseMapTitle(meta: CaseMapMeta): string {
   return label ? `Case Map — ${label}` : 'Case Map'
 }
 
+/** The four injection slots, in one place. The port tool asserts each appears exactly once in
+ *  the template; this regex is the single pass that fills them (review R-10). */
+const TOKEN_PATTERN = /__(?:CASE_GEOJSON|CASE_META|CASE_TITLE|MAPBOX_TOKEN)__/g
+
 /**
  * Inject the case data, header metadata, page title and Mapbox token into the template.
  *
- * Function replacers throughout (the phone's `.replace(tok, () => value)` idiom,
- * case-map-export-service.ts:142-145) so a `$`, `$&` or `$1` inside the JSON can never be
- * read as a `String.replace` special pattern. Each token appears exactly once — the port
- * script asserts that at generation time.
+ * ONE pass over the template, filling every slot from a lookup — NOT a chain of four
+ * `.replace()` calls (review R-10, probe-verified). A chain re-scans the whole document after
+ * each substitution, so injected data becomes a haystack for the next needle: a location named
+ * `__CASE_META__` had its own name consumed as the meta slot, leaving the real `__CASE_META__`
+ * unreplaced and BOTH payloads unparseable. The template's reader swallows that in a bare
+ * `catch {}` (`case-map.app.js:109`) and renders a blank map — the same silent-blank failure
+ * `encodeJsonForScriptTag` exists to prevent for `</script>`. A single pass cannot re-read what
+ * it has already written. The phone shares the chained shape; back-port candidate (§71b family).
+ *
+ * The replacer is still a FUNCTION (the phone's idiom, case-map-export-service.ts:142-145), so
+ * a `$`, `$&` or `$1` inside the JSON can never be read as a `String.replace` special pattern.
  *
  * `mapboxToken` may be empty: the case DATA is fully embedded and renders offline, and only
  * the basemap tiles need the token. That is the phone's behaviour too — its service logs a
@@ -90,10 +101,16 @@ export function buildCaseMapHtml(
   meta: CaseMapMeta,
   mapboxToken: string,
 ): string {
-  return CASE_MAP_TEMPLATE_HTML.replace('__CASE_GEOJSON__', () => encodeJsonForScriptTag(geojson))
-    .replace('__CASE_META__', () => encodeJsonForScriptTag(meta))
-    .replace('__CASE_TITLE__', () => escapeHtml(caseMapTitle(meta)))
-    .replace('__MAPBOX_TOKEN__', () => mapboxToken)
+  const fill: Record<string, string> = {
+    __CASE_GEOJSON__: encodeJsonForScriptTag(geojson),
+    __CASE_META__: encodeJsonForScriptTag(meta),
+    __CASE_TITLE__: escapeHtml(caseMapTitle(meta)),
+    __MAPBOX_TOKEN__: mapboxToken,
+  }
+  // `?? token` is unreachable while TOKEN_PATTERN and `fill` list the same four slots — it is
+  // there so a fifth token added to one and not the other survives as itself rather than
+  // rendering `undefined` into the artifact.
+  return CASE_MAP_TEMPLATE_HTML.replace(TOKEN_PATTERN, (token) => fill[token] ?? token)
 }
 
 /**

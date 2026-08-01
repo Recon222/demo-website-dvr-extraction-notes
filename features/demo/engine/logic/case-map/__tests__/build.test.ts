@@ -165,6 +165,35 @@ describe('buildCaseMapHtml', () => {
     expect(html).toContain("var TOKEN = ''")
     expect(readInjectedJson(html, 'case-meta')).toEqual(meta())
   })
+
+  it('does not let injected data be re-read as a later token (review R-10)', () => {
+    // Probe-verified regression: with a chained `.replace()`, this location name WAS the meta
+    // slot the second call found, leaving the real `__CASE_META__` unreplaced and both payloads
+    // unparseable — a blank map under a success banner. A single pass cannot re-read its own
+    // output, so every payload survives verbatim and no token is left behind.
+    const adversarial = '__CASE_META__ __CASE_TITLE__ __MAPBOX_TOKEN__ __CASE_GEOJSON__'
+    const geojson: GeoJSONFeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-79.6, 43.6] },
+          properties: { featureType: 'location', locationName: adversarial },
+        },
+      ],
+    }
+    const html = buildCaseMapHtml(geojson, meta({ displayName: adversarial }), 'pk.test')
+
+    expect(readInjectedJson(html, 'case-geojson')).toEqual(geojson)
+    expect((readInjectedJson(html, 'case-meta') as CaseMapMeta).displayName).toBe(adversarial)
+    expect(html).toContain("var TOKEN = 'pk.test'")
+    // The template's own four slots are all gone; the only occurrences left are inside the two
+    // JSON payloads, where they are the visitor's literal text.
+    expect(html).not.toContain('<title>__CASE_TITLE__</title>')
+    expect(html).not.toContain('>__CASE_GEOJSON__<')
+    expect(html).not.toContain('>__CASE_META__<')
+    expect(html).not.toContain("var TOKEN = '__MAPBOX_TOKEN__'")
+  })
 })
 
 describe('output naming', () => {
