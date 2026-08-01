@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   readBrowserDownloadIo,
+  REVOKE_DELAY_MS,
   saveTextFile,
   type DownloadIo,
 } from '@/features/demo/ui/inputs/download-file'
@@ -91,6 +92,43 @@ describe('saveTextFile', () => {
   })
 })
 
+describe('readBrowserDownloadIo — object-URL lifetime (review R-21)', () => {
+  it('keeps the URL alive for the whole revoke window, then releases it', () => {
+    vi.useFakeTimers()
+    try {
+      const io = readBrowserDownloadIo()!
+      const revoke = vi.spyOn(URL, 'revokeObjectURL')
+      saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, io)
+
+      // A one-macrotask fuse was the same race the module's own doc names: the browser fetches
+      // the blob asynchronously after the click and reports nothing back.
+      vi.advanceTimersByTime(REVOKE_DELAY_MS - 1)
+      expect(revoke).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(1)
+      expect(revoke).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sweeps on pagehide so a closed tab never leaves the blob pinned', () => {
+    vi.useFakeTimers()
+    try {
+      const io = readBrowserDownloadIo()!
+      const revoke = vi.spyOn(URL, 'revokeObjectURL')
+      saveTextFile({ content: 'x', filename: 'x.html', mimeType: 'text/html' }, io)
+
+      window.dispatchEvent(new Event('pagehide'))
+      expect(revoke).toHaveBeenCalledTimes(1)
+      // …and the cancelled timer cannot fire a second one.
+      vi.advanceTimersByTime(REVOKE_DELAY_MS * 2)
+      expect(revoke).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('readBrowserDownloadIo', () => {
   it('drives a real blob → object URL → anchor click → revoke round trip', async () => {
     const io = readBrowserDownloadIo()
@@ -118,8 +156,9 @@ describe('readBrowserDownloadIo', () => {
     // …which is detached again straight away, leaving no stray node in the document.
     expect(anchors[0].isConnected).toBe(false)
 
-    // The deferred revoke really runs (real `setTimeout`, so wait a tick for it).
-    await new Promise((r) => setTimeout(r, 1))
+    // The deferred revoke really runs — the `pagehide` backstop is the cheap way to observe it
+    // without waiting out REVOKE_DELAY_MS.
+    window.dispatchEvent(new Event('pagehide'))
     expect(revoke).toHaveBeenCalledWith(anchors[0].getAttribute('href'))
   })
 })

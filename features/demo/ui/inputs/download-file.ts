@@ -30,12 +30,29 @@ export interface DownloadIo {
   /** Click a transient `<a download>` at `url`. */
   clickDownloadAnchor(url: string, filename: string): void
   /**
-   * Run the revoke AFTER the click has been dispatched. Revoking an object URL in the same
-   * tick as the click cancels the download outright in some browsers, and a download that
+   * Run the revoke well AFTER the click has been dispatched. Revoking an object URL in the
+   * same tick as the click cancels the download outright in some browsers, and a download that
    * silently never lands is the exact failure this feature exists to avoid.
+   *
+   * Review R-21: `setTimeout(fn, 0)` was the same race with a one-macrotask fuse. The browser
+   * fetches the blob asynchronously after the click returns, and nothing tells us when it is
+   * done — so the delay is a bet, and the ecosystem's answer (FileSaver.js) is tens of seconds.
+   * `REVOKE_DELAY_MS` is that bet; `pagehide` is the backstop that keeps a long fuse from
+   * outliving the document. The registry makes both safe: a revoke of an already-swept URL is
+   * a no-op by construction.
    */
   defer(fn: () => void): void
 }
+
+/**
+ * How long the object URL stays alive after the click (review R-21).
+ *
+ * The browser reads the blob asynchronously and reports nothing back, so any number here is a
+ * bet on "the fetch has started by now". 40 s is FileSaver.js's order of magnitude; the blob is
+ * one ~85 kB string and the registry sweeps it on `pagehide` regardless, so the cost of being
+ * generous is bounded and the cost of being early is a silently-lost download.
+ */
+export const REVOKE_DELAY_MS = 40_000
 
 /** The browser's file-saving primitives, or `null` on any environment missing them. */
 export function readBrowserDownloadIo(): DownloadIo | null {
@@ -60,7 +77,18 @@ export function readBrowserDownloadIo(): DownloadIo | null {
       }
     },
     defer: (fn) => {
-      setTimeout(fn, 0)
+      const timer = setTimeout(() => {
+        window.removeEventListener('pagehide', sweep)
+        fn()
+      }, REVOKE_DELAY_MS)
+      // A tab closed inside the window would otherwise drop the timer with the blob still
+      // pinned. Sweeping on `pagehide` releases it; the registry's scoped revoke makes the
+      // double-call harmless.
+      function sweep() {
+        clearTimeout(timer)
+        fn()
+      }
+      window.addEventListener('pagehide', sweep, { once: true })
     },
   }
 }
