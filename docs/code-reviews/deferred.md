@@ -3962,3 +3962,84 @@ disclosures do not):**
 What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather
 than a gesture primitive. **Trigger (unchanged):** the arrival of a pointer-gesture helper in
 `ui/primitives/`.
+
+---
+
+## 79. P6 review round 1 — fix-round dispositions and what was deliberately left
+
+**Source:** `docs/code-reviews/parity/p6/p6-review-r1-vetted.md` (R-1…R-27), one code owner.
+25 of 27 findings FIXED; the two entries below are the deliberate partial-fixes, plus one new
+production defect the round surfaced and one item ruled against the ledger.
+
+### 79a. NEW (found while fixing R-10) — the long-press point ignored the phone-frame CSS scale
+
+Not a review finding; surfaced by writing the test R-10 asked for, exactly as the finding's
+carry-through note predicted it might. `onPointerDown` converted client coordinates to container
+pixels with a plain `clientX - rect.left`, but `getBoundingClientRect()` reports the CSS-
+TRANSFORMED box while `map.unproject` expects untransformed container pixels — and
+`PhoneFrame.tsx:42` wraps this whole screen in `transform: scale(usePhoneScale())`, which is
+below 1 on any viewport that cannot fit the 404x812 device at 1:1. A long press therefore landed
+progressively further from the finger the further it was from the container's top-left; at
+scale 0.5, 100 px in resolved 100 px short.
+
+FIXED in the R-10 commit with mapbox-gl's own formula (`getScaledPoint`,
+mapbox-gl-dev.js:57053-57059, `offsetWidth / rect.width`), so a long-press ring and a mapbox
+click now resolve to the same coordinate. Recorded here, not silently folded in, because it is
+new production behaviour rather than the test-strength item R-10 asked for — the fix-delta lane
+should treat it as unreviewed code.
+
+### 79b. DEFERRED (R-15, larger half) — `MapData` still carries `pins` and `incident`
+
+The duplication the finding named is gone: `narrowProjection` is now the single derivation both
+narrowing stages call, so `pins`/`incident`/`statusCounts` cannot disagree with `items`. What is
+NOT done is the shape change — shrinking `MapData` to `items` alone and deriving at the render
+boundary (`buildMarkers(items)`), per the `ScopeRetention` omit-so-it-can't-drift precedent.
+
+**Why deferred:** it changes the type every map surface reads, and P5.4's case-map export builder
+is the second consumer arriving imminently. Doing it once, with both consumers visible, is
+cheaper and safer than doing it now and again. **Trigger:** the P5.4 export-map reconciliation,
+or any third `MapData` consumer — whichever comes first.
+
+### 79c. DEFERRED (R-16, larger half) — `LocationDetailCardProps` is still flat over a union `item`
+
+The invalid state the finding named is gone: `camerasShown`/`onToggleCameras` are one optional
+`cameras: { shown, onToggle }`, so "shown with no way to hide" is unrepresentable. What is NOT
+done is discriminating the whole props type on `item.kind` (the `RetentionView` precedent), which
+would also stop an incident item being handed location-only props.
+
+**Why deferred:** same reason as 79b — one caller today, P5.4 adds the second, and the union
+churn is worth doing once against both. **Trigger:** P5.4's detail-card caller landing.
+
+### 79d. DEFERRED (R-14, larger half) — four pipeline stages still share one nominal `MapData`
+
+`locationCountLabel` now takes `{ filteredCount, locationCount }` (the finding's stated minimum),
+so the two swappable positional numbers are gone. The `MapProjection` single-result shape that
+would make the stages distinct types is the owner-judgement half the finding itself routed to the
+P5.4 seam. **Trigger:** as 79b.
+
+### 79e. DEFERRED (R-7b remainder) — map pins have no accessible name to plumb
+
+Cluster bubbles are now focusable and Enter/Space-operable. Location and incident pins took the
+other branch the finding offered — `aria-hidden="true"`, with the sheet's real `LocationRow`
+buttons as the declared keyboard path — because `MarkerDescriptor` carries no label field and
+inventing one at the marker layer would duplicate naming logic the sheet already owns.
+
+**Trigger:** if `MarkerDescriptor` ever gains a display name for another reason, give the pins
+`tabIndex`/`aria-label` and drop the `aria-hidden` in the same commit.
+
+### 79f. RECORDED — the dynamic-import discipline is still grep-enforced
+
+Carried from the review's own "recorded, no action" list so it does not evaporate. Nothing
+prevents a future edit from statically importing `mapCluster` or `mapProximity` and pulling
+`supercluster`/`@turf/*` into the demo's own chunk; the fix round kept the boundary honest by
+hand (and by re-measuring the built chunks), not by a rule. An ESLint `no-restricted-imports`
+scoped to the eager map modules, or a chunk-content assertion in CI, is the durable enforcement.
+**Trigger:** the next time a lazy-chunk regression is found by measurement rather than prevented.
+
+### 79g. RECORDED — the two review items closed with no code change
+
+`W-8` (the 600 ms cover cross-fade has no reduced-motion gate — opacity-only, category guidance
+exempts it, and mapbox's own animations are already gated) and `W-9` (glass-pill contrast over
+bright satellite tiles — phone-verbatim tokens, pre-existing on the phone and the sheet, a design
+decision rather than a review call). Both stand as recorded; neither is a residual this feature
+owes work on.
