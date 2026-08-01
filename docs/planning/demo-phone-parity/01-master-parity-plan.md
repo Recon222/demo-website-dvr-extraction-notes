@@ -244,9 +244,9 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P5 | P5.3 export modals | ✅ | #34 | derived-mode modal, D4 honest terminals, opener-capture AlertDialog fix |
 | P5 | P5.4 case-map export | ✅ | #34 | REAL download via the flow (R-14 wire); 2 phone bugs found (ledger 10/11) |
 | P6 | P6.1 map depth | ✅ | #35 | supercluster at phone config (dep refuted), filters, Turf proximity, camera markers; §79a scale fix found en route |
-| P7 | P7.1 settings shell + stub panes | ☐ | | |
-| P7 | P7.2 user profile — full | ☐ | | |
-| P7 | P7.3 form customization — full | ☐ | | |
+| P7 | P7.1 settings shell + stub panes | ✅ | #36 | full replica, honest stubs, inert Dark Mode (no theme seam) |
+| P7 | P7.2 user profile — full | ✅ | #36 | real pane+modal, v7 snapshot, Completed-By autofill + PDF section gap closed |
+| P7 | P7.3 form customization — full | ✅ | #36 | 3 profiles, 58-id grid, two guard layers, wizard/drawer derivation |
 | P8 | P8.1 splash + biometric boot | ☐ | | |
 
 ## 8. Phone-repo follow-ups (NOT this effort — file separately)
