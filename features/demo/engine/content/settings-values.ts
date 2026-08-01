@@ -219,29 +219,32 @@ function titleCase(value: string): string {
 }
 
 /**
- * Everything a preview can depend on. The two SEAM values are parameters rather than reads,
- * because their owners are separate packages:
+ * Everything a preview can depend on. The two store-backed values are parameters rather than
+ * reads, because the engine is pure and the store bridge is the only thing that may touch state:
  *
- * - `profileName` → **SEAM(P7.2)**. The phone's `useProfilePreview` shows the trimmed profile
- *   name, or the literal `Not set` when empty (settings-catalog.tsx:109-112). P7.1 has no
- *   profile store, so it passes `''` and the row honestly reads `Not set`.
- * - `formProfileLabel` → **SEAM(P7.3)**. The phone's `useFormCustomizationPreview` maps the
- *   active profile through `FORM_PROFILE_SHORT` (settings-catalog.tsx:158-167). P7.1 passes
- *   the demo store's live `profile`, which is real today — the demo genuinely runs the
- *   forensic profile — so this row is already truthful before P7.3 makes it changeable.
+ * - `profileName` — the phone's `useProfilePreview` shows the trimmed profile name, or the
+ *   literal `Not set` when empty (settings-catalog.tsx:109-112). A bare `string` on purpose:
+ *   it is free text the visitor typed, and the empty/blank case IS the domain.
+ * - `formProfile` — the ACTIVE PROFILE, not a label. The phone's `useFormCustomizationPreview`
+ *   reads the store's profile and maps it through `FORM_PROFILE_SHORT` itself
+ *   (settings-catalog.tsx:158-167); this does the same, so the label map below is the ONE place
+ *   a `Profile` becomes display text. Passing the label instead (P7.1's seam shape, retired at
+ *   R-21) let any string through and gave the bridge a `?? profile` arm the type proved dead.
  */
 export interface SettingsPreviewContext {
   settings: DemoSettings
   profileName: string
-  formProfileLabel: string
+  formProfile: Profile
 }
 
 /**
- * `FORM_PROFILE_SHORT` (settings-catalog.tsx:158-162), for the P7.3 seam's caller.
+ * `FORM_PROFILE_SHORT` (settings-catalog.tsx:158-162) — the master row's label map.
  *
- * P7.3 made the profile set real, so this is now an ALIAS of the pane's own `PROFILE_LABELS`
+ * P7.3 made the profile set real, so this is an ALIAS of the pane's own `PROFILE_LABELS`
  * rather than a second copy of the same three strings — one source, and TOTAL over `Profile`,
- * so a fourth profile cannot reach the master row unlabelled.
+ * so a fourth profile cannot reach the master row unlabelled. Being total is what lets
+ * `settingsPreview` index it with no fallback: there is no unlabelled `Profile` to fall back
+ * from, and a fourth one is a compile error here rather than a raw id on screen.
  */
 export const FORM_PROFILE_SHORT: Record<Profile, string> = PROFILE_LABELS
 
@@ -268,7 +271,7 @@ export function settingsPreview(id: SettingsCategoryId, ctx: SettingsPreviewCont
     case 'time-sync':
       return NTP_REGION_SHORT[s.ntpRegion]
     case 'form-customization':
-      return ctx.formProfileLabel
+      return FORM_PROFILE_SHORT[ctx.formProfile]
     case 'security':
       // Phone: `isAvailable ? biometricName : 'Unavailable'` (settings-catalog.tsx:134-137).
       // A browser tab has no biometric sensor to name, so the phone's own unavailable literal
