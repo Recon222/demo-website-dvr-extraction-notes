@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
-import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
+import { buildFitPoints, buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { MapControls } from '@/features/demo/ui/screens/map/MapControls'
 import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
@@ -162,6 +162,9 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
 
   const display = proximityResult?.data ?? filtered
   const markers = useMemo(() => buildMarkers(display), [display])
+  // The camera frames the PRE-proximity set (review R-1a) — narrowing a radius re-plots without
+  // re-framing, which is the split the phone makes between `cameraBounds` and `displayCollection`.
+  const fitPoints = useMemo(() => buildFitPoints(filtered), [filtered])
 
   // Phone MapHost.tsx:250-258: the "of M" half is the POST-FILTER count and the "N" half is the
   // post-proximity one — so a status/text filter moves both together (badge reads "N locations")
@@ -280,6 +283,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
           <MapCanvas
             ref={mapRef}
             markers={markers}
+            fitPoints={fitPoints}
             cameras={visibleCameras}
             proximityRing={proximityResult?.ring ?? null}
             onMarkerPress={selectItem}

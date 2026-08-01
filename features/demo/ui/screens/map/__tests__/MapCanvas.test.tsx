@@ -188,6 +188,34 @@ describe('MapCanvas — camera markers', () => {
     expect(elFor('cluster')).toHaveLength(1)
   })
 
+  it('never re-fits when a fresh markers array carries the SAME points (a search keystroke)', async () => {
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    // A filter keystroke mints a new array with byte-identical survivors.
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalled())
+    expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-fits when the point VALUES actually change', async () => {
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -78.0, 44.5)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(2))
+  })
+
+  it('frames `fitPoints` and ignores the plotted markers when both are supplied', async () => {
+    // The proximity case: markers narrow to one survivor, fitPoints keeps the pre-proximity pair.
+    const fitPoints = [[-79.6, 43.6], [-79.9, 43.9]] as const
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} fitPoints={fitPoints} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6)]} fitPoints={fitPoints} />)
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalled())
+    // No re-fit, and specifically no single-point teleport.
+    expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+    expect(mapInstance.setZoom).not.toHaveBeenCalled()
+  })
+
   it('never re-fits the camera when only the camera markers change', async () => {
     // The pin set keeps its identity across the rerender (MapScreen memoises `buildMarkers`), so
     // the ONLY change is the camera list.

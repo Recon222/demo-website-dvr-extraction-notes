@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl'
 // Side-effect CSS for marker/control positioning. Static (not dynamic) so it's processed at module
@@ -11,7 +11,7 @@ import type { ClusterBbox, ClusterDescriptor, ClusterIndex, PlottedMarker } from
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 import type { ProximityRing } from '@/features/demo/ui/screens/map/mapProximity'
 import { createCameraEl, createClusterEl, createMarkerEl } from '@/features/demo/ui/screens/map/markerElements'
-import { MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS, type LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 
 /** Imperative handle the orchestrator uses to drive the camera. */
 export interface MapCanvasHandle {
@@ -25,6 +25,16 @@ export interface MapCanvasHandle {
 export interface MapCanvasProps {
   /** Status-coloured location dots + the incident teardrop to plot. Locations cluster. */
   markers?: MarkerDescriptor[]
+  /**
+   * The points the camera frames. Deliberately a SEPARATE input from `markers` (review R-1a):
+   * the caller feeds the status/text-filtered set, NOT the post-proximity one, so narrowing a
+   * proximity radius re-plots without re-framing — the split the phone makes between
+   * `cameraBounds` and `displayCollection` (`MapHost.tsx:255-256`, `:492-493`).
+   *
+   * Omitted → the plotted markers' own coordinates, which is the right answer for any caller
+   * that has no proximity stage.
+   */
+  fitPoints?: readonly LngLat[]
   /** The visible location's cameras. Never clustered, never selectable — a tap toggles the
    *  camera's own name callout (phone CameraMarker, ui-mapping 03:105). */
   cameras?: MapCameraMarker[]
@@ -131,10 +141,10 @@ export const MAP_LOAD_ERROR = 'Failed to load the map.'
 
 /** Fit the camera to the plotted points: 1 → centre+zoom, ≥2 → fit the bounding box (leaving room for
  *  the controls overlay and the bottom sheet). */
-function fitToPoints(map: MapboxMap, points: Array<[number, number]>): void {
+function fitToPoints(map: MapboxMap, points: readonly LngLat[]): void {
   if (points.length === 0) return
   if (points.length === 1) {
-    map.setCenter(points[0])
+    map.setCenter([points[0][0], points[0][1]])
     map.setZoom(SINGLE_ZOOM)
     return
   }
@@ -181,7 +191,7 @@ function currentZoom(map: MapboxMap): number {
  * markers and the proximity ring are separate, never-clustered layers, exactly as on the phone.
  */
 export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(
-  { markers = NO_MARKERS, cameras = NO_CAMERAS, proximityRing = null, onMarkerPress, onLongPress, onReady },
+  { markers = NO_MARKERS, cameras = NO_CAMERAS, fitPoints, proximityRing = null, onMarkerPress, onLongPress, onReady },
   ref,
 ) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -326,16 +336,45 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
 
   renderRef.current = renderMarkers
 
-  // Rebuild the cluster index + re-fit ONLY when the plotted pin set changes. `renderMarkers` is
-  // deliberately not a dependency: its identity also changes with `cameras`, and re-fitting the
-  // camera because the visitor toggled a location's cameras would rip their view away.
+  // Rebuild the cluster index whenever the plotted pin set changes — clustering must always
+  // reflect what is on the map, so this one DOES key on identity and runs eagerly.
+  useEffect(() => {
+    const clusterMod = clusterModRef.current
+    if (!ready || !clusterMod) return
+    indexRef.current = clusterMod.buildClusterIndex(markers)
+  }, [ready, markers])
+
+  // ---- camera fit (review R-1) ---------------------------------------------------------------
+  //
+  // Two things this effect must NOT do, each a sub-defect of the same finding:
+  //
+  //  (a) frame the post-proximity set. `fitPoints` is supplied by the caller from the
+  //      status/text-filtered projection, so activating proximity or tapping a radius preset
+  //      re-plots without re-framing. Framing the narrowed set would pull the camera away from
+  //      the point the visitor just long-pressed, and a lone survivor would teleport them to
+  //      SINGLE_ZOOM.
+  //  (b) key on array IDENTITY. Every search keystroke mints a fresh `filters` → fresh
+  //      projection → fresh array, so an identity-keyed effect snapped the camera back to the
+  //      overview fit mid-typing EVEN WHEN THE SURVIVING SET WAS UNCHANGED, discarding the
+  //      visitor's own pan/flyTo. The phone's declarative `Camera bounds` only moves on a VALUE
+  //      change; `fitKey` is that value.
+  const effectiveFitPoints = useMemo<readonly LngLat[]>(
+    () => fitPoints ?? markers.map((d) => [d.lng, d.lat] as LngLat),
+    [fitPoints, markers],
+  )
+  const fitKey = useMemo(
+    () => effectiveFitPoints.map(([lng, lat]) => `${lng},${lat}`).sort().join('|'),
+    [effectiveFitPoints],
+  )
+  // Read through a ref so the point ARRAY's identity never re-triggers the fit — only `fitKey` may.
+  const fitPointsRef = useRef(effectiveFitPoints)
+  fitPointsRef.current = effectiveFitPoints
+
   useEffect(() => {
     const map = mapRef.current
-    const clusterMod = clusterModRef.current
-    if (!ready || !map || !clusterMod) return
-    indexRef.current = clusterMod.buildClusterIndex(markers)
-    fitToPoints(map, markers.map((d) => [d.lng, d.lat] as [number, number]))
-  }, [ready, markers])
+    if (!ready || !map) return
+    fitToPoints(map, fitPointsRef.current)
+  }, [ready, fitKey])
 
   // Re-plot after any index rebuild or camera change. Declared AFTER the index effect so it runs
   // second within the same commit and always reads the fresh index.

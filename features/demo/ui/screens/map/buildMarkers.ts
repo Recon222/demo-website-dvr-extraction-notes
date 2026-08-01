@@ -1,3 +1,4 @@
+import type { LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 import type { MapData } from '@/features/demo/ui/screens/map/mapData'
 import { MAP_PIN_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 
@@ -32,4 +33,20 @@ export function buildMarkers(data: MapData): MarkerDescriptor[] {
     })
   }
   return markers
+}
+
+/**
+ * The points the CAMERA should frame — every plotted pin plus the incident.
+ *
+ * Separate from `buildMarkers` because the two answer different questions and take different
+ * inputs (review R-1a). The phone splits them the same way: `useMapData` derives `cameraBounds`
+ * from the status/text-FILTERED collection, while proximity narrows `displayCollection`, which
+ * never reaches the `Camera` props (`MapHost.tsx:255-256`, `:492-493`). Framing the
+ * post-proximity set instead would re-fit the camera away from the point the visitor just
+ * long-pressed, and a lone survivor would teleport them to zoom 15.
+ */
+export function buildFitPoints(data: MapData): LngLat[] {
+  const points: LngLat[] = data.pins.map((p) => [p.lng, p.lat])
+  if (data.incident) points.push([data.incident.lng, data.incident.lat])
+  return points
 }

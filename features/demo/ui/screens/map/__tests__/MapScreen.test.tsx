@@ -303,6 +303,40 @@ describe('MapScreen — proximity', () => {
   })
 })
 
+describe('MapScreen — the camera is never yanked (review R-1)', () => {
+  it('does not re-fit when a search keystroke leaves the surviving set unchanged', async () => {
+    renderRich()
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    const before = mapInstance.fitBounds.mock.calls.length
+    // "Kim's Convenience" matches one row; typing further characters of the SAME match keeps the
+    // survivors byte-identical, so the camera must not move.
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'kim' } })
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
+    const afterFirstNarrow = mapInstance.fitBounds.mock.calls.length
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'kim\'' } })
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: "kim's" } })
+    await waitFor(() => expect(screen.getByTestId('map-search-input')).toHaveValue("kim's"))
+    expect(mapInstance.fitBounds.mock.calls.length).toBe(afterFirstNarrow)
+    expect(afterFirstNarrow).toBeGreaterThanOrEqual(before)
+  })
+
+  it('does not re-fit on proximity activation or on a radius change', async () => {
+    renderRich()
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    const before = mapInstance.fitBounds.mock.calls.length
+    const beforeSingle = mapInstance.setZoom.mock.calls.length
+
+    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
+    fireEvent.click(screen.getByTestId('radius-preset-0.5'))
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
+
+    // Neither the bbox fit nor the single-survivor centre+zoom teleport may fire.
+    expect(mapInstance.fitBounds.mock.calls.length).toBe(before)
+    expect(mapInstance.setZoom.mock.calls.length).toBe(beforeSingle)
+  })
+})
+
 describe('MapScreen — camera visibility', () => {
   function buildWithCameras(): MapData {
     const store = createDemoStore()

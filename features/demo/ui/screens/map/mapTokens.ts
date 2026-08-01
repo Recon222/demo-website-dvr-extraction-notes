@@ -1,6 +1,14 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 /**
+ * A geographic point in GeoJSON order. Labelled because the map layer is [lng, lat] throughout
+ * while `formatCoordinate` next door takes (lat, lng) — the one transposition this feature can
+ * make silently.
+ */
+export type LngLat = readonly [lng: number, lat: number]
+
+
+/**
  * Map pin + sheet colours, lifted verbatim from the phone's `map-view` constants so the demo reads
  * identically. Location pins are coloured by derived status; the incident is the red marker.
  */
