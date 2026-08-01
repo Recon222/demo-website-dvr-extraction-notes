@@ -801,7 +801,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     [mapViewerCase, locations, mapViewerCaseId],
   )
   const currentLocation = locations.find((l) => l.id === currentLocationId) ?? null
-  const drawerStatus = selectDrawerStatus(currentLocation) // per-screen completion dots
+  // Visibility-aware (P7.3): a hidden field is not something the visitor can still fill, so it
+  // must not hold a dot amber forever. The map pin deliberately does NOT pass this — see the
+  // selector's note.
+  const drawerStatus = selectDrawerStatus(currentLocation, store.getState()) // per-screen completion dots
   const currentCase = cases.find((c) => c.id === currentCaseId) ?? null
 
   // ---- DST advisory (P2.5) ---------------------------------------------------------------

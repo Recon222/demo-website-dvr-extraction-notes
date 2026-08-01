@@ -1,6 +1,6 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
-import { getVisibleFormSteps, isKnownFormStep, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
+import type { DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
@@ -191,8 +191,22 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * DVR `serialModelNumber` and export `mediaPlayerIncluded` (a screen goes green without them).
  * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
  * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
+ *
+ * **`visibility` (P7.3, optional).** Pass it and a HIDDEN field stops being counted — the phone
+ * does the same (`use-section-completion.ts` reads the store + `resolveFieldVisible`), and
+ * without it a canvas visitor's DVR dot could never go green: five of its nine counted fields
+ * are hidden, so they are permanently empty AND permanently unfillable.
+ *
+ * Optional because the two consumers ask different questions. The DRAWER asks "what is left for
+ * ME to fill", which depends on this device's form profile. The map pin and the exported case
+ * map ask "how far along is this LOCATION", which must not change because the reader's device
+ * runs a different profile — so those call sites deliberately pass nothing and count everything.
+ * A screen whose counted fields are ALL hidden reads 'complete': there is nothing outstanding.
  */
-export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScreenId, DrawerStatus> {
+export function selectDrawerStatus(
+  loc: DemoLocation | null,
+  visibility?: FormVisibility,
+): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
     return {
       submission: 'empty',
@@ -209,15 +223,68 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
   }
   const f = loc.form
   const dvr = f.dvr
+  // Counted values, each paired with the toggle that governs it. `counted` drops the hidden ones
+  // (when a visibility is supplied) and reads an all-hidden list as 'complete'.
+  const shown = (id: FormFieldId) => !visibility || resolveFieldVisible(id, visibility)
+  const counted = (entries: ReadonlyArray<readonly [FormFieldId, string | undefined]>): DrawerStatus => {
+    const values = entries.filter(([id]) => shown(id)).map(([, v]) => v)
+    return values.length === 0 ? 'complete' : checkFields(values)
+  }
+  const countedArray = <T,>(
+    items: T[],
+    fields: (item: T) => ReadonlyArray<readonly [FormFieldId, string | undefined]>,
+  ): DrawerStatus => {
+    if (items.length === 0) return 'empty'
+    const per = items.map((it) => counted(fields(it)))
+    if (per.every((d) => d === 'complete')) return 'complete'
+    if (per.every((d) => d === 'empty')) return 'empty'
+    return 'partial'
+  }
   return {
-    submission: checkFields([loc.requesterName, loc.requesterBadge, loc.requesterPhone, loc.requesterEmail, loc.businessName, loc.streetAddress, loc.city, loc.locationContact, loc.locationPhone]),
-    requestedScope: checkArray(f.scopes, (s) => [s.startDateTime, s.endDateTime, s.cameras]),
-    arrivalDeparture: checkArray(f.arrivalDepartures, (a) => [a.arrival, a.departure]),
+    submission: counted([
+      ['submission.requesterName', loc.requesterName],
+      ['submission.requesterBadgeNumber', loc.requesterBadge],
+      ['submission.requesterPhone', loc.requesterPhone],
+      ['submission.requesterEmail', loc.requesterEmail],
+      ['submission.businessName', loc.businessName],
+      ['submission.streetAddress', loc.streetAddress],
+      ['submission.city', loc.city],
+      ['submission.locationContact', loc.locationContact],
+      ['submission.locationPhone', loc.locationPhone],
+    ]),
+    requestedScope: countedArray(f.scopes, (s) => [
+      ['scope.startDateTime', s.startDateTime],
+      ['scope.endDateTime', s.endDateTime],
+      ['scope.cameras', s.cameras],
+    ]),
+    arrivalDeparture: countedArray(f.arrivalDepartures, (a) => [
+      ['arrival.arrivalDateTime', a.arrival],
+      ['arrival.departureDateTime', a.departure],
+    ]),
     timeOffset: checkFields([f.timeOffset?.dvrDateTime, f.timeOffset?.actualDateTime]),
     extractedScope: checkExtractedScopes(f.extractedScopes),
-    dvrInfo: checkFields([dvr.dvrLocation, dvr.dvrTypeBrand, dvr.dvrUsername, dvr.dvrPassword, dvr.numberOfChannels, dvr.activeCameras, dvr.resolution, dvr.recordingFps, dvr.firstRecordedDate]),
-    cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
-    exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
+    dvrInfo: counted([
+      ['dvr.dvrLocation', dvr.dvrLocation],
+      ['dvr.dvrTypeBrand', dvr.dvrTypeBrand],
+      ['dvr.dvrUsername', dvr.dvrUsername],
+      ['dvr.dvrPassword', dvr.dvrPassword],
+      ['dvr.numberOfChannels', dvr.numberOfChannels],
+      ['dvr.activeCameras', dvr.activeCameras],
+      ['dvr.resolution', dvr.resolution],
+      ['dvr.recordingFps', dvr.recordingFps],
+      ['dvr.firstRecordedDate', dvr.firstRecordedDate],
+    ]),
+    cameras: countedArray(f.cameras, (c) => [
+      ['camera.cameraName', c.cameraName],
+      ['camera.resolution', c.resolution],
+      ['camera.recordingFps', c.recordingFps],
+    ]),
+    exportInfo: counted([
+      ['export.exportMedia', f.export.exportMedia],
+      ['export.fileType', f.export.fileType],
+      ['export.sizeGb', f.export.sizeGb],
+      ['export.mediaProvidedVia', f.export.mediaProvidedVia],
+    ]),
     // Phone rule (use-section-completion:293): two-state only — any section content,
     // any addendum, or a non-blank free-text tail → complete; never 'partial'.
     notes:
@@ -225,7 +292,10 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
       isFilled(f.notesFreeText)
         ? 'complete'
         : 'empty',
-    completion: checkFields([f.dateTimeCompleted, f.completedBy]),
+    completion: counted([
+      ['completion.dateTimeCompleted', f.dateTimeCompleted],
+      ['completion.completedBy', f.completedBy],
+    ]),
   }
 }
 

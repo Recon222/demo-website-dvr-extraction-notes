@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectDrawerStatus } from '@/features/demo/engine/store/selectors'
+import { selectDrawerStatus, selectLocationMapStatus } from '@/features/demo/engine/store/selectors'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoLocation, LocationForm } from '@/features/demo/engine/types'
 
@@ -130,3 +130,61 @@ describe('selectDrawerStatus', () => {
     expect(selectDrawerStatus(loc({}, { dateTimeCompleted: '2025-03-09 12:00', completedBy: 'Det. X' })).completion).toBe('complete')
   })
 })
+
+describe('selectDrawerStatus with a visibility (P7.3)', () => {
+  const blankDvr = blankLocationForm().dvr
+  const forensic = { profile: 'forensic' as const, formOverrides: { steps: {}, fields: {} } }
+  const canvas = { profile: 'canvas' as const, formOverrides: { steps: {}, fields: {} } }
+
+  it('changes nothing when every field is visible', () => {
+    const l = loc({ requesterName: 'A' })
+    expect(selectDrawerStatus(l, forensic)).toEqual(selectDrawerStatus(l))
+  })
+
+  it('stops counting a field the visitor can no longer fill', () => {
+    // The canvas case: five of the nine counted DVR fields are hidden, so without this the dot
+    // could never go green no matter what the visitor typed.
+    const filled = {
+      ...blankDvr,
+      dvrTypeBrand: 'Hikvision',
+      dvrUsername: 'admin',
+      dvrPassword: 'pw',
+      firstRecordedDate: '2025-01-01',
+    }
+    const l = loc({}, { dvr: filled })
+    expect(selectDrawerStatus(l).dvrInfo).toBe('partial') // unfiltered: the 5 canvas-hidden ones are blank
+    expect(selectDrawerStatus(l, canvas).dvrInfo).toBe('complete')
+  })
+
+  it('applies inside array screens too', () => {
+    const scopes = [{ id: 's1', startDateTime: '2025-01-01 00:00:00', endDateTime: '2025-01-01 01:00:00', isActualTime: true, cameras: '' }]
+    const l = loc({}, { scopes })
+    expect(selectDrawerStatus(l).requestedScope).toBe('partial') // blank cameras
+    const noCameras = { profile: 'forensic' as const, formOverrides: { steps: {}, fields: { 'scope.cameras': false } } }
+    expect(selectDrawerStatus(l, noCameras).requestedScope).toBe('complete')
+  })
+
+  it('reads a screen with every counted field hidden as complete, not stuck empty', () => {
+    const hideExport = {
+      profile: 'forensic' as const,
+      formOverrides: {
+        steps: {},
+        fields: {
+          'export.exportMedia': false,
+          'export.fileType': false,
+          'export.sizeGb': false,
+          'export.mediaProvidedVia': false,
+        },
+      },
+    }
+    expect(selectDrawerStatus(loc(), hideExport).exportInfo).toBe('complete')
+  })
+
+  it('leaves the MAP pin unfiltered — a location does not grade differently per reader', () => {
+    // `selectLocationMapStatus` deliberately passes no visibility: the exported case map and the
+    // in-app pin describe the LOCATION, not this device's form profile.
+    const l = loc({}, { dvr: { ...blankDvr, dvrTypeBrand: 'Hikvision' } })
+    expect(selectLocationMapStatus(l)).toBe('working')
+  })
+})
+
