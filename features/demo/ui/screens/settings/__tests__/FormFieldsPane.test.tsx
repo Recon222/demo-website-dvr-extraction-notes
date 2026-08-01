@@ -92,6 +92,25 @@ describe('locks', () => {
     expect(props.onToggleStep).not.toHaveBeenCalled()
   })
 
+  it('points every locked switch at the pill that says why (R-6)', () => {
+    // `aria-disabled` announces "dimmed" and no reason. Without the description a screen-reader
+    // visitor cannot tell a deliberate lock from a broken control — the pill is an unlabelled
+    // span two nodes away and is never read at that moment.
+    renderPane()
+    fireEvent.click(screen.getByTestId('fc-group-submission'))
+    for (const [sw, pill] of [
+      ['fc-screen-toggle-submission', 'fc-screen-lock-submission'],
+      ['fc-toggle-submission.occNumber', 'fc-field-lock-submission.occNumber'],
+    ] as const) {
+      const described = screen.getByTestId(sw).getAttribute('aria-describedby')
+      expect(described, `${sw} announces "dimmed" with no reason`).toBeTruthy()
+      expect(document.getElementById(described!)).toBe(screen.getByTestId(pill))
+      expect(screen.getByTestId(pill)).toHaveTextContent('Always on')
+    }
+    // …and an UNLOCKED switch describes nothing: there is no reason to give.
+    expect(screen.getByTestId('fc-screen-toggle-cameras')).not.toHaveAttribute('aria-describedby')
+  })
+
   it('renders always-on fields locked, on and inert — and keeps them focusable', () => {
     const props = renderPane()
     fireEvent.click(screen.getByTestId('fc-group-submission'))

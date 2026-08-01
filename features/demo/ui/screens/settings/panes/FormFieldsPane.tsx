@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   ADDITIVE_FORM_STEPS,
@@ -122,9 +122,15 @@ const pill: CSSProperties = {
 const bodyStyle: CSSProperties = { padding: '2px 12px 12px 30px' }
 const noteStyle: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: '#7a9fc4' }
 
-function LockPill({ testId }: { testId: string }) {
+/**
+ * The "Always on" tag beside a locked row — and, since review R-6, that row's switch's
+ * `aria-describedby` target. `aria-disabled` announces a STATE ("dimmed") and carries no reason;
+ * the house rule this control cites (`ModalActions.submitBlocked`) pairs it with a description,
+ * and pointing at this pill makes the pill's own words the reason without writing new copy.
+ */
+function LockPill({ id, testId }: { id: string; testId: string }) {
   return (
-    <span data-testid={testId} style={pill}>
+    <span id={id} data-testid={testId} style={pill}>
       {COPY.lock}
     </span>
   )
@@ -135,18 +141,26 @@ function LockPill({ testId }: { testId: string }) {
  * right for a settings row and wrong here — a grid row already draws its own label, and the two
  * would read twice to a sighted visitor and once too often to a screen reader. Same visual
  * track, same `aria-disabled`-not-`disabled` rule (the control stays focusable so a keyboard
- * visitor reaches it and hears the "Always on" pill beside it), same `switchKeyDown`.
+ * visitor reaches it and hears WHY), same `switchKeyDown`.
+ *
+ * "Hears why" is `describedBy` (R-6): a locked switch points at its own `LockPill`, so focusing
+ * it announces "…, switch, on, dimmed, Always on" instead of stopping at "dimmed". Without it a
+ * screen-reader visitor cannot tell a deliberate lock from a broken control — the pill is an
+ * unlabelled span two nodes away and is never read at that moment.
  */
 function RowSwitch({
   label,
   on,
   disabled,
+  describedBy,
   onToggle,
   testId,
 }: {
   label: string
   on: boolean
   disabled: boolean
+  /** Id of the element saying WHY this control is inert. Read only while `disabled`. */
+  describedBy?: string
   onToggle(): void
   testId: string
 }) {
@@ -158,6 +172,7 @@ function RowSwitch({
       role="switch"
       aria-checked={on}
       aria-disabled={disabled || undefined}
+      aria-describedby={disabled ? describedBy : undefined}
       aria-label={label}
       data-testid={testId}
       tabIndex={0}
@@ -242,6 +257,10 @@ function ScreenRow({
   'isStepVisible' | 'isFieldVisible' | 'onToggleStep' | 'onToggleField'
 >) {
   const [expanded, setExpanded] = useState(false)
+  // One id per row instance; the lock pills hang their `aria-describedby` targets off it, so
+  // twelve rows (and fifty field rows) never collide even though the pill copy is identical.
+  const uid = useId()
+  const lockId = (suffix: string) => `${uid}-lock-${suffix}`
   const locked = isStepMustStay(step.id)
   const visible = isStepVisible(step.id)
   const fields = getStepFields(step.id)
@@ -265,11 +284,12 @@ function ScreenRow({
             {step.label}
           </span>
         </button>
-        {locked && <LockPill testId={`fc-screen-lock-${step.id}`} />}
+        {locked && <LockPill id={lockId(step.id)} testId={`fc-screen-lock-${step.id}`} />}
         <RowSwitch
           label={step.label}
           on={locked ? true : visible}
           disabled={locked}
+          describedBy={lockId(step.id)}
           onToggle={() => onToggleStep(step.id, !visible)}
           testId={`fc-screen-toggle-${step.id}`}
         />
@@ -290,11 +310,12 @@ function ScreenRow({
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#cdd9e6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {f.label}
                   </span>
-                  {fieldLocked && <LockPill testId={`fc-field-lock-${f.id}`} />}
+                  {fieldLocked && <LockPill id={lockId(f.id)} testId={`fc-field-lock-${f.id}`} />}
                   <RowSwitch
                     label={f.label}
                     on={fieldLocked ? true : on}
                     disabled={fieldLocked}
+                    describedBy={lockId(f.id)}
                     onToggle={() => onToggleField(f.id, !on)}
                     testId={`fc-toggle-${f.id}`}
                   />
