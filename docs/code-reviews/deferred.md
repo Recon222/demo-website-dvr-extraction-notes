@@ -5254,3 +5254,156 @@ the pass that should own it.
 
 **Trigger:** §7's — a broader keyboard-nav/a11y pass, or before beta. Add this surface to that
 pass's inventory.
+
+## 82. P7.3 — Form Customization (D9): the grid's fidelity, three demo-better calls, and the v7 shape
+
+**Source:** parity package P7.3 (`parity/p7-formcustom`) — master plan §5 P7.3, matrix row A2,
+owner decision D9 ("Form Customization in FULL — profile chips AND the toggle grid, wired to the
+live visibility selectors"). Spec: phone `src/features/form-customization/` (README + source).
+
+### 82a. RECORDED — the grid is 12 rows × **50** field toggles, not 57
+
+**What:** the matrix (row A2) and the plan both say "57 field toggles". The phone's registry
+holds **58** `FieldId`s (`config/field-registry.ts:19-97`; counted: submission 16, scope 4,
+arrival 2, timeoffset 3, extracted 3, dvr 13, camera 8, export 5, notes 2, completion 2), and
+**50** of them are rendered as switches — the other 8 live on the three `screen-only` steps
+(Time Offset, Extracted Video Scope, Notes), whose rows expand into an explanatory line on the
+phone too (`FormCustomizationSection.tsx:128-131`). Of the 50, seven render LOCKED (the
+always-on set), so 43 actually move.
+
+**Why:** recorded rather than "fixed" because nothing is wrong — the demo ports all 58 ids and
+renders exactly the 50 the phone renders. The number in the matrix was an estimate made before
+the registry was read.
+
+**Trigger:** none. A reviewer counting switches and finding 50 should be answered with this
+entry; the count itself is pinned by test (`FormFieldsPane.test.tsx`, "reaches all 58 registry
+fields…" asserts 50 rendered against the registry).
+
+### 82b. DEMO-BETTER — the submission coordinate group gates here; on the phone it gates nothing
+
+**What:** `submission.latitude` / `.longitude` / `.coordinateAccuracy` / `.coordinateSource` are
+in the phone's settings grid as a toggleable group, and **no screen reads them**: the phone's 35
+`useFieldVisible` call sites (`app/(form)/*.tsx`) cover every other switchable field and skip
+these four. `submission.tsx:54-60` gates the five requester fields and the two contact fields
+and nothing else, so the GPS block renders unconditionally. The demo gates it —
+`LocationFields` takes `showGps`, and the capture control + lookup notice + coordinate card go
+with it.
+
+**Why not left at parity:** the honesty rule cuts against shipping a switch that moves nothing,
+and the group is already in the registry with a lock-free default, so the phone's own intent is
+legible. Filed for the phone as ledger item 19.
+
+**Trigger:** none here. If the phone wires its four ids, the two apps converge with no demo
+change.
+
+### 82c. RECORDED — there is no Reset control, on either side
+
+**What:** the phone's store has `resetToProfileDefaults` (`form-customization-store.ts:156`) and
+**nothing calls it** — `FormCustomizationSection.tsx` renders the picker and the rows and no
+reset affordance. The demo therefore ships no Reset button either, and the equivalent store
+action was removed rather than left caller-less.
+
+**Why:** re-stamping a profile clears every override (`applyFormProfile`), so the capability is
+reachable on both sides by picking another chip and picking back — pinned by test
+(`form-customization-actions.test.ts`, "is the reset path"). Adding a control the source of
+truth does not have is a parity delta a reviewer would have to re-adjudicate.
+
+**Trigger:** the phone growing a Reset affordance, or an owner call that the demo wants one. The
+store action is a four-line re-add (`set({ formOverrides: blankFormOverrides() })`).
+
+### 82d. RECORDED — the `limited` blurb promises a reduction its defaults do not deliver
+
+**What:** `ProfilePicker.tsx:25` reads "Comprehensive, lightly reduced (SPC/SOCO)" while
+`config/profiles.ts:13` states, and its off-lists confirm, "limited: comprehensive — nothing
+off". Both apps ship a profile whose copy describes a trim that does not exist.
+
+**Why carried:** the copy is lifted verbatim per the plan's fidelity rule. What the demo adds is
+a DERIVED line beneath it (`describeProfile` → "Hides nothing — every screen and field is on." /
+"Hides 1 screen · 12 fields."), counted from the same map the resolver reads, so the visitor
+gets the truth from a number that cannot drift. Filed for the phone as ledger item 18.
+
+**Trigger:** the phone deciding what `limited` should actually reduce. The off-list is a
+one-array edit in `content/profiles.ts` on this side.
+
+### 82e. RECORDED — section cards collapse when their last field goes, which the phone does not do
+
+**What:** hiding every requester field drops the whole "Requester Information" card; the same for
+the three DVR cards and Completion Details. The phone gates each field individually and leaves
+the `SectionCard` standing, so a fully-trimmed section renders as a title over nothing.
+
+**Why:** a titled card with an empty body reads as a rendering bug, and the store's cascade
+already guarantees a fully-emptied SCREEN never renders at all (it hides itself), so this only
+ever affects a partially-trimmed screen. Deliberate, pinned by test
+(`field-visibility.test.tsx`, "a section card goes when its last field does"). Not filed as a
+phone bug — it is a presentation choice, not a defect.
+
+**Trigger:** none. Re-flagging it as a parity gap should be answered with this entry.
+
+### 82f. RECORDED — three surfaces beyond the wizard follow visibility, and one deliberately does not
+
+**What:** switching a screen off removes it from the drawer list (`selectDrawerItems`), from the
+Next/Back spine (`nextVisibleChapter`/`prevVisibleChapter`), and from the rail's exploration
+checklist (`selectExploreStatus`) — the last because an unlit row for an unreachable screen is
+what the exit dialog lists as something the visitor missed. The two capture TOOLS likewise drop
+out of the drawer's Media accordion (phone parity, `CustomDrawerContent.tsx:61-62`), while the
+Media Library row stays on both sides.
+
+The one that does not follow: the map pin / Cases row / exported case-map status
+(`selectLocationMapStatus`) counts every field regardless. It answers "how far along is this
+LOCATION", which must not change because the reader's device runs a different profile — see the
+note on `selectDrawerStatus`, whose `visibility` parameter is optional for exactly this split.
+
+**Also deleted this round:** `nextChapter`/`prevChapter` in `content/screens.ts`. A second pair
+of walkers that ignores visibility is how a screen ends up hidden from the drawer and still
+reachable by Continue.
+
+**Trigger:** none — recorded so the asymmetry between the drawer dot and the map pin is not
+"fixed" into agreement.
+
+### 82g. RECORDED — no hydration gate, and none is needed
+
+**What:** the phone's feature ships `useFormCustomizationHydration` plus a 3-second fail-open
+deadline, because AsyncStorage rehydrates ASYNCHRONOUSLY and the wizard would otherwise paint
+the forensic default and flip. The demo has no equivalent and needs none: `loadSnapshot` runs
+SYNCHRONOUSLY inside `createDemoStore`, so the first frame already has the persisted profile.
+
+**Why recorded:** so nobody ports the gate (or its `HYDRATION_FALLBACK_MS`) looking for parity —
+it would be a spinner guarding a value that is already there.
+
+**Trigger:** the demo ever moving persistence off `sessionStorage` onto an async backend. At
+that point the gate becomes necessary, and the phone's fail-open deadline is the pattern.
+
+### 82h. RECORDED — the resolver's hidden-current fallback has no reachable trigger today
+
+**What:** `nextVisibleChapter`/`prevVisibleChapter` fall back to the neighbours by registry
+position when the CURRENT chapter is itself hidden (the phone's `getNextStep` does the same,
+`visibility-resolver.ts:65-73`). In the demo that state is currently unreachable: Settings opens
+only from the Home and Cases headers (P7.1), so a visitor cannot switch off the screen they are
+standing on, and a v7 snapshot pairs the view with the overrides that produced it.
+
+**Why kept:** it is four lines, it is the phone's behaviour, and the alternative (returning
+`null`) strands a visitor on a dead screen the moment any new Settings entry point appears —
+including the obvious one, a gear inside the wizard drawer.
+
+**Trigger:** adding a Settings entry point reachable from a wizard screen. At that point also
+decide whether the bridge should NAVIGATE off a screen that has just been hidden, which this
+package deliberately did not build.
+
+### 82i. RECORDED — the v7 persisted shape, for the P7.2 merge reconcile
+
+**What:** `SNAPSHOT_VERSION` 6 → 7 (`SNAPSHOT_KEY` `dvr-demo-state-v7`), carrying TWO changes
+from this branch:
+
+1. `PROFILES` widened `'forensic' | 'canvas'` → `+ 'limited'` (a tuple-backed union widening,
+   consumed by `z.enum(PROFILES)`);
+2. `PersistedState` gained `formOverrides: { steps: Partial<Record<FormStepId, boolean>>;
+   fields: Partial<Record<FormFieldId, boolean>> }`, schema'd as
+   `z.record(z.string(), z.boolean())` on both halves and FILTERED on load to known ids (the
+   `visited` rule — a settings preference from another build is never worth wiping a case).
+
+P7.2 takes its own 6→7 bump on its branch; the collision is expected and the orchestrator
+unifies both shapes under ONE v7. Nothing else in `snapshotOf` changed.
+
+**Trigger:** the merge. Both round-trip suites must be re-run on the merged head — this branch's
+additions are named `v7 (P7.3)` in `persistence.test.ts`'s maximal fixture and in the
+`form-customization overrides (v7 — P7.3)` describe block.

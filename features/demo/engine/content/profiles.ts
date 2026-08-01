@@ -86,7 +86,7 @@ export const PROFILE_LABELS: Record<Profile, string> = {
  * phone's own copy/behaviour mismatch, carried here rather than quietly corrected — but the pane
  * pairs each blurb with a DERIVED reduction count (`describeProfile` below), which cannot drift
  * from the defaults it counts. A visitor reading "lightly reduced" beside "hides nothing" learns
- * the truth from the number, not from the copy. See deferred §82 and PHONE-BUG-LEDGER item 16.
+ * the truth from the number, not from the copy. See deferred §82 and PHONE-BUG-LEDGER item 18.
  */
 export const PROFILE_BLURBS: Record<Profile, string> = {
   forensic: 'Everything on — full forensic detail (FVA/FVT).',
