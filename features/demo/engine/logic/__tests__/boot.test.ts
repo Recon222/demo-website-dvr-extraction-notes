@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   AUTHORIZED_MS,
+  BOOT_PHASES,
+  bootSurface,
   BOOT_SEQUENCE_MS,
   BOOT_VIDEO,
   FADE_MS,
@@ -25,7 +27,13 @@ type Assert<T extends true> = T
 type PosterOnly = { readonly poster: string | null }
 type _PosterAloneIsNotAVideo = Assert<PosterOnly extends BootVideo ? false : true>
 
-const ALL_PHASES: readonly BootPhase[] = ['idle', 'scanning', 'authorized', 'video', 'holding', 'fading', 'done']
+/**
+ * Derived, never hand-listed (review R-11b): a literal under a `readonly BootPhase[]` annotation
+ * type-checks a SUBSET, so the three "total over the phase union" tests below silently stopped
+ * being total the moment a phase was added. `BOOT_PHASES` is read off `PHASE_MS`, which the
+ * compiler forces to be total.
+ */
+const ALL_PHASES = BOOT_PHASES
 
 /** Walk the machine from `idle` to `done`, collecting the phases it visits. */
 function walk(cfg: { video: BootVideo | null; reduceMotion: boolean }): BootPhase[] {
@@ -114,6 +122,17 @@ describe('boot phase machine', () => {
       expect(AUTHORIZED_MS).toBe(800)
       expect(HOLD_MS).toBe(500)
       expect(FADE_MS).toBe(300)
+    })
+  })
+
+  describe('bootSurface', () => {
+    it('gives the HUD every phase up to the video, and the video everything after (R-11a)', () => {
+      expect(ALL_PHASES.filter((p) => bootSurface(p) === 'hud')).toEqual(['idle', 'scanning', 'authorized'])
+      expect(ALL_PHASES.filter((p) => bootSurface(p) === 'video')).toEqual(['video', 'holding', 'fading', 'done'])
+    })
+
+    it('is total over the phase union — a new phase must declare its surface', () => {
+      for (const phase of ALL_PHASES) expect(['hud', 'video']).toContain(bootSurface(phase))
     })
   })
 

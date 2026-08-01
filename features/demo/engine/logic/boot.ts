@@ -45,7 +45,8 @@ export type BootPhase = 'idle' | 'scanning' | 'authorized' | 'video' | 'holding'
  * turns a fourth member into a compile error — verified by probe: adding one yields exactly one
  * `TS2741`, there.
  */
-export type BootHudState = 'idle' | 'scanning' | 'authorized'
+export const BOOT_HUD_STATES = ['idle', 'scanning', 'authorized'] as const
+export type BootHudState = (typeof BOOT_HUD_STATES)[number]
 
 // ---------------------------------------------------------------------------
 // Timing
@@ -155,6 +156,39 @@ const PHASE_MS: Record<BootPhase, number | null> = {
 
 export function bootPhaseDurationMs(phase: BootPhase): number | null {
   return PHASE_MS[phase]
+}
+
+/**
+ * Every phase, read off the record the compiler already forces to be total (review R-11b).
+ *
+ * The tests that call themselves "total over the phase union" used to iterate a HAND list under a
+ * `readonly BootPhase[]` annotation, which type-checks a SUBSET — probed: a stale list left all
+ * three green while silently covering six of seven members. Derived, they are total for the same
+ * reason `PHASE_MS` is: `Record<BootPhase, …>` cannot omit a key.
+ */
+export const BOOT_PHASES = Object.keys(PHASE_MS) as readonly BootPhase[]
+
+/**
+ * Which layer owns the screen in each phase (review R-11a).
+ *
+ * This was a deny-list in the component — `phase !== 'idle' && phase !== 'scanning' &&
+ * phase !== 'authorized'` — the one partition in this feature pointing the UNSAFE way: a new
+ * pre-video beat would have silently taken the surface early, showing the video before its turn.
+ * As a total record it lives beside its siblings and a new phase has to say where it belongs.
+ */
+const SURFACE: Record<BootPhase, 'hud' | 'video'> = {
+  idle: 'hud',
+  scanning: 'hud',
+  authorized: 'hud',
+  video: 'video',
+  holding: 'video',
+  fading: 'video',
+  done: 'video',
+}
+
+/** Which layer owns the screen — assuming there IS a video; with none the HUD holds throughout. */
+export function bootSurface(phase: BootPhase): 'hud' | 'video' {
+  return SURFACE[phase]
 }
 
 /**

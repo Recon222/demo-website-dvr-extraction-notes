@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { SplashScreen, type AuthState } from '@/features/demo/ui/screens/SplashScreen'
+import { BOOT_HUD_STATES } from '@/features/demo/engine/logic/boot'
+import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 
 const scanner = () => screen.getByRole('button', { name: 'Run the simulated biometric scan' })
 
@@ -26,7 +27,9 @@ describe('SplashScreen', () => {
   })
 
   describe('honesty (the demo cannot do biometrics)', () => {
-    it.each<AuthState>(['idle', 'scanning', 'authorized'])('discloses the simulation in %s', (authState) => {
+    // Derived, not hand-listed — the same R-11b treatment as the phase list one file over: the
+    // union is DEFINED by this tuple, so a fourth HUD state joins this sweep automatically.
+    it.each(BOOT_HUD_STATES)('discloses the simulation in %s', (authState) => {
       render(<SplashScreen authState={authState} onScan={vi.fn()} />)
       expect(
         screen.getByText(/Simulated scan — a browser tab has no biometric sensor\./),

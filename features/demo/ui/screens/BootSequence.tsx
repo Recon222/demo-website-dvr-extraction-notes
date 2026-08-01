@@ -7,6 +7,7 @@ import {
   FADE_MS,
   bootHudState,
   bootPhaseDurationMs,
+  bootSurface,
   nextBootPhase,
   type BootPhase,
   type BootVideo,
@@ -216,7 +217,7 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
   // no video (configured, or left after a preload failure) the HUD holds it instead. Neither
   // swaps out early — a gap would paint one frame of bare background between the fade and the
   // parent's unmount.
-  const showVideo = liveVideo !== null && phase !== 'idle' && phase !== 'scanning' && phase !== 'authorized'
+  const showVideo = liveVideo !== null && bootSurface(phase) === 'video'
   const showHud = !showVideo
 
   /**
