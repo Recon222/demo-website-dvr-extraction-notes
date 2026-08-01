@@ -67,6 +67,9 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
           label="Photo Quality"
           testId="photo-quality-slider"
           value={settings.photoQuality}
+          // R-7: the announced value is the one on screen. The scalar this input is bound to
+          // (0.5–1.0) is not a number this pane ever shows.
+          valueText={`${photoQualityPercent(settings.photoQuality)}%`}
           min={0.5}
           max={1}
           step={0.05}

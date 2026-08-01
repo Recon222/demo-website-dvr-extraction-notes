@@ -1,6 +1,5 @@
 'use client'
 
-import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -226,6 +225,13 @@ export function PaneRadioGroup({
  * The Photo Quality slider (the phone's only `@react-native-community/slider`). A native
  * `<input type="range">`: it is keyboard-operable, announces its value, and honours the same
  * min/max/step the phone passes — everything a hand-rolled track would have to re-earn.
+ *
+ * `valueText` is REQUIRED (R-7) because the raw value is not the value the visitor sees. This
+ * control is bound to a 0.5–1.0 scalar while the pane's readout — the only reason the control
+ * exists — is a percentage. Without `aria-valuetext` AT announces `0.85`, or on a `min≠0` range
+ * several AT/browser pairs announce percent-OF-RANGE (70% for the same reading), either of which
+ * CONTRADICTS the number on screen. Not merely missing information: announced information that
+ * is false (WCAG 4.1.2). Required rather than optional so a second slider cannot repeat it.
  */
 export function PaneSlider({
   label,
@@ -234,6 +240,7 @@ export function PaneSlider({
   max,
   step,
   onChange,
+  valueText,
   minLabel,
   maxLabel,
   testId,
@@ -244,17 +251,18 @@ export function PaneSlider({
   max: number
   step: number
   onChange(value: number): void
+  /** What the visitor SEES for the current value (e.g. `"85%"`). Announced verbatim. */
+  valueText: string
   minLabel: string
   maxLabel: string
   testId?: string
 }) {
-  const uid = useId()
   return (
     <div>
       <input
-        id={uid}
         type="range"
         aria-label={label}
+        aria-valuetext={valueText}
         data-testid={testId}
         value={value}
         min={min}

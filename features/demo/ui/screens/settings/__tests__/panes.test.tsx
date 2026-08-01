@@ -140,6 +140,23 @@ describe('Media Capture pane', () => {
     expect(onChange).toHaveBeenCalledWith({ photoQuality: 0.55 })
   })
 
+  it('R-7: announces the percentage it displays, not the scalar it is bound to', () => {
+    // Without aria-valuetext, AT reads `0.85` — or, on a min!==0 range, percent-OF-RANGE (70%
+    // for the same reading). Both contradict the number on screen, on the one control whose
+    // entire purpose is that number.
+    renderPane('media-capture', patch({ photoQuality: 0.85 }))
+    const slider = screen.getByTestId('photo-quality-slider')
+    expect(slider).toHaveAttribute('aria-valuetext', '85%')
+    expect(screen.getByText('85%')).toBeInTheDocument()
+  })
+
+  it('R-7: the announced text tracks the value, and is never the raw scalar', () => {
+    renderPane('media-capture', patch({ photoQuality: 0.5 }))
+    const slider = screen.getByTestId('photo-quality-slider')
+    expect(slider).toHaveAttribute('aria-valuetext', '50%')
+    expect(slider.getAttribute('aria-valuetext')).not.toBe('0.5')
+  })
+
   it('fires the phone’s Unlimited-duration warning for real — it describes the SETTING', () => {
     renderPane('media-capture', patch({ maxVideoDuration: 0 }))
     expect(
