@@ -128,6 +128,20 @@ describe('MapCanvas — markers + fit', () => {
     expect(mapInstance.setZoom).toHaveBeenCalled()
   })
 
+  it('plots each pin exactly ONCE for a settled mount — no churn from its own state commits', async () => {
+    // The stable-empty-default contract (`NO_MARKERS`/`NO_CAMERAS`). `cameras` is deliberately
+    // OMITTED: a `= []` default parameter mints a fresh array on every render, which makes the
+    // render callback unstable and re-plots every marker on each of this component's own commits
+    // (ready → revealed → cover-unmount). Counting live markers cannot see that — the churn
+    // removes and recreates, so the live total is right while the work is doubled. Assert the
+    // SETTLED TOTALS instead: constructions and removals.
+    render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalledTimes(2))
+    expect(MarkerMock).toHaveBeenCalledTimes(2)
+    expect(markerInstances.filter((m) => m.remove.mock.calls.length > 0)).toHaveLength(0)
+  })
+
   it('removes its markers on unmount', async () => {
     const { unmount } = render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} />)
     await waitFor(() => expect(MarkerMock).toHaveBeenCalledTimes(1))
