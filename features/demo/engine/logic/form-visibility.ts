@@ -55,7 +55,10 @@ export function resolveStepVisible(id: FormStepId, v: FormVisibility): boolean {
   if (isStepMustStay(id)) return true
   const override = v.formOverrides.steps[id]
   if (override !== undefined) return override
-  return profileDefaultsFor(v).steps[id] ?? false
+  // No `?? false`: `ProfileDefaults` is TOTAL over both id spaces, built by mapping the
+  // registries and pinned key-for-key in content.test.ts (R-24). A fallback here would have
+  // been a third answer to a question the type and the test already agree on.
+  return profileDefaultsFor(v).steps[id]
 }
 
 /**
@@ -72,7 +75,7 @@ export function resolveFieldVisible(id: FormFieldId, v: FormVisibility): boolean
 
   const override = v.formOverrides.fields[id]
   if (override !== undefined) return override
-  return profileDefaultsFor(v).fields[id] ?? false
+  return profileDefaultsFor(v).fields[id]
 }
 
 /** Whether a step has at least one visible field — the "would this screen be blank?" question. */

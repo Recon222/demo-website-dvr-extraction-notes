@@ -20,17 +20,20 @@ import { FORM_FIELDS, FORM_STEPS } from '@/features/demo/engine/content/form-cus
 const ALL_STEP_IDS: readonly FormStepId[] = FORM_STEPS.map((s) => s.id)
 const ALL_FIELD_IDS: readonly FormFieldId[] = FORM_FIELDS.map((f) => f.id)
 
+/**
+ * Expand an off-list into a TOTAL map. `Object.fromEntries` over the registry rather than
+ * `{} as Record<…>` + a loop (review R-24): the empty-object cast asserted totality before a
+ * single key existed, which is the assumption the resolver's `?? false` arms were hedging
+ * against. Mapping every registry id in one expression makes the map total by construction —
+ * `content.test.ts` pins the key sets against both registries, and the `??`s are gone.
+ */
 function buildDefaults(offSteps: readonly FormStepId[], offFields: readonly FormFieldId[]): ProfileDefaults {
   const offStepSet = new Set<FormStepId>(offSteps)
   const offFieldSet = new Set<FormFieldId>(offFields)
-
-  const steps = {} as Record<FormStepId, boolean>
-  for (const id of ALL_STEP_IDS) steps[id] = !offStepSet.has(id)
-
-  const fields = {} as Record<FormFieldId, boolean>
-  for (const id of ALL_FIELD_IDS) fields[id] = !offFieldSet.has(id)
-
-  return { steps, fields }
+  return {
+    steps: Object.fromEntries(ALL_STEP_IDS.map((id) => [id, !offStepSet.has(id)])) as Record<FormStepId, boolean>,
+    fields: Object.fromEntries(ALL_FIELD_IDS.map((id) => [id, !offFieldSet.has(id)])) as Record<FormFieldId, boolean>,
+  }
 }
 
 /** Phone `profiles.ts:44`. */
