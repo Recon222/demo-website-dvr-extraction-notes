@@ -107,8 +107,13 @@ export interface DemoSettings {
  * `import/ImportTerminalProgress.tsx:28`), so `true` is the state of the thing the switch
  * describes. The Appearance pane refuses to let it be changed rather than moving a switch over
  * a theme that cannot follow — see `AppearancePane`.
+ *
+ * Annotated `Readonly<…>` (R-25): the mutable annotation was discarding exactly the guarantee
+ * `Object.freeze` is here to provide — assigning through it type-checked and then threw at
+ * runtime, which is the worst of both. The frozen-ness is pinned by test as well; this makes it
+ * a compile error first.
  */
-export const DEFAULT_SETTINGS: DemoSettings = Object.freeze({
+export const DEFAULT_SETTINGS: Readonly<DemoSettings> = Object.freeze({
   darkMode: true,
   showImportProcessDetails: true,
   photoQuality: 0.9,
