@@ -239,10 +239,10 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P4 | P4.5 media library | ✅ | #33 | tabs/previews/long-press delete; phone verified display-only |
 | P4 | P4.6 audio recording | ✅ | #33 | AnalyserNode waveform, CRT, no-auto-reset decision; phone bug 9 found |
 | P4 | P4.7 OCR camera | ✅ | #33 | LANDSCAPE viewfinder; lazy tesseract 10/10 reads; OcrProof.imageDataUrl fills the PDF |
-| P5 | P5.1 export engine | ☐ | | |
-| P5 | P5.2 export tab | ☐ | | |
-| P5 | P5.3 export modals | ☐ | | |
-| P5 | P5.4 case-map export | ☐ | | |
+| P5 | P5.1 export engine | ✅ | #34 | pure machines ported; selection verified ephemeral; §70 contracts |
+| P5 | P5.2 export tab | ✅ | #34 | registry-driven 4th tab + hub; latent isChapterId defect fixed |
+| P5 | P5.3 export modals | ✅ | #34 | derived-mode modal, D4 honest terminals, opener-capture AlertDialog fix |
+| P5 | P5.4 case-map export | ✅ | #34 | REAL download via the flow (R-14 wire); 2 phone bugs found (ledger 10/11) |
 | P6 | P6.1 map depth | ☐ | | |
 | P7 | P7.1 settings shell + stub panes | ☐ | | |
 | P7 | P7.2 user profile — full | ☐ | | |
