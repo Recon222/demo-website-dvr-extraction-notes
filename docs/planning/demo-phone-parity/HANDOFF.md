@@ -109,7 +109,8 @@ Resume agents with SendMessage using the basename (without `.output`) of their t
 | **P6 aggregator (IN FLIGHT)** — Fable | `a2487ad2bf0d03843.output` |
 | P6 REVIEW LANES (done; fix-delta resumes THESE) typescript / web / tests / silent-failures / type-design — Opus | `acfe12a9f43fc0feb.output` / `ab57a1aef7f3918b4.output` / `a5eaaf60eaabf4273.output` / `a29404b078de3d0b9.output` / `a424392c873c58e9b.output` |
 | P5.4 case-map export (done, resumable for fix rounds) — Opus | `a29f8776211828b06.output` |
-| P6.1 map depth (done, resumable for fix rounds) — Opus | `a7f3ce5b1f2c0e518.output` |
+| P6.1 map depth (done; its review cycle CLOSED — retire-eligible, ~576k+) — Opus | `a7f3ce5b1f2c0e518.output` |
+| **P7.1 settings shell (IN FLIGHT)** — Opus | `af244bb0e00975430.output` |
 
 **Review continuity (owner-directed, P2 onward):** reviews run as hand-orchestrated background agents so reviewers are RESUMABLE — per phase: five fresh Opus lane agents (each briefed to follow its `.claude/agents/<lane>.md` definition, write its full findings to `docs/code-reviews/parity/<phase>/lane-<key>.md`, return counts only), then a Fable aggregator agent reading the lane files and writing the vetted doc; fix-delta rounds RESUME the same five reviewers via SendMessage (warm transcripts — each verifies its own findings' fixes), then resume the aggregator. Fresh reviewers per phase, warm within a phase. Record each phase's reviewer handles in the roster below when spawned. The `demo-phase-review.js` Workflow (P0/P1 era: fresh lanes every run, disk-based continuity only) remains as fallback.
 
