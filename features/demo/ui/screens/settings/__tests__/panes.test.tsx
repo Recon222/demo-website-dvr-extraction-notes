@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
-import { renderSettingsPane, SETTINGS_PANES } from '@/features/demo/ui/screens/settings/panes'
-import { SETTINGS_CATEGORY_IDS, type SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
+import {
+  renderSettingsPane,
+  SETTINGS_PANES,
+  STORE_CONNECTED_PANE_IDS,
+  type StubPaneId,
+} from '@/features/demo/ui/screens/settings/panes'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { clock } from '@/features/demo/ui/inputs/clock'
 
@@ -17,7 +22,9 @@ import { clock } from '@/features/demo/ui/inputs/clock'
 
 const patch = (overrides: Partial<DemoSettings> = {}) => ({ ...DEFAULT_SETTINGS, ...overrides })
 
-function renderPane(id: SettingsCategoryId, settings: DemoSettings = DEFAULT_SETTINGS) {
+const STUB_PANE_IDS = Object.keys(SETTINGS_PANES) as StubPaneId[]
+
+function renderPane(id: StubPaneId, settings: DemoSettings = DEFAULT_SETTINGS) {
   const onChange = vi.fn()
   render(<div>{renderSettingsPane(id, { settings, onChange })}</div>)
   return { onChange }
@@ -26,12 +33,20 @@ function renderPane(id: SettingsCategoryId, settings: DemoSettings = DEFAULT_SET
 afterEach(() => vi.restoreAllMocks())
 
 describe('pane registry', () => {
-  it('has a pane for every catalog row and nothing else (exhaustive by construction)', () => {
-    expect(Object.keys(SETTINGS_PANES).sort()).toEqual([...SETTINGS_CATEGORY_IDS].sort())
+  it('partitions the catalog: every row is either store-connected or in this map, never both', () => {
+    // P7.2 moved `user-profile` out of the map and into the bridge's own branch. The
+    // exhaustiveness property survives the move — it just spans two collections now — so a
+    // category added to the catalog and forgotten in both still fails here (and in `tsc`).
+    expect([...Object.keys(SETTINGS_PANES), ...STORE_CONNECTED_PANE_IDS].sort()).toEqual(
+      [...SETTINGS_CATEGORY_IDS].sort(),
+    )
+    for (const id of STORE_CONNECTED_PANE_IDS) {
+      expect(id in SETTINGS_PANES, `"${id}" is resolved twice`).toBe(false)
+    }
   })
 
   it('every pane opens with an honest "in the demo" note — the D6 treatment', () => {
-    for (const id of SETTINGS_CATEGORY_IDS) {
+    for (const id of STUB_PANE_IDS) {
       const { unmount } = render(<div>{renderSettingsPane(id, { settings: DEFAULT_SETTINGS, onChange: vi.fn() })}</div>)
       expect(screen.getByTestId('settings-pane-stub-note'), `pane "${id}" ships no honest note`).toBeInTheDocument()
       unmount()
@@ -266,12 +281,8 @@ describe('About pane', () => {
 })
 
 describe('SEAM placeholders', () => {
-  it('SEAM(P7.2): User Profile shows the phone’s empty line and NO dead "Set Up Profile" button', () => {
-    renderPane('user-profile')
-    expect(screen.getByTestId('user-profile-section-empty')).toHaveTextContent('No profile configured.')
-    expect(screen.queryByRole('button', { name: /Set Up Profile/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Edit Profile/i })).not.toBeInTheDocument()
-  })
+  // SEAM(P7.2) is gone — the User Profile pane is real, and lives in
+  // `__tests__/UserProfilePane.test.tsx` with its editor.
 
   it('SEAM(P7.3): Form Fields describes the grid without hardcoding the active profile', () => {
     renderPane('form-customization')

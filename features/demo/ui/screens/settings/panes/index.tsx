@@ -12,28 +12,38 @@ import { LocationPane } from '@/features/demo/ui/screens/settings/panes/Location
 import { MediaCapturePane } from '@/features/demo/ui/screens/settings/panes/MediaCapturePane'
 import { SecurityPane } from '@/features/demo/ui/screens/settings/panes/SecurityPane'
 import { TimeSyncPane } from '@/features/demo/ui/screens/settings/panes/TimeSyncPane'
-import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 
 /**
  * The pane resolver — the demo's stand-in for the phone catalog's `Component` field
  * (`settings-catalog.tsx:77`), which the engine cannot hold because it is React.
  *
- * `Record<SettingsCategoryId, …>` and not a `switch`: it is exhaustive BY CONSTRUCTION, so
- * adding a category id to the catalog stops compiling here until a pane exists for it — the
- * same property the phone gets from a required `Component` member, and the device this repo
- * already uses for `MODAL_IDS`, `EXTRA_VIEWS` and `MODAL_ID_SET`.
+ * A `Record<…>` and not a `switch`: it is exhaustive BY CONSTRUCTION, so adding a category id to
+ * the catalog stops compiling here until a pane exists for it — the same property the phone gets
+ * from a required `Component` member, and the device this repo already uses for `MODAL_IDS`,
+ * `EXTRA_VIEWS` and `MODAL_ID_SET`.
  *
- * ## The two SEAM entries
+ * ## The panes this map does NOT hold
  *
- * `user-profile` (**SEAM(P7.2)**) and `form-customization` (**SEAM(P7.3)**) hold interim
- * placeholders. Neither successor should widen `SettingsPaneProps` to fit: both need store data,
- * and `SettingsModal` takes a `renderPane` CALLBACK precisely so the store bridge can resolve
- * those two ids to its own store-connected nodes and let everything else fall through to this
- * map. Each placeholder file carries the full hand-off note.
+ * A pane that renders STORE data cannot be a `SettingsPaneProps` component, and `SettingsPaneProps`
+ * is deliberately not widened to fit one: it is the settings-backed panes' contract, not a base
+ * class. `SettingsModal` takes a `renderPane` CALLBACK precisely so the store bridge can resolve
+ * those ids to store-connected nodes of their own props and let everything else fall through here.
+ *
+ * `STORE_CONNECTED_PANE_IDS` below names them, and `StubPaneId` subtracts them — which keeps the
+ * exhaustiveness property whole rather than trading it away: every catalog id is either in that
+ * tuple or in this map, and `panes.test.tsx` asserts exactly that partition. (P7.2 removed
+ * `user-profile`; **SEAM(P7.3)** — `form-customization` joins the tuple and leaves the map when the
+ * profile chips + 57-toggle grid land, which is a one-line edit to each.)
  */
-export const SETTINGS_PANES: Record<SettingsCategoryId, ComponentType<SettingsPaneProps>> = {
-  // SEAM(P7.2) — replaced by the real profile pane; see UserProfilePane.tsx.
-  'user-profile': UserProfilePane,
+
+/** Ids the STORE BRIDGE resolves itself, before falling through to `SETTINGS_PANES`. */
+export const STORE_CONNECTED_PANE_IDS = ['user-profile'] as const
+export type StorePaneId = (typeof STORE_CONNECTED_PANE_IDS)[number]
+
+/** Every other catalog id — the ones this map answers for. */
+export type StubPaneId = Exclude<SettingsCategoryId, StorePaneId>
+
+export const SETTINGS_PANES: Record<StubPaneId, ComponentType<SettingsPaneProps>> = {
   appearance: AppearancePane,
   'media-capture': MediaCapturePane,
   location: LocationPane,
@@ -47,10 +57,12 @@ export const SETTINGS_PANES: Record<SettingsCategoryId, ComponentType<SettingsPa
 }
 
 /**
- * Default resolution for a pane id. The bridge calls this as the tail of its own `renderPane`,
- * after any store-connected branch of its own.
+ * Default resolution for a pane id. The bridge calls this as the TAIL of its own `renderPane`,
+ * after its store-connected branches — which is why the parameter is `StubPaneId`: the branch
+ * above it (`id === 'user-profile'`) is what narrows a `SettingsCategoryId` to this type, so
+ * forgetting the branch is a compile error rather than a pane rendered without its data.
  */
-export function renderSettingsPane(id: SettingsCategoryId, props: SettingsPaneProps): ReactNode {
+export function renderSettingsPane(id: StubPaneId, props: SettingsPaneProps): ReactNode {
   const Pane = SETTINGS_PANES[id]
   return <Pane {...props} />
 }

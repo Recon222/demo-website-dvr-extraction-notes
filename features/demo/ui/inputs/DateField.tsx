@@ -11,6 +11,18 @@ import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 export interface DateFieldProps {
   value: string
   onChange(value: string): void
+  /**
+   * What an unset date reads as. Defaults to `formatDate`'s em-dash — every wizard caller's
+   * treatment, unchanged.
+   *
+   * The User Profile editor (P7.2) passes the phone's own literal, `No date`: its two career-start
+   * fields are `mode="date"` pickers, and `DateTimePickerInput.getFullFormattedValue()`
+   * special-cases that mode to return `"No date"`, short-circuiting the component's `placeholder`
+   * prop entirely (`src/components/form/DateTimePicker.tsx:141-152` — a fact-check correction in
+   * ui-mapping 12). A prop rather than a new default so the eight existing call sites keep their
+   * em-dash.
+   */
+  emptyLabel?: string
 }
 
 const ZERO = { y: 0, mo: 0, d: 0 }
@@ -20,7 +32,7 @@ const ZERO = { y: 0, mo: 0, d: 0 }
  * (via mergeDate). Opening with an empty value auto-populates today (phone behavior). The
  * clock is read only on open (never at render), so the closed field is deterministic.
  */
-export function DateField({ value, onChange }: DateFieldProps) {
+export function DateField({ value, onChange, emptyLabel }: DateFieldProps) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<{ y: number; mo: number }>(() => {
     const p = parsePartsLoose(value)
@@ -61,7 +73,9 @@ export function DateField({ value, onChange }: DateFieldProps) {
         }}
       >
         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: T.textFaint, marginBottom: 2 }}>Date</div>
-        <div style={{ fontSize: 15, fontWeight: 500, color: parts ? T.text : T.textFaint }}>{formatDate(parts)}</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: parts ? T.text : T.textFaint }}>
+          {parts || emptyLabel === undefined ? formatDate(parts) : emptyLabel}
+        </div>
       </button>
 
       {open && (

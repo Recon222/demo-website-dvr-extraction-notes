@@ -64,6 +64,8 @@ describe('features/demo/engine/logic/export barrel', () => {
     // DemoExperience-local useState. Nothing in this module may reach sessionStorage.
     expect('exportSelection' in engine.createDemoStore().getState()).toBe(false)
     expect('exportFlow' in engine.createDemoStore().getState()).toBe(false)
-    expect(engine.SNAPSHOT_VERSION).toBe(6)
+    // 7 since P7.2 added the analyst profile — this assertion is about the EXPORT module adding
+    // nothing, so it tracks the live version rather than pinning a number this module never moves.
+    expect(engine.SNAPSHOT_VERSION).toBe(7)
   })
 })

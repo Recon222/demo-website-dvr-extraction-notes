@@ -5254,3 +5254,101 @@ the pass that should own it.
 
 **Trigger:** §7's — a broader keyboard-nav/a11y pass, or before beta. Add this surface to that
 pass's inventory.
+
+---
+
+## 81. P7.2 — User Profile: rulings, the v7 bump, and one overlay residual
+
+**Source:** parity package P7.2 (`parity/p7-profile`) — master plan §5 P7.2, matrix rows 85/86,
+ui-mapping 12 § User Profile. The pane and its editor are REAL (decision D6 exempts this surface
+and Form Customization from the honest-stub treatment).
+
+### 81a. RECORDED — no `resetProfile()`, and `agencyLogoUri` is absent from the TYPE, not just the UI
+
+**What:** the editor offers no reset/clear action and no agency-logo control, and the demo's
+`UserProfile` has seven members where the phone's has eight.
+
+**Why:** both are matrix row 86's explicit instructions, and both hold up at source.
+`resetProfile()` is documented on the phone (`user-profile/README.md` Public API) and does not
+exist — its store declares exactly `updateProfile` and `isProfileComplete`
+(`store/user-profile-store.ts:19-22`). Building a demo control for it would be implementing the
+phone's documentation instead of the phone.
+
+`agencyLogoUri` is real on the phone's type (`types.ts:26-27`) but marked `[Future]`, has no UI by
+the modal's own inline comment (`UserProfileModal.tsx:46`), and is never written or read anywhere.
+Carrying it here would mean a key in `DEFAULT_USER_PROFILE`, a key in the snapshot shape guard
+(`FullShape` makes that mandatory, not optional) and a branch in `trimProfile` — three live things
+guarding an absence, which is the same argument that kept `devOnly` off `SettingsCategory` (§80a).
+
+**Trigger:** none for the reset. For the logo: whenever the will-say document actually renders one.
+It is then a `SNAPSHOT_VERSION` bump plus three lines, all in one commit.
+
+### 81b. RECORDED — the profile persists (P7.2's answer to §80c), the Settings values still do not
+
+**What:** `SNAPSHOT_VERSION` 6 → 7, key `dvr-demo-state-v7`, `PersistedState` gains `userProfile`,
+and `userProfileSchema` carries `satisfies FullShape<UserProfile>`. `DemoSettings` is untouched and
+stays in `DemoExperience`'s `useState`.
+
+**Why:** §80c asked each of P7.2/P7.3 to make its own persistence call. A profile is not cosmetic —
+it is data the visitor typed, and its name reaches the Case Notes document through Completion's
+`completedBy` — so it earns the snapshot and the three compile-time devices moving together. The
+Settings record has neither property and was correctly left out.
+
+**For the P7.3 merge:** P7.3 takes its own 6 → 7 on its branch; the orchestrator unifies both
+shapes under one v7 and re-runs both round-trip suites (the P3-era precedent). P7.2's fixture
+additions are marked `[P7.2 fixture]` / `[P7.2 fixture addition]` so the reconcile is mechanical.
+
+**Trigger:** none.
+
+### 81c. RECORDED — `reset()` carries the profile across
+
+**What:** `reset()` is no longer literally `initialState()`; it preserves `userProfile`.
+
+**Why:** the phone cannot reset identity at all — it lives in its own AsyncStorage store precisely
+because it is app-level config and not case data (`user-profile/README.md`), and there is no
+`resetProfile()` (see §81a). "Start over" means the visitor's CASES go. The tab still forgets the
+profile, because the snapshot is per-tab and dies with it. Pinned both ways in
+`engine/store/__tests__/user-profile-state.test.ts`.
+
+**Trigger:** if a visible "Start over" control ever ships and the owner wants it to wipe identity
+too, this is one line and one test.
+
+### 81d. LEDGERED — one Escape over the profile editor also pops the Settings detail
+
+**What:** with the editor open over the Settings sheet, a single Escape closes the editor AND
+returns the sheet to its master list (probe-verified: `editorOpen=false detailOpen=false
+sheetOpen=true`). Expected: the editor closes and the User Profile pane stays.
+
+**Why it happens:** every overlay in this feature registers its OWN document-level `keydown`
+listener — `ModalShell`, `PickerSheet`, `SettingsModal` — so an Escape runs all of them.
+`SettingsModal` mounted first, so its listener is first in the list; `stopImmediatePropagation`
+from the editor cannot un-run it. It is not new behaviour either: a `PickerSheet` opened inside a
+`ModalShell` closes both the same way, and has since P1.
+
+**Why deferred:** the fix is an overlay STACK (only the topmost surface answers Escape), which is
+shared infrastructure for five surfaces. The obvious local shortcut is actively wrong: moving
+`ModalShell` to a capture-phase listener would make it fire BEFORE its own nested `PickerSheet`,
+so Escape in an open date picker would close the modal underneath it — capture order inverts the
+nesting order, which is exactly the order that must win. Solving this per surface is how three
+subtly different rules end up in the codebase — the same reasoning §80g and §7 already carry.
+
+**Deliberately not pinned:** a test asserting today's behaviour would read as a specification for
+it. The behaviour is recorded here instead.
+
+**Trigger:** §7's / §80g's — the broader keyboard-nav/a11y pass. Add "one Escape per overlay,
+topmost first" to that pass's inventory.
+
+### 81e. RECORDED — the demo's Case Notes document was missing the phone's Completion Information section
+
+**What:** P7.2 added `dateTimeCompleted` + `completedBy` to `CaseNotesData`, the selector and the
+generated document (phone `case-notes-template.ts:331-348`, same position and the same
+`hasCompletionInfo` gate).
+
+**Why it is in this package:** the gap predates it — neither completion field reached the report —
+but the profile pane's honest note says the name is "what carries it into the Case Notes report",
+and the matrix row says the same. Shipping the autofill without the section would have made a
+claim about the demo that the demo did not honour, which is the one failure mode this surface is
+not allowed to have.
+
+**Trigger:** none. Recorded so the next reader of `pdf/case-notes.ts` knows the section arrived
+with the profile and not with P2's document work.

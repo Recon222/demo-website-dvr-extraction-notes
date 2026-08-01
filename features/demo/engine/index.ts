@@ -141,6 +141,16 @@ export {
   type NotesRelevantFormData,
   type SectionDefinition,
 } from '@/features/demo/engine/logic/notes'
+// The analyst profile (P7.2). Exported whole — the will-say document is the next consumer of
+// these types, and it should inherit a profile rather than re-derive one. `UserProfile` itself
+// comes through the `engine/types` re-export at the top of this barrel.
+export {
+  DEFAULT_USER_PROFILE,
+  computeCareerDuration,
+  hasProfileName,
+  hasProfileText,
+  trimProfile,
+} from '@/features/demo/engine/logic/user-profile'
 export { generateCaseNotesDoc, type CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 export { generateTimeOffsetDoc, type TimeOffsetDocData } from '@/features/demo/engine/logic/pdf/time-offset'
 
