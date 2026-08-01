@@ -127,6 +127,19 @@ describe('the profile in the v7 snapshot', () => {
     expect(storage.map.has(SNAPSHOT_KEY)).toBe(false) // and removed, not re-parsed every boot
   })
 
+  it('refuses a v7 payload that lost the profile MEMBER outright', () => {
+    // The symmetric case to P7.3's `delete parsed.state.formOverrides` (persistence.test.ts):
+    // both v7 members are required, and a payload missing either is discarded, not defaulted.
+    const storage = new FakeStorage()
+    const store = freshStore()
+    store.getState().updateUserProfile(FILLED)
+    const state = snapshotOf(store.getState()) as unknown as Record<string, unknown>
+    delete state.userProfile
+    storage.map.set(SNAPSHOT_KEY, JSON.stringify({ version: SNAPSHOT_VERSION, state }))
+
+    expect(loadSnapshot(storage)).toBeNull()
+  })
+
   it('refuses a v7 payload whose profile lost a field (the shape guard, not just the version)', () => {
     const storage = new FakeStorage()
     const store = freshStore()

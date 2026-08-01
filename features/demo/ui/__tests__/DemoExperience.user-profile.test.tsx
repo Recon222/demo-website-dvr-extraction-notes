@@ -122,6 +122,45 @@ describe('Completed By autofill (phone completion.tsx:127-134)', () => {
     expect(store.getState().locations[0].form.completedBy).toBe('')
   })
 
+  /**
+   * The two tests that PIN the dependency list (review R-1a). Every other test in this block
+   * either arrives with a name already present — so the empty-guard short-circuits whatever the
+   * deps are — or changes the profile from a different view, which forces a `view`-driven re-run
+   * that exists under any dep list. These two are the ones that redden when the deps are
+   * "fixed", one per plausible fix:
+   *
+   *   deps + `currentLocation?.form.completedBy` → the field becomes unclearable (test 1)
+   *   deps + `userProfile.name`                  → a late name fills an open screen  (test 2)
+   *
+   * Both mutations verified red here and green on the shipped list.
+   */
+  it('a CLEARED field stays cleared — adding completedBy to the deps would refill it', () => {
+    const store = createDemoStore()
+    act(() => store.getState().updateUserProfile({ name: NAME }))
+    render(<DemoExperience store={store} />)
+    setupCompletion(store)
+    expect(completedByField()).toHaveValue(NAME) // autofilled on arrival…
+
+    fireEvent.change(completedByField(), { target: { value: '' } })
+
+    // …and deleting it is a decision the effect must not overrule while the screen is open.
+    expect(completedByField()).toHaveValue('')
+    expect(store.getState().locations[0].form.completedBy).toBe('')
+  })
+
+  it('a profile name set while Completion is OPEN does not fill it', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    setupCompletion(store)
+    expect(completedByField()).toHaveValue('')
+
+    act(() => store.getState().updateUserProfile({ name: NAME }))
+
+    // The fill happens on ARRIVAL. Nothing about saving a profile reaches a screen already open.
+    expect(completedByField()).toHaveValue('')
+    expect(store.getState().locations[0].form.completedBy).toBe('')
+  })
+
   it('treats a whitespace-only name as no name', () => {
     const store = createDemoStore()
     act(() => store.getState().updateUserProfile({ name: '   ' }))
