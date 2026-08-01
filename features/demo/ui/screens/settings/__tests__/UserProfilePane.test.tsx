@@ -7,6 +7,7 @@ import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
 import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
 import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
+import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 
 /**
  * The User Profile pane + its editor (P7.2, matrix rows 85/86).
@@ -28,9 +29,9 @@ const FULL = profile({
   qualifications: 'Adobe certified; FVA member',
 })
 
-function renderPane(p: UserProfile = DEFAULT_USER_PROFILE, persisted = true) {
+function renderPane(p: UserProfile = DEFAULT_USER_PROFILE, saveState: SaveStateKind = 'saved') {
   const onSave = vi.fn()
-  render(<UserProfilePane profile={p} onSave={onSave} persisted={persisted} />)
+  render(<UserProfilePane profile={p} onSave={onSave} saveState={saveState} />)
   return { onSave }
 }
 
@@ -105,8 +106,8 @@ describe('the pane — configured', () => {
 
   it('withdraws the storage promise when the tab is not storing [R-3]', () => {
     // `persistence.ts`'s `isLive()` rule: a surface may only promise refresh survival while the
-    // handle is actually writing. Private-browsing / quota-exhausted tabs clear the snapshot.
-    renderPane(FULL, false)
+    // handle is actually writing. Private-browsing tabs never store at all.
+    renderPane(FULL, 'unavailable')
     const note = screen.getByTestId('settings-pane-stub-note')
     expect(note).not.toHaveTextContent(/kept for this browser tab/)
     expect(note).toHaveTextContent(/isn’t storing the session/)
@@ -116,12 +117,39 @@ describe('the pane — configured', () => {
     expect(note).toHaveTextContent(/On the phone it lives on the device instead/)
   })
 
-  it('makes the promise only in the storing arm — the two clauses are exclusive', () => {
-    const { unmount } = render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted />)
-    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/isn’t storing the session/)
-    unmount()
-    render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted={false} />)
-    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/kept for this browser tab/)
+  it('gives the QUOTA case its own diagnosis, not the never-stored one [FD-7]', () => {
+    // The case R-3 was filed about: the browser stored fine until it ran out of room, the
+    // snapshot was cleared, and "this browser isn't storing the session" would be a wrong
+    // description of what just happened.
+    renderPane(FULL, 'failed')
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).toHaveTextContent(/the last save to this tab failed/)
+    expect(note).toHaveTextContent(/gone if you reload/)
+    expect(note).not.toHaveTextContent(/isn’t storing the session/)
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+  })
+
+  it('does not promise, or deny, before the first write has landed [FD-7]', () => {
+    renderPane(FULL, 'pending')
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).toHaveTextContent(/hasn’t stored anything yet, but it will as you go/)
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+    expect(note).not.toHaveTextContent(/failed/)
+  })
+
+  it('says exactly one true thing per state — the four clauses are mutually exclusive', () => {
+    // The promise sentence may appear in the `saved` arm and nowhere else; every other state
+    // must say something, and never that one.
+    const seen = new Set<string>()
+    for (const kind of ['saved', 'pending', 'failed', 'unavailable'] as const) {
+      const { unmount } = render(<UserProfilePane profile={FULL} onSave={vi.fn()} saveState={kind} />)
+      const text = screen.getByTestId('settings-pane-stub-note').textContent ?? ''
+      expect(text.includes('kept for this browser tab'), kind).toBe(kind === 'saved')
+      expect(text, kind).toContain('This one is real')
+      seen.add(text)
+      unmount()
+    }
+    expect(seen.size, 'two states share a sentence').toBe(4)
   })
 })
 
