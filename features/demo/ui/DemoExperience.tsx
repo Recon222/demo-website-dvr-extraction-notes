@@ -278,6 +278,14 @@ const EXPORT_SHEET_TITLE = 'Choose Export Scope'
  *  pipeline by its real cadence instead of re-typing the number. */
 export const EXPORT_STEP_MS = 550
 /**
+ * The runs that go through the staged ZIP pipeline — everything except the two single-file
+ * artifacts, which terminate in their own handler. Derived from `ExportRun` (R-3), so a new
+ * export type is a compile error at `pdfPassFor` rather than a silent zero-PDF pipeline.
+ */
+type ZipExportRun = Extract<ExportRun, { type: 'case' | 'case-subset' | 'location' }>
+/** Dialog body for a validator throw that carried no `Error` message (R-22). */
+const UNKNOWN_VALIDATION_FAILURE = 'Validation could not be completed. Nothing was exported.'
+/**
  * The map's "Export Map" outcomes (P5.4). Unlike the two stubs above, this export is REAL —
  * the visitor ends up holding the file — so the copy is the phone's, plus whatever is true
  * about the artifact they now have.
@@ -1895,26 +1903,38 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    *
    * `null` means the entity this run names is gone — the one condition that turns an
    * authorised run back into an alert.
+   *
+   * Typed to the ZIP runs alone (R-3): the two single-file pipelines have already returned by
+   * the time this is reached, and saying so in the type is what lets the switch close with
+   * `assertNever` instead of a trailing `return []` that would run a zero-PDF pipeline for an
+   * export kind nobody taught it about.
    */
-  const pdfPassFor = (run: ExportRun): readonly string[] | null => {
+  const pdfPassFor = (run: ZipExportRun): readonly string[] | null => {
     const st = store.getState()
-    if (run.type === 'location') {
-      const loc = st.locations.find((l) => l.id === run.locationId)
-      const owner = loc ? st.cases.find((c) => c.id === loc.caseId) : undefined
-      if (!loc || !owner) return null
-      return validateLocationForPdf(loc, owner.caseNumber).valid ? [loc.locationName] : []
+    switch (run.type) {
+      case 'location': {
+        const loc = st.locations.find((l) => l.id === run.locationId)
+        const owner = loc ? st.cases.find((c) => c.id === loc.caseId) : undefined
+        if (!loc || !owner) return null
+        return validateLocationForPdf(loc, owner.caseNumber).valid ? [loc.locationName] : []
+      }
+      case 'case':
+      case 'case-subset': {
+        const owner = st.cases.find((c) => c.id === run.caseId)
+        if (!owner) return null
+        const inCase = st.locations.filter((l) => l.caseId === owner.id)
+        const scoped =
+          run.type === 'case-subset' ? inCase.filter((l) => run.locationIds.includes(l.id)) : inCase
+        return scoped
+          .filter((l) => validateLocationForPdf(l, owner.caseNumber).valid)
+          .map((l) => l.locationName)
+      }
+      // R-3: closed over the ZIP runs, not a trailing `return []`. The old residual arm turned
+      // an unhandled export type into a silent zero-PDF pipeline that still reported a ZIP; the
+      // narrowed parameter now refuses one at the call site instead.
+      default:
+        return assertNever(run)
     }
-    if (run.type === 'case' || run.type === 'case-subset') {
-      const owner = st.cases.find((c) => c.id === run.caseId)
-      if (!owner) return null
-      const inCase = st.locations.filter((l) => l.caseId === owner.id)
-      const scoped =
-        run.type === 'case-subset' ? inCase.filter((l) => run.locationIds.includes(l.id)) : inCase
-      return scoped
-        .filter((l) => validateLocationForPdf(l, owner.caseNumber).valid)
-        .map((l) => l.locationName)
-    }
-    return []
   }
 
   const exportTerminalAlert = (run: ExportRun): AlertState => {
@@ -2010,9 +2030,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           ? validateLocationSubsetForPdf(owner, inCase, run.locationIds)
           : validateLocationsForPdf(owner, inCase)
     } catch (e) {
+      // R-22: a breadcrumb first, like every other export catch in the repo — the dialog says
+      // what the visitor can act on, the console keeps what a developer needs.
+      console.warn('[demo/export] validation threw — no export was started:', e)
       // `CaseValidationError`'s own message is already operator-facing ("Selected locations not
       // found in case: …"), which is what the phone's `getUserFriendlyMessage` produces for it.
-      const failed = failValidation(exportFlowRef.current, e instanceof Error ? e.message : String(e))
+      // A non-`Error` throw has no such message, and `String({})` is "[object Object]" — a
+      // dialog body that tells the visitor nothing while looking like it tried. It gets a plain
+      // statement instead; the console line above carries the detail. Deliberately NOT one of
+      // the ported `EXPORT_ALERTS` bodies: those name a specific cause, and naming the wrong one
+      // is worse than naming none.
+      const failed = failValidation(
+        exportFlowRef.current,
+        e instanceof Error ? e.message : UNKNOWN_VALIDATION_FAILURE,
+      )
       setExportFlow(failed.state)
       raiseExportAlert(failed.alert)
       return
