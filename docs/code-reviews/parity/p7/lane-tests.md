@@ -379,3 +379,7 @@ Behaviorally meaningful coverage: **strong, and stronger than round 1** — the 
 Determinism: **unchanged** — no new clock or entropy reads; the R-1b arrival test's two-`act` split is deliberate and correct (batching them would never change `view`, and the comment says so).
 
 **Verdict: APPROVE with comments.** N-1 is one export apiece and an assertion rewrite; N-2 is a delete-or-strengthen call; N-3 is a commit-message correction. None blocks the merge.
+
+## FD-2 re-probe
+
+**N-1 FIXED** at `362fd6f` (`dbba396`): both original mutations now redden the FD-2 layer test — `MODAL_SHEET_Z` 22→40 (the sheet the editor opens from actually moves) → **1 failed / 408 passed**; `PICKER_SHEET_Z` 31→20 → **1 failed / 408 passed**; and the author's decoupling variant (`SETTINGS_SHEET_Z = MODAL_SHEET_Z` → `= 40`) → **2 failed / 29 passed**, reddening the range assertion *and* "renders on exactly that layer", exactly as reported. Both bounds are now read from the surfaces that own them, the third `22` literal in `_shared.tsx` is retired, and the added "is the layer the Settings sheet and the pickers actually paint on" test closes the remaining hole (an ordering between two constants that no longer describe the DOM). Suites re-run clean after revert; tree clean.
