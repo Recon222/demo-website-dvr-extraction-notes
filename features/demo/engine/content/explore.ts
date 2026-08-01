@@ -12,7 +12,10 @@ import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
  * `visited`. The registry may lead or lag the built screens safely: unknown visited
  * ids are ignored, and unbuilt screens simply aren't listed yet.
  *
- * `splash` is deliberately absent (unreachable until the deferred video entry).
+ * `splash` is deliberately absent — and STAYS absent now that P8.1 made it reachable. The
+ * checklist is a list of places the visitor can choose to go; boot is the gate they pass through
+ * to get anywhere at all, so a row for it would arrive pre-lit on every session and inflate the
+ * denominator without ever telling anyone anything.
  * The three media surfaces joined once all of them were built (§63g, after P4.7) — as a
  * group, because the numbering is positional and a half-listed accordion reads worse than
  * an unlisted one. `ocr` still has no entry: it is a step INSIDE Time Offset rather than a

@@ -25,18 +25,22 @@ const switchableFieldCount = SWITCHABLE_FORM_FIELDS.length
  * into the text — which is what fixes the colliding-number bug.
  */
 export const NARRATION: Record<ChapterId, ChapterNarration> = {
+  // P8.1 made this chapter reachable, which turned two lines of prototype copy into claims about
+  // what is happening on the visitor's own screen. The bullets describe the PHONE and are true of
+  // it; the first para and the tip now say whose gate this is, because a browser tab has no
+  // sensor and the demo does not let its chrome imply otherwise (parity plan §4, honesty rule).
   splash: {
     eyebrow: 'Secure entry',
     title: 'Biometric lock',
     paras: [
-      'Every session starts behind Face ID. Evidence work needs a hard gate, so the app opens to a surveillance-style scanner instead of a generic login screen.',
+      'On the phone, every session starts behind Face ID. Evidence work needs a hard gate, so the app opens to a surveillance-style scanner instead of a generic login screen.',
     ],
     bullets: [
       'Face ID / Touch ID gate before any case data loads',
       'The same biometric check guards PDF export later in the flow',
       'Animated scanner HUD — corner brackets, sweep line, status readout',
     ],
-    tip: 'Tap the scanner to authenticate.',
+    tip: 'Tap the scanner to run the simulated scan — nothing is authenticated here.',
   },
   dashboard: {
     eyebrow: 'Command center',
