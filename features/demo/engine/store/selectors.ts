@@ -131,12 +131,12 @@ export function selectLocationsForCase(s: DemoState, caseId: string): DemoLocati
 
 /**
  * The wizard screens currently in the flow — the visible LINEAR steps, resolved through the
- * active profile and the visitor's overrides (P7.3). Every step id here is a `WizardScreenId`
- * because `LINEAR_FORM_STEPS` is `DRAWER_DEFS`; the narrowing is asserted rather than assumed
- * so a future additive step leaking into the linear list is a test failure, not a bad route.
+ * active profile and the visitor's overrides (P7.3). No cast: `LINEAR_FORM_STEPS` is built from
+ * `DRAWER_DEFS` and typed `LinearFormStepDef`, so the ids ARE `WizardScreenId` and an additive
+ * tool leaking into the linear list is a compile failure rather than a bad route at runtime.
  */
 export function selectVisibleWizardScreens(s: DemoState): WizardScreenId[] {
-  return getVisibleFormSteps(s).map((step) => step.id as WizardScreenId)
+  return getVisibleFormSteps(s).map((step) => step.id)
 }
 
 export function selectDrawerItems(s: DemoState): DrawerDef[] {

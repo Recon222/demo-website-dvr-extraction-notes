@@ -42,8 +42,13 @@ describe('form-customization step registry', () => {
   })
 
   it('classifies every additive tool as a tool and every linear step as a step', () => {
-    expect(LINEAR_FORM_STEPS.every((s) => s.additive !== true)).toBe(true)
+    // The linear half is now a COMPILE guarantee, not a runtime one: `LinearFormStepDef` pins
+    // `additive?: false`, so `s.additive !== true` no longer typechecks as a meaningful
+    // comparison (R-22). What is left to assert at runtime is the value, and the tools' side.
+    expect(LINEAR_FORM_STEPS.map((s) => s.additive)).toEqual(LINEAR_FORM_STEPS.map(() => undefined))
     expect(ADDITIVE_FORM_STEPS.every((s) => s.additive === true)).toBe(true)
+    // …and the linear ids ARE the drawer's, which is what the narrowing rests on.
+    expect(LINEAR_FORM_STEPS.map((s) => s.id)).toEqual([...WIZARD_SCREENS])
   })
 
   it('covers every launchable except ocr (Decision OD-1) — exhaustively', () => {

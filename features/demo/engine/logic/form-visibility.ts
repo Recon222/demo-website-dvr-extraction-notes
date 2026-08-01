@@ -1,8 +1,8 @@
 import type {
   ChapterId,
   FormFieldId,
-  FormStepDef,
   FormStepId,
+  LinearFormStepDef,
   FormVisibility,
   ProfileDefaults,
   WizardScreenId,
@@ -80,8 +80,9 @@ export function stepHasVisibleField(id: FormStepId, v: FormVisibility): boolean 
   return FORM_FIELDS.some((f) => f.screen === id && resolveFieldVisible(f.id, v))
 }
 
-/** The ordered LINEAR steps currently in the flow (the two drawer tools excluded). */
-export function getVisibleFormSteps(v: FormVisibility): FormStepDef[] {
+/** The ordered LINEAR steps currently in the flow (the two drawer tools excluded). Their ids are
+ *  `WizardScreenId` by construction, so callers route on them without a cast (R-22). */
+export function getVisibleFormSteps(v: FormVisibility): LinearFormStepDef[] {
   return LINEAR_FORM_STEPS.filter((s) => resolveStepVisible(s.id, v))
 }
 

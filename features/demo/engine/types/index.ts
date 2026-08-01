@@ -463,6 +463,17 @@ export interface FormStepDef {
 }
 
 /**
+ * A step in the LINEAR flow — its id is narrowed to `WizardScreenId`, which is what makes
+ * `selectVisibleWizardScreens` a route-safe list without a cast (review R-22). The registry
+ * builds these from `DRAWER_DEFS`, so the narrowing is proved at construction rather than
+ * asserted afterwards; an additive tool cannot be typed into the linear list at all.
+ */
+export interface LinearFormStepDef extends FormStepDef {
+  readonly id: WizardScreenId
+  readonly additive?: false
+}
+
+/**
  * Canonical id for every user-facing wizard field, VERBATIM from the phone's `FieldId` union
  * (`src/features/form-customization/types/index.ts:44-112`) so the two grids are diffable
  * id-for-id. The prefix is the phone's screen name, which is NOT always the demo's

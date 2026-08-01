@@ -4,6 +4,7 @@ import type {
   FormStepClassification,
   FormStepDef,
   FormStepId,
+  LinearFormStepDef,
 } from '@/features/demo/engine/types'
 import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
@@ -64,8 +65,9 @@ const ADDITIVE_STEP_LABELS: Record<(typeof ADDITIVE_FORM_STEP_IDS)[number], stri
   audioRecording: 'Record Audio',
 }
 
-/** The 10 linear wizard steps, in flow order. */
-export const LINEAR_FORM_STEPS: readonly FormStepDef[] = DRAWER_DEFS.map((d, i) => ({
+/** The 10 linear wizard steps, in flow order. Typed `LinearFormStepDef` so their ids carry the
+ *  `WizardScreenId` narrowing all the way to the router (R-22). */
+export const LINEAR_FORM_STEPS: readonly LinearFormStepDef[] = DRAWER_DEFS.map((d, i) => ({
   id: d.id,
   label: d.label,
   order: i + 1,
