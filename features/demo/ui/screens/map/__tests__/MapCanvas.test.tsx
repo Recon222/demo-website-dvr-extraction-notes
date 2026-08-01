@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, toContainerPoint, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
+import { LONG_PRESS_MOVE_TOLERANCE_PX, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLongPress'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 
 // jsdom has no WebGL — mapbox-gl is always mocked. Map + Marker are constructable (regular fns).
@@ -364,20 +365,27 @@ describe('MapCanvas — long press', () => {
     vi.useRealTimers()
   })
 
-  it('converts client coordinates to CONTAINER pixels before unprojecting', async () => {
+  it('converts client coordinates to CONTAINER pixels before unprojecting, AT SCALE', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const onLongPress = vi.fn()
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]') as HTMLElement
-    // jsdom hands out an all-zero rect, which makes the offset conversion a no-op and the whole
-    // conversion untestable — the reason this had no signal at all. Give it a real, OFFSET box.
-    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 378, height: 786, right: 418, bottom: 876, x: 40, y: 90, toJSON: () => ({}) })
+    // Two things this stub has to do at once.
+    //
+    // 1. jsdom hands out an all-zero rect, which makes the offset subtraction a no-op — that is
+    //    why the conversion had no signal at all before §79a.
+    // 2. The scale must be NON-IDENTITY. With `width === offsetWidth` the pre-§79a raw
+    //    subtraction and the corrected formula agree, so the call site could be reverted to the
+    //    old expression with this test still green (verified). Painted 189 px against a laid-out
+    //    378 px is `PhoneFrame`'s `transform: scale(0.5)` — the real production condition.
+    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 189, height: 393, right: 229, bottom: 483, x: 40, y: 90, toJSON: () => ({}) })
     Object.defineProperty(canvas, 'offsetWidth', { value: 378, configurable: true })
 
-    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true })
+    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true, button: 0 })
     vi.advanceTimersByTime(500)
-    expect(mapInstance.unproject).toHaveBeenCalledWith([100, 100])
+    // (140-40)*2, (190-90)*2 — the raw subtraction would give [100, 100].
+    expect(mapInstance.unproject).toHaveBeenCalledWith([200, 200])
     vi.useRealTimers()
   })
 
@@ -421,6 +429,43 @@ describe('MapCanvas — long press', () => {
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()
     vi.useRealTimers()
+  })
+
+  it.each([
+    ['right', 2],
+    ['middle', 1],
+  ])('ignores a stationary %s-button hold — isPrimary is true for every mouse button', async (_label, button) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    // A secondary BUTTON, not a secondary contact: `isPrimary` stays true, so this reached the
+    // timer before the `button` guard. mapbox suppresses the context menu on its canvas, so the
+    // visitor would have got no menu AND a silently filtered map.
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true, button })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('still fires for the primary button', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true, button: 0 })
+    vi.advanceTimersByTime(500)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('holds the same beat as every other long-press surface in the demo', () => {
+    // Re-declaring these locally is the drift `useLongPress.ts:74-78` documents; the map now
+    // imports them. If this ever fails, the map grew its own copy again.
+    expect(LONG_PRESS_MS).toBe(500)
+    expect(LONG_PRESS_MOVE_TOLERANCE_PX).toBe(10)
   })
 
   it('ignores a hold on a marker — holding a pin must not ACTIVATE proximity', async () => {
@@ -558,7 +603,9 @@ describe('MapCanvas — loading + error states', () => {
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 401 }))).toBe(true)
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 403 }))).toBe(true)
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 429 }))).toBe(true)
-    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(true)
+    // NOT WebGL context loss (MR-4): mapbox fires `webglcontextlost` as its own event and it
+    // never reaches `'error'`, so classifying it here would be a promise this arm cannot keep.
+    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(false)
     // Ignorable: a missed tile, and anything unrecognisable.
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 404 }))).toBe(false)
     expect(isTerminalMapError(new Error('Failed to fetch tile'))).toBe(false)

@@ -3960,8 +3960,17 @@ disclosures do not):**
   analysis is not re-derived a third time.
 
 What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather
-than a gesture primitive. **Trigger (unchanged):** the arrival of a pointer-gesture helper in
-`ui/primitives/`.
+than a gesture primitive. ~~**Trigger (unchanged):** the arrival of a pointer-gesture helper in
+`ui/primitives/`.~~
+
+**TRIGGER CORRECTED (fix-delta, web NEW-2):** that sentence deferred to an arrival that had
+already happened. `ui/primitives/useLongPress.ts` predates P6 and has FOUR callers
+(`CasesScreen`, `RowActions`, `MediaLibrarySheet`, `DashboardScreen`); the map is its fifth
+hand-rolled sibling, not a pioneer waiting for a primitive. The micro-round took the cheap half —
+the map now imports `LONG_PRESS_MS` and `LONG_PRESS_MOVE_TOLERANCE_PX` from the primitive, and
+carries its `e.button !== 0` guard — so the FEEL and the button rules are shared even though the
+mechanism is not. **Real trigger:** the convergence work in §79i, i.e. the next touch to this
+seam.
 
 ---
 
@@ -4000,6 +4009,13 @@ is the second consumer arriving imminently. Doing it once, with both consumers v
 cheaper and safer than doing it now and again. **Trigger:** the P5.4 export-map reconciliation,
 or any third `MapData` consumer — whichever comes first.
 
+**Caveat (fix-delta):** `narrowProjection` covers the two NARROWING sites, not all three
+construction sites. `toMapData` still builds `pins`/`incident`/`items` independently from the
+location list — correctly, since it is the origin rather than a narrowing of something — so the
+invariant is enforced at 2 of 3. A change to the pin shape still has to be made twice. That is
+the residue the shape change above removes for good; until then, treat `toMapData` as the site
+this ledger entry is really about.
+
 ### 79c. DEFERRED (R-16, larger half) — `LocationDetailCardProps` is still flat over a union `item`
 
 The invalid state the finding named is gone: `camerasShown`/`onToggleCameras` are one optional
@@ -4015,7 +4031,14 @@ churn is worth doing once against both. **Trigger:** P5.4's detail-card caller l
 `locationCountLabel` now takes `{ filteredCount, locationCount }` (the finding's stated minimum),
 so the two swappable positional numbers are gone. The `MapProjection` single-result shape that
 would make the stages distinct types is the owner-judgement half the finding itself routed to the
-P5.4 seam. **Trigger:** as 79b.
+P5.4 seam. ~~**Trigger:** as 79b.~~
+
+**TRIGGER AMENDED (fix-delta):** "as 79b" under-fired. The pressure this entry describes — more
+readers of more same-typed stages, each correct only by identifier choice — grows whenever
+`MapScreen`'s projection block gains a stage-derived count or reader, which happened TWICE in the
+fix round alone (`totalCount` off `mapData`, `emptyReason` off `display`/`filtered`), and MR-3
+then had to reach across two of them to get one clause right. **Trigger:** the P5.4
+reconciliation OR any new stage-derived count/reader added to that block — whichever comes first.
 
 ### 79e. DEFERRED (R-7b remainder) — map pins have no accessible name to plumb
 
@@ -4043,3 +4066,59 @@ exempts it, and mapbox's own animations are already gated) and `W-9` (glass-pill
 bright satellite tiles — phone-verbatim tokens, pre-existing on the phone and the sheet, a design
 decision rather than a review call). Both stand as recorded; neither is a residual this feature
 owes work on.
+
+
+### 79h. LEDGERED (from MR-4) — no `webglcontextlost` subscription, and a third failure discriminant
+
+MR-4 deleted a dead `context lost` alternation from `isTerminalMapError`: verified in the
+installed mapbox-gl 3.25, context loss is raised as its own event
+(`this.fire(new Event('webglcontextlost'))`) and never travels through `'error'`, so the arm
+could not fire for its stated cause while the comment promised it would.
+
+What is NOT built: the real handling. `map.on('webglcontextlost')` → `console.error` + the
+overlay; `map.on('webglcontextrestored')` → clear it. It needs a THIRD failure value beside
+`'engine' | 'style'`, because a post-load death currently renders "Failed to load the map." for a
+map that demonstrably did load — the copy would be a second small lie.
+
+Not built now because it is a new failure path with new copy and new state, which is a fix round's
+worst shape. **Trigger:** the next touch to `MapCanvas`'s failure handling, or any report of a
+blank map that Retry does not fix.
+
+### 79i. LEDGERED (from MR-1) — the long-press convergence, and the durable §79a retirement
+
+Two entries that resolve together, both about the same seam.
+
+1. **Converge on `useLongPress`.** The map is its fifth hand-rolled long press. The primitive
+   needs two additions to absorb this caller — an extra bail selector (the map bails on
+   `[data-marker-id], .mapboxgl-ctrl`, the primitive bails on `NESTED_CONTROL_SELECTOR`) and an
+   originating-coordinates callback (the map needs the press point; the tray callers do not).
+   MR-1 shared the constants and the button rule; the mechanism is still duplicated. Retires
+   §72e's shape residual for real.
+2. **Retire `toContainerPoint` entirely.** Build the hold on `map.on('mousedown' / 'touchstart')`
+   instead of container pointer events: mapbox's own event objects carry `e.point` (already
+   scale-corrected by the very `getScaledPoint` §79a mirrors) and `e.lngLat` (already
+   unprojected). That deletes the conversion, its version-coupled citation, and its
+   padding/border-free precondition in one move.
+
+**Trigger:** either any mapbox minor/major bump (which is when the mirrored formula is most
+likely to drift), or the next feature touch to the long-press seam — whichever comes first.
+
+### 79j. LEDGERED (from the fix-delta) — map type-polish batch
+
+Explicitly routed here so it stops falling between commits and ledger entries:
+R-27d's `export type MarkerKind` (`data-marker-kind` is still written three ways — `d.kind`, the
+literal `'cluster'`, the literal `'camera'` — and both test helpers still take `kind: string`);
+the ~7 remaining positional `[number, number]` sites that should be `LngLat` (probe-verified zero
+caller breakage); a `ScreenPoint` labelled tuple for the container-pixel pair; and the three
+`Object.freeze(...) as X` assertions that a `satisfies` or a typed helper would avoid.
+
+**Trigger:** the next refactor commit in `features/demo/ui/screens/map/` — it is a single sweep,
+not a reason to open the territory on its own.
+
+### 79k. RECORDED (fix-delta) — commit `213d5dd`'s stated mutation no longer reproduces
+
+The R-9 commit body says reverting the stable-empty defaults reddens its settled-total pin. At the
+merged head it no longer does — and that is NOT a weak pin. R-4's structural split (which landed
+after R-9) removed the pin/camera coupling the mutation needed; the pin still reddens when that
+coupling is restored. Recorded so nobody re-derives it from the commit message and concludes the
+test is hollow.

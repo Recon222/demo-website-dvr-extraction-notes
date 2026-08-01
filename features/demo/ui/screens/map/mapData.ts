@@ -34,8 +34,9 @@ export interface MapIncident {
  * `CameraEntry.id` is only unique inside one location's array, and these markers are keyed
  * globally on the map.
  *
- * `resolution` / `accuracyM` are emitted truthy-only, exactly as the phone does, so the callout
- * can rely on key presence rather than re-testing for the empty string.
+ * `resolution` / `accuracyM` are emitted truthy-only, exactly as the phone does. That is a
+ * PRODUCER discipline, not a type guarantee — `?: string` still admits `''` — so consumers
+ * truthiness-guard them anyway and this doc no longer claims otherwise (review L8b).
  */
 export interface MapCameraMarker {
   id: string
@@ -43,13 +44,26 @@ export interface MapCameraMarker {
    * The owning location. Written by `toCameraMarkers` and read by nothing in the demo today —
    * the demo scopes cameras by nesting them inside their `LocationSheetItem`, so it never has to
    * ask a marker who owns it. Kept, deliberately (review R-27g): it is half of the composite
-   * `id` this feature exists to keep globally unique, the phone's own camera feature carries it
-   * as the gate for `visibleCameraLocationId` (`CaseMapView.tsx:397-400`), and dropping it would
-   * make the composite id a string nobody could decompose.
+   * `id` this feature exists to keep globally unique, and the phone's own camera feature carries
+   * it as the gate for `visibleCameraLocationId` (`CaseMapView.tsx:397-400`) — the forward-parity
+   * case for the second consumer.
+   *
+   * (A third justification once stood here — "dropping it would make the composite id a string
+   * nobody could decompose" — and it was false: `id` is `${locationId}:${cameraId}`, so the
+   * value is recoverable with a `slice`. Deleted rather than left to mislead; the two reasons
+   * above carry the decision on their own. Review L8a.)
    */
   locationId: string
   cameraName: string
-  /** Emitted only when non-empty, so the callout can test presence rather than emptiness. */
+  /**
+   * Emitted only when non-empty by `toCameraMarkers`.
+   *
+   * Deliberately NOT documented as "so the consumer can test presence" (review L8b): `?: string`
+   * still admits `''`, nothing enforces the producer's discipline at the type level, and
+   * `markerElements` truthiness-guards it anyway — correctly. The claim was an unenforced
+   * invariant asserted in two places; the guard is the thing that actually holds. Same for
+   * `accuracyM`, guarded at construction and re-guarded at read.
+   */
   resolution?: string
   lng: number
   lat: number

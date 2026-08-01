@@ -209,12 +209,18 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
    * Which stage emptied the sheet (review R-6). Named in inner-to-outer order, because the
    * honest answer is the stage that actually did the emptying: if the status/text filter already
    * left nothing, proximity had nothing to remove.
+   *
+   * `totalCount > 0` is the precondition for blaming a filter AT ALL (MR-3). A case with nothing
+   * plottable is empty before any filter runs, so typing into the search box flipped honest
+   * no-data copy — the sentence that names the real remedy, "add an address to a location" — to
+   * "No locations match your filters", which offers a Clear button that cannot bring back rows
+   * that never existed. Same honesty class R-6 just closed, one stage further out.
    */
   const activeFilterCount = countActiveFilters(filters)
   const emptyReason: SheetEmptyReason =
     display.items.length > 0
       ? 'no-data'
-      : activeFilterCount > 0 && filtered.items.length === 0
+      : totalCount > 0 && activeFilterCount > 0 && filtered.items.length === 0
         ? 'filters'
         : proximityResult
           ? 'proximity'
