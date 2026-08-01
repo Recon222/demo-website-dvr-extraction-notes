@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { MapCameraMarker, MapData, SheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { mapDataFrom, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import {
   RING_STEPS,
   computeProximity,
@@ -10,58 +11,24 @@ import { DEFAULT_PROXIMITY_RADIUS, PROXIMITY_PRESETS } from '@/features/demo/ui/
 
 const CENTER: [number, number] = [-79.6, 43.6]
 
-const loc = (id: string, coord: [number, number], cameras: MapCameraMarker[] = []): SheetItem => ({
-  kind: 'location',
-  id,
-  locationName: `Loc ${id}`,
-  businessName: '',
-  address: '',
-  status: 'working',
-  coord,
-  streetAddress: '',
-  city: '',
-  requesterName: '',
-  requesterBadge: '',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: '',
-  locationContact: '',
-  locationPhone: '',
-  coordinateSource: 'gps',
-  cameras,
-})
+const loc = (id: string, coord: [number, number], cameras: MapCameraMarker[] = []): SheetItem =>
+  sheetLocation({ id, locationName: `Loc ${id}`, status: 'working', coord, coordinateSource: 'gps', cameras })
 
-const incident = (coord: [number, number]): SheetItem => ({
-  kind: 'incident',
-  id: 'c1',
-  caseNumber: 'PR25-1',
-  businessName: '',
-  streetAddress: '',
-  city: '',
-  address: '',
-  coord,
-})
+const incident = (coord: [number, number]): SheetItem => sheetIncident({ coord })
 
 /** ~0.9 km north of CENTER (1 deg latitude ≈ 111 km). */
 const NEAR: [number, number] = [-79.6, 43.608]
 /** ~3.3 km north of CENTER. */
 const FAR: [number, number] = [-79.6, 43.63]
 
-function data(items: SheetItem[]): MapData {
-  const locations = items.filter((i) => i.kind === 'location')
-  const inc = items.find((i) => i.kind === 'incident')
-  return {
-    pins: locations.map((l) => ({ id: l.id, lng: l.coord[0], lat: l.coord[1], status: l.status })),
-    incident: inc ? { id: inc.id, caseNumber: inc.caseNumber, lng: inc.coord[0], lat: inc.coord[1] } : null,
-    items,
-    statusCounts: { started: 0, working: locations.length, complete: 0 },
-  }
-}
+const data = (items: SheetItem[]): MapData => mapDataFrom(items)
 
 describe('mapProximity — presets', () => {
   it('carries the phone presets and default verbatim', () => {
     expect(PROXIMITY_PRESETS).toEqual([0.5, 1, 2, 5])
     expect(DEFAULT_PROXIMITY_RADIUS).toBe(1)
+    // Literal, not self-referential (review R-22). Phone `proximity-service.ts:82`.
+    expect(RING_STEPS).toBe(64)
   })
 })
 

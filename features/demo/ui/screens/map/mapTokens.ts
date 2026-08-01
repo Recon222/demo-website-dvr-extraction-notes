@@ -1,6 +1,25 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 /**
+ * A geographic point in GeoJSON order. Labelled because the map layer is [lng, lat] throughout
+ * while `formatCoordinate` next door takes (lat, lng) — the one transposition this feature can
+ * make silently.
+ */
+export type LngLat = readonly [lng: number, lat: number]
+
+/**
+ * First-paint camera centre, and the proximity toggle's last-resort anchor.
+ *
+ * One literal, read by both `MapCanvas` and `MapScreen` (review R-18b): they previously carried
+ * a copy each, with a comment on the second asserting an identity nothing enforced.
+ */
+/** The sheet-header / projection status tally. One type, four former copies (review R-27h). */
+export type StatusCounts = Record<LocationMapStatus, number>
+
+export const DEFAULT_MAP_CENTER: LngLat = Object.freeze([-79.65, 43.61]) as LngLat
+
+
+/**
  * Map pin + sheet colours, lifted verbatim from the phone's `map-view` constants so the demo reads
  * identically. Location pins are coloured by derived status; the incident is the red marker.
  */

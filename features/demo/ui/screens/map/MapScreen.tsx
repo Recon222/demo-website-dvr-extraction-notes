@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
-import { buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
+import { buildFitPoints, buildMarkers } from '@/features/demo/ui/screens/map/buildMarkers'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { MapControls } from '@/features/demo/ui/screens/map/MapControls'
 import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { CallConfirmSheet } from '@/features/demo/ui/screens/map/CallConfirmSheet'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
 import { countLocations, type MapCameraMarker, type MapData } from '@/features/demo/ui/screens/map/mapData'
+import type { SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import {
   EMPTY_MAP_FILTERS,
   applyMapFilters,
@@ -17,20 +18,31 @@ import {
   toggleStatus,
   type MapFilterState,
 } from '@/features/demo/ui/screens/map/mapFilters'
-import { DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
+import { DEFAULT_MAP_CENTER, DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
 import type { ProximityResult } from '@/features/demo/ui/screens/map/mapProximity'
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 const FLY_ZOOM = 16
 const CALL_UNAVAILABLE = "Calling isn't available in the demo."
 const EMAIL_UNAVAILABLE = "Email isn't available in the demo."
+/**
+ * Proximity analysis lives in a lazily-fetched chunk (Turf). When that fetch fails — a
+ * post-redeploy `ChunkLoadError`, an offline blip, a blocking proxy — the honest answer is to
+ * say so and leave the control OFF, never to light up "Proximity ON" over a map that is not
+ * filtering (§49a/R-9: a control must not assert what it cannot do).
+ */
+const PROXIMITY_UNAVAILABLE = "Proximity analysis couldn't load. Check your connection and try again."
+/**
+ * Said once, when the ring's centre was chosen FOR the visitor rather than taken from a row they
+ * can see (review R-18a). Reachable whenever nothing is plotted — including after a zero-match
+ * filter, since the anchor chain reads the post-filter list — and without it the ring simply
+ * appears somewhere, filtering against a point nobody picked.
+ */
+const PROXIMITY_CENTRED_ON_VIEW = 'Proximity centred on the current view — long-press the map to move it.'
 
 /** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
-const NO_CAMERAS: MapCameraMarker[] = []
+const NO_CAMERAS: readonly MapCameraMarker[] = Object.freeze([])
 
-/** Last-resort proximity centre when the case has nothing plotted and the map has no centre yet.
- *  Matches `MapCanvas`'s own default camera centre rather than inventing a coordinate. */
-const FALLBACK_CENTER: [number, number] = [-79.65, 43.61]
 
 type ProximityModule = typeof import('@/features/demo/ui/screens/map/mapProximity')
 
@@ -113,17 +125,35 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   // the demo's own chunk. `proximityModule` is state (not just a ref) so the first computed
   // result renders as soon as it resolves.
   const [proximityModule, setProximityModule] = useState<ProximityModule | null>(null)
-  const proximityLoadRef = useRef<Promise<ProximityModule> | null>(null)
+  const proximityLoadRef = useRef<Promise<ProximityModule | null> | null>(null)
   const [proximityActive, setProximityActive] = useState(false)
   const [proximityCenter, setProximityCenter] = useState<[number, number] | null>(null)
   const [proximityRadius, setProximityRadius] = useState<RadiusPreset>(DEFAULT_PROXIMITY_RADIUS)
 
-  const loadProximity = useCallback((): Promise<ProximityModule> => {
+  /**
+   * Fetch the Turf chunk once, and — on failure — leave NOTHING poisoned (review R-2).
+   *
+   * The memoised promise is the trap: a rejected promise parked in the ref makes the
+   * `if (!proximityLoadRef.current)` guard short-circuit forever, so off→on never re-attempts and
+   * the feature is dead for the session. The repo already learned this once —
+   * `ocr-recognize.ts:76-80`: "a boot that failed must not poison every later attempt with the
+   * same rejection". So the catch (a) nulls the ref, (b) reverts the toggle the caller optimistically
+   * set, (c) says so out loud in the UI and in the console.
+   */
+  const loadProximity = useCallback((): Promise<ProximityModule | null> => {
     if (!proximityLoadRef.current) {
-      proximityLoadRef.current = import('@/features/demo/ui/screens/map/mapProximity').then((mod) => {
-        setProximityModule(mod)
-        return mod
-      })
+      proximityLoadRef.current = import('@/features/demo/ui/screens/map/mapProximity')
+        .then((mod) => {
+          setProximityModule(mod)
+          return mod
+        })
+        .catch((err: unknown) => {
+          proximityLoadRef.current = null
+          console.warn('[demo/map] the proximity module failed to load — proximity stays off:', err)
+          setProximityActive(false)
+          setNotice(PROXIMITY_UNAVAILABLE)
+          return null
+        })
     }
     return proximityLoadRef.current
   }, [])
@@ -162,12 +192,33 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
 
   const display = proximityResult?.data ?? filtered
   const markers = useMemo(() => buildMarkers(display), [display])
+  // The camera frames the PRE-proximity set (review R-1a) — narrowing a radius re-plots without
+  // re-framing, which is the split the phone makes between `cameraBounds` and `displayCollection`.
+  const fitPoints = useMemo(() => buildFitPoints(filtered), [filtered])
 
   // Phone MapHost.tsx:250-258: the "of M" half is the POST-FILTER count and the "N" half is the
   // post-proximity one — so a status/text filter moves both together (badge reads "N locations")
   // and only proximity produces "N of M".
   const locationCount = useMemo(() => countLocations(filtered.items), [filtered.items])
   const filteredCount = proximityResult?.locationCount ?? locationCount
+  // Pre-filter total — gates the count pill so a case with nothing plottable shows no badge at
+  // all, while a zero-MATCH filter still gets one that says so (review R-6/R-7a).
+  const totalCount = useMemo(() => countLocations(mapData.items), [mapData.items])
+
+  /**
+   * Which stage emptied the sheet (review R-6). Named in inner-to-outer order, because the
+   * honest answer is the stage that actually did the emptying: if the status/text filter already
+   * left nothing, proximity had nothing to remove.
+   */
+  const activeFilterCount = countActiveFilters(filters)
+  const emptyReason: SheetEmptyReason =
+    display.items.length > 0
+      ? 'no-data'
+      : activeFilterCount > 0 && filtered.items.length === 0
+        ? 'filters'
+        : proximityResult
+          ? 'proximity'
+          : 'no-data'
 
   // A stale selection (case switch, or a row the filter just removed) falls back to the list.
   const selectedItem = display.items.find((i) => i.id === selectedId) ?? null
@@ -238,8 +289,12 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     }
     void loadProximity()
     if (!proximityCenter) {
-      const anchor = filtered.items[0]?.coord ?? mapRef.current?.getCenter() ?? FALLBACK_CENTER
+      const plotted = filtered.items[0]?.coord
+      const anchor = plotted ?? mapRef.current?.getCenter() ?? DEFAULT_MAP_CENTER
       setProximityCenter([anchor[0], anchor[1]])
+      // Only the derived-anchor arms are announced: an anchor taken from a row the visitor can
+      // see in the sheet explains itself.
+      if (!plotted) setNotice(PROXIMITY_CENTRED_ON_VIEW)
     }
     setProximityActive(true)
   }, [proximityActive, proximityCenter, filtered.items, loadProximity])
@@ -263,8 +318,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
       onEmail={() => setNotice(EMAIL_UNAVAILABLE)}
       onGoToLocation={(id) => onGoToLocation?.(id)}
       onEditIncident={onEditIncident}
-      camerasShown={camerasShown}
-      onToggleCameras={handleToggleCameras}
+      cameras={{ shown: camerasShown, onToggle: handleToggleCameras }}
     />
   ) : null
 
@@ -280,6 +334,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
           <MapCanvas
             ref={mapRef}
             markers={markers}
+            fitPoints={fitPoints}
             cameras={visibleCameras}
             proximityRing={proximityResult?.ring ?? null}
             onMarkerPress={selectItem}
@@ -295,13 +350,14 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onToggleStatus={handleToggleStatus}
             onSearchChange={handleSearchChange}
             onClearFilters={handleClearFilters}
-            activeFilterCount={countActiveFilters(filters)}
+            activeFilterCount={activeFilterCount}
             proximityActive={proximityActive}
             proximityRadius={proximityRadius}
             onProximityToggle={handleProximityToggle}
             onRadiusChange={setProximityRadius}
             locationCount={locationCount}
             filteredCount={filteredCount}
+            totalCount={totalCount}
           />
           <MapBottomSheet
             items={display.items}
@@ -312,6 +368,8 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             selectedId={selectedId}
             onSelect={selectItem}
             detail={detail}
+            emptyReason={emptyReason}
+            onClearFilters={handleClearFilters}
           />
           {pendingCall && (
             <CallConfirmSheet

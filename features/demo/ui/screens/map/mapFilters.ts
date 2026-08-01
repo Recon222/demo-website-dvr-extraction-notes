@@ -1,5 +1,5 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
-import { countStatuses, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { narrowProjection, type MapData, type SheetItem } from '@/features/demo/ui/screens/map/mapData'
 
 /**
  * Map filter pipeline — the demo's port of the phone's `map-data-service` filter functions
@@ -19,18 +19,46 @@ import { countStatuses, type MapData, type SheetItem } from '@/features/demo/ui/
  * `useMapFilter` with no store slice and no AsyncStorage write, so it dies with the screen.
  */
 
-/** The three filterable statuses, in the phone's pill order (`MapControls.tsx:66`). */
-export const MAP_FILTER_STATUSES: readonly LocationMapStatus[] = ['started', 'working', 'complete']
+/**
+ * The filterable statuses, in the phone's pill order (`MapControls.tsx:66`).
+ *
+ * The order is DERIVED from an exhaustive `Record` (review R-17) rather than hand-listed. A
+ * fourth `LocationMapStatus` would otherwise compile everywhere — `toggleStatus` re-derives
+ * THROUGH this registry, so the new member would be silently dropped from every toggle and its
+ * pill would be permanently un-toggleable. Both siblings in `mapTokens.ts` are already
+ * exhaustive `Record`s; this brings the third into line.
+ */
+const STATUS_PILL_ORDER = {
+  started: 0,
+  working: 1,
+  complete: 2,
+} satisfies Record<LocationMapStatus, number>
+
+export const MAP_FILTER_STATUSES: readonly LocationMapStatus[] = (
+  Object.keys(STATUS_PILL_ORDER) as LocationMapStatus[]
+).sort((a, b) => STATUS_PILL_ORDER[a] - STATUS_PILL_ORDER[b])
 
 export interface MapFilterState {
   /** Active status pills. Empty = no status filter (phone: `statuses` undefined). */
-  statuses: LocationMapStatus[]
+  readonly statuses: readonly LocationMapStatus[]
   /** Search box text. Empty = no text filter (phone: `searchText` undefined). */
-  searchText: string
+  readonly searchText: string
 }
 
-/** The unfiltered starting state (phone: both filter slots `undefined`). */
-export const EMPTY_MAP_FILTERS: MapFilterState = { statuses: [], searchText: '' }
+/**
+ * The unfiltered starting state (phone: both filter slots `undefined`).
+ *
+ * Frozen rather than a factory (review R-13): its IDENTITY is load-bearing —
+ * `setFilters(EMPTY_MAP_FILTERS)` on an already-empty state is an `Object.is` bail-out that
+ * React uses to skip the re-render, which is what makes the case-switch reset free. A factory
+ * would mint a new object and force a render on every no-op reset. Freezing keeps the identity
+ * and removes the hazard: this literal is the LIVE filter state on every mount and every case
+ * switch, so a single in-place `push` would have poisoned every later mount in the session.
+ */
+export const EMPTY_MAP_FILTERS: MapFilterState = Object.freeze({
+  statuses: Object.freeze([]) as readonly LocationMapStatus[],
+  searchText: '',
+})
 
 /**
  * Badge count for the Clear pill — one per NON-EMPTY filter, not one per selected status
@@ -45,7 +73,7 @@ export function countActiveFilters(filters: MapFilterState): number {
 
 /** Toggle one status in/out of the active set, preserving the registry order of the pills. */
 export function toggleStatus(
-  statuses: LocationMapStatus[],
+  statuses: readonly LocationMapStatus[],
   status: LocationMapStatus,
 ): LocationMapStatus[] {
   const next = statuses.includes(status)
@@ -55,7 +83,7 @@ export function toggleStatus(
 }
 
 /** Phone `filterByStatus`: non-location rows always pass; an empty set is no filter. */
-export function matchesStatusFilter(item: SheetItem, statuses: LocationMapStatus[]): boolean {
+export function matchesStatusFilter(item: SheetItem, statuses: readonly LocationMapStatus[]): boolean {
   if (statuses.length === 0) return true
   if (item.kind !== 'location') return true
   return statuses.includes(item.status)
@@ -83,12 +111,8 @@ export function applyMapFilters(data: MapData, filters: MapFilterState): MapData
   const items = data.items.filter(
     (item) => matchesStatusFilter(item, filters.statuses) && matchesSearchFilter(item, filters.searchText),
   )
-  const keptIds = new Set(items.filter((i) => i.kind === 'location').map((i) => i.id))
-
-  return {
-    pins: data.pins.filter((p) => keptIds.has(p.id)),
-    incident: data.incident,
-    items,
-    statusCounts: countStatuses(items),
-  }
+  // The incident always survives both predicates, so deriving it from the surviving rows gives
+  // the same answer as carrying it through — and cannot drift from `items` the way a carried
+  // copy could.
+  return narrowProjection(data, items)
 }

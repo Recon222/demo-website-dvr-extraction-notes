@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 import type { MapData, SheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { mapDataFrom, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import {
   EMPTY_MAP_FILTERS,
   MAP_FILTER_STATUSES,
@@ -15,48 +16,11 @@ const loc = (
   id: string,
   status: LocationMapStatus,
   over: Partial<Extract<SheetItem, { kind: 'location' }>> = {},
-): SheetItem => ({
-  kind: 'location',
-  id,
-  locationName: `Loc ${id}`,
-  businessName: '',
-  address: '',
-  status,
-  coord: [-79.6, 43.6],
-  streetAddress: '',
-  city: '',
-  requesterName: '',
-  requesterBadge: '',
-  requesterUnit: '',
-  requesterPhone: '',
-  requesterEmail: '',
-  locationContact: '',
-  locationPhone: '',
-  coordinateSource: 'geocoded',
-  cameras: [],
-  ...over,
-})
+): SheetItem => sheetLocation({ id, locationName: `Loc ${id}`, status, ...over })
 
-const incident: SheetItem = {
-  kind: 'incident',
-  id: 'c1',
-  caseNumber: 'PR25-1',
-  businessName: '',
-  streetAddress: '10 Main St',
-  city: 'Brampton',
-  address: '10 Main St, Brampton',
-  coord: [-79.5, 43.5],
-}
+const incident: SheetItem = sheetIncident({ streetAddress: '10 Main St', city: 'Brampton', address: '10 Main St, Brampton' })
 
-function data(items: SheetItem[]): MapData {
-  const locations = items.filter((i) => i.kind === 'location')
-  return {
-    pins: locations.map((l) => ({ id: l.id, lng: l.coord[0], lat: l.coord[1], status: l.status })),
-    incident: { id: 'c1', caseNumber: 'PR25-1', lng: -79.5, lat: 43.5 },
-    items,
-    statusCounts: { started: 0, working: 0, complete: 0 },
-  }
-}
+const data = (items: SheetItem[]): MapData => mapDataFrom(items)
 
 describe('mapFilters — state helpers', () => {
   it('counts one active filter per non-empty slot, not one per selected status', () => {
@@ -138,5 +102,35 @@ describe('mapFilters — applyMapFilters', () => {
     const before = JSON.stringify(d)
     applyMapFilters(d, { statuses: ['complete'], searchText: '' })
     expect(JSON.stringify(d)).toBe(before)
+  })
+})
+
+describe('mapFilters — the shared empty state is not a shared mutable', () => {
+  it('is frozen: the literal handed out on every mount and case switch cannot be pushed into', () => {
+    expect(Object.isFrozen(EMPTY_MAP_FILTERS)).toBe(true)
+    expect(Object.isFrozen(EMPTY_MAP_FILTERS.statuses)).toBe(true)
+  })
+
+  it('keeps its identity — a no-op reset must stay an Object.is bail-out, not a re-render', () => {
+    // `toggleStatus` and the reducers are spread-only, so resetting to this exact object is how
+    // the case-switch reset stays free.
+    expect(EMPTY_MAP_FILTERS).toBe(EMPTY_MAP_FILTERS)
+    expect(toggleStatus(EMPTY_MAP_FILTERS.statuses, 'started')).not.toBe(EMPTY_MAP_FILTERS.statuses)
+  })
+})
+
+describe('mapFilters — the pill registry is exhaustive by construction (review R-17)', () => {
+  it('lists every LocationMapStatus, in the phone pill order', () => {
+    // Derived from a `satisfies Record<LocationMapStatus, number>`, so a fourth status cannot be
+    // added to the union without adding it here — `toggleStatus` re-derives THROUGH this list
+    // and would otherwise drop the new member silently.
+    expect([...MAP_FILTER_STATUSES]).toEqual(['started', 'working', 'complete'])
+  })
+
+  it('round-trips every registered status through toggleStatus', () => {
+    for (const status of MAP_FILTER_STATUSES) {
+      expect(toggleStatus([], status)).toEqual([status])
+      expect(toggleStatus([status], status)).toEqual([])
+    }
   })
 })

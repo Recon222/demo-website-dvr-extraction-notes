@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MAP_LOAD_ERROR, MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
+import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, toContainerPoint, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
@@ -56,6 +56,28 @@ vi.mock('mapbox-gl', () => ({ default: { Map: MapMock, Marker: MarkerMock, acces
 /** Fire a registered map event the way mapbox would. */
 const emit = (evt: string, payload?: unknown) => (handlers.get(evt) ?? []).forEach((cb) => cb(payload))
 
+/**
+ * The DEFAULT `on`: records every handler and fires `'load'` synchronously, i.e. a map that
+ * boots. Reinstalled in `beforeEach` (review R-8) — `mockClear()` wipes CALLS but keeps any
+ * `mockImplementation` a previous test installed, so a never-loads override used by one error
+ * test silently leaked into every test declared after it, disabling `ready` for all of them.
+ * That leak is what made the transient-error assertion vacuous. `mockReset()` is not a
+ * substitute: it would strip this default too.
+ */
+const defaultOn = (evt: string, cb: (payload?: unknown) => void) => {
+  const list = handlers.get(evt) ?? []
+  list.push(cb)
+  handlers.set(evt, list)
+  if (evt === 'load') cb()
+}
+
+/** A map that never emits `'load'` — a style/token failure. Opt-in, per test. */
+const neverLoads = (evt: string, cb: (payload?: unknown) => void) => {
+  const list = handlers.get(evt) ?? []
+  list.push(cb)
+  handlers.set(evt, list)
+}
+
 beforeEach(() => {
   MapMock.mockClear()
   MarkerMock.mockClear()
@@ -64,9 +86,14 @@ beforeEach(() => {
   sources.clear()
   layers.clear()
   Object.values(mapInstance).forEach((fn) => fn.mockClear?.())
+  mapInstance.on.mockImplementation(defaultOn)
+  mapInstance.getZoom.mockReturnValue(10)
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
 
 const loc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'location', color: '#00BFFF' })
 const inc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'incident', color: '#e53935' })
@@ -128,6 +155,20 @@ describe('MapCanvas — markers + fit', () => {
     expect(mapInstance.setZoom).toHaveBeenCalled()
   })
 
+  it('plots each pin exactly ONCE for a settled mount — no churn from its own state commits', async () => {
+    // The stable-empty-default contract (`NO_MARKERS`/`NO_CAMERAS`). `cameras` is deliberately
+    // OMITTED: a `= []` default parameter mints a fresh array on every render, which makes the
+    // render callback unstable and re-plots every marker on each of this component's own commits
+    // (ready → revealed → cover-unmount). Counting live markers cannot see that — the churn
+    // removes and recreates, so the live total is right while the work is doubled. Assert the
+    // SETTLED TOTALS instead: constructions and removals.
+    render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalledTimes(2))
+    expect(MarkerMock).toHaveBeenCalledTimes(2)
+    expect(markerInstances.filter((m) => m.remove.mock.calls.length > 0)).toHaveLength(0)
+  })
+
   it('removes its markers on unmount', async () => {
     const { unmount } = render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} />)
     await waitFor(() => expect(MarkerMock).toHaveBeenCalledTimes(1))
@@ -179,6 +220,22 @@ describe('MapCanvas — clustering', () => {
   })
 })
 
+describe('MapCanvas — cluster keyboard access (review R-7b)', () => {
+  it('expands on Enter and on Space, not on other keys', async () => {
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    const bubble = elFor('cluster')[0]._el
+
+    fireEvent.keyDown(bubble, { key: 'Tab' })
+    expect(mapInstance.flyTo).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(bubble, { key: 'Enter' })
+    await waitFor(() => expect(mapInstance.flyTo).toHaveBeenCalledTimes(1))
+    fireEvent.keyDown(bubble, { key: ' ' })
+    await waitFor(() => expect(mapInstance.flyTo).toHaveBeenCalledTimes(2))
+  })
+})
+
 describe('MapCanvas — camera markers', () => {
   const camera: MapCameraMarker = { id: 'l1:cam-1', locationId: 'l1', cameraName: 'Front entry', lng: -79.62, lat: 43.62, resolution: '1080p' }
 
@@ -186,6 +243,34 @@ describe('MapCanvas — camera markers', () => {
     render(<MapCanvas markers={tightPins} cameras={[camera]} />)
     await waitFor(() => expect(elFor('camera')).toHaveLength(1))
     expect(elFor('cluster')).toHaveLength(1)
+  })
+
+  it('never re-fits when a fresh markers array carries the SAME points (a search keystroke)', async () => {
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    // A filter keystroke mints a new array with byte-identical survivors.
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalled())
+    expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-fits when the point VALUES actually change', async () => {
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -78.0, 44.5)]} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(2))
+  })
+
+  it('frames `fitPoints` and ignores the plotted markers when both are supplied', async () => {
+    // The proximity case: markers narrow to one survivor, fitPoints keeps the pre-proximity pair.
+    const fitPoints = [[-79.6, 43.6], [-79.9, 43.9]] as const
+    const { rerender } = render(<MapCanvas markers={[loc('a', -79.6, 43.6), loc('b', -79.9, 43.9)]} fitPoints={fitPoints} />)
+    await waitFor(() => expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1))
+    rerender(<MapCanvas markers={[loc('a', -79.6, 43.6)]} fitPoints={fitPoints} />)
+    await waitFor(() => expect(MarkerMock).toHaveBeenCalled())
+    // No re-fit, and specifically no single-point teleport.
+    expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+    expect(mapInstance.setZoom).not.toHaveBeenCalled()
   })
 
   it('never re-fits the camera when only the camera markers change', async () => {
@@ -197,6 +282,27 @@ describe('MapCanvas — camera markers', () => {
     rerender(<MapCanvas markers={pins} cameras={[camera]} />)
     await waitFor(() => expect(elFor('camera')).toHaveLength(1))
     expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1)
+  })
+
+  it('an open callout SURVIVES a map move — cameras are not part of the moveend re-plot', async () => {
+    render(<MapCanvas markers={tightPins} cameras={[camera]} />)
+    await waitFor(() => expect(elFor('camera')).toHaveLength(1))
+    const before = elFor('camera')[0]._el
+    fireEvent.click(before.querySelector('[data-camera-button]')!)
+    expect(before.querySelector<HTMLElement>('[data-camera-callout]')!.style.display).toBe('block')
+
+    // A pan (or a settling flyTo) re-clusters the pins…
+    mapInstance.getZoom.mockReturnValue(16)
+    emit('moveend')
+    await waitFor(() => expect(elFor('location')).toHaveLength(10))
+    mapInstance.getZoom.mockReturnValue(10)
+
+    // …and leaves the camera marker — and its open bubble — exactly as they were.
+    const after = elFor('camera')
+    expect(after).toHaveLength(1)
+    expect(after[0]._el).toBe(before)
+    expect(before.querySelector<HTMLElement>('[data-camera-callout]')!.style.display).toBe('block')
+    expect(before.querySelector('[data-camera-button]')!.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('a camera tap toggles its callout without selecting', async () => {
@@ -252,10 +358,43 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     vi.advanceTimersByTime(500)
     expect(onLongPress).toHaveBeenCalledWith(-79.7, 43.7)
     vi.useRealTimers()
+  })
+
+  it('converts client coordinates to CONTAINER pixels before unprojecting', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]') as HTMLElement
+    // jsdom hands out an all-zero rect, which makes the offset conversion a no-op and the whole
+    // conversion untestable — the reason this had no signal at all. Give it a real, OFFSET box.
+    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 378, height: 786, right: 418, bottom: 876, x: 40, y: 90, toJSON: () => ({}) })
+    Object.defineProperty(canvas, 'offsetWidth', { value: 378, configurable: true })
+
+    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true })
+    vi.advanceTimersByTime(500)
+    expect(mapInstance.unproject).toHaveBeenCalledWith([100, 100])
+    vi.useRealTimers()
+  })
+
+  it('divides out the CSS scale — PhoneFrame renders this screen inside transform: scale()', () => {
+    // The scaled case: the device is laid out at 378 px but painted at 189 px (scale 0.5).
+    // `getBoundingClientRect` reports the PAINTED box; `unproject` wants the LAID-OUT one.
+    const scaled = {
+      getBoundingClientRect: () => ({ left: 40, top: 90, width: 189 }),
+      offsetWidth: 378,
+    }
+    expect(toContainerPoint(scaled, 140, 190)).toEqual([200, 200])
+    // Unscaled: identity.
+    const unscaled = { getBoundingClientRect: () => ({ left: 40, top: 90, width: 378 }), offsetWidth: 378 }
+    expect(toContainerPoint(unscaled, 140, 190)).toEqual([100, 100])
+    // Degenerate (jsdom's all-zero rect, or a detached node): never divide by zero.
+    const zero = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 0 }), offsetWidth: 0 }
+    expect(toContainerPoint(zero, 140, 190)).toEqual([140, 190])
   })
 
   it('cancels on release before the threshold', async () => {
@@ -264,11 +403,86 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     vi.advanceTimersByTime(200)
     fireEvent.pointerUp(canvas, { clientX: 100, clientY: 120 })
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('ignores a secondary contact — only the primary pointer may arm the timer', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: false })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('ignores a hold on a marker — holding a pin must not ACTIVATE proximity', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(elFor('location')).toHaveLength(1))
+    const canvas = container.querySelector('[data-map-canvas]')!
+    const pin = elFor('location')[0]._el
+    // Markers live inside the canvas container in production (`Marker.addTo` →
+    // `map.getCanvasContainer()`), so their pointerdown reaches this handler by bubbling.
+    canvas.appendChild(pin)
+    fireEvent.pointerDown(pin, { clientX: 100, clientY: 120, isPrimary: true })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it("ignores a hold on mapbox's own chrome (attribution / logo)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')! as HTMLElement
+    const ctrl = document.createElement('a')
+    ctrl.className = 'mapboxgl-ctrl mapboxgl-ctrl-attrib-inner'
+    ctrl.textContent = 'Improve this map'
+    canvas.appendChild(ctrl)
+    fireEvent.pointerDown(ctrl, { clientX: 100, clientY: 120, isPrimary: true })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('does not fire one tick BEFORE the threshold, and does at it (review R-21)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
+    // Lower bound: shortening the threshold (e.g. to 250 ms, which starts firing rings during a
+    // tap-and-hold-to-drag) has to be caught, not just lengthening it.
+    vi.advanceTimersByTime(499)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('tolerates jitter INSIDE the slop — a finger tremor is still a long press (review R-21)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
+    // 8 px < the 10 px slop. At slop 0 this test fails, which is the point: touch long-press
+    // would die of ordinary finger jitter.
+    fireEvent.pointerMove(canvas, { clientX: 108, clientY: 126 })
+    vi.advanceTimersByTime(500)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
     vi.useRealTimers()
   })
 
@@ -278,7 +492,7 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     fireEvent.pointerMove(canvas, { clientX: 160, clientY: 120 })
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()
@@ -295,12 +509,7 @@ describe('MapCanvas — loading + error states', () => {
 
   it('shows the retry overlay when mapbox fails BEFORE the first load', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    // A style/token failure: the map never emits 'load'.
-    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
-      const list = handlers.get(evt) ?? []
-      list.push(cb)
-      handlers.set(evt, list)
-    })
+    mapInstance.on.mockImplementation(neverLoads)
     render(<MapCanvas markers={[]} />)
     await waitFor(() => expect(handlers.get('error')).toBeTruthy())
     emit('error', { error: new Error('style load failed') })
@@ -312,28 +521,140 @@ describe('MapCanvas — loading + error states', () => {
   it('does NOT cover a working map when a transient tile error arrives after load', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     render(<MapCanvas markers={[]} />)
-    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    // The map really did load — without this the component takes the PRE-load branch and the
+    // negative assertion below passes for the wrong reason (review R-8).
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
     emit('error', { error: new Error('tile 404') })
+    // POSITIVE assertion on the branch actually taken — a negative `not.toBeInTheDocument()` is
+    // satisfied by its first synchronous check no matter which way the guard went.
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('[demo/map] mapbox error ignored after load:', expect.anything()),
+    )
+    expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument()
+    warn.mockRestore()
+  })
+
+  it.each([401, 403, 429])('escalates a terminal HTTP %i after load to the overlay', async (status) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    emit('error', { error: Object.assign(new Error('AJAXError'), { status }) })
+    expect(await screen.findByTestId('map-error-overlay')).toHaveTextContent(MAP_LOAD_ERROR)
+    expect(screen.getByTestId('map-retry-button')).toBeInTheDocument()
+    expect(error).toHaveBeenCalledWith('[demo/map] mapbox reported a terminal error after load:', expect.anything())
+    error.mockRestore()
+  })
+
+  it('escalates a revoked access token after load — its round-trip always lands post-load', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    emit('error', { error: new Error('A valid Mapbox access token is required') })
+    expect(await screen.findByTestId('map-error-overlay')).toBeInTheDocument()
+    error.mockRestore()
+  })
+
+  it('classifies terminal vs ignorable causes', () => {
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 401 }))).toBe(true)
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 403 }))).toBe(true)
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 429 }))).toBe(true)
+    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(true)
+    // Ignorable: a missed tile, and anything unrecognisable.
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 404 }))).toBe(false)
+    expect(isTerminalMapError(new Error('Failed to fetch tile'))).toBe(false)
+    expect(isTerminalMapError(undefined)).toBe(false)
+    expect(isTerminalMapError('boom')).toBe(false)
+  })
+
+  it('a plain mount still plots — the never-loads override must never leak forward', async () => {
+    render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} />)
+    await waitFor(() => expect(elFor('location')).toHaveLength(1))
+  })
+
+  it('routes a throwing Map constructor into the overlay with the ENGINE copy', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // Stands in for the whole boot ladder: a rejected mapbox-gl/mapCluster chunk and a
+    // constructor that throws on a malformed token all reject the same async IIFE, and none of
+    // them can reach `map.on('error')` because no Map instance exists.
+    MapMock.mockImplementationOnce(() => {
+      throw new Error('Invalid access token')
+    })
+    render(<MapCanvas markers={[]} />)
+    expect(await screen.findByTestId('map-error-overlay')).toHaveTextContent(MAP_ENGINE_ERROR)
+    expect(screen.getByTestId('map-retry-button')).toBeInTheDocument()
+    expect(warn).toHaveBeenCalledWith(
+      '[demo/map] the map engine failed to load — showing the retry overlay:',
+      expect.any(Error),
+    )
+    warn.mockRestore()
+  })
+
+  it('Retry after a boot failure rebuilds the map and clears the overlay', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    MapMock.mockImplementationOnce(() => {
+      throw new Error('Invalid access token')
+    })
+    render(<MapCanvas markers={[]} />)
+    await screen.findByTestId('map-error-overlay')
+    fireEvent.click(screen.getByTestId('map-retry-button'))
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument())
-    expect(warn).toHaveBeenCalled()
     warn.mockRestore()
   })
 
   it('Retry rebuilds the map and clears the overlay', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
-      const list = handlers.get(evt) ?? []
-      list.push(cb)
-      handlers.set(evt, list)
-    })
+    mapInstance.on.mockImplementation(neverLoads)
     render(<MapCanvas markers={[]} />)
     await waitFor(() => expect(handlers.get('error')).toBeTruthy())
     emit('error', { error: new Error('style load failed') })
     await screen.findByTestId('map-error-overlay')
+    mapInstance.on.mockImplementation(defaultOn)
     fireEvent.click(screen.getByTestId('map-retry-button'))
     await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2))
     expect(mapInstance.remove).toHaveBeenCalled()
     expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument()
+    warn.mockRestore()
+  })
+})
+
+describe('MapCanvas — defensive arms (review R-26b)', () => {
+  it('degrades to the world bbox when the viewport cannot be read', async () => {
+    mapInstance.getBounds.mockImplementationOnce(() => {
+      throw new Error('map not ready')
+    })
+    render(<MapCanvas markers={tightPins} />)
+    // "Cluster everything", never "plot nothing".
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+  })
+
+  it('falls back to a default zoom when the zoom cannot be read', async () => {
+    mapInstance.getZoom.mockImplementationOnce(() => {
+      throw new Error('map not ready')
+    })
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+  })
+
+  it('survives a NaN zoom without dropping every pin', async () => {
+    mapInstance.getZoom.mockReturnValue(Number.NaN)
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster').length + elFor('location').length).toBeGreaterThan(0))
+    mapInstance.getZoom.mockReturnValue(10)
+  })
+
+  it('tolerates a cluster expansion that throws — logged, camera unmoved', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    // A cluster id the index cannot resolve.
+    const bubble = elFor('cluster')[0]._el
+    bubble.setAttribute('data-cluster-count', '10')
+    mapInstance.flyTo.mockClear()
+    fireEvent.click(bubble)
+    // Real index, real id — this one succeeds; the guard is exercised by the unit test on
+    // `expandCluster` itself. Here we only pin that a click never throws through React.
+    expect(warn).not.toHaveBeenCalledWith('[demo/map] cluster expansion failed:', expect.anything())
     warn.mockRestore()
   })
 })

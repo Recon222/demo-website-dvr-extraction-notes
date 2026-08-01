@@ -3,14 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
-import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { SHEET_COLORS, type StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
-import { LocationList } from '@/features/demo/ui/screens/map/LocationList'
+import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
   /** Controlled snap detent: 0 = peek, 1 = partial, 2 = full. */
   snapIndex: number
   onSnapChange(index: number): void
@@ -19,6 +19,10 @@ export interface MapBottomSheetProps {
   onSelect?(id: string): void
   /** Detail-mode content (Slice 8 fills this in). */
   detail?: React.ReactNode
+  /** Which stage emptied the list — threaded to `LocationList` (review R-6). */
+  emptyReason?: SheetEmptyReason
+  /** Recovery affordance for the `'filters'` empty reason. */
+  onClearFilters?(): void
 }
 
 // Visible detent heights (px) within the 378×786 phone screen, above the tab bar.
@@ -41,6 +45,8 @@ export function MapBottomSheet({
   selectedId = null,
   onSelect,
   detail,
+  emptyReason,
+  onClearFilters,
 }: MapBottomSheetProps) {
   const dragStart = useRef<number | null>(null)
   const [dragOffset, setDragOffset] = useState(0)
@@ -128,7 +134,7 @@ export function MapBottomSheet({
         <SheetHandle contentMode={contentMode} locationCount={locationCount} statusCounts={statusCounts} />
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {contentMode === 'detail' ? detail : <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} />}
+        {contentMode === 'detail' ? detail : <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} emptyReason={emptyReason} onClearFilters={onClearFilters} />}
       </div>
     </div>
   )

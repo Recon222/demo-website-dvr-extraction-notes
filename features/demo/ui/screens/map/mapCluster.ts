@@ -1,5 +1,6 @@
 import Supercluster from 'supercluster'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
+import type { LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 
 /**
  * Location-pin clustering — the demo's port of the phone's clustered `Mapbox.ShapeSource`
@@ -51,9 +52,11 @@ export interface ClusterDescriptor {
 export type PlottedMarker = MarkerDescriptor | ClusterDescriptor
 
 /** [west, south, east, north] — supercluster's bbox order. */
-export type ClusterBbox = [number, number, number, number]
+export type ClusterBbox = readonly [west: number, south: number, east: number, north: number]
 
-export const WORLD_BBOX: ClusterBbox = [-180, -85, 180, 85]
+/** Frozen: this tuple is handed to callers (`MapCanvas` reads it off the module) and a mutation
+ *  would silently reshape every later clustering query in the session (review R-13). */
+export const WORLD_BBOX: ClusterBbox = Object.freeze([-180, -85, 180, 85]) as ClusterBbox
 
 export interface ClusterIndex {
   /** Cluster bubbles + loose location pins for the given viewport, plus every non-clustered
@@ -63,9 +66,17 @@ export interface ClusterIndex {
   expansionZoom(clusterId: number): number
 }
 
+/**
+ * What each loaded point carries. `LocationMarker` (not the whole `MarkerDescriptor` union) so
+ * the index literally cannot hold an incident — the passthrough split below is then a compile-time
+ * fact rather than a convention (review R-12, R-27e).
+ */
 interface PointProps {
-  marker: MarkerDescriptor
+  marker: LocationMarker
 }
+
+/** The union member the index accepts. */
+type LocationMarker = MarkerDescriptor & { kind: 'location' }
 
 /**
  * Mapbox's `point_count_abbreviated` rule: counts under 1000 print whole; 1000+ collapse to one
@@ -79,24 +90,43 @@ export function abbreviateCount(count: number): string {
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}k`
 }
 
-/** Clamp a viewport bbox into supercluster's accepted range (mapbox reports wrapped longitudes
- *  once the user pans past the antimeridian; an unclamped bbox returns nothing). */
+/**
+ * Guard the viewport bbox against values supercluster genuinely cannot use.
+ *
+ * ONLY non-finite values (review R-25). The previous version also clamped longitudes into
+ * ±180 with a comment claiming an unclamped wrapped bbox "returns nothing" — untrue of the
+ * library, and the clamp was lossy: `getClusters` self-normalises with
+ * `((lng + 180) % 360 + 360) % 360 - 180`, clamps latitude itself, and when the normalised
+ * `minLng > maxLng` it SPLITS the query across the two hemispheres and concatenates
+ * (supercluster/index.js:89-101). Clamping -190 to -180 threw away the wrapped slice the
+ * library would have fetched. Near-zero blast radius for Ontario data — filed because the
+ * comment would have been trusted.
+ *
+ * The whole-world short-circuit stays: it is a cheap answer to a query the library would have
+ * to normalise anyway, and `WORLD_BBOX` is what the caller falls back to when it cannot read
+ * the viewport at all.
+ */
 export function normalizeBbox(bbox: ClusterBbox): ClusterBbox {
   const [w, s, e, n] = bbox
   if (!Number.isFinite(w) || !Number.isFinite(s) || !Number.isFinite(e) || !Number.isFinite(n)) return WORLD_BBOX
   if (e - w >= 360) return WORLD_BBOX
-  return [Math.max(w, -180), Math.max(s, -90), Math.min(e, 180), Math.min(n, 90)]
+  return bbox
 }
 
 /**
  * Build the index for a marker set. Non-location markers bypass clustering entirely and are
  * re-emitted from every `markersFor` call.
  */
-export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
-  const locations = markers.filter((m) => m.kind === 'location')
+export function buildClusterIndex(markers: readonly MarkerDescriptor[]): ClusterIndex {
+  const locations = markers.filter((m): m is LocationMarker => m.kind === 'location')
   const passthrough = markers.filter((m) => m.kind !== 'location')
 
-  const index = new Supercluster<PointProps>({ radius: CLUSTER_RADIUS, maxZoom: CLUSTER_MAX_ZOOM })
+  // Both generics closed: point props AND cluster props. Leaving the second open defaults it to
+  // `any`, which is what made every read below need a cast (review R-12).
+  const index = new Supercluster<PointProps, Record<string, never>>({
+    radius: CLUSTER_RADIUS,
+    maxZoom: CLUSTER_MAX_ZOOM,
+  })
   index.load(
     locations.map((m) => ({
       type: 'Feature' as const,
@@ -108,22 +138,26 @@ export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
   return {
     markersFor(bbox, zoom) {
       const safeZoom = Number.isFinite(zoom) ? Math.round(zoom) : 0
-      const out: PlottedMarker[] = index.getClusters(normalizeBbox(bbox), safeZoom).map((feature) => {
+      // `'cluster' in props` narrows supercluster's own union — no casts, no all-optional bag,
+      // and no fabricated `count: 0` fallback for a field the cluster branch always has.
+      // supercluster types its bbox parameter mutable; the copy keeps our own tuple readonly
+      // without handing the library a reference it could write through.
+      const [w, s, e, n] = normalizeBbox(bbox)
+      const out: PlottedMarker[] = index.getClusters([w, s, e, n], safeZoom).map((feature) => {
         const [lng, lat] = feature.geometry.coordinates
-        const props = feature.properties as Partial<Supercluster.ClusterProperties> & Partial<PointProps>
-        if (props.cluster) {
-          const count = props.point_count ?? 0
+        const props = feature.properties
+        if ('cluster' in props) {
           return {
             kind: 'cluster',
             id: `cluster-${props.cluster_id}`,
-            clusterId: props.cluster_id as number,
+            clusterId: props.cluster_id,
             lng,
             lat,
-            count,
-            label: abbreviateCount(count),
+            count: props.point_count,
+            label: abbreviateCount(props.point_count),
           }
         }
-        return props.marker as MarkerDescriptor
+        return props.marker
       })
       return [...out, ...passthrough]
     },
@@ -134,7 +168,8 @@ export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
 }
 
 export interface ClusterCameraTarget {
-  center: [number, number]
+  /** [lng, lat] — GeoJSON order, like everything else on the map layer (review R-27f). */
+  center: LngLat
   zoom: number
 }
 
@@ -144,7 +179,7 @@ export interface ClusterCameraTarget {
  */
 export function computeClusterExpansionCamera(
   expansionZoom: number,
-  center: [number, number],
+  center: LngLat,
 ): ClusterCameraTarget {
   const zoom = Math.min(expansionZoom + CLUSTER_EXPANSION_ZOOM_NUDGE, CLUSTER_EXPANSION_MAX_ZOOM)
   return { center: [center[0], center[1]], zoom }

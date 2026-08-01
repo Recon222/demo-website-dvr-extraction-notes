@@ -3926,9 +3926,120 @@ rather than a gap. **Trigger:** only if the phone grows the affordance first.
 
 mapbox-gl has no `longpress`, so `MapCanvas` runs its own 500 ms timer (RN's `delayLongPress`,
 what the phone's `onLongPress` fires on) on the canvas container, with a 10 px slop that
-reclassifies a travelling hold as a map drag, then `map.unproject`. Two known edges, both
+reclassifies a travelling hold as a map drag, then `map.unproject`. ~~Two known edges, both
 acceptable for a demo and neither observed: a two-finger pinch whose first contact never moves
 more than 10 px can still fire (mapbox handles the gesture itself, so the ring simply re-centres
 under the pinch), and a hold that starts on a marker element bubbles to the container, so a long
-hold on a pin both selects it and moves the ring. **Trigger:** a review finding either behaviour
+hold on a pin both selects it and moves the ring.~~ **Trigger:** a review finding either behaviour
 on a touch device, or the arrival of a pointer-gesture helper in `ui/primitives/`.
+
+**AMENDED (P6 review R-5 — both filed edges were mis-stated; the seam itself stands, the two
+disclosures do not):**
+
+- **The marker edge was understated on three counts, and it is FIXED, not deferred.**
+  (1) *Consequence.* "Both selects it and moves the ring" is true only when proximity is already
+  on. From the default OFF state `handleLongPress` unconditionally activates it, so a hold on a
+  pin drops every other location and the incident off the map **and** out of the sheet at the
+  1 km default, centred on a point nobody chose — recoverable only by noticing the Proximity ON
+  pill, and landing in R-6's false empty-state copy when nothing survives.
+  (2) *Reach.* Not touch-only. Pointer events fire for mouse, so a press-and-hold left button
+  while reading a pin triggers it on the desktop path the demo is primarily viewed on — the
+  filed trigger ("a review finding either behaviour on a touch device") was met and exceeded.
+  (3) *Surface.* `Marker.addTo` appends into `map.getCanvasContainer()` and mapbox's attribution
+  control is a descendant of the same container, so a hold on "Improve this map" activated
+  proximity too — a surface the original disclosure never named.
+  Fixed in the P6 fix round: `onPointerDown` now refuses non-primary pointers and any target
+  under `[data-marker-id], .mapboxgl-ctrl`.
+
+- **The pinch edge is STRUCK as never-real.** `pressOrigin` is a single shared ref and every
+  `pointerdown` cancels-then-re-arms from the newest contact, so in a two-finger gesture
+  finger 1's first `pointermove` is measured against finger 2's origin — two contacts on a
+  378 px surface are essentially never within the 10 px slop, so the timer cancels immediately.
+  The cross-pointer comparison that reads like a bug is exactly what made the pinch safe. The
+  `isPrimary` guard added above now closes it by construction as well; recorded here so the
+  analysis is not re-derived a third time.
+
+What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather
+than a gesture primitive. **Trigger (unchanged):** the arrival of a pointer-gesture helper in
+`ui/primitives/`.
+
+---
+
+## 79. P6 review round 1 — fix-round dispositions and what was deliberately left
+
+**Source:** `docs/code-reviews/parity/p6/p6-review-r1-vetted.md` (R-1…R-27), one code owner.
+25 of 27 findings FIXED; the two entries below are the deliberate partial-fixes, plus one new
+production defect the round surfaced and one item ruled against the ledger.
+
+### 79a. NEW (found while fixing R-10) — the long-press point ignored the phone-frame CSS scale
+
+Not a review finding; surfaced by writing the test R-10 asked for, exactly as the finding's
+carry-through note predicted it might. `onPointerDown` converted client coordinates to container
+pixels with a plain `clientX - rect.left`, but `getBoundingClientRect()` reports the CSS-
+TRANSFORMED box while `map.unproject` expects untransformed container pixels — and
+`PhoneFrame.tsx:42` wraps this whole screen in `transform: scale(usePhoneScale())`, which is
+below 1 on any viewport that cannot fit the 404x812 device at 1:1. A long press therefore landed
+progressively further from the finger the further it was from the container's top-left; at
+scale 0.5, 100 px in resolved 100 px short.
+
+FIXED in the R-10 commit with mapbox-gl's own formula (`getScaledPoint`,
+mapbox-gl-dev.js:57053-57059, `offsetWidth / rect.width`), so a long-press ring and a mapbox
+click now resolve to the same coordinate. Recorded here, not silently folded in, because it is
+new production behaviour rather than the test-strength item R-10 asked for — the fix-delta lane
+should treat it as unreviewed code.
+
+### 79b. DEFERRED (R-15, larger half) — `MapData` still carries `pins` and `incident`
+
+The duplication the finding named is gone: `narrowProjection` is now the single derivation both
+narrowing stages call, so `pins`/`incident`/`statusCounts` cannot disagree with `items`. What is
+NOT done is the shape change — shrinking `MapData` to `items` alone and deriving at the render
+boundary (`buildMarkers(items)`), per the `ScopeRetention` omit-so-it-can't-drift precedent.
+
+**Why deferred:** it changes the type every map surface reads, and P5.4's case-map export builder
+is the second consumer arriving imminently. Doing it once, with both consumers visible, is
+cheaper and safer than doing it now and again. **Trigger:** the P5.4 export-map reconciliation,
+or any third `MapData` consumer — whichever comes first.
+
+### 79c. DEFERRED (R-16, larger half) — `LocationDetailCardProps` is still flat over a union `item`
+
+The invalid state the finding named is gone: `camerasShown`/`onToggleCameras` are one optional
+`cameras: { shown, onToggle }`, so "shown with no way to hide" is unrepresentable. What is NOT
+done is discriminating the whole props type on `item.kind` (the `RetentionView` precedent), which
+would also stop an incident item being handed location-only props.
+
+**Why deferred:** same reason as 79b — one caller today, P5.4 adds the second, and the union
+churn is worth doing once against both. **Trigger:** P5.4's detail-card caller landing.
+
+### 79d. DEFERRED (R-14, larger half) — four pipeline stages still share one nominal `MapData`
+
+`locationCountLabel` now takes `{ filteredCount, locationCount }` (the finding's stated minimum),
+so the two swappable positional numbers are gone. The `MapProjection` single-result shape that
+would make the stages distinct types is the owner-judgement half the finding itself routed to the
+P5.4 seam. **Trigger:** as 79b.
+
+### 79e. DEFERRED (R-7b remainder) — map pins have no accessible name to plumb
+
+Cluster bubbles are now focusable and Enter/Space-operable. Location and incident pins took the
+other branch the finding offered — `aria-hidden="true"`, with the sheet's real `LocationRow`
+buttons as the declared keyboard path — because `MarkerDescriptor` carries no label field and
+inventing one at the marker layer would duplicate naming logic the sheet already owns.
+
+**Trigger:** if `MarkerDescriptor` ever gains a display name for another reason, give the pins
+`tabIndex`/`aria-label` and drop the `aria-hidden` in the same commit.
+
+### 79f. RECORDED — the dynamic-import discipline is still grep-enforced
+
+Carried from the review's own "recorded, no action" list so it does not evaporate. Nothing
+prevents a future edit from statically importing `mapCluster` or `mapProximity` and pulling
+`supercluster`/`@turf/*` into the demo's own chunk; the fix round kept the boundary honest by
+hand (and by re-measuring the built chunks), not by a rule. An ESLint `no-restricted-imports`
+scoped to the eager map modules, or a chunk-content assertion in CI, is the durable enforcement.
+**Trigger:** the next time a lazy-chunk regression is found by measurement rather than prevented.
+
+### 79g. RECORDED — the two review items closed with no code change
+
+`W-8` (the 600 ms cover cross-fade has no reduced-motion gate — opacity-only, category guidance
+exempts it, and mapbox's own animations are already gated) and `W-9` (glass-pill contrast over
+bright satellite tiles — phone-verbatim tokens, pre-existing on the phone and the sheet, a design
+decision rather than a review call). Both stand as recorded; neither is a residual this feature
+owes work on.

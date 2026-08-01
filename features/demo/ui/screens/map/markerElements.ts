@@ -13,11 +13,21 @@ import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
  * it, mirroring the seam the original `createMarkerEl` established.
  */
 
-/** Status dot (location) or red teardrop (incident) — unchanged from the original inline factory. */
+/**
+ * Status dot (location) or red teardrop (incident).
+ *
+ * `aria-hidden` (review R-7b): these bare `div`s carry no accessible name — `MarkerDescriptor`
+ * has no label field — and every one of them has a real `<button>` twin in the bottom sheet
+ * (`LocationRow`) that selects the same item and flies the camera to it. Announcing an unnamed,
+ * unreachable "clickable thing" to a screen reader is worse than declaring the sheet as the
+ * keyboard path, which is what this does. The CLUSTER bubble is deliberately NOT hidden: at low
+ * zoom it is the only on-map route to its members, and it does have a name.
+ */
 export function createMarkerEl(d: MarkerDescriptor): HTMLElement {
   const el = document.createElement('div')
   el.setAttribute('data-marker-id', d.id)
   el.setAttribute('data-marker-kind', d.kind)
+  el.setAttribute('aria-hidden', 'true')
   el.style.cursor = 'pointer'
   if (d.kind === 'incident') {
     el.style.width = '22px'
@@ -42,8 +52,11 @@ export function createMarkerEl(d: MarkerDescriptor): HTMLElement {
  * the phone's `CLUSTER_CIRCLE_STYLE` + `ClusterBadge` (constants/index.ts:179-195,
  * ClusterBadge.tsx:36-60), sized by the same step expressions.
  *
- * `aria-label` has no phone counterpart (the phone's count is a Mapbox SymbolLayer, which has no
- * accessibility surface at all); on the web the bubble IS a focusable control, so it gets one.
+ * `aria-label` and `tabindex` have no phone counterpart (the phone's count is a Mapbox
+ * SymbolLayer, which has no accessibility surface at all). On the web the bubble IS an operable
+ * control, and below `CLUSTER_MAX_ZOOM` some locations are reachable ON THE MAP only through it,
+ * so it must be focusable and key-operable (WCAG 2.1.1 / 4.1.2, review R-7b). The Enter/Space
+ * handler is attached by `MapCanvas` alongside the click handler.
  */
 export function createClusterEl(d: ClusterDescriptor): HTMLElement {
   const size = clusterRadiusFor(d.count) * 2
@@ -53,6 +66,7 @@ export function createClusterEl(d: ClusterDescriptor): HTMLElement {
   el.setAttribute('data-cluster-count', String(d.count))
   el.setAttribute('role', 'button')
   el.setAttribute('aria-label', `Cluster of ${d.count} locations`)
+  el.tabIndex = 0
   el.style.cssText = [
     `width:${size}px`,
     `height:${size}px`,

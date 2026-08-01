@@ -2,6 +2,7 @@ import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
 import { hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
+import type { StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
@@ -38,8 +39,17 @@ export interface MapIncident {
  */
 export interface MapCameraMarker {
   id: string
+  /**
+   * The owning location. Written by `toCameraMarkers` and read by nothing in the demo today —
+   * the demo scopes cameras by nesting them inside their `LocationSheetItem`, so it never has to
+   * ask a marker who owns it. Kept, deliberately (review R-27g): it is half of the composite
+   * `id` this feature exists to keep globally unique, the phone's own camera feature carries it
+   * as the gate for `visibleCameraLocationId` (`CaseMapView.tsx:397-400`), and dropping it would
+   * make the composite id a string nobody could decompose.
+   */
   locationId: string
   cameraName: string
+  /** Emitted only when non-empty, so the callout can test presence rather than emptiness. */
   resolution?: string
   lng: number
   lat: number
@@ -67,6 +77,15 @@ export interface LocationSheetItem {
   /** This location's geolocated cameras (P3.7 per-camera GPS). Empty when none has a fix —
    *  which is what hides the detail card's cameras toggle, phone LocationDetailCard.tsx:509. */
   cameras: MapCameraMarker[]
+  /**
+   * How many cameras the location has IN TOTAL, plotted or not (review R-19).
+   *
+   * `cameras` is a partial result — a camera with no GPS fix is silently absent from it — and
+   * the repo's standard for a partial result is to count it and say so rather than to hand back
+   * a shorter list (`generateExtractedScopes` counts, flags and dev-warns). Without this the
+   * toggle reads "Show cameras (2)" for a location the wizard lists five cameras on.
+   */
+  cameraTotal: number
 }
 
 export interface IncidentSheetItem {
@@ -87,7 +106,7 @@ export interface MapData {
   pins: MapPin[]
   incident: MapIncident | null
   items: SheetItem[]
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
 }
 
 /** Incident street+city. Deliberately NOT street-type-abbreviated: on the phone only the
@@ -97,7 +116,7 @@ const joinAddress = (parts: Array<string | null | undefined>) => parts.filter(Bo
 
 /** Status tally over a set of sheet rows. The incident carries no status, so only location rows
  *  count — the same rule the phone applies in `computeStatusCounts` (sheet-data-service.ts). */
-export function countStatuses(items: SheetItem[]): { started: number; working: number; complete: number } {
+export function countStatuses(items: readonly SheetItem[]): StatusCounts {
   const counts = { started: 0, working: 0, complete: 0 }
   for (const item of items) {
     if (item.kind === 'location') counts[item.status]++
@@ -105,8 +124,27 @@ export function countStatuses(items: SheetItem[]): { started: number; working: n
   return counts
 }
 
+/**
+ * Re-derive a whole projection from a narrowed row set (review R-15).
+ *
+ * `pins`, `incident` and `statusCounts` are all pure functions of `items`, and the diff had
+ * three sites hand-rolling that relationship — `toMapData`, `applyMapFilters` and
+ * `computeProximity`, the last two with a byte-identical `keptIds` filter. `countStatuses` was
+ * already shared by all three; this finishes the job for the other two fields, so a narrowing
+ * stage cannot leave a pin whose row is gone (or vice versa).
+ */
+export function narrowProjection(data: MapData, items: SheetItem[]): MapData {
+  const keptIds = new Set(items.filter((i) => i.kind === 'location').map((i) => i.id))
+  return {
+    pins: data.pins.filter((p) => keptIds.has(p.id)),
+    incident: items.some((i) => i.kind === 'incident') ? data.incident : null,
+    items,
+    statusCounts: countStatuses(items),
+  }
+}
+
 /** "N locations" — cameras and the incident pin never inflate it (phone MapHost.tsx:250-254). */
-export function countLocations(items: SheetItem[]): number {
+export function countLocations(items: readonly SheetItem[]): number {
   return items.filter((i) => i.kind === 'location').length
 }
 
@@ -118,8 +156,10 @@ export function countLocations(items: SheetItem[]): number {
 export function toCameraMarkers(loc: DemoLocation): MapCameraMarker[] {
   const markers: MapCameraMarker[] = []
   for (const cam of loc.form.cameras) {
+    // `hasCapturedCoordinates` is a type predicate, so `cam.gps` is narrowed from here — unlike
+    // the five `l.gps!` in `toMapData`, where the guard ran on a different binding (R-27b).
     if (!hasCapturedCoordinates(cam.gps)) continue
-    const gps = cam.gps!
+    const gps = cam.gps
     markers.push({
       id: `${loc.id}:${cam.id}`,
       locationId: loc.id,
@@ -195,6 +235,7 @@ export function toMapData(viewerCase: DemoCase | null, locations: DemoLocation[]
       locationPhone: l.locationPhone,
       coordinateSource: l.gps!.source,
       cameras: toCameraMarkers(l),
+      cameraTotal: l.form.cameras.length,
     })
   }
 

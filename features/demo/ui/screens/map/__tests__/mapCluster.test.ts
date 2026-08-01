@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import {
   CLUSTER_EXPANSION_MAX_ZOOM,
+  CLUSTER_EXPANSION_ZOOM_NUDGE,
   CLUSTER_MAX_ZOOM,
   CLUSTER_RADIUS,
   WORLD_BBOX,
@@ -24,6 +25,10 @@ describe('mapCluster — config parity', () => {
   it('uses the phone cluster config verbatim', () => {
     expect(CLUSTER_RADIUS).toBe(50)
     expect(CLUSTER_MAX_ZOOM).toBe(14)
+    // Literal, not self-referential (review R-22): asserting the constant against itself lets
+    // the phone-parity value drift silently. Phone `cluster-press-service.ts:42`.
+    expect(CLUSTER_EXPANSION_MAX_ZOOM).toBe(20)
+    expect(CLUSTER_EXPANSION_ZOOM_NUDGE).toBe(0.5)
   })
 })
 
@@ -78,8 +83,17 @@ describe('mapCluster — bbox normalisation', () => {
     expect(normalizeBbox([-200, -90, 200, 90])).toEqual(WORLD_BBOX)
   })
 
-  it('clamps a partly out-of-range viewport instead of dropping it', () => {
-    expect(normalizeBbox([-190, -95, -70, 50])).toEqual([-180, -90, -70, 50])
+  it('passes a wrapped viewport through — supercluster normalises and hemisphere-splits it', () => {
+    // Clamping -190 to -180 discarded the slice past the antimeridian that the library would
+    // have fetched (supercluster/index.js:89-101). Review R-25.
+    const wrapped = [-190, -95, -70, 50] as const
+    expect(normalizeBbox(wrapped)).toBe(wrapped)
+  })
+
+  it('still finds points through a wrapped bbox', () => {
+    const index = buildClusterIndex([loc('l1', -179.5, 20)])
+    // A viewport straddling the antimeridian, expressed as mapbox reports it.
+    expect(index.markersFor([170, 0, 190, 40], 10)).toHaveLength(1)
   })
 })
 
@@ -157,5 +171,27 @@ describe('mapCluster — expandCluster', () => {
         flyToCluster: vi.fn(),
       }),
     ).not.toThrow()
+  })
+})
+
+describe('mapCluster — arithmetic details (review R-26d)', () => {
+  it.each([
+    ['rounds a fractional zoom down to the nearer integer', 13.4, true],
+    ['rounds a fractional zoom up to the nearer integer', 14.6, false],
+  ])('%s', (_label, zoom, expectCluster) => {
+    const index = buildClusterIndex(tightCluster)
+    const markers = index.markersFor(WORLD_BBOX, zoom)
+    expect(markers.some((m) => m.kind === 'cluster')).toBe(expectCluster)
+  })
+
+  it('treats a NaN zoom as 0 rather than dropping the points', () => {
+    const index = buildClusterIndex(tightCluster)
+    expect(index.markersFor(WORLD_BBOX, Number.NaN)).toHaveLength(1)
+  })
+
+  it('short-circuits at exactly 360 degrees of longitude, not only beyond it', () => {
+    expect(normalizeBbox([-180, -85, 180, 85])).toEqual(WORLD_BBOX)
+    const justUnder: [number, number, number, number] = [-179, -85, 180, 85]
+    expect(normalizeBbox(justUnder)).toEqual(justUnder)
   })
 })
