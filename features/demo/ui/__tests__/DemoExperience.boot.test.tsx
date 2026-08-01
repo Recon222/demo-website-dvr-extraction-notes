@@ -125,6 +125,26 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
     expect(document.activeElement).toBe(document.querySelector('[data-phone-screen]'))
   })
 
+  it('an Escape aimed at the exit dialog does not also skip the boot (R-7)', () => {
+    render(<DemoExperience boot />)
+    expect(screen.getByTestId('demo-boot')).toBeInTheDocument()
+
+    // The rail sits outside the gate by design (§87c), so its dialog can be open over a running
+    // boot — the app's first two simultaneously live Escape listeners.
+    fireEvent.click(screen.getByRole('link', { name: /back to site/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    // One keypress, one effect: the dialog closed, the boot the visitor chose to keep is intact.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('demo-boot')).toBeInTheDocument()
+
+    // And Escape still skips once nothing else owns it.
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('demo-boot')).toBeNull()
+  })
+
   it('SKIP gets the visitor straight in', () => {
     render(<DemoExperience boot />)
     fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
