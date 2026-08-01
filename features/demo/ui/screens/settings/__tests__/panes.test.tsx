@@ -47,7 +47,16 @@ describe('pane registry', () => {
   it('every pane opens with an honest "in the demo" note — the D6 treatment', () => {
     for (const id of STUB_PANE_IDS) {
       const { unmount } = render(<div>{renderSettingsPane(id, { settings: DEFAULT_SETTINGS, onChange: vi.fn() })}</div>)
-      expect(screen.getByTestId('settings-pane-stub-note'), `pane "${id}" ships no honest note`).toBeInTheDocument()
+      const note = screen.getByTestId('settings-pane-stub-note')
+      expect(note, `pane "${id}" ships no honest note`).toBeInTheDocument()
+      // R-14: presence proved nothing — a `{null}` body stayed green, and three panes
+      // (Appearance, Export Security, About) had no content assertion anywhere else in the
+      // suite. The note exists to SAY something; an empty one is the failure this loop is for.
+      expect(note, `pane "${id}" ships an EMPTY honest note`).not.toBeEmptyDOMElement()
+      expect(
+        (note.textContent ?? '').replace(/\s+/g, ' ').trim().length,
+        `pane "${id}"'s honest note carries no prose`,
+      ).toBeGreaterThan(60)
       unmount()
     }
   })
