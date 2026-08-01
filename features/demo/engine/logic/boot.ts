@@ -71,38 +71,58 @@ export const BOOT_SEQUENCE_MS = SCAN_MS + AUTHORIZED_MS
 // ---------------------------------------------------------------------------
 
 /**
+ * The intro video, as ONE value.
+ *
+ * Source and poster used to be two independent `string | null` constants, and a poster with no
+ * source compiled clean and rendered nothing (review R-1d) — the §84f correlated-optional trap
+ * this team closed by type one round ago, re-opened on the seam of the drop-in procedure that
+ * created it. Bound together, a half-flip is `TS2741` at both the constant and the prop.
+ *
+ * `poster` stays nullable *inside* the pair because it is genuinely optional once a source
+ * exists: the boot surface is already `#000314` (the phone's splash background,
+ * `AuthenticatedSplashScreen.tsx:288`), so a late first frame reads as black rather than as a
+ * flash of the wrong thing.
+ */
+export interface BootVideo {
+  readonly src: string
+  readonly poster: string | null
+}
+
+/**
  * The bunker-doors intro video (owner supplies later — decision D7).
  *
  * DROP-IN PROCEDURE, in full:
  *   1. Put the encoded file in `public/demo-media/` — e.g. `public/demo-media/boot-intro.mp4`,
  *      beside the existing `sample-clip.mp4`. H.264/AAC MP4, muted-autoplay-safe, portrait; the
  *      phone's own splash asset is 720×1280 (9:16, `AuthenticatedSplashScreen.tsx:30`) and the
- *      demo's screen is 378×786, so the same encode fits with `object-fit: cover`.
- *   2. Optionally drop its first frame beside it (`boot-intro-poster.jpg`, matching
- *      `sample-clip-poster.jpg`) — the phone holds a static frame until the video's first frame
- *      decodes (`AuthenticatedSplashScreen.tsx:235-247`); `BOOT_VIDEO_POSTER` is that slot.
- *   3. Change the two constants below to the public paths (`'/demo-media/boot-intro.mp4'`,
- *      `'/demo-media/boot-intro-poster.jpg'`).
+ *      demo's screen is 378×786, so the same encode fits with `object-fit: cover`. Optionally
+ *      drop its first frame beside it (`boot-intro-poster.jpg`, matching `sample-clip-poster.jpg`)
+ *      — the phone holds a static frame until the video's first frame decodes
+ *      (`AuthenticatedSplashScreen.tsx:235-247`).
+ *   2. Change the ONE constant below:
+ *      `{ src: '/demo-media/boot-intro.mp4', poster: '/demo-media/boot-intro-poster.jpg' }`
+ *      (or `poster: null`).
  *
- * That is the whole change. The `video` → `holding` → `fading` phases, the element, its
- * autoplay/`ended`/error handling, the skip control and the reduced-motion opt-out are already
- * built and tested against a fake source — nothing needs restructuring, and no test that names a
- * real asset exists to go stale.
+ * That is the whole code change. The `video` → `holding` → `fading` phases, the element, its
+ * autoplay/`ended`/error/stall handling, the skip control and the reduced-motion opt-out are
+ * already built and tested against a fake source.
+ *
+ * **One test needs the flip too** (review R-17, and the ledger's §87d amendment): the guard just
+ * below announces the change, which is intended — but `DemoExperience.boot.test.tsx`'s
+ * `runSequence` walks the phases and must fire the video's `ended` for the sequence to finish. It
+ * already does that when a video element is present, so the flip is expected to leave it green;
+ * if the bridge suite reds on the video path, that helper is where to look, not this file.
  */
-export const BOOT_VIDEO_SRC: string | null = null
-
-/** Poster frame for the above. Null is fine: the boot surface is already `#000314` (the phone's
- *  splash background, `AuthenticatedSplashScreen.tsx:288`), so a late first frame reads as black
- *  rather than as a flash of the wrong thing. */
-export const BOOT_VIDEO_POSTER: string | null = null
+export const BOOT_VIDEO: BootVideo | null = null
 
 // ---------------------------------------------------------------------------
 // The machine
 // ---------------------------------------------------------------------------
 
 export interface BootConfig {
-  /** `BOOT_VIDEO_SRC`, or a fake in tests. Null routes the sequence around the video phases. */
-  videoSrc: string | null
+  /** `BOOT_VIDEO`, a fake in tests, or the null the UI substitutes when the element has already
+   *  failed to load (review R-1a). Null routes the sequence around the video phases. */
+  video: BootVideo | null
   /** `prefers-reduced-motion: reduce`. Collapses the whole sequence — see `nextBootPhase`. */
   reduceMotion: boolean
 }
@@ -149,7 +169,7 @@ export function nextBootPhase(phase: BootPhase, cfg: BootConfig): BootPhase | nu
     case 'scanning':
       return 'authorized'
     case 'authorized':
-      return cfg.videoSrc === null ? 'fading' : 'video'
+      return cfg.video === null ? 'fading' : 'video'
     case 'video':
       return 'holding'
     case 'holding':

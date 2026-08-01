@@ -9,15 +9,15 @@ import {
   bootPhaseDurationMs,
   nextBootPhase,
   type BootPhase,
+  type BootVideo,
 } from '@/features/demo/engine/logic/boot'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
 
 export interface BootSequenceProps {
-  /** `BOOT_VIDEO_SRC` from the engine — null until the owner's intro video is dropped in.
-   *  Passed as a prop rather than read here so tests can drive the video phases. */
-  videoSrc: string | null
-  /** `BOOT_VIDEO_POSTER` — the phone's static-first-frame slot. */
-  videoPoster?: string | null
+  /** `BOOT_VIDEO` from the engine — null until the owner's intro video is dropped in. ONE value,
+   *  not a correlated src/poster pair (review R-1d). Passed as a prop rather than read here so
+   *  tests can drive the video phases. */
+  video: BootVideo | null
   /** Fired exactly once, when the sequence reaches `done` (skip included). */
   onComplete(): void
 }
@@ -77,14 +77,14 @@ const videoStyle: CSSProperties = {
  * visitor on a black rectangle, matching the phone's skip-to-completion error path
  * (`AuthenticatedSplashScreen.tsx:173-201`). See `BOOT_VIDEO_SRC` for the drop-in procedure.
  */
-export function BootSequence({ videoSrc, videoPoster = null, onComplete }: BootSequenceProps) {
+export function BootSequence({ video, onComplete }: BootSequenceProps) {
   const reduceMotion = useReducedMotion() ?? false
   const [phase, setPhase] = useState<BootPhase>('idle')
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   const advance = useCallback(() => {
-    setPhase((p) => nextBootPhase(p, { videoSrc, reduceMotion }) ?? p)
-  }, [videoSrc, reduceMotion])
+    setPhase((p) => nextBootPhase(p, { video, reduceMotion }) ?? p)
+  }, [video, reduceMotion])
 
   const skip = useCallback(() => setPhase('done'), [])
 
@@ -128,7 +128,7 @@ export function BootSequence({ videoSrc, videoPoster = null, onComplete }: BootS
     if (started instanceof Promise) started.catch(() => setPhase('done'))
   }, [phase])
 
-  const hasVideo = videoSrc !== null
+  const hasVideo = video !== null
   // The video takes over the moment its phase begins and keeps the surface until unmount; with
   // no video the HUD holds it instead. Neither swaps out early — a gap would paint one frame of
   // bare background between the fade and the parent's unmount.
@@ -149,12 +149,12 @@ export function BootSequence({ videoSrc, videoPoster = null, onComplete }: BootS
         transition: reduceMotion ? undefined : `opacity ${FADE_MS}ms linear`,
       }}
     >
-      {hasVideo && (
+      {video !== null && (
         <video
           ref={videoRef}
           data-testid="demo-boot-video"
-          src={videoSrc}
-          poster={videoPoster ?? undefined}
+          src={video.src}
+          poster={video.poster ?? undefined}
           muted
           playsInline
           preload="auto"

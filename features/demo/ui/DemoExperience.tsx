@@ -29,7 +29,7 @@ import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { AlertDialog, type AlertDialogProps } from '@/features/demo/ui/controls/AlertDialog'
 import { BootSequence } from '@/features/demo/ui/screens/BootSequence'
-import { BOOT_VIDEO_POSTER, BOOT_VIDEO_SRC } from '@/features/demo/engine/logic/boot'
+import { BOOT_VIDEO } from '@/features/demo/engine/logic/boot'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -2459,11 +2459,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
         // `splash` is still a `ChapterId`, so a restored snapshot can carry it and the arm has to
         // render something real. It renders the same sequence, and lands on Cases.
         return (
-          <BootSequence
-            videoSrc={BOOT_VIDEO_SRC}
-            videoPoster={BOOT_VIDEO_POSTER}
-            onComplete={() => store.getState().setView('cases')}
-          />
+          <BootSequence video={BOOT_VIDEO} onComplete={() => store.getState().setView('cases')} />
         )
       case 'dashboard':
         return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} onSettings={openSettings} />
@@ -2963,7 +2959,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
               (`app/_layout.tsx:214-222`). Nothing underneath means no z-index race with the
               drawer or a sheet, and no screen effects firing behind a curtain.
               Wrapper-without-reindent, same as the boundary above. */}
-          {booting ? <BootSequence videoSrc={BOOT_VIDEO_SRC} videoPoster={BOOT_VIDEO_POSTER} onComplete={endBoot} /> : <>
+          {booting ? <BootSequence video={BOOT_VIDEO} onComplete={endBoot} /> : <>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>

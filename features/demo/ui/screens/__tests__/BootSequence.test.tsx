@@ -10,10 +10,10 @@ vi.mock('motion/react', async (orig) => ({
   useReducedMotion: () => motionState.reduce,
 }))
 
-import { AUTHORIZED_MS, FADE_MS, HOLD_MS, SCAN_MS } from '@/features/demo/engine/logic/boot'
+import { AUTHORIZED_MS, FADE_MS, HOLD_MS, SCAN_MS, type BootVideo } from '@/features/demo/engine/logic/boot'
 import { BootSequence } from '@/features/demo/ui/screens/BootSequence'
 
-const VIDEO = '/demo-media/boot-intro.mp4'
+const VIDEO: BootVideo = { src: '/demo-media/boot-intro.mp4', poster: '/demo-media/boot-intro-poster.jpg' }
 
 const tapScanner = () => fireEvent.click(screen.getByRole('button', { name: 'Run the simulated biometric scan' }))
 const tick = (ms: number) => act(() => void vi.advanceTimersByTime(ms))
@@ -39,7 +39,7 @@ describe('BootSequence', () => {
   describe('the simulated scan', () => {
     it('waits on the visitor — nothing advances on its own from idle', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={null} onComplete={onComplete} />)
+      render(<BootSequence video={null} onComplete={onComplete} />)
       expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()
       tick(10_000)
       expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()
@@ -48,7 +48,7 @@ describe('BootSequence', () => {
 
     it('runs SCANNING → AUTHORIZED → app on the phone-pinned dwells', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={null} onComplete={onComplete} />)
+      render(<BootSequence video={null} onComplete={onComplete} />)
 
       tapScanner()
       expect(screen.getByText('SCANNING')).toBeInTheDocument()
@@ -69,11 +69,11 @@ describe('BootSequence', () => {
 
     it('fires onComplete exactly once, even when the parent hands it a new identity each render', () => {
       const calls = { n: 0 }
-      const { rerender } = render(<BootSequence videoSrc={null} onComplete={() => (calls.n += 1)} />)
+      const { rerender } = render(<BootSequence video={null} onComplete={() => (calls.n += 1)} />)
       tapScanner()
       tickThrough(SCAN_MS, AUTHORIZED_MS, FADE_MS)
       expect(calls.n).toBe(1)
-      rerender(<BootSequence videoSrc={null} onComplete={() => (calls.n += 1)} />)
+      rerender(<BootSequence video={null} onComplete={() => (calls.n += 1)} />)
       tick(1000)
       expect(calls.n).toBe(1)
     })
@@ -81,13 +81,13 @@ describe('BootSequence', () => {
 
   describe('the intro-video slot (owner supplies the file later — D7)', () => {
     it('mounts no video element at all while the source is null', () => {
-      render(<BootSequence videoSrc={null} onComplete={vi.fn()} />)
+      render(<BootSequence video={null} onComplete={vi.fn()} />)
       expect(screen.queryByTestId('demo-boot-video')).toBeNull()
     })
 
     it('preloads during the scan, then plays through the same sequence slot', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={VIDEO} videoPoster="/demo-media/boot-intro-poster.jpg" onComplete={onComplete} />)
+      render(<BootSequence video={VIDEO} onComplete={onComplete} />)
 
       // Mounted from the first frame so it buffers behind the HUD (the phone's own trick).
       const video = screen.getByTestId('demo-boot-video') as HTMLVideoElement
@@ -113,7 +113,7 @@ describe('BootSequence', () => {
 
     it('ends the sequence on a video error instead of stranding the visitor', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={VIDEO} onComplete={onComplete} />)
+      render(<BootSequence video={VIDEO} onComplete={onComplete} />)
       tapScanner()
       tickThrough(SCAN_MS, AUTHORIZED_MS)
       fireEvent.error(screen.getByTestId('demo-boot-video'))
@@ -124,14 +124,14 @@ describe('BootSequence', () => {
   describe('escape hatches (the phone has none; a browser gate needs them)', () => {
     it('SKIP ends the sequence from the very first frame', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={VIDEO} onComplete={onComplete} />)
+      render(<BootSequence video={VIDEO} onComplete={onComplete} />)
       fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
     it('SKIP is reachable mid-scan, so the dwell can never trap a keyboard visitor', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={null} onComplete={onComplete} />)
+      render(<BootSequence video={null} onComplete={onComplete} />)
       tapScanner()
       expect(screen.getByText('SCANNING')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
@@ -140,7 +140,7 @@ describe('BootSequence', () => {
 
     it('Escape does what SKIP does', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={null} onComplete={onComplete} />)
+      render(<BootSequence video={null} onComplete={onComplete} />)
       fireEvent.keyDown(window, { key: 'Escape' })
       expect(onComplete).toHaveBeenCalledOnce()
     })
@@ -153,7 +153,7 @@ describe('BootSequence', () => {
 
     it('completes instantly on the gesture — no dwell, no fade', () => {
       const onComplete = vi.fn()
-      render(<BootSequence videoSrc={null} onComplete={onComplete} />)
+      render(<BootSequence video={null} onComplete={onComplete} />)
       expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()
       tapScanner()
       expect(onComplete).toHaveBeenCalledOnce()
@@ -162,7 +162,7 @@ describe('BootSequence', () => {
     it('never plays the intro video', () => {
       const onComplete = vi.fn()
       const play = vi.fn()
-      render(<BootSequence videoSrc={VIDEO} onComplete={onComplete} />)
+      render(<BootSequence video={VIDEO} onComplete={onComplete} />)
       const video = screen.getByTestId('demo-boot-video') as HTMLVideoElement
       video.play = play
       tapScanner()
@@ -171,7 +171,7 @@ describe('BootSequence', () => {
     })
 
     it('drops the opacity transition rather than animating the exit', () => {
-      render(<BootSequence videoSrc={null} onComplete={vi.fn()} />)
+      render(<BootSequence video={null} onComplete={vi.fn()} />)
       expect((screen.getByTestId('demo-boot') as HTMLElement).style.transition).toBe('')
     })
   })

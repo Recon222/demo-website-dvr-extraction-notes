@@ -6072,15 +6072,31 @@ link. At that point a security switch has something true to control and the ques
 
 ### 87d. AVAILABLE — the intro video ships as a slot, not as a file
 
-**What:** `BOOT_VIDEO_SRC` / `BOOT_VIDEO_POSTER` are `null`. Every phase behind them — `video`,
-`holding` (the phone's 500 ms `HOLD_DURATION_MS`), `fading` — is implemented and tested against a
-fake source, including the `ended` advance, the load/decode/autoplay-rejection error path that
-ends the sequence rather than stranding the visitor, and the preload-behind-the-HUD mount the
-phone uses (`AuthenticatedSplashScreen.tsx:249-269`).
+**What:** `BOOT_VIDEO` is `null`. Every phase behind it — `video`, `holding` (the phone's 500 ms
+`HOLD_DURATION_MS`), `fading` — is implemented and tested against a fake source, including the
+`ended` advance, the error path, and the preload-behind-the-HUD mount the phone uses
+(`AuthenticatedSplashScreen.tsx:249-269`).
 
-**The drop-in is two constants.** The full procedure is written on `BOOT_VIDEO_SRC` in
-`features/demo/engine/logic/boot.ts`: file into `public/demo-media/`, flip the constants. The
-engine suite asserts they are still null, so the change announces itself.
+**The drop-in is one constant.** The full procedure is written on `BOOT_VIDEO` in
+`features/demo/engine/logic/boot.ts`: file into `public/demo-media/`, fill in the constant. The
+engine suite asserts it is still null, so the change announces itself.
+
+**AMENDED after the P8 review (round 1) — this entry twice claimed more than the code delivered,
+and both claims were on the no-re-review path this entry exists to promise:**
+
+- *"two constants"* (R-1d / R-17, obligation A2) was two constants **plus three bridge-test
+  edits**: `videoSrc` and `videoPoster` were independent optionals that could be half-flipped
+  without a type error, and `DemoExperience.boot.test.tsx`'s `runSequence` hard-coded the
+  null-source phase path, stalling in `video`. Both are closed: the pair is now one
+  `BootVideo | null`, so a half-flip is `TS2741` at the constant and the prop, and `runSequence`
+  fires `ended` when a video element is present. Re-probed after the fix — constant flipped, the
+  bridge suite is green and only the engine guard reds, which is the intended announcement.
+- *"the load/decode/**autoplay-rejection** error path"* (R-5, obligation A1) overclaimed the
+  third arm: jsdom's `play()` returns `undefined`, so `started instanceof Promise` was false in
+  every committed test and the `.catch` was never attached. The code was right; the coverage claim
+  was not. A rejecting-`play()` test was added in the fix round, so the sentence above is now
+  true — and the arm it covers is the likeliest field failure of the three (iOS Low Power Mode
+  blocks muted autoplay outright).
 
 **Trigger:** the owner supplying the bunker-doors file.
 

@@ -2,12 +2,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { NARRATION } from '@/features/demo/engine/content/narration'
-import { AUTHORIZED_MS, FADE_MS, SCAN_MS } from '@/features/demo/engine/logic/boot'
+import { AUTHORIZED_MS, FADE_MS, HOLD_MS, SCAN_MS } from '@/features/demo/engine/logic/boot'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 
 const tick = (ms: number) => act(() => void vi.advanceTimersByTime(ms))
-/** One `act` per dwell — the next phase's timer is armed by an effect. */
-const runSequence = () => [SCAN_MS, AUTHORIZED_MS, FADE_MS].forEach(tick)
+/**
+ * Walk the gate from the tap to the app. One `act` per dwell — the next phase's timer is armed by
+ * an effect — and, on drop-in day, one `ended` in the middle: with `BOOT_VIDEO` set the sequence
+ * parks in `video` until the element says it finished, and a helper that only ticks would stall
+ * there. Review R-17: this is the whole reason the drop-in is one constant and not one constant
+ * plus three bridge-test edits.
+ */
+const runSequence = () => {
+  tick(SCAN_MS)
+  tick(AUTHORIZED_MS)
+  const video = screen.queryByTestId('demo-boot-video')
+  if (video) {
+    fireEvent.ended(video)
+    tick(HOLD_MS)
+  }
+  tick(FADE_MS)
+}
 const tapScanner = () => fireEvent.click(screen.getByRole('button', { name: 'Run the simulated biometric scan' }))
 const railTitle = (name: string) => screen.queryByRole('heading', { level: 2, name })
 
