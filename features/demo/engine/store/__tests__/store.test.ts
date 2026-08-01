@@ -39,6 +39,10 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
     store.getState().openModal('newCase')
     store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
     store.getState().updateField('capture.dvrAppliesDST', true)
+    // The two P7.3 members. "EVERY mutable key" stopped being true the moment they landed, and
+    // nothing failed — which is exactly the silent fixture drift this comment warns about.
+    store.getState().applyFormProfile('canvas')
+    store.getState().setFormStepVisible('exportInfo', false)
     store.getState().reset()
     const s = store.getState()
     expect(s.view).toBe('cases')
@@ -50,6 +54,11 @@ describe('boot state (the empty sandbox — there is no other mode)', () => {
     expect(s.drawerOpen).toBe(false)
     expect(s.modal).toBeNull()
     expect(s.capture).toEqual(blankCapture())
+    // …and the settings family SURVIVES, by one rule for all three (R-13 / A3). `userProfile`
+    // is pinned separately in user-profile-state.test.ts; these two were unasserted in either
+    // direction, so a reset that wiped them was as green as one that kept them.
+    expect(s.profile).toBe('canvas')
+    expect(s.formOverrides).toEqual({ steps: { exportInfo: false }, fields: {} })
   })
 
   it('the tour is gone: no seedGuided/setMode actions, no mode/auth state', () => {
