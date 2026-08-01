@@ -2122,6 +2122,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     validationResult: exportFlow.validationResult,
     stage: exportFlow.stage,
   })
+  /** Shared by both mounted arms of the discriminated `ExportModalProps` (R-17). */
+  const exportModalActions = {
+    isExporting: exportBusy,
+    onContinueAnyway: continueExportFlow,
+    onCancel: cancelExportFlow,
+  }
 
   const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
@@ -2673,16 +2679,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {/* Export progress / pre-flight validation (rows 25/28). Not a `ModalId`: its
               visibility is DERIVED from the export machine, exactly as on the phone, so the
               mode ternary — not a store write — is what makes validation outrank progress. */}
-          <ExportModal
-            mode={exportModalMode}
-            stage={exportFlow.stage}
-            progress={exportFlow.progress}
-            currentLocationName={exportFlow.currentLocationName}
-            validationResult={exportFlow.validationResult}
-            isExporting={exportBusy}
-            onContinueAnyway={continueExportFlow}
-            onCancel={cancelExportFlow}
-          />
+          {/* R-17: the props are discriminated on `mode`, so the payload is paired with its
+              mode HERE rather than passed flat and null-checked inside the component.
+              `resolveExportModalMode` only answers `'validation'` for a present, failing
+              result — the `&&` below is that contract restated in a form the type can carry. */}
+          {exportModalMode === 'validation' && exportFlow.validationResult ? (
+            <ExportModal mode="validation" validationResult={exportFlow.validationResult} {...exportModalActions} />
+          ) : exportModalMode === 'progress' ? (
+            <ExportModal
+              mode="progress"
+              stage={exportFlow.stage}
+              progress={exportFlow.progress}
+              currentLocationName={exportFlow.currentLocationName}
+              {...exportModalActions}
+            />
+          ) : null}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
           {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus

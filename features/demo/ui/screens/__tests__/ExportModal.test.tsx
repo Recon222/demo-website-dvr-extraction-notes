@@ -31,25 +31,41 @@ function result(over: Partial<CasePdfValidationResult> = {}): CasePdfValidationR
   }
 }
 
-function renderModal(over: Partial<ExportModalProps> = {}) {
-  const onContinueAnyway = over.onContinueAnyway ?? vi.fn()
-  const onCancel = over.onCancel ?? vi.fn()
+/**
+ * The props are discriminated on `mode` (review R-17), so the old single
+ * `Partial<ExportModalProps>` helper no longer typechecks — and that is the point: a
+ * `{ mode: 'validation', validationResult: null }` render is now unconstructible. One helper
+ * per arm instead.
+ */
+type ModeProps = Extract<ExportModalProps, { mode: 'progress' | 'validation' }>
+type ArmOf<M> = Omit<Extract<ModeProps, { mode: M }>, 'onContinueAnyway' | 'onCancel'>
+
+function renderArm(arm: ArmOf<'progress'> | ArmOf<'validation'>) {
+  const onContinueAnyway = vi.fn()
+  const onCancel = vi.fn()
   const view = render(
-    <ExportModal mode="hidden" {...over} onContinueAnyway={onContinueAnyway} onCancel={onCancel} />,
+    <ExportModal {...(arm as ModeProps)} onContinueAnyway={onContinueAnyway} onCancel={onCancel} />,
   )
   return { onContinueAnyway, onCancel, ...view }
 }
 
+const renderProgress = (arm: Omit<ArmOf<'progress'>, 'mode'> = {}) =>
+  renderArm({ mode: 'progress', ...arm })
+const renderValidation = (arm: Omit<ArmOf<'validation'>, 'mode'>) =>
+  renderArm({ mode: 'validation', ...arm })
+
 describe('ExportModal — hidden', () => {
   it('renders nothing at all', () => {
-    const { container } = renderModal({ mode: 'hidden', stage: 'zipping' })
+    const { container } = render(
+      <ExportModal mode="hidden" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />,
+    )
     expect(container).toBeEmptyDOMElement()
   })
 })
 
 describe('ExportModal — progress mode', () => {
   it('shows the stage message for each stage the demo pipeline can enter', () => {
-    const { rerender } = renderModal({ mode: 'progress', stage: 'validating' })
+    const { rerender } = renderProgress({ stage: 'validating' })
     expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Validating locations...')
 
     const noop = vi.fn()
@@ -60,16 +76,73 @@ describe('ExportModal — progress mode', () => {
     expect(screen.getByTestId('export-progress-overlay')).toHaveTextContent('Creating ZIP archive...')
   })
 
-  it('is a polite progressbar labelled with the stage message', () => {
-    renderModal({ mode: 'progress', stage: 'zipping' })
+  it('is a progressbar labelled and value-texted with the stage line', () => {
+    renderProgress({ stage: 'zipping' })
     const bar = screen.getByRole('progressbar')
     expect(bar).toHaveAccessibleName('Creating ZIP archive...')
-    expect(bar).toHaveAttribute('aria-live', 'polite')
+    // R-6: `progressbar` prunes its children, so the visible text is unreachable through the
+    // bar itself — `aria-valuetext` is what a screen reader reads when it lands here.
+    expect(bar).toHaveAttribute('aria-valuetext', 'Creating ZIP archive...')
+  })
+
+  /**
+   * R-6 — the overlay must SPEAK. The old markup put `aria-live` on the progressbar itself,
+   * which (a) prunes its own content and (b) mounted with the text already in place, so a live
+   * region had nothing to announce. The regression these pin: a screen-reader user pressing the
+   * CTA (which immediately disables, dropping focus to `<body>`) heard silence for the whole run.
+   */
+  describe('the spoken track', () => {
+    it('announces the stage on the next tick, not at mount', async () => {
+      renderProgress({ stage: 'validating' })
+      const live = screen.getByTestId('export-progress-announcement')
+      expect(live).toHaveAttribute('aria-live', 'polite')
+      expect(await screen.findByText('Validating locations...', { selector: '[role="status"]' })).toBe(live)
+    })
+
+    it('re-announces on every location tick, counter and name included', async () => {
+      const { rerender } = renderProgress({
+        stage: 'generating',
+        progress: { current: 1, total: 2 },
+        currentLocationName: 'Front Counter',
+      })
+      const live = screen.getByTestId('export-progress-announcement')
+      await vi.waitFor(() =>
+        expect(live).toHaveTextContent('Generating PDFs... — Location 1 of 2 — "Front Counter"'),
+      )
+
+      const noop = vi.fn()
+      rerender(
+        <ExportModal
+          mode="progress"
+          stage="generating"
+          progress={{ current: 2, total: 2 }}
+          currentLocationName="Rear Alley Camera"
+          onContinueAnyway={noop}
+          onCancel={noop}
+        />,
+      )
+      await vi.waitFor(() =>
+        expect(live).toHaveTextContent('Generating PDFs... — Location 2 of 2 — "Rear Alley Camera"'),
+      )
+    })
+
+    it('is off-screen, so the announcement never duplicates the visible copy', () => {
+      renderProgress({ stage: 'zipping' })
+      expect(screen.getByTestId('export-progress-announcement')).toHaveStyle({ position: 'absolute', width: '1px' })
+    })
+  })
+
+  it('R-18: the spinner rotates only when motion is welcome', () => {
+    renderProgress({ stage: 'zipping' })
+    // The setup stub pins `prefers-reduced-motion: no-preference`, so the animation is on here;
+    // the reduced arm is exercised by `ExportModal.reduced-motion.test.tsx`.
+    expect(document.querySelector('[data-export-spinner]')).toHaveStyle({
+      animation: 'spin 0.9s linear infinite',
+    })
   })
 
   it('counts locations and names the current one — but only while generating', () => {
-    const { rerender } = renderModal({
-      mode: 'progress',
+    const { rerender } = renderProgress({
       stage: 'generating',
       progress: { current: 2, total: 3 },
       currentLocationName: "Kim's Convenience",
@@ -95,12 +168,12 @@ describe('ExportModal — progress mode', () => {
   })
 
   it('omits the counter when the total is unknown', () => {
-    renderModal({ mode: 'progress', stage: 'generating', progress: { current: 0, total: 0 } })
+    renderProgress({ stage: 'generating', progress: { current: 0, total: 0 } })
     expect(screen.queryByText(/^Location \d+ of/)).not.toBeInTheDocument()
   })
 
   it('is not dismissible — no Escape, no scrim escape, no buttons', () => {
-    const { onCancel } = renderModal({ mode: 'progress', stage: 'zipping' })
+    const { onCancel } = renderProgress({ stage: 'zipping' })
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.click(document.querySelector('[data-export-scrim]')!)
     expect(onCancel).not.toHaveBeenCalled()
@@ -116,7 +189,7 @@ describe('ExportModal — validation mode, some locations invalid', () => {
     })
 
   it('renders the partial-invalid title, description and summary verbatim', () => {
-    renderModal({ mode: 'validation', validationResult: partial() })
+    renderValidation({ validationResult: partial() })
     expect(screen.getByText('Some Locations Missing PDF Data')).toBeInTheDocument()
     expect(
       screen.getByText('The following locations will NOT include PDF notes due to missing required fields:'),
@@ -125,7 +198,7 @@ describe('ExportModal — validation mode, some locations invalid', () => {
   })
 
   it('lists each invalid location with a "- Missing: {field}" line per error', () => {
-    renderModal({ mode: 'validation', validationResult: partial() })
+    renderValidation({ validationResult: partial() })
     const list = screen.getByTestId('export-invalid-locations')
     expect(list).toHaveTextContent('Rear Alley Camera')
     expect(list).toHaveTextContent('- Missing: Completion date')
@@ -135,7 +208,7 @@ describe('ExportModal — validation mode, some locations invalid', () => {
   })
 
   it('labels the primary button "Continue" and uses the warning icon', () => {
-    renderModal({ mode: 'validation', validationResult: partial() })
+    renderValidation({ validationResult: partial() })
     expect(screen.getByRole('button', { name: 'Continue with export' })).toHaveTextContent('Continue')
     expect(screen.getByTestId('export-validation-icon-some')).toBeInTheDocument()
     expect(screen.queryByTestId('export-validation-icon-all')).not.toBeInTheDocument()
@@ -153,7 +226,7 @@ describe('ExportModal — validation mode, every location invalid', () => {
     })
 
   it('switches to the louder framing: title, description, summary and Export Anyway', () => {
-    renderModal({ mode: 'validation', validationResult: all() })
+    renderValidation({ validationResult: all() })
     expect(screen.getByText('All Locations Missing PDF Data')).toBeInTheDocument()
     expect(
       screen.getByText('None of the locations have the required fields for PDF generation:'),
@@ -168,7 +241,7 @@ describe('ExportModal — validation mode, every location invalid', () => {
 
 describe('ExportModal — validation mode, behaviour', () => {
   it('is a focused alertdialog labelled by its title and described by its summary', () => {
-    renderModal({ mode: 'validation', validationResult: result() })
+    renderValidation({ validationResult: result() })
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(dialog).toHaveAccessibleName('All Locations Missing PDF Data')
@@ -177,14 +250,14 @@ describe('ExportModal — validation mode, behaviour', () => {
   })
 
   it('announces the counts to assistive tech when it appears', async () => {
-    renderModal({ mode: 'validation', validationResult: result() })
+    renderValidation({ validationResult: result() })
     expect(await screen.findByTestId('export-validation-announcement')).toHaveTextContent(
       'Warning: 1 of 1 locations are missing required data for PDF generation.',
     )
   })
 
   it('cancels from the button, from Escape and from the scrim', () => {
-    const { onCancel, onContinueAnyway } = renderModal({ mode: 'validation', validationResult: result() })
+    const { onCancel, onContinueAnyway } = renderValidation({ validationResult: result() })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel export' }))
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.click(document.querySelector('[data-export-scrim]')!)
@@ -193,14 +266,13 @@ describe('ExportModal — validation mode, behaviour', () => {
   })
 
   it('continues from the primary button only', () => {
-    const { onContinueAnyway } = renderModal({ mode: 'validation', validationResult: result() })
+    const { onContinueAnyway } = renderValidation({ validationResult: result() })
     fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
     expect(onContinueAnyway).toHaveBeenCalledOnce()
   })
 
   it('while exporting: both buttons are disabled and neither escape route fires', () => {
-    const { onCancel, onContinueAnyway } = renderModal({
-      mode: 'validation',
+    const { onCancel, onContinueAnyway } = renderValidation({
       validationResult: result(),
       isExporting: true,
     })
@@ -213,8 +285,14 @@ describe('ExportModal — validation mode, behaviour', () => {
     expect(onContinueAnyway).not.toHaveBeenCalled()
   })
 
-  it('renders nothing in validation mode without a result (the phone guards the same way)', () => {
-    const { container } = renderModal({ mode: 'validation', validationResult: null })
-    expect(container).toBeEmptyDOMElement()
+  it('cannot be asked for validation mode without a result (R-17: the props discriminate)', () => {
+    // The old runtime guard rendered an empty modal for `{ mode: 'validation', result: null }`.
+    // That state is now unconstructible, so the assertion is a compile-time one — `@ts-expect-error`
+    // fails the build if the pairing ever loosens back into a nullable field.
+    const reject = () => (
+      // @ts-expect-error validation mode requires a result
+      <ExportModal mode="validation" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />
+    )
+    expect(typeof reject).toBe('function')
   })
 })
