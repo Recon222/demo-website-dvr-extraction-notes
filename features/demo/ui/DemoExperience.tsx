@@ -28,7 +28,8 @@ import { StoryRail } from '@/features/demo/ui/StoryRail'
 import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { AlertDialog, type AlertDialogProps } from '@/features/demo/ui/controls/AlertDialog'
-import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
+import { BootSequence } from '@/features/demo/ui/screens/BootSequence'
+import { BOOT_VIDEO_POSTER, BOOT_VIDEO_SRC } from '@/features/demo/engine/logic/boot'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -404,6 +405,15 @@ const noLocationNotice = (onGoToCases: () => void) => (
 export interface DemoExperienceProps {
   /** Inject a store (test/SSR seam). Defaults to a fresh store created once per mount. */
   store?: DemoStore
+  /**
+   * Run the boot sequence — the simulated biometric scan, then the app (P8.1, decision D7).
+   *
+   * The ROUTE owns this, not the component: the phone holds `showSplash` in `app/_layout.tsx:137`
+   * (`useState(true)`, never persisted), above every provider, and `app/demo/page.tsx` is this
+   * app's counterpart. Defaulting to `false` also keeps the thirty-odd suites that mount the
+   * bridge directly testing screens rather than waiting out a splash.
+   */
+  boot?: boolean
 }
 
 /**
@@ -412,7 +422,7 @@ export interface DemoExperienceProps {
  * screen + StoryRail. The ONLY component that touches the store — every screen below it
  * is presentational.
  */
-export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {}) {
+export function DemoExperience({ store: injectedStore, boot = false }: DemoExperienceProps = {}) {
   const storeRef = useRef<DemoStore | null>(null)
   if (!storeRef.current) {
     if (injectedStore) {
@@ -457,6 +467,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     dirRef.current = slideDirection(prevViewRef.current, view)
     prevViewRef.current = view
   }
+
+  /**
+   * Is the boot sequence still up? (P8.1 — the phone's `showSplash`, `app/_layout.tsx:137.`)
+   *
+   * Mount-scoped bridge state, deliberately NOT in the store and NOT in the snapshot. A browser
+   * refresh is the demo's cold start — sessionStorage rehydrates the case work exactly as SQLite
+   * survives an app restart on the phone — and the phone re-runs its splash on every cold start
+   * while `isAuthenticated` resets to false (`biometrics/README.md` § Common Pitfalls 1). So boot
+   * runs on every mount here too, returning visitor or not.
+   *
+   * It is a GATE, not a view: it renders instead of the screen tree and touches no navigation, so
+   * the snapshot's restored `view` is still underneath when it finishes — the same shape as the
+   * phone's splash, which unmounts and leaves the app's own navigation state alone. Making it a
+   * `view` would have clobbered that restored position on every refresh.
+   */
+  const [booting, setBooting] = useState(boot)
+  const endBoot = useCallback(() => setBooting(false), [])
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by
@@ -613,6 +640,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // destination (Map, Export) its contextual copy, else the current chapter's. Each ?? guards
   // an id with no narration entry — it falls back to the chapter rather than blanking.
   const narration =
+    // Boot outranks everything: the rail must describe what is on the glass, and while the gate
+    // is up that is the splash chapter — whatever `view` the snapshot restored is still behind it.
+    (booting ? NARRATION.splash : undefined) ??
     (modal && MODAL_NARRATION[modal]) ??
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
     (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
@@ -2425,7 +2455,16 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
     switch (view) {
       case 'splash':
-        return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
+        // Not reached by navigation any more — boot is a gate above the stage, not a view — but
+        // `splash` is still a `ChapterId`, so a restored snapshot can carry it and the arm has to
+        // render something real. It renders the same sequence, and lands on Cases.
+        return (
+          <BootSequence
+            videoSrc={BOOT_VIDEO_SRC}
+            videoPoster={BOOT_VIDEO_POSTER}
+            onComplete={() => store.getState().setView('cases')}
+          />
+        )
       case 'dashboard':
         return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} onSettings={openSettings} />
       case 'cases':
@@ -2905,7 +2944,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
-          tabBar={tabView ? <TabBar active={tabView} onSelect={(t) => store.getState().setView(t)} /> : undefined}
+          // The tab bar is a sibling of the screen slot in PhoneFrame and paints above it, so the
+          // boot gate cannot cover it — it has to be withheld instead, which is also what the
+          // phone does by not mounting the tab navigator until the splash is gone.
+          tabBar={tabView && !booting ? <TabBar active={tabView} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           {/* Catches render throws in the mounted screen subtree — screen/modal/drawer/
               overlay COMPONENT renders, incl. portaled modals (portal errors propagate
@@ -2916,6 +2958,12 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               caught by the route-level net, app/demo/error.tsx.
               Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
           <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
+          {/* The boot gate (P8.1) renders INSTEAD of the screen tree, not over it — the phone's
+              root layout returns the splash early and never mounts the app beneath it
+              (`app/_layout.tsx:214-222`). Nothing underneath means no z-index race with the
+              drawer or a sheet, and no screen effects firing behind a curtain.
+              Wrapper-without-reindent, same as the boundary above. */}
+          {booting ? <BootSequence videoSrc={BOOT_VIDEO_SRC} videoPoster={BOOT_VIDEO_POSTER} onComplete={endBoot} /> : <>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>
@@ -3020,10 +3068,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus
               `onDismiss` (R-37), so a prop added there flows straight through. */}
           {alert && <AlertDialog {...alert} onDismiss={closeAlert} />}
+          </>}
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>
-      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />
+      {/* The rail sits OUTSIDE the phone, so its checklist stays clickable while the boot gate is
+          up. A jump there is the visitor naming a destination, so it lifts the gate as well as
+          setting the view — otherwise the click would move the phone behind a curtain and read as
+          a dead control. */}
+      <StoryRail
+        narration={narration}
+        explore={explore}
+        onJump={(v) => {
+          endBoot()
+          store.getState().setView(v)
+        }}
+        onBackToSite={onBackToSite}
+      />
       <ExitDialog open={exitOpen} unseen={unseen} leaveHref="/" onStay={() => setExitOpen(false)} />
     </div>
   )
