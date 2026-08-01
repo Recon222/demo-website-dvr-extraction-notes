@@ -315,6 +315,27 @@ describe('Export Security pane', () => {
       .toHaveAttribute('aria-controls', revealed.getAttribute('id'))
   })
 
+  it('FD-4: aria-controls and aria-expanded arrive together — never one without the other', () => {
+    // The two facts are one member now (`disclosure`), because a switch advertising a
+    // disclosure relationship while withholding its state loses axe's carve-out and announces a
+    // control governing something unknown. The COMPILE half is the real guarantee (probe:
+    // `disclosure={{ controls }}` alone is TS2741); this is the shipped-shape half.
+    for (const settings of [DEFAULT_SETTINGS, patch({ zipEncryptionEnabled: true })]) {
+      const { unmount } = render(
+        <div>{renderSettingsPane('export-security', { settings, onChange: vi.fn() })}</div>,
+      )
+      for (const name of [
+        'Encrypt ZIP exports (case, location)',
+        'Encrypt single-file shares (GeoJSON, Map, reports)',
+      ]) {
+        const sw = screen.getByRole('switch', { name })
+        expect(sw.hasAttribute('aria-controls')).toBe(true)
+        expect(sw.hasAttribute('aria-expanded')).toBe(true)
+      }
+      unmount()
+    }
+  })
+
   it('renders both radio groups with the phone’s testids, and they emit', () => {
     const { onChange } = renderPane('export-security', patch({ zipEncryptionEnabled: true }))
     fireEvent.click(screen.getByTestId('export-security-prompt-always'))

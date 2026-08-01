@@ -86,8 +86,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         <Toggle
           label="Encrypt ZIP exports (case, location)"
           on={settings.zipEncryptionEnabled}
-          controls={configId}
-          expanded={anyEncryption}
+          disclosure={{ controls: configId, expanded: anyEncryption }}
           onClick={() => onChange({ zipEncryptionEnabled: !settings.zipEncryptionEnabled })}
         />
       </div>
@@ -95,8 +94,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         <Toggle
           label="Encrypt single-file shares (GeoJSON, Map, reports)"
           on={settings.singleFileEncryptionEnabled}
-          controls={configId}
-          expanded={anyEncryption}
+          disclosure={{ controls: configId, expanded: anyEncryption }}
           onClick={() => onChange({ singleFileEncryptionEnabled: !settings.singleFileEncryptionEnabled })}
         />
       </div>
