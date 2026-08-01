@@ -22,6 +22,7 @@
  */
 
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
+import type { ExportType } from '@/features/demo/engine/logic/export/flow'
 
 /**
  * The visitor's selection: one case at a time, non-empty id set. An empty set is represented
@@ -207,8 +208,15 @@ export type ExportArtifactKind = (typeof EXPORT_ARTIFACT_KINDS)[number]
  */
 export interface ExportSelectionPlan {
   kind: ExportArtifactKind
-  /** The pipeline the CTA dispatches (phone `export.tsx:158-165`). */
-  dispatch: 'case' | 'location' | 'case-subset'
+  /**
+   * The pipeline the CTA dispatches (phone `export.tsx:158-165`).
+   *
+   * An `Extract` of `ExportType` rather than a hand-typed triple, matching `ValidatedExportType`
+   * (`flow.ts:65`): a rename in the flow's vocabulary breaks the build here instead of silently
+   * orphaning a route, and the CTA's `switch` closes over the same source the machine dispatches
+   * on. No cycle — `flow.ts` imports `stage`/`validation`, never `selection`.
+   */
+  dispatch: Extract<ExportType, 'case' | 'location' | 'case-subset'>
   selectedCount: number
   totalInCase: number
   /** CTA label — phone `ExportHub.tsx:126-130`, verbatim. */

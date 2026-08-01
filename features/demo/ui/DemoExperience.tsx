@@ -661,12 +661,22 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const onExportPress = () => {
     if (!exportFooter || !exportView) return
     const { dispatch } = exportFooter.plan
-    if (dispatch === 'case') {
-      requestExportFlow({ type: 'case', caseId: exportView.caseId })
-    } else if (dispatch === 'location') {
-      requestExportFlow({ type: 'location', locationId: Array.from(exportView.locationIds)[0] ?? null })
-    } else {
-      requestExportFlow({ type: 'case-subset', caseId: exportView.caseId, locationIds: Array.from(exportView.locationIds) })
+    // CLOSED with `assertNever` (R-3), like every other union consumer in the flow. The trailing
+    // `else` this replaces made a widened `dispatch` compile straight into the subset arm — at
+    // the one site the engine's invariant is about, that is a footer promising the canonical
+    // case artifact over a subset ZIP. A new pipeline must now break the build here.
+    switch (dispatch) {
+      case 'case':
+        requestExportFlow({ type: 'case', caseId: exportView.caseId })
+        return
+      case 'location':
+        requestExportFlow({ type: 'location', locationId: Array.from(exportView.locationIds)[0] ?? null })
+        return
+      case 'case-subset':
+        requestExportFlow({ type: 'case-subset', caseId: exportView.caseId, locationIds: Array.from(exportView.locationIds) })
+        return
+      default:
+        return assertNever(dispatch)
     }
   }
   // The open sheet's read-only report. Recomputed from the store, so a status action's
