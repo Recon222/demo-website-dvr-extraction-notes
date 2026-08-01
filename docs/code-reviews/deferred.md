@@ -5114,3 +5114,143 @@ merged head it no longer does — and that is NOT a weak pin. R-4's structural s
 after R-9) removed the pin/camera coupling the mutation needed; the pin still reddens when that
 coupling is restored. Recorded so nobody re-derives it from the commit message and concludes the
 test is hollow.
+
+---
+
+## 80. P7.1 — Settings shell + stub panes: rulings, residuals, and one stale spec
+
+**Source:** parity package P7.1 (`parity/p7-shell`) — master plan §5 P7.1, matrix rows 81–84 +
+87–93 + A1, owner decision D6 ("full Settings replica; every pane built visually, honest stub
+behavior everywhere except User Profile and Form Customization").
+
+### 80a. RECORDED — the Developer pane (row 94) is absent, and there is no `devOnly` member
+
+**What:** the phone's eleventh category, `Developer` (`settings-catalog.tsx:260-268`), is not in
+the demo catalog. Nor is the mechanism that hides it: `SettingsCategory` has no `devOnly` and no
+`badge` field, and `getVisibleCategories()`'s `__DEV__` filter has no port.
+
+**Why:** the row is `devOnly: true` on the phone, so it exists in no build a user can install —
+the demo would be replicating a surface its source of truth never ships. The owner ruled it
+permanently out (matrix §7 D6: "Row 94 (Developer, `__DEV__`-only) stays out"), and plan §5 P7.1
+asks for the omission to be documented, which this is. Modelling the field anyway would leave a
+type member with exactly one possible value, one filter with nothing to filter, and a badge slot
+in the nav bar with no producer — three dead things guarding an absence.
+
+**Trigger:** none. This is a closed decision, recorded so a future reader does not "fix" the
+missing row or re-add `devOnly` to make the catalog "match".
+
+### 80b. LEDGERED — the Location pane does not drive the real GPS capture
+
+**What:** `gpsAccuracyMode` / `gpsTimeout` / `showAccuracyWarning` render, change, and are read
+by nothing. The demo's GPS capture is genuinely real (P2.3/P3.4/P3.7) and runs at
+`buildGpsConfig()`'s own defaults — `balanced` / 30 s — which are exactly the values the pane
+opens on, so the pane is *correct on arrival* and inert thereafter. The incident-pin and
+per-camera captures force `PRECISE_GPS_CONFIG` and are meant to ignore the setting on both
+sides.
+
+**Why deferred:** it is the one stub in this package that could plausibly be made real, and D6
+did not ask for it. Wiring crosses two other packages' screens (`SubmissionScreen`,
+`NewLocationModal`), and the third value (`showAccuracyWarning`) has no consumer at all — the
+accuracy chip renders unconditionally — so "wire the pane" is really three changes of different
+sizes wearing one name.
+
+**The recipe, so the next agent does not re-derive it:** `GpsCaptureControl` already takes an
+optional `config: GpsConfig`. Thread `buildGpsConfig(settings.gpsAccuracyMode,
+settings.gpsTimeout * 1000)` from the bridge → `SubmissionScreen` → its `GpsCaptureControl`, and
+the same through `NewLocationModal`. Leave `CameraGpsCapture` and the incident form alone: their
+`PRECISE_GPS_CONFIG` is phone-parity, not an oversight. `showAccuracyWarning` needs a consumer
+built first.
+
+**Trigger:** the next feature touch to the GPS capability, or any review finding that the
+Location pane's honesty note is carrying weight the code should carry. `buildGpsConfig`'s own doc
+comment points here.
+
+### 80c. RECORDED — Settings persist NOTHING this round, and P7.2/P7.3 own their own calls
+
+**What:** the whole `DemoSettings` record lives in `DemoExperience`'s `useState` and dies with
+the tab. It is not in the store, not in `snapshotOf`, and `SNAPSHOT_VERSION` stays at 6.
+
+**Why:** every value is cosmetic by D6's ruling — real and typed, but read by nothing — and a
+persisted value implies a value that matters. The snapshot guard is three compile-time devices
+that move TOGETHER (`as const` union tuples consumed by `z.enum`, `satisfies FullShape`/
+`FullShapeIn` on every shape literal, and `SNAPSHOT_VERSION` + key suffix bumped in the same
+edit); spending that ceremony on a stub would blunt it for the change that needs it.
+
+**For P7.2 / P7.3 specifically:** a profile and a 57-toggle override set are exactly the kind of
+state a visitor expects to survive a refresh, so each package makes its OWN persistence call —
+and if it says yes, moves all three devices in one commit. Settings values must not be swept in
+alongside: they are a different decision with a different answer.
+
+**Trigger:** none for the settings record. If a future package needs one of these values to
+survive a refresh, that value has stopped being cosmetic and the pane owning it stops being a
+stub — re-open the whole pane, not just the field.
+
+### 80d. LEDGERED — `showImportProcessDetails` has no consumer
+
+**What:** the Appearance pane's second switch toggles a real value that nothing reads. On the
+phone it opens and closes the on-device model's inputs and outputs in the live import terminal
+(`GeneralSettingsSection.tsx:29-35`); the demo's terminal always prints its full log.
+
+**Why deferred:** the import terminal is P1.3/P1.4 territory with its own documented trust
+scoping, and adding a verbosity gate means deciding WHICH lines are "process details" — a log
+taxonomy question, not a settings one. The pane names the gap explicitly rather than leaving a
+visitor to discover it mid-import.
+
+**Trigger:** the next feature touch to `ImportTerminalProgress` or the log bus's level set.
+
+### 80e. RECORDED — ui-mapping 12's Cloud Sync spec is stale; the phone has moved
+
+**What:** `docs/ui-mapping/12-settings.md` (fact-checked 2026-07-16) documents the Cloud Sync
+pane as a locked toggle plus an info box reading "Cloud sync is not available in this build."
+That build is gone. The live component is the BYO-Supabase agency-cloud status home —
+provisioning wizard, enrollment QR, user management, paused-project recovery banner, disconnect
+(`CloudSyncSettingsSection.tsx:129-277`) — and its master-row preview now answers
+`Paused`/`Connected` before falling back to On/Off (`settings-catalog.tsx:146-152`), where the
+doc records only On/Off. `useCloudSyncSettings.isLocked` is likewise no longer `!__DEV__`; it is
+`!configured && !__DEV__` (`useCloudSyncSettings.ts:27`).
+
+**What P7.1 built instead:** the shape the demo can honestly hold — the description lifted
+verbatim from the LIVE component (it describes what the app genuinely does), one disabled
+toggle, and an honest note naming the real feature. Plan §2 puts "cloud sync / agency-cloud /
+Supabase / canvas-hub anything" out of scope wholesale, and D6 widens the SETTINGS surface, not
+that exclusion.
+
+**Trigger:** none for the demo. Recorded because the next agent to read ui-mapping 12 for this
+pane will otherwise build the wrong thing — and because a future ui-mapping refresh should pick
+this up.
+
+### 80f. RECORDED — the deliberate non-ports, in one place
+
+Four phone behaviours are absent by decision, each with its reason at the site:
+
+1. **Media Capture's three GPS-permission notes.** Driven by a real
+   `Location.getForegroundPermissionsAsync()` read, and the granted arm asserts "GPS coordinates
+   will be embedded in captured media" — false here, because the demo writes no EXIF. Reading
+   the browser's geolocation permission purely to print that would be the fabricated-capability
+   trap D6 forbids.
+2. **Media Capture's non-iOS codec branch** (`disabled` picker + "Android devices use their
+   default codec"). The demo's frame is an iPhone and a browser is not Android; printing that
+   note would tell a third platform's story.
+3. **Export Security's inline password form.** D4 already skipped `PasswordModal`, and nothing
+   the demo produces is encrypted. A password field in a surface that stores nothing invites a
+   real secret into a demo — worse than an absent control. The status line and the Set-password
+   affordance still render, inert.
+4. **Security's `!isAvailable` branch.** Its button calls `Linking.openSettings()` (no web
+   equivalent) and its copy tells the reader to go enrol a fingerprint — advice that is nonsense
+   in a browser tab.
+
+**Trigger:** none. Re-flagging any of these as a parity gap should be answered with this entry.
+
+### 80g. LEDGERED — the Settings sheet has no focus trap (inherits §7)
+
+**What:** `SettingsModal` carries `role="dialog"` + `aria-modal="true"` + Escape (popping the
+detail before closing, phone parity), and it moves focus into the detail pane on open and back to
+the opening ROW on close. What it does not do is confine Tab to the sheet — the same residual
+`WizardDrawer` and `ModalShell` carry under §7.
+
+**Why deferred:** it is one behaviour shared by every overlay in this feature, and solving it per
+surface is how three subtly different traps end up in the codebase. §7's trigger already names
+the pass that should own it.
+
+**Trigger:** §7's — a broader keyboard-nav/a11y pass, or before beta. Add this surface to that
+pass's inventory.
