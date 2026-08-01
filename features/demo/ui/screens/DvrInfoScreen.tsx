@@ -204,8 +204,14 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', padding: '4px 2px' }}>
-              Pick the first recorded date to calculate total retention and per-scope overwrite countdowns.
+            // R-8: the placeholder names a control, so it may only appear while that control is
+            // on the screen. With First Recorded Date switched off in the Form Fields grid and
+            // either retention output left on, this card's whole body used to be an instruction
+            // to use a picker three clicks away in Settings.
+            <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', padding: '4px 2px' }} data-testid="dvr-retention-empty">
+              {show.firstRecordedDate
+                ? 'Pick the first recorded date to calculate total retention and per-scope overwrite countdowns.'
+                : 'Turn First Recorded Date back on in Settings → Form Fields to calculate retention.'}
             </div>
           )}
         </SectionCard>

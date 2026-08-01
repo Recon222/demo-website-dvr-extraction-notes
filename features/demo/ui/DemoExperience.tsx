@@ -617,14 +617,19 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
     (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
     NARRATION[currentChapter]
-  // The manifest recomputes when the visit record, the active view, or the open modal
-  // changes — all three are selectExploreStatus inputs (read via store.getState()), and
-  // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
-  // stale on modal close (only `modal` flips then; visited/view are reference-unchanged).
+  // The manifest recomputes when the visit record, the active view, the open modal, or the form
+  // VISIBILITY changes — all five are selectExploreStatus inputs (read via store.getState()).
+  // The anchor is modal → view → chapter, so `modal` must be a dep or the active row goes stale
+  // on modal close (only `modal` flips then; visited/view are reference-unchanged). `profile`
+  // and `formOverrides` joined the selector with P7.3, which filters out rows for steps the
+  // visitor has switched off (`selectors.ts`'s `resolveStepVisible` call): without them here,
+  // toggling Cameras off with the Settings sheet OPEN left a Cameras row and an inflated
+  // denominator on the rail beside the pane that had just removed it (review R-4), self-healing
+  // only when closing the sheet happened to flip `modal`.
   const explore = useMemo(
     () => selectExploreStatus(store.getState()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal ARE the selector's inputs, read through getState
-    [store, visited, view, modal],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visited/view/modal/profile/formOverrides ARE the selector's inputs, read through getState
+    [store, visited, view, modal, profile, formOverrides],
   )
   // Exit flow: leaving with unlit manifest rows opens the before-you-go dialog;
   // all-explored lets the link navigate normally. Dialog state is UI-only.

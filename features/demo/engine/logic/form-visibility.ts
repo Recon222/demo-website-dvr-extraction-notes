@@ -1,8 +1,8 @@
 import type {
   ChapterId,
   FormFieldId,
-  FormStepDef,
   FormStepId,
+  LinearFormStepDef,
   FormVisibility,
   ProfileDefaults,
   WizardScreenId,
@@ -55,7 +55,10 @@ export function resolveStepVisible(id: FormStepId, v: FormVisibility): boolean {
   if (isStepMustStay(id)) return true
   const override = v.formOverrides.steps[id]
   if (override !== undefined) return override
-  return profileDefaultsFor(v).steps[id] ?? false
+  // No `?? false`: `ProfileDefaults` is TOTAL over both id spaces, built by mapping the
+  // registries and pinned key-for-key in content.test.ts (R-24). A fallback here would have
+  // been a third answer to a question the type and the test already agree on.
+  return profileDefaultsFor(v).steps[id]
 }
 
 /**
@@ -72,7 +75,7 @@ export function resolveFieldVisible(id: FormFieldId, v: FormVisibility): boolean
 
   const override = v.formOverrides.fields[id]
   if (override !== undefined) return override
-  return profileDefaultsFor(v).fields[id] ?? false
+  return profileDefaultsFor(v).fields[id]
 }
 
 /** Whether a step has at least one visible field — the "would this screen be blank?" question. */
@@ -80,8 +83,9 @@ export function stepHasVisibleField(id: FormStepId, v: FormVisibility): boolean 
   return FORM_FIELDS.some((f) => f.screen === id && resolveFieldVisible(f.id, v))
 }
 
-/** The ordered LINEAR steps currently in the flow (the two drawer tools excluded). */
-export function getVisibleFormSteps(v: FormVisibility): FormStepDef[] {
+/** The ordered LINEAR steps currently in the flow (the two drawer tools excluded). Their ids are
+ *  `WizardScreenId` by construction, so callers route on them without a cast (R-22). */
+export function getVisibleFormSteps(v: FormVisibility): LinearFormStepDef[] {
   return LINEAR_FORM_STEPS.filter((s) => resolveStepVisible(s.id, v))
 }
 
@@ -127,12 +131,13 @@ export function prevVisibleChapter(id: ChapterId, v: FormVisibility): ChapterId 
   return before.length > 0 ? before[before.length - 1] : null
 }
 
-/** Whether a step id names a step at all — the pane's guard for a stale override key. */
+/** Whether a step id names a step at all — the loader's guard for a stale override key. No cast
+ *  since R-27: the lookups take `string`, which is what a guard has to be able to hand them. */
 export function isKnownFormStep(id: string): id is FormStepId {
-  return getFormStep(id as FormStepId) !== undefined
+  return getFormStep(id) !== undefined
 }
 
 /** Whether a field id names a field at all — same job, field side. */
 export function isKnownFormField(id: string): id is FormFieldId {
-  return getFormField(id as FormFieldId) !== undefined
+  return getFormField(id) !== undefined
 }

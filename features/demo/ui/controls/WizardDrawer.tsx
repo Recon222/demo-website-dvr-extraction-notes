@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { WizardScreenId } from '@/features/demo/engine/types'
+import type { AdditiveFormStepId, WizardScreenId } from '@/features/demo/engine/types'
 import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -47,8 +47,11 @@ export interface WizardDrawerProps {
    * gates the same two rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`); the
    * Media Library row is ungated on both sides — it browses what is already captured, so it
    * has nothing to do with which capture screens are in the flow.
+   *
+   * IMPORTED, not re-declared (R-20): the key space is the additive-tool id space, so a third
+   * tool cannot be added to the registry and silently never reach this accordion.
    */
-  mediaTools: { capture: boolean; audio: boolean }
+  mediaTools: Readonly<Record<AdditiveFormStepId, boolean>>
 }
 
 const itemButton: CSSProperties = {
@@ -330,10 +333,10 @@ export function WizardDrawer({
               {/* Appended AFTER the step list, exactly like the phone (CustomDrawerContent.tsx:265). */}
               <MediaAccordion
                 rows={[
-                  ...(mediaTools.capture
+                  ...(mediaTools.mediaCapture
                     ? [{ key: 'capture', label: 'Capture Media', ariaLabel: 'Open camera to capture media', icon: <CameraIcon />, onSelect: onCaptureMedia }]
                     : []),
-                  ...(mediaTools.audio
+                  ...(mediaTools.audioRecording
                     ? [{ key: 'audio', label: 'Record Audio', ariaLabel: 'Record audio note', icon: <MicIcon />, onSelect: onRecordAudio }]
                     : []),
                   { key: 'library', label: 'Media Library', ariaLabel: 'Open media library', icon: <FolderOpenIcon />, onSelect: onOpenMediaLibrary },

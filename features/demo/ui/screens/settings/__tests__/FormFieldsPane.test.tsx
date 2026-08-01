@@ -79,6 +79,29 @@ describe('the grid is the wizard inventory', () => {
   })
 })
 
+describe('the row expander names itself once (R-31)', () => {
+  it('keeps the state in aria-expanded and out of the accessible name', () => {
+    renderPane()
+    const row = screen.getByTestId('fc-group-dvrInfo')
+    expect(row).toHaveAttribute('aria-label', 'DVR Information')
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(row)
+    // The name is stable across the state change — only `aria-expanded` moves, so AT does not
+    // announce "collapsed" twice (the rule `MediaAccordion` states and the other eight
+    // `aria-expanded` sites in the repo follow).
+    expect(screen.getByTestId('fc-group-dvrInfo')).toHaveAttribute('aria-label', 'DVR Information')
+    expect(screen.getByTestId('fc-group-dvrInfo')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('points the expander at the body it opens', () => {
+    renderPane()
+    fireEvent.click(screen.getByTestId('fc-group-dvrInfo'))
+    const controls = screen.getByTestId('fc-group-dvrInfo').getAttribute('aria-controls')
+    expect(controls).toBeTruthy()
+    expect(document.getElementById(controls!)).toBe(screen.getByTestId('fc-body-dvrInfo'))
+  })
+})
+
 describe('locks', () => {
   it('renders must-stay screens locked, on and inert', () => {
     const props = renderPane()
@@ -90,6 +113,25 @@ describe('locks', () => {
       fireEvent.click(sw)
     }
     expect(props.onToggleStep).not.toHaveBeenCalled()
+  })
+
+  it('points every locked switch at the pill that says why (R-6)', () => {
+    // `aria-disabled` announces "dimmed" and no reason. Without the description a screen-reader
+    // visitor cannot tell a deliberate lock from a broken control — the pill is an unlabelled
+    // span two nodes away and is never read at that moment.
+    renderPane()
+    fireEvent.click(screen.getByTestId('fc-group-submission'))
+    for (const [sw, pill] of [
+      ['fc-screen-toggle-submission', 'fc-screen-lock-submission'],
+      ['fc-toggle-submission.occNumber', 'fc-field-lock-submission.occNumber'],
+    ] as const) {
+      const described = screen.getByTestId(sw).getAttribute('aria-describedby')
+      expect(described, `${sw} announces "dimmed" with no reason`).toBeTruthy()
+      expect(document.getElementById(described!)).toBe(screen.getByTestId(pill))
+      expect(screen.getByTestId(pill)).toHaveTextContent('Always on')
+    }
+    // …and an UNLOCKED switch describes nothing: there is no reason to give.
+    expect(screen.getByTestId('fc-screen-toggle-cameras')).not.toHaveAttribute('aria-describedby')
   })
 
   it('renders always-on fields locked, on and inert — and keeps them focusable', () => {
@@ -157,12 +199,20 @@ describe('the profile picker', () => {
     // The phone's copy — carried verbatim — promises a reduction…
     expect(screen.getByText('Comprehensive, lightly reduced (SPC/SOCO).')).toBeInTheDocument()
     // …and the count, read off the same map the resolver reads, tells the truth.
-    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides nothing — every screen and field is on.')
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('This profile hides nothing by default.')
+  })
+
+  it('scopes the line to the PROFILE, so overrides cannot falsify it (R-17)', () => {
+    // The visitor is on forensic with Cameras switched off. "Every screen and field is on"
+    // would be false on the row directly below; "by default" is exactly what is counted.
+    renderPane({ isStepVisible: (id) => id !== 'cameras' })
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('This profile hides nothing by default.')
+    expect(screen.getByTestId('fc-screen-toggle-cameras')).toHaveAttribute('aria-checked', 'false')
   })
 
   it('pluralises the canvas reduction correctly', () => {
     renderPane({}, 'canvas')
-    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides 1 screen · 12 fields.')
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides 1 screen · 12 fields by default.')
   })
 })
 

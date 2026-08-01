@@ -502,16 +502,29 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     ...initial,
 
     /**
-     * Start over: back to the empty boot — with ONE thing carried across, the analyst profile.
+     * Start over: back to the empty boot — with the SETTINGS FAMILY carried across.
      *
-     * The phone cannot reset it at all: identity lives in its own AsyncStorage store precisely
-     * because it is app-level config rather than case data (`user-profile/README.md` — "kept
-     * separate from the SQLite-backed case data"), and there is no `resetProfile()` on the store
-     * despite the docs claiming one. "Start over" here means the visitor's CASES go; who they are
-     * is not something a fresh sandbox needs them to type again. The tab still forgets it — the
-     * snapshot is per-tab and dies with it.
+     * The phone cannot reset any of it: both live in their own AsyncStorage stores precisely
+     * because they are app-level config rather than case data (`user-profile/README.md` — "kept
+     * separate from the SQLite-backed case data"; `form-customization/README.md:12-13` — "device-
+     * level config — never case data"), and there is no `resetProfile()` on either store despite
+     * the docs claiming one. "Start over" here means the visitor's CASES go.
+     *
+     * ONE rule for the three of them (review R-13 / ledger A3): `userProfile` was decided on
+     * P7.2's branch and `profile`/`formOverrides` on P7.3's, and the two answers disagreed for
+     * no reason either branch could see. Who the analyst is and which form this deployment runs
+     * are the same kind of fact — neither is something a fresh sandbox should make them re-enter,
+     * and the form profile is a configuration OF the wizard rather than a thing the wizard holds.
+     * The tab still forgets all three: the snapshot is per-tab and dies with it, and the
+     * "Start fresh" escape hatch clears the snapshot before it resets.
      */
-    reset: () => set({ ...initialState(), userProfile: get().userProfile }),
+    reset: () =>
+      set({
+        ...initialState(),
+        userProfile: get().userProfile,
+        profile: get().profile,
+        formOverrides: get().formOverrides,
+      }),
 
     // ---- Form customization (P7.3) --------------------------------------------------------
     applyFormProfile: (profile) => set({ profile, formOverrides: blankFormOverrides() }),

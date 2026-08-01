@@ -104,9 +104,9 @@ describe('setFormStepVisible', () => {
 
   it('switches the two drawer capture tools, and never the library', () => {
     const store = freshStore()
-    expect(selectMediaToolsVisible(store.getState())).toEqual({ capture: true, audio: true })
+    expect(selectMediaToolsVisible(store.getState())).toEqual({ mediaCapture: true, audioRecording: true })
     store.getState().setFormStepVisible('audioRecording', false)
-    expect(selectMediaToolsVisible(store.getState())).toEqual({ capture: true, audio: false })
+    expect(selectMediaToolsVisible(store.getState())).toEqual({ mediaCapture: true, audioRecording: false })
   })
 })
 
@@ -154,6 +154,19 @@ describe('setFormFieldVisible', () => {
     expect(resolveStepVisible('submission', store.getState())).toBe(true)
     expect(resolveFieldVisible('submission.occNumber', store.getState())).toBe(true)
     expect(resolveFieldVisible('submission.requesterName', store.getState())).toBe(false)
+
+    // R-12: the body above never reaches the exemption. Submission's always-on fields keep
+    // `stepHasVisibleField` true, so the cascade branch is not entered at all, and the
+    // assertion above is satisfied by the READ-force layer regardless of what was written.
+    // `completion` is the ONLY must-stay screen with no always-on field, so it is the branch's
+    // one reachable case — and the assertion has to be on the WRITE side, because a
+    // `steps.completion = false` written here would ride into the v7 snapshot as a record the
+    // resolver ignores and the pane can never clear (`setFormStepVisible` refuses must-stay).
+    const terminal = freshStore()
+    terminal.getState().setFormFieldVisible('completion.dateTimeCompleted', false)
+    terminal.getState().setFormFieldVisible('completion.completedBy', false)
+    expect(terminal.getState().formOverrides.steps).toEqual({})
+    expect(resolveStepVisible('completion', terminal.getState())).toBe(true)
   })
 
   it('never auto-SHOWS a screen — the cascade is one-way', () => {

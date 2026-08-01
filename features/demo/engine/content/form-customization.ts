@@ -4,6 +4,7 @@ import type {
   FormStepClassification,
   FormStepDef,
   FormStepId,
+  LinearFormStepDef,
 } from '@/features/demo/engine/types'
 import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
@@ -64,8 +65,9 @@ const ADDITIVE_STEP_LABELS: Record<(typeof ADDITIVE_FORM_STEP_IDS)[number], stri
   audioRecording: 'Record Audio',
 }
 
-/** The 10 linear wizard steps, in flow order. */
-export const LINEAR_FORM_STEPS: readonly FormStepDef[] = DRAWER_DEFS.map((d, i) => ({
+/** The 10 linear wizard steps, in flow order. Typed `LinearFormStepDef` so their ids carry the
+ *  `WizardScreenId` narrowing all the way to the router (R-22). */
+export const LINEAR_FORM_STEPS: readonly LinearFormStepDef[] = DRAWER_DEFS.map((d, i) => ({
   id: d.id,
   label: d.label,
   order: i + 1,
@@ -84,8 +86,15 @@ export const ADDITIVE_FORM_STEPS: readonly FormStepDef[] = ADDITIVE_FORM_STEP_ID
 /** Every switchable step: the 10 linear rows then the 2 tools. */
 export const FORM_STEPS: readonly FormStepDef[] = [...LINEAR_FORM_STEPS, ...ADDITIVE_FORM_STEPS]
 
-/** Lookup by id. `undefined` only for an id outside `FormStepId`, which the union forecloses. */
-export function getFormStep(id: FormStepId): FormStepDef | undefined {
+/**
+ * Lookup by id — `undefined` when nothing matches.
+ *
+ * The parameter is `string`, not `FormStepId` (review R-27). The union signature made the
+ * function's own return type unreachable for a typed caller AND forbade the exact call the id
+ * guards have to make — `isKnownFormStep` was casting a `string` INTO the union to ask whether
+ * it belonged there. A lookup that can answer "no" must accept an id that might be wrong.
+ */
+export function getFormStep(id: string): FormStepDef | undefined {
   return FORM_STEPS.find((s) => s.id === id)
 }
 
@@ -191,13 +200,15 @@ export const FORM_FIELDS: readonly FormFieldDef[] = [
   { id: 'completion.completedBy', screen: 'completion', label: 'Completed By', storeKey: 'completedBy' },
 ]
 
-/** Lookup by id. `undefined` only for an id outside `FormFieldId`, which the union forecloses. */
-export function getFormField(id: FormFieldId): FormFieldDef | undefined {
+/** Lookup by id — `undefined` when nothing matches. `string` for the same reason as
+ *  `getFormStep` above (R-27): the unknown-id guards are real callers. */
+export function getFormField(id: string): FormFieldDef | undefined {
   return FORM_FIELDS.find((f) => f.id === id)
 }
 
-/** Every field that toggles together with `id` — the field alone when it has no group. */
-export function getFieldGroupMembers(id: FormFieldId): FormFieldDef[] {
+/** Every field that toggles together with `id` — the field alone when it has no group, and an
+ *  empty list for an id the registry does not know (pinned by test). */
+export function getFieldGroupMembers(id: string): FormFieldDef[] {
   const field = getFormField(id)
   if (!field) return []
   if (!field.group) return [field]

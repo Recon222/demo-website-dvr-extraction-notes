@@ -160,6 +160,22 @@ describe('the wizard runs on the visible step set', () => {
     expect(within(drawer).getByText('DVR Information')).toBeInTheDocument()
   })
 
+  it('drops the row from the rail the moment it is switched off, not on the next modal flip', () => {
+    // Review R-4. The seeded-before-render tests above pass with the memo's old dep list; this
+    // one toggles AFTER render, which is the visitor's actual path (the Settings sheet is OPEN
+    // beside the rail while they flip the switch). Before the fix the rail kept a Cameras row
+    // and an inflated denominator until closing the sheet happened to flip `modal`.
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    const railBefore = screen.getByText(/explored$/).textContent
+    expect(screen.getByRole('button', { name: /^Cameras, / })).toBeInTheDocument()
+
+    act(() => store.getState().setFormStepVisible('cameras', false))
+
+    expect(screen.queryByRole('button', { name: /^Cameras, / })).not.toBeInTheDocument()
+    expect(screen.getByText(/explored$/).textContent).not.toBe(railBefore)
+  })
+
   it('drops a switched-off capture tool from the drawer accordion', () => {
     const store = seedInWizard('dvrInfo')
     act(() => store.getState().setFormStepVisible('audioRecording', false))

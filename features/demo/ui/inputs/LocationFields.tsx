@@ -75,9 +75,15 @@ export interface LocationFieldsProps {
   /** Partial patch — mirrors the phone's `onChange(updates: Partial<LocationFormValues>)`. */
   onChange(updates: Partial<LocationFieldValues>): void
   /**
-   * Whether the GPS block — the capture control, its lookup notice and the coordinate card —
-   * is part of this deployment's form (P7.3, the `submission.*` coordinate group). The three
-   * text fields above it are always-on, so they have no switch of their own.
+   * Whether the coordinate group — the capture control, its lookup notice, the coordinate card,
+   * AND the coordinate half of an address pick — is part of this deployment's form (P7.3, the
+   * `submission.*` coordinate group). The three text fields above it are always-on, so they have
+   * no switch of their own.
+   *
+   * The write half is not optional garnish (P7 review R-2b, owner-ruled): with the group off,
+   * `onPick` must not stamp `lat`/`lng`/`accuracyM`/`coordinateSource`, or the visitor carries
+   * coordinates they cannot see, verify or clear into the Map pin and the exported case map.
+   * Only NEW stamping is suppressed — anything captured before the switch was flipped stays.
    *
    * Optional and defaulting to ON: the New Location modal mounts this component too, and a
    * create-time capture is not a wizard field the profile grid governs.
@@ -220,10 +226,16 @@ export function LocationFields({ locationId, values, onChange, showGps = true, d
           // picked on. A pick that resolves after a switch writes street/city AND coordinates
           // stamped `'geocoded'`; dropping it is the same call the geocode path makes.
           if (!canWriteFor(locationId)) return
+          // P7 R-2(b): the coordinate half of the pick is governed by the SAME switch that
+          // governs the coordinate display. Street and city are always-on and always write; the
+          // coordinates do not, because a switch that hides a value while the app keeps writing
+          // it invisibly is the dishonesty the gate was invented to remove, one level down —
+          // and these reach the Map pin and the exported case map. Coordinates captured BEFORE
+          // the group was hidden stay put: that is the pane footnote's "already entered" case.
           onChange({
             streetAddress: p.streetAddress,
             city: p.city,
-            ...(p.coordinates
+            ...(showGps && p.coordinates
               ? { lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM, coordinateSource: 'geocoded' as const }
               : {}),
           })

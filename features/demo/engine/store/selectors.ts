@@ -1,5 +1,6 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import type { AdditiveFormStepId, DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
@@ -130,12 +131,12 @@ export function selectLocationsForCase(s: DemoState, caseId: string): DemoLocati
 
 /**
  * The wizard screens currently in the flow — the visible LINEAR steps, resolved through the
- * active profile and the visitor's overrides (P7.3). Every step id here is a `WizardScreenId`
- * because `LINEAR_FORM_STEPS` is `DRAWER_DEFS`; the narrowing is asserted rather than assumed
- * so a future additive step leaking into the linear list is a test failure, not a bad route.
+ * active profile and the visitor's overrides (P7.3). No cast: `LINEAR_FORM_STEPS` is built from
+ * `DRAWER_DEFS` and typed `LinearFormStepDef`, so the ids ARE `WizardScreenId` and an additive
+ * tool leaking into the linear list is a compile failure rather than a bad route at runtime.
  */
 export function selectVisibleWizardScreens(s: DemoState): WizardScreenId[] {
-  return getVisibleFormSteps(s).map((step) => step.id as WizardScreenId)
+  return getVisibleFormSteps(s).map((step) => step.id)
 }
 
 export function selectDrawerItems(s: DemoState): DrawerDef[] {
@@ -143,14 +144,20 @@ export function selectDrawerItems(s: DemoState): DrawerDef[] {
   return DRAWER_DEFS.filter((d) => visible.has(d.id))
 }
 
-/** Whether the drawer's Media accordion should offer each capture tool — the phone gates both
- *  rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
- *  gated on either side: it browses what is already captured. */
-export function selectMediaToolsVisible(s: DemoState): { capture: boolean; audio: boolean } {
-  return {
-    capture: resolveStepVisible('mediaCapture', s),
-    audio: resolveStepVisible('audioRecording', s),
-  }
+/**
+ * Whether the drawer's Media accordion should offer each capture tool — the phone gates both
+ * rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
+ * gated on either side: it browses what is already captured.
+ *
+ * Keyed by `AdditiveFormStepId` and BUILT from the tuple (R-20). The ad-hoc `capture`/`audio`
+ * names it used to carry meant a third additive tool would fail to compile in the two registries
+ * and in NEITHER consumer — it would simply never reach the drawer, silently. Now the record is
+ * total over the id space, so adding a tool breaks here and at the drawer until both are wired.
+ */
+export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
+  return Object.fromEntries(
+    ADDITIVE_FORM_STEP_IDS.map((id) => [id, resolveStepVisible(id, s)]),
+  ) as Record<AdditiveFormStepId, boolean>
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------
@@ -165,17 +172,8 @@ function checkFields(values: Array<string | undefined>): DrawerStatus {
   return n === values.length ? 'complete' : 'partial'
 }
 
-/** no items / all-blank items → empty · every item fully filled → complete · else partial */
-function checkArray<T>(items: T[], fields: (item: T) => Array<string | undefined>): DrawerStatus {
-  if (items.length === 0) return 'empty'
-  const per = items.map((it) => checkFields(fields(it)))
-  if (per.every((d) => d === 'complete')) return 'complete'
-  if (per.every((d) => d === 'empty')) return 'empty'
-  return 'partial'
-}
-
 /**
- * Extracted scopes diverge from checkArray on purpose: a present-but-blank GENERATED scope reads
+ * Extracted scopes diverge from `countedArray` on purpose: a present-but-blank GENERATED scope reads
  * 'partial', not 'empty' (only generateExtractedScopes populates this list, and a blank cameras
  * field legitimately → amber). 'empty' is reserved for 0 items.
  */
@@ -192,20 +190,26 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
  * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
  *
- * **`visibility` (P7.3, optional).** Pass it and a HIDDEN field stops being counted — the phone
- * does the same (`use-section-completion.ts` reads the store + `resolveFieldVisible`), and
- * without it a canvas visitor's DVR dot could never go green: five of its nine counted fields
- * are hidden, so they are permanently empty AND permanently unfillable.
+ * **The second argument is a MODE, not a configuration** (review R-23). The two consumers ask
+ * genuinely different questions, so the mode is named rather than signalled by absence:
  *
- * Optional because the two consumers ask different questions. The DRAWER asks "what is left for
- * ME to fill", which depends on this device's form profile. The map pin and the exported case
- * map ask "how far along is this LOCATION", which must not change because the reader's device
- * runs a different profile — so those call sites deliberately pass nothing and count everything.
+ * - a `FormVisibility` ⇒ *"what is left for ME to fill"* — a HIDDEN field stops being counted,
+ *   which is what the phone does (`use-section-completion.ts` reads the store +
+ *   `resolveFieldVisible`). Without it a canvas visitor's DVR dot could never go green: five of
+ *   its nine counted fields are hidden, so they are permanently empty AND unfillable.
+ * - `'count-all'` ⇒ *"how far along is this LOCATION"* — every counted field counts, because the
+ *   map pin and the exported case map must not read differently on a reader whose device runs a
+ *   different profile.
+ *
  * A screen whose counted fields are ALL hidden reads 'complete': there is nothing outstanding.
  */
+/** The map-pin / exported-case-map reading: grade the location, not this device's form. */
+export const COUNT_ALL_FIELDS = 'count-all'
+export type DrawerStatusMode = FormVisibility | typeof COUNT_ALL_FIELDS
+
 export function selectDrawerStatus(
   loc: DemoLocation | null,
-  visibility?: FormVisibility,
+  mode: DrawerStatusMode,
 ): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
     return {
@@ -225,7 +229,7 @@ export function selectDrawerStatus(
   const dvr = f.dvr
   // Counted values, each paired with the toggle that governs it. `counted` drops the hidden ones
   // (when a visibility is supplied) and reads an all-hidden list as 'complete'.
-  const shown = (id: FormFieldId) => !visibility || resolveFieldVisible(id, visibility)
+  const shown = (id: FormFieldId) => mode === COUNT_ALL_FIELDS || resolveFieldVisible(id, mode)
   const counted = (entries: ReadonlyArray<readonly [FormFieldId, string | undefined]>): DrawerStatus => {
     const values = entries.filter(([id]) => shown(id)).map(([, v]) => v)
     return values.length === 0 ? 'complete' : checkFields(values)
@@ -316,7 +320,7 @@ export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
   // Field-derived aggregation only grades locations still in progress. This keeps the Cases
   // row/map pin consistent with the card the same action turned green.
   if (loc.form.completed) return 'complete'
-  return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
+  return aggregateMapStatus(Object.values(selectDrawerStatus(loc, COUNT_ALL_FIELDS)))
 }
 
 /** Assemble the current case + location into the Case Notes PDF input shape. */

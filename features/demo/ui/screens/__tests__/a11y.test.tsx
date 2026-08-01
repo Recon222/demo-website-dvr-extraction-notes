@@ -73,7 +73,7 @@ describe('WizardDrawer a11y', () => {
         onRecordAudio={vi.fn()}
         onOpenMediaLibrary={vi.fn()}
         saveStatus={null}
-        mediaTools={{ capture: true, audio: true }}
+        mediaTools={{ mediaCapture: true, audioRecording: true }}
       />,
     )
     const dialog = screen.getByRole('dialog', { name: 'Navigation' })

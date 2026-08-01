@@ -42,8 +42,13 @@ describe('form-customization step registry', () => {
   })
 
   it('classifies every additive tool as a tool and every linear step as a step', () => {
-    expect(LINEAR_FORM_STEPS.every((s) => s.additive !== true)).toBe(true)
+    // The linear half is now a COMPILE guarantee, not a runtime one: `LinearFormStepDef` pins
+    // `additive?: false`, so `s.additive !== true` no longer typechecks as a meaningful
+    // comparison (R-22). What is left to assert at runtime is the value, and the tools' side.
+    expect(LINEAR_FORM_STEPS.map((s) => s.additive)).toEqual(LINEAR_FORM_STEPS.map(() => undefined))
     expect(ADDITIVE_FORM_STEPS.every((s) => s.additive === true)).toBe(true)
+    // …and the linear ids ARE the drawer's, which is what the narrowing rests on.
+    expect(LINEAR_FORM_STEPS.map((s) => s.id)).toEqual([...WIZARD_SCREENS])
   })
 
   it('covers every launchable except ocr (Decision OD-1) — exhaustively', () => {
@@ -121,6 +126,13 @@ describe('form-customization field registry', () => {
     }
   })
 
+  it('returns no members for an id that is not in the registry', () => {
+    // The unknown-id guard, mirroring the two neighbouring guards pinned in
+    // form-visibility.test.ts. A cast is the only way to reach it — which is the point: a JS
+    // caller or a stale persisted key must get an empty list, never a crash mid-toggle.
+    expect(getFieldGroupMembers('dvr.nope')).toEqual([])
+  })
+
   it('resolves every field id', () => {
     for (const f of FORM_FIELDS) expect(getFormField(f.id)).toBe(f)
   })
@@ -133,7 +145,11 @@ describe('capability invariants', () => {
      * COMPILE error here, not a silently hideable required field. The values are the fields a
      * visitor would have to fill to clear each rule; every one must be locked on.
      */
-    const coveredBy: Record<keyof typeof FINAL_SUBMISSION_MESSAGES, readonly FormFieldId[]> = {
+    // NON-EMPTY (R-26): `readonly FormFieldId[]` let a new rule discharge the compile gate with
+    // `[]` — the key would be forced, the assertion loop would iterate zero times, and the
+    // "a fourth rule is a compile error" claim would be satisfied by a value that proves
+    // nothing. The tuple type makes the coverage list itself mandatory.
+    const coveredBy: Record<keyof typeof FINAL_SUBMISSION_MESSAGES, readonly [FormFieldId, ...FormFieldId[]]> = {
       occNumber: ['submission.occNumber'],
       address: ['submission.address', 'submission.businessName', 'submission.streetAddress', 'submission.city'],
       scopes: ['scope.startDateTime', 'scope.endDateTime'],
