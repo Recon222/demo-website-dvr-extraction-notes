@@ -21,7 +21,7 @@ describe('DashboardScreen', () => {
   // points) has its own suite in DashboardScreen.test.tsx.
   it('renders the case timeline and opens a location', () => {
     const onOpenLocation = vi.fn()
-    render(<DashboardScreen cases={[card]} onOpenLocation={onOpenLocation} onCaseActions={vi.fn()} />)
+    render(<DashboardScreen cases={[card]} onOpenLocation={onOpenLocation} onCaseActions={vi.fn()} onSettings={vi.fn()} />)
     expect(screen.getByText('PR25-0098213')).toBeInTheDocument()
     expect(screen.getByText('L. McHugh')).toBeInTheDocument()
     fireEvent.click(screen.getByText("Kim's Convenience"))
@@ -29,7 +29,7 @@ describe('DashboardScreen', () => {
   })
 
   it('renders the empty state', () => {
-    render(<DashboardScreen cases={[]} onOpenLocation={vi.fn()} onCaseActions={vi.fn()} />)
+    render(<DashboardScreen cases={[]} onOpenLocation={vi.fn()} onCaseActions={vi.fn()} onSettings={vi.fn()} />)
     expect(screen.getByText('No cases yet.')).toBeInTheDocument()
   })
 })
@@ -46,6 +46,7 @@ describe('CasesScreen', () => {
     onDeleteCase: vi.fn(),
     onDeleteLocation: vi.fn(),
     onLocationActions: vi.fn(),
+    onSettings: vi.fn(),
   }
 
   it('lists cases and fires toggle + new-case', () => {

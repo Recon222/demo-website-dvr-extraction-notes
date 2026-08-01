@@ -344,6 +344,10 @@ const MODAL_IDS: Record<ModalId, true> = {
   duplicateLocation: true,
   newAddressLocation: true,
   exportScope: true,
+  // P7.1. Widening the ACCEPTED key set does not bump SNAPSHOT_VERSION: `visited` is
+  // `Record<string, true>` and the loader drops keys this build doesn't know, so an older
+  // snapshot stays valid and a newer one loses only the key this build can't place.
+  settings: true,
 }
 /** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
  *  snapshot with `"toString": true` would pass the guard and defeat the documented

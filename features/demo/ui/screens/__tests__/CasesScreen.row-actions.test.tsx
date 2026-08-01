@@ -36,6 +36,7 @@ function renderScreen(over: Partial<CasesScreenProps> = {}) {
     onLocationActions: vi.fn(),
     onDeleteCase: vi.fn(),
     onDeleteLocation: vi.fn(),
+    onSettings: vi.fn(),
     ...over,
   }
   const view = render(<CasesScreen {...props} />)

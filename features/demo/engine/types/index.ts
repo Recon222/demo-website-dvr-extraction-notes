@@ -56,6 +56,11 @@ export type ModalId =
    *  overlay, whose visibility is DERIVED from the export machine (`resolveExportModalMode`)
    *  exactly as on the phone. */
   | 'exportScope'
+  /** The Settings sheet (P7.1 — phone `SettingsModal`), opened by the gear on the Home and
+   *  Cases headers. ONE id for the whole master/detail surface: which pane is open is local
+   *  state inside the sheet on both sides (phone `SettingsModal.tsx:53`), and it dies with the
+   *  sheet, so it is neither a modal id nor a snapshot field. */
+  | 'settings'
 
 /** The two flavours every duplicate action carries (phone `DuplicateMode`,
  *  `duplicate-location-service.ts:23`): submission info alone, or submission info plus a

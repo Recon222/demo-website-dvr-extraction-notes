@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { WizardScreenId } from '@/features/demo/engine/types'
 import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -69,13 +70,6 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
 }
 
 // ---- Footer chrome --------------------------------------------------------
-
-/**
- * The app version the demo mirrors — the phone's `app.config.js:11` (`version: '1.0.0'`),
- * which is what its own drawer footer renders via `Constants.expoConfig?.version`. A literal
- * here rather than a read: the demo is a separate deployable and has no Expo config to ask.
- */
-const APP_VERSION = '1.0.0'
 
 /**
  * Save-status tone. Redundant with the wording (the text already says which state it is), so
@@ -341,12 +335,14 @@ export function WizardDrawer({
                   {saveStatus.text}
                 </div>
               )}
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>DVR Extraction Notes</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>{APP_NAME}</div>
               {/* The phone renders `v{Constants.expoConfig?.version}` here — this is the same
                   chrome, labelled for what the visitor is actually looking at. The version is
                   the app's (phone `app.config.js:11`), and this is its demo, not a build of it;
-                  a bare "v1.0.0" in a browser would imply otherwise. */}
-              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>Interactive demo · v{APP_VERSION}</div>
+                  a bare "v1.0.0" in a browser would imply otherwise. Both literals moved to
+                  `engine/content/app-info.ts` at P7.1, when the About pane became a second
+                  reader — see that module's note. */}
+              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>{DEMO_VERSION_LINE}</div>
             </div>
           </motion.div>
         )}

@@ -286,6 +286,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Pick either scope — the validation pass and the progress stages are the real ones.',
   },
+  settings: {
+    eyebrow: 'Settings',
+    title: 'What the app lets you change',
+    paras: [
+      'Eleven categories behind the gear: who you are, how the camera captures, which atomic clock you trace to, how exports are protected, and which of the 57 form fields you actually want to fill in. The whole surface is here so you can see how much of the app is configurable rather than assumed.',
+      'Most of it is a replica. A browser tab has no camera codec to pick, no biometric sensor and no keychain, so those panes render honestly and say what each control would do on the phone — every one of them explains itself rather than pretending to work.',
+    ],
+    bullets: [
+      'Master list → detail pane, with the current value on every row',
+      'Media, Location, Time Sync, Export Security, Security, Cloud Sync, About',
+      'Each pane states plainly what it does and does not do in the demo',
+    ],
+    tip: 'Open Location — it tells you exactly what accuracy the demo’s real GPS capture uses.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
