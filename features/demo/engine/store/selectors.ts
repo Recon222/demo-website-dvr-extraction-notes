@@ -1,5 +1,6 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import type { AdditiveFormStepId, DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
@@ -143,14 +144,20 @@ export function selectDrawerItems(s: DemoState): DrawerDef[] {
   return DRAWER_DEFS.filter((d) => visible.has(d.id))
 }
 
-/** Whether the drawer's Media accordion should offer each capture tool — the phone gates both
- *  rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
- *  gated on either side: it browses what is already captured. */
-export function selectMediaToolsVisible(s: DemoState): { capture: boolean; audio: boolean } {
-  return {
-    capture: resolveStepVisible('mediaCapture', s),
-    audio: resolveStepVisible('audioRecording', s),
-  }
+/**
+ * Whether the drawer's Media accordion should offer each capture tool — the phone gates both
+ * rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
+ * gated on either side: it browses what is already captured.
+ *
+ * Keyed by `AdditiveFormStepId` and BUILT from the tuple (R-20). The ad-hoc `capture`/`audio`
+ * names it used to carry meant a third additive tool would fail to compile in the two registries
+ * and in NEITHER consumer — it would simply never reach the drawer, silently. Now the record is
+ * total over the id space, so adding a tool breaks here and at the drawer until both are wired.
+ */
+export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
+  return Object.fromEntries(
+    ADDITIVE_FORM_STEP_IDS.map((id) => [id, resolveStepVisible(id, s)]),
+  ) as Record<AdditiveFormStepId, boolean>
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------

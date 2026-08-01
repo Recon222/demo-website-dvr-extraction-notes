@@ -104,9 +104,9 @@ describe('setFormStepVisible', () => {
 
   it('switches the two drawer capture tools, and never the library', () => {
     const store = freshStore()
-    expect(selectMediaToolsVisible(store.getState())).toEqual({ capture: true, audio: true })
+    expect(selectMediaToolsVisible(store.getState())).toEqual({ mediaCapture: true, audioRecording: true })
     store.getState().setFormStepVisible('audioRecording', false)
-    expect(selectMediaToolsVisible(store.getState())).toEqual({ capture: true, audio: false })
+    expect(selectMediaToolsVisible(store.getState())).toEqual({ mediaCapture: true, audioRecording: false })
   })
 })
 

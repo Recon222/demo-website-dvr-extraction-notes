@@ -12,7 +12,7 @@ const cb = {
   onRecordAudio: vi.fn(),
   onOpenMediaLibrary: vi.fn(),
   saveStatus: null,
-  mediaTools: { capture: true, audio: true },
+  mediaTools: { mediaCapture: true, audioRecording: true },
 }
 
 describe('WizardDrawer', () => {
@@ -63,7 +63,7 @@ describe('WizardDrawer', () => {
 
 describe('the media accordion follows the form profile (P7.3)', () => {
   it('drops a capture row the visitor switched off, and never the library', () => {
-    render(<WizardDrawer open items={items} {...cb} mediaTools={{ capture: false, audio: true }} />)
+    render(<WizardDrawer open items={items} {...cb} mediaTools={{ mediaCapture: false, audioRecording: true }} />)
     fireEvent.click(screen.getByRole('button', { name: 'Media section' }))
     expect(screen.queryByRole('button', { name: 'Open camera to capture media' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Record audio note' })).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('the media accordion follows the form profile (P7.3)', () => {
   })
 
   it('keeps the accordion — and the library — when BOTH capture tools are off', () => {
-    render(<WizardDrawer open items={items} {...cb} mediaTools={{ capture: false, audio: false }} />)
+    render(<WizardDrawer open items={items} {...cb} mediaTools={{ mediaCapture: false, audioRecording: false }} />)
     fireEvent.click(screen.getByRole('button', { name: 'Media section' }))
     expect(screen.queryByRole('button', { name: 'Open camera to capture media' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record audio note' })).not.toBeInTheDocument()
