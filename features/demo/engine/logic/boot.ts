@@ -29,7 +29,7 @@
 
 /**
  * Where the sequence is. `video` / `holding` / `fading` exist whether or not a video source is
- * configured — `nextBootPhase` routes around them when `videoSrc` is null — so dropping the
+ * configured — `nextBootPhase` routes around them when `BOOT_VIDEO` is null — so dropping the
  * owner's intro video in later changes ONE constant, not this union.
  */
 export type BootPhase = 'idle' | 'scanning' | 'authorized' | 'video' | 'holding' | 'fading' | 'done'

@@ -492,7 +492,23 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
    * their next Tab restart from the top of the page, and no screen reader was told the gate was
    * gone (WCAG 2.4.3). The revealed screen slot takes the hand-off: the `ExitDialog` `autoFocus`
    * shape, inverted. Only on the boot→app transition, so a bridge that never booted is untouched.
+   *
+   * And only when the focus in question is ORPHANED. By the time this effect runs the gate is
+   * already unmounted, so a visitor whose focus died with it sits at `<body>` — while a visitor
+   * who ended the boot from the rail's checklist still holds focus on the rail button they
+   * pressed. `document.activeElement === document.body` distinguishes those two exactly, and
+   * without it this hand-off yanked the second visitor into the phone (review S3). Same rule as
+   * the `hadFocus` guard `BootSequence` uses at the other boundary: move focus that was lost,
+   * never focus that someone still has.
    */
+  const phoneScreenRef = useRef<HTMLDivElement | null>(null)
+  const wasBootingRef = useRef(booting)
+  useEffect(() => {
+    const was = wasBootingRef.current
+    wasBootingRef.current = booting
+    if (was && !booting && document.activeElement === document.body) phoneScreenRef.current?.focus()
+  }, [booting])
+
   /**
    * Mark the landing screen seen — once the visitor can actually see it (review R-12).
    *
@@ -507,14 +523,6 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     if (booting) return
     store.getState().setView(store.getState().view)
   }, [store, booting])
-
-  const phoneScreenRef = useRef<HTMLDivElement | null>(null)
-  const wasBootingRef = useRef(booting)
-  useEffect(() => {
-    const was = wasBootingRef.current
-    wasBootingRef.current = booting
-    if (was && !booting) phoneScreenRef.current?.focus()
-  }, [booting])
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by

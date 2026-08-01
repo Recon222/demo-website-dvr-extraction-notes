@@ -4,8 +4,9 @@ import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { BootHudState } from '@/features/demo/engine/logic/boot'
 
-/** The HUD's three branches. Aliased to the engine's union (`bootHudState`) so the phase machine
- *  and this component cannot drift; the name stays for the callers that already use it. */
+/** The HUD's three branches, aliased to the engine's `BootHudState` so the NAME cannot drift —
+ *  that is all an alias buys (review R-9). What closes the branch set is `statusBody` below. The
+ *  alias name stays for the callers that already use it. */
 export type AuthState = BootHudState
 
 export interface SplashScreenProps {
@@ -49,11 +50,12 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
   /**
    * One body per HUD state, as a TOTAL record (review R-9).
    *
-   * These were three independent `&&` blocks, so a fourth `BootHudState` — which `HUD_STATE` in
-   * the engine would compile-force someone to add — rendered an EMPTY live region under an
-   * `aria-disabled` dead button: worse than a wrong default, and silent. A record closes the
-   * branch set the way `PHASE_MS`/`HUD_STATE` close theirs one file over: growing the union is
-   * `TS2741` here too.
+   * These were three independent `&&` blocks, so a fourth `BootHudState` rendered an EMPTY live
+   * region under an `aria-disabled` dead button: worse than a wrong default, and silent.
+   *
+   * This record is what stops that, and it is the ONLY thing that stops it — the engine's
+   * `HUD_STATE` is keyed by `BootPhase`, so growing `BootHudState` leaves it green. Probed while
+   * fixing R-9: adding a member yields exactly one `TS2741`, here.
    */
   const statusBody: Record<AuthState, ReactNode> = {
     idle: <div style={{ ...status, color: '#2B8CC1' }}>TAP TO SCAN</div>,
