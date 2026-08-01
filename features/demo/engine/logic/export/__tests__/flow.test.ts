@@ -18,7 +18,10 @@ import {
   type ExportRequest,
   type ValidatedExportRun,
 } from '@/features/demo/engine/logic/export/flow'
-import { resolveExportModalMode } from '@/features/demo/engine/logic/export/stage'
+import {
+  DEMO_EXPORT_STAGES,
+  resolveExportModalMode,
+} from '@/features/demo/engine/logic/export/stage'
 import {
   validateLocationsForPdf,
   type CasePdfValidationResult,
@@ -315,6 +318,19 @@ describe('cancelValidation', () => {
 describe('stage and progress ticks', () => {
   it('advances the stage', () => {
     expect(advanceStage(state(), 'generating').stage).toBe('generating')
+  })
+
+  it('refuses the stages the demo cannot honestly enter (R-16)', () => {
+    // "Opening share dialog..." precedes a real OS share sheet; a browser tab has none, so the
+    // only route into it was a typo the compiler accepted. `'idle'` belongs to resetExportFlow,
+    // which also clears the counter and the location name.
+    // @ts-expect-error 'sharing' is not a DemoExportStage
+    expect(() => advanceStage(state(), 'sharing')).not.toThrow()
+    // @ts-expect-error 'idle' is not a DemoExportStage — resetExportFlow owns the return to rest
+    expect(() => advanceStage(state({ stage: 'zipping' }), 'idle')).not.toThrow()
+    for (const stage of DEMO_EXPORT_STAGES) {
+      expect(advanceStage(state(), stage).stage).toBe(stage)
+    }
   })
 
   it('is a no-op — by reference — for a repeated stage tick', () => {

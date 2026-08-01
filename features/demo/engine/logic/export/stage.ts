@@ -34,8 +34,11 @@ export const STAGE_MESSAGES: Readonly<Record<ExportStage, string>> = Object.free
  * phone precedes a real iOS/Android share sheet; a browser tab has no such thing, and the
  * demo's ZIP terminates in an honest "not available here" notice (decision D4). Printing
  * "Opening share dialog…" over nothing would be the fake-success the honesty rule exists to
- * prevent, so the pipeline that P5.3 drives asserts against this list instead of the full
- * union. `'idle'` is the resting state, not a step.
+ * prevent. `'idle'` is the resting state, not a step — `resetExportFlow` owns the return to
+ * rest, because it also clears the counter and the location name.
+ *
+ * This is the PARAMETER TYPE of `advanceStage` (review R-16), not a list to remember: the only
+ * way into `'sharing'` was a typo the compiler used to accept.
  */
 export const DEMO_EXPORT_STAGES = ['validating', 'generating', 'zipping'] as const
 export type DemoExportStage = (typeof DEMO_EXPORT_STAGES)[number]
