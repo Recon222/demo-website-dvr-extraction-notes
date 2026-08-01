@@ -190,20 +190,26 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
  * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
  *
- * **`visibility` (P7.3, optional).** Pass it and a HIDDEN field stops being counted — the phone
- * does the same (`use-section-completion.ts` reads the store + `resolveFieldVisible`), and
- * without it a canvas visitor's DVR dot could never go green: five of its nine counted fields
- * are hidden, so they are permanently empty AND permanently unfillable.
+ * **The second argument is a MODE, not a configuration** (review R-23). The two consumers ask
+ * genuinely different questions, so the mode is named rather than signalled by absence:
  *
- * Optional because the two consumers ask different questions. The DRAWER asks "what is left for
- * ME to fill", which depends on this device's form profile. The map pin and the exported case
- * map ask "how far along is this LOCATION", which must not change because the reader's device
- * runs a different profile — so those call sites deliberately pass nothing and count everything.
+ * - a `FormVisibility` ⇒ *"what is left for ME to fill"* — a HIDDEN field stops being counted,
+ *   which is what the phone does (`use-section-completion.ts` reads the store +
+ *   `resolveFieldVisible`). Without it a canvas visitor's DVR dot could never go green: five of
+ *   its nine counted fields are hidden, so they are permanently empty AND unfillable.
+ * - `'count-all'` ⇒ *"how far along is this LOCATION"* — every counted field counts, because the
+ *   map pin and the exported case map must not read differently on a reader whose device runs a
+ *   different profile.
+ *
  * A screen whose counted fields are ALL hidden reads 'complete': there is nothing outstanding.
  */
+/** The map-pin / exported-case-map reading: grade the location, not this device's form. */
+export const COUNT_ALL_FIELDS = 'count-all'
+export type DrawerStatusMode = FormVisibility | typeof COUNT_ALL_FIELDS
+
 export function selectDrawerStatus(
   loc: DemoLocation | null,
-  visibility?: FormVisibility,
+  mode: DrawerStatusMode,
 ): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
     return {
@@ -223,7 +229,7 @@ export function selectDrawerStatus(
   const dvr = f.dvr
   // Counted values, each paired with the toggle that governs it. `counted` drops the hidden ones
   // (when a visibility is supplied) and reads an all-hidden list as 'complete'.
-  const shown = (id: FormFieldId) => !visibility || resolveFieldVisible(id, visibility)
+  const shown = (id: FormFieldId) => mode === COUNT_ALL_FIELDS || resolveFieldVisible(id, mode)
   const counted = (entries: ReadonlyArray<readonly [FormFieldId, string | undefined]>): DrawerStatus => {
     const values = entries.filter(([id]) => shown(id)).map(([, v]) => v)
     return values.length === 0 ? 'complete' : checkFields(values)
@@ -314,7 +320,7 @@ export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
   // Field-derived aggregation only grades locations still in progress. This keeps the Cases
   // row/map pin consistent with the card the same action turned green.
   if (loc.form.completed) return 'complete'
-  return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
+  return aggregateMapStatus(Object.values(selectDrawerStatus(loc, COUNT_ALL_FIELDS)))
 }
 
 /** Assemble the current case + location into the Case Notes PDF input shape. */
