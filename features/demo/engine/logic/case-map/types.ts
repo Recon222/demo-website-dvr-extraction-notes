@@ -14,10 +14,26 @@ export interface GeoJSONPoint {
   coordinates: [number, number] // [longitude, latitude]
 }
 
+/**
+ * The three feature kinds the map partitions its collection by (`case-map.app.js:132-134`).
+ *
+ * Typed rather than left as free strings (review R-28): `featureType` is written in three
+ * places and read in several, and a writer typo does not surface as a type error — it surfaces
+ * as `hasPlottedLocations`/`hasPlottableFeatures` mis-answering, i.e. as the WRONG success
+ * sentence on a real download (R-1's machinery). Declared `as const` so the union and any
+ * future runtime check stay one edit apart.
+ */
+export const FEATURE_TYPES = ['incident', 'location', 'camera'] as const
+export type FeatureType = (typeof FEATURE_TYPES)[number]
+
 export interface GeoJSONFeature {
   type: 'Feature'
   geometry: GeoJSONPoint
-  properties: Record<string, unknown>
+  /**
+   * The property bag stays open — the phone emits an operator-selected, growing set and the
+   * map reads it dynamically — but the ONE key every consumer branches on is typed.
+   */
+  properties: { featureType: FeatureType } & Record<string, unknown>
 }
 
 export interface GeoJSONFeatureCollection {

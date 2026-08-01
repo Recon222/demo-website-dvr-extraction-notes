@@ -49,6 +49,30 @@ describe('the ported template', () => {
   it('contains no committed Mapbox token', () => {
     expect(CASE_MAP_TEMPLATE_HTML).not.toMatch(/var TOKEN = 'pk\./)
   })
+
+  /**
+   * Structural pins (review R-11). The four token checks above — and the port tool's identical
+   * guards — validate ~80 bytes of an 85 kB artifact: a truncation that destroys the entire map
+   * runtime keeps all four tokens and stays green (mutation-verified by the tests lane at
+   * `.slice(0, 45000)`). Tool and tests shared that blind spot, so a bad regeneration shipped
+   * silently. These pin the load-bearing structure at both ends and in the middle.
+   */
+  it('is a complete document that can actually boot the map', () => {
+    expect(CASE_MAP_TEMPLATE_HTML.startsWith('<!DOCTYPE html>')).toBe(true)
+    expect(CASE_MAP_TEMPLATE_HTML.trimEnd().endsWith('</html>')).toBe(true)
+    // The basemap engine, and the inlined app JS's entry point — the two things whose absence
+    // yields a blank page rather than a broken one.
+    expect(CASE_MAP_TEMPLATE_HTML).toContain('https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js')
+    expect(CASE_MAP_TEMPLATE_HTML).toContain('function loadCase()')
+    // Both data tags the reader parses, and the inlined stylesheet.
+    expect(CASE_MAP_TEMPLATE_HTML).toContain('<script type="application/json" id="case-geojson">')
+    expect(CASE_MAP_TEMPLATE_HTML).toContain('<script type="application/json" id="case-meta">')
+    expect(CASE_MAP_TEMPLATE_HTML).toContain('<style>')
+    // Floor, not an exact size: the port is regenerated from the phone and is expected to move.
+    // 80 000 is comfortably below the ~85 kB artifact and comfortably above any truncation that
+    // would still satisfy the assertions above.
+    expect(CASE_MAP_TEMPLATE_HTML.length).toBeGreaterThan(80_000)
+  })
 })
 
 describe('buildCaseMapMeta', () => {
@@ -140,6 +164,35 @@ describe('buildCaseMapHtml', () => {
     const html = buildCaseMapHtml(emptyCollection, meta(), '')
     expect(html).toContain("var TOKEN = ''")
     expect(readInjectedJson(html, 'case-meta')).toEqual(meta())
+  })
+
+  it('does not let injected data be re-read as a later token (review R-10)', () => {
+    // Probe-verified regression: with a chained `.replace()`, this location name WAS the meta
+    // slot the second call found, leaving the real `__CASE_META__` unreplaced and both payloads
+    // unparseable — a blank map under a success banner. A single pass cannot re-read its own
+    // output, so every payload survives verbatim and no token is left behind.
+    const adversarial = '__CASE_META__ __CASE_TITLE__ __MAPBOX_TOKEN__ __CASE_GEOJSON__'
+    const geojson: GeoJSONFeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-79.6, 43.6] },
+          properties: { featureType: 'location', locationName: adversarial },
+        },
+      ],
+    }
+    const html = buildCaseMapHtml(geojson, meta({ displayName: adversarial }), 'pk.test')
+
+    expect(readInjectedJson(html, 'case-geojson')).toEqual(geojson)
+    expect((readInjectedJson(html, 'case-meta') as CaseMapMeta).displayName).toBe(adversarial)
+    expect(html).toContain("var TOKEN = 'pk.test'")
+    // The template's own four slots are all gone; the only occurrences left are inside the two
+    // JSON payloads, where they are the visitor's literal text.
+    expect(html).not.toContain('<title>__CASE_TITLE__</title>')
+    expect(html).not.toContain('>__CASE_GEOJSON__<')
+    expect(html).not.toContain('>__CASE_META__<')
+    expect(html).not.toContain("var TOKEN = '__MAPBOX_TOKEN__'")
   })
 })
 

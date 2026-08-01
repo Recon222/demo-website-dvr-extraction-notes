@@ -65,7 +65,7 @@ export function caseToIncidentFeature(c: DemoCase): GeoJSONFeature | null {
   const ic = c.incidentCoordinates
   if (!hasCapturedCoordinates(ic)) return null
 
-  const properties: Record<string, unknown> = {
+  const properties: GeoJSONFeature['properties'] = {
     featureType: 'incident',
     // The incident pin's natural id is the case id (phone geojson-service.ts:191-194).
     id: c.id,
@@ -106,7 +106,7 @@ export function locationToFeature(location: DemoLocation): GeoJSONFeature | null
   if (!hasCapturedCoordinates(gps)) return null
 
   const form = location.form
-  const properties: Record<string, unknown> = {
+  const properties: GeoJSONFeature['properties'] = {
     featureType: 'location',
     id: location.id,
     caseId: location.caseId,
@@ -179,7 +179,7 @@ export function camerasToFeatures(location: DemoLocation): GeoJSONFeature[] {
     const gps = camera.gps
     if (!hasCapturedCoordinates(gps)) continue
 
-    const properties: Record<string, unknown> = {
+    const properties: GeoJSONFeature['properties'] = {
       featureType: 'camera',
       id: `${location.id}:${camera.id}`,
       cameraId: camera.id,
@@ -201,9 +201,59 @@ export function camerasToFeatures(location: DemoLocation): GeoJSONFeature[] {
 }
 
 /**
+ * What the export is about to leave OUT, and how much of the case it actually covers
+ * (review R-1).
+ *
+ * A location with no captured fix cannot be plotted, so `locationToFeature` drops it. That
+ * drop is correct — a fabricated pin on a forensic artifact is the worse outcome — but it was
+ * previously uncounted, unflagged and unmentioned: the visitor was handed a map missing
+ * two-thirds of their case under the word "Success". This is the repo's own bar for a lossy
+ * transform (`generateExtractedScopes`: skip, COUNT, FLAG, dev-warn).
+ *
+ * `droppedLocationNames` carries the names rather than just a number so the caller can name
+ * them if it ever has room to; today the banner uses the counts.
+ */
+export interface CaseMapCoverage {
+  /** Locations offered to the builder. */
+  totalLocations: number
+  /** Of those, the ones that will appear as a pin. */
+  plottedLocations: number
+  /** The rest, in input order — dropped for want of a captured coordinate. */
+  droppedLocationNames: readonly string[]
+  /** True when at least one LOCATION plots. Deliberately NOT "any feature": the incident pin
+   *  is not a site, and counting it is what let the empty-map caveat stay silent on a case
+   *  with zero plotted locations (R-1's second half). */
+  hasPlottedLocations: boolean
+}
+
+/**
+ * Summarise what `buildCaseMapGeoJson` will and will not include, over the SAME gate the
+ * builder applies — one predicate, so the sentence on screen can never disagree with the file.
+ */
+export function summariseCaseMapCoverage(locations: readonly DemoLocation[]): CaseMapCoverage {
+  const dropped: string[] = []
+  let plotted = 0
+  for (const location of locations) {
+    if (hasCapturedCoordinates(location.gps)) plotted += 1
+    else dropped.push(location.locationName)
+  }
+  return {
+    totalLocations: locations.length,
+    plottedLocations: plotted,
+    droppedLocationNames: dropped,
+    hasPlottedLocations: plotted > 0,
+  }
+}
+
+/**
  * The whole-case collection: incident → locations → cameras (phone `generateGeoJSON`,
  * geojson-service.ts:313-346). `locations` is expected to be the case's own locations; the
  * caller filters, exactly as the phone's `getLocationsByCase(caseId)` does.
+ *
+ * Callers that report an outcome to the visitor must pair this with
+ * `summariseCaseMapCoverage` — see R-1. The dev-warn below is the developer-facing half of
+ * the same rule (`generateExtractedScopes`'s shape, create-store.ts:826-828); it is not a
+ * substitute for saying so on screen.
  */
 export function buildCaseMapGeoJson(
   caseData: DemoCase | null,
@@ -216,13 +266,21 @@ export function buildCaseMapGeoJson(
     if (incident) features.push(incident)
   }
 
+  let dropped = 0
   for (const location of locations) {
     const feature = locationToFeature(location)
     if (feature) features.push(feature)
+    else dropped += 1
   }
 
   for (const location of locations) {
     features.push(...camerasToFeatures(location))
+  }
+
+  if (dropped > 0 && process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[demo] buildCaseMapGeoJson omitted ${dropped} location(s) with no captured coordinates`,
+    )
   }
 
   return { type: 'FeatureCollection', features }
@@ -235,6 +293,11 @@ export function buildCaseMapGeoJson(
  * `MapHost.isCollectionEmpty`): a case whose only fix is a per-camera GPS produces a
  * non-empty collection but has no location/incident framing, and the map would open on a
  * camera pin with no site around it.
+ *
+ * NOT the predicate for "does this map have any sites on it" — it counts the incident pin,
+ * which is exactly why the empty-map caveat used to go silent on a case with zero plotted
+ * locations (R-1). Use `CaseMapCoverage.hasPlottedLocations` for that; this one is kept for
+ * its §71g purpose, the whole-case-GeoJSON refusal P5.2's Export tab will need.
  */
 export function hasPlottableFeatures(collection: GeoJSONFeatureCollection): boolean {
   return collection.features.some((f) => f.properties.featureType !== 'camera')

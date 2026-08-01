@@ -4658,3 +4658,109 @@ note in the same commit.
 
 **Trigger:** if the orchestrator would rather P5.3 own the copy, say so and we will take it on a
 follow-up round *after* P5.4's arm split lands — never before.
+
+## 78. P5.4 fix round (parity/p5-fix-casemap) — R-1/R-2/R-8 + R-9/R-10/R-11/R-21/R-24/R-28 dispositions
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`, the P5.4-routed findings.
+All nine FIXED, none refuted; two carried an owner ruling (R-14 → wire) that changed the shape
+of two others. Recorded here are the decisions a re-reader would otherwise have to reconstruct.
+
+### 78a. R-1 — the coverage predicate is now two predicates, deliberately
+
+`hasPlottableFeatures` (any non-camera feature) answered two different questions and got one of
+them wrong: it is the right guard for "is there anything at all worth exporting" (§71g's
+whole-case-GeoJSON refusal, which P5.2 will need) and the WRONG one for "does this map have any
+sites on it", because it counts the incident pin. Both are kept, each documented against the
+other, and `CaseMapCoverage.hasPlottedLocations` is the one the copy uses. Deleting either is a
+regression; a future reader who sees two similar predicates should read their doc comments
+before "simplifying".
+
+`summariseCaseMapCoverage` deliberately re-walks the locations rather than having
+`buildCaseMapGeoJson` return a pair: the builder's return type is the GeoJSON contract the
+template reads, and widening it to a tuple would put a UI concern in the artifact's shape. The
+cost is one extra pass over a list of tens; the pin that they cannot disagree is a test, not a
+type. **Trigger:** if a third consumer needs the counts, promote to a single
+`{ collection, coverage }` builder rather than adding a third walk.
+
+### 78b. R-2 — `requested`, and why no amount of code makes it `ok`
+
+`SaveFileOutcome.ok` → `requested`. Worth stating plainly for the next person tempted to
+"finish" this: there is no browser API that reports whether a `download` anchor produced a
+file. `HTMLAnchorElement.click()` returns void, synchronously, whether the download starts,
+is blocked by policy, is dropped by an extension, or fails silently in a hardened profile.
+The File System Access API (`showSaveFilePicker`) *would* confirm — at the price of a second
+user gesture, Safari/Firefox absence, and a permission prompt in a marketing demo. Not worth
+it. **Trigger:** none; this is a recorded non-fix. If it is ever revisited, the decision is
+about the picker, not about detection.
+
+### 78c. R-8 — retired by prefetching, not by a guard
+
+The owner ruling routed the export through `requestExportFlow`, and the review expected that
+to bring the entry guard with it. It does — but only for CONCURRENT presses, and the honest
+reading is that the guard is not what fixes this: the case-map run resets the stage to idle
+inside its own handler, so a second press after it completes is simply a second, complete
+export (which is what any download button does).
+
+What actually removes the defect is that the ~22 kB chunk is now fetched when the MAP OPENS.
+The press-to-outcome path holds no `await`, so the window the finding is about — "nothing
+visible while the network works, so press again" — does not exist. Belt: the footer disables
+while the chunk is in flight and while the terminal dialog is up.
+
+Recorded because the test that would "prove" the guard in jsdom would be lying: jsdom does no
+hit-testing, so three `fireEvent.click`s through a modal scrim produce three exports there and
+zero in a browser. The suite pins the two things that are true instead — the run is synchronous
+(no `waitFor` needed to see the file), and the button is `disabled` while the dialog is up.
+**Trigger:** if the case-map run ever regains an `await` (a bigger template, an async
+compression step), it needs a real in-flight stage and this note is the reason why.
+
+### 78d. R-9/R-14 — the terminal split is enforced by the type, not by discipline
+
+`describeExportTerminal` takes `SimulatedExportRun`, an `Exclude` of the real one. The interim
+"not wired to this button yet" sentence could not simply be deleted — it would have grown back
+the first time someone added a `case-map` arm "for completeness". Now the function cannot be
+called with that member at all, and `runZipPipeline` is narrowed for the same reason.
+
+Secondary drift closed: `EXPORT_ALERTS.noCaseSelectedForMap` (ported, unreachable) and the
+bridge's `NO_CASE_SELECTED_NOTICE` (live) were two hand-maintained copies of one phone string.
+The bridge copy is gone; the ported one is live. It remains unreachable FROM THE UI — the
+footer only renders inside a picked viewer case — and is pinned at the engine
+(`flow.test.ts:85`) rather than through a UI path that would have to be faked.
+
+### 78e. R-10/R-11/R-21/R-24/R-28 — small fixes, one shared observation
+
+Each landed as its own commit. The one thing worth carrying forward: **R-10 and R-11 are the
+same failure shape at two scales.** The token chain re-read its own output; the token tests
+validated ~80 bytes of an 85 kB artifact. Both were "the guard checks the thing it just did"
+rather than the thing that has to be true. The port tool (`tools/port-case-map-template.mjs`)
+still has R-11's blind spot in its own guards — it asserts the four tokens and a leaked `pk.`,
+nothing structural. **Trigger:** next edit to that script, give it the same structural
+assertions the test now makes (`endsWith('</html>')`, the CDN ref, `loadCase`, a length floor).
+
+R-21's 40 s revoke window is a bet, documented as one. If a future artifact is large enough
+that pinning it for 40 s matters, the answer is `pagehide` plus a shorter window, not a
+same-tick revoke.
+
+### 78f. Refutation — R-11's "correct the UI test's comment" half
+
+The vetted doc asks to "correct the UI test's 'app JS is inlined' comment (its assertion only
+proves no relative asset)". Verified against the file: the comment at
+`DemoExperience.case-map-export.test.tsx` reads "Self-contained: the CSS and the app JS are
+inlined, no relative asset is requested", and it is now accurate rather than aspirational —
+`build.test.ts` proves the inlining directly (`<style>` present, `function loadCase()` present,
+length floor), and the UI test's own assertion proves the consequence the comment's second
+clause names. Left as written; the finding's substance (nothing pinned the inlining) is fixed
+where it belongs, in the artifact's own suite.
+
+### 78g. Residual — the thin `mapbox-gl` mock in the sibling map suites
+
+`MapCanvas` does `new Marker(...).setLngLat(...).addTo(map)` (`MapCanvas.tsx:160-162`), which
+throws on the `Marker: vi.fn()` mock that `DemoExperience.map.test.tsx` and
+`DemoExperience.incident-edit.test.tsx` still use. They are green only because they assert
+synchronously and the marker pass runs after the map's async `load` — the throw lands in the
+error boundary after the assertions have gone home. Both case-map suites now use a chainable
+`Marker` because they wait long enough to see it.
+
+Not fixed here: those files are P6.1's territory and the change is a mock swap that would
+conflict with an in-flight map package. **Trigger:** P6.1's first round — lift the chainable
+mock into a shared local (or a `__mocks__/mapbox-gl.ts`) so a map render failure cannot hide
+behind test timing again.

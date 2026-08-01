@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   buildCaseMapGeoJson,
   camerasToFeatures,
   caseToIncidentFeature,
   hasPlottableFeatures,
   locationToFeature,
+  summariseCaseMapCoverage,
 } from '@/features/demo/engine/logic/case-map/geojson'
+import { FEATURE_TYPES, type GeoJSONFeature } from '@/features/demo/engine/logic/case-map/types'
 import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { CameraEntry, LocationForm } from '@/features/demo/engine/types'
@@ -17,6 +19,118 @@ const camera = (over: Partial<CameraEntry> = {}): CameraEntry => ({
   resolution: '',
   recordingFps: '',
   ...over,
+})
+
+describe('summariseCaseMapCoverage (review R-1)', () => {
+  const located = (id: string, name: string) =>
+    demoLocation({ id, locationName: name, gps: { lat: 43.6, lng: -79.6, source: 'gps' } })
+  const typedOnly = (id: string, name: string) => demoLocation({ id, locationName: name, gps: undefined })
+
+  it('counts what plots and NAMES what does not', () => {
+    // The demo's normal mixed state: some addresses picked, some typed. The typed ones cannot
+    // be plotted, and the visitor has to be told which.
+    expect(
+      summariseCaseMapCoverage([located('a', 'Front Counter'), typedOnly('b', 'Rear Alley'), typedOnly('c', 'Loading Bay')]),
+    ).toEqual({
+      totalLocations: 3,
+      plottedLocations: 1,
+      droppedLocationNames: ['Rear Alley', 'Loading Bay'],
+      hasPlottedLocations: true,
+    })
+  })
+
+  it('reports zero plotted for a case whose locations are all coordinate-less', () => {
+    expect(summariseCaseMapCoverage([typedOnly('a', 'One'), typedOnly('b', 'Two')])).toMatchObject({
+      totalLocations: 2,
+      plottedLocations: 0,
+      hasPlottedLocations: false,
+    })
+  })
+
+  it('is empty-safe', () => {
+    expect(summariseCaseMapCoverage([])).toEqual({
+      totalLocations: 0,
+      plottedLocations: 0,
+      droppedLocationNames: [],
+      hasPlottedLocations: false,
+    })
+  })
+
+  it('drops the (0,0) pair, exactly as the builder does', () => {
+    // ONE gate for the count and the file — otherwise the sentence on screen and the artifact
+    // disagree about the same location.
+    const nullIsland = demoLocation({ id: 'z', locationName: 'Null Island', gps: { lat: 0, lng: 0, source: 'manual' } })
+    expect(summariseCaseMapCoverage([nullIsland])).toMatchObject({
+      plottedLocations: 0,
+      droppedLocationNames: ['Null Island'],
+    })
+    expect(buildCaseMapGeoJson(null, [nullIsland]).features).toEqual([])
+  })
+
+  it('agrees with the builder on every mix', () => {
+    const locations = [located('a', 'A'), typedOnly('b', 'B'), located('c', 'C')]
+    const coverage = summariseCaseMapCoverage(locations)
+    const plotted = buildCaseMapGeoJson(null, locations).features.filter(
+      (f) => f.properties.featureType === 'location',
+    )
+    expect(plotted).toHaveLength(coverage.plottedLocations)
+  })
+
+  it('does NOT count the incident pin as a plotted location', () => {
+    // R-1's second half: `hasPlottableFeatures` counts the incident, so gating the empty-map
+    // caveat on it kept the caveat silent for a case with an incident and zero plotted sites.
+    const collection = buildCaseMapGeoJson(
+      demoCase({ incidentCoordinates: { lat: 43.7, lng: -79.4, source: 'geocoded' } }),
+      [typedOnly('b', 'Rear Alley')],
+    )
+    expect(hasPlottableFeatures(collection)).toBe(true) // the incident is a feature…
+    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).hasPlottedLocations).toBe(false) // …but not a site
+  })
+
+  it('dev-warns when the builder omits a location, like generateExtractedScopes does', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    buildCaseMapGeoJson(null, [typedOnly('a', 'One'), typedOnly('b', 'Two')])
+    expect(warn).toHaveBeenCalledWith(
+      '[demo] buildCaseMapGeoJson omitted 2 location(s) with no captured coordinates',
+    )
+    warn.mockClear()
+    buildCaseMapGeoJson(null, [located('a', 'One')])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+describe('featureType is a closed id space (review R-28)', () => {
+  it('every emitted featureType is a declared member', () => {
+    const collection = buildCaseMapGeoJson(
+      demoCase({ incidentCoordinates: { lat: 43.7, lng: -79.4, source: 'geocoded' } }),
+      [
+        demoLocation({
+          gps: { lat: 43.6, lng: -79.6, source: 'gps' },
+          form: form({ cameras: [camera({ gps: { lat: 43.6, lng: -79.6, source: 'gps', capturedAt: '2025-03-08T12:00:00.000Z' } })] }),
+        }),
+      ],
+    )
+    for (const feature of collection.features) {
+      expect(FEATURE_TYPES).toContain(feature.properties.featureType)
+    }
+    expect(new Set(collection.features.map((f) => f.properties.featureType))).toEqual(
+      new Set(FEATURE_TYPES),
+    )
+  })
+
+  it('refuses an undeclared featureType at compile time', () => {
+    // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it). A writer typo used to be
+    // invisible: it surfaced only as `hasPlottedLocations` mis-answering, i.e. as the wrong
+    // success sentence on a real download.
+    const typo: GeoJSONFeature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [0, 0] },
+      // @ts-expect-error 'locations' is not a FeatureType — this is the typo the type now catches
+      properties: { featureType: 'locations' },
+    }
+    expect(typo.type).toBe('Feature')
+  })
 })
 
 describe('caseToIncidentFeature', () => {
@@ -130,6 +244,20 @@ describe('locationToFeature', () => {
     expect(feature!.properties.scopes).toHaveLength(1)
     // Coordinates round to the canonical 6 decimals.
     expect(feature!.geometry.coordinates).toEqual([-79.641235, 43.589123])
+  })
+
+  it('always emits the three array properties, even when empty (review R-24)', () => {
+    // Stated contract is PRESENCE, not truthiness — the phone's read side keys off it
+    // (geojson-service.ts:68,84-85) — and it was unpinned: deleting two of the three emissions
+    // stayed green (mutation-verified by the tests lane). On a forensic-style artifact an
+    // absent key and an empty list are different claims.
+    const bare = locationToFeature(demoLocation({ gps: { lat: 43.6, lng: -79.6, source: 'gps' } }))
+    expect(Object.keys(bare!.properties)).toEqual(
+      expect.arrayContaining(['scopes', 'extractedScopes', 'arrivalDepartures']),
+    )
+    expect(bare!.properties.scopes).toEqual([])
+    expect(bare!.properties.extractedScopes).toEqual([])
+    expect(bare!.properties.arrivalDepartures).toEqual([])
   })
 
   it('never emits a status the live map would not colour the same pin with', () => {
