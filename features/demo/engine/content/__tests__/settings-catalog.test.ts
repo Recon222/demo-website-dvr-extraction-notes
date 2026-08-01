@@ -5,7 +5,6 @@ import {
   SETTINGS_GROUPS,
   SETTINGS_GROUP_IDS,
   SETTINGS_ICON_IDS,
-  getSettingsCategory,
   groupedSettingsCategories,
 } from '@/features/demo/engine/content/settings-catalog'
 
@@ -105,12 +104,3 @@ describe('groupedSettingsCategories', () => {
   })
 })
 
-describe('getSettingsCategory', () => {
-  it('resolves a known id and refuses everything else, including null', () => {
-    expect(getSettingsCategory('time-sync')?.title).toBe('Time Sync')
-    expect(getSettingsCategory(null)).toBeUndefined()
-    expect(getSettingsCategory('')).toBeUndefined()
-    // The one id that must NOT resolve, because the demo never builds its pane.
-    expect(getSettingsCategory('developer')).toBeUndefined()
-  })
-})

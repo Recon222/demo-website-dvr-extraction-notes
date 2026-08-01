@@ -133,8 +133,14 @@ export function groupedSettingsCategories(): readonly SettingsGroupSection[] {
   })).filter((section) => section.items.length > 0)
 }
 
-/** Look up one category. Returns `undefined` for an unknown id (phone `getCategoryById`). */
-export function getSettingsCategory(id: string | null): SettingsCategory | undefined {
-  if (!id) return undefined
-  return SETTINGS_CATEGORIES.find((c) => c.id === id)
-}
+/*
+ * R-30: `getSettingsCategory(id: string | null)` used to live here — a port of the phone's
+ * `getCategoryById`, which that side needs because its `activeId` is a `string | null` piece of
+ * component state. The demo's is a `SettingsCategoryId | null`, and the one lookup the sheet
+ * actually performs is `findSettingsRow` over the derived section list (it needs the ROW, with
+ * its resolved preview, not the catalog entry). So the function had no production caller and its
+ * bare-`string` parameter was the only place in this module that accepted an id outside the
+ * union — a boundary with nothing on the other side of it. Deleted rather than re-typed:
+ * `SETTINGS_CATEGORIES` is exported, and a future caller that genuinely needs a def by id can
+ * index a total record without re-opening the string door.
+ */
