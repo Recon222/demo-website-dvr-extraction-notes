@@ -591,3 +591,31 @@ five-lane fan-out — the blast radius does not justify one.
    Serialise full-suite runs or give mutation lanes their own worktrees; a green number from a
    shared tree is only trustworthy with a no-mid-run-writes check. Orchestrator's call on
    mechanism; the failure mode is now demonstrated, not hypothetical.
+
+---
+
+# Micro-round verdict
+
+**Range:** `b1d8467..eda1991` (P5.3 + P5.4 micro-round branches, merged) · merged-head gates
+re-confirmed here: targeted suites 8 files / 105 tests green · **cold-cache** `tsc --noEmit` clean
+(rule 1 honoured) · orchestrator's full-suite 238 files / 2893 tests accepted.
+
+## Verdict: **APPROVE FOR MERGE** — nothing gates.
+
+Spot-check results (the delta review this doc prescribed):
+
+| Check | Method | Result |
+|---|---|---|
+| D-1 (`ef6daef`) | Reverted `DemoExperience.tsx:1354` to `!hasPlottableFeatures(geojson)` | **Pin discriminates** — `does not call a camera-only map empty (delta D-1)` reddens (1F/15P); the author's disclosed rewrite to the probe scenario is genuine |
+| D-4 (`01cfd95`) | Dropped the `exportModalMode !== 'hidden'` term | **Pin discriminates** — `is not pressable while a validation prompt owns the flow (delta D-4)` reddens |
+| D-6 (`edb8b3b`) | `.slice(0, 45000)` on `buildCaseMapHtml`'s return (the round-1 F2 blind spot) | **Now caught** — `downloads a real, self-contained HTML file…` reddens; the output path is pinned, not just the template constant |
+| D-2 (`43301c3`) | Source read of `AlertDialog.tsx` | **Asymmetry (§77i) correct and documented at both sites**: capture checks `isConnected` only (the opener is *expected* to be disabled at mount — that was the finding); restore checks `isConnected && !disabled` (`canTakeFocus`). The naive symmetric shape would re-break it and the comment says so. Module tracker is SSR-guarded, idempotent, capture-phase, with the `document.activeElement` fallback correctly reserved for dialogs nobody clicked open. Retires the ExportHub sibling as promised. |
+| D-10 (`f6d605d`) | Judged as asked | **Accepted, and the right call.** The state rides the accessible name (`Export case map (preparing)`) — perceivable by a browse cursor on a disabled control, which `aria-busy` never was. Rejecting the R-6 live-region shape is correct here: `pending` is normally false and sub-second, so a live region would announce noise on arrival. The overclaiming comment is gone; the pin asserts the name both ways. |
+
+D-3/D-5/D-7/D-11/D-12 accepted on commit read (all landed as prescribed one-liners); D-9's
+re-disposition landed at `1943b9f`; the ledger carries the micro-round in §78 (`bddeaae`).
+Source tree verified clean after all probes.
+
+P5 review r1 is **closed**: 28 vetted findings + 12 delta findings → all fixed, sanctioned-deferred
+(R-15/§75e), or ledgered by explicit ruling (D-8 convention note, D-9 re-disposition, two
+recorded-no-action residuals). No open gate remains on `feat/parity-p5`.
