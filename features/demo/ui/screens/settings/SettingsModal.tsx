@@ -8,6 +8,7 @@ import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { SettingsNavBar } from '@/features/demo/ui/screens/settings/SettingsNavBar'
 import { SettingsCategoryList } from '@/features/demo/ui/screens/settings/SettingsCategoryList'
 import { findSettingsRow, type SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
+import { MODAL_SCRIM_Z, MODAL_SHEET_Z } from '@/features/demo/ui/screens/_shared'
 
 /**
  * The Settings sheet — the demo's port of the phone's `SettingsModal` (P7.1, matrix row 81,
@@ -49,10 +50,21 @@ import { findSettingsRow, type SettingsSectionView } from '@/features/demo/ui/sc
  * `SEAM(P7.2)` / `SEAM(P7.3)` markers.
  */
 
+/**
+ * The layer this sheet paints its panel on — the shared `ModalShell` layer, by value, because
+ * the whole sheet CHROME is shared by value (see the note above).
+ *
+ * Exported (review FD-2) because it is the lower bound of the modal-over-modal ordering: the User
+ * Profile editor opens from inside this sheet at `SETTINGS_SHEET_Z + MODAL_LAYER.overSheet` and
+ * must land above it and below `PICKER_SHEET_Z`. That invariant is only checkable if both ends
+ * are read from the surfaces that own them instead of re-typed at the assertion.
+ */
+export const SETTINGS_SHEET_Z = MODAL_SHEET_Z
+
 const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  zIndex: 21,
+  zIndex: MODAL_SCRIM_Z,
   background: 'rgba(4,8,14,0.55)',
   pointerEvents: 'auto',
 }
@@ -63,7 +75,7 @@ const sheet: CSSProperties = {
   right: 0,
   top: 34,
   bottom: 0,
-  zIndex: 22,
+  zIndex: SETTINGS_SHEET_Z,
   borderTopLeftRadius: 24,
   borderTopRightRadius: 24,
   background: '#0d1b2a',

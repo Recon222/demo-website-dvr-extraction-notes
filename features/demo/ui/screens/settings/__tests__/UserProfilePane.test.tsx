@@ -4,6 +4,8 @@ import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserP
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
+import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
+import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
 
 /**
@@ -257,16 +259,32 @@ describe('the editor — save and discard', () => {
   })
 })
 
-describe('the editor’s layer (R-29)', () => {
-  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
-    // The invariant `MODAL_LAYER` exists to carry: `SettingsModal`'s sheet is 22 and
-    // `PickerSheet` is 31/32, so the editor must land strictly between them.
-    expect(MODAL_LAYER.base).toBe(0)
-    expect(22 + MODAL_LAYER.overSheet).toBeGreaterThan(22)
-    expect(22 + MODAL_LAYER.overSheet).toBeLessThan(31)
+describe('the editor’s layer (R-29 / FD-2)', () => {
+  /**
+   * Both neighbours are READ from the surfaces that own them. Re-typing either as a literal
+   * (the first version of this test did both) unpins the invariant in that direction: the
+   * neighbour can move and the assertion happily keeps comparing against the old number.
+   */
+  const editorZ = SETTINGS_SHEET_Z + MODAL_LAYER.overSheet
 
+  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
+    expect(MODAL_LAYER.base).toBe(0)
+    expect(editorZ).toBeGreaterThan(SETTINGS_SHEET_Z)
+    expect(editorZ).toBeLessThan(PICKER_SHEET_Z)
+  })
+
+  it('renders on exactly that layer', () => {
     openEditor(FULL)
-    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
-    expect(dialog.style.zIndex).toBe(String(22 + MODAL_LAYER.overSheet))
+    expect(screen.getByRole('dialog', { name: 'User Profile' }).style.zIndex).toBe(String(editorZ))
+  })
+
+  it('is the layer the Settings sheet and the pickers actually paint on', () => {
+    // The relational assertions above are only worth anything if the two constants are the
+    // values their own surfaces render — otherwise the ordering holds between two numbers that
+    // no longer describe the DOM.
+    openEditor(FULL)
+    fireEvent.click(within(screen.getByTestId('profile-time-in-field')).getByRole('button', { name: 'Set date' }))
+    expect(screen.getByRole('dialog', { name: 'Select Date' }).style.zIndex).toBe(String(PICKER_SHEET_Z + 1))
+    expect(document.querySelector('[data-sheet-scrim]')).toHaveStyle({ zIndex: String(PICKER_SHEET_Z) })
   })
 })
