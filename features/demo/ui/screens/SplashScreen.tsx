@@ -1,7 +1,7 @@
 'use client'
 
 import { useId } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { BootHudState } from '@/features/demo/engine/logic/boot'
 
 /** The HUD's three branches. Aliased to the engine's union (`bootHudState`) so the phase machine
@@ -46,6 +46,34 @@ const status: CSSProperties = { fontFamily: "var(--font-stmono),'Share Tech Mono
 export function SplashScreen({ authState, onScan, reduceMotion = false }: SplashScreenProps) {
   const statusId = useId()
   const idle = authState === 'idle'
+  /**
+   * One body per HUD state, as a TOTAL record (review R-9).
+   *
+   * These were three independent `&&` blocks, so a fourth `BootHudState` — which `HUD_STATE` in
+   * the engine would compile-force someone to add — rendered an EMPTY live region under an
+   * `aria-disabled` dead button: worse than a wrong default, and silent. A record closes the
+   * branch set the way `PHASE_MS`/`HUD_STATE` close theirs one file over: growing the union is
+   * `TS2741` here too.
+   */
+  const statusBody: Record<AuthState, ReactNode> = {
+    idle: <div style={{ ...status, color: '#2B8CC1' }}>TAP TO SCAN</div>,
+    scanning: (
+      <div style={{ ...status, color: '#2B8CC1', display: 'flex', alignItems: 'flex-end' }}>
+        SCANNING
+        <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite' }}>.</span>
+        <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite 0.2s' }}>.</span>
+        <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite 0.4s' }}>.</span>
+      </div>
+    ),
+    authorized: (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ ...status, color: '#30D158' }}>AUTHORIZED</div>
+        <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: 'rgba(48,209,88,0.7)', marginTop: 16 }}>
+          ACCESS GRANTED
+        </div>
+      </div>
+    ),
+  }
   return (
     <div
       style={{
@@ -88,28 +116,20 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           it lands — the phone reserves the same space for the same reason
           (`STATUS_AREA_MIN_HEIGHT`, scanner-hud-constants.ts:171-172), scaled to these type sizes. */}
       <div id={statusId} role="status" aria-live="polite" style={{ minHeight: 68, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {authState === 'idle' && <div style={{ ...status, color: '#2B8CC1' }}>TAP TO SCAN</div>}
-        {authState === 'scanning' && (
-          <div style={{ ...status, color: '#2B8CC1', display: 'flex', alignItems: 'flex-end' }}>
-            SCANNING
-            <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite' }}>.</span>
-            <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite 0.2s' }}>.</span>
-            <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite 0.4s' }}>.</span>
-          </div>
-        )}
-        {authState === 'authorized' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ ...status, color: '#30D158' }}>AUTHORIZED</div>
-            <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: 'rgba(48,209,88,0.7)', marginTop: 16 }}>
-              ACCESS GRANTED
-            </div>
-          </div>
-        )}
+        {statusBody[authState]}
       </div>
 
       {/* The standing disclosure. Same line `SecurityPane` draws: no sensor exists behind a
-          browser tab, so nothing here may read as an authentication that happened. */}
+          browser tab, so nothing here may read as an authentication that happened.
+
+          The alpha is load-bearing, not taste (review R-6). At the 0.55 this shipped with, the
+          one string carrying the package's honesty claim was the LEAST readable text on the
+          surface — 3.59:1 over `#000314`, a Level-AA failure, while every decorative string
+          around it passed (BIOMETRIC LOCK 5.50, AUTHORIZED 10.15, SKIP 8.22). A low-vision
+          visitor was shown a convincing biometric gate and could not read the caption saying it
+          was fake. 0.70 measures 5.27:1: comfortably over 4.5, still visually subordinate. */}
       <div
+        data-testid="boot-disclosure"
         style={{
           marginTop: 30,
           maxWidth: 250,
@@ -117,7 +137,7 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           fontSize: 11,
           lineHeight: 1.5,
           letterSpacing: 0.3,
-          color: 'rgba(153,186,221,0.55)',
+          color: 'rgba(153,186,221,0.70)',
         }}
       >
         Simulated scan — a browser tab has no biometric sensor. On the phone this is Face ID.

@@ -29,7 +29,7 @@ import { TabBar } from '@/features/demo/ui/controls/TabBar'
 import { ExitDialog } from '@/features/demo/ui/controls/ExitDialog'
 import { AlertDialog, type AlertDialogProps } from '@/features/demo/ui/controls/AlertDialog'
 import { BootSequence } from '@/features/demo/ui/screens/BootSequence'
-import { BOOT_VIDEO_POSTER, BOOT_VIDEO_SRC } from '@/features/demo/engine/logic/boot'
+import { BOOT_VIDEO } from '@/features/demo/engine/logic/boot'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
 import { CasesScreen } from '@/features/demo/ui/screens/CasesScreen'
@@ -484,6 +484,37 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
    */
   const [booting, setBooting] = useState(boot)
   const endBoot = useCallback(() => setBooting(false), [])
+  /**
+   * Where focus goes when the gate lifts (review R-2).
+   *
+   * The gate holds the screen's only two focusable controls, so unmounting it dropped focus to
+   * `<body>` — the keyboard visitor who just pressed Space on the app's FIRST interaction had
+   * their next Tab restart from the top of the page, and no screen reader was told the gate was
+   * gone (WCAG 2.4.3). The revealed screen slot takes the hand-off: the `ExitDialog` `autoFocus`
+   * shape, inverted. Only on the boot→app transition, so a bridge that never booted is untouched.
+   */
+  /**
+   * Mark the landing screen seen — once the visitor can actually see it (review R-12).
+   *
+   * The store used to seed `visited: { cases: true }` on the reasoning that you boot there. P8.1
+   * made that false for the length of the gate: the exit dialog's "you haven't explored
+   * everything yet" omitted row 02 for a screen that had rendered zero times. The mark now comes
+   * from the same place every other one does — `setView`'s `visit` — replayed on the current view
+   * the moment nothing is covering it. Same value in, so no navigation happens; a restored
+   * snapshot's own record is untouched because `visit` is idempotent.
+   */
+  useEffect(() => {
+    if (booting) return
+    store.getState().setView(store.getState().view)
+  }, [store, booting])
+
+  const phoneScreenRef = useRef<HTMLDivElement | null>(null)
+  const wasBootingRef = useRef(booting)
+  useEffect(() => {
+    const was = wasBootingRef.current
+    wasBootingRef.current = booting
+    if (was && !booting) phoneScreenRef.current?.focus()
+  }, [booting])
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by
@@ -2455,15 +2486,14 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     }
     switch (view) {
       case 'splash':
-        // Not reached by navigation any more — boot is a gate above the stage, not a view — but
-        // `splash` is still a `ChapterId`, so a restored snapshot can carry it and the arm has to
-        // render something real. It renders the same sequence, and lands on Cases.
+        // Unreachable, and now unreachable by CONSTRUCTION rather than by convention: boot is a
+        // gate above the stage, nothing writes this view, and since review R-10 `loadSnapshot`
+        // normalizes a hand-edited `splash` snapshot away before it reaches the store. The arm
+        // stays as the honest total-switch answer — `splash` is a `ChapterId`, so the switch must
+        // have a branch for it, and a branch that renders the real sequence and lands on Cases is
+        // a better answer than `null` if some future writer ever appears.
         return (
-          <BootSequence
-            videoSrc={BOOT_VIDEO_SRC}
-            videoPoster={BOOT_VIDEO_POSTER}
-            onComplete={() => store.getState().setView('cases')}
-          />
+          <BootSequence video={BOOT_VIDEO} onComplete={() => store.getState().setView('cases')} />
         )
       case 'dashboard':
         return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} onSettings={openSettings} />
@@ -2944,6 +2974,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
+          screenRef={phoneScreenRef}
           // The tab bar is a sibling of the screen slot in PhoneFrame and paints above it, so the
           // boot gate cannot cover it — it has to be withheld instead, which is also what the
           // phone does by not mounting the tab navigator until the splash is gone.
@@ -2957,13 +2988,24 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
               selectDrawerItems, …) executes above this boundary; a throw there is
               caught by the route-level net, app/demo/error.tsx.
               Wrapper-without-reindent, same as PhoneOverlayContext.Provider in PhoneFrame. */}
-          <DemoErrorBoundary view={view} onReturnToCases={returnToCases}>
+          {/* The gate lives INSIDE this boundary, so a render throw in the boot subtree used to
+              be unrecoverable: "Return to Cases" cleared the error and landed on Cases, but
+              `booting` was untouched, so `BootSequence` remounted, threw again, and the card came
+              back — while SKIP and Escape were inside the thrown subtree. Ending the boot is
+              part of returning (review R-8). */}
+          <DemoErrorBoundary
+            view={view}
+            onReturnToCases={() => {
+              endBoot()
+              returnToCases()
+            }}
+          >
           {/* The boot gate (P8.1) renders INSTEAD of the screen tree, not over it — the phone's
               root layout returns the splash early and never mounts the app beneath it
               (`app/_layout.tsx:214-222`). Nothing underneath means no z-index race with the
               drawer or a sheet, and no screen effects firing behind a curtain.
               Wrapper-without-reindent, same as the boundary above. */}
-          {booting ? <BootSequence videoSrc={BOOT_VIDEO_SRC} videoPoster={BOOT_VIDEO_POSTER} onComplete={endBoot} /> : <>
+          {booting ? <BootSequence video={BOOT_VIDEO} onComplete={endBoot} /> : <>
           <ScreenStage view={view} direction={dirRef.current} drawerOpen={drawerOpen}>
             {activeScreen()}
           </ScreenStage>

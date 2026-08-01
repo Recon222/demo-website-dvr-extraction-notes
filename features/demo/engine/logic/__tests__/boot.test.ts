@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   AUTHORIZED_MS,
+  BOOT_PHASES,
+  bootSurface,
   BOOT_SEQUENCE_MS,
-  BOOT_VIDEO_POSTER,
-  BOOT_VIDEO_SRC,
+  BOOT_VIDEO,
   FADE_MS,
   HOLD_MS,
   SCAN_MS,
@@ -11,12 +12,31 @@ import {
   bootPhaseDurationMs,
   nextBootPhase,
   type BootPhase,
+  type BootVideo,
 } from '@/features/demo/engine/logic/boot'
 
-const ALL_PHASES: readonly BootPhase[] = ['idle', 'scanning', 'authorized', 'video', 'holding', 'fading', 'done']
+/** A stand-in for the owner's file. One value, so a half-configured video cannot be expressed. */
+const FAKE_VIDEO: BootVideo = { src: '/demo-media/boot-intro.mp4', poster: null }
+
+/**
+ * Compile guard for the R-1d collapse: the drop-in's step-2-without-step-3 edit — a poster with
+ * no source — must not be a `BootVideo`. This is the half of the fix runtime cannot assert; it
+ * reds under `tsc` the moment `src` becomes optional again.
+ */
+type Assert<T extends true> = T
+type PosterOnly = { readonly poster: string | null }
+type _PosterAloneIsNotAVideo = Assert<PosterOnly extends BootVideo ? false : true>
+
+/**
+ * Derived, never hand-listed (review R-11b): a literal under a `readonly BootPhase[]` annotation
+ * type-checks a SUBSET, so the three "total over the phase union" tests below silently stopped
+ * being total the moment a phase was added. `BOOT_PHASES` is read off `PHASE_MS`, which the
+ * compiler forces to be total.
+ */
+const ALL_PHASES = BOOT_PHASES
 
 /** Walk the machine from `idle` to `done`, collecting the phases it visits. */
-function walk(cfg: { videoSrc: string | null; reduceMotion: boolean }): BootPhase[] {
+function walk(cfg: { video: BootVideo | null; reduceMotion: boolean }): BootPhase[] {
   const seen: BootPhase[] = ['idle']
   let cur: BootPhase = 'idle'
   for (let i = 0; i < ALL_PHASES.length + 1; i++) {
@@ -31,7 +51,7 @@ function walk(cfg: { videoSrc: string | null; reduceMotion: boolean }): BootPhas
 describe('boot phase machine', () => {
   describe('nextBootPhase', () => {
     it('runs scan → authorized → fade → done when no video source is configured', () => {
-      expect(walk({ videoSrc: null, reduceMotion: false })).toEqual([
+      expect(walk({ video: null, reduceMotion: false })).toEqual([
         'idle',
         'scanning',
         'authorized',
@@ -41,7 +61,7 @@ describe('boot phase machine', () => {
     })
 
     it('routes through the video phases when a source IS configured — the drop-in slot', () => {
-      expect(walk({ videoSrc: '/demo-media/boot-intro.mp4', reduceMotion: false })).toEqual([
+      expect(walk({ video: FAKE_VIDEO, reduceMotion: false })).toEqual([
         'idle',
         'scanning',
         'authorized',
@@ -54,19 +74,19 @@ describe('boot phase machine', () => {
 
     it('collapses to done from ANY phase under prefers-reduced-motion', () => {
       for (const phase of ALL_PHASES) {
-        const next = nextBootPhase(phase, { videoSrc: '/x.mp4', reduceMotion: true })
+        const next = nextBootPhase(phase, { video: FAKE_VIDEO, reduceMotion: true })
         expect(next).toBe(phase === 'done' ? null : 'done')
       }
     })
 
     it('never advances past done', () => {
-      expect(nextBootPhase('done', { videoSrc: null, reduceMotion: false })).toBeNull()
-      expect(nextBootPhase('done', { videoSrc: '/x.mp4', reduceMotion: false })).toBeNull()
+      expect(nextBootPhase('done', { video: null, reduceMotion: false })).toBeNull()
+      expect(nextBootPhase('done', { video: FAKE_VIDEO, reduceMotion: false })).toBeNull()
     })
 
     it('returns a successor for every non-terminal phase (no undefined arm)', () => {
       for (const phase of ALL_PHASES.filter((p) => p !== 'done')) {
-        expect(nextBootPhase(phase, { videoSrc: '/x.mp4', reduceMotion: false })).not.toBeNull()
+        expect(nextBootPhase(phase, { video: FAKE_VIDEO, reduceMotion: false })).not.toBeNull()
       }
     })
   })
@@ -105,6 +125,17 @@ describe('boot phase machine', () => {
     })
   })
 
+  describe('bootSurface', () => {
+    it('gives the HUD every phase up to the video, and the video everything after (R-11a)', () => {
+      expect(ALL_PHASES.filter((p) => bootSurface(p) === 'hud')).toEqual(['idle', 'scanning', 'authorized'])
+      expect(ALL_PHASES.filter((p) => bootSurface(p) === 'video')).toEqual(['video', 'holding', 'fading', 'done'])
+    })
+
+    it('is total over the phase union — a new phase must declare its surface', () => {
+      for (const phase of ALL_PHASES) expect(['hud', 'video']).toContain(bootSurface(phase))
+    })
+  })
+
   describe('bootHudState', () => {
     it('maps the two live pre-auth branches', () => {
       expect(bootHudState('idle')).toBe('idle')
@@ -124,15 +155,15 @@ describe('boot phase machine', () => {
 
   describe('the intro-video slot', () => {
     it('ships empty — the owner supplies the bunker-doors video later (D7)', () => {
-      // Flipping these two constants to public paths is the ENTIRE drop-in. If this test ever
-      // fails, the video landed: check that `public/demo-media/` actually holds the file.
-      expect(BOOT_VIDEO_SRC).toBeNull()
-      expect(BOOT_VIDEO_POSTER).toBeNull()
+      // Filling in this ONE constant is the entire drop-in (review R-1d collapsed the old
+      // src/poster pair, which could be half-flipped without a type error). If this ever fails,
+      // the video landed: check that `public/demo-media/` actually holds the file.
+      expect(BOOT_VIDEO).toBeNull()
     })
 
     it('the machine already handles a source without any restructuring', () => {
-      expect(nextBootPhase('authorized', { videoSrc: null, reduceMotion: false })).toBe('fading')
-      expect(nextBootPhase('authorized', { videoSrc: '/anything.mp4', reduceMotion: false })).toBe('video')
+      expect(nextBootPhase('authorized', { video: null, reduceMotion: false })).toBe('fading')
+      expect(nextBootPhase('authorized', { video: FAKE_VIDEO, reduceMotion: false })).toBe('video')
     })
   })
 })

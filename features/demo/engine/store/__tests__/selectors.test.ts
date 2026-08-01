@@ -51,7 +51,8 @@ describe('selectExploreStatus', () => {
     const rows = selectExploreStatus(store.getState())
     expect(rows.find((r) => r.id === 'import')?.visited).toBe(true)
     expect(rows.find((r) => r.id === 'map')?.visited).toBe(false)
-    expect(rows.find((r) => r.id === 'cases')?.visited).toBe(true) // boot view
+    // Cases is NOT pre-lit any more (R-12): the boot view is marked by landing on it, not seeded.
+    expect(rows.find((r) => r.id === 'cases')?.visited).toBe(false)
   })
 
   it('marks the active row from the current view and ignores unknown visited ids', () => {

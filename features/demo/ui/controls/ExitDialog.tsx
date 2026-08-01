@@ -24,7 +24,16 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onStay()
+      if (e.key !== 'Escape') return
+      onStay()
+      // "The topmost dismissible owns Escape" (review R-7). This is the app's first pair of
+      // Escape listeners that can be live at the same time: the rail and this dialog sit OUTSIDE
+      // the boot gate by §87c design, so one keypress aimed at this dialog also silently skipped
+      // the boot sequence. Every other overlay in the demo binds on `document` too, so stopping
+      // here is enough — `BootSequence` listens on `window`, which is strictly later in the
+      // bubble path. Stated in one line rather than an `escapeEnabled?: boolean` prop, which
+      // would be another §84f correlated optional.
+      e.stopPropagation()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
