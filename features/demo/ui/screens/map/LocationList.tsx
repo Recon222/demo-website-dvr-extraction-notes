@@ -22,7 +22,7 @@ export interface LocationListProps {
    * The button disables rather than accepting the press, because the alternative is what this
    * finding was about: a press that produces nothing visible while the network works, a second
    * press, and N builds/downloads from N presses. Held briefly (the chunk is fetched when the
-   * map opens, not on the click), and `aria-busy` says why to anyone who cannot see the state.
+   * map opens, not on the click), and the accessible NAME carries the reason (delta D-10).
    */
   exportMapPending?: boolean
   /**
@@ -86,11 +86,16 @@ function ExportMapFooter({
       <button
         type="button"
         data-testid="export-map-button"
-        aria-label={EXPORT_MAP_A11Y_LABEL}
+        // The state rides on the NAME, not on `aria-busy` (delta D-10). A `disabled` button is
+        // out of the tab order, carries no spinner here and never changes its label, so
+        // `aria-busy` had nothing to announce it to and no change to announce — it read as
+        // diligence while reaching no one. The accessible name IS reachable: a screen reader's
+        // browse cursor still visits a disabled control and reads it out. Demo-only state (the
+        // phone has no lazy chunk), so the phone-verbatim label is unchanged in every state a
+        // phone user can be in.
+        aria-label={pending ? `${EXPORT_MAP_A11Y_LABEL} (preparing)` : EXPORT_MAP_A11Y_LABEL}
         onClick={onExportMap}
         disabled={disabled}
-        // Only the chunk fetch is "busy"; a dialog covering the button is not work in progress.
-        aria-busy={pending || undefined}
         style={disabled ? { ...exportButton, opacity: 0.55, cursor: pending ? 'progress' : 'default' } : exportButton}
       >
         {/* Ionicons `map-outline` — the phone's icon, the same path the Map tab draws. */}

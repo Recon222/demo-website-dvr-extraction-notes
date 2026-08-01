@@ -332,9 +332,12 @@ describe('DemoExperience — Export Map', () => {
     // the click can never be separated from the gesture that authorised it.
     const button = screen.getByTestId('export-map-button')
     expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('aria-busy', 'true')
+    // The reason rides on the NAME (delta D-10): `aria-busy` on an out-of-tab-order button with
+    // no spinner and no label change announced to nobody. A screen reader's browse cursor still
+    // reads a disabled control's name.
+    expect(button).toHaveAccessibleName('Export case map (preparing)')
     await waitFor(() => expect(button).toBeEnabled())
-    expect(button).not.toHaveAttribute('aria-busy')
+    expect(button).toHaveAccessibleName('Export case map')
   })
 })
 
