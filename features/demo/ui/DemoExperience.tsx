@@ -1315,7 +1315,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     // Live store state, so an edit made since the last render exports as edited.
     const st = store.getState()
     const target = st.cases.find((c) => c.id === caseId)
-    if (!target) return { kind: 'builder-unavailable' }
+    // The BUILDER is fine here; the subject is gone (delta D-3). Reporting this as
+    // `builder-unavailable` named the wrong cause AND threw away a healthy loaded module,
+    // forcing a pointless re-fetch. Unreachable today — `confirmDelete` repairs
+    // `mapViewerCaseId` — but an unreachable backstop still has to be correct (R-13's rule).
+    if (!target) return { kind: 'case-unavailable' }
     const locations = st.locations.filter((l) => l.caseId === caseId)
 
     const geojson = caseMapModule.buildCaseMapGeoJson(target, locations)
@@ -2038,7 +2042,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       const outcome = buildCaseMapDownload(run.caseId)
       // The builder's copy says "try again", so make that true: dropping the module back to
       // `null` re-arms the fetch effect. A sentence that instructs a retry the code cannot
-      // perform is the same class of lie as a fake success.
+      // perform is the same class of lie as a fake success. Scoped to the GENUINE builder
+      // failure (delta D-3) — a vanished case is no reason to discard a working module.
       if (outcome.kind === 'builder-unavailable') setCaseMapModule(null)
       setExportFlow(resetExportFlow(state))
       setAlert(terminalAlert(describeCaseMapTerminal(outcome)))

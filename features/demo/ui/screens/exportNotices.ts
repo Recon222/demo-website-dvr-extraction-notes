@@ -97,6 +97,10 @@ export type CaseMapOutcome =
       hasToken: boolean
     }
   | { kind: 'builder-unavailable' }
+  /** The case the run was authorised for is gone from the store by the time the arm reads it
+   *  (delta D-3). Distinct from `builder-unavailable`: the builder is fine, the SUBJECT is not,
+   *  and conflating them named the wrong cause and discarded a healthy module. */
+  | { kind: 'case-unavailable' }
   | { kind: 'save-unavailable' }
   | { kind: 'save-failed' }
 
@@ -146,6 +150,16 @@ export function describeCaseMapTerminal(outcome: CaseMapOutcome): ExportTerminal
         title: EXPORT_ERROR_TITLE,
         message:
           "The Case Map builder could not be loaded, so nothing was generated.\n\nIt is fetched on demand; check your connection and try again.",
+      }
+    case 'case-unavailable':
+      // The taxonomy's existing right copy — `EXPORT_ALERTS.caseUnavailable`, which the ZIP
+      // path already raises for exactly this condition. Repeated as a terminal rather than
+      // imported so this function stays a pure string table with no engine dependency; the
+      // wording is pinned against the alert in the test.
+      return {
+        title: EXPORT_ERROR_TITLE,
+        message:
+          'The selected case is no longer available. Re-select and try again.\n\nNothing was generated.',
       }
     case 'save-unavailable':
       return {
