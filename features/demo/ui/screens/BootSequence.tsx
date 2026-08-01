@@ -278,7 +278,8 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
 
       {showHud && <SplashScreen authState={bootHudState(phase)} onScan={advance} reduceMotion={reduceMotion} />}
 
-      <button ref={skipRef} type="button" onClick={skip} style={skipButton}>
+      {/* Every other terse control in this feature names its object (review R-18). */}
+      <button ref={skipRef} type="button" onClick={skip} aria-label="Skip the opening sequence" style={skipButton}>
         SKIP
       </button>
     </div>

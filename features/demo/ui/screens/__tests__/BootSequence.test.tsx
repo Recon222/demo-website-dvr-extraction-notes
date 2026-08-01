@@ -303,7 +303,7 @@ describe('BootSequence', () => {
     it('SKIP ends the sequence from the very first frame', () => {
       const onComplete = vi.fn()
       render(<BootSequence video={VIDEO} onComplete={onComplete} />)
-      fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Skip the opening sequence' }))
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
@@ -312,7 +312,7 @@ describe('BootSequence', () => {
       render(<BootSequence video={null} onComplete={onComplete} />)
       tapScanner()
       expect(screen.getByText('SCANNING')).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Skip the opening sequence' }))
       expect(onComplete).toHaveBeenCalledOnce()
     })
 

@@ -160,7 +160,7 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
 
   it('SKIP gets the visitor straight in', () => {
     render(<DemoExperience boot />)
-    fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip the opening sequence' }))
     expect(screen.queryByTestId('demo-boot')).toBeNull()
     expect(screen.getByText(/No cases yet/)).toBeInTheDocument()
   })
