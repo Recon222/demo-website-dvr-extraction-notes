@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
@@ -76,6 +77,10 @@ function OptionIcon({ icon, color }: { icon: ExportSheetIcon; color: string }) {
           <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       )
+    // R-3: closed, not fallthrough. Without it a new `ExportSheetIcon` renders NOTHING —
+    // a silently icon-less row rather than a compile error.
+    default:
+      return assertNever(icon)
   }
 }
 
@@ -104,6 +109,24 @@ export function ExportActionSheet({
     return () => document.removeEventListener('keydown', onKey)
   }, [disabled, onCancel])
 
+  /**
+   * Focus in on mount, back to the opener on unmount (review R-7) — the two-effect idiom shared
+   * with `AlertDialog`, `ExportModal`'s own `ValidationContent` and `MediaLibrarySheet`.
+   *
+   * Without it the Completion "Export Zip" button kept focus BEHIND the scrim, so Tab walked the
+   * whole obscured form and the tab bar before reaching the sheet, and a screen reader was never
+   * told a chooser had opened. It also makes the container's arrow-key handler reachable: keydown
+   * dispatches at `document.activeElement`, which was outside the portal entirely — the promise
+   * `role="menu"` makes was unkeepable on the only path that opens this sheet.
+   */
+  useEffect(() => {
+    const opener = document.activeElement
+    listRef.current?.focus()
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
   // `role="menu"` promises arrow-key traversal, so it is implemented rather than claimed.
   const onListKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
@@ -131,8 +154,12 @@ export function ExportActionSheet({
         data-testid="export-action-sheet"
         role="menu"
         aria-label={title}
+        // Focusable target for the mount effect above (R-7) — without a tabindex the container
+        // cannot take focus, so neither the announcement nor the arrow keys would work.
+        tabIndex={-1}
         onKeyDown={onListKeyDown}
         style={{
+          outline: 'none',
           position: 'absolute',
           left: 12,
           right: 12,

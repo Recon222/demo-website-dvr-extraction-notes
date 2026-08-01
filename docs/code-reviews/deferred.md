@@ -4560,3 +4560,101 @@ appears in the bridge (a download in flight, a sync), make the hub take the stat
 
 76c gives it a caller; it remains unreachable in practice (see the trigger there). It is now
 consistent with `caseUnavailable`, which has the same status at the two `pdfPassFor` sites.
+
+## 77. P5.3 fix round 1 (parity/p5-fix-modals) — R-5/R-6/R-7/R-3/R-17/R-18/R-22 dispositions, and the R-14 split flagged
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`. Every finding routed to P5.3 in
+that doc's owner table, plus the one it could not route cleanly.
+
+### 77a. R-5 — the §70i guard is now pinned by a dispatch it refuses (FIXED)
+
+The old test's second dispatch re-entered the *validated* pipeline, whose unguarded behaviour is
+byte-identical to the guarded one, so the guard could be deleted with the suite green. It is now
+`chooseScope('location')` — a `run`-arm dispatch, which unguarded runs to a terminal notice behind
+an unanswered prompt. **Probe, both directions:** guard deleted → exactly 1 failure (this test);
+restored → green. A closing assertion also pins that the refusal leaves the arm answerable, since
+a guard that ate the prompt would be its own bug.
+
+### 77b. R-6 — the progress overlay speaks now (FIXED)
+
+`role="progressbar"` has presentational children, so every visible line was pruned from the
+accessibility tree; and the `aria-live` sat on a node that mounted with its text in place. Both
+halves are gone: a sibling sr-only `role="status"` region written on the next tick (the idiom
+`ValidationContent` in the same file already documents), fed by the composed
+`stage — counter — "location"` string so stage changes AND location ticks are both announced, plus
+`aria-valuetext` on the bar. **Deliberate non-change:** the bar stays indeterminate — no
+`aria-valuenow`. The zipping step has no share of the PDF pass, so any percentage would be an
+invented number, which is the one thing this feature's honesty rule forbids. **Probe:** live region
+deleted → 3 failures.
+
+### 77c. R-7 — the action sheet takes focus, and its arrow keys are reachable (FIXED)
+
+Two-effect focus in/restore + `tabIndex={-1}`, `isConnected`-guarded. The second half matters more
+than the first: `keydown` dispatches at `document.activeElement`, which was outside the portal, so
+the container handler never fired on the only path that opens this sheet — `role="menu"`'s promise
+was unkeepable. Tests now fire from real focus rather than at the container. **Probe:** focus effect
+deleted → 4 failures.
+
+### 77d. R-3 siblings — both P5.3 sites closed (FIXED)
+
+`OptionIcon` and `pdfPassFor` both close with `assertNever`. `pdfPassFor` gained a narrowed
+parameter (`ZipExportRun = Extract<ExportRun, …>`) rather than a `default: return []`, because the
+honest statement is that the two single-file pipelines have already returned by then. The primary
+site (`onExportPress`) and the `ariaChecked` sibling are not ours.
+
+### 77e. R-17 — the prompt-visibility pair is discriminated at the props layer (FIXED, half)
+
+`ExportModalProps` is a union on `mode`; `{ mode: 'validation', validationResult: null }` is
+unconstructible and the component's runtime guard plus its apologetic comment are gone. The test
+that used to render that state is now a `@ts-expect-error` compile assertion, so loosening the
+pairing fails the build. **The `ExportFlowState` half is NOT changed** — it is the phone's ported
+shape and belongs to P5.1's frozen engine. **Trigger:** if the engine is ever reshaped (R-15 is the
+natural pairing), collapse `showValidationModal` + `validationResult` there too and the bridge's
+`&&` at the mount disappears with it.
+
+### 77f. R-18 — spinner gated on `prefers-reduced-motion` (FIXED)
+
+Reduced motion keeps the ring and drops the rotation — the ring is the only static signal that work
+is in flight, and the overlay is not dismissible, so removing it entirely would leave a blank scrim.
+In its own test file: the shared setup stub pins `matches: false` and overriding `matchMedia` inside
+the main suite leaks the preference into neighbouring renders.
+
+### 77g. R-22 — breadcrumb + no more `[object Object]` (FIXED, untested arm)
+
+`console.warn` before the dialog, and a non-`Error` throw now gets a plain sentence instead of
+`String(e)`. Deliberately NOT one of the ported `EXPORT_ALERTS` bodies — those name a specific
+cause, and naming the wrong one is worse than naming none. **No test:** the catch's only reachable
+trigger is a subset dispatch carrying a foreign id, which arrives from the Export tab, whose suite
+is P5.2's territory this round. **Trigger:** whoever next touches `DemoExperience.export-tab.test.tsx`
+should add it there — dispatch a subset whose ids the case does not own and assert the
+`Validation Error` dialog plus that no pipeline started.
+
+### 77h. R-14 — NOT ACTIONED by P5.3, and why (FLAG for the orchestrator)
+
+Owner ruling is WIRE (option 1: route `exportCaseMap` through
+`requestExportFlow({ type: 'case-map', caseId })`). The finding spans two agents' files and **cannot
+be split without one of them shipping a lie**:
+
+- `exportNotices.ts`'s `case-map` branch (ours) says the map "is being built; it just is not wired
+  to this button yet". True only while the arm is unreachable — verified still true at
+  `3aab581`: `exportCaseMap` (`DemoExperience.tsx:1260`) bypasses the flow entirely and no caller
+  passes `{ type: 'case-map' }` to `requestExportFlow`.
+- `startExportRun`'s arm (P5.4's) currently shares one branch with `location-geojson` and routes
+  both to that same notice.
+
+Wiring the handler without replacing the copy makes the demo announce "not wired to this button
+yet" immediately after a real download. Replacing the copy without wiring makes it claim a download
+that did not happen. So the two edits belong in ONE commit, and that commit is the one that splits
+the arm — P5.4's, by the concurrency assignment we were given (they own the case-map arm; we were
+told not to touch it). We therefore changed nothing here rather than half-fix it or collide.
+
+**What P5.4 needs from our file, so their commit is mechanical:** delete the `if (run.type ===
+'case-map')` early return in `describeExportTerminal` and the `'case-map'` arm of `artifactOf`,
+narrow the parameter to `Exclude<ExportRun, { type: 'case-map' }>` (which makes the split at
+`startExportRun` a compile requirement rather than a convention), and delete the
+`the case-map interim says the map was NOT generated` test in `exportNotices.test.ts`. Their success
+terminal is theirs to word — it is a statement about a download we do not own. §74f gets its closing
+note in the same commit.
+
+**Trigger:** if the orchestrator would rather P5.3 own the copy, say so and we will take it on a
+follow-up round *after* P5.4's arm split lands — never before.

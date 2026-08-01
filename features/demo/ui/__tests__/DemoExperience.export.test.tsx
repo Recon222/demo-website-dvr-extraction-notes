@@ -350,9 +350,13 @@ describe('Export flow — guards', () => {
     chooseScope('case')
     expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
 
-    // The CTA still exists behind the prompt's scrim (the phone leaves it enabled too — the
-    // modal covers it). Driving the whole sheet round-trip anyway must change nothing.
-    chooseScope('case')
+    // The second dispatch must be a DIFFERENT pipeline (review R-5). Re-dispatching `case`
+    // proved nothing: with the guard deleted, `requestExport` re-validates and re-opens the
+    // same prompt, so every assertion passed either way. `location` is a `run`-arm dispatch —
+    // unguarded it walks validating → zipping → terminal notice BEHIND the open prompt, which
+    // is exactly the harm §74b describes (the rail can move the visitor while the prompt is up).
+    chooseScope('location')
+
     expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
     expect(screen.queryByTestId('export-progress-overlay')).not.toBeInTheDocument()
     runToEnd()
@@ -362,6 +366,10 @@ describe('Export flow — guards', () => {
       screen.queryByRole('alertdialog', { name: "Downloads Aren't Available in the Demo" }),
     ).not.toBeInTheDocument()
     expect(screen.getByTestId('export-validation-modal')).toBeInTheDocument()
+    // …and the prompt is still answerable: the refused dispatch left the arm intact.
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with export' }))
+    expect(screen.getByTestId('export-progress-overlay')).toBeInTheDocument()
+    runToEnd()
   })
 
   it('Continue resumes the case the prompt was ARMED for, not one re-derived at press time', () => {

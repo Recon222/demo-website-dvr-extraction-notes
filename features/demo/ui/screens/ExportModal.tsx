@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useReducedMotion } from 'motion/react'
 import {
   describeExportProgress,
   describeValidationPrompt,
@@ -33,20 +34,33 @@ import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/gl
  * the single home of the phone's three hand-copied precedence ternaries.
  */
 
-export interface ExportModalProps {
-  /** From `resolveExportModalMode`. `'hidden'` renders nothing. */
-  mode: ExportModalMode
-  /** Progress mode. Defaults to `'idle'` like the phone's prop (`ExportModal.tsx:259`). */
-  stage?: ExportStage
-  progress?: ProgressInfo
-  currentLocationName?: string | null
-  /** Validation mode. Nothing renders in that mode without one (phone `:314`). */
-  validationResult?: CasePdfValidationResult | null
+/** Callbacks and flags every mode carries. */
+interface ExportModalCommonProps {
   /** Disables both validation buttons and the escape routes (phone `:232/242/153/289`). */
   isExporting?: boolean
   onContinueAnyway(): void
   onCancel(): void
 }
+
+/**
+ * Discriminated on `mode` (review R-17). The flat shape this replaces let
+ * `{ mode: 'validation', validationResult: null }` typecheck into an invisible modal — the
+ * component then carried a runtime guard and a comment apologising for it. `mode` already
+ * arrives from `resolveExportModalMode`, which only returns `'validation'` when a failing
+ * result exists, so the pairing is a fact about the state machine; the props now say so.
+ */
+export type ExportModalProps = ExportModalCommonProps &
+  (
+    | { mode: 'hidden' }
+    | {
+        mode: 'progress'
+        /** Defaults to `'idle'` like the phone's prop (`ExportModal.tsx:259`). */
+        stage?: ExportStage
+        progress?: ProgressInfo
+        currentLocationName?: string | null
+      }
+    | { mode: 'validation'; validationResult: CasePdfValidationResult }
+  )
 
 /** Off-screen but readable by assistive tech — the web analog of the phone's
  *  `AccessibilityInfo.announceForAccessibility` target. */
@@ -87,14 +101,40 @@ function ProgressContent({
   currentLocationName: string | null | undefined
 }) {
   const view = describeExportProgress(stage, progress, currentLocationName)
+  const reduceMotion = useReducedMotion()
+
+  /**
+   * The overlay's spoken track (review R-6).
+   *
+   * `role="progressbar"` has PRESENTATIONAL CHILDREN: the stage line, the k-of-n counter and the
+   * location name are pruned out of the accessibility tree, so the visible text is not readable
+   * at all. And an `aria-live` region only announces what changes AFTER it mounts — this one
+   * mounted with its text already in place and thereafter changed only an attribute, so a screen
+   * reader heard silence for the whole run. Same trap, same fix as `ValidationContent` below:
+   * an sr-only region written on the next tick. The composed string is what changes, so every
+   * stage AND every location tick is announced.
+   */
+  const spoken = [view.stageMessage, view.progressLabel, view.locationLabel].filter(Boolean).join(' — ')
+  const [announcement, setAnnouncement] = useState('')
+  useEffect(() => {
+    setAnnouncement(spoken)
+  }, [spoken])
+
   return (
     <>
       <div data-export-scrim style={scrim} />
+      <div data-testid="export-progress-announcement" role="status" aria-live="polite" style={srOnly}>
+        {announcement}
+      </div>
       <div
         data-testid="export-progress-overlay"
         role="progressbar"
+        // Indeterminate (no `aria-valuenow`): the pipeline's total is the PDF pass, but the
+        // zipping step has no share of it, so any percentage here would be invented. The
+        // `aria-valuetext` carries the same composed line the live region speaks, which is what
+        // a screen reader reads when it lands on the bar itself.
         aria-label={view.stageMessage}
-        aria-live="polite"
+        aria-valuetext={spoken}
         style={{
           position: 'absolute',
           inset: 0,
@@ -115,7 +155,11 @@ function ProgressContent({
             borderRadius: 20,
             border: '3px solid rgba(43,140,193,0.25)',
             borderTopColor: GLASS.accentFrom,
-            animation: 'spin 0.9s linear infinite',
+            // R-18: an infinite spin is exactly what `prefers-reduced-motion` is for, and the
+            // repo gates every other one (ScreenStage, DashboardScreen, MediaCaptureScreen,
+            // this PR's own ExportHub). Reduced motion keeps the ring — it is the only static
+            // signal that work is in flight — and drops the rotation.
+            ...(reduceMotion ? {} : { animation: 'spin 0.9s linear infinite' }),
             marginBottom: 18,
           }}
         />
@@ -320,32 +364,26 @@ function ValidationContent({
   )
 }
 
-export function ExportModal({
-  mode,
-  stage = 'idle',
-  progress,
-  currentLocationName,
-  validationResult = null,
-  isExporting = false,
-  onContinueAnyway,
-  onCancel,
-}: ExportModalProps) {
-  if (mode === 'hidden') return null
+export function ExportModal(props: ExportModalProps) {
+  // Narrowed by the discriminant, not by a runtime null check (R-17): the "validation mode with
+  // no result" state the old guard existed to survive is now unrepresentable, so the invisible
+  // modal it would have rendered cannot be constructed.
+  if (props.mode === 'hidden') return null
   return (
     <PhoneOverlayPortal>
-      {mode === 'progress' ? (
-        <ProgressContent stage={stage} progress={progress} currentLocationName={currentLocationName} />
+      {props.mode === 'progress' ? (
+        <ProgressContent
+          stage={props.stage ?? 'idle'}
+          progress={props.progress}
+          currentLocationName={props.currentLocationName}
+        />
       ) : (
-        // `mode === 'validation'` already implies a failing result (`resolveExportModalMode`
-        // requires `!allValid`), so this guard only covers a caller that hand-set the mode.
-        validationResult && (
-          <ValidationContent
-            validationResult={validationResult}
-            isExporting={isExporting}
-            onContinue={onContinueAnyway}
-            onCancel={onCancel}
-          />
-        )
+        <ValidationContent
+          validationResult={props.validationResult}
+          isExporting={props.isExporting ?? false}
+          onContinue={props.onContinueAnyway}
+          onCancel={props.onCancel}
+        />
       )}
     </PhoneOverlayPortal>
   )
