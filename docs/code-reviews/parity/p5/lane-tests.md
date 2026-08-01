@@ -333,3 +333,219 @@ second dispatch changed to a run-pipeline (fix shape verified failing/passing in
 directions), and the P5.2/P5.3 seam needs its other three moving parts exercised end-to-end
 from the tab. The MEDIUMs are two literal-pin gaps (`EXPORT_ALERTS` copy; the case-map
 template's body).
+
+---
+
+# Fix-delta r1
+
+**Range:** `3aab581..6cf026f` · **Pre-flight:** 238 files / **2885 tests** green, `tsc --noEmit`
+clean — matches the orchestrator's numbers.
+**Method:** every round-0 mutation re-run against the fixed tree, plus four new probes.
+All probes reverted; the only tracked diff left in the worktree belongs to other lanes' docs.
+
+## Round-0 dispositions
+
+| # | Finding | Disposition | Evidence |
+|---|---|---|---|
+| HIGH-1 | §70i guard test vacuous | **FIXED** (R-5 `037927d`) | Probe A |
+| HIGH-2 | seam pinned 1-of-4 | **FIXED** (R-4 `82eda12`) | Probes B/C/D |
+| MED-1 | `EXPORT_ALERTS` self-comparison | **FIXED** (R-12 `c89c9ca`) | Probe E |
+| MED-2 | 85 kB artifact validated at 4 tokens | **PARTIAL** (R-11 `e2d3efe`) | Probes F1 ✓ / F2 ✗ → N1 |
+| LOW-1 | misnamed prune test | **FIXED** (R-25 `0b167f1`) | read |
+| LOW-2 | dead `caseCheckboxState` guard | **FIXED** (R-26 `0b167f1`) | Probe G |
+| LOW-3 | dead `case-map` terminal arm | **FIXED** (R-14=WIRE `7f049c4`) | read |
+| LOW-4 | array-presence contract unpinned | **FIXED** (R-24 `8c23f5f`) | Probe J |
+| LOW-5 | two motion branches untested | **FIXED** (R-23 `46bdee0`) / weak half → N2 | Probes K ✓ / I ✗ |
+
+### Probe A — HIGH-1 FIXED
+
+Deleted `DemoExperience.tsx:2124` (`if (exportFlowRef.current.showValidationModal) return`).
+**Round 0: 0 failures across 2839 tests. Now: exactly 1 failure**, and it is the test named for
+the guard — `DemoExperience.export.test.tsx > Export flow — guards > §70i: with the validation
+prompt up, a second dispatch is inert` (1 failed | 33 passed). The fix took the shape verified
+in round 0 (second dispatch is `chooseScope('location')`, a `run`-arm) and added a closing
+assertion that the refused dispatch left the arm answerable — a guard that ate the prompt would
+be its own bug. Good addition; it was not in my fix shape.
+
+### Probes B/C/D — HIGH-2 FIXED
+
+All three original mutations re-run against `DemoExperience.export-tab.test.tsx`. Each reddens
+**exactly one** test, and the correct one:
+
+| Mutation | Red test | Result |
+|---|---|---|
+| `case-subset` arm → `{ type: 'case', caseId }` | *dispatches the SUBSET arm with exactly the ticked locations — not the whole case* | 1 failed \| 15 passed |
+| `location` arm → `locationId: null` | *dispatches the SINGLE-LOCATION arm — a live pipeline, not a dead button* | 1 failed \| 15 passed |
+| `isExporting={isExportInFlight(exportFlow)}` → `{false}` | *locks the hub while a run is in flight — every checkbox and the CTA, but never Clear* | 1 failed \| 15 passed |
+
+The §74l scope escalation now has an obituary. `seedExportable` was correctly lifted rather than
+re-rolled, and fake timers are scoped to the seam block only (the selection tests above stay on
+the real clock) — a better call than the file-wide `beforeEach` I would have written.
+
+### Probe E — MED-1 FIXED
+
+Same five `EXPORT_ALERTS` messages replaced with `MUTANT-COPY-*`. **Round 0: 183 tests green.
+Now: 1 failed | 136 passed** — `flow.test.ts > EXPORT_ALERTS — matrix row 28 contract strings >
+carries the phone's copy verbatim`. The literal block also cites the phone line numbers per
+string and calls out §70g's two adaptations inline, which is more than I asked for. `noSelection`
+gained a caller via R-13, so the "unused constant" half is closed too; §76i correctly records
+that it stays *unproducible* from the UI.
+
+### Probes F1 / F2 — MED-2 PARTIAL
+
+- **F1 — the realistic regression is closed.** Truncating `CASE_MAP_TEMPLATE_HTML` itself to
+  45 kB (rewriting the literal in `template.ts`) now reddens `build.test.ts > the ported
+  template > is a complete document that can actually boot the map` (1 failed | 41 passed). A
+  bad re-port no longer ships silently. This is exactly the fix I specified.
+- **F2 — my original probe is still green.** `buildCaseMapHtml(...).slice(0, 45000)` →
+  **4 files / 57 tests pass.** See N1.
+
+### Probe G — R-26's replacement pin is genuinely falsifiable (spot-check requested)
+
+Swapped `caseCheckboxState`'s two returns (`selectedCount === length ? 'all'` ahead of the zero
+check) → `selection.test.ts > caseCheckboxState > reads none for a case with no locations`
+goes red (1 failed | 40 passed). The commit's claim — that it mutation-verified its own
+replacement rather than swapping one unfalsifiable assertion for another — **holds**. The
+retitled test now pins the ordering that actually keeps the phone's `0 === 0` bug closed, and the
+added armed-on-this-card assertion is the one that does the work.
+
+### Probe H — §78c's "belt" is real, not asserted
+
+`LocationList.tsx`'s `const disabled = pending || blocked` → `false` reddens **3** tests
+(*downloads a real, self-contained HTML file*, *is not pressable again while its terminal is up*,
+*will not accept a press before the builder chunk has arrived*).
+
+### Probes I / K — the two reduced-motion pins are not equal
+
+Identical mutation shape, opposite outcomes: `ExportHub`'s R-23 arm made to animate anyway
+(`'exportFooterRise 3s linear'`) **reddens** its test; `ExportModal`'s R-18 arm made to animate
+anyway (`'spin 3s linear infinite'`) **stays green**. See N2.
+
+### Probe J — R-24 FIXED
+
+Dropping `extractedScopes` / `arrivalDepartures` from `locationToFeature` reddens
+`geojson.test.ts > always emits the three array properties, even when empty (review R-24)`.
+
+## Judgments requested
+
+**§78f — the refutation of R-11's "correct the UI test's comment" half: ACCEPT.** The comment
+("Self-contained: the CSS and the app JS are inlined, no relative asset is requested") is a claim
+about the *artifact*, not about the assertion beneath it, and it is now true and proven — by
+`build.test.ts`'s `<style>` / `function loadCase()` / length-floor pins. The finding's substance
+was "nothing pins the inlining", and that is fixed in the artifact's own suite, which is the right
+home. Refutation stands; no residual.
+
+**§78c — refusing to write the three-clicks test: SOUND, not a cop-out.** The claim is narrow and
+correct: jsdom does no hit-testing, so `fireEvent.click` reaches a button through a modal scrim
+that would stop a real pointer — a "three presses produce one export" test would pass in jsdom and
+prove nothing about a browser. They then split the problem honestly and pinned the two halves that
+*are* observable (a synchronous press-to-outcome path, and a genuinely `disabled` button), and
+Probe H shows both are load-bearing rather than decorative. The residual risk is disclosed with a
+correct trigger (an `await` re-entering the handler).
+
+**§77g — R-22's carried test: STILL CARRIED, and the trigger needs re-pointing.** See N4.
+
+## New findings
+
+### [LOW] N1 — the artifact pins are on the template constant, never on the built page
+
+**Production:** `features/demo/engine/logic/case-map/build.ts` — `buildCaseMapHtml`
+(rewritten to a single-pass `TOKEN_PATTERN` replace by R-10, `d482f60`)
+**Tests:** `build.test.ts`'s structural block asserts on `CASE_MAP_TEMPLATE_HTML` (the input);
+the `buildCaseMapHtml` describe asserts only the four things it just injected, and
+`DemoExperience.case-map-export.test.tsx:112` checks only `startsWith('<!DOCTYPE html>')` on the
+real saved Blob.
+**Verified:** `.slice(0, 45000)` on the builder's return → **57 tests green** (was 39 in round 0;
+the count grew, the blind spot did not close). Every builder assertion reads offsets below 45 000
+— title at 166, geojson ≈30.5 k, meta ≈30.6 k, `var TOKEN` ≈36.5 k — so the 48 kB of map runtime
+after the last token is unobserved on the *output* path.
+**Why it matters (and why only LOW):** the realistic regression — a bad regeneration — is now
+caught by F1, which is most of the risk. But R-10 just rewrote this function, and §78e's own
+framing ("the guard checks the thing it just did rather than the thing that has to be true")
+applies unchanged to the builder's own suite.
+**Fix (one line, end-to-end):** in `DemoExperience.case-map-export.test.tsx`'s *"downloads a real,
+self-contained HTML file"*, next to the existing DOCTYPE check —
+`expect(html.trimEnd().endsWith('</html>')).toBe(true)`. That covers builder + download seam in
+the file that actually leaves.
+
+### [LOW] N2 — R-18's reduced-motion pin is a weak negative; its sibling one file over is not
+
+**Production:** `features/demo/ui/screens/ExportModal.tsx:162` —
+`...(reduceMotion ? {} : { animation: 'spin 0.9s linear infinite' })`
+**Test:** `features/demo/ui/screens/__tests__/ExportModal.reduced-motion.test.tsx:33` —
+`expect(spinner).not.toHaveStyle({ animation: 'spin 0.9s linear infinite' })`
+**Verified:** changing the reduced arm to `{ animation: 'spin 3s linear infinite' }` — the spinner
+still rotates for a motion-sensitive visitor — leaves **22 tests green** (Probe I). The assertion
+pins "not this exact string", not "no rotation".
+**Contrast:** `ExportHub.test.tsx`'s R-23 test asserts positively
+(`expect(footerEl().style.animation).toBe('')`) and the same mutation reddens it (Probe K).
+**Fix:** copy the sibling — `expect((spinner as HTMLElement).style.animation).toBe('')`. Verified
+by construction: `''` under the real reduced arm, `'spin 3s linear infinite'` under the mutation.
+The file's other assertions (the ring survives, `aria-valuetext` still speaks) are good and stay.
+
+### [LOW] N3 — four compile-time assertions are dressed as runtime tests, one of them vacuous
+
+The fix round introduced a pattern of `@ts-expect-error` + a runtime `expect` that cannot fail:
+
+| Site | Runtime assertion | Executes the subject? |
+|---|---|---|
+| `exportNotices.test.ts:925` | `expect(() => describeExportTerminal({type:'case-map'…})).toBeDefined()` | **no** — an arrow function is always defined |
+| `ExportModal.test.tsx:296` | `expect(typeof reject).toBe('function')` | **no** |
+| `geojson.test.ts` (R-28) | `expect(typo.type).toBe('Feature')` | asserts the literal it just wrote |
+| `flow.test.ts` (R-16) | `expect(() => advanceStage(state(),'sharing')).not.toThrow()` | yes, but "didn't throw" is trivially true |
+
+The `@ts-expect-error` directives are genuinely load-bearing — `tsc --noEmit` is a gate and they
+fail the build if the type ever loosens — so the **coverage is real**; it just is not runtime
+coverage. The vestigial `expect(...)` lines inflate the assertion count with lines that can never
+go red, which is the shape this lane exists to flag.
+**Fix:** keep the directives, drop or downgrade the theatre — a bare
+`// @ts-expect-error …` line with a short comment (no `expect`) reads honestly, or use
+`expectTypeOf` if a type-level assertion is wanted. Lowest priority of the four; flagged so the
+idiom does not spread.
+
+Adjacent, not filed: `ExportActionSheet.test.tsx:137`'s
+`expect(() => unmount()).not.toThrow()` is a bare didn't-throw guard for the R-7 `isConnected`
+check. It would also pass if focus restoration were deleted entirely; adding
+`expect(document.body).toHaveFocus()` after the unmount would make it discriminate.
+
+### [LOW] N4 — R-22's carried test cannot honestly be written where §77g sends it
+
+**Production:** `DemoExperience.tsx` — `runExportValidation`'s `catch` (the R-22 breadcrumb +
+`UNKNOWN_VALIDATION_FAILURE` arm)
+**Tests:** none — grep for `Validation Error` across every UI suite returns zero hits. §77g routes
+the test to `DemoExperience.export-tab.test.tsx` ("dispatch a subset whose ids the case does not
+own"). P5.2 touched that file in the same round (`82eda12`) and did not add it, so the carry is
+**still open**.
+**But the trigger is unreachable by construction.** The tab's ids come from
+`exportView = pruneSelection(exportSelection, exportCases)`, where `exportCases` derives from
+`caseCards`, whose rows come from `locationsOf` — `locations.filter(l => l.caseId === c.id)`.
+`runExportValidation` then filters `st.locations` with the identical predicate against the same
+store snapshot in the same render. The two sets cannot disagree, so
+`validateLocationSubsetForPdf`'s foreign-id throw has no UI path; the empty-subset throw is
+pre-empted by `requestExport`'s `missingSubsetPayload` block.
+**Fix:** re-disposition rather than carry. Either (a) record the arm as unreachable-by-
+construction — the same treatment §70e gives the phone's corrupted-`formData` guard — keeping it
+as the loud backstop it is, or (b) if a test is still wanted, pin the *engine* behaviour
+(`validateLocationSubsetForPdf` throwing `CaseValidationError`, already covered at
+`validation.test.ts:209-231`) and pin the shell's mapping separately by extracting the catch's
+message resolution, rather than faking a store divergence the bridge prevents.
+
+## Fix-delta Summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 0 |
+| LOW | 4 (N1–N4) |
+
+Round-0: 2 HIGH **FIXED** (both mutation-verified), 1 MEDIUM **FIXED**, 1 MEDIUM **PARTIAL**,
+5 LOW **FIXED**. No fix introduced a regression; the only fix-introduced rot is N2 (a weak
+negative) and N3 (assertion theatre), both cosmetic-to-low.
+
+Test-shape work this round was unusually honest: R-4 and R-26 were each mutation-verified by
+their own authors before landing, §78c refused to write a test jsdom would make a liar of and
+said why, and §77h refused to half-fix across territory. The three judgments requested all come
+back in the fix round's favour.
+
+**Verdict: APPROVE** (4 LOW, all one-liners; none blocks merge).

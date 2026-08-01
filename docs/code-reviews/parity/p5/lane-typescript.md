@@ -200,3 +200,103 @@ Determinism seam: **preserved**
 **Verdict: APPROVE with comments**
 
 Notes: the engine's outcome unions, `assertNever` closure, nullable-arm discipline (§70j/§74) and the shell's timer/ref/state ordering all hold under trace; the three MEDIUMs are a data-corruption edge in the case-map injector, one un-ported loud backstop that leaves a ported alert dead, and three non-exhaustive union branches in a diff that is otherwise exhaustive-by-construction. None blocks merge.
+
+---
+
+# Fix-delta r1
+
+**Range:** `3aab581..6cf026f` on `feat/parity-p5` · **Gates re-run:** `tsc --noEmit` clean · full suite **238 files / 2885 tests green** (see the contention note below — the first run was not).
+
+## 1. Verification of this lane's findings
+
+| # | Finding | Fix | Status |
+|---|---|---|---|
+| M1 | `buildCaseMapHtml` replace-chain corrupts the export | R-10 `d482f60` | **FIXED** |
+| M2 | silent CTA backstop; `EXPORT_ALERTS.noSelection` dead | R-13 `46b9728` | **FIXED** |
+| M3 | three non-exhaustive closed-union branches | R-3 `47d8ab8`, `6ad4e26`, `732a051` | **FIXED** (3/3) |
+| L1 | dead `showTabs` local | R-20 `a29ec92` | **FIXED** |
+| L2 | stale `case-map` terminal copy | R-8/R-14 `7f049c4` | **FIXED** (structurally) |
+| L3 | `exportCaseMap` partial rejection guard, no in-flight gate | R-8 `7f049c4` | **FIXED** (both halves) |
+
+**M1 — probe re-run.** `build.ts:104-113` now fills all four slots in one `TOKEN_PATTERN` pass from a `fill` lookup. Re-ran my original probe with a location named `__CASE_META__ __MAPBOX_TOKEN__ __CASE_TITLE__`:
+
+```
+id="case-geojson">{…"locationName":"__CASE_META__ __MAPBOX_TOKEN__ __CASE_TITLE__"}…</script>
+id="case-meta">{"caseNumber":"OCC-1","displayName":"X","generatedAt":"now"}</script>
+geojson parses: true    meta parses: true
+```
+
+The token strings now survive as data. `?? token` on the lookup miss is a sound belt-and-braces (a fifth pattern member without a `fill` entry renders as itself, not `undefined`). The replacer stays a function, so the `$&`/`$1` protection is untouched.
+
+**M2.** `DemoExperience.tsx:662-676` — `!exportView → EXPORT_ALERTS.noSelection`, `!exportFooter → EXPORT_ALERTS.caseUnavailable`, both through `raiseExportAlert`. `noSelection` now has its caller. (`raiseExportAlert` is declared below `onExportPress` in the same body — no TDZ, since the handler only runs after render completes.)
+
+**M3.** All three closed with `assertNever`: `onExportPress`'s `switch (dispatch)` (`:681-693`), `pdfPassFor`'s `switch (run.type)` (`:1943-1968`), `OptionIcon` (`ExportActionSheet.tsx`). `pdfPassFor` went further than the finding asked — its parameter is now `ZipExportRun = Extract<ExportRun, { type: 'case' | 'case-subset' | 'location' }>` (`:291`), so the residual arm is not merely closed, it is unconstructable at the call site.
+
+**L2.** The strongest of the six. `SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>` (`exportNotices.ts`) removes the member that carried the "is being built; it just is not wired to this button yet" sentence, so it cannot return — and `describeCaseMapTerminal` gives the real download its own four-arm outcome type. `runZipPipeline` and `exportTerminalAlert` are narrowed to match. The PR-body/code contradiction I flagged is gone: `exportCaseMap` is now `requestExportFlow({ type: 'case-map', caseId: mapViewerCaseId })`, so the arm has a caller.
+
+**L3.** Both halves closed, and by removing the async rather than guarding it: the `void`-ed IIFE is gone; the only promise is the prefetch effect (`:816-832`), which handles **both** settlement paths and carries a `cancelled` flag; `buildCaseMapDownload` is synchronous, so the flow's own entry guard suffices; and `exportMapPending` / `exportMapBlocked` disable the footer button while the chunk is in flight or a dialog owns the screen.
+
+## 2. Disclosed deviations touching this lane's findings
+
+- **R-16's extra `'idle'` exclusion from `advanceStage` — SOUND, accept.** Verified all three call sites pass `validating`/`generating`/`zipping` only. `resetExportFlow` is the sole route back to rest and it also zeroes `progress` and `currentLocationName`; an `advanceStage(s, 'idle')` would have left both for the next run to inherit. Strictly stronger than the finding asked for, with no capability lost.
+- **R-26's removal of `caseCheckboxState`'s zero-length guard — SOUND but order-critical, accept.** With the guard gone, an empty case reaches `selectedCount === 0 → 'none'` before `selectedCount === caseData.locationIds.length` can read `0 === 0` as `'all'`. The ordering *is* the invariant now; the comment says so and a test pins it. Swapping the two returns silently re-opens the phone's bug — correctly called out in the new comment.
+- **§78f's refutation of R-11's comment half — ACCEPT, no intersection with my R-10 evidence.** My probe targeted the injection chain, not the inlining claim; `build.test.ts`'s new structural pins (`<style>` present, `function loadCase()` present, length floor) are complementary and verified present.
+- **R-2's `ok` → `requested` rename on `SaveFileOutcome` — SOUND, accept.** `HTMLAnchorElement.click()` genuinely cannot report delivery; the type no longer implies a verified write. All call sites updated (tsc clean).
+- **R-21's 40 s revoke fuse + `pagehide` backstop — SOUND, accept.** The listener is `{ once: true }` and removed on the timer path; the registry's scoped revoke makes the double-call a no-op. Per-download listener accumulation is bounded by the 40 s window.
+
+## 3. Fix-introduced findings
+
+### [MEDIUM] N1 — the new Case Map terminal asserts an empty map over one that renders camera pins
+
+**File:** `features/demo/ui/DemoExperience.tsx:1344` · `features/demo/ui/screens/exportNotices.ts` (`'requested'` arm)
+
+```ts
+mapIsEmpty: !caseMapModule.hasPlottableFeatures(geojson),
+```
+→ `outcome.mapIsEmpty ? ' Nothing plots yet, so it opens with an empty map.' : ''`
+
+`hasPlottableFeatures` is `features.some(f => f.properties.featureType !== 'camera')` — by design (§71g / the phone's non-camera guard) it answers *"does the map have site framing"*, **not** *"is the map empty"*. For a collection containing only camera features it returns `false`, so `mapIsEmpty` becomes `true` and the terminal tells the visitor nothing plots — while the exported file renders every camera pin.
+
+**Reachable:** `setCameraGps` (`create-store.ts:704-717`) writes a camera fix independently of the parent location's `gps`, so "location typed, not picked + a per-camera GPS capture" (P3.7's own flow) produces exactly this collection. The notice then emits two clauses, one true and one false: *"None of its 1 locations have coordinates yet, so none of them are on the map. Nothing plots yet, so it opens with an empty map."*
+
+**Why it matters at this severity:** this round's own R-2 changed `ok` → `requested` precisely to stop the terminal claiming more than it can know, and R-1 exists to stop it staying silent about what the map omits. A flatly false sentence about a file the visitor is holding sits below both bars.
+
+**Fix:** use the right predicate for the right sentence — `mapIsEmpty: geojson.features.length === 0` — and, if the "no site framing" fact is still wanted, give it its own clause driven by `coverage.hasPlottedLocations` / `hasPlottableFeatures`.
+
+### [LOW] N2 — a vanished case is reported as a failed builder, and resets a healthy one
+
+**File:** `features/demo/ui/DemoExperience.tsx:1319-1320` and `:2035-2036`
+
+```ts
+const target = st.cases.find((c) => c.id === caseId)
+if (!target) return { kind: 'builder-unavailable' }
+...
+if (outcome.kind === 'builder-unavailable') setCaseMapModule(null)
+```
+
+The missing-case condition borrows the missing-*module* outcome, so the visitor reads *"The Case Map builder could not be loaded… It is fetched on demand; check your connection and try again"* for a cause that has nothing to do with the network — and the caller then discards an already-loaded module and refetches it, every press. The taxonomy already has the right string (`EXPORT_ALERTS.caseUnavailable`, "The selected case is no longer available. Re-select and try again."), which the ZIP path raises for the identical condition (`:2049`).
+
+**Unreachable today** — `setMapViewerCaseId((prev) => (prev === id ? null : prev))` prunes the viewer id on case delete (`:1407`), and the picker is forced when it is null. But R-13 in this very round argued that an unreachable backstop still has to be *correct*; this one names the wrong cause and has a side effect. **Fix:** add a `{ kind: 'case-unavailable' }` arm to `CaseMapOutcome` (or route it to `raiseExportAlert(EXPORT_ALERTS.caseUnavailable)`), and gate the `setCaseMapModule(null)` re-arm on the module genuinely being the cause.
+
+## 4. ⚠ Shared-worktree contention corrupted a suite run — read before trusting any lane's numbers
+
+My first full-suite run reported **1 failed / 2885**, in `features/demo/engine/logic/export/__tests__/flow.test.ts` — the `EXPORT_ALERTS` `toEqual` contract block, which is a `toEqual` against a frozen module constant and cannot be flaky on its own. It passed **solo** (46/46). Cause, established rather than guessed: `features/demo/engine/logic/export/flow.ts` has mtime **20:50:18**, eleven seconds into a run that started at **20:50:07** — a concurrent lane was mutation-probing that file mid-run and restored it afterwards.
+
+I re-ran the suite with a before/after `stat` sweep over every `features/**/*.ts(x)`: **238 files / 2885 tests green**, and the sweep caught two *further* mid-run rewrites (`ui/screens/export/ExportHub.tsx`, `engine/logic/case-map/geojson.ts`) that happened not to collide with their own tests that time.
+
+This is the second contention incident this lane has recorded in this worktree (the first: an unreverted `onExportPress` mutation at the end of round 1, logged above). **Recommendation for the orchestrator:** serialise full-suite runs, or give mutation-probing lanes their own worktree. A green number from this worktree is only trustworthy if the runner also proves no source file changed mid-run.
+
+## Fix-delta summary
+
+| | Count |
+|---|---|
+| Prior findings verified FIXED | 6 / 6 (3 MEDIUM, 3 LOW) |
+| Prior findings PARTIAL / UNFIXED | 0 |
+| Disclosed deviations judged | 5 — all sound, all accepted |
+| New (fix-introduced) MEDIUM | 1 |
+| New (fix-introduced) LOW | 1 |
+| New HIGH / CRITICAL | 0 |
+
+Store-bridge integrity: **preserved** · Engine purity: **preserved** (the new `type CaseMapCoverage` import in `exportNotices.ts` is `import type`, erased, so the lazy chunk stays out of the First Load graph) · Barrel + marketing/demo isolation: **preserved** · Determinism seam: **preserved**
+
+**Verdict: APPROVE with comments.** The round is materially stronger than the findings required — three fixes are structural (`ZipExportRun`, `SimulatedExportRun`, discriminated `ExportModalProps`) rather than defensive, and the case-map rewire removed the async instead of guarding it. N1 is worth closing before merge; N2 can ride a later round.

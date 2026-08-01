@@ -424,3 +424,170 @@ repo's commit→finding convention, with cross-links where one fix (R-14 option 
 **Sequencing note for the orchestrator:** decide R-14's option (wire vs delete) *before* routing
 R-8 and R-9 — option 1 restructures both. R-3's switch and R-4's tests should land as a pair (the
 new tests pin the new switch). R-1 + R-2 share the banner copy — one agent (P5.4), two commits.
+
+---
+
+# Fix-delta r1 verdict
+
+**Range:** `3aab581..6cf026f` (four fix-package merges + orchestrator merges) · merged head gates:
+238 files / **2885 tests** green · **cold-cache** `tsc --noEmit` clean (see process ruling 1) ·
+`pnpm build` exit 0 · `/demo` First Load JS 107 kB unmoved, case-map chunk +158 B gzip, template
+verified absent from the First Load graph.
+**Aggregator adjudication:** both new MEDIUMs re-verified here — the camera-only collection probe
+(camera pins render while `hasPlottableFeatures` reads empty → the false "opens with an empty map"
+clause) reproduced against HEAD and reverted; the focus-continuity mechanism confirmed at source
+(`AlertDialog.tsx:55-61` passive `document.activeElement` capture + `LocationList.tsx:84`
+`disabled = pending || blocked`; HTML focus-fixup moves focus to `<body>` before effects run).
+The §70i guard scare in the type-design lane's worktree note is **discharged**: verified present at
+`DemoExperience.tsx:2124`, source tree clean at aggregation time.
+
+## Verdict: **ONE TARGETED MICRO-ROUND** (then merge) — 0 blocker · 2 major · 10 minor (12 deduped from 14 raw)
+
+Round-0 closure: **all 28 vetted findings addressed — 27 FIXED, 1 DEFERRED-with-trigger**
+(R-15 → §75e, exactly the outcome the finding sanctioned). R-11 is FIXED-with-residue (the tests
+lane's PARTIAL, self-downgraded to LOW → D-6). No round-0 finding is unfixed; no fix regressed a
+gate. Lane verdicts: typescript APPROVE-w-comments · web APPROVE-w-comments · tests APPROVE ·
+silent-failures APPROVE · type-design APPROVE. The two fix-introduced majors below are the whole
+reason this is not a plain APPROVE: D-1 sits below the honesty bar this round's own R-1/R-2
+established, on the one real artifact; D-2 is an a11y regression introduced by an
+otherwise-correct fix. Both are single-locus changes.
+
+## Delta findings (deduped, most-severe-first)
+
+### D-1 — MAJOR — the new Case Map terminal asserts an empty map over one that renders every camera pin
+
+`DemoExperience.tsx:1344` (`mapIsEmpty: !caseMapModule.hasPlottableFeatures(geojson)`) →
+`exportNotices.ts:140`. Lanes: typescript N1 (MED). **Aggregator probe-verified.**
+`hasPlottableFeatures` answers "does the map have site framing" (§71g), not "is the map empty" —
+a camera-only collection (location typed-not-picked + per-camera GPS via `setCameraGps`,
+`create-store.ts:704` — P3.7's own flow) yields `mapIsEmpty: true` and a flatly false sentence
+about a file the visitor is holding, beside a true clause ("None of its 1 locations have
+coordinates…"). Fix: `mapIsEmpty: geojson.features.length === 0`; if the no-site-framing fact is
+still wanted, give it its own clause. **Owner: P5.4.**
+
+### D-2 — MAJOR — disabling a control on activation drops focus; the terminal dialog then "restores" it to `<body>`
+
+`LocationList.tsx:84` + `DemoExperience.tsx:2493` · same shape pre-existing at
+`ExportHub.tsx:234` · root cause `AlertDialog.tsx:55-61`. Lanes: web new MED. **Mechanism
+verified at source.** R-8's belt makes the button non-focusable in the same commit that mounts
+the terminal `AlertDialog`; focus fixup hands focus to the viewport before React's passive
+effects, so the dialog captures `<body>` as opener and dismiss lands the keyboard visitor at
+document start. Regression relative to r0 (non-blocking banner kept focus). Fix at the
+AlertDialog level — capture the opener from a document-level `pointerdown`/`keydown` **capture**
+listener into a ref instead of reading `document.activeElement` in the mount effect — which
+retires this site **and** the pre-existing ExportHub sibling in one change. **Owner: P5.3.**
+
+### D-3 — minor — a vanished case is reported as "the builder could not be loaded", and discards a healthy loaded module
+
+`DemoExperience.tsx:1319-1320` + `:2033-2036`. Lanes: **typescript LOW + web LOW +
+silent-failures N-1 — one finding** (the announced convergence, confirmed: same lines, same two
+defects — wrong cause named, wrong side effect). Unreachable today (`confirmDelete:1407` repairs
+`mapViewerCaseId`), but R-13's own doctrine — an unreachable backstop must still be correct —
+applies, and the module-cache discard is wrong independent of copy. Fix: a
+`{ kind: 'case-unavailable' }` arm on `CaseMapOutcome` carrying `EXPORT_ALERTS.caseUnavailable`'s
+wording (the taxonomy's existing right copy, already used by the ZIP path at `:2059`); scope
+`setCaseMapModule(null)` to the genuine builder failure. **Owner: P5.4** (same type/file
+neighbourhood as D-1).
+
+### D-4 — minor — `exportMapBlocked` guards the one state where a press is legitimate, and not the two where it silently vanishes
+
+`DemoExperience.tsx:2493` (`exportMapBlocked={alert !== null}`). Lanes: silent-failures N-2,
+probed by that lane (validation prompt up + rail jump to Map → button enabled, press produces
+zero saves, zero feedback; keyboard-reachable — neither modal content traps focus or sets
+`inert`). The prop's own doc comment rejects the geometry defence in as many words. Fix is one
+term: `exportMapBlocked={alert !== null || exportModalMode !== 'hidden'}`. **Owner: P5.4.**
+
+### D-5 — minor — the plotted-location gate now lives in three places; the dev-warn's count and the visitor's count come from different ones
+
+`geojson.ts:106` / `:232-236` / `:269-272`. Lanes: silent-failures N-3. Today all three agree;
+one added term in `locationToFeature`'s gate re-creates the r0 R-1 shape structurally (banner
+over-reports coverage). Fix: `summariseCaseMapCoverage` tests `locationToFeature(location) !==
+null` instead of re-implementing the predicate; correct §78a's trigger. **Owner: P5.4.**
+
+### D-6 — minor — the artifact pins live on the template constant, never on the built page (R-11's residue)
+
+`build.test.ts` structural block asserts the *input*; the builder's output tail is unobserved
+(`.slice(0, 45000)` on the return: 57 tests green — tests lane Probe F2). The realistic
+regression (bad re-port) is closed by F1, hence LOW. Fix is one line in
+`DemoExperience.case-map-export.test.tsx` beside the DOCTYPE check:
+`expect(html.trimEnd().endsWith('</html>')).toBe(true)`. **Owner: P5.4.**
+
+### D-7 — minor — R-18's reduced-motion pin is a weak negative; the sibling one file over discriminates
+
+`ExportModal.reduced-motion.test.tsx:33` pins "not this exact string", not "no rotation" —
+mutation `spin 3s` stays green (tests N2, Probe I) while ExportHub's positive pin reddens the
+same shape (Probe K). Fix: `expect((spinner as HTMLElement).style.animation).toBe('')`.
+**Owner: P5.3.**
+
+### D-8 — minor — vacuous runtime `expect`s dressed around load-bearing `@ts-expect-error` directives
+
+Four sites (tests N3: `exportNotices.test.ts:925`, `ExportModal.test.tsx:296`,
+`geojson.test.ts` R-28, `flow.test.ts` R-16) + the adjacent `unmount()).not.toThrow()`.
+**Lane conflict settled:** type-design praises the *directives* ("should become the convention");
+tests flags the *vestigial runtime wrappers* — compatible, and both right. Ruling: the
+`@ts-expect-error` compile-assertion idiom IS the convention for type-level pins; the decoration
+(`expect(fn).toBeDefined()` etc.) is assertion theatre and should be trimmed to bare directives
+with a comment when these files are next touched. **Ledgered as a convention note — no dedicated
+code round.**
+
+### D-9 — minor — §77g's carried test is unreachable-by-construction; re-disposition, don't write it
+
+Tests N4: the foreign-id subset dispatch §77g routes to the tab suite cannot occur — the tab's
+ids and the validator's rows derive from the identical predicate over the same store snapshot in
+the same render. Ruling: re-disposition per the §70e precedent (unreachable guard, kept as loud
+backstop; engine throw already pinned at `validation.test.ts:209-231`). While in the ledger, also
+apply type-design's re-wording of §76h's trigger (widen the *bridge's* derivation, never hand the
+hub `ExportFlowState`). **Ledger edits only — ride the micro-round's docs commit.**
+
+### D-10 — minor — `aria-busy` on a `disabled` button cannot reach anyone
+
+`LocationList.tsx:84-86` (web LOW). Unfocusable + no spinner + label unchanged; the comment
+overstates what `aria-busy` does. Normally-false `pending` (prefetch landed) keeps this small.
+Fix: sr-only `role="status"` line (the R-6 pattern) or trim the comment to what is true — rider
+on the same button D-2/D-4 touch. **Owner: P5.4.**
+
+### D-11 — minor (nit) — `runZipPipeline` accepts `SimulatedExportRun`; its domain is `ZipExportRun`
+
+`DemoExperience.tsx:1991` (type-design FD-1, probe: tightening compiles clean). One word.
+**Owner: P5.3.**
+
+### D-12 — minor (nit) — `CaseMapCoverage.hasPlottedLocations` is a derived field with no production reader
+
+`geojson.ts:216-227` (type-design FD-2) — already costing hand-maintained fixture pairs that can
+contradict silently. Fix: delete the field + doc pointer; callers write
+`coverage.plottedLocations > 0`. Keep `mapIsEmpty` separate (not derivable from coverage — §78a
+is right), which D-1 then fixes independently. **Owner: P5.4.**
+
+## Surviving-work routing
+
+| Bucket | Items |
+|---|---|
+| **Micro-round — P5.4** (one branch) | D-1, D-3, D-4, D-5, D-6, D-10, D-12 |
+| **Micro-round — P5.3** (one branch) | D-2 (AlertDialog-level — also retires the ExportHub sibling), D-7, D-11 |
+| **Ledgered with trigger** (docs commit riding the micro-round) | D-8 (convention note: bare directives, no theatre), D-9 (§77g re-disposition + §76h trigger re-word) |
+| **Recorded, no action** | silent-failures' `droppedLocationNames`-naming residual (count-and-flag shipped as filed; naming a capped few is a polish-round item, trigger already implicit in §78a); the deleted-not-rewritten `content.test.ts` arms (type-design: correct outcome, not coverage loss) |
+
+Everything in the micro-round is a one-liner except D-1 (predicate + optional clause), D-2 (one
+capture listener in `AlertDialog`), and D-3 (one union arm). Two owners, two branches, no
+cross-branch dependency. Recommended delta check for the micro-round: single-aggregator
+spot-check (re-run the D-1 probe, mutation-check D-7's new pin, keyboard-trace D-2), not a
+five-lane fan-out — the blast radius does not justify one.
+
+## Process rulings (requested)
+
+1. **`tsc --noEmit` incremental staleness (web lane) — STANDING RULE.** A stale
+   `tsconfig.tsbuildinfo` produced exit 0 against a tree whose `next build` type-check failed.
+   Every quoted "tsc clean" gate in this effort must be cold-cache:
+   `rm -f tsconfig.tsbuildinfo && npx tsc --noEmit`. Belongs in the demo repo's CLAUDE.md gate
+   instructions / HANDOFF standing rules, not just this doc.
+2. **The combined-tree proof point (web lane) — STANDING RULE, folded into the same entry.** The
+   mid-merge `TS2345 '"case-map"' … 'never'` (real between `c9a4cbc` and `6cf026f`, gone at the
+   merged head) is the concrete demonstration: `assertNever` over a union another branch widens
+   is a merge-order landmine, so **gate numbers are only quotable from the merged head** — never
+   from a fix branch pre-merge. One sentence in the standing rules; no tooling needed.
+3. **Worktree contention (typescript r1 + type-design recurrence) — standing recommendation
+   renewed, upgraded from r0's aside:** mutation-probing lanes sharing one worktree corrupted one
+   full-suite run this round (mtime-proven) and twice left a probe visible to another lane.
+   Serialise full-suite runs or give mutation lanes their own worktrees; a green number from a
+   shared tree is only trustworthy with a no-mid-run-writes check. Orchestrator's call on
+   mechanism; the failure mode is now demonstrated, not hypothetical.

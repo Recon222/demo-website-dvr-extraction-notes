@@ -347,3 +347,207 @@ Notes: The bundle work and the object-URL discipline are exemplary — the case-
 port-script token assertions and the `</script>` escape are all better than the phone they were
 ported from. Every HIGH is a small, local fix (one sr-only live region, one two-effect focus block,
 one copy string), and each has a correct implementation elsewhere in this same diff to copy from.
+
+---
+---
+
+# Fix-delta r1
+
+**Diff reviewed:** `3aab581..6cf026f` (four package merges + 19 fix commits) · worktree `parity-p5` at
+`6cf026f`, `feat/parity-p5`
+**Gates re-run by this lane:** `pnpm build` **exit 0** · cold-cache `tsc --noEmit` **exit 0** ·
+109 UI test files / 1284 tests green (`features/demo/ui/**/__tests__`)
+
+## Disposition of this lane's round-0 findings — 8 of 8 FIXED
+
+| # | Round-0 finding | Fix | Verdict |
+|---|---|---|---|
+| HIGH-1 | Download reports success from "the click didn't throw" | R-2 `a59c73f` + R-9/R-14 | **FIXED** |
+| HIGH-2 | Progress overlay inaudible to AT | R-6 `48a78ad` | **FIXED** |
+| HIGH-3 | Action sheet: no focus management; arrow keys unreachable | R-7 `732a051` | **FIXED** |
+| MED-1 | Download click separated from gesture; no pending / no re-press guard | R-8 `7f049c4` | **FIXED** |
+| MED-2 | Infinite spinner not reduced-motion gated | R-18 `48a78ad` | **FIXED** |
+| MED-3 | Tab bar signals active tab by colour only | R-19 `825d459` | **FIXED** |
+| LOW-1 | Dead + stale `showTabs` | R-20 `a29ec92` | **FIXED** |
+| LOW-2 | Stale `case-map` terminal copy | R-14 (`SimulatedExportRun`) | **FIXED** |
+
+### HIGH-1 — FIXED, and the wording is honest for every drop class I enumerated
+
+`SaveFileOutcome` is now `{ requested: true, filename } | { requested: false, reason }`
+(`download-file.ts:100-104`), and the terminal reads **"Your browser was asked to save <filename>.
+Check your downloads."** (`exportNotices.ts:130-131`). Checked against each class I named:
+Chrome automatic-download blocking, a blocking extension, a hardened/enterprise profile, Safari's
+download settings, expired transient activation — all return normally from `.click()`, all now land
+in `requested: true`, and the sentence claims only the request. **No residue.** Two bonuses beyond
+the ask: `save-unavailable` and `save-failed` get distinct, cause-specific copy
+(`exportNotices.ts:146-160`), and the honest banner became a blocking `AlertDialog`
+(`DemoExperience.tsx:2040`) rather than an auto-dismissing `role="status"` toast — consistent with
+§74a's "the one honest sentence must not time out unread".
+
+### HIGH-2 — FIXED; and §77b's indeterminate ruling is **endorsed**
+
+Both halves are closed exactly as prescribed: a sibling sr-only `role="status" aria-live="polite"`
+region written on the next tick from the composed `stage — counter — "location"` string
+(`ExportModal.tsx:114-121, 129-131`), plus `aria-valuetext` on the bar itself
+(`ExportModal.tsx:139`). The `aria-live` is off the presentational-children node, so nothing depends
+on the pruned subtree any more.
+
+**On §77b's deliberate non-change (no `aria-valuenow`): correct, and I would have insisted on it.**
+ARIA 1.2 defines an omitted `aria-valuenow` on `progressbar` as exactly "indeterminate", so this is
+the spec-sanctioned encoding rather than an omission; `aria-valuemin`/`aria-valuemax` are not
+required alongside it. And the substantive argument holds — the k-of-n counter covers only the PDF
+pass, so `zipping` has no share of the total and any percentage would be a fabricated number, which
+is the one thing this feature forbids. One spec nuance, non-blocking: `aria-valuetext` is defined as
+the readable alternative *to* `aria-valuenow`, so a few AT implementations ignore it when
+`aria-valuenow` is absent. That is precisely why the sr-only region carries the same string, so the
+belt is already there. No change wanted.
+
+### HIGH-3 — FIXED, including the half that mattered more
+
+Two-effect focus in/restore + `tabIndex={-1}` + `outline: 'none'` (`ExportActionSheet.tsx:112-129,
+:157-159`), `isConnected`-guarded. Critically the **tests were re-pointed to fire from
+`document.activeElement`** rather than at the container
+(`__tests__/ExportActionSheet.test.tsx:117-124`), so the suite now pins reachability instead of the
+handler in isolation — which was the actual defect. Three new focus arms including the
+opener-removed-from-DOM case.
+
+### MED-1 — FIXED by prefetch, which is the better of the two shapes I offered
+
+The chunk is fetched on `view === 'map'` (`DemoExperience.tsx:816-832`) and the press-to-download
+path is now fully synchronous inside the click handler (`startExportRun`'s `case-map` arm,
+`DemoExperience.tsx:1960-1976` → `buildCaseMapDownload`). User activation is preserved end-to-end,
+the pending affordance exists, and the re-press window is gone by construction rather than by a
+second guard. §78c's own framing of this ("the guard is not what fixes this") is the accurate one.
+The failure arm re-arms the fetch (`setCaseMapModule(null)`), so the "try again" copy is truthful.
+
+### MED-2 / MED-3 / LOW-1 / LOW-2 — FIXED
+
+`...(reduceMotion ? {} : { animation: 'spin …' })` with a dedicated
+`ExportModal.reduced-motion.test.tsx`; `aria-current={active === id ? 'page' : undefined}` with the
+§67c distinction argued correctly in the comment (`aria-pressed` stays with the media library's
+*filter* strip; a tab bar *navigates*, so `page` is right); `showTabs` deleted; and the stale
+terminal sentence made **unconstructible** via `SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>`
+— a stronger close than the deletion I asked for.
+
+---
+
+## Bundle re-verification (measured at stable HEAD)
+
+| Metric | Round 0 | After r1 | Δ |
+|---|---|---|---|
+| `/demo` First Load JS | 107 kB | **107 kB** | unmoved |
+| Case-map chunk (raw) | 92,113 B | 92,456 B | +343 B (`summariseCaseMapCoverage`) |
+| Case-map chunk (gzip) | 22,381 B | **22,539 B** | +158 B |
+| Case-map template in any `/demo` First Load chunk | no | **no** | — |
+
+The one bundle risk this round introduced was `exportNotices.ts:4-6`'s
+`import type { CaseMapCoverage } from '@/features/demo/engine/logic/case-map'` — `exportNotices` **is**
+in the First Load graph, so a value import there would have dragged the 85 kB template in. Verified
+erased: no chunk referenced by `.next/server/app/demo.html` contains `__CASE_META__`. The wall,
+chrome scope, `package.json` and `next.config.js` are all still untouched.
+
+---
+
+## New findings from the fix round's blast radius
+
+### [MEDIUM] Disabling a control on activation drops focus, and the terminal dialog then "restores" it to `<body>`
+
+**File:** `features/demo/ui/screens/map/LocationList.tsx:84` · wired at
+`features/demo/ui/DemoExperience.tsx:2493` (`exportMapBlocked={alert !== null}`) ·
+same shape pre-existing at `features/demo/ui/screens/export/ExportHub.tsx:234`
+
+**Issue:** R-8's belt (`disabled={pending || blocked}`) makes the Export Map button non-focusable in
+the *same commit* that mounts the terminal `AlertDialog`. Per the HTML spec's **focus fixup rule**, a
+focused element that becomes non-focusable hands focus back to the viewport — so `document.activeElement`
+is `<body>` by the time React runs passive effects. `AlertDialog`'s opener capture is a passive effect
+(`AlertDialog.tsx:55-61`), so it records `<body>` as the opener and, on dismiss, calls
+`document.body.focus()`.
+
+**Concrete scenario:** `/demo` → Map tab → sheet list → Tab to **Export Map** → Enter. The file is
+requested and "Case Map Ready" opens (correctly focused). Press Enter on OK. Focus is now at the
+document start — the visitor must Tab through the narration rail and the whole map screen to get back
+to the button they just used. Before this round the same path kept focus, because the button was not
+disabled and the outcome was a non-blocking banner. So this is a regression introduced by an
+otherwise-correct fix, not a pre-existing gap. The identical shape already exists on the Export tab's
+CTA (`disabled={isExporting}`), which is why one fix should cover both.
+
+**Fix (one of):**
+- Capture the opener in `AlertDialog` from a document-level `pointerdown`/`keydown` **capture**
+  listener into a ref, instead of reading `document.activeElement` in the mount effect — fixes every
+  caller at once, including the hub CTA.
+- Or on the footer button, swap `disabled` for `aria-disabled={disabled}` + an early return in
+  `onExportMap`, keeping it focusable (the APG "disabled but discoverable" shape). The `blocked` case
+  already has no engine guard behind it, so the handler needs the explicit `if (alert) return` either
+  way.
+
+### [LOW] `aria-busy` on a `disabled` button cannot reach anyone
+
+**File:** `features/demo/ui/screens/map/LocationList.tsx:84-86`
+
+`aria-busy={pending || undefined}` sits on a control that `disabled` has just removed from the tab
+order, and the label still reads "Export Map" with no spinner. A screen-reader user cannot land on it
+to hear the busy state, and nothing else announces it. Impact is small **because** R-8 moved the fetch
+to map-open, so `pending` is normally already false — but the comment's claim that `aria-busy` "says
+why to anyone who cannot see the state" overstates what it can do. If the pending window is worth
+announcing at all, it wants an sr-only `role="status"` line (the pattern R-6 just added next door);
+otherwise the comment should be trimmed to what is true.
+
+### [LOW] A vanished case is reported as a builder failure, and needlessly discards the loaded module
+
+**File:** `features/demo/ui/DemoExperience.tsx:1317-1321` · `:1973-1975`
+
+`buildCaseMapDownload` returns `{ kind: 'builder-unavailable' }` both when the chunk never arrived
+**and** when `st.cases.find(...)` misses. The second cause then prints *"The Case Map builder could
+not be loaded… check your connection and try again"* for a deleted case, and `startExportRun`'s
+`if (outcome.kind === 'builder-unavailable') setCaseMapModule(null)` throws away a perfectly good
+loaded module, forcing a pointless refetch. Unreachable from the UI today (the footer only renders
+inside a picked viewer case) and §78d records the engine-side `noCaseSelectedForMap` alert as the
+ported-but-unreachable counterpart — so this is a copy/side-effect nit, not a live bug. Fix: a fourth
+`CaseMapOutcome` arm (`case-unavailable`) that does **not** re-arm the fetch.
+
+### [LOW / process] `tsc --noEmit` is not a trustworthy gate in this repo without clearing its cache
+
+**File:** `tsconfig.json:16` (`"incremental": true`)
+
+Hit directly while verifying this round: `npx tsc --noEmit` exited **0** against a tree whose
+`next build` type-check **failed**, because a stale `tsconfig.tsbuildinfo` short-circuited the run.
+Any lane or fix round quoting "tsc clean" should run `rm -f tsconfig.tsbuildinfo && npx tsc --noEmit`
+(or `--incremental false`). Cold-cache re-run at `6cf026f` **is** clean, and `next build` is exit 0 —
+so nothing is wrong with the code; the gate is what is unreliable.
+
+**Recorded so nobody chases it:** my first rebuild of this round raced the merge sequence (it started
+between `c9a4cbc` and `6cf026f`) and failed with
+`DemoExperience.tsx:693 — Argument of type '"case-map"' is not assignable to parameter of type 'never'`.
+That error does **not** exist at `6cf026f` — `ExportSelectionPlan.dispatch` is
+`Extract<ExportType, 'case' | 'location' | 'case-subset'>` (`selection.ts:222`), landed in `47d8ab8`.
+Re-run at stable HEAD is exit 0. It is nonetheless a real illustration of the hazard R-3 and R-14
+straddle: `assertNever` over a union one branch widens is a merge-order landmine, and only the
+combined tree proves it defused.
+
+---
+
+## Fix-delta Summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 1 |
+| LOW | 3 |
+
+Round-0 findings: **8 of 8 FIXED**, 0 PARTIAL, 0 UNFIXED
+§77b indeterminate-progressbar ruling: **endorsed**
+Marketing↔demo isolation: **preserved**
+Bundle impact: **none** — `/demo` 107 kB unmoved; type-only case-map import verified erased
+Browser-resource cleanup: **complete** — R-21's 40 s revoke window is `pagehide`-backstopped, the
+listener is `{ once: true }` plus an explicit `removeEventListener` on the timer path, and the
+registry makes the double-call a no-op
+Accessibility: **round-0 gaps closed; one new focus-continuity regression (MEDIUM)**
+Style-convention adherence: **correct half**
+
+**Verdict: APPROVE with comments**
+
+Notes: The three HIGHs were fixed at the level the finding pointed at rather than at the symptom —
+`requested` instead of a softened string, an sr-only region instead of more ARIA on the pruned node,
+and re-pointed tests instead of only the component. The one new MEDIUM is the cost of R-8's belt and
+is a single change inside `AlertDialog` that also retires the same shape on the Export tab's CTA.

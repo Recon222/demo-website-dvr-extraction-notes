@@ -347,3 +347,231 @@ Async cancellation / stale-write safety: **yes** for the ZIP flow; **gap found**
 Operator breadcrumbs intact: **yes** — none removed; two gaps where the convention would add one (`runExportValidation`'s catch; the partial-omission drop).
 
 **Verdict: REVISE**
+
+---
+
+# Fix-delta r1
+
+**Diff:** `3aab581..6cf026f` (four package branches + orchestrator merges) · 238 files / 2885 tests green
+**Ledger:** deferred §§75–78 · PR #34's fix-round comment is the commit→finding map
+**Verdict: APPROVE** — all 8 of this lane's findings FIXED, verified by re-run probe. 3 new LOW, none blocking.
+
+| This lane's finding (r0) | Disposition | Commit |
+|---|---|---|
+| HIGH — Case Map silently omits un-plotted locations | **FIXED** | `6ee0d07` (R-1) |
+| MED — `saveTextFile` reports success for an ignored click | **FIXED** | `a59c73f` (R-2) |
+| MED — `Export Map` has no re-entry guard | **FIXED** | `7f049c4` (R-8 via R-14) |
+| MED — case-map outcomes on the 2.6 s auto-dismissing banner | **FIXED** | `7f049c4` (R-9) |
+| LOW — `setTimeout(fn, 0)` revoke races the download | **FIXED** | `eca18eb` (R-21) |
+| LOW — stale `case-map` interim terminal copy | **FIXED** (structurally) | `7f049c4` (R-14) |
+| LOW — `runExportValidation` catch has no breadcrumb | **FIXED** | `6ad4e26` (R-22) |
+| LOW — `pdfPassFor` falls through to `return []` | **FIXED** | `6ad4e26` (R-3) |
+
+## Verification
+
+**R-1 — verified at the artifact, not at the copy.** `summariseCaseMapCoverage`
+(`geojson.ts:229-244`) walks the same gate the builder applies; `coverageClause`
+(`exportNotices.ts:88-97`) has four arms — no locations / none plotted / K-of-N dropped / silent
+on full coverage — and `CaseMapCoverage.hasPlottedLocations` replaces `hasPlottableFeatures` as
+the empty-map predicate, with both kept and each documented against the other (§78a). Re-ran the
+r0 probe against HEAD:
+
+- 1 plotted + 2 typed → blocking dialog carries `2 of 3 locations have no coordinates yet and are
+  not on the map.` (r0: the bare word `Success`).
+- Incident coordinates + 1 un-plotted location → `None of its 1 location have coordinates yet, so
+  none of them are on the map.` This is R-1's second half, and it is the exact fixture whose
+  silence the r0 suite *pinned* (`case-map-export.test.tsx:124-133`); the pin now asserts the
+  caveat instead of its absence.
+- Dev-warn added in `buildCaseMapGeoJson:280-284`, `NODE_ENV !== 'production'`, matching the
+  repo's other five dev-warns.
+
+**Judging the three-arm clause:** correct, and the separation earns its keep — "none of your 3"
+and "2 of your 3" are different facts that a single sentence would have blurred, which is what
+`extractedScopesPartial`'s own two-state treatment gets wrong elsewhere. One thing stops short:
+`droppedLocationNames` is computed, typed, threaded all the way into `CaseMapOutcome`, and then
+only `.length` is read. Its doc defers naming them to "if it ever has room to" — but the notice
+is now a multi-paragraph blocking dialog that already lists a filename and three caveats, so the
+room exists. Naming a capped few ("Front Counter, Loading Bay and 3 more") is the difference
+between a visitor knowing something is missing and knowing what to go fix. Recorded as a residual
+(below), not a re-open: the finding as filed asked for count-and-flag, and count-and-flag shipped.
+
+**R-2 — FIXED, and the non-fix is the right one.** `SaveFileOutcome.ok` → `requested`
+(`download-file.ts:109-111`), and the terminal says `Your browser was asked to save <file>. Check
+your downloads.` The type no longer lets a caller write a completion claim. §78b's refusal to
+reach for `showSaveFilePicker` is sound — a second gesture plus a permission prompt plus
+Safari/Firefox absence, to convert an unobservable into an observable in a marketing demo, is the
+wrong trade, and recording it as a decided non-fix is better than leaving it to be rediscovered.
+
+**R-8 — the round's most interesting claim, and it holds.** §78c argues the entry guard is *not*
+what fixes this and the prefetch is. Tested hard:
+
+- The claim that a post-completion second press is a legitimate second export is **correct**. The
+  `case-map` arm returns with the stage back at rest *and* a blocking dialog raised
+  (`DemoExperience.tsx:2024-2039`), so the second press requires acknowledging the first — and
+  `exportMapBlocked={alert !== null}` now disables the button for exactly that interval. Nothing
+  is being papered over by the guard.
+- The claim that the prefetch is what removes the defect is **correct and is the substantive
+  fix**. Verified: after the map opens, one press produces one save *synchronously* — my probe
+  asserts `saved).toHaveLength(1)` with no `waitFor`. The r0 defect was never really re-entrancy;
+  it was "a network round trip between the gesture and any feedback", and that window is gone.
+  It also closes, silently, the transient-activation half of my r0 MEDIUM: `anchor.click()` now
+  runs in the same task as the gesture that authorised it, not after an `await`.
+- The refusal to write a jsdom "guard" test is **right and under-claimed**. jsdom does no hit
+  testing, so three `fireEvent.click`s through a scrim produce three exports there and zero in a
+  browser: such a test would have passed in r0 too, against the defect. Pinning the two things
+  that *are* true in jsdom (synchronous run; `disabled` while the dialog is up) is the honest
+  choice, and §78c's trigger — "if the case-map run ever regains an `await`" — is the right one.
+
+**R-9 — FIXED.** All four case-map outcomes are blocking `AlertDialog`s
+(`describeCaseMapTerminal`, `exportNotices.ts:117-155`), and the three failures are three
+*distinct* causes with distinct copy — builder never arrived / this browser cannot save at all /
+the save threw — where r0 had two banner strings, one of which collapsed the last two. The
+auto-dismiss channel is gone from this pipeline entirely. Bonus honesty: `builder-unavailable`'s
+copy says "try again", and `startExportRun:2033` drops `caseMapModule` back to `null` to re-arm
+the fetch effect so the instruction is actually performable — "a sentence that instructs a retry
+the code cannot perform is the same class of lie as a fake success" is the correct instinct.
+
+**The r0 LOW is dead the right way.** `describeExportTerminal` now takes
+`SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>` (`exportNotices.ts:52`), and
+`runZipPipeline` is narrowed for the same reason. The interim sentence is not merely deleted, it
+is *unrepresentable* — the only surviving occurrences in the tree are a doc comment and a test
+comment both explaining that it is gone (grep-verified). §78d's reasoning for why deleting alone
+was insufficient ("it would have grown back the first time someone added a `case-map` arm for
+completeness") is exactly right.
+
+**R-21 / R-22 / R-3 — FIXED as filed.** 40 s revoke plus a `pagehide` backstop, with the bet
+stated as a bet (`REVOKE_DELAY_MS`, and §78e's note that a bigger artifact wants `pagehide` plus a
+shorter window, not a same-tick revoke). Validator catch gets `console.warn` *and* stops rendering
+`[object Object]` at the visitor — `UNKNOWN_VALIDATION_FAILURE` instead, with the deliberate
+choice not to reuse a ported `EXPORT_ALERTS` body because "naming the wrong cause is worse than
+naming none". `pdfPassFor` is `ZipExportRun`-typed and closes with `assertNever`.
+
+**Blast-radius checks requested, cleared:**
+- *Prefetch failure path* — `DemoExperience.tsx:813-830`: `console.warn` on rejection (operator
+  breadcrumb present), state → `'failed'`, `cancelled` flag guards the unmount/leave race. Quiet
+  on the map itself and loud on the press, which is the right split — a scary banner on arrival
+  for a button the visitor may never touch would be noise, and `'failed'` deliberately leaves the
+  button enabled so the press can explain itself. The re-arm on press is bounded to one refetch
+  per press, and `exportMapPending` disables the button while that refetch is in flight.
+- *`summariseCaseMapCoverage` dev-warn placement* — the warn lives in `buildCaseMapGeoJson`, not
+  in the summariser. Correct: it fires for every consumer of the builder rather than only the one
+  that happens to summarise, and it fires exactly once per export. (One consequence is recorded
+  as N-3 below.)
+- *`pagehide` sweep racing an in-flight download* — no finding. The sweep runs `registry.revokeAll`,
+  and blob URLs are released by the browser when the document is destroyed anyway, so on a real
+  unload the sweep is redundant rather than harmful; on a bfcache `pagehide` (`persisted: true`)
+  it runs early, but the artifact is one ~85 kB string that the browser has read long before a
+  human can navigate. Listeners are `{ once: true }` and removed by the timer path, so repeated
+  exports cannot accumulate them.
+
+---
+
+## New findings (all LOW — none blocking)
+
+### [LOW] N-1 — "the case vanished" is reported as "the builder could not be loaded", and it discards a working builder
+
+**File:** `features/demo/ui/DemoExperience.tsx:1315-1319` (+ the side effect at `:2033`)
+
+```ts
+const target = st.cases.find((c) => c.id === caseId)
+if (!target) return { kind: 'builder-unavailable' }
+```
+
+Two different causes, one outcome. The visitor is told *"The Case Map builder could not be
+loaded… It is fetched on demand; check your connection and try again"* when the actual state is
+that the armed case no longer exists — an instruction that cannot succeed no matter how many
+times it is followed. Worse, `startExportRun`'s `builder-unavailable` arm then runs
+`setCaseMapModule(null)`, throwing away a perfectly good loaded chunk and re-fetching it on every
+press.
+
+r0 had this arm too, and it said the *right* thing (`NO_CASE_SELECTED_NOTICE`). This round split
+the precondition in two — `caseId === null` now correctly raises
+`EXPORT_ALERTS.noCaseSelectedForMap` in the engine (§78d) — and the "id names a case that is
+gone" half landed in the builder bucket on the way past. The correct copy already exists and is
+already used by the ZIP path for exactly this condition (`EXPORT_ALERTS.caseUnavailable`, raised
+at `:2059` when `pdfPassFor` returns `null`).
+
+**Reachability: none today** — `confirmDelete:1407` repairs `mapViewerCaseId` on delete
+(`prev === id ? null : prev`), and nothing else removes a case. Filed anyway because this is a
+deliberate defensive guard whose whole purpose is to speak correctly if it is ever reached, and
+because the module-cache side effect is wrong independent of the copy.
+
+**Fix:** add a `{ kind: 'case-unavailable' }` member to `CaseMapOutcome` carrying
+`EXPORT_ALERTS.caseUnavailable`'s wording, and scope the `setCaseMapModule(null)` re-arm to the
+genuine builder failure.
+
+### [LOW] N-2 — `exportMapBlocked` guards the one state where a press is legitimate, and not the two where it is a silent no-op
+
+**File:** `features/demo/ui/DemoExperience.tsx:2493` (`exportMapBlocked={alert !== null}`) ·
+`features/demo/ui/screens/map/LocationList.tsx:26-34` · `DemoExperience.tsx:2124` (the silent arm)
+
+`requestExportFlow` opens with `if (exportFlowRef.current.showValidationModal) return` — a bare
+return — and `requestExport` answers `{ kind: 'ignored' }` while a ZIP pipeline runs. Since R-14
+routed Export Map through that same function, both states now swallow an Export Map press with
+no dialog, no notice and no console line. `exportMapBlocked` does not cover either: it is
+`alert !== null`, i.e. precisely the state §78c argues a second press is *legitimate* in.
+
+Probed against HEAD (validation prompt raised from the Export tab, then `setView('map')` — the
+rail jump §74b's whole rationale is built on): the button reports `disabled === false`, the press
+produces zero saves, and no new feedback of any kind appears.
+
+Real pointers are blocked by the `ExportModal` scrim — but that is the geometry argument this
+prop's own doc comment rejects in as many words: *"'the overlay happens to cover it' is geometry
+rather than a contract: the same reasoning §70i rejected for the validation prompt. Disabling
+says it."* And here geometry genuinely is not enough: neither `ValidationContent` nor
+`ProgressContent` traps focus or sets `inert` (verified — `ExportModal.tsx:225-231` focuses the
+dialog and restores the opener, nothing more), so a keyboard visitor can Tab out to the covered
+footer and press Enter into the silent return.
+
+**Fix:** one term — `exportMapBlocked={alert !== null || exportModalMode !== 'hidden'}`. (The
+focus-trap half is the web/a11y lane's; this finding is only about the press that vanishes.)
+
+### [LOW] N-3 — the plotted-location gate now exists in three places, and the dev-warn's count and the visitor's count come from different ones
+
+**File:** `features/demo/engine/logic/case-map/geojson.ts:106`, `:269-272`, `:232-236`
+
+- `locationToFeature:106` — `if (!hasCapturedCoordinates(gps)) return null` — the real gate.
+- `buildCaseMapGeoJson:269-272` — counts `dropped` from that gate's actual answer, and that count
+  feeds the **dev-warn**.
+- `summariseCaseMapCoverage:232-236` — re-implements `hasCapturedCoordinates(location.gps)`, and
+  that count feeds the **visitor's sentence**.
+
+Today all three agree. The moment `locationToFeature`'s gate gains a term — a location also
+needing a name, or a second provenance check — the builder's dev-warn and the banner's "K of N"
+diverge, and the banner is the one that over-reports coverage. That is the r0 HIGH's exact shape,
+reintroduced structurally by the fix for it: a map silently short of the case, under a sentence
+that says otherwise.
+
+§78a discloses the double walk and defends it well (widening the builder's return type would put
+a UI concern into the artifact's shape — agreed, and the extra pass over tens of rows is free).
+The gap is the **trigger**: §78a files it under "if a third consumer needs the counts, promote to
+`{ collection, coverage }`". The condition that actually matters is *"if `locationToFeature`'s
+gate ever changes, change `summariseCaseMapCoverage` in the same commit"*, and nothing says so at
+either site.
+
+**Fix:** cheapest — have `summariseCaseMapCoverage` call `locationToFeature(location) !== null`
+instead of re-testing the predicate, making the copy structurally impossible. Failing that, a
+one-line cross-reference comment at both sites and a corrected trigger in §78a.
+
+---
+
+## Silent Failure Hunter Summary — fix-delta r1
+
+| Severity | r0 | r0 fixed | new in r1 | open |
+|---|---|---|---|---|
+| CRITICAL | 0 | — | 0 | 0 |
+| HIGH | 1 | 1 | 0 | 0 |
+| MEDIUM | 3 | 3 | 0 | 0 |
+| LOW | 4 | 4 | 3 | 3 |
+
+Fallback honesty (every substitution announced): **yes**
+Failure-cause distinctions preserved: **yes** — the case-map terminal now carries four distinct
+causes where r0 had two collapsed banners. One residual collapse (N-1), unreachable.
+Partial results flagged (not silently short): **yes** — counted, clause'd, dev-warned. Names
+collected but not yet rendered (residual).
+Async cancellation / stale-write safety: **yes** — the export is now synchronous end to end and
+inside the one guarded entry point; the prefetch carries a cancellation flag.
+Operator breadcrumbs intact: **yes** — three added this round (validator catch, prefetch
+rejection, builder drop count), none removed.
+
+**Verdict: APPROVE**

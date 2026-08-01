@@ -468,3 +468,279 @@ Fix order, if the orchestrator wants one: TYPE-DESIGN-1 (3-line switch + `Extrac
 (one word), TYPE-DESIGN-8 (delete a line), TYPE-DESIGN-3 (decide, then delete or wire — the stale
 sentence must not ship), TYPE-DESIGN-5 (props union), TYPE-DESIGN-2 (largest; a recorded deferral is
 an acceptable answer), TYPE-DESIGN-6/7 (nits, optional).
+
+---
+
+# Fix-delta r1
+
+**Mode:** FIX-DELTA — verification pass over P5 fix round 1.
+**Diff verified:** `git diff 3aab581..6cf026f` (38 files, +2126 −349), worktree `parity-p5` @ `6cf026f`.
+**Refs read:** PR #34's fix-round comment (the commit→finding map) · `docs/code-reviews/deferred.md` §§75–78 (the round's own dispositions) · the four fix-branch merges.
+**Pre-flight:** `npx tsc --noEmit` → **clean, exit 0**.
+**Probes:** nine — seven type-level in a throwaway module, two destructive-then-reverted (`selection.ts`, `DemoExperience.tsx`). All removed; both mutated files restored byte-identical.
+
+**Verdict: APPROVE — 8/8 addressed · 7 FIXED · 1 DEFERRED-with-trigger (sanctioned) · 2 new nits · 0 regressions.**
+
+Every fix was verified structurally, not by reading the commit message: each one is now backed by a
+compile probe that fails in the direction the finding named. The round also did something better
+than the letter of three findings asked — the `@ts-expect-error` compile assertions
+(`ExportModal.test.tsx:293`, `exportNotices.test.ts:104`, `geojson.test.ts:129`,
+`flow.test.ts:379,381`) put the type-level half of each fix inside the runtime suite, where an
+`@ts-expect-error` that stops erroring is itself a build failure. That is the right idiom for
+pinning a type fix and it should become the convention for this lane's findings.
+
+## Verification of the initial pass
+
+### TYPE-DESIGN-1 [MAJOR] → **FIXED** (`47d8ab8`, siblings `d3da503` / `732a051` / `6ad4e26`)
+
+`ExportSelectionPlan.dispatch` is now `Extract<ExportType, 'case' | 'location' | 'case-subset'>`
+(`selection.ts:222`) and `onExportPress` is a `switch` closed with `assertNever`
+(`DemoExperience.tsx:679-695`). Re-ran the exact probe that previously compiled clean:
+
+```
+# probe: dispatch: Extract<ExportType, 'case' | 'location' | 'case-subset' | 'case-map'>
+features/demo/ui/DemoExperience.tsx(693,28): error TS2345:
+  Argument of type '"case-map"' is not assignable to parameter of type 'never'.
+```
+
+The hole closes in both directions — the union widens from the *flow's* vocabulary now, so a rename
+there also breaks here. No import cycle (`flow.ts` imports `stage`/`validation` only), as the fix's
+own comment claims and as `tsc` confirms.
+
+**All three siblings landed, each stronger than filed:**
+
+- `ariaChecked` (`ExportCaseCard.tsx:91-102`) — ternary chain → closed `switch`.
+- `OptionIcon` (`ExportActionSheet.tsx:80-82`) — `default: return assertNever(icon)`.
+- `pdfPassFor` (`DemoExperience.tsx:1963`) — went further than the finding: the *parameter* is
+  narrowed to `ZipExportRun`, so the trailing `return []` (which I had not separately flagged, and
+  which would have run a zero-PDF pipeline that still reported a ZIP) is now `assertNever(run)`
+  reached only by an unrepresentable value. This is the better fix — it moves the refusal to the
+  call site instead of handling a bad run politely.
+
+### TYPE-DESIGN-2 [MINOR] → **DEFERRED, accepted** (§75e)
+
+Not fixed; recorded in the ledger with a measured blast radius (8 referencing files, 3 outside the
+round's territory), a named reason (no coherent engine-only half — `continueValidatedExport`'s
+signature change forces a `DemoExperience.tsx` edit that a concurrent agent was holding), and a
+specific trigger (the next round that opens `flow.ts` and the bridge together, one agent, one
+commit). It also carries the §74l near-miss forward as the standing evidence, and it correctly
+identifies the one piece to *keep* on collapse (`missingSubsetPayload` at the **request** boundary,
+which guards a caller mistake the type cannot express, unlike the post-arm backstop).
+
+**Judgement: sound.** This is exactly the outcome the finding sanctioned ("a recorded deferral is an
+acceptable answer"), and the ledger entry is more precise than the finding was. One addition for
+whoever picks it up: the collapse should land in the same commit as §77e's engine half
+(`showValidationModal` + `validationResult`) — both are the same object, and doing them separately
+means touching `ExportFlowState`'s shape twice.
+
+### TYPE-DESIGN-3 [MINOR] → **FIXED** (`7f049c4` + `a59c73f`, cross-agent per §77h/§78d)
+
+Resolved by *both* halves of what the finding offered, which is the correct reading:
+
+1. **Wired.** `exportCaseMap` is now one line — `requestExportFlow({ type: 'case-map', caseId: mapViewerCaseId })` (`DemoExperience.tsx:1301`) — so the variant has a production constructor and inherits the flow's entry guard, the precondition alert and the blocking terminal.
+2. **And excluded where it does not belong.** `SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>` (`exportNotices.ts:53`) makes the split at `startExportRun` a *compile* requirement. Probe: `const f: SimulatedExportRun = { type: 'case-map', caseId: 'c1' }` → `TS2322`.
+
+The false sentence ("is being built; it just is not wired to this button yet") and the test that
+named its own staleness are both gone. The duplicated phone string is gone with them —
+`NO_CASE_SELECTED_NOTICE` is deleted and the precondition now comes from
+`EXPORT_ALERTS.noCaseSelectedForMap`, i.e. the taxonomy is the single home again. The cross-agent
+hand-off in §77h (P5.3 specifying the exact edits P5.4 would need, rather than half-fixing) is the
+right way to have run this, and it worked: the two commits compose without a window in which either
+lies.
+
+### TYPE-DESIGN-4 [MINOR] → **FIXED** (`64a22e0`) — and the extra `'idle'` exclusion is right
+
+`advanceStage(state, stage: DemoExportStage)`. Probes:
+
+```
+advanceStage(IDLE_EXPORT_FLOW, 'sharing') → TS2345 … not assignable to '"validating" | "generating" | "zipping"'
+advanceStage(IDLE_EXPORT_FLOW, 'idle')    → TS2345 … (same)
+```
+
+**On the disclosed extra exclusion (`'idle'`) — judged correct, and it is the stronger half.**
+It was not in the finding, and the round disclosed it rather than slipping it in. The rationale is
+structural, not stylistic: `resetExportFlow` clears the stage **and** `progress` **and**
+`currentLocationName` together, so `advanceStage(state, 'idle')` was a way to reach rest while
+leaving the counter and the location name behind for the next run to inherit — a stale "Location 3
+of 5" under a fresh export. Making the return to rest expressible only through the function that
+owns all three fields is precisely the RetentionView-family move. Verified no caller regressed:
+three production and four test call sites, all `'validating'`/`'generating'`/`'zipping'`.
+
+### TYPE-DESIGN-5 [MINOR] → **FIXED at the props layer** (`48a78ad`); engine half ledgered (§77e)
+
+`ExportModalProps` is now `ExportModalCommonProps & ({ mode: 'hidden' } | { mode: 'progress'; … } |
+{ mode: 'validation'; validationResult: CasePdfValidationResult })` — the intersection-of-union
+form, which keeps the shared callbacks in one place instead of repeating them per arm. The
+component narrows on the discriminant; the runtime guard and its apologetic comment are gone; the
+bridge pairs payload with mode at the mount (`DemoExperience.tsx:2763-2777`). The test that used to
+*render* the invisible-modal state is now a `@ts-expect-error` compile assertion
+(`ExportModal.test.tsx:290-294`) — the right conversion, since the state it exercised no longer
+exists to be rendered.
+
+The `ExportFlowState` half stays flat, ledgered at §77e with a trigger tying it to R-15. **Agreed
+—** and see TYPE-DESIGN-2 above: those two collapses are the same edit and should land together.
+
+### TYPE-DESIGN-6 [nit] → **FIXED, by construction** (`2ab2c66`)
+
+`TAB_NARRATION: Record<TabOnlyView, ChapterNarration>` with
+`TabOnlyView = Exclude<TabView, ChapterId>` derived in the screens registry. Both halves probed:
+
+```
+{ map, export, submission } → TS2353 … 'submission' does not exist in type 'Record<TabOnlyView, ChapterNarration>'
+{ map }                     → TS2741 … Property 'export' is missing
+```
+
+`TabOnlyView` is derived from `TabView`, not from `AppView` — different expression, same set, and
+provably so *by construction* rather than by coincidence: `AppView = ChapterId | LaunchableId |
+TabView`, so `Exclude<AppView, ChapterId | LaunchableId> ≡ Exclude<TabView, ChapterId>`. A future
+non-tab extra view would have to widen `AppView`'s definition, which breaks `EXTRA_VIEWS` first.
+The screens comment says exactly this. Bonus: `content/narration.ts` no longer imports from
+`engine/store/` at all — the layering improved as a side effect.
+
+**On the two deleted-not-rewritten test arms** (`content.test.ts`): correct, and the commit message
+is right that "they stopped compiling" is the finding's own success condition. Checked what was
+lost — the launchable-exclusion loop (`TAB_NARRATION[id]` for a `LaunchableId` is now a type error,
+not a runtime `undefined`) and the truthiness half of the key-set assertion (now guaranteed by
+totality). Nothing behavioural went with them: the surviving test still pins the exact key set,
+that every entry has real copy, and it *gained* an arm asserting the chapter-tabs keep unshadowed
+copy in `NARRATION`. Deleting a test whose subject moved into the type is the correct outcome, not
+coverage loss — the `@ts-expect-error` idiom used elsewhere in this round would be the belt-and-
+braces alternative if anyone wants the assertion to stay visible.
+
+### TYPE-DESIGN-7 [nit] → **FIXED** (`26f96ff`)
+
+`FEATURE_TYPES` + `FeatureType`, and `properties: { featureType: FeatureType } & Record<string, unknown>`
+— the exact shape suggested, keeping the bag open. Probes: a typo (`'incidnet'`) is `TS2820` *with
+a spelling suggestion*, and a feature with **no** `featureType` at all is now `TS2322` — which is
+more than the finding asked for and closes the writer-side hole as well as the reader-side one.
+
+### TYPE-DESIGN-8 [nit] → **FIXED** (`a29ec92`) — dead `showTabs` deleted
+
+Verified absent. §76e's generalisation is the useful part of that entry: with no `noUnusedLocals`
+and no ESLint, review is this repo's only defence against a stale survivor, so a fix round on a
+merged bridge should grep its own predecessors.
+
+## New type surfaces this round introduced — judged
+
+**`SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>` (P5.4, `exportNotices.ts:53`) vs
+`ZipExportRun = Extract<ExportRun, { type: 'case' | 'case-subset' | 'location' }>` (P5.3,
+`DemoExperience.tsx:293`) — COHERENT, not drift.** Two derivation styles, but they denote genuinely
+different sets and both are anchored to `ExportRun`, which is what actually matters:
+
+| | set | new `ExportType` member is… | fails at |
+|---|---|---|---|
+| `SimulatedExportRun` (`Exclude`) | case · case-subset · location · location-geojson | auto-**included** | `artifactOf`'s `assertNever` |
+| `ZipExportRun` (`Extract`) | case · case-subset · location | auto-**excluded** | `pdfPassFor(run)` at the call site |
+
+Both fail loudly on a sixth export type, just at different sites — subtractive derivation catches it
+in the switch, additive derivation catches it at the boundary. The names are honest ("everything
+except the one real download" vs "the runs with a ZIP pipeline"), and `location-geojson` genuinely
+belongs to one and not the other. Filing this as *coherent* rather than "pick one style": forcing a
+single derivation direction here would make one of the two names lie about what it means.
+
+**Also judged clean:** `CaseMapOutcome` (`exportNotices.ts:86-99`) — a 4-arm tagged union with
+payload only on `'requested'` and an `assertNever` consumer; the three failure arms are genuinely
+distinct causes (builder never arrived / no save primitives / save threw), not one `error` string.
+`SaveFileOutcome`'s `ok` → `requested` rename (`download-file.ts:68-70`) is a type-design
+improvement, not cosmetics: `HTMLAnchorElement.click()` is fire-and-forget, so `ok: true` was a
+claim the code cannot observe, and the discriminant now names exactly what is knowable.
+`ExportModalCommonProps` factored out of the union arms — right call over repeating the callbacks.
+
+## Residuals judged
+
+**§76h — `isExporting` pinned behaviourally, structural fix deferred: SOUND, and the stated remedy
+should be re-worded.** The residual says the engine-level guarantee "would be to hand the hub the
+flow state rather than a derived boolean". I would not do that, and I would not want a future round
+doing it on the strength of this entry: `ExportHubProps` is a presentational component's props, and
+handing it `ExportFlowState` re-opens the boundary the store-bridge rule closes — the hub would then
+be re-deriving a decision the bridge already owns, which is the same mistake `ExportFooterView`
+exists to prevent (it carries a resolved `plan`, not a selection). If a second "is something
+running" source appears, the correct change is to widen the **bridge's** derivation
+(`isExporting(flow) || downloadInFlight`) and keep passing one boolean. Suggest amending the trigger
+to say that; the deferral itself is right, since a prop-shape change across two agents' territory
+was correctly out of scope for a fix round.
+
+**§76i — `EXPORT_ALERTS.noSelection` called but unproducible: fine.** §70e's own precedent (an
+unreachable guard ships with a test that pins nothing) is applied consistently, and the value named
+— "the refactor that makes one reachable cannot present as a completed export" — is the right
+reason to keep an unreachable loud arm.
+
+**§77g — R-22's untested arm:** correctly ledgered with the exact test to write and where it belongs
+(the Export tab suite, since a foreign-id subset dispatch is its only reachable trigger). No
+type-design consequence.
+
+## New findings (both nits, neither blocking)
+
+### FD-1 — *nit* — `runZipPipeline`'s parameter is wider than its contract; `ZipExportRun` already exists
+
+**Type:** `runZipPipeline(run: SimulatedExportRun, …)` — `features/demo/ui/DemoExperience.tsx:1991`
+
+`SimulatedExportRun` includes `location-geojson`, which must never enter the ZIP stage theatre —
+its whole point (§74c) is that it terminates inside `startExportRun` with no stage flip. The
+function's real domain is `ZipExportRun`, which is declared 1700 lines above it and is already the
+parameter type of its own `pdfPassFor`. The comment explains the choice as "the narrower parameter
+is what makes the terminal it raises type-check", but that reasoning only needs
+`ZipExportRun ⊆ SimulatedExportRun`, which holds — so the tighter type satisfies
+`exportTerminalAlert` just as well. Probe: swapping the annotation to `ZipExportRun` compiles clean
+with no other change. Unreachable today (its single caller passes an already-narrowed run), so this
+is a nit — but it leaves the ZIP pipeline nominally accepting a run that would print
+"Creating ZIP archive…" over a GeoJSON export.
+
+**Fix:** `const runZipPipeline = (run: ZipExportRun, pdfPass: readonly string[]) => {` — one word.
+
+### FD-2 — *nit* — `CaseMapCoverage.hasPlottedLocations` is a derived field with no production reader
+
+**Type:** `CaseMapCoverage` — `features/demo/engine/logic/case-map/geojson.ts:216-227`
+
+`hasPlottedLocations: boolean` is exactly `plottedLocations > 0` (the producer computes it that way,
+`:244`), and nothing outside the tests reads it: `coverageClause` branches on
+`coverage.plottedLocations === 0` (`exportNotices.ts:114`), the empty-map caveat uses the separate
+`mapIsEmpty` from `hasPlottableFeatures`, and the only other references are two test assertions —
+even though `:299`'s doc comment points future callers at it. That is the `ScopeRetention`-omits-
+`status` precedent inverted: a status stored beside the number it derives from, with no consumer to
+justify the drift surface.
+
+**It is already costing something in the fixtures:** `exportNotices.test.ts` has to remember to pass
+`hasPlottedLocations: false` by hand alongside `plottedLocations: 0` (`:147`, `:160`, `:171`), and a
+fixture that forgets constructs an internally contradictory `CaseMapCoverage` that neither the type
+nor any assertion catches — `:136` builds `{ totalLocations: 3, plottedLocations: 1 }` and inherits
+`hasPlottedLocations: true` from the base fixture by luck.
+
+**Fix:** delete the field and the doc pointer; any future caller writes `coverage.plottedLocations > 0`.
+Keep `mapIsEmpty` on `CaseMapOutcome` — that one is *not* derivable from the coverage (it asks
+`hasPlottableFeatures` over the built collection, incident pin included), which is precisely why the
+round was right to keep the two predicates separate (§78a).
+
+## Shared-worktree note (recurrence)
+
+The same uncommitted deletion flagged in the initial pass reappeared during this one:
+`DemoExperience.tsx:2121`, the §70i/§74b entry guard (`if (exportFlowRef.current.showValidationModal) return`),
+removed by something other than this lane — almost certainly a concurrent lane re-running its
+mutation probe against R-5's new test (`037927d`). Left untouched again, and this lane's own
+mutation probe on that file was restored byte-identical (verified: the only diff in the tree is that
+one line). **The tree must be checked once more before the merge commit** — that line is the whole
+of §74b.
+
+## Fix-delta summary
+
+| Finding | Severity | Status | Verified by |
+|---|---|---|---|
+| TYPE-DESIGN-1 | major | **FIXED** | widening probe → `TS2345 … 'never'` at `DemoExperience.tsx:693` |
+| TYPE-DESIGN-2 | minor | **DEFERRED** (§75e, sanctioned, trigger set) | ledger read |
+| TYPE-DESIGN-3 | minor | **FIXED** | production constructor exists; `SimulatedExportRun` probe → `TS2322` |
+| TYPE-DESIGN-4 | minor | **FIXED** | `'sharing'` + `'idle'` probes → `TS2345` |
+| TYPE-DESIGN-5 | minor | **FIXED** (props); engine half ledgered §77e | `@ts-expect-error` assertion + source |
+| TYPE-DESIGN-6 | nit | **FIXED** | chapter-key + missing-key probes → `TS2353` / `TS2741` |
+| TYPE-DESIGN-7 | nit | **FIXED** | typo + missing-key probes → `TS2820` / `TS2322` |
+| TYPE-DESIGN-8 | nit | **FIXED** | grep: absent |
+| FD-1 (new) | nit | open | tightening probe compiles clean |
+| FD-2 (new) | nit | open | grep: no production reader |
+
+Regressions introduced by the round: **none.** Every new type surface
+(`SimulatedExportRun`, `ZipExportRun`, `CaseMapOutcome`, `CaseMapCoverage`, `TabOnlyView`,
+`FeatureType`, the discriminated `ExportModalProps`, `SaveFileOutcome`'s rename) was read and
+judged; the two nits above are the only debt added, and neither is reachable.
+
+**Verdict: APPROVE.** The major is closed at the type level and re-probed in the direction that
+previously compiled clean. FD-1 and FD-2 are one-line changes that can ride any later commit — they
+do not warrant a round.
