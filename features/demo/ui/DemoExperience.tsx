@@ -493,6 +493,21 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
    * gone (WCAG 2.4.3). The revealed screen slot takes the hand-off: the `ExitDialog` `autoFocus`
    * shape, inverted. Only on the boot→app transition, so a bridge that never booted is untouched.
    */
+  /**
+   * Mark the landing screen seen — once the visitor can actually see it (review R-12).
+   *
+   * The store used to seed `visited: { cases: true }` on the reasoning that you boot there. P8.1
+   * made that false for the length of the gate: the exit dialog's "you haven't explored
+   * everything yet" omitted row 02 for a screen that had rendered zero times. The mark now comes
+   * from the same place every other one does — `setView`'s `visit` — replayed on the current view
+   * the moment nothing is covering it. Same value in, so no navigation happens; a restored
+   * snapshot's own record is untouched because `visit` is idempotent.
+   */
+  useEffect(() => {
+    if (booting) return
+    store.getState().setView(store.getState().view)
+  }, [store, booting])
+
   const phoneScreenRef = useRef<HTMLDivElement | null>(null)
   const wasBootingRef = useRef(booting)
   useEffect(() => {

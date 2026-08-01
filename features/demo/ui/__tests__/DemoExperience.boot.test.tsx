@@ -145,6 +145,19 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
     expect(screen.queryByTestId('demo-boot')).toBeNull()
   })
 
+  it('does not pre-light the Cases row while the gate is still covering it (R-12)', () => {
+    render(<DemoExperience boot />)
+    // The exit checklist is on the rail, outside the gate — during boot it must not claim a
+    // screen that has rendered zero times.
+    expect(screen.getByRole('button', { name: 'Cases, not visited yet' })).toBeInTheDocument()
+
+    tapScanner()
+    runSequence()
+
+    // …and lights the moment the visitor can actually see it.
+    expect(screen.getByRole('button', { name: 'Cases, visited' })).toBeInTheDocument()
+  })
+
   it('SKIP gets the visitor straight in', () => {
     render(<DemoExperience boot />)
     fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))

@@ -427,7 +427,11 @@ export function initialState(): DemoState {
     drawerOpen: false,
     currentChapter: 'cases',
     capture: blankCapture(),
-    visited: { cases: true }, // you boot there — it counts
+    // Nothing has been seen yet. This used to seed `{ cases: true }` — "you boot there, it
+    // counts" — which was true until P8.1 put a gate in front of the app: during boot the exit
+    // dialog listed everything EXCEPT the one screen the visitor had not seen (review R-12). The
+    // landing view is marked by whoever lands on it (`setView`'s `visit`), not by the seed.
+    visited: {},
   }
 }
 
