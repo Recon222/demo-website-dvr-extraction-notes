@@ -10,6 +10,7 @@ import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetai
 import { CallConfirmSheet } from '@/features/demo/ui/screens/map/CallConfirmSheet'
 import { DemoNotification } from '@/features/demo/ui/screens/map/DemoNotification'
 import { countLocations, type MapCameraMarker, type MapData } from '@/features/demo/ui/screens/map/mapData'
+import type { SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import {
   EMPTY_MAP_FILTERS,
   applyMapFilters,
@@ -196,6 +197,24 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
   // and only proximity produces "N of M".
   const locationCount = useMemo(() => countLocations(filtered.items), [filtered.items])
   const filteredCount = proximityResult?.locationCount ?? locationCount
+  // Pre-filter total — gates the count pill so a case with nothing plottable shows no badge at
+  // all, while a zero-MATCH filter still gets one that says so (review R-6/R-7a).
+  const totalCount = useMemo(() => countLocations(mapData.items), [mapData.items])
+
+  /**
+   * Which stage emptied the sheet (review R-6). Named in inner-to-outer order, because the
+   * honest answer is the stage that actually did the emptying: if the status/text filter already
+   * left nothing, proximity had nothing to remove.
+   */
+  const activeFilterCount = countActiveFilters(filters)
+  const emptyReason: SheetEmptyReason =
+    display.items.length > 0
+      ? 'no-data'
+      : activeFilterCount > 0 && filtered.items.length === 0
+        ? 'filters'
+        : proximityResult
+          ? 'proximity'
+          : 'no-data'
 
   // A stale selection (case switch, or a row the filter just removed) falls back to the list.
   const selectedItem = display.items.find((i) => i.id === selectedId) ?? null
@@ -324,13 +343,14 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onToggleStatus={handleToggleStatus}
             onSearchChange={handleSearchChange}
             onClearFilters={handleClearFilters}
-            activeFilterCount={countActiveFilters(filters)}
+            activeFilterCount={activeFilterCount}
             proximityActive={proximityActive}
             proximityRadius={proximityRadius}
             onProximityToggle={handleProximityToggle}
             onRadiusChange={setProximityRadius}
             locationCount={locationCount}
             filteredCount={filteredCount}
+            totalCount={totalCount}
           />
           <MapBottomSheet
             items={display.items}
@@ -341,6 +361,8 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             selectedId={selectedId}
             onSelect={selectItem}
             detail={detail}
+            emptyReason={emptyReason}
+            onClearFilters={handleClearFilters}
           />
           {pendingCall && (
             <CallConfirmSheet

@@ -153,14 +153,21 @@ describe('MapScreen — incident edit affordance', () => {
 // P6.1 — filters, proximity, camera visibility
 // ============================================================================================
 
-/** Three located locations with distinct statuses + names, plus the incident. */
-function buildRichMapData(): MapData {
+/**
+ * Three located locations with distinct statuses + names, plus (by default) the incident.
+ *
+ * `withIncident: false` matters for the empty-sheet cases: the incident row is deliberately
+ * exempt from the status/text filters (`map-data-service.ts:108-113`), so a zero-match SEARCH on
+ * a case that has one never empties the sheet at all. A case with no incident coordinates is the
+ * common one, and the only one where the filter can empty the list.
+ */
+function buildRichMapData(opts: { withIncident?: boolean } = {}): MapData {
   const store = createDemoStore()
   const caseId = store.getState().createCase({
     caseNumber: 'PR25-9',
     displayName: 'Plaza series',
     unit: 'R',
-    incidentCoordinates: { lat: 43.6, lng: -79.6, source: 'geocoded' },
+    ...(opts.withIncident === false ? {} : { incidentCoordinates: { lat: 43.6, lng: -79.6, source: 'geocoded' as const } }),
   })
   // Distances from the incident scene (43.6, -79.6), which is what the proximity toggle anchors
   // on: Rear door 0 km, Loading dock ~0.67 km, Far annex ~3.3 km. So a 0.5 km ring keeps one,
@@ -300,6 +307,58 @@ describe('MapScreen — proximity', () => {
     fireEvent.click(screen.getByTestId('proximity-toggle-button'))
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
     expect(screen.getByTestId('map-location-count')).toHaveTextContent('1 of 2 locations')
+  })
+})
+
+describe('MapScreen — the sheet never lies about why it is empty (review R-6)', () => {
+  it('names the FILTER, offers Clear, and keeps a badge that contradicts "no data"', async () => {
+    // No incident: it is exempt from the filters, so a case that has one never empties.
+    render(<MapScreen viewerCaseId="x" mapData={buildRichMapData({ withIncident: false })} onEditIncident={vi.fn()} />)
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'nothing matches' } })
+
+    const empty = await screen.findByTestId('map-sheet-empty')
+    expect(empty).toHaveAttribute('data-empty-reason', 'filters')
+    expect(empty).toHaveTextContent('No locations match your filters.')
+    expect(empty).not.toHaveTextContent('add an address')
+    // The badge is the contradiction the visitor needs — it must not vanish at zero.
+    expect(screen.getByTestId('map-location-count')).toHaveTextContent('No locations match')
+
+    fireEvent.click(screen.getByTestId('map-sheet-clear-filters'))
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    expect(screen.queryByTestId('map-sheet-empty')).not.toBeInTheDocument()
+  })
+
+  it('names PROXIMITY when the radius is what emptied it, and shows "0 of 3"', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { container } = renderRich()
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    // Long-press far from every fixture pin (the unproject stub is ~13 km away).
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
+    vi.advanceTimersByTime(500)
+    vi.useRealTimers()
+
+    const empty = await screen.findByTestId('map-sheet-empty')
+    expect(empty).toHaveAttribute('data-empty-reason', 'proximity')
+    expect(empty).toHaveTextContent('No locations inside the proximity radius')
+    expect(screen.queryByTestId('map-sheet-clear-filters')).not.toBeInTheDocument()
+    expect(screen.getByTestId('map-location-count')).toHaveTextContent('0 of 3 locations')
+  })
+
+  it('still says "no data" when the case genuinely has nothing plotted', async () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
+    store.getState().addLocation(caseId, { locationName: 'Typed, never picked' }) // no gps
+    const s = store.getState()
+    const empty = toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+    render(<MapScreen viewerCaseId="x" mapData={empty} onEditIncident={vi.fn()} />)
+
+    const node = await screen.findByTestId('map-sheet-empty')
+    expect(node).toHaveAttribute('data-empty-reason', 'no-data')
+    expect(node).toHaveTextContent('No located locations yet')
+    // Nothing to count, so no badge either.
+    expect(screen.queryByTestId('map-location-count')).not.toBeInTheDocument()
   })
 })
 

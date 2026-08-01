@@ -40,6 +40,9 @@ export interface MapControlsProps {
   locationCount: number
   /** Locations actually on screen — the "N" half. */
   filteredCount: number
+  /** Plottable locations before ANY filter. Gates the pill: a case with nothing to plot has
+   *  nothing to count, and the sheet's own empty copy carries that case (review R-6/R-7a). */
+  totalCount: number
 }
 
 /**
@@ -124,8 +127,27 @@ const searchInput: CSSProperties = {
 
 const statusDot = (color: string): CSSProperties => ({ width: 7, height: 7, borderRadius: 4, background: color })
 
-/** Phone `MapControls.tsx:164-167` — pluralised, and "N of M" only while something is narrowing. */
-export function locationCountLabel(filteredCount: number, locationCount: number): string {
+/**
+ * Phone `MapControls.tsx:164-167` — pluralised, and "N of M" only while something is narrowing.
+ *
+ * Two review-driven changes:
+ * - **zero is a sentence, not a hidden pill (R-6/R-7a).** The phone's `locationCount > 0` gate
+ *   deleted the badge exactly when the answer was "nothing matched", so the one control that
+ *   could have contradicted the sheet's false "you have no locations" copy was the one that
+ *   disappeared. A deliberate, recorded divergence: the demo HAS empty-state copy the phone
+ *   lacks, so it needs the badge to stay honest.
+ * - **an object parameter (R-14 minimum).** The two numbers were positionally swappable and the
+ *   prop declaration order was the reverse of the call's argument order — correct today,
+ *   silently transposable tomorrow.
+ */
+export function locationCountLabel({
+  filteredCount,
+  locationCount,
+}: {
+  filteredCount: number
+  locationCount: number
+}): string {
+  if (locationCount === 0) return 'No locations match'
   const plural = locationCount !== 1 ? 's' : ''
   return filteredCount === locationCount
     ? `${locationCount} location${plural}`
@@ -144,6 +166,7 @@ export function MapControls({
   onRadiusChange,
   locationCount,
   filteredCount,
+  totalCount,
 }: MapControlsProps) {
   return (
     <div data-map-controls style={container}>
@@ -172,9 +195,12 @@ export function MapControls({
           )
         })}
 
-        {locationCount > 0 && (
-          <span data-testid="map-location-count" style={countPill}>
-            {locationCountLabel(filteredCount, locationCount)}
+        {/* `role="status"` (review R-7a): this pill is the ONLY feedback the filter, search and
+            proximity controls give, and it was announced to nobody. The repo's own standard —
+            eleven `role="status"` uses, and one documented opt-out that this pill never got. */}
+        {totalCount > 0 && (
+          <span data-testid="map-location-count" role="status" style={countPill}>
+            {locationCountLabel({ filteredCount, locationCount })}
           </span>
         )}
       </div>

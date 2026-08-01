@@ -16,6 +16,7 @@ function renderControls(over: Partial<MapControlsProps> = {}) {
     onRadiusChange: vi.fn(),
     locationCount: 3,
     filteredCount: 3,
+    totalCount: 3,
     ...over,
   }
   render(<MapControls {...props} />)
@@ -60,14 +61,24 @@ describe('MapControls — count badge', () => {
     expect(screen.getByTestId('map-location-count')).toHaveTextContent('1 of 3 locations')
   })
 
-  it('is hidden entirely when the case has no plottable locations', () => {
-    renderControls({ locationCount: 0, filteredCount: 0 })
+  it('is hidden entirely when the case has no plottable locations at all', () => {
+    renderControls({ locationCount: 0, filteredCount: 0, totalCount: 0 })
     expect(screen.queryByTestId('map-location-count')).not.toBeInTheDocument()
   })
 
+  it('SURVIVES a zero-match filter and says so — the one control that can contradict the sheet', () => {
+    renderControls({ locationCount: 0, filteredCount: 0, totalCount: 3 })
+    expect(screen.getByTestId('map-location-count')).toHaveTextContent('No locations match')
+  })
+
+  it('is a live region, so the only feedback the filters give is announced', () => {
+    renderControls()
+    expect(screen.getByTestId('map-location-count')).toHaveAttribute('role', 'status')
+  })
+
   it('singularises a lone location', () => {
-    expect(locationCountLabel(1, 1)).toBe('1 location')
-    expect(locationCountLabel(0, 1)).toBe('0 of 1 location')
+    expect(locationCountLabel({ filteredCount: 1, locationCount: 1 })).toBe('1 location')
+    expect(locationCountLabel({ filteredCount: 0, locationCount: 1 })).toBe('0 of 1 location')
   })
 })
 
