@@ -513,3 +513,15 @@ Accessibility: **all three r0 gaps closed** (W-3, W-4, W-7); R-6's new empty sta
 Style-convention adherence: **correct half; lifted rules untouched**
 
 **Verdict: APPROVE with comments** — nothing here should hold the merge. NEW-1 is a one-line guard worth taking now (it is the last 10 % of W-5 and the fix is the repo's own primitive); NEW-2 and NEW-3 are ledger items, and §72e's closing trigger sentence should be corrected either way since the helper it waits for shipped before P6 began.
+
+---
+
+## Spot-delta (micro-round `b621472..bd5baa1`)
+
+**NEW-1 — FIXED.** `MapCanvas.tsx:578` now carries `if (event.button !== 0) return` beside the `isPrimary` check, with the two-kinds-of-secondary distinction spelled out at the site. Re-ran the button matrix on `bd5baa1` (11/11 green, scratch file deleted): right (2), middle (1), back/forward (3, 4) and pen-eraser (5) **no longer fire**; primary (0) still fires with the unprojected coordinate; a **touch** contact still fires (`button: 0, buttons: 1, pointerType: 'touch'` — per spec a finger contact reports `button 0`, so the new guard cannot regress the touch path, which was the one way this fix could have gone wrong). Target guards re-verified unchanged under the new ordering: pin, cluster bubble and `.mapboxgl-ctrl` attribution link all still bail; the slop cancel still fires at tolerance + 1 px; the beat still fires at 501 ms and not at 499 ms.
+
+**Constant-export shape — sound, no finding.** `LONG_PRESS_MS` / `LONG_PRESS_MOVE_TOLERANCE_PX` both resolve to the primitive and are unchanged in value (500 / 10, asserted). Judged on four axes: **layering** — `screens/map/` → `ui/primitives/` is the correct direction and `useLongPress.ts` imports only `react`, so no cycle; **bundle** — the primitive is already in the demo chunk via its four existing callers and `MapCanvas` sits in that same eager chunk, so this adds zero bytes and drags nothing across the mapbox/turf lazy boundaries; **naming** — renaming the private `MOVE_TOLERANCE_PX` to `LONG_PRESS_MOVE_TOLERANCE_PX` on export is right, since an unprefixed `MOVE_TOLERANCE_PX` at an import site would read ambiguously next to `MapBottomSheet`'s own `DRAG_THRESHOLD`; **home** — keeping both beats in the module that owns the gesture, with the "why this is exported" note at the definition, is more durable than a neutral tokens module would be for two numbers, and preserves the RN `delayLongPress` provenance next to the value. `LONG_PRESS_SURFACE_STYLE` correctly not imported — `mapbox-gl.css` already sets `-webkit-user-select: none` on `.mapboxgl-canvas-container.mapboxgl-interactive`.
+
+**NEW-2 residual — correctly ledgered, not re-flagged.** The convergence half (retire the hand-rolled copy by giving `useLongPress` a bail selector + originating coordinates) is out of a micro-round's scope; §72e's stale trigger sentence is struck and corrected, and the work is now §79i with a real trigger. NEW-3 (`MapBottomSheet` drag unit-mixing) is untouched by this round, as expected.
+
+**Spot-delta verdict: FIXED — 0 new findings.**

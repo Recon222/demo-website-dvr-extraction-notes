@@ -641,3 +641,84 @@ Determinism: **yes** — file-level `afterEach(vi.useRealTimers)` in both map su
 
 **Verdict: APPROVE with comments** (no HIGH remains open; NEW-1 is a one-stub change with a verified
 fix shape, NEW-2 is a latent trap in two files this diff did not touch).
+
+---
+
+# Spot-delta (micro-round `b621472..bd5baa1`)
+
+Narrow re-verification of the TESTS lane's two open fix-delta items. 6 mutations run and reverted;
+tree left clean. Baselines: `MapCanvas.test.tsx` 55/55 · the two `DemoExperience.*` suites 16/16.
+
+## NEW-1 → MR-2 `cefff56` — **FIXED**
+
+The integration pin (`MapCanvas.test.tsx:367`, now "…, AT SCALE") stubs `width: 189` painted against
+`offsetWidth: 378` laid out — `PhoneFrame`'s real `scale(0.5)` condition — and expects
+`unproject([200, 200])` with the raw subtraction's `[100, 100]` written into the comment as the
+counterfactual. Re-running my exact bypass probe:
+
+| Mutation | Result |
+|---|---|
+| inline the pre-§79a raw subtraction at the call site (`MapCanvas.tsx:572`) | **1 RED** — the AT SCALE pin |
+| delete the `scaling` factor inside `toContainerPoint` | **2 RED** — the AT SCALE pin *and* the unit test |
+
+Both halves of §79a are now pinned: the formula (unit) and its use (integration, non-identity). The
+`button: 0` added to the same `pointerDown` also keeps it consistent with MR-1's new primary-button
+guard, so the pin cannot be short-circuited by that guard later.
+
+## NEW-2 → MR-5 `385357b` — **FIXED**
+
+`createMapboxModuleStub()` in `map/__tests__/test-utils.ts` now serves both `DemoExperience.*` suites a
+chainable `Marker` and the full `mapInstance` surface, and `DemoExperience.map.test.tsx:64` is the first
+test in either file that awaits the boot.
+
+| Mutation | Before MR-5 | After MR-5 |
+|---|---|---|
+| shared stub `Marker` → bare `vi.fn()` | (was the shipped state) | **1 RED** — the stub guard |
+| `Marker` throws on construction (my r1 latency probe) | **15/15 GREEN** — never constructed | **1 RED** — the stub guard |
+
+Failure quality is good: the run surfaces `TypeError: (intermediate value).setLngLat is not a function`
+alongside `AssertionError: expected 0 to be greater than 0`, and the test's own comment tells the reader
+the stub regressed rather than `MapCanvas`. The latency is genuinely closed — the mock is now exercised
+rather than merely present. Verified the guard is self-sufficient: run solo (`-t "MR-5 stub guard"`) it
+passes 1/1 (8 skipped), so it is not fed by markers leaked from earlier tests in the file.
+
+### Judgment on the two flagged subtleties
+
+**(a) Constructor-not-DOM assertion — correct, and no finding.** The stub's `addTo` returns `inst`
+without appending, and `map.getCanvasContainer()` is not stubbed at all, so DOM presence is structurally
+unavailable; the constructor chain is the only signal there is. More to the point it is the *right*
+signal — it is what discriminates the hazard, as both mutations above show. Asserting element/coords
+here too would only duplicate `MapCanvas.test.tsx`.
+
+**(b) The `Symbol.for` global — works, but it is NOT load-bearing at the shipped call shape (LOW).**
+The comment at `test-utils.ts` states that a module-level singleton "is written by one and read as
+`null` by the other (found the hard way)". That does not reproduce here. Replacing the
+`Symbol.for('demo.test.mapboxModuleStub')` host with a plain module-level `let` and re-running gives
+**16/16 green on both `DemoExperience.*` suites and 1558/1558 across `features/demo/ui`** — the mock
+factory's `await import('@/features/demo/ui/screens/map/__tests__/test-utils')` and the suite's static
+import resolve to the same module instance, because `test-utils.ts` is not itself mocked and so has no
+registry divergence to cross.
+
+Not a defect — the shipped code works and `latestMapboxStub()` throws a clear error if the stub is
+absent. Two reasons to record it anyway: the rationale is written as verified experience and a future
+reader will trust it rather than re-test it; and `Symbol.for` is the *cross-realm* registry, so if
+`isolate: false` were ever set on this project two suites' stubs would silently overwrite each other in
+the one slot and `latestMapboxStub()` would return the wrong suite's — a failure the `if (!stub) throw`
+guard cannot see. **Fix (either):** simplify to the module-level `let` (verified equivalent), or amend
+the comment to name the wiring that actually broke and note the `isolate` caveat.
+
+**(c) Minor, same area (LOW).** `markerInstances` on the stub accumulates for the life of a suite with
+no per-test reset. Harmless today — the guard test is solo-safe and asserts `> 0` rather than an exact
+count — but a future test asserting an exact number would inherit earlier tests' instances. A
+`resetMapboxStub()` export, or delta-based assertions, closes it whenever that block is next touched.
+
+## Spot-delta Summary
+
+| Item | Disposition |
+|---|---|
+| NEW-1 (§79a call site unpinned) | **FIXED** — mutation-verified both ways |
+| NEW-2 (sibling stubs broken-and-latent) | **FIXED** — mutation-verified; latency closed |
+| §78g "does it ride?" | **Ends here** — the throws-on-construct probe that was 15/15 green now reds |
+| New, this round | 2 × LOW, both in `createMapboxModuleStub` (unnecessary `Symbol.for` + its unreproducible rationale; unreset `markerInstances`) |
+
+No HIGH or MEDIUM open in this lane. **Verdict: APPROVE.**

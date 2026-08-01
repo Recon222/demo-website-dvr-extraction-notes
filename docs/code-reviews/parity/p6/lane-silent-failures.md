@@ -682,3 +682,49 @@ Operator breadcrumbs intact:                     yes — both missing breadcrumb
 by re-running the original reproductions rather than by reading the fix commits. The two new items
 are LOW: a self-correcting empty-state misattribution (D-1, one clause) and a classifier arm that
 cannot fire for the cause it names (D-2, one `map.on`). Neither blocks merge.
+
+---
+
+## Spot-delta
+
+**Diff:** `b621472..bd5baa1` (P6 micro-round). Both LOW items from Fix-delta r1 re-verified by
+re-running the original reproductions against the merged head as a throwaway vitest file, then
+deleting it — nothing committed.
+
+- **D-1 → FIXED** (MR-3, `1865215`, `MapScreen.tsx:223`). The `'filters'` arm is now
+  `totalCount > 0 && activeFilterCount > 0 && filtered.items.length === 0`. Re-ran the
+  typing-on-an-empty-case repro: baseline `no-data` → after a search term still **`no-data`**,
+  copy still *"No located locations yet — add an address to a location to plot it here."*, and the
+  Clear-filters button correctly does **not** render (it would have been the dead affordance).
+  Previously this flipped to `filters` + *"No locations match your filters."* + a Clear button.
+  Regression guard re-run in the same file: a genuine zero-match filter on a case with three
+  geocoded locations still reports `filters`, still offers **Clear filters**, and the badge still
+  reads `No locations match` — the S-3 fix is intact, the gate only removed the misattribution.
+
+- **D-2 → FIXED** (MR-4, `5a22a56`, `MapCanvas.tsx:183`). The classifier is now
+  `/access token/i`-only. Verified against the live function:
+
+  ```
+  401 T · 403 T · 429 T · 404 F
+  'A valid Mapbox access token is required…' (revokeAuth)      T
+  'An API access token is required…'        (constructor form) T
+  'WebGL context lost' F · 'webglcontextlost' F · 'Failed to fetch' F · null F
+  ```
+
+  The claim now matches reality in both directions: the two mapbox token sentences that genuinely
+  reach `'error'` still escalate, and the classifier no longer asserts a cause it cannot see. The
+  doc comment was rewritten to say context loss is deliberately out of scope **and why** ("mapbox
+  raises it as its OWN event … claiming it from here was worse than not handling it, because it
+  made the gap invisible") — which is the honest form of the gap, and the strongest available
+  outcome short of building the subscription.
+
+  The real handling is ledgered at **§79h**, carrying my third-discriminant note verbatim in
+  substance: a `webglcontextlost`/`webglcontextrestored` pair needs a third `MapFailure` value
+  because a post-load death currently renders `MAP_LOAD_ERROR` ("Failed to load the map.") for a
+  map that demonstrably did load. Trigger recorded as "the next touch to `MapCanvas`'s failure
+  handling, or any report of a blank map that Retry does not fix" — correct, and it is the right
+  shape to defer: new failure path, new copy, new state.
+
+**Spot-delta verdict: APPROVE.** 0 new findings. Both LOW items closed with the one-clause /
+one-regex fixes proposed, neither closure weakened the S-3 or S-4 fixes it sits on, and the one
+genuinely un-built behaviour (WebGL context loss) is now declared rather than claimed.

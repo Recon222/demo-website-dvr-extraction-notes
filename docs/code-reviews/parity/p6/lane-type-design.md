@@ -774,3 +774,40 @@ reader in `MapScreen`, which already happened once this round).
 **Verdict: APPROVE.** Nothing open blocks the merge. If one thing lands before it, make it FD-2 —
 a review rationale is currently attached to the wrong symbol, and that is the kind of loss this
 repo's doc-comment discipline exists to prevent.
+
+---
+
+## Spot-delta (micro-round `b621472..bd5baa1`, MR-6 `985ddb1`)
+
+**FIXED — all six spot-checked items, and §79j's routing is real.** FD-4: the citation is now
+version + symbol (`getScaledPoint` in mapbox-gl 3.25.0) with the line number dropped and the reason
+stated (`MapCanvas.tsx:227-235`). FD-2: the R-18b block sits on `DEFAULT_MAP_CENTER` and
+`StatusCounts` has its own doc (`mapTokens.ts:10-17`). L8a: the false third justification is deleted
+*and* preserved as a parenthetical saying why it was false (`mapData.ts:44-56`) — better than the
+plain deletion I asked for. L8b: both the interface and field docs now describe truthy-only emission
+as a producer discipline and point at the guard (`mapData.ts:37-39, 57-65`). Ledger: §79b carries the
+2-of-3 caveat, §79d's trigger is amended to fire on any new stage-derived count/reader in
+`MapScreen`'s projection block, §72e's trigger is corrected.
+
+**§79j routing confirmed real, not a hand-wave** (`deferred.md:4106-4116`): a named entry that
+enumerates all four of my open items by name — R-27d's `MarkerKind` with the three write sites and
+the two `kind: string` test helpers (L4), the ~7 remaining positional pairs for `LngLat` (L7), a
+`ScreenPoint` labelled tuple (FD-3), and the three `Object.freeze(...) as X` assertions (FD-1) —
+with a checkable trigger ("the next refactor commit in `features/demo/ui/screens/map/`") and an
+explicit rationale for batching. §79i separately carries FD-4's structural half (`toContainerPoint`
+retirement via `e.point`/`e.lngLat`) with its own trigger. Nothing of mine is unrouted.
+
+**One new nit, in the sentence MR-6 added — SD-1 [LOW], `MapCanvas.tsx:232-235`.** The new
+PRECONDITION's conclusion is right; its stated mechanism is not. It says a padded container "makes
+the ratio lie about the transform" because "`offsetWidth` includes both, `rect.width` scales both."
+Both measures are the **border box** — `offsetWidth` is the laid-out border box, `getBoundingClientRect().width`
+is the same border box after transform — so padding and border cancel exactly and the ratio is
+`1/scale` regardless. What actually breaks under padding is the **origin**, not the scale:
+`rect.left` is the border-box left edge, while mapbox's canvas container (which `unproject`'s pixel
+space is anchored to) begins at the *content* edge, so a padded container offsets every converted
+point by `padding-left × scale` — a constant translation, not a scale error. Keep the rule, fix the
+reason: this lane deleted a false justification (L8a) one commit earlier for exactly this reason, and
+the container is verified compliant today (`MapCanvas.tsx:628-630`, `position: absolute; inset: 0`).
+Belongs in §79j's sweep or §79i's retirement, whichever lands first.
+
+**Spot-delta verdict: APPROVE.** No source change requested; SD-1 is a comment-accuracy nit.
