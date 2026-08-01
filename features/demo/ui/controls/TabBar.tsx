@@ -81,7 +81,19 @@ export function TabBar({ active, onSelect }: { active: TabView; onSelect(tab: Ta
       }}
     >
       {TAB_VIEWS.map((id) => (
-        <button key={id} type="button" aria-label={TAB_LABELS[id]} onClick={() => onSelect(id)} style={tab}>
+        <button
+          key={id}
+          type="button"
+          aria-label={TAB_LABELS[id]}
+          // The active tab was signalled by HUE ALONE across four destinations (WCAG 1.4.1 /
+          // 4.1.2) — invisible to a screen reader and to anyone who can't separate #4BA3D4 from
+          // #5d7a9a. `aria-current="page"` is the destination idiom (and what React Navigation
+          // gives the phone's own tab bar for free); §67c's `aria-pressed` stays with the media
+          // library's FILTER strip, which toggles what one sheet shows rather than navigating.
+          aria-current={active === id ? 'page' : undefined}
+          onClick={() => onSelect(id)}
+          style={tab}
+        >
           {TAB_ICONS[id](active === id ? '#4BA3D4' : '#5d7a9a', active === id ? 1.9 : 1.8)}
         </button>
       ))}

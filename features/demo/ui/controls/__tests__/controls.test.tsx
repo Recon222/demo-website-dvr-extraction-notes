@@ -33,6 +33,16 @@ describe('TabBar', () => {
     expect(stroke('Export')).toBe('#4BA3D4')
     expect(stroke('Map')).toBe('#5d7a9a')
   })
+
+  it('announces the active tab, not just tints it (R-19)', () => {
+    // Colour alone was the only cue across four destinations. Exactly one tab is current.
+    const { container, rerender } = render(<TabBar active="export" onSelect={vi.fn()} />)
+    const current = () =>
+      Array.from(container.querySelectorAll('button[aria-current="page"]')).map((b) => b.getAttribute('aria-label'))
+    expect(current()).toEqual(['Export'])
+    rerender(<TabBar active="dashboard" onSelect={vi.fn()} />)
+    expect(current()).toEqual(['Dashboard'])
+  })
 })
 
 describe('WizardDrawer', () => {
