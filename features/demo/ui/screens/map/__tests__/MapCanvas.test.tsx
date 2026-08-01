@@ -603,7 +603,9 @@ describe('MapCanvas — loading + error states', () => {
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 401 }))).toBe(true)
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 403 }))).toBe(true)
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 429 }))).toBe(true)
-    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(true)
+    // NOT WebGL context loss (MR-4): mapbox fires `webglcontextlost` as its own event and it
+    // never reaches `'error'`, so classifying it here would be a promise this arm cannot keep.
+    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(false)
     // Ignorable: a missed tile, and anything unrecognisable.
     expect(isTerminalMapError(Object.assign(new Error('x'), { status: 404 }))).toBe(false)
     expect(isTerminalMapError(new Error('Failed to fetch tile'))).toBe(false)

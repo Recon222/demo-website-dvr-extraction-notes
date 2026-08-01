@@ -157,11 +157,18 @@ const TERMINAL_MAP_STATUSES: ReadonlySet<number> = new Set([401, 403, 429])
  * Does a post-load `'error'` mean the map is DEAD, or just that one fetch missed? (review R-11)
  *
  * The tile rationale behind ignoring post-load errors is right and incomplete about the event:
- * mapbox-gl 3.25 routes terminal conditions through the same handler. `_revokeAuth()` clears the
- * GL buffers and then fires an access-token ErrorEvent, and because its session round-trip
- * resolves AFTER `'load'` it always lands in the ignored arm; `AJAXError` 401/403/429 and WebGL
- * context loss do the same. Two causes with opposite remedies were collapsing into one outcome
- * and one log line: pins floating over a void, no message, no Retry.
+ * mapbox-gl 3.25 routes SOME terminal conditions through the same handler. `_revokeAuth()`
+ * clears the GL buffers and then fires an access-token ErrorEvent, and because its session
+ * round-trip resolves AFTER `'load'` it always lands in the ignored arm; `AJAXError` 401/403/429
+ * does the same. Two causes with opposite remedies were collapsing into one outcome and one log
+ * line: pins floating over a void, no message, no Retry.
+ *
+ * WebGL context loss is deliberately NOT in scope here (MR-4). It was claimed and matched on,
+ * but mapbox raises it as its OWN event — `this.fire(new Event('webglcontextlost'))` — and it
+ * never reaches `'error'`, so the alternation was dead for its stated cause while the comment
+ * promised coverage. Subscribing to `webglcontextlost`/`webglcontextrestored` properly is
+ * ledgered (§79h); claiming it from here was worse than not handling it, because it made the
+ * gap invisible.
  *
  * Exported for direct unit coverage — the branch is otherwise only reachable through a mapbox
  * event this suite has to synthesise anyway.
@@ -172,7 +179,7 @@ export function isTerminalMapError(cause: unknown): boolean {
   if (typeof status === 'number' && TERMINAL_MAP_STATUSES.has(status)) return true
   const message = (cause as { message?: unknown }).message
   if (typeof message !== 'string') return false
-  return /access token|context lost|contextlost/i.test(message)
+  return /access token/i.test(message)
 }
 
 /** Fit the camera to the plotted points: 1 → centre+zoom, ≥2 → fit the bounding box (leaving room for
