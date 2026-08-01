@@ -12,7 +12,11 @@
  */
 
 // ---- Profiles ---------------------------------------------------------------
-export const PROFILES = ['forensic', 'canvas'] as const
+/** The phone's three deployment profiles (`src/features/form-customization/types:15-17`).
+ *  `limited` joined the union with P7.3 — the demo previously modelled only the two the old
+ *  `getProfile` switch knew about. Persisted via `z.enum(PROFILES)`, so widening this tuple is
+ *  a persisted-shape change: it rode the SNAPSHOT_VERSION 6→7 bump. */
+export const PROFILES = ['forensic', 'limited', 'canvas'] as const
 export type Profile = (typeof PROFILES)[number]
 
 // ---- Screen identifiers -----------------------------------------------------

@@ -64,6 +64,6 @@ describe('features/demo/engine/logic/export barrel', () => {
     // DemoExperience-local useState. Nothing in this module may reach sessionStorage.
     expect('exportSelection' in engine.createDemoStore().getState()).toBe(false)
     expect('exportFlow' in engine.createDemoStore().getState()).toBe(false)
-    expect(engine.SNAPSHOT_VERSION).toBe(6)
+    expect(engine.SNAPSHOT_VERSION).toBe(7)
   })
 })

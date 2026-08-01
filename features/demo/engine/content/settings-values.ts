@@ -14,7 +14,7 @@
  * ## Why it is not persisted
  *
  * Deliberately absent from the sessionStorage snapshot (`engine/store/persistence.ts`). A
- * persisted value implies a value that matters; these do not, and `SNAPSHOT_VERSION` (6) is a
+ * persisted value implies a value that matters; these do not, and `SNAPSHOT_VERSION` is a
  * three-device compile-time guard whose whole point is that it moves only when the persisted
  * SHAPE genuinely changes. Settings live in `DemoExperience`'s own state, alongside the other
  * ephemeral bridge state, and reset with the tab. P7.2 (User Profile) and P7.3 (Form
@@ -34,6 +34,8 @@ import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { APP_VERSION } from '@/features/demo/engine/content/app-info'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
+import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
+import type { Profile } from '@/features/demo/engine/types'
 import { GPS_ACCURACY_MODES, type GpsAccuracyMode } from '@/features/demo/engine/logic/gps'
 
 // ---- Closed unions (phone-verbatim) ----------------------------------------
@@ -234,12 +236,14 @@ export interface SettingsPreviewContext {
   formProfileLabel: string
 }
 
-/** `FORM_PROFILE_SHORT` (settings-catalog.tsx:158-162), for the P7.3 seam's caller. */
-export const FORM_PROFILE_SHORT: Record<string, string> = {
-  forensic: 'Forensic',
-  limited: 'Limited',
-  canvas: 'Canvas',
-}
+/**
+ * `FORM_PROFILE_SHORT` (settings-catalog.tsx:158-162), for the P7.3 seam's caller.
+ *
+ * P7.3 made the profile set real, so this is now an ALIAS of the pane's own `PROFILE_LABELS`
+ * rather than a second copy of the same three strings — one source, and TOTAL over `Profile`,
+ * so a fourth profile cannot reach the master row unlabelled.
+ */
+export const FORM_PROFILE_SHORT: Record<Profile, string> = PROFILE_LABELS
 
 /**
  * The right-aligned value on a master row. One pure function over the whole catalog rather

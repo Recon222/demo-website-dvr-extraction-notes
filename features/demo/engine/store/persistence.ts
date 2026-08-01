@@ -76,9 +76,16 @@ export const PERSISTENCE_ENABLED = true
  *      strips `blob:` URLs and a restored capture renders the honest expired notice). This
  *      is a field WIDENING, the one drift direction the compile-time devices explicitly do
  *      NOT catch (see R-30 below): a v5 build's schema would reject the url-less item this
- *      build writes and wipe the tab at boot. The bump makes the discard version-attributable. */
-export const SNAPSHOT_VERSION = 6
-export const SNAPSHOT_KEY = 'dvr-demo-state-v6'
+ *      build writes and wipe the tab at boot. The bump makes the discard version-attributable.
+ *  v7: form customization becomes real (P7.3, decision D9). TWO changes, one bump:
+ *      (a) `PROFILES` widens `'forensic' | 'canvas'` → `+ 'limited'` — a tuple-backed UNION
+ *          widening, the drift direction device 3 closes only because the schema consumes the
+ *          very same tuple; a v6 build's `z.enum` would reject a `'limited'` snapshot and wipe
+ *          the tab, so the bump makes that discard version-attributable.
+ *      (b) `formOverrides` joins `PersistedState` — a NEW REQUIRED key, which a v6 snapshot
+ *          simply does not have, so every v6 blob must be discarded rather than half-parsed. */
+export const SNAPSHOT_VERSION = 7
+export const SNAPSHOT_KEY = 'dvr-demo-state-v7'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
