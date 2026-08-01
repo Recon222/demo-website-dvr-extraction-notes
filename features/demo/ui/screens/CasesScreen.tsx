@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
+import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 
 export interface CasesScreenProps {
@@ -19,6 +20,8 @@ export interface CasesScreenProps {
   onDeleteLocation(locationId: string): void
   /** Opens the per-location action chooser — the phone's `DuplicateLocationModal` (P3.5). */
   onLocationActions(locationId: string): void
+  /** The header gear (P7.1) — phone `MainHeader.onSettingsPress`, wired identically here. */
+  onSettings(): void
 }
 
 /** Row-actions keys, mirroring the phone's single-open swipeable key space
@@ -39,6 +42,7 @@ export function CasesScreen({
   onDeleteCase,
   onDeleteLocation,
   onLocationActions,
+  onSettings,
 }: CasesScreenProps) {
   /**
    * SINGLE-OPEN (phone parity, `CaseList.tsx:64-75`: opening one swipeable closes the previous).
@@ -64,11 +68,16 @@ export function CasesScreen({
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 18px' }}>
         <div style={{ fontSize: 30, fontWeight: 700, color: '#f0f4f8' }}>Cases</div>
-        <button type="button" aria-label="New case" onClick={onNewCase} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B8CC1" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /><path d="M12 11v5M9.5 13.5h5" />
-          </svg>
-        </button>
+        {/* Phone `MainHeader.tsx:49-74`: New Case then the gear, in that order, and only this
+            header carries both. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" aria-label="New case" onClick={onNewCase} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B8CC1" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /><path d="M12 11v5M9.5 13.5h5" />
+            </svg>
+          </button>
+          <SettingsGearButton onClick={onSettings} />
+        </div>
       </div>
 
       <div style={{ padding: '0 16px' }}>

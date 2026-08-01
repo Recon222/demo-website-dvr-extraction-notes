@@ -65,4 +65,9 @@ export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   // exactly as the map did. Listed last because it is the last tab; the run itself lands with
   // P5.3, but the row is honest today: the tab exists and does what its rail copy describes.
   { id: 'export', label: 'Export', covers: ['export'], jumpTo: 'export' },
+  // Settings (P7.1) — a modal, so it takes the `newCase`/`newLocation`/`import`/`mediaLibrary`
+  // treatment: route to a screen that carries its opener (the gear sits on the Cases AND
+  // Dashboard headers) and let the visitor press it. Listed LAST because it is chrome around
+  // the app rather than a step through it — the tabs stay the tail of the journey.
+  { id: 'settings', label: 'Settings', covers: ['settings'], jumpTo: 'cases' },
 ]

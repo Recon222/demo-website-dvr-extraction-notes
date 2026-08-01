@@ -1,6 +1,7 @@
 'use client'
 
 import { Toggle } from '@/features/demo/ui/screens/_shared'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
   ENCRYPTION_STRENGTH_OPTIONS,
   PROMPT_MODE_OPTIONS,
@@ -122,7 +123,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
                 marginTop: 10,
                 padding: '10px 14px',
                 borderRadius: 10,
-                border: '1px solid #2a4a6f',
+                border: GLASS.borderBtn,
                 background: 'transparent',
                 color: '#7a9fc4',
                 fontSize: 13,

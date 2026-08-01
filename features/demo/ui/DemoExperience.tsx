@@ -67,6 +67,14 @@ import {
   type ExportSelectableCase,
   type ExportSelection,
 } from '@/features/demo/engine/logic/export'
+import { SettingsModal } from '@/features/demo/ui/screens/settings/SettingsModal'
+import { toSettingsSections } from '@/features/demo/ui/screens/settings/settingsData'
+import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
+import {
+  DEFAULT_SETTINGS,
+  FORM_PROFILE_SHORT,
+  type DemoSettings,
+} from '@/features/demo/engine/content/settings-values'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
@@ -430,6 +438,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const currentCaseId = useStore(store, (s) => s.currentCaseId)
   const drawerOpen = useStore(store, (s) => s.drawerOpen)
   const capture = useStore(store, (s) => s.capture)
+  /** The active form profile — the Settings "Form Fields" row's preview (SEAM(P7.3)). */
+  const profile = useStore(store, (s) => s.profile)
 
   // Screen-transition direction: computed once per `view` change and held stable through the
   // animation (mutating refs during render = the "previous prop" pattern — no effect, no re-render,
@@ -620,6 +630,36 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+
+  // ---- Settings (P7.1, matrix rows 81–84 + 87–93 + A1, decision D6) -----------------------
+  /**
+   * The settings record lives HERE, in bridge state, and nowhere else.
+   *
+   * Not in the store and not in the sessionStorage snapshot (deferred §80c): every value is
+   * cosmetic by D6's ruling — real, typed, changeable, and read by nothing downstream — and
+   * `SNAPSHOT_VERSION`'s three compile-time devices exist to move when the persisted SHAPE
+   * genuinely changes, not when a stub gains a field. It resets with the tab, alongside the
+   * other ephemeral bridge state above.
+   */
+  const [settings, setSettings] = useState<DemoSettings>(DEFAULT_SETTINGS)
+  const patchSettings = useCallback(
+    (patch: Partial<DemoSettings>) => setSettings((s) => ({ ...s, ...patch })),
+    [],
+  )
+  const openSettings = useCallback(() => store.getState().openModal('settings'), [store])
+  const settingsSections = useMemo(
+    () =>
+      toSettingsSections({
+        settings,
+        // SEAM(P7.2): the profile store does not exist yet, so the row reads the phone's own
+        // empty literal (`Not set`). P7.2 passes the live trimmed name here — one argument.
+        profileName: '',
+        // SEAM(P7.3): already live. The demo genuinely runs this profile, so the row is
+        // truthful before P7.3 makes it changeable.
+        formProfileLabel: FORM_PROFILE_SHORT[profile] ?? profile,
+      }),
+    [settings, profile],
+  )
 
   // ---- Export tab (P5.2, matrix rows 7/24) ------------------------------------------------
   /**
@@ -2241,10 +2281,11 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'splash':
         return <SplashScreen authState="idle" onScan={() => store.getState().setView('dashboard')} />
       case 'dashboard':
-        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} />
+        return <DashboardScreen cases={caseCards} onOpenLocation={openLocation} onCaseActions={openCaseActions} onSettings={openSettings} />
       case 'cases':
         return (
           <CasesScreen
+            onSettings={openSettings}
             cases={caseCards}
             expandedId={expandedCaseId}
             onToggle={(id) => setExpandedCaseId((prev) => (prev === id ? null : id))}
@@ -2565,6 +2606,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onSelect={selectExportScope}
             onCancel={() => store.getState().closeModal()}
             disabled={exportBusy}
+          />
+        )
+      case 'settings':
+        // The whole Settings surface behind ONE modal id (P7.1) — which pane is open is local
+        // state inside the sheet, exactly as on the phone.
+        return (
+          <SettingsModal
+            sections={settingsSections}
+            // The bridge is the pane resolver so the shell never has to know about the store.
+            // SEAM(P7.2) / SEAM(P7.3): their packages add a branch HERE — `if (id ===
+            // 'user-profile') return <UserProfilePane profile={…} …/>` — before falling through
+            // to the default map. `SettingsPaneProps` stays as it is; it is the eight
+            // settings-backed panes' contract, not a base class for the other two.
+            renderPane={(id) => renderSettingsPane(id, { settings, onChange: patchSettings })}
+            onClose={() => store.getState().closeModal()}
           />
         )
       case 'editIncident':
