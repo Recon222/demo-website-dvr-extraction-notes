@@ -220,10 +220,10 @@ export interface CaseMapCoverage {
   plottedLocations: number
   /** The rest, in input order — dropped for want of a captured coordinate. */
   droppedLocationNames: readonly string[]
-  /** True when at least one LOCATION plots. Deliberately NOT "any feature": the incident pin
-   *  is not a site, and counting it is what let the empty-map caveat stay silent on a case
-   *  with zero plotted locations (R-1's second half). */
-  hasPlottedLocations: boolean
+  // NO `hasPlottedLocations` (delta D-12). It was `plottedLocations > 0` under another name:
+  // a derived field with no production reader, whose only effect was hand-maintained fixture
+  // pairs that could contradict the count they were derived from. Callers write
+  // `coverage.plottedLocations > 0`.
 }
 
 /**
@@ -249,7 +249,6 @@ export function summariseCaseMapCoverage(locations: readonly DemoLocation[]): Ca
     totalLocations: locations.length,
     plottedLocations: plotted,
     droppedLocationNames: dropped,
-    hasPlottedLocations: plotted > 0,
   }
 }
 

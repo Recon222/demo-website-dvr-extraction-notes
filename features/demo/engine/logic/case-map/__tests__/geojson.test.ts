@@ -35,7 +35,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       totalLocations: 3,
       plottedLocations: 1,
       droppedLocationNames: ['Rear Alley', 'Loading Bay'],
-      hasPlottedLocations: true,
     })
   })
 
@@ -43,7 +42,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
     expect(summariseCaseMapCoverage([typedOnly('a', 'One'), typedOnly('b', 'Two')])).toMatchObject({
       totalLocations: 2,
       plottedLocations: 0,
-      hasPlottedLocations: false,
     })
   })
 
@@ -52,7 +50,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       totalLocations: 0,
       plottedLocations: 0,
       droppedLocationNames: [],
-      hasPlottedLocations: false,
     })
   })
 
@@ -102,7 +99,7 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       [typedOnly('b', 'Rear Alley')],
     )
     expect(hasPlottableFeatures(collection)).toBe(true) // the incident is a feature…
-    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).hasPlottedLocations).toBe(false) // …but not a site
+    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).plottedLocations).toBe(0) // …but not a site
   })
 
   it('dev-warns when the builder omits a location, like generateExtractedScopes does', () => {
@@ -139,7 +136,7 @@ describe('featureType is a closed id space (review R-28)', () => {
 
   it('refuses an undeclared featureType at compile time', () => {
     // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it). A writer typo used to be
-    // invisible: it surfaced only as `hasPlottedLocations` mis-answering, i.e. as the wrong
+    // invisible: it surfaced only as the coverage predicates mis-answering, i.e. as the wrong
     // success sentence on a real download.
     const typo: GeoJSONFeature = {
       type: 'Feature',

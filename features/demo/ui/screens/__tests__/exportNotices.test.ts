@@ -31,7 +31,6 @@ const coverage = (over: Partial<CaseMapCoverage> = {}): CaseMapCoverage => ({
   totalLocations: 2,
   plottedLocations: 2,
   droppedLocationNames: [],
-  hasPlottedLocations: true,
   ...over,
 })
 
@@ -144,7 +143,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
     const { message } = describeCaseMapTerminal({
       kind: 'requested',
       filename: 'f.html',
-      coverage: coverage({ totalLocations: 2, plottedLocations: 0, droppedLocationNames: ['a', 'b'], hasPlottedLocations: false }),
+      coverage: coverage({ totalLocations: 2, plottedLocations: 0, droppedLocationNames: ['a', 'b'] }),
       mapIsEmpty: false,
       hasToken: true,
     })
@@ -157,7 +156,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
       describeCaseMapTerminal({
         kind: 'requested',
         filename: 'f.html',
-        coverage: coverage({ totalLocations: 0, plottedLocations: 0, hasPlottedLocations: false }),
+        coverage: coverage({ totalLocations: 0, plottedLocations: 0 }),
         mapIsEmpty: true,
         hasToken: true,
       }).message,
@@ -168,7 +167,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
     const { message } = describeCaseMapTerminal({
       kind: 'requested',
       filename: 'f.html',
-      coverage: coverage({ totalLocations: 0, plottedLocations: 0, hasPlottedLocations: false }),
+      coverage: coverage({ totalLocations: 0, plottedLocations: 0 }),
       mapIsEmpty: true,
       hasToken: false,
     })
