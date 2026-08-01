@@ -247,7 +247,7 @@ Splash (old OPT.1) and Form Customization (old OPT.2) were promoted to P8 and P7
 | P7 | P7.1 settings shell + stub panes | ✅ | #36 | full replica, honest stubs, inert Dark Mode (no theme seam) |
 | P7 | P7.2 user profile — full | ✅ | #36 | real pane+modal, v7 snapshot, Completed-By autofill + PDF section gap closed |
 | P7 | P7.3 form customization — full | ✅ | #36 | 3 profiles, 58-id grid, two guard layers, wizard/drawer derivation |
-| P8 | P8.1 splash + biometric boot | ☐ | | |
+| P8 | P8.1 splash + biometric boot | ✅ | #37 | gate-not-view boot, hardened one-constant video drop-in (D7), honest simulated scan |
 
 ## 8. Phone-repo follow-ups (NOT this effort — file separately)
 
