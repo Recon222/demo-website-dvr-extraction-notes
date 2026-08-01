@@ -7,15 +7,15 @@ import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
  */
 export type LngLat = readonly [lng: number, lat: number]
 
+/** The sheet-header / projection status tally. One type, four former copies (review R-27h). */
+export type StatusCounts = Record<LocationMapStatus, number>
+
 /**
  * First-paint camera centre, and the proximity toggle's last-resort anchor.
  *
  * One literal, read by both `MapCanvas` and `MapScreen` (review R-18b): they previously carried
  * a copy each, with a comment on the second asserting an identity nothing enforced.
  */
-/** The sheet-header / projection status tally. One type, four former copies (review R-27h). */
-export type StatusCounts = Record<LocationMapStatus, number>
-
 export const DEFAULT_MAP_CENTER: LngLat = Object.freeze([-79.65, 43.61]) as LngLat
 
 

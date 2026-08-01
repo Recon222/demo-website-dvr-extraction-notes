@@ -224,9 +224,15 @@ function viewportBbox(map: MapboxMap, worldBbox: ClusterBbox): ClusterBbox {
  * 404x812 device at 1:1. Without dividing the scale out, a long press lands progressively
  * further from the finger the further it is from the container's top-left corner.
  *
- * This is exactly the conversion mapbox-gl does for its own pointer handling
- * (`getScaledPoint`, mapbox-gl-dev.js:57053-57059) — same formula, so a long-press ring and a
- * mapbox click resolve to the same coordinate.
+ * This is exactly the conversion mapbox-gl does for its own pointer handling — `getScaledPoint`
+ * in **mapbox-gl 3.25.0** — so a long-press ring and a mapbox click resolve to the same
+ * coordinate. Cited by version + symbol on purpose: the dev bundle's line numbers move on every
+ * patch release, and a stale line citation is worse than none.
+ *
+ * PRECONDITION, inherited from that formula: the container must stay padding- and border-free.
+ * `offsetWidth` includes both, `rect.width` scales both, so a padded container makes the ratio
+ * lie about the transform. `data-map-canvas` is `position: absolute; inset: 0` and nothing else
+ * — keep it that way, or switch to the ledgered `e.point` approach that never computes a ratio.
  */
 export function toContainerPoint(
   container: { getBoundingClientRect(): { left: number; top: number; width: number }; offsetWidth: number },
