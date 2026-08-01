@@ -209,6 +209,29 @@ function viewportBbox(map: MapboxMap, worldBbox: ClusterBbox): ClusterBbox {
   }
 }
 
+/**
+ * Client coordinates → mapbox container pixels.
+ *
+ * `getBoundingClientRect()` reports the CSS-TRANSFORMED box, but `map.unproject` expects
+ * untransformed container pixels — and `PhoneFrame` wraps this whole screen in
+ * `transform: scale(usePhoneScale())`, which is below 1 on any viewport that cannot fit the
+ * 404x812 device at 1:1. Without dividing the scale out, a long press lands progressively
+ * further from the finger the further it is from the container's top-left corner.
+ *
+ * This is exactly the conversion mapbox-gl does for its own pointer handling
+ * (`getScaledPoint`, mapbox-gl-dev.js:57053-57059) — same formula, so a long-press ring and a
+ * mapbox click resolve to the same coordinate.
+ */
+export function toContainerPoint(
+  container: { getBoundingClientRect(): { left: number; top: number; width: number }; offsetWidth: number },
+  clientX: number,
+  clientY: number,
+): [number, number] {
+  const rect = container.getBoundingClientRect()
+  const scaling = rect.width > 0 && container.offsetWidth > 0 ? container.offsetWidth / rect.width : 1
+  return [(clientX - rect.left) * scaling, (clientY - rect.top) * scaling]
+}
+
 function currentZoom(map: MapboxMap): number {
   try {
     const zoom = map.getZoom?.()
@@ -546,8 +569,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     // left button while reading a pin does it on the desktop path the demo is mostly viewed on.
     const target = event.target as Element | null
     if (target?.closest?.('[data-marker-id], .mapboxgl-ctrl')) return
-    const rect = container.getBoundingClientRect()
-    const point: [number, number] = [event.clientX - rect.left, event.clientY - rect.top]
+    const point = toContainerPoint(container, event.clientX, event.clientY)
     pressOrigin.current = { x: event.clientX, y: event.clientY }
     pressTimer.current = setTimeout(() => {
       pressTimer.current = null

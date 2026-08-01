@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
+import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, toContainerPoint, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
@@ -362,6 +362,39 @@ describe('MapCanvas — long press', () => {
     vi.advanceTimersByTime(500)
     expect(onLongPress).toHaveBeenCalledWith(-79.7, 43.7)
     vi.useRealTimers()
+  })
+
+  it('converts client coordinates to CONTAINER pixels before unprojecting', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]') as HTMLElement
+    // jsdom hands out an all-zero rect, which makes the offset conversion a no-op and the whole
+    // conversion untestable — the reason this had no signal at all. Give it a real, OFFSET box.
+    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 378, height: 786, right: 418, bottom: 876, x: 40, y: 90, toJSON: () => ({}) })
+    Object.defineProperty(canvas, 'offsetWidth', { value: 378, configurable: true })
+
+    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true })
+    vi.advanceTimersByTime(500)
+    expect(mapInstance.unproject).toHaveBeenCalledWith([100, 100])
+    vi.useRealTimers()
+  })
+
+  it('divides out the CSS scale — PhoneFrame renders this screen inside transform: scale()', () => {
+    // The scaled case: the device is laid out at 378 px but painted at 189 px (scale 0.5).
+    // `getBoundingClientRect` reports the PAINTED box; `unproject` wants the LAID-OUT one.
+    const scaled = {
+      getBoundingClientRect: () => ({ left: 40, top: 90, width: 189 }),
+      offsetWidth: 378,
+    }
+    expect(toContainerPoint(scaled, 140, 190)).toEqual([200, 200])
+    // Unscaled: identity.
+    const unscaled = { getBoundingClientRect: () => ({ left: 40, top: 90, width: 378 }), offsetWidth: 378 }
+    expect(toContainerPoint(unscaled, 140, 190)).toEqual([100, 100])
+    // Degenerate (jsdom's all-zero rect, or a detached node): never divide by zero.
+    const zero = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 0 }), offsetWidth: 0 }
+    expect(toContainerPoint(zero, 140, 190)).toEqual([140, 190])
   })
 
   it('cancels on release before the threshold', async () => {
