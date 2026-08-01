@@ -1,6 +1,6 @@
 'use client'
 
-import { SelectField, Toggle } from '@/features/demo/ui/screens/_shared'
+import { Toggle } from '@/features/demo/ui/screens/_shared'
 import {
   GPS_ACCURACY_OPTIONS,
   GPS_TIMEOUT_OPTIONS,
@@ -10,6 +10,7 @@ import {
 import {
   PaneDescription,
   PaneGroup,
+  PaneSelect,
   PaneStubNote,
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/panes/pane-props'
@@ -51,20 +52,20 @@ export function LocationPane({ settings, onChange }: SettingsPaneProps) {
         label="GPS Accuracy Mode"
         help="Balances speed vs precision when acquiring GPS coordinates."
       >
-        <SelectField
+        <PaneSelect
           a11yLabel="GPS Accuracy Mode"
           value={settings.gpsAccuracyMode}
           options={GPS_ACCURACY_OPTIONS}
-          onChange={(v) => onChange({ gpsAccuracyMode: v as GpsAccuracyMode })}
+          onChange={(gpsAccuracyMode) => onChange({ gpsAccuracyMode })}
         />
       </PaneGroup>
 
       <PaneGroup label="GPS Timeout" help="Maximum time to wait for GPS signal before showing an error.">
-        <SelectField
+        <PaneSelect
           a11yLabel="GPS Timeout"
-          value={String(settings.gpsTimeout)}
+          value={settings.gpsTimeout}
           options={GPS_TIMEOUT_OPTIONS}
-          onChange={(v) => onChange({ gpsTimeout: Number(v) as GpsTimeoutOption })}
+          onChange={(gpsTimeout) => onChange({ gpsTimeout })}
         />
       </PaneGroup>
 

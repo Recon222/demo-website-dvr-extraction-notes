@@ -1,11 +1,11 @@
 'use client'
 
-import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { NTP_REGION_OPTIONS, type NtpRegion } from '@/features/demo/engine/content/settings-values'
 import {
   PaneDescription,
   PaneGroup,
   PaneNote,
+  PaneSelect,
   PaneStubNote,
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/panes/pane-props'
@@ -41,11 +41,11 @@ export function TimeSyncPane({ settings, onChange }: SettingsPaneProps) {
         label="NTP Server Region"
         help="Determines which atomic clock authority your timestamps are traceable to."
       >
-        <SelectField
+        <PaneSelect
           a11yLabel="NTP Server Region"
           value={settings.ntpRegion}
           options={NTP_REGION_OPTIONS}
-          onChange={(v) => onChange({ ntpRegion: v as NtpRegion })}
+          onChange={(ntpRegion) => onChange({ ntpRegion })}
         />
       </PaneGroup>
 

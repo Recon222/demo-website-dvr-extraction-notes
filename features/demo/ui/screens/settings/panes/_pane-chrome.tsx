@@ -1,7 +1,8 @@
 'use client'
 
 import type { CSSProperties, ReactNode } from 'react'
-import type { PickerOption } from '@/features/demo/engine/content/form-options'
+import type { TypedOption } from '@/features/demo/engine/content/settings-values'
+import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /**
@@ -170,7 +171,7 @@ const radioOption = (selected: boolean): CSSProperties => ({
  * a ring + dot, the border lighting on the selection. `radiogroup`/`radio` roles so the set
  * reads as one control to AT, which the phone gets from `accessibilityRole="radio"`.
  */
-export function PaneRadioGroup({
+export function PaneRadioGroup<T extends string>({
   label,
   options,
   value,
@@ -178,11 +179,12 @@ export function PaneRadioGroup({
   testIdOf,
 }: {
   label: string
-  options: readonly PickerOption[]
-  value: string
-  onChange(value: string): void
+  options: readonly TypedOption<T>[]
+  value: T
+  /** Receives the domain value straight off the option — nothing is asserted (R-11). */
+  onChange(value: T): void
   /** Per-option testid, so a pane can seed the phone's own (`export-security-strength-aes256`). */
-  testIdOf?(value: string): string
+  testIdOf?(value: T): string
 }) {
   return (
     <div role="radiogroup" aria-label={label}>
@@ -218,6 +220,42 @@ export function PaneRadioGroup({
         )
       })}
     </div>
+  )
+}
+
+/**
+ * A settings picker bound to a CLOSED union (R-11).
+ *
+ * The narrowing is a lookup, not an assertion: the option whose stringified value matches what
+ * `Dropdown` hands back IS the domain value, so `onChange` receives `T` with nothing asserted
+ * and an unrecognised string is dropped rather than cast into the union. That also absorbs the
+ * two numeric settings, whose values used to be stringified in the list and re-parsed at the
+ * handler for want of a place to keep the type.
+ *
+ * `a11yLabel` is required here because every caller is a label-less settings picker — see R-9;
+ * `SelectField`'s own `label` stays unset for phone parity.
+ */
+export function PaneSelect<T extends string | number>({
+  a11yLabel,
+  value,
+  options,
+  onChange,
+}: {
+  a11yLabel: string
+  value: T
+  options: readonly TypedOption<T>[]
+  onChange(value: T): void
+}) {
+  return (
+    <SelectField
+      a11yLabel={a11yLabel}
+      value={String(value)}
+      options={options.map((o) => ({ label: o.label, value: String(o.value) }))}
+      onChange={(picked) => {
+        const hit = options.find((o) => String(o.value) === picked)
+        if (hit) onChange(hit.value)
+      }}
+    />
   )
 }
 

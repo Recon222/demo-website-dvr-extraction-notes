@@ -1,6 +1,6 @@
 'use client'
 
-import { SelectField, Toggle } from '@/features/demo/ui/screens/_shared'
+import { Toggle } from '@/features/demo/ui/screens/_shared'
 import {
   MAX_DURATION_OPTIONS,
   VIDEO_CODEC_OPTIONS,
@@ -15,6 +15,7 @@ import {
   PaneDescription,
   PaneGroup,
   PaneNote,
+  PaneSelect,
   PaneSlider,
   PaneStubNote,
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
@@ -83,11 +84,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Video Quality"
         help="Resolution for video recordings. Higher resolution requires more storage."
       >
-        <SelectField
+        <PaneSelect
           a11yLabel="Video Quality"
           value={settings.videoQuality}
           options={VIDEO_QUALITY_OPTIONS}
-          onChange={(v) => onChange({ videoQuality: v as VideoQualityOption })}
+          onChange={(videoQuality) => onChange({ videoQuality })}
         />
       </PaneGroup>
 
@@ -95,11 +96,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Video Codec"
         help="H.264 offers maximum compatibility. H.265 provides better compression."
       >
-        <SelectField
+        <PaneSelect
           a11yLabel="Video Codec"
           value={settings.videoCodec}
           options={VIDEO_CODEC_OPTIONS}
-          onChange={(v) => onChange({ videoCodec: v as VideoCodecOption })}
+          onChange={(videoCodec) => onChange({ videoCodec })}
         />
       </PaneGroup>
 
@@ -107,11 +108,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Maximum Video Duration"
         help={'Recording automatically stops after this duration. Select "Unlimited" for no limit.'}
       >
-        <SelectField
+        <PaneSelect
           a11yLabel="Maximum Video Duration"
-          value={String(settings.maxVideoDuration)}
+          value={settings.maxVideoDuration}
           options={MAX_DURATION_OPTIONS}
-          onChange={(v) => onChange({ maxVideoDuration: Number(v) as MaxVideoDurationOption })}
+          onChange={(maxVideoDuration) => onChange({ maxVideoDuration })}
         />
         {settings.maxVideoDuration === 0 && (
           <PaneNote tone="warning">

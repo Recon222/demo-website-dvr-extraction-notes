@@ -14,11 +14,18 @@ import {
   clampPhotoQuality,
   photoQualityPercent,
   settingsPreview,
+  VIDEO_QUALITY_VALUES,
+  VIDEO_CODEC_VALUES,
+  MAX_DURATION_VALUES,
+  GPS_TIMEOUT_VALUES,
+  NTP_REGION_VALUES,
+  PROMPT_MODE_VALUES,
+  ENCRYPTION_STRENGTH_VALUES,
   type DemoSettings,
   type SettingsPreviewContext,
 } from '@/features/demo/engine/content/settings-values'
 import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
-import { ACCURACY_MODE_TARGET_M } from '@/features/demo/engine/logic/gps'
+import { ACCURACY_MODE_TARGET_M, GPS_ACCURACY_MODES } from '@/features/demo/engine/logic/gps'
 import { APP_NAME, APP_VERSION, DEMO_VERSION_LINE, SUPPORT_EMAIL } from '@/features/demo/engine/content/app-info'
 
 /**
@@ -103,14 +110,16 @@ describe('option lists (phone labels + values, in order)', () => {
       { label: 'H.264 (AVC) - Maximum Compatibility', value: 'avc1' },
       { label: 'H.265 (HEVC) - Better Compression', value: 'hvc1' },
     ])
+    // Values are the DOMAIN values (R-11): seconds, not stringified seconds. The picker
+    // stringifies at the boundary and maps back by lookup, so nothing is cast.
     expect(MAX_DURATION_OPTIONS).toEqual([
-      { label: '1 minute', value: '60' },
-      { label: '2 minutes', value: '120' },
-      { label: '5 minutes', value: '300' },
-      { label: '10 minutes', value: '600' },
-      { label: '15 minutes', value: '900' },
-      { label: '30 minutes', value: '1800' },
-      { label: 'Unlimited', value: '0' },
+      { label: '1 minute', value: 60 },
+      { label: '2 minutes', value: 120 },
+      { label: '5 minutes', value: 300 },
+      { label: '10 minutes', value: 600 },
+      { label: '15 minutes', value: 900 },
+      { label: '30 minutes', value: 1800 },
+      { label: 'Unlimited', value: 0 },
     ])
   })
 
@@ -121,10 +130,10 @@ describe('option lists (phone labels + values, in order)', () => {
       { label: 'Precise (10m)', value: 'precise' },
     ])
     expect(GPS_TIMEOUT_OPTIONS).toEqual([
-      { label: '15 seconds', value: '15' },
-      { label: '30 seconds', value: '30' },
-      { label: '60 seconds', value: '60' },
-      { label: '120 seconds', value: '120' },
+      { label: '15 seconds', value: 15 },
+      { label: '30 seconds', value: 30 },
+      { label: '60 seconds', value: 60 },
+      { label: '120 seconds', value: 120 },
     ])
     expect(NTP_REGION_OPTIONS).toEqual([
       { label: 'Canada (NRC)', value: 'canada' },
@@ -147,15 +156,32 @@ describe('option lists (phone labels + values, in order)', () => {
   })
 
   it('every default is a selectable value in its own list (no unreachable initial state)', () => {
-    const has = (opts: readonly { value: string }[], v: string) => opts.some((o) => o.value === v)
+    const has = (opts: readonly { value: string | number }[], v: string | number) =>
+      opts.some((o) => o.value === v)
     expect(has(VIDEO_QUALITY_OPTIONS, DEFAULT_SETTINGS.videoQuality)).toBe(true)
     expect(has(VIDEO_CODEC_OPTIONS, DEFAULT_SETTINGS.videoCodec)).toBe(true)
-    expect(has(MAX_DURATION_OPTIONS, String(DEFAULT_SETTINGS.maxVideoDuration))).toBe(true)
+    expect(has(MAX_DURATION_OPTIONS, DEFAULT_SETTINGS.maxVideoDuration)).toBe(true)
     expect(has(GPS_ACCURACY_OPTIONS, DEFAULT_SETTINGS.gpsAccuracyMode)).toBe(true)
-    expect(has(GPS_TIMEOUT_OPTIONS, String(DEFAULT_SETTINGS.gpsTimeout))).toBe(true)
+    expect(has(GPS_TIMEOUT_OPTIONS, DEFAULT_SETTINGS.gpsTimeout)).toBe(true)
     expect(has(NTP_REGION_OPTIONS, DEFAULT_SETTINGS.ntpRegion)).toBe(true)
     expect(has(PROMPT_MODE_OPTIONS, DEFAULT_SETTINGS.promptMode)).toBe(true)
     expect(has(ENCRYPTION_STRENGTH_OPTIONS, DEFAULT_SETTINGS.encryptionStrength)).toBe(true)
+  })
+
+  it('R-11: each list covers its `as const` tuple exactly — the tuples are load-bearing now', () => {
+    // The seven tuples were exported and consumed by nothing while eight handlers cast `string`
+    // back into the same unions. Typing the lists is what puts them to work; this pins that the
+    // lists and the tuples describe the same set, in the same order where the phone fixes one.
+    const values = (opts: readonly { value: string | number }[]) => opts.map((o) => o.value)
+    expect(values(VIDEO_QUALITY_OPTIONS)).toEqual([...VIDEO_QUALITY_VALUES])
+    expect(values(VIDEO_CODEC_OPTIONS)).toEqual([...VIDEO_CODEC_VALUES])
+    expect(values(MAX_DURATION_OPTIONS)).toEqual([...MAX_DURATION_VALUES])
+    expect(values(GPS_TIMEOUT_OPTIONS)).toEqual([...GPS_TIMEOUT_VALUES])
+    expect(values(NTP_REGION_OPTIONS)).toEqual([...NTP_REGION_VALUES])
+    expect(values(PROMPT_MODE_OPTIONS)).toEqual([...PROMPT_MODE_VALUES])
+    expect(values(ENCRYPTION_STRENGTH_OPTIONS)).toEqual([...ENCRYPTION_STRENGTH_VALUES])
+    // GPS accuracy shares the capture engine's tuple rather than declaring its own.
+    expect(values(GPS_ACCURACY_OPTIONS)).toEqual([...GPS_ACCURACY_MODES])
   })
 })
 
