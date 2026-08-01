@@ -286,7 +286,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         if (!mounted) return
         const cause = (event as { error?: unknown })?.error
         if (readyRef.current) {
-          console.warn('[demo/map] mapbox reported a transient error after load:', cause)
+          console.warn('[demo/map] mapbox error ignored after load:', cause)
           return
         }
         console.warn('[demo/map] mapbox failed before first load — showing the retry overlay:', cause)

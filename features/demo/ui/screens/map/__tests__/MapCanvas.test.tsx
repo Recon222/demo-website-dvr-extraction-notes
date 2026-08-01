@@ -56,6 +56,28 @@ vi.mock('mapbox-gl', () => ({ default: { Map: MapMock, Marker: MarkerMock, acces
 /** Fire a registered map event the way mapbox would. */
 const emit = (evt: string, payload?: unknown) => (handlers.get(evt) ?? []).forEach((cb) => cb(payload))
 
+/**
+ * The DEFAULT `on`: records every handler and fires `'load'` synchronously, i.e. a map that
+ * boots. Reinstalled in `beforeEach` (review R-8) — `mockClear()` wipes CALLS but keeps any
+ * `mockImplementation` a previous test installed, so a never-loads override used by one error
+ * test silently leaked into every test declared after it, disabling `ready` for all of them.
+ * That leak is what made the transient-error assertion vacuous. `mockReset()` is not a
+ * substitute: it would strip this default too.
+ */
+const defaultOn = (evt: string, cb: (payload?: unknown) => void) => {
+  const list = handlers.get(evt) ?? []
+  list.push(cb)
+  handlers.set(evt, list)
+  if (evt === 'load') cb()
+}
+
+/** A map that never emits `'load'` — a style/token failure. Opt-in, per test. */
+const neverLoads = (evt: string, cb: (payload?: unknown) => void) => {
+  const list = handlers.get(evt) ?? []
+  list.push(cb)
+  handlers.set(evt, list)
+}
+
 beforeEach(() => {
   MapMock.mockClear()
   MarkerMock.mockClear()
@@ -64,9 +86,14 @@ beforeEach(() => {
   sources.clear()
   layers.clear()
   Object.values(mapInstance).forEach((fn) => fn.mockClear?.())
+  mapInstance.on.mockImplementation(defaultOn)
+  mapInstance.getZoom.mockReturnValue(10)
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
 
 const loc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'location', color: '#00BFFF' })
 const inc = (id: string, lng: number, lat: number): MarkerDescriptor => ({ id, lng, lat, kind: 'incident', color: '#e53935' })
@@ -418,12 +445,7 @@ describe('MapCanvas — loading + error states', () => {
 
   it('shows the retry overlay when mapbox fails BEFORE the first load', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    // A style/token failure: the map never emits 'load'.
-    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
-      const list = handlers.get(evt) ?? []
-      list.push(cb)
-      handlers.set(evt, list)
-    })
+    mapInstance.on.mockImplementation(neverLoads)
     render(<MapCanvas markers={[]} />)
     await waitFor(() => expect(handlers.get('error')).toBeTruthy())
     emit('error', { error: new Error('style load failed') })
@@ -435,11 +457,22 @@ describe('MapCanvas — loading + error states', () => {
   it('does NOT cover a working map when a transient tile error arrives after load', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     render(<MapCanvas markers={[]} />)
-    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    // The map really did load — without this the component takes the PRE-load branch and the
+    // negative assertion below passes for the wrong reason (review R-8).
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
     emit('error', { error: new Error('tile 404') })
-    await waitFor(() => expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument())
-    expect(warn).toHaveBeenCalled()
+    // POSITIVE assertion on the branch actually taken — a negative `not.toBeInTheDocument()` is
+    // satisfied by its first synchronous check no matter which way the guard went.
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('[demo/map] mapbox error ignored after load:', expect.anything()),
+    )
+    expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument()
     warn.mockRestore()
+  })
+
+  it('a plain mount still plots — the never-loads override must never leak forward', async () => {
+    render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} />)
+    await waitFor(() => expect(elFor('location')).toHaveLength(1))
   })
 
   it('routes a throwing Map constructor into the overlay with the ENGINE copy', async () => {
@@ -475,15 +508,12 @@ describe('MapCanvas — loading + error states', () => {
 
   it('Retry rebuilds the map and clears the overlay', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    mapInstance.on.mockImplementation((evt: string, cb: (payload?: unknown) => void) => {
-      const list = handlers.get(evt) ?? []
-      list.push(cb)
-      handlers.set(evt, list)
-    })
+    mapInstance.on.mockImplementation(neverLoads)
     render(<MapCanvas markers={[]} />)
     await waitFor(() => expect(handlers.get('error')).toBeTruthy())
     emit('error', { error: new Error('style load failed') })
     await screen.findByTestId('map-error-overlay')
+    mapInstance.on.mockImplementation(defaultOn)
     fireEvent.click(screen.getByTestId('map-retry-button'))
     await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2))
     expect(mapInstance.remove).toHaveBeenCalled()

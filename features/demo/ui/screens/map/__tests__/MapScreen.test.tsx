@@ -60,14 +60,20 @@ beforeEach(() => {
   markerInstances.length = 0
   sources.clear()
   layers.clear()
-  mapInstance.flyTo.mockClear()
-  mapInstance.addSource.mockClear()
-  mapInstance.removeSource.mockClear()
+  // Clear EVERY stub, not the three that happened to be asserted (review R-26c): a call count
+  // surviving into the next test is the same class of leak as R-8's implementation leak.
+  Object.values(mapInstance).forEach((fn) => fn.mockClear?.())
+  mapInstance.on.mockImplementation((evt: string, cb: () => void) => {
+    if (evt === 'load') cb()
+  })
   // Past CLUSTER_MAX_ZOOM so the tiny fixtures plot as individual pins unless a test says otherwise.
   mapInstance.getZoom.mockReturnValue(16)
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
 
 describe('MapScreen — select + fly', () => {
   it('clicking a location row flies to it and opens detail mode', async () => {
