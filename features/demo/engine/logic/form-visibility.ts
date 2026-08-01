@@ -131,12 +131,13 @@ export function prevVisibleChapter(id: ChapterId, v: FormVisibility): ChapterId 
   return before.length > 0 ? before[before.length - 1] : null
 }
 
-/** Whether a step id names a step at all — the pane's guard for a stale override key. */
+/** Whether a step id names a step at all — the loader's guard for a stale override key. No cast
+ *  since R-27: the lookups take `string`, which is what a guard has to be able to hand them. */
 export function isKnownFormStep(id: string): id is FormStepId {
-  return getFormStep(id as FormStepId) !== undefined
+  return getFormStep(id) !== undefined
 }
 
 /** Whether a field id names a field at all — same job, field side. */
 export function isKnownFormField(id: string): id is FormFieldId {
-  return getFormField(id as FormFieldId) !== undefined
+  return getFormField(id) !== undefined
 }

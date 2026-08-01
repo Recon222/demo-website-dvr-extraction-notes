@@ -130,7 +130,7 @@ describe('form-customization field registry', () => {
     // The unknown-id guard, mirroring the two neighbouring guards pinned in
     // form-visibility.test.ts. A cast is the only way to reach it — which is the point: a JS
     // caller or a stale persisted key must get an empty list, never a crash mid-toggle.
-    expect(getFieldGroupMembers('dvr.nope' as FormFieldId)).toEqual([])
+    expect(getFieldGroupMembers('dvr.nope')).toEqual([])
   })
 
   it('resolves every field id', () => {
