@@ -306,11 +306,13 @@ describe('Export Security pane', () => {
     )
     const openZip = screen.getByRole('switch', { name: 'Encrypt ZIP exports (case, location)' })
     expect(openZip).toHaveAttribute('aria-expanded', 'true')
-    const region = screen.getByRole('region', { name: 'Encryption options' })
-    expect(region).toHaveAttribute('id', openZip.getAttribute('aria-controls'))
+    // FD-3: `group`, not `region` — see the pane. Named, so still uniquely addressable among
+    // the sibling `PaneGroup`s.
+    const revealed = screen.getByRole('group', { name: 'Encryption options' })
+    expect(revealed).toHaveAttribute('id', openZip.getAttribute('aria-controls'))
     // Both switches open the same shared block — the phone's architecture — so both name it.
     expect(screen.getByRole('switch', { name: 'Encrypt single-file shares (GeoJSON, Map, reports)' }))
-      .toHaveAttribute('aria-controls', region.getAttribute('id'))
+      .toHaveAttribute('aria-controls', revealed.getAttribute('id'))
   })
 
   it('renders both radio groups with the phone’s testids, and they emit', () => {

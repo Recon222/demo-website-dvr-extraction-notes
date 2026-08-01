@@ -75,8 +75,13 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         and share one password, mode, and strength.
       </PaneDescription>
 
-      {/* R-34: each switch names the region it opens. Either one reveals it — the phone's
-          shared-config architecture — so both carry the same `aria-controls`. */}
+      {/* R-34: each switch names the block it opens. Either one reveals it — the phone's
+          shared-config architecture — so both carry the same `aria-controls`.
+          FD-3: that block is a named `group`, NOT a `region`. `region` is a landmark, and R-10's
+          own commit argued a landmark inside a dialog is noise while this shipped the feature's
+          only one — the whole settings surface lives inside a `role="dialog"`, where a landmark
+          adds a document-level navigation stop AT's landmark list should not have. `group` +
+          `aria-label` gives `aria-controls` a named target with none of that. */}
       <div style={{ marginBottom: 16 }}>
         <Toggle
           label="Encrypt ZIP exports (case, location)"
@@ -97,7 +102,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
       </div>
 
       {anyEncryption && (
-        <div id={configId} role="region" aria-label="Encryption options" data-testid="export-security-shared-config">
+        <div id={configId} role="group" aria-label="Encryption options" data-testid="export-security-shared-config">
           <PaneGroup label="Export Mode" help="Choose how passwords are handled during export.">
             <PaneRadioGroup
               label="Export Mode"
