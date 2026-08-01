@@ -23,7 +23,9 @@ import type {
   ScopeEntry,
   SyncResult,
   TimeOffsetData,
+  UserProfile,
 } from '@/features/demo/engine/types'
+import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { CHAPTERS, type TabView } from '@/features/demo/engine/content/screens'
 import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
@@ -153,6 +155,14 @@ export type AppView = ChapterId | LaunchableId | TabView
 
 export interface DemoState {
   profile: Profile
+  /**
+   * The ANALYST's profile (P7.2) — not to be confused with `profile` above, which is the FORM
+   * profile. Held in the store rather than in bridge state (where the cosmetic Settings values
+   * live, deferred §80c) for two reasons: it is real data the visitor typed, and it has a
+   * downstream consumer — Completion's `completedBy` autofill, which carries the name into the
+   * Case Notes PDF header. That makes it snapshot state (v7), so it survives a refresh.
+   */
+  userProfile: UserProfile
   cases: DemoCase[]
   locations: DemoLocation[]
   currentCaseId: string | null
@@ -309,6 +319,20 @@ export interface DemoActions {
   addMedia(item: MediaItem): void
   /** Identified by the item itself, for the same reason. */
   deleteMedia(item: Pick<MediaItem, 'kind' | 'id'>): void
+  /**
+   * Shallow-merge a patch into the analyst profile — the phone's `updateProfile`
+   * (`user-profile-store.ts:38-39`), same semantics: absent keys are left alone.
+   *
+   * The Save button is the ONLY caller. The editor keeps a local draft and commits the whole
+   * (trimmed) record in one call, so closing without saving leaves nothing behind, exactly as on
+   * the phone. A `Partial` rather than a whole `UserProfile` because that is the phone's shape
+   * and because the will-say feature will want to write single fields.
+   *
+   * Deliberately NOT reachable through `updateField`: that path is location-scoped
+   * (`form.*` on the open location) and silently no-ops with no location open — which is the
+   * normal state of the Settings sheet.
+   */
+  updateUserProfile(patch: Partial<UserProfile>): void
 }
 
 /** Footer "Write my own notes…" modes: seed the free text from the current assembled
@@ -329,6 +353,7 @@ export type DemoStore = StoreApi<DemoState & DemoActions>
 export type PersistedState = Pick<
   DemoState,
   | 'profile'
+  | 'userProfile'
   | 'cases'
   | 'locations'
   | 'currentCaseId'
@@ -347,6 +372,7 @@ export function blankCapture(): CaptureState {
 export function initialState(): DemoState {
   return {
     profile: 'forensic',
+    userProfile: { ...DEFAULT_USER_PROFILE },
     cases: [],
     locations: [],
     currentCaseId: null,
@@ -430,8 +456,17 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
     ...initialState(),
     ...initial,
 
-    /** Start over: back to the empty boot. */
-    reset: () => set(initialState()),
+    /**
+     * Start over: back to the empty boot — with ONE thing carried across, the analyst profile.
+     *
+     * The phone cannot reset it at all: identity lives in its own AsyncStorage store precisely
+     * because it is app-level config rather than case data (`user-profile/README.md` — "kept
+     * separate from the SQLite-backed case data"), and there is no `resetProfile()` on the store
+     * despite the docs claiming one. "Start over" here means the visitor's CASES go; who they are
+     * is not something a fresh sandbox needs them to type again. The tab still forgets it — the
+     * snapshot is per-tab and dies with it.
+     */
+    reset: () => set({ ...initialState(), userProfile: get().userProfile }),
 
     createCase: (input) => {
       // The write boundary refuses a number that is already in use — the demo's stand-in for
@@ -1110,5 +1145,8 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         ),
       }))
     },
+
+    updateUserProfile: (patch) =>
+      set((s) => ({ userProfile: { ...s.userProfile, ...patch } })),
   }))
 }

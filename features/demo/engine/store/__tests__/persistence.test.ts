@@ -207,12 +207,25 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
       durationSec: 12,
       sample: true,
     })
+    // v7 [P7.2 fixture addition]: the analyst profile, every field non-empty. It is a
+    // top-level persisted member, so a schema or `snapshotOf` that forgot it fails the
+    // whole-state diff below.
+    store.getState().updateUserProfile({
+      name: 'K. Vasilyev',
+      badgeNumber: '4471',
+      timeInFieldStart: '2016-03-01 00:00:00',
+      timeAtAgencyStart: '2019-11-04 00:00:00',
+      currentAgency: 'Peel Regional Police',
+      unitName: 'Forensic Video Unit',
+      qualifications: 'Adobe certified; FVA member',
+    })
     store.getState().completeCase(caseId)
     saveNow(store, storage)
 
     const rehydrated = createDemoStore(loadSnapshot(storage) ?? undefined)
     // The strongest pin: the FULL persisted subset must survive — any dropped key fails here.
     expect(snapshotOf(rehydrated.getState())).toEqual(snapshotOf(store.getState()))
+    expect(rehydrated.getState().userProfile.qualifications).toBe('Adobe certified; FVA member')
     // Spot-check the deepest optionals (clearer failure messages than the whole-state diff).
     const loc = rehydrated.getState().locations[0]
     expect(loc.form.timeOffset?.ocr?.imageDataUrl).toBe('data:image/png;base64,AA==')

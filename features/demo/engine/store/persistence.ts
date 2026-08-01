@@ -24,6 +24,7 @@ import type {
   ScopeEntry,
   SyncResult,
   TimeOffsetData,
+  UserProfile,
 } from '@/features/demo/engine/types'
 import {
   CAPTURE_METHODS,
@@ -76,9 +77,14 @@ export const PERSISTENCE_ENABLED = true
  *      strips `blob:` URLs and a restored capture renders the honest expired notice). This
  *      is a field WIDENING, the one drift direction the compile-time devices explicitly do
  *      NOT catch (see R-30 below): a v5 build's schema would reject the url-less item this
- *      build writes and wipe the tab at boot. The bump makes the discard version-attributable. */
-export const SNAPSHOT_VERSION = 6
-export const SNAPSHOT_KEY = 'dvr-demo-state-v6'
+ *      build writes and wipe the tab at boot. The bump makes the discard version-attributable.
+ *  v7: `userProfile` — the analyst profile (P7.2, matrix rows 85/86). A new REQUIRED member of
+ *      `PersistedState`, so a v6 snapshot (which has no such key) fails the shape guard outright;
+ *      the bump is what makes that discard version-attributable instead of a mystery "corrupt
+ *      snapshot" at boot. The Settings VALUES are still deliberately absent (deferred §80c) —
+ *      those are cosmetic, a profile is data the visitor typed and the Completion screen reads. */
+export const SNAPSHOT_VERSION = 7
+export const SNAPSHOT_KEY = 'dvr-demo-state-v7'
 
 /** Serialize debounce: rapid store changes (typing) collapse into one write. */
 export const SAVE_DEBOUNCE_MS = 250
@@ -312,6 +318,20 @@ const demoLocationSchema: z.ZodType<DemoLocation> = z.object({
   form: locationFormSchema,
 } satisfies FullShape<DemoLocation>)
 
+/** v7 (P7.2). Seven plain strings — `FullShape` is what keeps them all here: a will-say field
+ *  added to `UserProfile` and forgotten in this literal is a compile error, not a value silently
+ *  stripped on the next rehydrate. `agencyLogoUri` is absent from the domain type by decision
+ *  (matrix row 86), so it is absent here too — the two cannot drift apart. */
+const userProfileSchema: z.ZodType<UserProfile> = z.object({
+  name: z.string(),
+  badgeNumber: z.string(),
+  timeInFieldStart: z.string(),
+  timeAtAgencyStart: z.string(),
+  currentAgency: z.string(),
+  unitName: z.string(),
+  qualifications: z.string(),
+} satisfies FullShape<UserProfile>)
+
 const captureSchema: z.ZodType<CaptureState> = z.object({
   dvrDateTime: z.string(),
   actualDateTime: z.string(),
@@ -360,6 +380,7 @@ const isVisitId = (v: string): v is AppView | ModalId =>
 // silently; the output annotation catches exactly that (probe-verified TS2322).
 const persistedStateSchema: z.ZodType<PersistedState, z.ZodTypeDef, unknown> = z.object({
   profile: z.enum(PROFILES),
+  userProfile: userProfileSchema,
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
   currentCaseId: z.string().nullable(),
@@ -386,6 +407,7 @@ const envelopeSchema = z.object({ version: z.number(), state: z.unknown() })
 export function snapshotOf(s: DemoState): PersistedState {
   return {
     profile: s.profile,
+    userProfile: s.userProfile,
     cases: s.cases,
     locations: withoutEphemeralMedia(s.locations),
     currentCaseId: s.currentCaseId,
@@ -494,6 +516,7 @@ export function loadSnapshot(
 
   return {
     profile: d.profile,
+    userProfile: d.userProfile,
     cases: d.cases,
     locations: d.locations,
     currentCaseId,
