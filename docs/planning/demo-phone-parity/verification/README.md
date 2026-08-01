@@ -222,6 +222,28 @@ cd /Users/fvadev/Developer/extraction-notes/demo-website-dvr-extraction-notes
 pnpm install && pnpm dev --port 3001
 ```
 
+### Boot gate (P8) — `motion` matters more than anything else here
+
+`lib.js` `open()` defaults to `reducedMotion: 'reduce'`, which makes the boot gate
+**instant-complete**. Every pre-P8 driver ran straight through the gate without ever seeing it.
+To observe the beats at all:
+
+```js
+const { browser, page } = await open({ motion: 'no-preference', gotoDemo: false });
+```
+
+`gotoDemo: false` skips the built-in navigation so you can drive `/demo` yourself and catch the
+gate at rest. The default path now clicks the scan button before waiting for the app shell, so
+existing drivers keep working with motion either way.
+
+Two measurement gotchas:
+
+* **Sample reduced motion AFTER the tap.** Before the tap the gate legitimately sits at
+  `TAP TO SCAN` in both modes; only the post-tap beats collapse.
+* The gate lives at `[data-testid="demo-boot"]`; its honesty line is `[data-testid="boot-disclosure"]`;
+  the scan control is `aria-label="Run the simulated biometric scan"` and the escape hatch is
+  `aria-label="Skip the opening sequence"` (Escape does the same).
+
 ### Settings navigation — two traps that cost 30 s each
 
 * **The gear is on the Dashboard/Cases HEADERS only.** There is no gear inside the wizard, so a
@@ -338,6 +360,7 @@ HEADED=1 ...                      # watch it run
 | `12-p7-profile-flow.js` | P7: all 7 profile fields incl. real career dates → duration lines, Completion autofill |
 | `13-p7-pdf-and-toggles.js` | P7: Case Notes PDF Completion Information (fills a scope first to pass the gate) |
 | `14-p7-toggles-live.js` | P7: field toggles changing the wizard live, Canvas profile removing a screen from the drawer |
+| `15-p8-boot.js` | P8: the boot gate — cold-boot beats, disclosure legibility, returning-visitor reload, SKIP/Escape, reduced motion, null video slot |
 | `lib.js` / `flows.js` | shared open/shot/step helpers and case/location/wizard sub-flows |
 | `probe.js` | scratch introspection — dumps the phone frame's text and every button name |
 
@@ -468,7 +491,8 @@ $SP/baselines/
     ├── p7/                            16   settings shell + stub panes + profile + chips
     ├── p7b/ p7c/ p7d/                 13   profile end-to-end, Completion autofill, Case
     │                                       Notes PDF Completion Information
-    └── p7e/                            6   live field toggles, Canvas drawer reduction
+    ├── p7e/                            6   live field toggles, Canvas drawer reduction
+    └── p8/                            10   boot gate beats, reload, SKIP/Escape, reduced motion
 ```
 
 Phone P7 set (`baselines/phone/p7/`, 7): settings shell + scrolled list, About pane, User

@@ -38,7 +38,10 @@ const FAKE_MEDIA_ARGS = [
     : []),
 ];
 
-async function open({ headless = true, slowMo = 0, camera = 'fake' } = {}) {
+// NOTE for boot/animation work: the default is `reduce`, which makes ScreenStage cross-slides
+// instant AND makes the P8 boot gate instant-complete. Pass `motion: 'no-preference'` to see
+// the real scan sweep and the phase beats.
+async function open({ headless = true, slowMo = 0, camera = 'fake', motion = 'reduce', gotoDemo = true } = {}) {
   const browser = await chromium.launch({
     headless,
     slowMo,
@@ -47,7 +50,7 @@ async function open({ headless = true, slowMo = 0, camera = 'fake' } = {}) {
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: 2,
-    reducedMotion: 'reduce', // makes ScreenStage cross-slides instant
+    reducedMotion: motion, // 'reduce' makes cross-slides AND the boot gate instant
     permissions: camera === 'fake'
       ? ['camera', 'microphone', 'geolocation']
       : ['geolocation'],
@@ -88,9 +91,16 @@ async function open({ headless = true, slowMo = 0, camera = 'fake' } = {}) {
     if (m.type() === 'error') console.log('  [browser error]', m.text());
   });
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+  if (!gotoDemo) return { browser, context, page };
   await page.goto(`${BASE}/demo`, { waitUntil: 'domcontentloaded' });
   // The demo is next/dynamic({ ssr:false }) — wait for hydration.
   await page.locator('[data-phone="frame"]').waitFor({ timeout: 30000 });
+  // P8 put a boot gate in front of the app. Under reduced motion it instant-completes; with
+  // motion on, the gate waits for a tap, so drive it before waiting for the app shell.
+  const scan = page.getByRole('button', { name: 'Run the simulated biometric scan' });
+  if (await scan.count().catch(() => 0)) {
+    await scan.click().catch(() => {});
+  }
   await page.getByText('Cases', { exact: true }).first().waitFor({ timeout: 30000 });
   await page.waitForTimeout(400);
   return { browser, context, page };
