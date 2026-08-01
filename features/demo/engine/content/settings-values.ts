@@ -293,7 +293,17 @@ export function settingsPreview(id: SettingsCategoryId, ctx: SettingsPreviewCont
       // is both verbatim AND true here — nothing to adapt.
       return 'Unavailable'
     case 'export-security':
-      return s.zipEncryptionEnabled || s.singleFileEncryptionEnabled ? 'On' : 'Off'
+      // R-19. The phone's `useExportPreview` answers On/Off from the two flags, and "On" there
+      // means the next export is encrypted. Here it would have meant nothing: the demo encrypts
+      // nothing, the ZIP pipelines end in the D4 honesty notice, and the two exports that ARE
+      // real — the case-map HTML and the printed PDFs — go out unprotected. A master row reading
+      // "On" over that is the exact impression the sibling Cloud Sync pane refuses by holding
+      // its toggle inert.
+      //
+      // The switches stay LIVE (D6's cosmetic arm — the pane is a faithful replica and its
+      // reveal logic is real); it is only the row's CLAIM that is withdrawn. "Not applied" is
+      // true in every state, which is the same test `security`'s `Unavailable` passes.
+      return 'Not applied'
     case 'cloud-sync':
       return s.cloudSyncEnabled ? 'On' : 'Off'
     case 'about':

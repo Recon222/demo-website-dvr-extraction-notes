@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { MODAL_NARRATION } from '@/features/demo/engine/content/narration'
@@ -150,13 +150,30 @@ describe('settings state lives in the bridge (deferred §80c)', () => {
   it('updates the master row preview as the value changes', () => {
     const store = createDemoStore()
     openFromCases(store)
-    expect(screen.getByTestId('settings-preview-export-security')).toHaveTextContent('Off')
+    expect(screen.getByTestId('settings-preview-media-capture')).toHaveTextContent('1080p')
+
+    fireEvent.click(screen.getByTestId('settings-row-media-capture'))
+    const group = screen.getByRole('group', { name: 'Video Quality' })
+    fireEvent.click(within(group).getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /4K UHD/ }))
+    fireEvent.click(screen.getByTestId('settings-back-button'))
+
+    // The row abbreviates 2160p to 4K, exactly as the phone's own second string table does.
+    expect(screen.getByTestId('settings-preview-media-capture')).toHaveTextContent('4K')
+  })
+
+  it('R-19: the Export Security row keeps its claim withdrawn whatever the switches say', () => {
+    const store = createDemoStore()
+    openFromCases(store)
+    expect(screen.getByTestId('settings-preview-export-security')).toHaveTextContent('Not applied')
 
     fireEvent.click(screen.getByTestId('settings-row-export-security'))
     fireEvent.click(screen.getByRole('switch', { name: 'Encrypt ZIP exports (case, location)' }))
     fireEvent.click(screen.getByTestId('settings-back-button'))
 
-    expect(screen.getByTestId('settings-preview-export-security')).toHaveTextContent('On')
+    // The switch moved (D6's cosmetic arm, and the pane's reveal is real); the ROW still refuses
+    // to claim the export is protected, because it is not.
+    expect(screen.getByTestId('settings-preview-export-security')).toHaveTextContent('Not applied')
   })
 
   it('never writes settings into the store (the whole record is bridge-local)', () => {

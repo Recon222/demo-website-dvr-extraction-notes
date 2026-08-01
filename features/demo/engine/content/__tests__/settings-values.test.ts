@@ -198,7 +198,7 @@ describe('settingsPreview', () => {
     expect(settingsPreview('media-capture', ctx())).toBe('1080p')
     expect(settingsPreview('location', ctx())).toBe('Balanced')
     expect(settingsPreview('time-sync', ctx())).toBe('Canada (NRC)')
-    expect(settingsPreview('export-security', ctx())).toBe('Off')
+    expect(settingsPreview('export-security', ctx())).toBe('Not applied')
     expect(settingsPreview('cloud-sync', ctx())).toBe('Off')
     expect(settingsPreview('about', ctx())).toBe(`v${APP_VERSION}`)
   })
@@ -213,9 +213,12 @@ describe('settingsPreview', () => {
     expect(settingsPreview('time-sync', withSettings({ ntpRegion: 'usa' }))).toBe('USA (NIST)')
   })
 
-  it('reads Export Security as On when EITHER encryption switch is on (phone PR-67 L2)', () => {
-    expect(settingsPreview('export-security', withSettings({ zipEncryptionEnabled: true }))).toBe('On')
-    expect(settingsPreview('export-security', withSettings({ singleFileEncryptionEnabled: true }))).toBe('On')
+  it('R-19: Export Security never claims protection — the demo applies none in any state', () => {
+    // The phone's On/Off means "the next export is encrypted". Nothing here is, including the
+    // two exports that are real, so the row states the demo's fact rather than the switch's.
+    for (const patch of [{}, { zipEncryptionEnabled: true }, { singleFileEncryptionEnabled: true }, { zipEncryptionEnabled: true, singleFileEncryptionEnabled: true }]) {
+      expect(settingsPreview('export-security', withSettings(patch))).toBe('Not applied')
+    }
   })
 
   it('title-cases the accuracy mode rather than reusing its picker label', () => {
