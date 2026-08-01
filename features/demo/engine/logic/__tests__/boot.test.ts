@@ -98,7 +98,7 @@ describe('boot phase machine', () => {
     })
 
     it('lifts the phone’s three splash constants verbatim', () => {
-      // scanner-hud-constants.ts:97 · AuthenticatedSplashScreen.tsx:33,36
+      // scanner-hud-constants.ts:91 · AuthenticatedSplashScreen.tsx:33,36
       expect(AUTHORIZED_MS).toBe(800)
       expect(HOLD_MS).toBe(500)
       expect(FADE_MS).toBe(300)

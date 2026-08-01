@@ -6065,6 +6065,10 @@ link. At that point a security switch has something true to control and the ques
 - **Reduced motion skips the intro video entirely.** Not "plays it without the fade" — skips it.
   A visitor who has asked for less motion has not asked for a shorter animation, and the house
   idiom is instant-complete (`ScreenStage.tsx:39-49`, `ExportModal.tsx:158`'s R-18 note).
+- **A rail checklist jump lifts the gate.** The rail is a demo-only surface outside the phone, so
+  it stays clickable while boot is up. Left alone, a jump would move the phone behind the curtain
+  and read as a dead control; it now ends the boot as well as setting the view, so naming a
+  destination takes you there.
 
 ### 87d. AVAILABLE — the intro video ships as a slot, not as a file
 

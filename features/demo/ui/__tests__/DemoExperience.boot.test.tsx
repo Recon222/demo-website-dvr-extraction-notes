@@ -85,6 +85,18 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
     expect(railTitle(NARRATION.splash.title)).toBeNull()
   })
 
+  it('a rail jump lifts the gate too — the checklist is outside the phone and stays clickable', () => {
+    const store = createDemoStore()
+    render(<DemoExperience store={store} boot />)
+    expect(screen.getByTestId('demo-boot')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Dashboard, / }))
+
+    expect(screen.queryByTestId('demo-boot')).toBeNull()
+    expect(store.getState().view).toBe('dashboard')
+    expect(railTitle(NARRATION.dashboard.title)).toBeInTheDocument()
+  })
+
   it('SKIP gets the visitor straight in', () => {
     render(<DemoExperience boot />)
     fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))

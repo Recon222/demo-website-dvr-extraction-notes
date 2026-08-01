@@ -52,7 +52,7 @@ export type BootHudState = 'idle' | 'scanning' | 'authorized'
  */
 export const SCAN_MS = 400
 
-/** Phone `AUTHORIZED_DISPLAY_MS` (`src/components/layout/scanner-hud-constants.ts:97`). */
+/** Phone `AUTHORIZED_DISPLAY_MS` (`src/components/layout/scanner-hud-constants.ts:91`). */
 export const AUTHORIZED_MS = 800
 
 /** Phone `HOLD_DURATION_MS` — the beat after the video ends

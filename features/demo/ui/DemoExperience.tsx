@@ -3072,7 +3072,19 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
           </DemoErrorBoundary>
         </PhoneFrame>
       </div>
-      <StoryRail narration={narration} explore={explore} onJump={(v) => store.getState().setView(v)} onBackToSite={onBackToSite} />
+      {/* The rail sits OUTSIDE the phone, so its checklist stays clickable while the boot gate is
+          up. A jump there is the visitor naming a destination, so it lifts the gate as well as
+          setting the view — otherwise the click would move the phone behind a curtain and read as
+          a dead control. */}
+      <StoryRail
+        narration={narration}
+        explore={explore}
+        onJump={(v) => {
+          endBoot()
+          store.getState().setView(v)
+        }}
+        onBackToSite={onBackToSite}
+      />
       <ExitDialog open={exitOpen} unseen={unseen} leaveHref="/" onStay={() => setExitOpen(false)} />
     </div>
   )
