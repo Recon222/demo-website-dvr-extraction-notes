@@ -1,5 +1,21 @@
 import type { TabOnlyView } from '@/features/demo/engine/content/screens'
 import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
+import { SWITCHABLE_FORM_FIELDS } from '@/features/demo/engine/content/form-customization'
+
+/**
+ * Copy that quotes a count READS the count (R-5). The Settings paragraph shipped "Eleven
+ * categories … 57 form fields" over a surface rendering ten and fifty — permanent, visitor-facing
+ * copy disproved by the pixels beside it, and the drift class D6's honesty ruling exists to
+ * prevent. Both numbers now come from the registries the pane itself renders, so a category or a
+ * field cannot be added or removed without the sentence following. Spelled in words because the
+ * surrounding prose is prose; the map covers the plausible range and falls back to digits.
+ */
+const NUMBER_WORDS: Record<number, string> = {
+  8: 'Eight', 9: 'Nine', 10: 'Ten', 11: 'Eleven', 12: 'Twelve', 13: 'Thirteen', 14: 'Fourteen',
+}
+const settingsCategoryCount = NUMBER_WORDS[SETTINGS_CATEGORY_IDS.length] ?? String(SETTINGS_CATEGORY_IDS.length)
+const switchableFieldCount = SWITCHABLE_FORM_FIELDS.length
 
 /**
  * The story-rail copy, keyed by chapter. Lifted verbatim from the prototype (Kris's
@@ -290,7 +306,7 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     eyebrow: 'Settings',
     title: 'What the app lets you change',
     paras: [
-      'Eleven categories behind the gear: who you are, how the camera captures, which atomic clock you trace to, how exports are protected, and which of the 57 form fields you actually want to fill in. The whole surface is here so you can see how much of the app is configurable rather than assumed.',
+      `${settingsCategoryCount} categories behind the gear: who you are, how the camera captures, which atomic clock you trace to, how exports are protected, and which of the ${switchableFieldCount} form fields you actually want to fill in. The whole surface is here so you can see how much of the app is configurable rather than assumed.`,
       'Most of it is a replica. A browser tab has no camera codec to pick, no biometric sensor and no keychain, so those panes render honestly and say what each control would do on the phone — every one of them explains itself rather than pretending to work.',
     ],
     bullets: [

@@ -30,7 +30,6 @@
  *   Cloud Sync      `DEFAULT_CLOUD_SYNC_SETTINGS` (cloud-sync/types.ts:20-22)
  */
 
-import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { APP_VERSION } from '@/features/demo/engine/content/app-info'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
@@ -108,8 +107,13 @@ export interface DemoSettings {
  * `import/ImportTerminalProgress.tsx:28`), so `true` is the state of the thing the switch
  * describes. The Appearance pane refuses to let it be changed rather than moving a switch over
  * a theme that cannot follow — see `AppearancePane`.
+ *
+ * Annotated `Readonly<…>` (R-25): the mutable annotation was discarding exactly the guarantee
+ * `Object.freeze` is here to provide — assigning through it type-checked and then threw at
+ * runtime, which is the worst of both. The frozen-ness is pinned by test as well; this makes it
+ * a compile error first.
  */
-export const DEFAULT_SETTINGS: DemoSettings = Object.freeze({
+export const DEFAULT_SETTINGS: Readonly<DemoSettings> = Object.freeze({
   darkMode: true,
   showImportProcessDetails: true,
   photoQuality: 0.9,
@@ -135,48 +139,67 @@ export const DEFAULT_SETTINGS: DemoSettings = Object.freeze({
 
 // ---- Option lists (verbatim labels + values) -------------------------------
 
+/**
+ * A picker option whose `value` is the DOMAIN value, not a bare string (R-11).
+ *
+ * The seven `as const` tuples above were exported and consumed by nothing, while eight
+ * `onChange` handlers narrowed `string` back into those same unions with unchecked `as`. That is
+ * the reverse of this repo's own policy (`persistence.ts:136-140`): the device that closes the
+ * hole is written, and the hole is open beside it. Typing the lists is what puts the tuples to
+ * work — a typo'd option value is now a compile error here, and `PaneSelect` narrows by LOOKING
+ * THE VALUE UP in the list rather than asserting it, so no assertion survives at all.
+ *
+ * `number` is admitted because two settings are numeric unions (`maxVideoDuration`, `gpsTimeout`)
+ * whose picker values were previously stringified at the list and re-parsed at the handler —
+ * two conversions and a cast for a value the list already knew.
+ */
+export interface TypedOption<T extends string | number> {
+  readonly label: string
+  readonly value: T
+}
+
 /** `VIDEO_QUALITY_LABELS` (media-capture.types.ts:50-54). */
-export const VIDEO_QUALITY_OPTIONS: readonly PickerOption[] = [
+export const VIDEO_QUALITY_OPTIONS: readonly TypedOption<VideoQualityOption>[] = [
   { label: 'HD (720p)', value: '720p' },
   { label: 'Full HD (1080p)', value: '1080p' },
   { label: '4K UHD (2160p)', value: '2160p' },
 ]
 
 /** `VIDEO_CODEC_LABELS` (media-capture.types.ts:70-74). */
-export const VIDEO_CODEC_OPTIONS: readonly PickerOption[] = [
+export const VIDEO_CODEC_OPTIONS: readonly TypedOption<VideoCodecOption>[] = [
   { label: 'Auto (Device Default)', value: 'auto' },
   { label: 'H.264 (AVC) - Maximum Compatibility', value: 'avc1' },
   { label: 'H.265 (HEVC) - Better Compression', value: 'hvc1' },
 ]
 
 /** `MAX_DURATION_LABELS` (media-capture.types.ts:86-94), in the phone's picker order. */
-export const MAX_DURATION_OPTIONS: readonly PickerOption[] = [
-  { label: '1 minute', value: '60' },
-  { label: '2 minutes', value: '120' },
-  { label: '5 minutes', value: '300' },
-  { label: '10 minutes', value: '600' },
-  { label: '15 minutes', value: '900' },
-  { label: '30 minutes', value: '1800' },
-  { label: 'Unlimited', value: '0' },
+export const MAX_DURATION_OPTIONS: readonly TypedOption<MaxVideoDurationOption>[] = [
+  { label: '1 minute', value: 60 },
+  { label: '2 minutes', value: 120 },
+  { label: '5 minutes', value: 300 },
+  { label: '10 minutes', value: 600 },
+  { label: '15 minutes', value: 900 },
+  { label: '30 minutes', value: 1800 },
+  { label: 'Unlimited', value: 0 },
 ]
 
 /** `GPS_ACCURACY_OPTIONS` (LocationSettingsSection.tsx:23-27). */
-export const GPS_ACCURACY_OPTIONS: readonly PickerOption[] = [
+export const GPS_ACCURACY_OPTIONS: readonly TypedOption<GpsAccuracyMode>[] = [
   { label: 'Quick (Any Accuracy)', value: 'quick' },
   { label: 'Balanced (50m)', value: 'balanced' },
   { label: 'Precise (10m)', value: 'precise' },
 ]
 
 /** `GPS_TIMEOUT_OPTIONS` (LocationSettingsSection.tsx:30-35). */
-export const GPS_TIMEOUT_OPTIONS: readonly PickerOption[] = [
-  { label: '15 seconds', value: '15' },
-  { label: '30 seconds', value: '30' },
-  { label: '60 seconds', value: '60' },
-  { label: '120 seconds', value: '120' },
+export const GPS_TIMEOUT_OPTIONS: readonly TypedOption<GpsTimeoutOption>[] = [
+  { label: '15 seconds', value: 15 },
+  { label: '30 seconds', value: 30 },
+  { label: '60 seconds', value: 60 },
+  { label: '120 seconds', value: 120 },
 ]
 
 /** `NTP_REGION_OPTIONS` (time-sync/types.ts:44-49). */
-export const NTP_REGION_OPTIONS: readonly PickerOption[] = [
+export const NTP_REGION_OPTIONS: readonly TypedOption<NtpRegion>[] = [
   { label: 'Canada (NRC)', value: 'canada' },
   { label: 'USA (NIST)', value: 'usa' },
   { label: 'Europe (PTB/METAS)', value: 'europe' },
@@ -184,13 +207,13 @@ export const NTP_REGION_OPTIONS: readonly PickerOption[] = [
 ]
 
 /** `Export Mode` radio group (ExportSecuritySection.tsx:237,282). */
-export const PROMPT_MODE_OPTIONS: readonly PickerOption[] = [
+export const PROMPT_MODE_OPTIONS: readonly TypedOption<ZipPromptMode>[] = [
   { label: 'Auto-use saved password', value: 'auto' },
   { label: 'Prompt before every export', value: 'always_prompt' },
 ]
 
 /** `STRENGTH_OPTIONS` (ExportSecuritySection.tsx:46-62), display order preserved. */
-export const ENCRYPTION_STRENGTH_OPTIONS: readonly PickerOption[] = [
+export const ENCRYPTION_STRENGTH_OPTIONS: readonly TypedOption<ZipEncryptionStrength>[] = [
   { label: 'AES-256 — Recommended (strong)', value: 'AES-256' },
   { label: 'AES-128 — iOS yields AES-256', value: 'AES-128' },
   { label: 'Standard — weak (ZipCrypto), legacy only', value: 'STANDARD' },
@@ -278,7 +301,17 @@ export function settingsPreview(id: SettingsCategoryId, ctx: SettingsPreviewCont
       // is both verbatim AND true here — nothing to adapt.
       return 'Unavailable'
     case 'export-security':
-      return s.zipEncryptionEnabled || s.singleFileEncryptionEnabled ? 'On' : 'Off'
+      // R-19. The phone's `useExportPreview` answers On/Off from the two flags, and "On" there
+      // means the next export is encrypted. Here it would have meant nothing: the demo encrypts
+      // nothing, the ZIP pipelines end in the D4 honesty notice, and the two exports that ARE
+      // real — the case-map HTML and the printed PDFs — go out unprotected. A master row reading
+      // "On" over that is the exact impression the sibling Cloud Sync pane refuses by holding
+      // its toggle inert.
+      //
+      // The switches stay LIVE (D6's cosmetic arm — the pane is a faithful replica and its
+      // reveal logic is real); it is only the row's CLAIM that is withdrawn. "Not applied" is
+      // true in every state, which is the same test `security`'s `Unavailable` passes.
+      return 'Not applied'
     case 'cloud-sync':
       return s.cloudSyncEnabled ? 'On' : 'Off'
     case 'about':

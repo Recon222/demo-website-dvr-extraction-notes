@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
@@ -17,13 +18,20 @@ import {
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/panes/pane-props'
 
-/** Phone testids (`ExportSecuritySection.tsx:49,55,60` and `:204,245`). */
-const STRENGTH_TESTIDS: Record<string, string> = {
+/**
+ * Phone testids (`ExportSecuritySection.tsx:49,55,60` and `:204,245`).
+ *
+ * Keyed by the closed union, not `string` (R-11): a `Record<string, string>` lookup returns
+ * `string` for anything, so a renamed or added strength would have handed `undefined` to a
+ * `testID` prop and silently dropped the hook a side-by-side parity pass addresses the row by.
+ * Total records make that a compile error at the table instead.
+ */
+const STRENGTH_TESTIDS: Record<ZipEncryptionStrength, string> = {
   'AES-256': 'export-security-strength-aes256',
   'AES-128': 'export-security-strength-aes128',
   STANDARD: 'export-security-strength-standard',
 }
-const PROMPT_TESTIDS: Record<string, string> = {
+const PROMPT_TESTIDS: Record<ZipPromptMode, string> = {
   auto: 'export-security-prompt-auto',
   always_prompt: 'export-security-prompt-always',
 }
@@ -46,6 +54,10 @@ const PROMPT_TESTIDS: Record<string, string> = {
  */
 export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
   const anyEncryption = settings.zipEncryptionEnabled || settings.singleFileEncryptionEnabled
+  // R-6 — the inert Set-password button's reason, which is the note already beneath it.
+  const passwordReasonId = `${useId()}-password-reason`
+  // R-34 — the region both switches reveal, so each can point at what it opens.
+  const configId = `${useId()}-encryption-options`
 
   return (
     <div data-testid="settings-pane-export-security">
@@ -63,10 +75,14 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         and share one password, mode, and strength.
       </PaneDescription>
 
+      {/* R-34: each switch names the region it opens. Either one reveals it — the phone's
+          shared-config architecture — so both carry the same `aria-controls`. */}
       <div style={{ marginBottom: 16 }}>
         <Toggle
           label="Encrypt ZIP exports (case, location)"
           on={settings.zipEncryptionEnabled}
+          controls={configId}
+          expanded={anyEncryption}
           onClick={() => onChange({ zipEncryptionEnabled: !settings.zipEncryptionEnabled })}
         />
       </div>
@@ -74,18 +90,20 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
         <Toggle
           label="Encrypt single-file shares (GeoJSON, Map, reports)"
           on={settings.singleFileEncryptionEnabled}
+          controls={configId}
+          expanded={anyEncryption}
           onClick={() => onChange({ singleFileEncryptionEnabled: !settings.singleFileEncryptionEnabled })}
         />
       </div>
 
       {anyEncryption && (
-        <div data-testid="export-security-shared-config">
+        <div id={configId} role="region" aria-label="Encryption options" data-testid="export-security-shared-config">
           <PaneGroup label="Export Mode" help="Choose how passwords are handled during export.">
             <PaneRadioGroup
               label="Export Mode"
               options={PROMPT_MODE_OPTIONS}
               value={settings.promptMode}
-              onChange={(v) => onChange({ promptMode: v as ZipPromptMode })}
+              onChange={(promptMode) => onChange({ promptMode })}
               testIdOf={(v) => PROMPT_TESTIDS[v]}
             />
           </PaneGroup>
@@ -98,7 +116,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
               label="Encryption Strength"
               options={ENCRYPTION_STRENGTH_OPTIONS}
               value={settings.encryptionStrength}
-              onChange={(v) => onChange({ encryptionStrength: v as ZipEncryptionStrength })}
+              onChange={(encryptionStrength) => onChange({ encryptionStrength })}
               testIdOf={(v) => STRENGTH_TESTIDS[v]}
             />
           </PaneGroup>
@@ -112,6 +130,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
               // Inert, and focusable on purpose (the house `aria-disabled`-over-`disabled`
               // rule): a keyboard visitor reaches it and hears the reason from the note below.
               aria-disabled="true"
+              aria-describedby={passwordReasonId}
               data-testid="export-security-set-password"
               onClick={() => {
                 /* inert — the demo stores no password; see the note below */
@@ -134,7 +153,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
             >
               Set Default Password
             </button>
-            <PaneNote tone="info">
+            <PaneNote tone="info" id={passwordReasonId}>
               The demo has nowhere to keep a password and nothing to unlock with it, so it never
               asks for one. On the phone this writes to the device keychain — never to the
               database, and never into an export.

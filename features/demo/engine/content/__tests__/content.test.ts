@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { CHAPTERS, TAB_VIEWS, isTabOnlyView } from '@/features/demo/engine/content/screens'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
 import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
+import { SWITCHABLE_FORM_FIELDS } from '@/features/demo/engine/content/form-customization'
 import {
   DEFAULT_PROFILE,
   PROFILE_BLURBS,
@@ -38,6 +40,21 @@ describe('narration', () => {
       expect(n!.title.length).toBeGreaterThan(0)
       expect(n!.paras.length).toBeGreaterThan(0)
     }
+  })
+
+  it('quotes the Settings registries rather than hand-typed counts (R-5)', () => {
+    // The paragraph shipped "Eleven categories … 57 form fields" over a surface rendering ten
+    // and fifty. Both numbers are now read from the registries the pane itself renders, so this
+    // pin fails the moment a category or a switchable field is added or removed WITHOUT the
+    // copy following — which is the whole failure mode, since prose has no other gate.
+    const para = MODAL_NARRATION.settings!.paras[0]
+    expect(SETTINGS_CATEGORY_IDS).toHaveLength(10)
+    expect(SWITCHABLE_FORM_FIELDS).toHaveLength(50)
+    expect(para).toContain('Ten categories')
+    expect(para).toContain(`${SWITCHABLE_FORM_FIELDS.length} form fields`)
+    // The two stale literals must never come back.
+    expect(para).not.toContain('Eleven categories')
+    expect(para).not.toContain('57 form fields')
   })
 
   it('carries copy for exactly the tab destinations that are NOT chapters (Map, Export)', () => {

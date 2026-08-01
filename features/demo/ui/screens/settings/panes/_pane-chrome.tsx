@@ -1,8 +1,8 @@
 'use client'
 
-import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { PickerOption } from '@/features/demo/engine/content/form-options'
+import type { TypedOption } from '@/features/demo/engine/content/settings-values'
+import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /**
@@ -71,11 +71,34 @@ const NOTE_TONE: Record<PaneNoteTone, { fg: string; border: string; bg: string }
   success: { fg: '#10d177', border: 'rgba(16,209,119,0.35)', bg: 'rgba(16,209,119,0.09)' },
 }
 
-/** The phone's `infoBox` / `warningNote` / `successNote` boxes, one component, three tones. */
-export function PaneNote({ tone = 'info', children }: { tone?: PaneNoteTone; children: ReactNode }) {
+/**
+ * The phone's `infoBox` / `warningNote` / `successNote` boxes, one component, three tones.
+ *
+ * `id` (R-6) makes a note addressable as an `aria-describedby` target. Every inert control in
+ * these panes points at the short note beside it, so the reason is announced AT the control
+ * rather than only being legible to someone who scrolled past it.
+ */
+export function PaneNote({
+  tone = 'info',
+  id,
+  role,
+  children,
+}: {
+  tone?: PaneNoteTone
+  id?: string
+  /**
+   * `'status'` for a note that APPEARS in response to a control (R-34) — a polite live region,
+   * the repo's existing idiom (`MediaCaptureScreen.tsx:530`). Omit for a note that is simply
+   * part of the pane: a static live region announces nothing and costs a needless AT boundary.
+   */
+  role?: 'status'
+  children: ReactNode
+}) {
   const t = NOTE_TONE[tone]
   return (
     <div
+      id={id}
+      role={role}
       data-pane-note={tone}
       style={{
         padding: 13,
@@ -156,7 +179,7 @@ const radioOption = (selected: boolean): CSSProperties => ({
  * a ring + dot, the border lighting on the selection. `radiogroup`/`radio` roles so the set
  * reads as one control to AT, which the phone gets from `accessibilityRole="radio"`.
  */
-export function PaneRadioGroup({
+export function PaneRadioGroup<T extends string>({
   label,
   options,
   value,
@@ -164,11 +187,12 @@ export function PaneRadioGroup({
   testIdOf,
 }: {
   label: string
-  options: readonly PickerOption[]
-  value: string
-  onChange(value: string): void
+  options: readonly TypedOption<T>[]
+  value: T
+  /** Receives the domain value straight off the option — nothing is asserted (R-11). */
+  onChange(value: T): void
   /** Per-option testid, so a pane can seed the phone's own (`export-security-strength-aes256`). */
-  testIdOf?(value: string): string
+  testIdOf?(value: T): string
 }) {
   return (
     <div role="radiogroup" aria-label={label}>
@@ -208,9 +232,52 @@ export function PaneRadioGroup({
 }
 
 /**
+ * A settings picker bound to a CLOSED union (R-11).
+ *
+ * The narrowing is a lookup, not an assertion: the option whose stringified value matches what
+ * `Dropdown` hands back IS the domain value, so `onChange` receives `T` with nothing asserted
+ * and an unrecognised string is dropped rather than cast into the union. That also absorbs the
+ * two numeric settings, whose values used to be stringified in the list and re-parsed at the
+ * handler for want of a place to keep the type.
+ *
+ * `a11yLabel` is required here because every caller is a label-less settings picker — see R-9;
+ * `SelectField`'s own `label` stays unset for phone parity.
+ */
+export function PaneSelect<T extends string | number>({
+  a11yLabel,
+  value,
+  options,
+  onChange,
+}: {
+  a11yLabel: string
+  value: T
+  options: readonly TypedOption<T>[]
+  onChange(value: T): void
+}) {
+  return (
+    <SelectField
+      a11yLabel={a11yLabel}
+      value={String(value)}
+      options={options.map((o) => ({ label: o.label, value: String(o.value) }))}
+      onChange={(picked) => {
+        const hit = options.find((o) => String(o.value) === picked)
+        if (hit) onChange(hit.value)
+      }}
+    />
+  )
+}
+
+/**
  * The Photo Quality slider (the phone's only `@react-native-community/slider`). A native
  * `<input type="range">`: it is keyboard-operable, announces its value, and honours the same
  * min/max/step the phone passes — everything a hand-rolled track would have to re-earn.
+ *
+ * `valueText` is REQUIRED (R-7) because the raw value is not the value the visitor sees. This
+ * control is bound to a 0.5–1.0 scalar while the pane's readout — the only reason the control
+ * exists — is a percentage. Without `aria-valuetext` AT announces `0.85`, or on a `min≠0` range
+ * several AT/browser pairs announce percent-OF-RANGE (70% for the same reading), either of which
+ * CONTRADICTS the number on screen. Not merely missing information: announced information that
+ * is false (WCAG 4.1.2). Required rather than optional so a second slider cannot repeat it.
  */
 export function PaneSlider({
   label,
@@ -219,6 +286,7 @@ export function PaneSlider({
   max,
   step,
   onChange,
+  valueText,
   minLabel,
   maxLabel,
   testId,
@@ -229,17 +297,18 @@ export function PaneSlider({
   max: number
   step: number
   onChange(value: number): void
+  /** What the visitor SEES for the current value (e.g. `"85%"`). Announced verbatim. */
+  valueText: string
   minLabel: string
   maxLabel: string
   testId?: string
 }) {
-  const uid = useId()
   return (
     <div>
       <input
-        id={uid}
         type="range"
         aria-label={label}
+        aria-valuetext={valueText}
         data-testid={testId}
         value={value}
         min={min}

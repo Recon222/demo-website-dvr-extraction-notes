@@ -37,8 +37,9 @@ export function AboutPane() {
     <div data-testid="settings-pane-about">
       <PaneStubNote>
         Everything on this screen describes what you are actually looking at: a browser build of
-        the demo, carrying the app&apos;s version. Contact Support is real — it opens your mail
-        client.
+        the demo, carrying the app&apos;s version. Contact Support hands the address to your
+        browser — if nothing happens, this machine has no mail app registered, so the address is
+        printed below it to copy.
       </PaneStubNote>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '12px 0 20px' }}>
@@ -100,6 +101,21 @@ export function AboutPane() {
           <path d="M9 18l6-6-6-6" />
         </svg>
       </a>
+
+      {/*
+        R-18. A `mailto:` with no registered handler does NOTHING — no navigation, no error, no
+        event the page can observe — so the note's "it opens your mail client" was a claim the
+        surface could not keep and could not detect breaking. Rather than soften the sentence and
+        leave the visitor with a dead button, the address itself is printed here as selectable
+        text: the failure mode now degrades to something usable instead of to silence. Same
+        instinct as the export terminals — say what is true, then point at what still works.
+      */}
+      <div
+        data-testid="about-support-address"
+        style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: '#7a9fc4', userSelect: 'text' }}
+      >
+        {SUPPORT_EMAIL}
+      </div>
 
       <div style={{ paddingTop: 18, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontSize: 11, color: '#46607e' }}>© {year} {APP_NAME}</div>

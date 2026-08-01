@@ -5255,6 +5255,30 @@ the pass that should own it.
 **Trigger:** §7's — a broader keyboard-nav/a11y pass, or before beta. Add this surface to that
 pass's inventory.
 
+**AMENDED (P7 review r1, obligation A4 riding R-32) — the inventory, itemised.** The summary
+above ("moves focus into the detail pane on open and back to the opening ROW on close") reads as
+"focus handling here is complete". It is complete INSIDE the sheet and absent at its boundary,
+and the overlay-stack pass owns three items this entry did not name:
+
+1. **Nested `aria-modal` with no background suppression (web W-6).** The profile editor
+   (`ModalShell` `elevation={4}`) opens from inside `SettingsModal`; both assert
+   `aria-modal="true"` as DOM siblings in the same portal root and neither marks the other
+   `inert`. A virtual-cursor user can browse straight out of the editor into the Settings content
+   underneath and back, with no boundary — the failure mode the APG warns about for stacked
+   dialogs. The z-index mechanics themselves were walked and verified sound (21/22 · 25/26 ·
+   31/32 · 60/61); this is purely the AT boundary. NEW with P7 — §7/§80g/§81d did not cover it.
+2. **A second Escape-collision instance (web W-9).** `AlertDialog` and `SettingsModal` both
+   register document-level `keydown`, so one Escape on the "Apply profile?" confirm dismisses the
+   alert AND pops the Settings detail. Identical mechanism to §81d, which names only the profile
+   editor; the pass's inventory should carry both, plus `PickerSheet`-inside-`ModalShell`.
+3. **Focus is never returned to the gear (web W-10).** Closing the sheet — ×, scrim, or Escape
+   from the master list — unmounts everything and drops focus to `<body>`;
+   `SettingsGearButton` is not re-focused. Covered by §7's "focus restored to the trigger on
+   close", but not visible from this entry's summary.
+
+**Trigger:** unchanged (§7's). The obligation discharged here is that the pass's inventory names
+all three.
+
 ---
 
 ## 81. P7.2 — User Profile: rulings, the v7 bump, and one overlay residual
@@ -5597,3 +5621,79 @@ blank case IS the domain (the phone's `Not set` literal). Only the closed one wa
 
 **Trigger:** none. Recorded here because the widened parameter was merge residue, not a P7.1
 oversight — the shape was correct for the package that wrote it and outlived its seam.
+
+---
+
+## 84. P7 review r1 — P7.1's fix round (shell + chrome): dispositions and the two ledgered items
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` — P7.1's routed findings
+(majors R-5, R-6 lead, R-7; minors R-9, R-10, R-11, R-14, R-18, R-19, R-25 lead, R-30, R-32,
+R-34), fixed on `parity/p7-fix-shell`. Obligation **A4** is discharged in §80g above.
+
+### 84a. RECORDED — the recurring shape this round fixed, so it is not re-introduced
+
+Nine of the twelve were the same defect wearing different clothes: **a doc comment naming the
+right idiom while the code shipped half of it.** `aria-disabled` citing `ModalActions` without
+its `aria-describedby` (R-6); the `AlertDialog` "role + labelledby" idiom ported without the role
+(R-10); a slider bound to a scalar under a percentage readout (R-7); seven `as const` tuples
+written to close a hole and eight casts left open beside them (R-11); a count typed into prose
+next to the registry that disproved it (R-5); a test asserting a box exists to prove its text
+does (R-14).
+
+The lesson for future rounds in this territory: when a comment names a precedent, **open the
+precedent**. Every one of these was one to four lines away from being right, and every one
+passed review-by-reading because the comment described the correct behaviour.
+
+### 84b. LEDGERED (R-33, fix-or-ledger → ledgered) — the settings record still lives in the bridge
+
+**What:** `DemoSettings` (22 fields) is `useState` in `DemoExperience` with one consumer, so
+every slider step re-renders the whole phone subtree — `activeScreen()`, `activeModal()`, the
+drawer, the rail. §80c settled *store vs bridge*; it never addressed *bridge vs sheet*.
+
+**Why deferred, not fixed:** the fix is to move the state into `SettingsModal` and invert the
+pane resolution so `renderPane` narrows to bridge ids only. That is a structural change to
+`DemoExperience`'s render body — the ONE file all three P7 fix branches were editing
+concurrently this round (P7.2 on the autofill effect, P7.3 on the explore memo). Restructuring
+the bridge mid-round would have manufactured exactly the merge conflict the split was designed
+to avoid, for a bounded perf cost the lane itself rated MEDIUM and blessed deferring.
+
+**The design is already settled**, which is why this is cheap later: the `BRIDGE_PANE_IDS` /
+`StubPaneId` partition (§83b) expresses precisely the split the fix needs — `SettingsModal`
+calls `renderSettingsPane` itself for stub panes, and `renderPane` becomes
+`(id: BridgePaneId) => ReactNode`. `settingsSections` either moves with it or keeps being passed
+down as today.
+
+**Trigger:** the next structural touch to `DemoExperience`'s modal region, or any profiling that
+shows the drag cost mattering. Not before P7 merges — the whole point of deferring it was to
+keep three branches off one file.
+
+### 84c. RECORDED — R-19's ruling: the Export Security row withdrew its claim, the switches stayed live
+
+The row previewed `On`/`Off` from the two encryption flags, phone-verbatim. "On" means "the next
+export is encrypted" on the phone and means nothing here: no pipeline encrypts, the ZIP paths end
+in the D4 notice, and the two exports that ARE real (case-map HTML, printed PDFs) go out
+unprotected.
+
+Ruled **fix, not ledger**, and specifically: withdraw the row's claim (`'Not applied'`, true in
+every switch state) while leaving the switches live. D6's cosmetic arm is about controls that
+*render state*; it was never a licence for a derived READOUT to assert a capability. The sibling
+Cloud Sync pane had already drawn this line by holding its toggle inert — this is the same line
+drawn one level up, at the preview instead of the control.
+
+### 84d. RECORDED — R-25's second half rides this branch by the aggregator's instruction
+
+`DEFAULT_USER_PROFILE` (`engine/logic/user-profile.ts`, P7.2's file) took the same one-line
+`Readonly<…>` annotation as `DEFAULT_SETTINGS`. The vetted doc's R-25 body says "P7.2's file
+rides the same commit" while its owner-routing table lists the half under P7.2 — read both ways,
+a finding drops. It is a pure annotation with no behavioural surface, so it was done here and
+flagged to the integrator: if P7.2's branch carries the same line, either copy can go.
+
+### 84e. AVAILABLE — one duplicate derivation left for the integrator
+
+R-5 exported `SWITCHABLE_FORM_FIELDS` from `form-customization.ts` (the field-capable filter).
+`FormFieldsPane.test.tsx` still re-derives the same filter inline to reach its `toHaveLength(50)`
+assertion. Consuming the export there is a two-line dedup and would make the 50 a single source
+across copy, registry and test — deliberately not done from this branch, because that file is
+P7.3's and was being edited concurrently.
+
+**Trigger:** the P7 fix-round integration, or P7.3's next touch to that suite.

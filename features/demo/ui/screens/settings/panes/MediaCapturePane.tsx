@@ -1,6 +1,6 @@
 'use client'
 
-import { SelectField, Toggle } from '@/features/demo/ui/screens/_shared'
+import { Toggle } from '@/features/demo/ui/screens/_shared'
 import {
   MAX_DURATION_OPTIONS,
   VIDEO_CODEC_OPTIONS,
@@ -15,6 +15,7 @@ import {
   PaneDescription,
   PaneGroup,
   PaneNote,
+  PaneSelect,
   PaneSlider,
   PaneStubNote,
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
@@ -67,6 +68,9 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
           label="Photo Quality"
           testId="photo-quality-slider"
           value={settings.photoQuality}
+          // R-7: the announced value is the one on screen. The scalar this input is bound to
+          // (0.5–1.0) is not a number this pane ever shows.
+          valueText={`${photoQualityPercent(settings.photoQuality)}%`}
           min={0.5}
           max={1}
           step={0.05}
@@ -80,10 +84,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Video Quality"
         help="Resolution for video recordings. Higher resolution requires more storage."
       >
-        <SelectField
+        <PaneSelect
+          a11yLabel="Video Quality"
           value={settings.videoQuality}
           options={VIDEO_QUALITY_OPTIONS}
-          onChange={(v) => onChange({ videoQuality: v as VideoQualityOption })}
+          onChange={(videoQuality) => onChange({ videoQuality })}
         />
       </PaneGroup>
 
@@ -91,10 +96,11 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Video Codec"
         help="H.264 offers maximum compatibility. H.265 provides better compression."
       >
-        <SelectField
+        <PaneSelect
+          a11yLabel="Video Codec"
           value={settings.videoCodec}
           options={VIDEO_CODEC_OPTIONS}
-          onChange={(v) => onChange({ videoCodec: v as VideoCodecOption })}
+          onChange={(videoCodec) => onChange({ videoCodec })}
         />
       </PaneGroup>
 
@@ -102,13 +108,17 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         label="Maximum Video Duration"
         help={'Recording automatically stops after this duration. Select "Unlimited" for no limit.'}
       >
-        <SelectField
-          value={String(settings.maxVideoDuration)}
+        <PaneSelect
+          a11yLabel="Maximum Video Duration"
+          value={settings.maxVideoDuration}
           options={MAX_DURATION_OPTIONS}
-          onChange={(v) => onChange({ maxVideoDuration: Number(v) as MaxVideoDurationOption })}
+          onChange={(maxVideoDuration) => onChange({ maxVideoDuration })}
         />
+        {/* R-34: this note APPEARS in response to the picker above it, so a focus-mode visitor
+            gets no signal it arrived. `role="status"` is the repo's idiom for exactly that
+            (`MediaCaptureScreen.tsx:530`) — polite, so it never interrupts the picker itself. */}
         {settings.maxVideoDuration === 0 && (
-          <PaneNote tone="warning">
+          <PaneNote tone="warning" role="status">
             Warning: Unlimited recording may result in very large files and storage issues.
           </PaneNote>
         )}
@@ -135,7 +145,9 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
           onClick={() => onChange({ shutterSound: !settings.shutterSound })}
         />
         {!settings.shutterSound && (
-          <PaneNote tone="warning">Note: Silent capture may not be legal in all regions. Check local laws.</PaneNote>
+          <PaneNote tone="warning" role="status">
+            Note: Silent capture may not be legal in all regions. Check local laws.
+          </PaneNote>
         )}
       </PaneGroup>
 

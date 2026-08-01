@@ -412,9 +412,13 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
  *  own `label` prop unset and renders the label as a separate line above it (ui-mapping 12
  *  documents this on all six of them — it is why their bottom sheets read "Select an option").
  *  Omitting it here reproduces that exactly, and `Dropdown` already handles the absence, sheet
- *  title included. Wizard callers pass it as before. */
-export function SelectField({ label, value, onChange, options }: { label?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
-  return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
+ *  title included. Wizard callers pass it as before.
+ *
+ *  A label-less caller should pass `a11yLabel` (R-9): the sheet that opens on top of the
+ *  trigger is outside `PaneGroup`'s `role="group"` boundary, so without it the dialog and its
+ *  menu both announce the bare placeholder. */
+export function SelectField({ label, a11yLabel, value, onChange, options }: { label?: string; a11yLabel?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
+  return <Dropdown label={label} a11yLabel={a11yLabel} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 
 /** A labelled on/off switch (keyboard-operable). */
@@ -423,6 +427,9 @@ export function Toggle({
   on,
   onClick,
   disabled = false,
+  describedBy,
+  controls,
+  expanded,
 }: {
   label: string
   on: boolean
@@ -435,6 +442,29 @@ export function Toggle({
    * copy beside it.
    */
   disabled?: boolean
+  /**
+   * Id of the element carrying that WHY — required in practice whenever `disabled` is set
+   * (R-6).
+   *
+   * The rule this control cites has two halves and P7.1 shipped one. `aria-disabled` announces
+   * a STATE ("dimmed"); it carries no reason, and in focus mode a screen reader reads only the
+   * focused node's name/role/state — never an unlabelled sibling. So "hear WHY from the copy
+   * beside it" was true of the pixels and false of the accessibility tree, and a visitor could
+   * not tell "deliberately locked" from "broken". The cited precedent does both halves
+   * (`ModalActions` at :346-347), as does every other inert control in this feature
+   * (`DuplicateLocationModal.tsx:95`, `OcrCaptureScreen.tsx:445`, `MediaCaptureScreen.tsx:737`).
+   *
+   * Applied only while `disabled`: an enabled switch has no reason to point at.
+   */
+  describedBy?: string
+  /**
+   * Id of the region this switch reveals (R-34). Flipping a settings switch that inserts a whole
+   * configuration block below it announced "on" and nothing else; `aria-controls` + `expanded`
+   * name what appeared, so a focus-mode visitor gets the same signal a sighted one does.
+   */
+  controls?: string
+  /** Whether `controls` is currently revealed. Only meaningful alongside `controls`. */
+  expanded?: boolean
 }) {
   const activate = () => {
     if (!disabled) onClick()
@@ -444,6 +474,9 @@ export function Toggle({
       role="switch"
       aria-checked={on}
       aria-disabled={disabled || undefined}
+      aria-describedby={disabled ? describedBy : undefined}
+      aria-controls={controls}
+      aria-expanded={controls ? expanded : undefined}
       aria-label={label}
       tabIndex={0}
       onClick={activate}

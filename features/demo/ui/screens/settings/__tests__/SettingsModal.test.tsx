@@ -93,6 +93,18 @@ describe('SettingsModal — master/detail navigation', () => {
     expect(renderPane).toHaveBeenCalledWith('time-sync')
   })
 
+  it('R-10: the detail pane is a NAMED group, so its label is not discarded by the a11y tree', () => {
+    // A role-less div maps to ARIA `generic`, whose name-from is prohibited — the
+    // `aria-labelledby` was being thrown away and the focus-time announcement never fired.
+    // Asserted through the ROLE+NAME query, which is exactly what a discarded name fails.
+    renderShell()
+    fireEvent.click(screen.getByTestId('settings-row-export-security'))
+    const detail = screen.getByRole('group', { name: 'Export Security' })
+    expect(detail).toContainElement(screen.getByTestId('settings-detail-body'))
+    // …and it is still the element focus lands on.
+    expect(document.activeElement).toBe(detail)
+  })
+
   it('labels the back button "Settings" whichever row opened the pane (phone parity)', () => {
     renderShell()
     fireEvent.click(screen.getByTestId('settings-row-about'))

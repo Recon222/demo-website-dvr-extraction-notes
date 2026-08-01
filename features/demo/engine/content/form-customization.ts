@@ -209,6 +209,22 @@ export function getStepFields(id: FormStepId): FormFieldDef[] {
   return FORM_FIELDS.filter((f) => f.screen === id)
 }
 
+/**
+ * The fields that actually reach a SWITCH in the Form Fields grid — every registry field whose
+ * host step is `field-capable`. The screen-only steps (Time Offset, Extracted Scope, Notes)
+ * contribute a note instead of toggles, on the phone too, so their fields are in `FORM_FIELDS`
+ * but never rendered as a row.
+ *
+ * Exported (R-5) because the number was being re-derived in two places and hand-typed in a
+ * third: `FormFieldsPane.test.tsx` filtered for it inline, and the Settings rail narration
+ * carried a literal "57" that was an estimate made before this registry existed (§82a). Copy
+ * that quotes a registry count must READ the registry — a number typed into prose is a claim
+ * with no gate on it, which is exactly how "57" outlived the thing it described.
+ */
+export const SWITCHABLE_FORM_FIELDS: readonly FormFieldDef[] = FORM_FIELDS.filter(
+  (f) => FORM_STEPS.find((s) => s.id === f.screen)?.classification === 'field-capable',
+)
+
 // ---- Capability invariants ---------------------------------------------------
 
 /**
