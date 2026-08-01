@@ -352,6 +352,24 @@ describe('MapScreen — the sheet never lies about why it is empty (review R-6)'
     expect(screen.getByTestId('map-location-count')).toHaveTextContent('0 of 3 locations')
   })
 
+  it('keeps the no-data sentence when a search runs on a nothing-plottable case (MR-3)', async () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
+    store.getState().addLocation(caseId, { locationName: 'Typed, never picked' }) // no gps
+    const st = store.getState()
+    const empty = toMapData(st.cases.find((c) => c.id === caseId)!, st.locations.filter((l) => l.caseId === caseId))
+    render(<MapScreen viewerCaseId="x" mapData={empty} onEditIncident={vi.fn()} />)
+
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'rear' } })
+
+    // The filter is not why this sheet is empty — it was empty before anyone typed. Blaming the
+    // filter would offer a Clear button that cannot bring back rows that never existed.
+    const node = await screen.findByTestId('map-sheet-empty')
+    expect(node).toHaveAttribute('data-empty-reason', 'no-data')
+    expect(node).toHaveTextContent('No located locations yet')
+    expect(screen.queryByTestId('map-sheet-clear-filters')).not.toBeInTheDocument()
+  })
+
   it('still says "no data" when the case genuinely has nothing plotted', async () => {
     const store = createDemoStore()
     const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
