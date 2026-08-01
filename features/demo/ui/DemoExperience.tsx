@@ -2374,6 +2374,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // address pick both arrive here already stamped with their own source (P2.3).
         return (
           <SubmissionScreen
+            isFieldVisible={isFormFieldVisible}
             occNumber={currentCase?.caseNumber ?? ''}
             locationId={currentLocation?.id}
             fields={fields}
@@ -2391,6 +2392,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const sc = formList(scopes, 'form.scopes')
         return (
           <RequestedScopeScreen
+            isFieldVisible={isFormFieldVisible}
             scopes={scopes}
             onChange={sc.change}
             onAdd={() => sc.add(blankScope())}
@@ -2406,6 +2408,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         const v = formList(visits, 'form.arrivalDepartures')
         return (
           <ArrivalDepartureScreen
+            isFieldVisible={isFormFieldVisible}
             visits={visits}
             onChange={v.change}
             onAdd={() => v.add(blankVisit())}
@@ -2484,12 +2487,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         )
       }
       case 'dvrInfo':
-        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
+        return <DvrInfoScreen dvr={currentLocation?.form.dvr ?? EMPTY_FORM.dvr} retention={retentionView} onChange={(f, v) => store.getState().updateField(`form.dvr.${f}`, v)} isFieldVisible={isFormFieldVisible} onNext={onNext} onBack={onPrev} onMenu={openMenu} />
       case 'cameras': {
         const cams = currentLocation?.form.cameras ?? []
         const cam = formList(cams, 'form.cameras')
         return (
           <CamerasScreen
+            isFieldVisible={isFormFieldVisible}
             cameras={cams}
             onChange={cam.change}
             onAdd={() => cam.add(blankCamera())}
@@ -2510,6 +2514,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       case 'exportInfo':
         return (
           <ExportInfoScreen
+            isFieldVisible={isFormFieldVisible}
             data={currentLocation?.form.export ?? EMPTY_FORM.export}
             onChange={(f, v) => store.getState().updateField(`form.export.${f}`, v)}
             onToggleMediaPlayer={() => store.getState().updateField('form.export.mediaPlayerIncluded', !currentLocation?.form.export.mediaPlayerIncluded)}
@@ -2552,6 +2557,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         }
         return (
           <CompletionScreen
+            isFieldVisible={isFormFieldVisible}
             summary={summary}
             // Truthful, LOCATION-scoped gate (R-1): the confirmation shows only for the
             // location that was actually completed — the case-level status only colors the

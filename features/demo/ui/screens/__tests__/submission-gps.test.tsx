@@ -92,6 +92,7 @@ interface SubmissionOptions {
 
 const submission = (o: SubmissionOptions = {}) => (
   <SubmissionScreen
+    isFieldVisible={() => true}
     occNumber="PR25-0098213"
     locationId={o.locationId}
     fields={fields}

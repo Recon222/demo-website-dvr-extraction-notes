@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { CameraEntry, CameraGpsFix } from '@/features/demo/engine/types'
+import type { CameraEntry, CameraGpsFix, FormFieldId } from '@/features/demo/engine/types'
 import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE, isCustomResolution, isCustomFps } from '@/features/demo/ui/screens/field-options'
 import { CameraGpsCapture } from '@/features/demo/ui/inputs/CameraGpsCapture'
@@ -24,6 +24,8 @@ export interface CamerasScreenProps {
   onRemove(index: number): void
   /** A per-camera GPS fix, addressed by camera id — see `CameraGpsCapture`. */
   onCaptureGps(cameraId: string, gps: CameraGpsFix): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
@@ -31,7 +33,7 @@ export interface CamerasScreenProps {
   gpsDeps?: UseGpsCaptureOptions['deps']
 }
 
-export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, onNext, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
+export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps, isFieldVisible, onNext, onBack, onMenu, gpsDeps }: CamerasScreenProps) {
   // Per-camera custom Resolution/FPS mode — the phone's cameras.tsx:43-61 behavior with two
   // deliberate divergences (review R-2): the maps are keyed by the stable CameraEntry.id, not
   // the row index (the phone's index keying silently reassigns custom mode between rows when a
@@ -68,6 +70,12 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
     }
   }
 
+  // The five coordinate ids move as ONE group, so one read speaks for the whole GPS block.
+  const showName = isFieldVisible('camera.cameraName')
+  const showResolution = isFieldVisible('camera.resolution')
+  const showFps = isFieldVisible('camera.recordingFps')
+  const showGps = isFieldVisible('camera.latitude')
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Cameras" onBack={onBack} onMenu={onMenu} />
@@ -79,24 +87,30 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f0f4f8' }}>Camera {i + 1}</div>
               <button type="button" onClick={() => onRemove(i)} style={{ cursor: 'pointer', color: '#ff7a85', fontSize: 13, background: 'transparent', border: 'none' }}>Remove</button>
             </div>
-            <Field label="Camera Name / Location" value={c.cameraName} onChange={(v) => onChange(i, { cameraName: v })} placeholder="e.g., Rear entrance" />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <SelectField label="Resolution" value={customResolutions[c.id] ? CUSTOM_VALUE : c.resolution} onChange={(v) => handleResolutionSelect(c.id, i, v)} options={RESOLUTION_OPTIONS} />
+            {showName && <Field label="Camera Name / Location" value={c.cameraName} onChange={(v) => onChange(i, { cameraName: v })} placeholder="e.g., Rear entrance" />}
+            {(showResolution || showFps) && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                {showResolution && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <SelectField label="Resolution" value={customResolutions[c.id] ? CUSTOM_VALUE : c.resolution} onChange={(v) => handleResolutionSelect(c.id, i, v)} options={RESOLUTION_OPTIONS} />
+                  </div>
+                )}
+                {showFps && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <SelectField label="FPS" value={customFps[c.id] ? CUSTOM_VALUE : c.recordingFps} onChange={(v) => handleFpsSelect(c.id, i, v)} options={FPS_OPTIONS} />
+                  </div>
+                )}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <SelectField label="FPS" value={customFps[c.id] ? CUSTOM_VALUE : c.recordingFps} onChange={(v) => handleFpsSelect(c.id, i, v)} options={FPS_OPTIONS} />
-              </div>
-            </div>
-            {customResolutions[c.id] && (
+            )}
+            {showResolution && customResolutions[c.id] && (
               <Field label="Custom Resolution" value={c.resolution} onChange={(v) => onChange(i, { resolution: v })} placeholder="e.g., 1440x900" />
             )}
-            {customFps[c.id] && (
+            {showFps && customFps[c.id] && (
               <Field label="Custom FPS" value={c.recordingFps} onChange={(v) => onChange(i, { recordingFps: v })} placeholder="e.g., 12" />
             )}
             {/* Per-camera GPS — last in the row, matching the phone's render order
                 (`renderCamera`, cameras.tsx:85-160; ui-mapping 07:127-132). */}
-            <CameraGpsCapture cameraId={c.id} gps={c.gps} onCapture={onCaptureGps} deps={gpsDeps} />
+            {showGps && <CameraGpsCapture cameraId={c.id} gps={c.gps} onCapture={onCaptureGps} deps={gpsDeps} />}
           </div>
         ))}
         {/* Phone parity: the Add button HIDES at the cap and the limit line takes its place —

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ScopeEntry } from '@/features/demo/engine/types'
+import type { FormFieldId, ScopeEntry } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 
@@ -9,6 +9,8 @@ export interface RequestedScopeScreenProps {
   onChange(index: number, patch: Partial<ScopeEntry>): void
   onAdd(): void
   onRemove(index: number): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
@@ -27,7 +29,11 @@ function TimeTypeButton({ label, active, onClick }: { label: string; active: boo
 }
 
 /** Requested time ranges (real- or DVR-time) + cameras — the input the time-offset math acts on. */
-export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, onNext, onBack, onMenu }: RequestedScopeScreenProps) {
+export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFieldVisible, onNext, onBack, onMenu }: RequestedScopeScreenProps) {
+  // Start/End are always-on (the completion gate rejects a scope without them), so only the
+  // entry-type switch and the camera list are gated here.
+  const showTimeType = isFieldVisible('scope.isActualTime')
+  const showCameras = isFieldVisible('scope.cameras')
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Requested Scope" onBack={onBack} onMenu={onMenu} />
@@ -42,12 +48,16 @@ export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, onNext
             </div>
             <DateTimeField label="Start Date / Time" value={sc.startDateTime} onChange={(v) => onChange(i, { startDateTime: v })} />
             <DateTimeField label="End Date / Time" value={sc.endDateTime} onChange={(v) => onChange(i, { endDateTime: v })} />
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Time Entry Type</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <TimeTypeButton label="Real Time" active={sc.isActualTime} onClick={() => onChange(i, { isActualTime: true })} />
-              <TimeTypeButton label="DVR Time" active={!sc.isActualTime} onClick={() => onChange(i, { isActualTime: false })} />
-            </div>
-            <Field label="Cameras" value={sc.cameras} onChange={(v) => onChange(i, { cameras: v })} placeholder="e.g., 3, 4, 7" />
+            {showTimeType && (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Time Entry Type</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  <TimeTypeButton label="Real Time" active={sc.isActualTime} onClick={() => onChange(i, { isActualTime: true })} />
+                  <TimeTypeButton label="DVR Time" active={!sc.isActualTime} onClick={() => onChange(i, { isActualTime: false })} />
+                </div>
+              </>
+            )}
+            {showCameras && <Field label="Cameras" value={sc.cameras} onChange={(v) => onChange(i, { cameras: v })} placeholder="e.g., 3, 4, 7" />}
           </div>
         ))}
         <AddRowButton label="+ Add Scope" onClick={onAdd} />
