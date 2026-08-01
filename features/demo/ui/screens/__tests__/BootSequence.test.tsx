@@ -11,7 +11,7 @@ vi.mock('motion/react', async (orig) => ({
 }))
 
 import { AUTHORIZED_MS, FADE_MS, HOLD_MS, SCAN_MS, type BootVideo } from '@/features/demo/engine/logic/boot'
-import { BootSequence } from '@/features/demo/ui/screens/BootSequence'
+import { BootSequence, VIDEO_CEILING_MS, VIDEO_OVERRUN_MS } from '@/features/demo/ui/screens/BootSequence'
 
 const VIDEO: BootVideo = { src: '/demo-media/boot-intro.mp4', poster: '/demo-media/boot-intro-poster.jpg' }
 
@@ -175,6 +175,54 @@ describe('BootSequence', () => {
         tapScanner()
         tickThrough(SCAN_MS, AUTHORIZED_MS)
         expect(warn).not.toHaveBeenCalled() // the degraded run is quiet — it already said its piece
+      })
+
+      it('a STALL has an exit: the watchdog fades out when `ended` never comes (R-1b)', () => {
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+
+        // A stalled fetch or a frozen decode fires no `error` and rejects no promise. Before the
+        // watchdog, this parked forever behind an opaque empty rectangle.
+        tick(VIDEO_CEILING_MS - 1)
+        expect(onComplete).not.toHaveBeenCalled()
+        tick(1)
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('never finished within'))
+        tick(FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+      })
+
+      it('uses the element’s own duration as the bound once metadata reports one', () => {
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+        const video = screen.getByTestId('demo-boot-video') as HTMLVideoElement
+        Object.defineProperty(video, 'duration', { value: 40, configurable: true })
+        fireEvent.loadedMetadata(video)
+
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+
+        // 40 s of video outlives the flat ceiling — the watchdog must not cut a healthy intro.
+        tick(VIDEO_CEILING_MS)
+        expect(onComplete).not.toHaveBeenCalled()
+        tick(40_000 + VIDEO_OVERRUN_MS - VIDEO_CEILING_MS)
+        tick(FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+      })
+
+      it('disarms the watchdog when the video ends normally', () => {
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+        fireEvent.ended(screen.getByTestId('demo-boot-video'))
+        tickThrough(HOLD_MS, FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+        // Nothing left armed to fire a second time or to log a phantom stall.
+        tick(VIDEO_CEILING_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+        expect(warn).not.toHaveBeenCalled()
       })
 
       it('breadcrumbs differently when the failure lands during playback', () => {

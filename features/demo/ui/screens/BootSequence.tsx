@@ -41,6 +41,14 @@ const skipButton: CSSProperties = {
   cursor: 'pointer',
 }
 
+/**
+ * The `video` phase's upper bound when the element has not yet said how long it is. Generous on
+ * purpose — it exists to end a stall, never to cut a healthy intro short (review R-1b).
+ */
+export const VIDEO_CEILING_MS = 20_000
+/** Slack allowed past a KNOWN duration before the watchdog calls it stalled. */
+export const VIDEO_OVERRUN_MS = 5_000
+
 const videoStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
@@ -94,6 +102,9 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
    * because a decoration failed to download.
    */
   const [videoFailed, setVideoFailed] = useState(false)
+  /** The element's own duration, once `loadedmetadata` reports a finite one — the watchdog's
+   *  honest bound. Null until then (and for streams that never report one). */
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null)
   /** What the machine is allowed to believe about the video. */
   const liveVideo = videoFailed ? null : video
 
@@ -174,6 +185,33 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
     }
   }, [phase])
 
+  /**
+   * The stall watchdog (review R-1b).
+   *
+   * `video` is the only phase with no dwell (`PHASE_MS.video === null`, correctly — it waits on
+   * `ended`) AND an exit entirely outside the app's control. A `stalled`/`waiting` fetch, a
+   * mid-stream freeze or a paused decode raises no `error`, and a `play()` promise that already
+   * resolved has nothing left to reject: probed, the sequence parked in `video` for ten minutes
+   * behind an opaque empty rectangle, with no log and no advance. SKIP and Escape mean nobody is
+   * trapped, but that is mitigation, not handling.
+   *
+   * So: a ceiling, armed on entry and torn down by leaving the phase. Derived from the element's
+   * own duration once metadata says what it is (the honest bound), and a flat generous ceiling
+   * until then — `onStalled` alone would not do, because `stalled` does not fire for every freeze.
+   */
+  useEffect(() => {
+    if (phase !== 'video') return
+    const ceiling = videoDurationMs === null ? VIDEO_CEILING_MS : videoDurationMs + VIDEO_OVERRUN_MS
+    const watchdog = setTimeout(() => {
+      console.warn(
+        `[demo/boot] the intro video never finished within ${ceiling} ms — fading out early. ` +
+          'A stalled fetch or a frozen decode raises no error event, so this ceiling is the only exit.',
+      )
+      setPhase('fading')
+    }, ceiling)
+    return () => clearTimeout(watchdog)
+  }, [phase, videoDurationMs])
+
   // The video takes over the moment its phase begins and keeps the surface until unmount; with
   // no video (configured, or left after a preload failure) the HUD holds it instead. Neither
   // swaps out early — a gap would paint one frame of bare background between the fade and the
@@ -206,6 +244,10 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
           preload="auto"
           onEnded={advance}
           onError={handleVideoError}
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration
+            setVideoDurationMs(Number.isFinite(d) && d > 0 ? d * 1000 : null)
+          }}
           style={{ ...videoStyle, opacity: showVideo ? 1 : 0 }}
         />
       )}
