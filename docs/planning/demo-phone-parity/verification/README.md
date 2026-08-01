@@ -18,6 +18,18 @@ The phone repo `/Users/fvadev/Developer/extraction-notes/DVR-Extraction-Notes-Re
 
 ## 1. The phone app (iOS Simulator)
 
+### Pre-flight — do this before every phone-side run
+
+```bash
+pmset -g batt | head -2                    # must read "Now drawing from 'AC Power'"
+xcrun simctl list devices | grep Booted    # a booted device
+```
+
+The host must be **awake, unlocked, and on power**. Simulator GUI processes throttle or suspend
+on a locked/battery machine while headless shells keep running, which produces a very
+convincing fake failure — see the "Downloading 100%…" entry under *Traps* below. Confirming
+this takes two seconds and saves ~20 minutes of misdiagnosis.
+
 ### Device / app / build facts (verified 2026-07-30)
 
 | | |
@@ -74,6 +86,7 @@ xcrun simctl location booted set 43.6532,-79.3832
                              #   "<y%>  <x%>  text"   -> read state, get tap targets
 ./tap.sh   50% 79%           # tap a point (repeatable: x y x y x y ...)
 ./ftap.sh  30% 36%           # FAST tap — use this on rows that have a long-press handler
+./lpress.sh 45% 45%          # long-press a point (Maestro longPressOn) — map proximity, etc.
 ./swipe.sh 50% 75% 50% 30%   # swipe (scrolling — mouse wheel does NOT work in the sim)
 ./mrun.sh flow.yaml          # run any Maestro flow file
 ```
@@ -151,6 +164,17 @@ There is no hamburger button: the header's top-left control is **Back** (it exit
 * Rotated screens (the OCR capture surface) come back from OCR as lines sharing one `y` with
   different `x`, and a garbled status-bar clock. That geometry IS the evidence of rotation —
   you do not need to look at the image.
+* **OCR cannot see checkboxes, radio circles, rings or icons** — only text. When a control has
+  no label (the export hub's tri-state boxes, map pins), `look.sh` reports nothing and taps
+  appear to "do nothing". Downscale the whole screenshot and read it once:
+
+  ```bash
+  xcrun simctl io booted screenshot shot.png
+  sips -Z 620 shot.png --out shot-small.png     # then Read shot-small.png
+  ```
+
+  `sips -c … --cropOffset` is unreliable here — it centre-crops and silently ignores the offset,
+  which yields a blank tile. Downscale the full frame instead.
 
 ### Simulator capability limits (P4)
 
@@ -352,12 +376,21 @@ Viewport is pinned to 1440×1000 in `lib.js` — height ≥ 840 forces `usePhone
   (`false` / `true` / `mixed`) rather than inferring it from a screenshot.
 * The export trigger is labelled **`Export Full Case (N locations)`** — a `/^Export/` matcher
   also hits the tab-bar `Export` button.
-* **Phone dev-client wedge (hit during the P5/P6 pass, unresolved).** The app parked on
-  "Downloading 100%…" forever. Metro was alive but had served a 1-module bundle; `--clear`
-  fixed Metro (3984 modules) but the client still never finished, across five
-  terminate/launch cycles and a deep-link reconnect, with a completely silent OS log. If you
-  meet this, go straight to reinstalling / rebuilding the dev build rather than re-running the
-  relaunch loop.
+* **"Downloading 100%…" forever + silent OS log = THE HOST IS ASLEEP, LOCKED, OR ON BATTERY.**
+  Diagnosed 2026-07-31: the Mac was on battery with the screen locked. Simulator GUI processes
+  throttle/suspend under those conditions while headless shells keep running normally — so
+  Metro looks perfectly healthy (it even rebundles on demand: 3984 modules) and `simctl`
+  answers instantly, but the dev client never finishes loading and the app emits no OS log at
+  all. Five terminate/launch cycles and a deep-link reconnect all failed against it.
+  **Do NOT rebuild or reinstall the dev build for this** — it is not a build problem and a
+  rebuild wastes ~20 min. Check the host first:
+
+  ```bash
+  pmset -g batt | head -2      # want "Now drawing from 'AC Power'"
+  ```
+
+  **Standing pre-flight before ANY sim driving: confirm the host is awake, unlocked, and on
+  power.** Add it to the top of every phone-side run.
 * **Sample mode substitutes content.** With no `OLLAMA_API_KEY`, `/api/extract` returns
   `503 NOT_CONFIGURED` and `run-import.ts` falls back to the fixed `SAMPLE_EXTRACTION`. The
   result screen therefore shows **Kim's Convenience / 2025-03-08** regardless of what was
@@ -411,6 +444,11 @@ $SP/baselines/
 Phone P4 set (`baselines/phone/p4/`, 8): drawer Media collapsed/expanded, capture screen
 ("No camera device available"), audio recorder READY, media library empty state, rotated OCR
 capture screen.
+
+Phone P5/P6 set (`baselines/phone/p56/`, 11 + `export/`): export hub, partial-selection footer,
+tri-state indeterminate, all-selected footer, validation prompt, the real share-sheet export,
+map case picker, live map, long-press proximity ring, expanded sheet — plus the **real exported
+ZIP** under `export/`, which is how the Case Map artifact's bugs 10/11 were confirmed.
 
 **P4 phase-boundary verdicts live in `P4-side-by-side-findings.md`** next to this file.
 

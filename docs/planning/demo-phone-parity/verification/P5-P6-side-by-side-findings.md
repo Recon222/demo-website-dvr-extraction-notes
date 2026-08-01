@@ -2,10 +2,13 @@
 
 Run 2026-07-31. Shape-only comparison.
 
-**Status: demo side complete and verified; phone side BLOCKED** — the iOS dev client wedged at
-"Downloading 100%…" and never finished loading the JS bundle (details in *Blocker* below). The
-verdicts therefore rest on the demo behaviour measured here plus the phone's documented
-behaviour; the four rows that genuinely needed a live phone comparison are marked as such.
+**Status: BOTH SIDES OBSERVED.** The first pass could not drive the phone — the dev client sat
+at "Downloading 100%…" forever. That was **not** a build problem: the Mac was on battery with
+the screen locked, which throttles/suspends Simulator GUI processes while headless shells keep
+running (Metro looked perfectly healthy throughout). Once the host was back on AC power and
+unlocked, the app resumed **on its own** with no relaunch, and the phone half was driven in
+full. The earlier "documented behaviour" caveat is withdrawn — every row below is now observed
+on both sides except where explicitly noted.
 
 Baselines (scratchpad):
 
@@ -13,7 +16,8 @@ Baselines (scratchpad):
 |---|---|---|
 | demo P5/P6 | 21 | `baselines/demo/p56/` |
 | demo P6 map (real Mapbox) | 14 | `baselines/demo/p56-map/` |
-| downloaded artifacts | 2 | `baselines/demo/p56*/downloads/` |
+| **phone P5/P6** | **11 + the real export ZIP** | `baselines/phone/p56/` |
+| downloaded / exported artifacts | 3 | `baselines/demo/p56*/downloads/`, `baselines/phone/p56/export/` |
 
 ---
 
@@ -21,11 +25,11 @@ Baselines (scratchpad):
 
 | # | Surface | Verdict | One line |
 |---|---|---|---|
-| 1 | Export tab / hub | **MATCH (demo verified)** | Accordion, tri-state (`false→true→mixed`), lit/dimmed cards, footer artifact lines and the "No cases to export" empty state all present and behaving. |
-| 2 | Export modals | **MATCH (demo verified)** | All-invalid arm reads **"Export Anyway"** with the all-invalid icon; progress overlay runs staged; D4 terminal blocks as designed. Phone-side shape comparison not re-run this pass. |
-| 3 | Case Map export | **MATCH + intended divergence** | Demo downloads `OCC-<case>-Case-Map.html`, titled `Case Map — OCC-…`, opening with **0 failed requests, 0 console errors**. That is the deliberate fix of phone bugs 10/11 — the phone artifact still 404s assets and carries the sample OCC title. |
-| 4 | Map depth | **MATCH (demo verified)** | Clustering, count pill, status/text filters, discriminated empty states, proximity ring + radius presets all verified against a real Mapbox render. |
-| 5 | Long-press on the map | **MATCH (demo verified, placement accurate)** | Primary-button hold activates proximity at the pressed point; a right-button hold correctly does not. Placement measured accurate to the marker. |
+| 1 | Export tab / hub | **MATCH — both observed** | Same accordion, same tri-state (phone shows the indeterminate dash), same lit/dimmed cards, and **byte-identical footer artifact lines** (`CASE ZIP • CANONICAL • INCLUDES CASE MAP`, `Export Full Case (N locations)`). |
+| 2 | Export modals | **MATCH — both observed** | Phone and demo render the same all-invalid prompt — same title, same per-location missing-field list, same red icon, same **Cancel / Export Anyway** pair. They diverge only at the terminal: the phone hands over a real 24 KB ZIP, the demo shows the D4 block. |
+| 3 | Case Map export | **DELTA — intended, and now confirmed on both sides** | Demo: `OCC-2026-P6-Case-Map.html`, correct title, **0 failed requests**. Phone: generic `map/Case Map.html`, title `Case Map — OCC-2026-00417` (a **sample** OCC — the real case is SIM01), and **1 failed request** for a missing `assets/case-map.data.js`. Bugs 10 and 11 reproduced exactly as documented. |
+| 4 | Map depth | **MATCH — both observed** | Identical control set (Started/Working/Complete, Clear, Proximity), same case picker, same count pill, and **identical radius presets `[0.5, 1, 2, 5]` km** verified in both sources. Clustering exercised on the demo only (the phone case had a single plotted location). |
+| 5 | Long-press on the map | **MATCH — both observed, placement accurate on both** | Demo: presses 26 px off each marker resolve to 4-of-6 / 1-of-6 / 1-of-6, and a right-button hold correctly does nothing. Phone: a long-press at (45 %, 45 %) drops the proximity ring centred at ~(46 %, 46 %). |
 
 ---
 
@@ -147,23 +151,102 @@ positions read out of the DOM.
 
 ---
 
-## Blocker — phone side not driven this pass
+## Phone side — what was observed (2026-07-31, host on AC power)
 
-The iOS dev client would not finish loading. Sequence, all programmatic, no computer use:
+### 1 — Export hub
 
-1. App relaunched → splash parked on **"Downloading 100%…"** indefinitely (>3 min).
-2. Metro was alive (`packager-status:running`) but had served a **1-module** bundle.
-3. Metro restarted with `--clear`; it then bundled correctly — `Bundled 24572ms … (3984 modules)`.
-4. App terminated + relaunched twice against the warm bundle → still parked at "Downloading 100%…".
-5. Deep-link reconnect
-   (`exp+extractioncasenotesreactnativeexpo://expo-development-client/?url=http://localhost:8081`)
-   → the "Open in …" confirm was dismissed programmatically, app launched, **same wedge**.
-6. OS log for the process is completely silent; the process is alive (`proc: 1`).
+Tapping the case card expands it to the location rows, exactly as on the demo. The tri-state is
+visible rather than inferred:
 
-The preceding P4 session left the app on the **rotated OCR capture screen**, and the wedge began
-after that plus a Metro restart. Worth trying first next time: reinstall the dev build, or
-`expo run:ios` to rebuild, rather than re-running the same relaunch loop — the loop was tried
-five times and never recovered.
+| State | Phone rendering |
+|---|---|
+| nothing selected | empty square |
+| one of two rows selected | **filled square with a dash** (indeterminate) |
+| all selected | filled square with a check |
 
-Not captured as a result: phone Export tab, phone export modals, phone case-map artifact (to
-document the 404/sample-title divergence first-hand), phone map depth, phone long-press.
+Footer artifact lines change with the selection, and match the demo's wording exactly:
+
+* 1 of 2 selected → `LOCATION ZIP • SINGLE LOCATION` · `OCC-2026-SIM01 1 of 2 locations selected` · `Clear` · **`Export 1 Location`**
+* 2 of 2 selected → `CASE ZIP • CANONICAL • INCLUDES CASE MAP` · `OCC-2026-SIM01 2 of 2 locations selected` · `Clear` · **`Export Full Case (2 locations)`**
+
+The armed card is lit (blue border) while the rest dim — the same one-case-armed rule.
+The "no cases" empty state was not reproduced on the phone (the device has cases); the demo's
+`No cases to export` was observed.
+
+### 2 — Export modals
+
+The phone prompt (`06-s2-validation-prompt.png`) is the same object as the demo's:
+
+> ⛔ (red) **All Locations Missing PDF Data**
+> None of the locations have the required fields for PDF generation:
+> • Riverside Variety — Missing: Completion date / Completed by
+> • Sim Corner Store — Missing: At least one extraction scope with start and end times / Completion date / Completed by
+> *The ZIP will be created without any PDF notes.*
+> **[ Cancel ] [ Export Anyway ]**
+
+Same all-invalid arm, same destructive icon, same per-location breakdown, same button pair.
+
+Past that point they diverge **by design**: "Export Anyway" on the phone produced
+`Opening share dialog…` → **ZIP Archive · 24 KB** → the iOS share sheet. The demo shows the D4
+"Downloads Aren't Available in the Demo" terminal instead. The phone's progress overlay was too
+fast to catch on a 2-location case (14 rapid frames all landed after completion) — the staged
+overlay was captured on the demo.
+
+### 3 — Case Map artifact, phone vs demo
+
+Pulled the real ZIP out of the app container
+(`Documents/exports/OCC-2026-SIM01-2026-07-31 23-36-23.zip`) and opened its map from `file://`:
+
+| | Phone artifact | Demo artifact |
+|---|---|---|
+| path / name | `map/Case Map.html` (generic, inside the ZIP) | `OCC-2026-P6-Case-Map.html` (case-named download) |
+| `<title>` | `Case Map — OCC-2026-00417` — a **sample** OCC; the real case is **OCC-2026-SIM01** | `Case Map — OCC-2026-P6` — the real case number |
+| failed requests | **1** — `assets/case-map.data.js` → `ERR_FILE_NOT_FOUND` | **0** |
+| console errors | 1 | 0 |
+| body content | correct (`OCC-2026-SIM01`, its recovery sites) | correct |
+
+Both documented phone defects reproduce exactly. Worth recording precisely: **bug 11 is
+title-only** — the page *body* carries the correct case number, so only the browser tab/window
+title lies. And the ZIP contains no `map/assets/` directory at all, which is bug 10's mechanism.
+
+### 4 — Map depth
+
+Phone case picker reads "Pick a Case — Select which case you'd like to view on the map",
+matching the demo's `case-map-picker`. The map renders live Mapbox with the same control set:
+`Change Case`, status toggles `Started / Working / Complete`, `Clear`, `Proximity`.
+
+Count pill and status breakdown render in the sheet header — `1 Location`, `• 1 Started` (the
+demo's `6 locations`). The expanded sheet lists the location row and carries the same
+**`Export Map`** footer action as the demo.
+
+**Radius presets are identical in source on both sides — `[0.5, 1, 2, 5]` km**
+(`map-view/constants/index.ts:131` vs `map/mapTokens.ts:114`).
+
+Not exercised on the phone: clustering, camera-marker toggle, and the text filter — the phone
+case had only **one** geocoded location, so there was nothing to cluster or filter down. All
+three were exercised on the demo.
+
+### 5 — Long-press
+
+A Maestro `longPressOn` at **(45 %, 45 %)** of the phone map activated proximity: the control
+flipped to its ON state, the radius row appeared, and a blue proximity ring was drawn with its
+centre dot at **~(46 %, 46 %)** (`10-s5-longpress-proximity-ring.png`). Placement tracks the
+press on the phone just as it does on the demo.
+
+---
+
+## Postmortem — the "phone is broken" false alarm
+
+The first pass concluded the dev client was wedged and suggested a rebuild. That was wrong, and
+the retraction is worth keeping:
+
+* **Symptom:** app parks on "Downloading 100%…" forever; OS log for the process completely
+  silent; process alive. Metro healthy and rebundles on demand (3984 modules).
+* **Actual cause:** the Mac was on **battery with the screen locked**. Simulator GUI processes
+  throttle/suspend under those conditions; headless shells (Metro, `simctl`, this agent) keep
+  running normally, so every check an agent can cheaply run looks fine.
+* **Resolution:** none needed. Back on AC power and unlocked, the app resumed by itself — no
+  relaunch, no rebuild, no cache clear.
+* **Standing rule, now in the README pre-flight:** confirm the host is awake, unlocked and on
+  power (`pmset -g batt`) before driving the simulator. Never rebuild in response to this
+  signature.
