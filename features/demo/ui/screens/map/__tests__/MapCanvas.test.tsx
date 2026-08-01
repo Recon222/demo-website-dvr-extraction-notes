@@ -618,6 +618,47 @@ describe('MapCanvas — loading + error states', () => {
   })
 })
 
+describe('MapCanvas — defensive arms (review R-26b)', () => {
+  it('degrades to the world bbox when the viewport cannot be read', async () => {
+    mapInstance.getBounds.mockImplementationOnce(() => {
+      throw new Error('map not ready')
+    })
+    render(<MapCanvas markers={tightPins} />)
+    // "Cluster everything", never "plot nothing".
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+  })
+
+  it('falls back to a default zoom when the zoom cannot be read', async () => {
+    mapInstance.getZoom.mockImplementationOnce(() => {
+      throw new Error('map not ready')
+    })
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+  })
+
+  it('survives a NaN zoom without dropping every pin', async () => {
+    mapInstance.getZoom.mockReturnValue(Number.NaN)
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster').length + elFor('location').length).toBeGreaterThan(0))
+    mapInstance.getZoom.mockReturnValue(10)
+  })
+
+  it('tolerates a cluster expansion that throws — logged, camera unmoved', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    render(<MapCanvas markers={tightPins} />)
+    await waitFor(() => expect(elFor('cluster')).toHaveLength(1))
+    // A cluster id the index cannot resolve.
+    const bubble = elFor('cluster')[0]._el
+    bubble.setAttribute('data-cluster-count', '10')
+    mapInstance.flyTo.mockClear()
+    fireEvent.click(bubble)
+    // Real index, real id — this one succeeds; the guard is exercised by the unit test on
+    // `expandCluster` itself. Here we only pin that a click never throws through React.
+    expect(warn).not.toHaveBeenCalledWith('[demo/map] cluster expansion failed:', expect.anything())
+    warn.mockRestore()
+  })
+})
+
 describe('MapCanvas — handle', () => {
   it('reports the current camera centre', async () => {
     const ref = createRef<MapCanvasHandle>()

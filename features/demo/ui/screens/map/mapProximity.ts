@@ -64,7 +64,7 @@ export function generateRadiusCircle(
   return turfCircle(point(center), radiusKm, {
     steps: options?.steps ?? RING_STEPS,
     units: 'kilometers',
-  }) as ProximityRing
+  })
 }
 
 /**

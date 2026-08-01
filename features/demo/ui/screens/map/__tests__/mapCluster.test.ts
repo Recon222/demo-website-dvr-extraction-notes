@@ -173,3 +173,25 @@ describe('mapCluster — expandCluster', () => {
     ).not.toThrow()
   })
 })
+
+describe('mapCluster — arithmetic details (review R-26d)', () => {
+  it.each([
+    ['rounds a fractional zoom down to the nearer integer', 13.4, true],
+    ['rounds a fractional zoom up to the nearer integer', 14.6, false],
+  ])('%s', (_label, zoom, expectCluster) => {
+    const index = buildClusterIndex(tightCluster)
+    const markers = index.markersFor(WORLD_BBOX, zoom)
+    expect(markers.some((m) => m.kind === 'cluster')).toBe(expectCluster)
+  })
+
+  it('treats a NaN zoom as 0 rather than dropping the points', () => {
+    const index = buildClusterIndex(tightCluster)
+    expect(index.markersFor(WORLD_BBOX, Number.NaN)).toHaveLength(1)
+  })
+
+  it('short-circuits at exactly 360 degrees of longitude, not only beyond it', () => {
+    expect(normalizeBbox([-180, -85, 180, 85])).toEqual(WORLD_BBOX)
+    const justUnder: [number, number, number, number] = [-179, -85, 180, 85]
+    expect(normalizeBbox(justUnder)).toEqual(justUnder)
+  })
+})

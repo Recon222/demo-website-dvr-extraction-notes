@@ -414,7 +414,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
       if (!currentIndex || !clusterMod) return
       clusterMod.expandCluster(cluster, {
         expansionZoom: (clusterId) => currentIndex.expansionZoom(clusterId),
-        flyToCluster: ({ center, zoom }) => map?.flyTo({ center, zoom }),
+        flyToCluster: ({ center, zoom }) => map?.flyTo({ center: [center[0], center[1]], zoom }),
         onError: (error) => console.warn('[demo/map] cluster expansion failed:', error),
       })
     }
@@ -505,7 +505,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
 
     const source = map.getSource?.(PROXIMITY_SOURCE_ID)
     if (source && 'setData' in source) {
-      ;(source as { setData(data: ProximityRing): void }).setData(proximityRing)
+      // The `in` check already narrows the source union to GeoJSONSource — no cast (R-27c).
+      source.setData(proximityRing)
       return
     }
     map.addSource(PROXIMITY_SOURCE_ID, { type: 'geojson', data: proximityRing })

@@ -3,14 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
-import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { SHEET_COLORS, type StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
 import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
   /** Controlled snap detent: 0 = peek, 1 = partial, 2 = full. */
   snapIndex: number
   onSnapChange(index: number): void

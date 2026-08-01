@@ -2,6 +2,7 @@ import type { DemoCase, DemoLocation } from '@/features/demo/engine/types'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
 import { hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
+import type { StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 import type { GpsSource } from '@/features/demo/engine/types'
 
 /**
@@ -38,8 +39,17 @@ export interface MapIncident {
  */
 export interface MapCameraMarker {
   id: string
+  /**
+   * The owning location. Written by `toCameraMarkers` and read by nothing in the demo today —
+   * the demo scopes cameras by nesting them inside their `LocationSheetItem`, so it never has to
+   * ask a marker who owns it. Kept, deliberately (review R-27g): it is half of the composite
+   * `id` this feature exists to keep globally unique, the phone's own camera feature carries it
+   * as the gate for `visibleCameraLocationId` (`CaseMapView.tsx:397-400`), and dropping it would
+   * make the composite id a string nobody could decompose.
+   */
   locationId: string
   cameraName: string
+  /** Emitted only when non-empty, so the callout can test presence rather than emptiness. */
   resolution?: string
   lng: number
   lat: number
@@ -96,7 +106,7 @@ export interface MapData {
   pins: MapPin[]
   incident: MapIncident | null
   items: SheetItem[]
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
 }
 
 /** Incident street+city. Deliberately NOT street-type-abbreviated: on the phone only the
@@ -106,7 +116,7 @@ const joinAddress = (parts: Array<string | null | undefined>) => parts.filter(Bo
 
 /** Status tally over a set of sheet rows. The incident carries no status, so only location rows
  *  count — the same rule the phone applies in `computeStatusCounts` (sheet-data-service.ts). */
-export function countStatuses(items: readonly SheetItem[]): { started: number; working: number; complete: number } {
+export function countStatuses(items: readonly SheetItem[]): StatusCounts {
   const counts = { started: 0, working: 0, complete: 0 }
   for (const item of items) {
     if (item.kind === 'location') counts[item.status]++
@@ -146,8 +156,10 @@ export function countLocations(items: readonly SheetItem[]): number {
 export function toCameraMarkers(loc: DemoLocation): MapCameraMarker[] {
   const markers: MapCameraMarker[] = []
   for (const cam of loc.form.cameras) {
+    // `hasCapturedCoordinates` is a type predicate, so `cam.gps` is narrowed from here — unlike
+    // the five `l.gps!` in `toMapData`, where the guard ran on a different binding (R-27b).
     if (!hasCapturedCoordinates(cam.gps)) continue
-    const gps = cam.gps!
+    const gps = cam.gps
     markers.push({
       id: `${loc.id}:${cam.id}`,
       locationId: loc.id,

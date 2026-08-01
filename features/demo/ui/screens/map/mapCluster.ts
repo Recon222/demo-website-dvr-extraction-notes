@@ -1,5 +1,6 @@
 import Supercluster from 'supercluster'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
+import type { LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 
 /**
  * Location-pin clustering — the demo's port of the phone's clustered `Mapbox.ShapeSource`
@@ -167,7 +168,8 @@ export function buildClusterIndex(markers: readonly MarkerDescriptor[]): Cluster
 }
 
 export interface ClusterCameraTarget {
-  center: [number, number]
+  /** [lng, lat] — GeoJSON order, like everything else on the map layer (review R-27f). */
+  center: LngLat
   zoom: number
 }
 
@@ -177,7 +179,7 @@ export interface ClusterCameraTarget {
  */
 export function computeClusterExpansionCamera(
   expansionZoom: number,
-  center: [number, number],
+  center: LngLat,
 ): ClusterCameraTarget {
   const zoom = Math.min(expansionZoom + CLUSTER_EXPANSION_ZOOM_NUDGE, CLUSTER_EXPANSION_MAX_ZOOM)
   return { center: [center[0], center[1]], zoom }
