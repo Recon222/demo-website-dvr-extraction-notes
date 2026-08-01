@@ -28,4 +28,10 @@ describe('/demo route activation', () => {
   it('mounts it exactly once, so the guard above cannot be satisfied by a second render site', () => {
     expect(page.match(/<DemoExperience\b/g)).toHaveLength(1)
   })
+
+  it('rejects the one silent variant the word-match still admits: an explicit boot={false}', () => {
+    // A debugging leftover reads as satisfying the guard above while turning the phase off — the
+    // exact silent regression this file exists for, wearing the right word (review S4).
+    expect(page).not.toMatch(/\bboot=\{false\}/)
+  })
 })

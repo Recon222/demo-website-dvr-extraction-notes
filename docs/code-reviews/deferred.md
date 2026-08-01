@@ -6098,6 +6098,15 @@ and both claims were on the no-re-review path this entry exists to promise:**
   true — and the arm it covers is the likeliest field failure of the three (iOS Low Power Mode
   blocks muted autoplay outright).
 
+**ONE THING TO DO ON DROP-IN DAY (§88f, ledgered from the campaign-final fix-delta, S5).** The
+stall watchdog budgets TOTAL wall clock from phase entry, not time-since-progress: an intro that
+rebuffers for more than `VIDEO_OVERRUN_MS` in aggregate is faded out as stalled even though it was
+making progress. Sound and graceful today — every path ends in a breadcrumbed fade — and with no
+real file there is nothing to measure it against, which is why it was not reworked. With the file
+in hand, watch one playback on a throttled connection; if it cuts, move the watchdog to a
+progress basis (`onTimeUpdate` writing a ref, watchdog re-armed from last progress). This line
+lives here rather than in a review doc so it cannot be missed on the day it matters.
+
 **Trigger:** the owner supplying the bunker-doors file.
 
 ### 87e. RECORDED — where boot sits relative to persistence, and what that cost
@@ -6155,6 +6164,20 @@ partition: the review struck the lane item that wanted it converted, because it 
 whose default (fully visible) is the safe side for every realistic insertion. Don't "finish the
 job" by converting it — that reverses a ruling.
 
+**CORRECTED (campaign-final fix-delta, S2): "the last hand partition" is off by two.** Three
+inline `BootPhase` partitions remain in `BootSequence.tsx`, and an auditor stopping at this
+entry's original wording would walk past two of them. All three are safe-by-default, which is why
+none was converted:
+
+| Site | Partition | A new phase defaults to |
+|---|---|---|
+| `:126` | `phase !== 'idle' && phase !== 'done'` (R-14 reduced-motion collapse) | collapsing — the visitor's stated preference wins |
+| `:171`/`:173` | `phase === 'video' \|\| phase === 'holding'` (R-1a error scope) | the degrade-and-continue arm, not the fade-out arm |
+| `:264` | `phase === 'fading' \|\| phase === 'done'` (container opacity) | fully visible — the review STRUCK the lane item that wanted this one converted |
+
+`bootSurface` is the only partition that pointed the unsafe way, and it is the one that became a
+record. Don't "finish the job" on `:264` — that reverses a ruling.
+
 **`BootHudState` is now DEFINED by `BOOT_HUD_STATES`**, and `BootPhase` is not (it stays a written
 union, with `BOOT_PHASES` read off `PHASE_MS`). Two mechanisms, one guarantee, chosen per union:
 the small closed one is cheapest as a tuple; the seven-member one reads better as a union and
@@ -6165,9 +6188,19 @@ already had a total record to derive from.
 While fixing R-9 the probe showed the replacement comment had inherited the original's error:
 it claimed `HUD_STATE` helps close the branch set. It does not — `HUD_STATE` is keyed by
 `BootPhase`, so growing `BootHudState` leaves it green. Adding a member yields exactly ONE
-`TS2741`, in `SplashScreen`'s `statusBody`. Both comments now say that, with the probe result in
-them. §84a's lesson, encountered inside the fix for a §84a-shaped finding: when a comment names a
-guarantee, run it.
+`TS2741`, in `SplashScreen`'s `statusBody`. §84a's lesson, encountered inside the fix for a
+§84a-shaped finding: when a comment names a guarantee, run it.
+
+**AMENDED (campaign-final fix-delta, S1).** "Both comments now say that" was true of `boot.ts`
+only — `SplashScreen` shipped R-9 still crediting `HUD_STATE`, and still carrying the retired
+"cannot drift" line on the `AuthState` alias. The campaign-final aggregation ruled the cause
+immaterial and very likely a destroyed concurrent edit; the tree says otherwise and the tree is
+checkable: commit `9602d29` ADDED the uncorrected text, and the follow-up correction was a
+`python3 -c` `.replace()` whose pattern never matched (backticks inside a double-quoted shell
+string) and which — unlike every other edit in that round — carried no `assert`. A silently
+no-op'd replace, reported as done. Both comments say it now, in the same commit as this sentence.
+The transferable rule is the one the round already used everywhere else and broke here once:
+**a scripted edit asserts its own pattern, or it did not happen.**
 
 ### 88d. RECORDED — R-19 was pinned, not left as the recorded choice the review offered
 
@@ -6189,3 +6222,19 @@ idempotence expectation, `reset()`'s boot record, and the selectors' "boot view"
 mount, so a restored snapshot's record is never rewritten. If a future surface needs "seen this
 session" as distinct from "seen ever", that distinction does not exist here and adding it is a
 new decision, not a bug fix.
+
+### 88f. LEDGERED (campaign-final fix-delta, S5) — the watchdog's basis is wall clock, not progress
+
+**What:** `VIDEO_CEILING_MS` / `VIDEO_OVERRUN_MS` bound the `video` phase from the moment it is
+entered. A long intro that rebuffers repeatedly can exhaust that budget while genuinely playing,
+and be faded out as a stall — which the constant's own comment used to deny in absolute terms.
+The comment now says what the mechanism does.
+
+**Why deferred, not fixed:** three lanes converged on the shape being sound — every terminal state
+is a graceful, breadcrumbed fade, and under R-1's own use-day rule this rates LOW *at the drop-in
+too*, so it does not inherit R-1's must-fix. The rework (an `onTimeUpdate` ref plus a re-armed
+watchdog) is the code-heaviest survivor of the round, and with `BOOT_VIDEO === null` there is no
+file to tune it against: the numbers would be guesses twice over.
+
+**Trigger:** the owner's D7 drop-in. The instruction is written beside the drop-in procedure in
+§87d, not only here, so the fixer on that day meets it without reading this ledger.

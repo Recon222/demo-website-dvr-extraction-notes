@@ -44,10 +44,17 @@ const skipButton: CSSProperties = {
 
 /**
  * The `video` phase's upper bound when the element has not yet said how long it is. Generous on
- * purpose — it exists to end a stall, never to cut a healthy intro short (review R-1b).
+ * purpose — it exists to end a stall (review R-1b).
+ *
+ * The budget is TOTAL WALL CLOCK from phase entry, not time-since-progress: an intro that
+ * rebuffers for more than `VIDEO_OVERRUN_MS` in aggregate is treated as stalled and faded out,
+ * even though it was making progress. Accepted deliberately — every outcome is a graceful,
+ * breadcrumbed fade — and ledgered against the D7 drop-in (§88f), which is the day a real file
+ * makes the difference measurable.
  */
 export const VIDEO_CEILING_MS = 20_000
-/** Slack allowed past a KNOWN duration before the watchdog calls it stalled. */
+/** Slack allowed past a KNOWN duration before the watchdog calls it stalled. See above: this is
+ *  total elapsed slack, not slack per stall. */
 export const VIDEO_OVERRUN_MS = 5_000
 
 const videoStyle: CSSProperties = {
@@ -130,6 +137,10 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
     if (ms === null) return
     const timer = setTimeout(advance, ms)
     return () => clearTimeout(timer)
+    // Accepted for one input: a pre-video failure flips `videoFailed`, which changes `advance`'s
+    // identity, which re-arms the current dwell at full length once. Bounded, one-shot, on a
+    // failure path, and the visitor sees a slightly longer beat — not worth a ref-read of
+    // `liveVideo` on a seam five green probes currently pin (review S6).
   }, [phase, advance, reduceMotion])
 
   // Completion fires once, even if the parent hands us a fresh `onComplete` identity every render.

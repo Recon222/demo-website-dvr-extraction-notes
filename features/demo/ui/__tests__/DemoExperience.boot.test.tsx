@@ -125,6 +125,18 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
     expect(document.activeElement).toBe(document.querySelector('[data-phone-screen]'))
   })
 
+  it('leaves focus alone when the visitor ended the boot from the rail (S3)', () => {
+    render(<DemoExperience boot />)
+    const row = screen.getByRole('button', { name: 'Dashboard, not visited yet' })
+    row.focus()
+    fireEvent.click(row)
+
+    // Their focus never died with the gate — it is still on the control they pressed, outside the
+    // phone. Yanking it into the screen would be the hand-off firing on focus nobody lost.
+    expect(screen.queryByTestId('demo-boot')).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
+
   it('an Escape aimed at the exit dialog does not also skip the boot (R-7)', () => {
     render(<DemoExperience boot />)
     expect(screen.getByTestId('demo-boot')).toBeInTheDocument()
