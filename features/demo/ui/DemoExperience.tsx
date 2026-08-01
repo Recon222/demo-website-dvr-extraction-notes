@@ -137,6 +137,9 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+// TYPE-ONLY (erased at build): the case-map module itself is a lazy chunk and must never enter
+// /demo's First Load graph — see the dynamic import in the export handler.
+import type { CaseMapCoverage } from '@/features/demo/engine/logic/case-map'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
@@ -286,15 +289,47 @@ export const EXPORT_STEP_MS = 550
  * successfully${encryptionNote}.` with an empty note — the demo encrypts nothing), joined
  * `title — body` like every notice above.
  *
- * The two caveats have no phone counterpart by circumstance, not by choice: the phone's
+ * The caveats have no phone counterpart by circumstance, not by choice: the phone's
  * missing-token case is a `logError` the OPERATOR never sees (`case-map-export-service.ts:59-64`),
  * and it has no empty case to warn about because the button sits behind a case with pins. Here
  * the person who clicked is the person who walks away with the file, so anything true about it
  * that they cannot see from the banner has to be on the banner.
  */
-const caseMapExportedNotice = ({ hasSites, hasToken }: { hasSites: boolean; hasToken: boolean }): string =>
+/**
+ * What the map does NOT contain (review R-1).
+ *
+ * A location the visitor typed rather than picked has no `gps`, so it cannot be plotted and
+ * the builder drops it — correctly; a fabricated pin on a forensic artifact is worse. But the
+ * demo's NORMAL mixed state is some-typed/some-picked, and the visitor was walking away with a
+ * map missing two-thirds of their case under the bare word "Success". Three arms rather than
+ * one, because "3 of 3 dropped" and "1 of 3 dropped" are different facts and the visitor acts
+ * on them differently.
+ */
+const caseMapCoverageClause = (coverage: CaseMapCoverage): string => {
+  if (coverage.totalLocations === 0) return ' This case has no locations yet.'
+  if (coverage.plottedLocations === 0) {
+    return ` None of its ${coverage.totalLocations} locations have coordinates yet, so none of them are on the map.`
+  }
+  if (coverage.droppedLocationNames.length > 0) {
+    return ` ${coverage.droppedLocationNames.length} of ${coverage.totalLocations} locations have no coordinates yet and are not on the map.`
+  }
+  return ''
+}
+const caseMapExportedNotice = ({
+  coverage,
+  mapIsEmpty,
+  hasToken,
+}: {
+  coverage: CaseMapCoverage
+  mapIsEmpty: boolean
+  hasToken: boolean
+}): string =>
   'Success — Case Map exported successfully.' +
-  (hasSites ? '' : ' No location has coordinates yet, so it opens with an empty map.') +
+  caseMapCoverageClause(coverage) +
+  // Whether ANYTHING plots — the incident scene counts here, and only here. Gating the
+  // empty-map sentence on the old any-feature predicate is what kept it silent on a case with
+  // an incident pin and zero plotted locations (R-1's second half).
+  (mapIsEmpty ? ' Nothing plots yet, so it opens with an empty map.' : '') +
   (hasToken ? '' : ' Without a Mapbox token its basemap stays blank.')
 /** Phone title (`Export Error`, useExportFlow.ts:301-305) with the only body this arm can have:
  *  its message is the thrown error's, and the browser's refusal is not one of those. */
@@ -1299,7 +1334,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       setNotice(
         outcome.ok
           ? caseMapExportedNotice({
-              hasSites: caseMap.hasPlottableFeatures(geojson),
+              // Over the SAME locations the builder was handed, so the count on screen can
+              // never disagree with the file.
+              coverage: caseMap.summariseCaseMapCoverage(locations),
+              mapIsEmpty: !caseMap.hasPlottableFeatures(geojson),
               hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
             })
           : CASE_MAP_EXPORT_FAILED_NOTICE,

@@ -121,15 +121,45 @@ describe('DemoExperience — Export Map', () => {
     )
   })
 
-  it('does not cry empty over an incident-only case — that map has something on it', async () => {
-    // No located recovery site, but the incident scene has coordinates: the exported map opens
-    // on the incident teardrop, so the "opens empty" caveat must stay OFF.
+  it('names the locations left off the map, even when the incident pin is on it (review R-1)', async () => {
+    // The pin the old predicate counted. An incident-only case is NOT an empty map — but its
+    // one recovery site is missing from the file, and that was said nowhere: the banner read a
+    // bare "Success" and this test used to pin the silence.
     openMap({ located: false })
     fireEvent.click(screen.getByTestId('export-map-button'))
-    expect(await screen.findByTestId('demo-notification')).not.toHaveTextContent('opens with an empty map')
+    const notice = await screen.findByTestId('demo-notification')
+    expect(notice).toHaveTextContent('None of its 1 locations have coordinates yet, so none of them are on the map.')
+    // Still not an "empty map" — the incident teardrop is there.
+    expect(notice).not.toHaveTextContent('opens with an empty map')
     await waitFor(() => expect(saved).toHaveLength(1))
     const features = JSON.parse((await savedHtml()).match(/id="case-geojson">([\s\S]*?)<\/script>/)![1]).features
     expect(features.map((f: { properties: { featureType: string } }) => f.properties.featureType)).toEqual(['incident'])
+  })
+
+  it('counts the un-plotted locations in the demo’s normal mixed state (review R-1)', async () => {
+    // 1 picked, 2 typed — the probe-verified scenario. The file genuinely holds one of three,
+    // and the sentence has to say so.
+    const store = openMap()
+    act(() => {
+      const caseId = store.getState().cases[0].id
+      store.getState().addLocation(caseId, { locationName: 'Rear Alley', streetAddress: '9 Back Ln', city: 'Mississauga' })
+      store.getState().addLocation(caseId, { locationName: 'Loading Bay', streetAddress: '11 Dock Rd', city: 'Mississauga' })
+    })
+    fireEvent.click(screen.getByTestId('export-map-button'))
+    expect(await screen.findByTestId('demo-notification')).toHaveTextContent(
+      '2 of 3 locations have no coordinates yet and are not on the map.',
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    const features = JSON.parse((await savedHtml()).match(/id="case-geojson">([\s\S]*?)<\/script>/)![1]).features
+    expect(features.filter((f: { properties: { featureType: string } }) => f.properties.featureType === 'location')).toHaveLength(1)
+  })
+
+  it('says nothing about coverage when every location made it in', async () => {
+    openMap()
+    fireEvent.click(screen.getByTestId('export-map-button'))
+    const notice = await screen.findByTestId('demo-notification')
+    expect(notice).not.toHaveTextContent('not on the map')
+    expect(notice).not.toHaveTextContent('no locations yet')
   })
 
   it('warns that the basemap will be blank when no Mapbox token is configured', async () => {
@@ -172,9 +202,11 @@ describe('DemoExperience — Export Map, empty case', () => {
 
     // The footer is still there — the phone renders it as the list footer regardless of rows.
     fireEvent.click(screen.getByTestId('export-map-button'))
-    expect(await screen.findByTestId('demo-notification')).toHaveTextContent(
-      'No location has coordinates yet, so it opens with an empty map.',
-    )
+    const notice = await screen.findByTestId('demo-notification')
+    // Both facts, because they are different facts: the one location is missing from the file,
+    // AND with no incident either the map has nothing on it at all.
+    expect(notice).toHaveTextContent('None of its 1 locations have coordinates yet, so none of them are on the map.')
+    expect(notice).toHaveTextContent('Nothing plots yet, so it opens with an empty map.')
     await waitFor(() => expect(saved).toHaveLength(1))
     const html = await saved[0].blob.text()
     expect(JSON.parse(html.match(/id="case-geojson">([\s\S]*?)<\/script>/)![1]).features).toEqual([])

@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   buildCaseMapGeoJson,
   camerasToFeatures,
   caseToIncidentFeature,
   hasPlottableFeatures,
   locationToFeature,
+  summariseCaseMapCoverage,
 } from '@/features/demo/engine/logic/case-map/geojson'
 import { FEATURE_TYPES, type GeoJSONFeature } from '@/features/demo/engine/logic/case-map/types'
 import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
@@ -18,6 +19,85 @@ const camera = (over: Partial<CameraEntry> = {}): CameraEntry => ({
   resolution: '',
   recordingFps: '',
   ...over,
+})
+
+describe('summariseCaseMapCoverage (review R-1)', () => {
+  const located = (id: string, name: string) =>
+    demoLocation({ id, locationName: name, gps: { lat: 43.6, lng: -79.6, source: 'gps' } })
+  const typedOnly = (id: string, name: string) => demoLocation({ id, locationName: name, gps: undefined })
+
+  it('counts what plots and NAMES what does not', () => {
+    // The demo's normal mixed state: some addresses picked, some typed. The typed ones cannot
+    // be plotted, and the visitor has to be told which.
+    expect(
+      summariseCaseMapCoverage([located('a', 'Front Counter'), typedOnly('b', 'Rear Alley'), typedOnly('c', 'Loading Bay')]),
+    ).toEqual({
+      totalLocations: 3,
+      plottedLocations: 1,
+      droppedLocationNames: ['Rear Alley', 'Loading Bay'],
+      hasPlottedLocations: true,
+    })
+  })
+
+  it('reports zero plotted for a case whose locations are all coordinate-less', () => {
+    expect(summariseCaseMapCoverage([typedOnly('a', 'One'), typedOnly('b', 'Two')])).toMatchObject({
+      totalLocations: 2,
+      plottedLocations: 0,
+      hasPlottedLocations: false,
+    })
+  })
+
+  it('is empty-safe', () => {
+    expect(summariseCaseMapCoverage([])).toEqual({
+      totalLocations: 0,
+      plottedLocations: 0,
+      droppedLocationNames: [],
+      hasPlottedLocations: false,
+    })
+  })
+
+  it('drops the (0,0) pair, exactly as the builder does', () => {
+    // ONE gate for the count and the file — otherwise the sentence on screen and the artifact
+    // disagree about the same location.
+    const nullIsland = demoLocation({ id: 'z', locationName: 'Null Island', gps: { lat: 0, lng: 0, source: 'manual' } })
+    expect(summariseCaseMapCoverage([nullIsland])).toMatchObject({
+      plottedLocations: 0,
+      droppedLocationNames: ['Null Island'],
+    })
+    expect(buildCaseMapGeoJson(null, [nullIsland]).features).toEqual([])
+  })
+
+  it('agrees with the builder on every mix', () => {
+    const locations = [located('a', 'A'), typedOnly('b', 'B'), located('c', 'C')]
+    const coverage = summariseCaseMapCoverage(locations)
+    const plotted = buildCaseMapGeoJson(null, locations).features.filter(
+      (f) => f.properties.featureType === 'location',
+    )
+    expect(plotted).toHaveLength(coverage.plottedLocations)
+  })
+
+  it('does NOT count the incident pin as a plotted location', () => {
+    // R-1's second half: `hasPlottableFeatures` counts the incident, so gating the empty-map
+    // caveat on it kept the caveat silent for a case with an incident and zero plotted sites.
+    const collection = buildCaseMapGeoJson(
+      demoCase({ incidentCoordinates: { lat: 43.7, lng: -79.4, source: 'geocoded' } }),
+      [typedOnly('b', 'Rear Alley')],
+    )
+    expect(hasPlottableFeatures(collection)).toBe(true) // the incident is a feature…
+    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).hasPlottedLocations).toBe(false) // …but not a site
+  })
+
+  it('dev-warns when the builder omits a location, like generateExtractedScopes does', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    buildCaseMapGeoJson(null, [typedOnly('a', 'One'), typedOnly('b', 'Two')])
+    expect(warn).toHaveBeenCalledWith(
+      '[demo] buildCaseMapGeoJson omitted 2 location(s) with no captured coordinates',
+    )
+    warn.mockClear()
+    buildCaseMapGeoJson(null, [located('a', 'One')])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
 })
 
 describe('featureType is a closed id space (review R-28)', () => {

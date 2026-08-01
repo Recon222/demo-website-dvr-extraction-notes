@@ -20,8 +20,11 @@ export {
   locationToFeature,
   camerasToFeatures,
   hasPlottableFeatures,
+  summariseCaseMapCoverage,
   COORDINATE_PRECISION,
 } from '@/features/demo/engine/logic/case-map/geojson'
+
+export type { CaseMapCoverage } from '@/features/demo/engine/logic/case-map/geojson'
 
 export {
   buildCaseMapHtml,
