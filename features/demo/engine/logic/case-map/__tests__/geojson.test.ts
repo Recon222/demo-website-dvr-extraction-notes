@@ -246,6 +246,20 @@ describe('locationToFeature', () => {
     expect(feature!.geometry.coordinates).toEqual([-79.641235, 43.589123])
   })
 
+  it('always emits the three array properties, even when empty (review R-24)', () => {
+    // Stated contract is PRESENCE, not truthiness — the phone's read side keys off it
+    // (geojson-service.ts:68,84-85) — and it was unpinned: deleting two of the three emissions
+    // stayed green (mutation-verified by the tests lane). On a forensic-style artifact an
+    // absent key and an empty list are different claims.
+    const bare = locationToFeature(demoLocation({ gps: { lat: 43.6, lng: -79.6, source: 'gps' } }))
+    expect(Object.keys(bare!.properties)).toEqual(
+      expect.arrayContaining(['scopes', 'extractedScopes', 'arrivalDepartures']),
+    )
+    expect(bare!.properties.scopes).toEqual([])
+    expect(bare!.properties.extractedScopes).toEqual([])
+    expect(bare!.properties.arrivalDepartures).toEqual([])
+  })
+
   it('never emits a status the live map would not colour the same pin with', () => {
     // Derived, not stored: an explicitly completed location is `complete`; a location with
     // nothing filled in is `started`; anything in between is `working` — the same rule
