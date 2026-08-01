@@ -23,7 +23,6 @@ export {
 } from '@/features/demo/engine/content/screens'
 export { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 export { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
-export { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 export {
   PROFILE_DEFAULTS,
   PROFILE_LABELS,

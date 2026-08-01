@@ -1,11 +1,4 @@
-import type {
-  FormFieldId,
-  FormStepId,
-  Profile,
-  ProfileConfig,
-  ProfileDefaults,
-} from '@/features/demo/engine/types'
-import { WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import type { FormFieldId, FormStepId, Profile, ProfileDefaults } from '@/features/demo/engine/types'
 import { FORM_FIELDS, FORM_STEPS } from '@/features/demo/engine/content/form-customization'
 
 /**
@@ -118,18 +111,4 @@ export function describeProfile(id: Profile): ProfileReduction {
   const hiddenSteps = new Set(ALL_STEP_IDS.filter((s) => !defaults.steps[s]))
   const fields = FORM_FIELDS.filter((f) => !defaults.fields[f.id] && !hiddenSteps.has(f.screen))
   return { steps: hiddenSteps.size, fields: fields.length }
-}
-
-// ---- Legacy shape (deleted when the selectors move onto the resolver) --------
-
-/** @deprecated Superseded by `PROFILE_DEFAULTS`; still read by `selectVisibleWizardScreens`. */
-export const FORENSIC: ProfileConfig = {
-  id: 'forensic',
-  wizardScreens: [...WIZARD_SCREENS],
-  hiddenFields: [],
-}
-
-/** @deprecated Superseded by `PROFILE_DEFAULTS`. */
-export function getProfile(_id: Profile): ProfileConfig {
-  return FORENSIC
 }

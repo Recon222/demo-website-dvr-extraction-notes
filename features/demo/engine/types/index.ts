@@ -388,13 +388,6 @@ export interface DrawerDef {
   icon: string
 }
 
-/** Superseded by `ProfileDefaults` below — deleted with `content/profiles.ts`'s rewrite. */
-export interface ProfileConfig {
-  id: Profile
-  wizardScreens: WizardScreenId[]
-  hiddenFields: string[]
-}
-
 // ---- Form customization (P7.3, matrix A2 / decision D9) ---------------------
 /**
  * The two additive capture TOOLS the drawer's Media accordion opens. They are launchables,

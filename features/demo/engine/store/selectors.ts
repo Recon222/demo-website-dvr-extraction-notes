@@ -1,6 +1,6 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
 import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
-import { getProfile } from '@/features/demo/engine/content/profiles'
+import { getVisibleFormSteps, isKnownFormStep, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
 import { formatAddress } from '@/features/demo/engine/logic/address-format'
@@ -39,7 +39,11 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
       : EXPLORE_ITEMS.some((it) => it.covers.includes(state.view))
         ? state.view
         : state.currentChapter
-  return EXPLORE_ITEMS.map((item, i) => ({
+  // A row for a screen the visitor's profile has switched OFF can never light — and the exit
+  // dialog lists unlit rows as things they missed. Drop those rows (P7.3): the checklist tracks
+  // THIS visitor's flow, not the maximal one. Numbering stays positional over what remains,
+  // which is the same rule the registry has always used.
+  return EXPLORE_ITEMS.filter((item) => !isKnownFormStep(item.id) || resolveStepVisible(item.id, state)).map((item, i) => ({
     id: item.id,
     number: String(i + 1).padStart(2, '0'),
     label: item.label,
@@ -124,13 +128,29 @@ export function selectLocationsForCase(s: DemoState, caseId: string): DemoLocati
   return s.locations.filter((l) => l.caseId === caseId)
 }
 
+/**
+ * The wizard screens currently in the flow — the visible LINEAR steps, resolved through the
+ * active profile and the visitor's overrides (P7.3). Every step id here is a `WizardScreenId`
+ * because `LINEAR_FORM_STEPS` is `DRAWER_DEFS`; the narrowing is asserted rather than assumed
+ * so a future additive step leaking into the linear list is a test failure, not a bad route.
+ */
 export function selectVisibleWizardScreens(s: DemoState): WizardScreenId[] {
-  return getProfile(s.profile).wizardScreens
+  return getVisibleFormSteps(s).map((step) => step.id as WizardScreenId)
 }
 
 export function selectDrawerItems(s: DemoState): DrawerDef[] {
-  const visible = new Set(selectVisibleWizardScreens(s))
+  const visible = new Set<string>(selectVisibleWizardScreens(s))
   return DRAWER_DEFS.filter((d) => visible.has(d.id))
+}
+
+/** Whether the drawer's Media accordion should offer each capture tool — the phone gates both
+ *  rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
+ *  gated on either side: it browses what is already captured. */
+export function selectMediaToolsVisible(s: DemoState): { capture: boolean; audio: boolean } {
+  return {
+    capture: resolveStepVisible('mediaCapture', s),
+    audio: resolveStepVisible('audioRecording', s),
+  }
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------

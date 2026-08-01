@@ -4,12 +4,10 @@ import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engin
 import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 import {
   DEFAULT_PROFILE,
-  FORENSIC,
   PROFILE_BLURBS,
   PROFILE_DEFAULTS,
   PROFILE_LABELS,
   describeProfile,
-  getProfile,
 } from '@/features/demo/engine/content/profiles'
 import { ALWAYS_ON_FIELDS, FORM_FIELDS, FORM_STEPS } from '@/features/demo/engine/content/form-customization'
 import { PROFILES } from '@/features/demo/engine/types'
@@ -70,16 +68,6 @@ describe('seed content (the sample request survives as the live-import fallback)
 })
 
 describe('profiles', () => {
-  it('forensic profile exposes all 10 wizard screens with nothing hidden', () => {
-    expect(FORENSIC.id).toBe('forensic')
-    expect(FORENSIC.wizardScreens.length).toBe(10)
-    expect(FORENSIC.hiddenFields).toEqual([])
-  })
-
-  it('getProfile returns the forensic config for "forensic"', () => {
-    expect(getProfile('forensic')).toBe(FORENSIC)
-  })
-
   it('covers all three profiles with total default maps', () => {
     expect([...PROFILES]).toEqual(['forensic', 'limited', 'canvas'])
     for (const id of PROFILES) {
