@@ -13,19 +13,21 @@ Consolidated 2026-07-31. File these as BUG-NNN in the phone repo's `docs/cleanup
 7. **Silent reverse-geocode failure in NewLocationModal** — `onReverseGeocodeError` unwired at that call site (ui-mapping `11-case-modals.md:386`); failures log to Sentry only, zero user feedback. (deferred §51)
 8. **OCR "assume today" is silent** — `timestamp-parser.ts:260-266` stamps `new Date()` for time-only frames and the confirm screen pre-fills it without telling the operator. Demo gates it behind explicit confirmation. (deferred §40b)
 9. **Audio recorder: the big Stop button's 500ms min-duration guard is inert** — only the Stop *pill* is gated; the phone's own ui-mapping calls the big button's guard "currently inert" (`10-audio.md:62/70`), so a sub-500ms take stops through the big button and lands on an error toast instead of being prevented. Demo binds the shared 500ms `canStop` gate to BOTH controls. (P4.6 report; deferred §61b)
+10. **Case Map export: the dev-only data-script strip never fires** — `scripts/build-template.mjs:73` splits on a `\n`-terminated key against a CRLF prototype, so `template/case-map.template.ts` (1542 CRLF pairs) still carries `<script src="assets/case-map.data.js">`; every exported `Case Map.html` 404s on an `assets/` dir that isn't in the ZIP. The post-build guards (`:79-83`) check only tokens + a leaked `pk.`. Fixed demo-side in `tools/port-case-map-template.mjs`. (P5.4 report; deferred §71c)
+11. **Case Map export: every export is tab-titled with the sample case** — `template/case-map.template.html:6` hardcodes `<title>Case Map — OCC-2026-00417</title>` (the prototype's sample OCC) and nothing sets `document.title` at runtime (the only `.title` write is a tooltip, `case-map.app.js:796`). Fixed demo-side via a `__CASE_TITLE__` token. (P5.4 report; deferred §71c)
 
 ## Copy / UX nits
 
-10. **CaseActionsSheet `Status:` line renders the raw lowercase enum** (`draft`/`complete`) instead of display copy. (deferred §49)
-11. **NewCaseModal's disabled-submit predicate makes its own validation messages unreachable** — the `disabled` check IS the `validateForm` check, so "Case number is required"/"Unit is required" are dead copy. (deferred §50a)
-12. **`DRAFT`→"Active" label rename** still deferred in `CaseStatusBadge` et al. (pre-existing, noted in ui-mapping cross-cutting patterns).
+12. **CaseActionsSheet `Status:` line renders the raw lowercase enum** (`draft`/`complete`) instead of display copy. (deferred §49)
+13. **NewCaseModal's disabled-submit predicate makes its own validation messages unreachable** — the `disabled` check IS the `validateForm` check, so "Case number is required"/"Unit is required" are dead copy. (deferred §50a)
+14. **`DRAFT`→"Active" label rename** still deferred in `CaseStatusBadge` et al. (pre-existing, noted in ui-mapping cross-cutting patterns).
 
 ## Doc-drift (fix the docs, not code)
 
-13. **The ">2σ GPS outlier filter" does not exist** — `gps-service.ts:276-282` picks the most accurate sample; the filter is documented fiction in `src/features/README.md:768` and `DOCUMENTATION-PLAN.md:2520` (accurate line: `location/README.md:276`). Do not implement it — it would change committed coordinates. (phone-inventory correction banner)
-14. **`resetProfile()` documented but not implemented** (user-profile docs vs store).
-15. **`app/README.md` says 3 tabs (actually 4); `constants/README.md` lists a ROUTES.TABS.SETTINGS that is a modal; arrival-departure documented 1–10 (store caps 20); `cloud-sync/README.md` `isLocked` formula wrong.** (phone-inventory audit flags)
+15. **The ">2σ GPS outlier filter" does not exist** — `gps-service.ts:276-282` picks the most accurate sample; the filter is documented fiction in `src/features/README.md:768` and `DOCUMENTATION-PLAN.md:2520` (accurate line: `location/README.md:276`). Do not implement it — it would change committed coordinates. (phone-inventory correction banner)
+16. **`resetProfile()` documented but not implemented** (user-profile docs vs store).
+17. **`app/README.md` says 3 tabs (actually 4); `constants/README.md` lists a ROUTES.TABS.SETTINGS that is a modal; arrival-departure documented 1–10 (store caps 20); `cloud-sync/README.md` `isLocked` formula wrong.** (phone-inventory audit flags)
 
 ## Back-port candidates (improvements, not bugs — matrix §4)
 
-B2 clock-injected datetime parts · B3 `RetentionView` derivation · B4 incident-coordinate UX + strict `parseCoordinate` · B5 `motion.ts` as the Reanimated port template · the demo's D10 extracted-scope passthrough comments as documentation of intent.
+B2 clock-injected datetime parts · B3 `RetentionView` derivation · B4 incident-coordinate UX + strict `parseCoordinate` · B5 `motion.ts` as the Reanimated port template · the demo's D10 extracted-scope passthrough comments as documentation of intent · B6 `encodeJsonForScriptTag` (`</script>` in a location name closes the phone's data tag early; the map's bare `catch {}` at `case-map.app.js:109` then renders a blank map with zero feedback — demo escapes `<`; back-port is additive since `buildCaseMapHtml`'s signature is unchanged).

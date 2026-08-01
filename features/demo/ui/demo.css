@@ -117,6 +117,14 @@
   to { transform: translateY(0); }
 }
 
+/* Export Hub footer (P5.2): the pre-flight panel rises into place, mirroring the phone's
+   Animated translateY 12 → 0 over 220ms (ExportHub.tsx:150-158). Transform-only and gated by
+   useReducedMotion at the call site — nothing's presence depends on it having run. */
+@keyframes exportFooterRise {
+  from { transform: translateY(12px); }
+  to { transform: translateY(0); }
+}
+
 /* Import terminal (P1.4): block-cursor blink + the badge→CTA morph fade (350ms,
    mirroring the phone's Reanimated FadeIn.duration(350)). Both are gated by
    useReducedMotion at the call site. */

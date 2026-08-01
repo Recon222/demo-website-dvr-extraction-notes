@@ -1,8 +1,10 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { TAB_LABELS, TAB_VIEWS, type TabView } from '@/features/demo/engine/content/screens'
 
-export type TabId = 'dashboard' | 'cases' | 'map'
+/** The tab bar's id space, sourced from the registry (kept as the module's public name). */
+export type TabId = TabView
 
 /** Single source of truth for the bottom tab bar's height — overlays sit flush above it (no seam). */
 export const TAB_BAR_HEIGHT = 50
@@ -19,10 +21,47 @@ const tab: CSSProperties = {
   border: 'none',
 }
 
-/** The phone's bottom tab bar (Dashboard / Cases / Map) — shown on the app-chapter screens. */
-export function TabBar({ active, onSelect }: { active: TabId; onSelect(tab: TabId): void }) {
-  const stroke = (id: TabId) => (active === id ? '#4BA3D4' : '#5d7a9a')
-  const sw = (id: TabId) => (active === id ? 1.9 : 1.8)
+/**
+ * Per-tab glyphs, mirroring the phone's Ionicons choices (`app/(tabs)/_layout.tsx:33,44,55,66`):
+ * `desktop-outline` · `folder` · `map` · `archive-outline` — the phone's own comment marks the
+ * archive box as an interim icon that "reads as 'evidence package'". A TOTAL record over
+ * `TabView`, so a tab added to `TAB_VIEWS` cannot ship without one. The icons live here rather
+ * than in the registry because they are JSX — the same reason the drawer's Media accordion rows
+ * can't live in the engine (`content/explore.ts`).
+ */
+const TAB_ICONS: Record<TabView, (stroke: string, sw: number) => ReactNode> = {
+  dashboard: (stroke, sw) => (
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </svg>
+  ),
+  cases: (stroke) => (
+    <svg width="25" height="25" viewBox="0 0 24 24" fill={stroke}>
+      <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z" />
+    </svg>
+  ),
+  map: (stroke, sw) => (
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V3l-6 2.5L9 4z" />
+      <path d="M9 4v13.5M15 6.5V20" />
+    </svg>
+  ),
+  export: (stroke, sw) => (
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+      <path d="M10 12h4" />
+    </svg>
+  ),
+}
+
+/**
+ * The phone's bottom tab bar (Dashboard / Cases / Map / Export) — shown on the app-chapter
+ * screens. Order is DERIVED from `TAB_VIEWS`, never hand-listed here, and the bridge decides
+ * whether the bar shows at all from the same registry (`isTabView`).
+ */
+export function TabBar({ active, onSelect }: { active: TabView; onSelect(tab: TabView): void }) {
   return (
     <div
       style={{
@@ -41,23 +80,23 @@ export function TabBar({ active, onSelect }: { active: TabId; onSelect(tab: TabI
         boxShadow: '0 -6px 18px rgba(0,0,0,0.28)',
       }}
     >
-      <button type="button" aria-label="Dashboard" onClick={() => onSelect('dashboard')} style={tab}>
-        <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke('dashboard')} strokeWidth={sw('dashboard')} strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="12" rx="2" />
-          <path d="M8 20h8M12 16v4" />
-        </svg>
-      </button>
-      <button type="button" aria-label="Cases" onClick={() => onSelect('cases')} style={tab}>
-        <svg width="25" height="25" viewBox="0 0 24 24" fill={stroke('cases')}>
-          <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z" />
-        </svg>
-      </button>
-      <button type="button" aria-label="Map" onClick={() => onSelect('map')} style={tab}>
-        <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={stroke('map')} strokeWidth={sw('map')} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V3l-6 2.5L9 4z" />
-          <path d="M9 4v13.5M15 6.5V20" />
-        </svg>
-      </button>
+      {TAB_VIEWS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          aria-label={TAB_LABELS[id]}
+          // The active tab was signalled by HUE ALONE across four destinations (WCAG 1.4.1 /
+          // 4.1.2) — invisible to a screen reader and to anyone who can't separate #4BA3D4 from
+          // #5d7a9a. `aria-current="page"` is the destination idiom (and what React Navigation
+          // gives the phone's own tab bar for free); §67c's `aria-pressed` stays with the media
+          // library's FILTER strip, which toggles what one sheet shows rather than navigating.
+          aria-current={active === id ? 'page' : undefined}
+          onClick={() => onSelect(id)}
+          style={tab}
+        >
+          {TAB_ICONS[id](active === id ? '#4BA3D4' : '#5d7a9a', active === id ? 1.9 : 1.8)}
+        </button>
+      ))}
     </div>
   )
 }

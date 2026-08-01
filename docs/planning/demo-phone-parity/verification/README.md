@@ -73,9 +73,18 @@ xcrun simctl location booted set 43.6532,-79.3832
 ./look.sh [out.png]          # screenshot the sim + print every on-screen string as
                              #   "<y%>  <x%>  text"   -> read state, get tap targets
 ./tap.sh   50% 79%           # tap a point (repeatable: x y x y x y ...)
+./ftap.sh  30% 36%           # FAST tap — use this on rows that have a long-press handler
 ./swipe.sh 50% 75% 50% 30%   # swipe (scrolling — mouse wheel does NOT work in the sim)
 ./mrun.sh flow.yaml          # run any Maestro flow file
 ```
+
+**`tap.sh` vs `ftap.sh` — this will bite you.** Maestro's `tapOn: point:` intermittently holds
+long enough to fire `onLongPress`. On the Cases screen that means tapping a location row opens
+the **Duplicate Location** action sheet instead of entering the wizard — roughly half the time.
+`ftap.sh` issues a 1 %-displacement 50 ms swipe instead, which is a clean touch down/up well
+under the long-press threshold, and it never mis-fired. Use `ftap.sh` for anything on a row
+with a long-press handler; `tap.sh` is fine (and slightly more reliable) for plain buttons —
+the audio recorder's record button, for instance, only responded to `tap.sh`.
 
 `look.sh` prints **y first, then x**; `tap.sh` takes **x first, then y**. Swapping them is the
 easiest mistake to make.
@@ -114,6 +123,48 @@ so it is tappable even when Maestro can't see it as a semantic element. Maestro'
 `maestro hierarchy` sees only the status bar for this RN app — accessibility nodes are not
 exposed usefully, which is exactly why the OCR helper exists.
 
+**Corollary — never put `assertVisible` / `extendedWaitUntil: visible:` in a flow.** They match
+against that same empty hierarchy, so they always fail and the flow aborts before your taps
+run (silently: Maestro prints no step lines at all). Sequence work as separate `tap.sh` /
+`ftap.sh` / `swipe.sh` calls with `sleep`s between them, and verify with `look.sh`.
+
+### Navigating the wizard drawer
+
+The form drawer is **`drawerPosition: 'right'`** with `swipeEdgeWidth: 50` pt (≈12 % of the
+402 pt-wide screen), so it opens with a **right-edge** swipe:
+
+```bash
+./swipe.sh 98% 40% 10% 40%     # open the drawer
+./swipe.sh 55% 80% 55% 40%     # scroll DOWN inside it (Media sits below Completion)
+```
+
+Start at **98 %, not 99 %** — 99 % lands on the iOS system edge gesture and sends the app to
+the home screen. Starting left of ~88 % misses the edge entirely and just scrolls the form.
+There is no hamburger button: the header's top-left control is **Back** (it exits the wizard).
+
+### Reading the sim: things that look like failures but aren't
+
+* A `look.sh` that returns only the clock, or the iOS home screen, usually means the app is
+  **mid-transition or cold-booting**, not that it crashed. Confirm with
+  `ps aux | grep -c '[D]VRExtractionNotes'` before concluding anything. A cold launch that has
+  to re-pull the Metro bundle takes **~60 s** to first paint.
+* Rotated screens (the OCR capture surface) come back from OCR as lines sharing one `y` with
+  different `x`, and a garbled status-bar clock. That geometry IS the evidence of rotation —
+  you do not need to look at the image.
+
+### Simulator capability limits (P4)
+
+The sim has **no camera and no microphone**, which bounds what can be verified there:
+
+| Surface | What the sim shows |
+|---|---|
+| Media capture | "No camera device available / Go Back" — honest terminal state, no crash |
+| Audio recorder | Full CRT chrome, but transport stays `READY`, timer stuck at `00:00`, header clock frozen |
+| Media library | Always empty (nothing can be captured), so rows/delete-confirm are unreachable |
+| OCR capture | Rotated chrome renders; no live frame |
+
+Anything needing a real capture must move to a physical device.
+
 ### Observing
 
 ```bash
@@ -138,6 +189,42 @@ pnpm dev --port 3001              # ✓ Ready in ~1s; app at http://localhost:30
 kill $(lsof -nP -iTCP:3001 -sTCP:LISTEN -t)
 ```
 
+**Post-P4 (merged to master @ `2868fff`), run from the main repo and `pnpm install` FIRST.**
+P4 added `tesseract.js`; with stale `node_modules` the `/demo` route returns **500**
+(`Module not found: Can't resolve 'tesseract.js'`) and every driver dies on the hydration wait.
+
+```bash
+cd /Users/fvadev/Developer/extraction-notes/demo-website-dvr-extraction-notes
+pnpm install && pnpm dev --port 3001
+```
+
+### Camera / microphone in Playwright — required for every capture surface
+
+`lib.js` `open()` now launches Chromium with a fake camera and grants camera+microphone, and
+adds **two shims you must not remove**:
+
+1. **The audio shim.** In headless Chromium `getUserMedia({video:true})` resolves, but ANY
+   request that includes audio — `{video,audio}` or `{audio}` alone — **never settles**. It
+   does not reject; it hangs. The capture screen awaits it and parks on
+   *"Opening… / Waiting for your browser's camera permission…"* forever with only Cancel.
+   `lib.js` wraps `getUserMedia` to serve audio from a silent WebAudio track, so the live path
+   proceeds. Measured, not guessed — `probe4.js` times each constraint shape.
+2. **A real DVR clock for the fake camera.** Chromium's built-in fake device is a rolling
+   colour pattern; the OCR surface reads nothing off it and honestly reports *"Text recognition
+   failed."* `mky4m.swift` renders a black panel with a bright monospace timestamp and writes a
+   looping `.y4m`, which `lib.js` feeds via `--use-file-for-fake-video-capture`:
+
+   ```bash
+   swiftc -O -o mky4m mky4m.swift
+   ./mky4m dvrclock.y4m "2026-07-31 14:23:45"
+   ```
+
+   With it, tesseract.js genuinely reads the frame (it parsed `0026-07-31 14:23:00` from that
+   input — a real low-confidence misread, correctly flagged). This is the ONLY way to exercise
+   the live-camera OCR path, and surface 6 below depends on it.
+
+Pass `open({ camera: 'deny' })` to exercise the denied/no-camera branch instead.
+
 Drivers (Playwright, installed in this directory):
 
 ```bash
@@ -153,6 +240,8 @@ HEADED=1 ...                      # watch it run
 | `03-import.js` | **stale** — written against the pre-P1 import UI (`Extract & import`, `Import complete` stages). Superseded by `05-import-p1.js`; keep only as a master-branch reference |
 | `04-map.js` | Map tab case picker → tokenless map fallback → bottom sheet |
 | `05-import-p1.js` | the P1 import experience: 3-card picker → paste step → live terminal → dwell → result |
+| `06-p4-media.js` | P4: drawer Media accordion, capture (gate → live → mode pills → review), audio recorder, media library, OCR viewfinder, time-offset |
+| `07-p4-ocr-pdf.js` | P4 surfaces 5 & 6 live-camera: landscape viewfinder with a real stream, then the Time-Offset PDF image-block check LIVE vs SAMPLE |
 | `lib.js` / `flows.js` | shared open/shot/step helpers and case/location/wizard sub-flows |
 | `probe.js` | scratch introspection — dumps the phone frame's text and every button name |
 
@@ -173,7 +262,24 @@ p.locator('[data-testid="terminal-log"]')
 p.locator('[data-testid="terminal-review-cta"]')             // "Review import →" — the dwell gate
 p.locator('[data-testid="case-map-picker"]')
 p.locator('[data-testid^="case-row-"]')
+
+// P4 media surfaces
+p.getByRole('button', { name: 'Media section' })                    // drawer accordion toggle
+p.getByRole('button', { name: 'Open camera to capture media' })
+p.getByRole('button', { name: 'Record audio note' })
+p.getByRole('button', { name: 'Open media library' })
+p.getByRole('button', { name: /^Grant$/i })                         // capture-screen gate
+p.getByRole('button', { name: 'Photo mode' | 'Video mode' | 'Take photo' | 'Save image' })
+p.getByRole('button', { name: 'Start recording' | 'Stop recording' })
+p.locator('[data-testid="media-library-content"] button')           // library rows
+p.getByRole('button', { name: 'Grant Camera Permission' })          // OCR screen's OWN gate
+p.getByRole('button', { name: 'Use sample DVR clock' })
+p.getByRole('button', { name: 'Capture from DVR' })                 // on Time Offset
+p.getByRole('button', { name: 'Preview Time-Offset Calibration' })  // on Completion
 ```
+
+The OCR screen has a **separate** permission gate whose button reads `Grant Camera Permission`,
+not `Grant` — a `/^Grant$/` matcher silently skips it and you land on the sample path.
 
 Viewport is pinned to 1440×1000 in `lib.js` — height ≥ 840 forces `usePhoneScale()` to exactly
 1.0 so the phone renders 1:1 and no coordinate math is needed. Don't shrink it.
@@ -184,6 +290,14 @@ Viewport is pinned to 1440×1000 in `lib.js` — height ≥ 840 forces `usePhone
   inherited unconditional click *collapsed* it and every downstream `Add Location` wait timed
   out at 30 s. This is what made all four inherited scripts fail. Fixed in `flows.js` and in
   `01-wizard-walk.js`'s inline copy — check for `Add Location` first, only click if absent.
+* **New Case now has a "Confirm Case Number" step** ("…can't be changed after the case is
+  created"). It renders a SECOND Cancel/Create Case pair, and — critically — it lives in an
+  **alert overlay above a `[data-alert-scrim]`, OUTSIDE the New Case dialog**. A dialog-scoped
+  `getByRole('button', {name:'Create Case'}).last()` resolves to the button *behind* the scrim
+  and the click is intercepted until timeout. Scope to the phone frame instead. Handled in
+  `flows.createCase`.
+* **`getByLabel('Location Name')` needs `{ exact: true }`** — it otherwise also matches the
+  New Location dialog's `Business/Location Name`, a strict-mode violation.
 * **Sample mode substitutes content.** With no `OLLAMA_API_KEY`, `/api/extract` returns
   `503 NOT_CONFIGURED` and `run-import.ts` falls back to the fixed `SAMPLE_EXTRACTION`. The
   result screen therefore shows **Kim's Convenience / 2025-03-08** regardless of what was
@@ -222,8 +336,19 @@ $SP/baselines/
     │   └── 09/10/11-import-result*.png
     ├── wizard/                        23   full walk, 10 wizard screens + PDF preview
     ├── time-offset/                   10   NTP sync → Calculate → adjusted ranges → OCR
-    └── map/                            3   picker → tokenless fallback → expanded sheet
+    ├── map/                            3   picker → tokenless fallback → expanded sheet
+    ├── p4/                            18   drawer Media, capture gate/live/pills/review,
+    │                                       audio idle→rec→preview, library tabs/row/delete,
+    │                                       OCR viewfinder + result, time-offset
+    └── p4-live/                        7   live-camera OCR landscape + the Time-Offset PDF
+                                            image-block check, LIVE vs SAMPLE
 ```
+
+Phone P4 set (`baselines/phone/p4/`, 8): drawer Media collapsed/expanded, capture screen
+("No camera device available"), audio recorder READY, media library empty state, rotated OCR
+capture screen.
+
+**P4 phase-boundary verdicts live in `P4-side-by-side-findings.md`** next to this file.
 
 Phone run detail worth keeping: the **on-device Apple Foundation Models provider genuinely ran
 in the simulator** — no key, nothing stubbed. It extracted Riverside Variety / 4120 Lakeshore

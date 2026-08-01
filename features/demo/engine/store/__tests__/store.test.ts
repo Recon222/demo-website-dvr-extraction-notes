@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { freshStore, newCaseInput, newLocationInput } from './test-utils'
 import { blankCapture } from '@/features/demo/engine/store/create-store'
 import { selectCurrentLocation } from '@/features/demo/engine/store/selectors'
+import { CHAPTERS, TAB_VIEWS } from '@/features/demo/engine/content/screens'
 import type { ScopeEntry } from '@/features/demo/engine/types'
 
 const scope = (o: Partial<ScopeEntry> = {}): ScopeEntry => ({
@@ -471,7 +472,23 @@ describe('launch / closeLaunch', () => {
   })
 })
 
-describe('setView — map tab view', () => {
+describe('setView — tab-only views', () => {
+  it('leaves currentChapter alone for EVERY tab-only destination, present and future', () => {
+    // The guard asks the CHAPTERS registry rather than excluding the tab views it knows about
+    // by name: the old negative check (`v !== 'map' && !LAUNCHABLE.includes(v)`) silently
+    // promoted each newly added tab to `currentChapter` — which is what `closeLaunch()`
+    // returns to and what the rail's chapter narration is keyed by.
+    for (const tabOnly of TAB_VIEWS.filter((v) => !(CHAPTERS as readonly string[]).includes(v))) {
+      const store = freshStore()
+      store.getState().setView('cases')
+      store.getState().setView(tabOnly)
+      expect(store.getState().view).toBe(tabOnly)
+      expect(store.getState().currentChapter, `setView("${tabOnly}") moved the chapter`).toBe('cases')
+      // …and it is still recorded as visited, like any other destination.
+      expect(store.getState().visited[tabOnly]).toBe(true)
+    }
+  })
+
   it('setView("map") sets the view but leaves currentChapter unchanged (map is not a chapter)', () => {
     const store = freshStore()
     store.getState().setView('cases')

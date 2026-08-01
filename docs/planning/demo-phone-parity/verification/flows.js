@@ -9,7 +9,18 @@ async function createCase(page, caseNumber, extra = {}) {
   await dlg.getByLabel('Case Number').fill(caseNumber);
   await dlg.getByLabel('Unit').fill(extra.unit || 'Video Forensics');
   if (extra.city) await dlg.getByLabel('City').fill(extra.city);
-  await dlg.getByRole('button', { name: 'Create Case' }).click();
+  await dlg.getByRole('button', { name: 'Create Case' }).first().click();
+  // Post-P4 the modal gates on a "Confirm Case Number" step ('…can't be changed after
+  // the case is created'). It renders a SECOND Cancel/Create Case pair inside the same
+  // dialog, so the confirm button is the LAST match. Harmless if the step is absent.
+  await page.waitForTimeout(400);
+  // NOTE: the confirm renders in an ALERT OVERLAY above a [data-alert-scrim], OUTSIDE the
+  // New Case dialog — a dlg-scoped locator resolves to the button behind the scrim and the
+  // click is intercepted forever. Scope to the phone frame and take the last match.
+  const confirm = p.getByText('Confirm Case Number', { exact: true });
+  if (await confirm.count()) {
+    await p.getByRole('button', { name: 'Create Case' }).last().click();
+  }
   await p.getByText(caseNumber).first().waitFor();
 }
 
@@ -29,7 +40,9 @@ async function addLocation(page, name, extra = {}) {
   await p.getByRole('button', { name: 'Add Location' }).click();
   const dlg = p.getByRole('dialog', { name: 'New Location' });
   await dlg.waitFor();
-  await dlg.getByLabel('Location Name').fill(name);
+  // exact:true is REQUIRED — 'Location Name' also substring-matches the dialog's
+  // 'Business/Location Name' field, which is a strict-mode violation.
+  await dlg.getByLabel('Location Name', { exact: true }).fill(name);
   if (extra.city) await dlg.getByLabel('City').fill(extra.city);
   if (extra.business) await dlg.getByLabel('Business Name').fill(extra.business);
   await dlg.getByRole('button', { name: 'Create Location' }).click();

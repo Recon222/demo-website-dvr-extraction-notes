@@ -68,6 +68,23 @@ export interface MapScreenProps {
    * already passes it and no caller wants the CTA hidden.
    */
   onEditIncident(caseId: string): void
+  /**
+   * "Export Map" — the list-footer action that downloads the viewer case's self-contained
+   * Case Map (P5.4). Optional, like its phone counterpart (`MapBottomSheet.tsx:66-70`,
+   * ui-mapping 03:182 "Rendered only when `onExportMap` prop supplied"): a mount without a
+   * handler simply has no button, rather than a button that swallows every press — the
+   * gating shape §49a set and `onChangeCase`/`onGoToLocation` above already follow.
+   *
+   * SEAM(P6.1): the map screens are P6.1's territory. P5.4's footprint on them is three
+   * forwarded props and one footer button in `LocationList`; the export itself lives in
+   * `engine/logic/case-map/` and `ui/inputs/download-file.ts`.
+   */
+  onExportMap?(): void
+  /** The Case Map builder is still being fetched — the footer disables itself rather than
+   *  accepting a press it cannot serve synchronously (review R-8). */
+  exportMapPending?: boolean
+  /** A blocking dialog owns the screen — the footer is not live (review R-8). */
+  exportMapBlocked?: boolean
 }
 
 const changeCasePill: CSSProperties = {
@@ -109,7 +126,7 @@ const emptyStyle: CSSProperties = {
  * The projection pipeline mirrors MapHost.tsx:248-268 exactly:
  *   mapData → applyMapFilters → (proximity) → display → markers / sheet / counts
  */
-export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident, onExportMap, exportMapPending, exportMapBlocked }: MapScreenProps) {
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheetMode, setSheetMode] = useState<'list' | 'detail'>('list')
@@ -376,6 +393,9 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             detail={detail}
             emptyReason={emptyReason}
             onClearFilters={handleClearFilters}
+            onExportMap={onExportMap}
+            exportMapPending={exportMapPending}
+            exportMapBlocked={exportMapBlocked}
           />
           {pendingCall && (
             <CallConfirmSheet

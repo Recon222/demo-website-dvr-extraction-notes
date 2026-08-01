@@ -61,6 +61,85 @@ describe('AlertDialog — the in-phone blocking alert (Alert.alert analog)', () 
     opener.remove()
   })
 
+  /**
+   * D-2. The regression this closes: a control that disables itself on activation (the map's
+   * Export Map in-flight belt; ExportHub's footer CTA) is non-focusable in the same commit that
+   * mounts the dialog, HTML's focus fixup moves focus to `<body>` BEFORE React's passive
+   * effects, and the old `document.activeElement` read therefore captured `<body>` as opener —
+   * so dismissing dropped a keyboard visitor at document start.
+   */
+  describe('the opener is captured at gesture time, not at mount', () => {
+    function selfDisablingOpener() {
+      const opener = document.createElement('button')
+      opener.textContent = 'Export Map'
+      document.body.appendChild(opener)
+      opener.focus()
+      // The activation, in order: capture-phase pointerdown fires FIRST, then the handler
+      // disables the control, and the focus fixup drops focus to <body>.
+      fireEvent.pointerDown(opener)
+      // jsdom refuses to blur an already-disabled element, so the two writes are ordered the
+      // other way round here; the observable end state — disabled control, focus on <body> —
+      // is the one a browser reaches.
+      opener.blur()
+      opener.disabled = true
+      return opener
+    }
+
+    it('restores to the control that was pressed, not to <body>', () => {
+      const opener = selfDisablingOpener()
+      expect(document.activeElement).toBe(document.body) // the state the old read captured
+
+      const { unmount } = render(
+        <AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />,
+      )
+      opener.disabled = false // the run finished; the in-flight belt cleared in its `finally`
+
+      unmount()
+      expect(document.activeElement).toBe(opener)
+      expect(document.activeElement).not.toBe(document.body)
+      opener.remove()
+    })
+
+    it('still leaves focus alone if the control is disabled when the dialog closes', () => {
+      const opener = selfDisablingOpener()
+      const { unmount } = render(
+        <AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />,
+      )
+      unmount() // still disabled — forcing focus onto it would be a no-op the browser rejects
+      expect(document.activeElement).not.toBe(opener)
+      opener.remove()
+    })
+
+    it('leaves focus alone when the pressed control is gone by dismiss time', () => {
+      const opener = document.createElement('button')
+      document.body.appendChild(opener)
+      fireEvent.pointerDown(opener)
+      const { unmount } = render(
+        <AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />,
+      )
+      opener.remove() // e.g. the row it lived on was deleted by the very action that alerted
+      expect(() => unmount()).not.toThrow()
+    })
+
+    it('ignores a stale origin from an earlier interaction', () => {
+      const gone = document.createElement('button')
+      document.body.appendChild(gone)
+      fireEvent.pointerDown(gone)
+      gone.remove()
+
+      // Nothing was pressed for THIS dialog, so it falls back to whatever holds focus.
+      const current = document.createElement('button')
+      document.body.appendChild(current)
+      current.focus()
+      const { unmount } = render(
+        <AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />,
+      )
+      unmount()
+      expect(document.activeElement).toBe(current)
+      current.remove()
+    })
+  })
+
   it('Escape dismisses; clicking the scrim does NOT — it is a blocking alert', () => {
     const onDismiss = vi.fn()
     const { container } = render(

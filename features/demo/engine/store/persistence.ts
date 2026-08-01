@@ -326,7 +326,7 @@ const captureSchema: z.ZodType<CaptureState> = z.object({
 // EXTRA_VIEWS is exhaustive by construction (device 3 / R-4c): an AppView variant that is
 // neither a chapter nor a launchable MUST be listed here or this line stops compiling —
 // without it, this build would write a view its own loader then rejects (a full wipe).
-const EXTRA_VIEWS: Record<Exclude<AppView, ChapterId | LaunchableId>, true> = { map: true }
+const EXTRA_VIEWS: Record<Exclude<AppView, ChapterId | LaunchableId>, true> = { map: true, export: true }
 const APP_VIEWS: readonly AppView[] = [
   ...CHAPTERS,
   ...LAUNCHABLE,
@@ -343,6 +343,7 @@ const MODAL_IDS: Record<ModalId, true> = {
   editIncident: true,
   duplicateLocation: true,
   newAddressLocation: true,
+  exportScope: true,
 }
 /** Own-property check, not `in` (R-7): `in` walks the prototype chain, so a hand-edited
  *  snapshot with `"toString": true` would pass the guard and defeat the documented

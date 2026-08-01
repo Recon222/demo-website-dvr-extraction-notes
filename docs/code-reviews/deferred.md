@@ -3861,6 +3861,277 @@ save path, and this sibling should adopt it then.
 
 ---
 
+## 70. P5.1 (parity/p5-engine) — the export engine port: non-ports, adaptations, and the contract P5.2/P5.3 inherit
+
+**Source:** parity plan §5 P5.1; phone `src/hooks/useExportFlow.ts`,
+`src/features/case-management/export-hub/types.ts`, `app/(tabs)/export.tsx`,
+`src/features/case-management/services/pdf-export-service.ts`, `src/components/export/*`.
+Shipped as `features/demo/engine/logic/export/{selection,validation,stage,flow}.ts`. Nothing
+below is a bug; each is a deliberate boundary of the port.
+
+### 70a. The persistence verdict — export state is EPHEMERAL (settled, not deferred)
+
+The phone's own comment is decisive: "Tab-local selection (never persisted; the Map tab's
+`mapViewerCaseId` precedent)" (`app/(tabs)/export.tsx:37-38`), and the prune-on-refresh effect
+(`:51-69`) exists precisely because the selection is only meaningful against live data. The
+demo already mirrors that precedent literally — its own `mapViewerCaseId` is
+`useState` in `ui/DemoExperience.tsx:377`, outside `PersistedState`. So the export selection
+and the flow state are DemoExperience-local `useState` driven by these pure transitions;
+`engine/store/persistence.ts` and `SNAPSHOT_VERSION` (6) were not touched, and the barrel test
+pins their absence from the store. **No trigger — this is a decision, recorded so a later
+"shouldn't the selection survive a refresh?" is answered without re-deriving it.**
+
+### 70b. NOT PORTED — the biometric gate (`useProtectedExport`)
+
+Every phone dispatch runs inside `executeProtectedExport(..., 'export_zip')`. A browser tab has
+no Face ID, and the demo's biometric surface is the P8 splash animation, which is theatre by
+agreement. **Why deferred:** a fabricated gate is a fake security claim on an evidence app.
+**Trigger:** none foreseen — reopen only if the demo ever gains a real WebAuthn step.
+
+### 70c. NOT PORTED — the password round-trip and `resolvePasswordPolicy`
+
+Decision D4 skips PasswordModal (matrix row 26), so `ExportFlowState` has no
+`pendingExportType` / `showPasswordModal` / `defaultPasswordForModal`, and the flow's entry
+guard is `stage !== 'idle'` alone rather than the phone's `isExporting || pendingExportType`.
+`resolvePasswordPolicy` (off / auto-with-saved / prompt) and the `encryptionNote` suffix that
+threads through every phone alert are absent with it. **Trigger:** if real client-side
+encryption ever ships (D4 explicitly leaves the door shut for now), the policy function is a
+20-line port and the guard grows a second term.
+
+### 70d. NOT PORTED — the post-export result-alert taxonomy
+
+`useExportFlow`'s success alerts (`:229-576`) branch on `shareWarning`, `pdfResults.failureCount`,
+`geojsonFailures` and `caseMapFailed`. None of those states is producible here: there is no
+share sheet, no filesystem, and no PDF pipeline that can partially fail. Porting the branches
+would mean inventing failure modes; the honest terminal treatment (D4's "download isn't
+available in the demo") belongs to P5.3 and P5.4 instead. The BLOCKING half of the taxonomy —
+which is reachable — IS ported verbatim as `EXPORT_ALERTS`. **Trigger:** P5.4's real case-map
+download may want the phone's "Export Complete (Not Shared)" shape if a browser download can
+genuinely fail silently; evaluate then, against a real failure, not a hypothetical one.
+
+### 70e. NOT PORTED — `validateLocationForPdf`'s corrupted-`formData` guard
+
+Phone `pdf-export-service.ts:113-122` returns the single error "Location data is corrupted or
+missing" when `location.formData` is not an object. It guards a nullable SQLite JSON blob. The
+demo's `LocationForm` is total by type and the sessionStorage snapshot is Zod-guarded before it
+reaches the store, so no path can produce the state it catches. **Why deferred:** an
+unreachable branch ships with a test that pins nothing. **Trigger:** if the demo ever accepts
+an externally-authored location payload (an import format that carries a whole `form`), add the
+guard with that entry point.
+
+### 70f. Deviations from the phone's validator shape (accepted)
+
+- **Synchronous, not `async`.** The phone's `validateLocationsForPdf` /
+  `validateLocationSubsetForPdf` are async only because they `await getCaseWithLocations`. The
+  demo holds the rows in the session store; a fabricated Promise would add a render gap the
+  demo does not have, and `applyValidation` is written against the sync shape.
+- **No `directoryName`** on `LocationPdfValidation`. It names the location's folder inside the
+  ZIP; there is no filesystem, and `ExportModal.tsx:204-216` never reads it.
+
+### 70g. Copy adaptations (2) — everything else is verbatim
+
+- `EXPORT_ALERTS.noCaseSelected` takes the SUBSET handler's generic wording ("Please select a
+  case before exporting.", `useExportFlow.ts:820-821`) rather than `handleExportZip`'s "Please
+  create a case from the Home screen before exporting." (`:655-656`) — the latter instructs a
+  screen the demo does not have.
+- `EXPORT_ALERTS.caseUnavailable` drops "Refresh the list and" from
+  `export.tsx:148-149` — the demo's list IS the live store; there is nothing to refresh.
+
+### 70h. One deliberate strengthening over the phone
+
+`proceedWithExport` returns SILENTLY when `caseId` is null (`useExportFlow.ts:725-728`),
+leaving the validation modal latched with a live Continue — the exact shape PR-89 fixed
+everywhere else in that file. The arm is unreachable on the phone, which is why it survived.
+`continueValidatedExport` here consumes the modal and raises `caseUnavailable` instead, the
+treatment the phone's own Export tab gives that condition (`export.tsx:142-152`). Recorded so a
+reviewer diffing against the phone sees a decision, not a drift.
+
+### 70i. RESIDUAL — the entry guard does not cover an open validation prompt
+
+Ported verbatim: `isExporting` is `stage !== 'idle'`, and opening the prompt resets the stage
+(the phone calls `resetExportState()` first, `:673-679`). So while the prompt is up, a second
+CTA press would pass the guard. On both platforms the modal physically covers the CTA, which is
+why the phone never hardened it. **Trigger:** if P5.2 ever renders the Export tab's footer
+CTA outside the modal's scrim (or adds a keyboard shortcut for it), add `|| showValidationModal`
+to `isExporting` and pin it — do NOT let a bare re-press reach `requestExport`.
+
+### 70j. CONTRACT for P5.2/P5.3 — the shell must advance the stage in the same handler
+
+`requestExport` returns `{ kind: 'run', state }` with the state UNTOUCHED for the three
+single-artifact pipelines (`location`, `location-geojson`, `case-map`), because on the phone
+their stages come from the service's `onStageChange` callback rather than the handler. The
+consequence is that `isExporting` stays false until the shell calls `advanceStage`, so the
+shell must do so in the same event handler it starts the run. Faithful to the phone, and safe
+in React (one handler per event), but it is a contract rather than a structural guarantee.
+**Trigger:** if P5.3's pipeline ever starts a run across an `await` boundary before its first
+`advanceStage`, move the stage flip into `requestExport`'s run arm.
+
+### 70k. FLAG for P5.2/P5.3 — two ported strings are forward-looking claims
+
+`resolveExportPlan`'s artifact line ("CASE ZIP · CANONICAL · INCLUDES CASE MAP", …) and
+`describeValidationPrompt`'s summary ("The ZIP will be created without any PDF notes.") describe
+the artifact the flow is ABOUT. They are lifted verbatim because the matrix quotes them as
+contract strings and softening them would leave the visitor unable to tell what they just
+agreed to. The honesty rule is satisfied at the TERMINAL step, which is D4's own placement and
+P5.3's territory. **Trigger:** P5.3 must land the honest "downloads aren't available here"
+notice at the end of every ZIP pipeline; if it doesn't, these two strings become the demo's
+only statement about the artifact and the pair reads as a fake success.
+
+### 70l. `DEMO_EXPORT_STAGES` — a new guard rail, not a port
+
+`STAGE_MESSAGES` is ported whole (contract, row 25), but `'sharing'` ("Opening share dialog...")
+precedes a real OS share sheet the browser has no equivalent of. `DEMO_EXPORT_STAGES`
+(`validating` / `generating` / `zipping`) is the subset the simulated pipeline may enter, so
+P5.3 has something to assert against rather than a comment. **Trigger:** none — delete it only
+if a browser share target ever makes `'sharing'` truthful.
+
+## 71. P5.4 (parity/p5-casemap) — the real Case Map download: deltas, refutations & residuals
+
+**Source:** plan §5 P5.4 / decision D4. Phone spec: `src/features/case-management/case-map-export/`
+(README, `services/case-map-export-service.ts`, `template/`, `scripts/build-template.mjs`),
+`services/geojson-service.ts`, ui-mapping `03-tab-map.md`, phone-inventory §"Case Map export
+sub-feature". Nothing here blocks the package; everything is recorded so it does not evaporate.
+
+### 71a. Media in the exported map: nothing is embedded, and nothing should be
+
+The brief asked how the exported map handles captured photos — `blob:` URLs die with the tab,
+and a rehydrated capture has no URL at all (`MediaItem.url` is optional by P4.1/D2 design,
+`engine/types/index.ts:252-274`). **The question does not arise: the Case Map embeds no media
+at all, on either side.**
+
+Evidence, phone-side and conclusive:
+- The map's ONLY data source is `generateCaseGeoJSON(caseId)` (`case-map-export-service.ts:167`).
+  That builder emits three feature kinds and not one media property —
+  `geojson-service.ts:47-160` (location), `:189-241` (incident), `:281-306` (camera). No
+  `photos`, `videos`, `audios`, `mediaCount`, no URI of any kind. The one adjacent thing it
+  deliberately drops is the OCR image URIs, "device-local paths are not portable in an exported
+  file" (`geojson-service.ts:124-127`).
+- The template reads nothing of the sort: every property the map's JS touches is enumerable
+  (`p.<name>` across `prototype/assets/case-map.app.js`) and the set is the GeoJSON's. The only
+  `media` tokens in the whole 1546-line template are two `@media` CSS queries
+  (`template/case-map.template.html:576,582`). The only `background-image` is a basemap-style
+  thumbnail (`case-map.app.js:677`).
+
+So the demo's port embeds no media either, and no data-URL inlining or omission notice was
+needed. This is the phone's design, not a demo shortfall: the map is a geospatial console over
+the case's *geometry and paperwork*; media rides in the ZIP's per-location folders, which is a
+different (honestly-stubbed) export. **Trigger:** if a future phone change puts a media
+property into `generateCaseGeoJSON`, this decision reopens — and the demo's answer will have to
+be data URLs for live captures plus an honest per-item notice for rehydrated ones, because a
+`blob:` URL written into a downloaded file is a dead link the moment the tab closes.
+
+### 71b. TWO PHONE DEFECTS found while porting the template (back-port candidates)
+
+Both are in the phone repo, which is read-only for this effort; neither has a demo consequence
+(the port fixes both, see 71c). Recorded here so the orchestrator can file them.
+
+1. **The dev-only sample-data `<script>` ships in every exported Case Map.**
+   `scripts/build-template.mjs:73` intends to strip it:
+   `html.split('  <script src="assets/case-map.data.js"></script>\n').join('')`. The key ends
+   in a bare `\n`; the prototype was authored with CRLF, so the split matches nothing and the
+   tag survives. Verified in the artifact the app actually imports: decoding
+   `template/case-map.template.ts` (CRLF throughout, 1542 CRLF pairs) shows
+   `<script src="assets/case-map.data.js"></script>` intact before the inlined app JS. Every
+   exported `Case Map.html` therefore requests an `assets/` directory that is not in the ZIP —
+   a 404 on a court-facing artifact. Functionally benign (`window.SAMPLE_CASE` stays undefined,
+   so `case-map.app.js:111` cannot fall back to sample data), but it is a broken reference in
+   an evidence export, and `build-template.mjs`'s post-build guards (`:79-83`) check only the
+   three tokens and a leaked `pk.` — nothing asserts the strip happened.
+   *Fix shape:* CRLF-tolerant strip (`/[ \t]*<script src="assets\/case-map\.data\.js"><\/script>\r?\n/`)
+   plus a post-build assertion that no non-`https://` `<script src>` survives.
+2. **Every exported Case Map is titled with a SAMPLE case number.**
+   `template/case-map.template.html:6` is `<title>Case Map — OCC-2026-00417</title>`, inherited
+   verbatim from the prototype, and nothing in `case-map.app.js` sets `document.title` (grep:
+   the only `.title` write is a control's tooltip at `:796`). So the browser tab, and any
+   PDF-printed header, of every exported map for every case reads someone else's OCC.
+   *Fix shape:* tokenize the title in `build-template.mjs` and inject from `meta` in
+   `buildCaseMapHtml` — which is exactly what 71c did on the demo side.
+
+### 71c. Three deliberate deltas from a verbatim port
+
+The template is copied byte-for-byte by `tools/port-case-map-template.mjs` (which is the
+re-port path — the phone stays the source of truth for the map's HTML/CSS/JS; the demo never
+edits it). Three things do NOT cross verbatim:
+
+1. **The 71b.1 sample-data tag is dropped.** Restores the phone's own stated intent. A 404 in
+   a file we hand a visitor is not something to reproduce for fidelity's sake.
+2. **`<title>` is tokenized to `__CASE_TITLE__`** and injected as `Case Map — <case number>`
+   (HTML-escaped; the case number is visitor-typed). Fixes 71b.2 for the demo. This is the only
+   token the phone does not have; `buildCaseMapHtml`'s SIGNATURE is unchanged (the title derives
+   from `meta`), so a back-port is additive.
+3. **`encodeJsonForScriptTag` escapes `<` to the JSON escape `\u003c`** on the way into the two `application/json` tags —
+   the phone passes raw `JSON.stringify` (`case-map-export-service.ts:143-144`), which does not
+   escape `<`, so a location name containing `</script>` closes the data tag early. The map's
+   reader swallows the resulting parse failure in a bare `catch {}` (`case-map.app.js:109`) and
+   renders an EMPTY map with no error anywhere. Lossless (`\u003c` is valid JSON and parses back
+   to `<`). **Trigger for all three:** the next time anyone touches the phone's
+   `case-map-export` sub-feature — the fixes are ~3 lines each and the demo carries a working
+   reference implementation.
+
+### 71d. `buildCaseMapMeta` takes `generatedAt`; the phone reads the clock inline
+
+Phone: `generatedAt: new Date().toISOString()` inside the builder
+(`case-map-export-service.ts:112`). Demo: a required parameter, supplied by the bridge from the
+`clock.now()` seam. The engine holds no ambient time reads (feature CLAUDE.md), and it makes the
+injected JSON assertable byte-for-byte. Not a deferral — recorded because it is a signature
+divergence a re-porter will notice.
+
+### 71e. `classification` / `incidentDateTime` stay unset on both sides
+
+`CaseMapMeta` carries them (and the map lights up a classification chip + a red incident line on
+the scope timeline when they are present), but neither `Case` (phone, per its own comment at
+`case-map-export-service.ts:122-124`) nor `DemoCase` (`engine/types/index.ts:318-340`) has such
+a field. Both sides export without them. **Trigger:** whichever schema gains an incident
+date/time first — the map needs no template change, only the two lines in `buildCaseMapMeta`.
+
+### 71f. The exported map still needs the network for its basemap — by construction
+
+The case DATA is fully embedded and renders offline; Mapbox GL JS/CSS, the tiles and Google
+Fonts load from CDN (`template/case-map.template.html:9-15`). This is inherent to any web map
+and is the phone's behaviour too. With no `NEXT_PUBLIC_MAPBOX_TOKEN` the demo still exports —
+the phone does the same (`resolveMapboxToken`, `:56-67`) — and, unlike the phone (whose
+`logError` the operator never sees), says so on the banner. Not fixable, only disclosed.
+
+### 71g. Residual — the case-map export exists, the Export tab does not yet
+
+`hasPlottableFeatures` is ported from the phone's non-camera guard
+(`geojson-service.ts:553-562`) and is currently used only to decide whether the success banner
+warns that the file opens empty. The phone additionally uses it to REFUSE a whole-case GeoJSON
+export outright. The demo's GeoJSON/ZIP exports are honest stubs (`EXPORT_GEOJSON_NOTICE` /
+`EXPORT_ZIP_NOTICE` in `DemoExperience`). **Trigger:** P5.2's Export tab — when a real
+selection/validation surface lands, re-point those two notices and reuse this predicate for the
+"nothing to export" arm rather than growing a second copy.
+
+### 71h. Residual — `MapScreen`/`MapBottomSheet`/`LocationList` were touched from outside P6.1
+
+P6.1 owns the map screens. P5.4's footprint on them is three forwarded `onExportMap?` props and
+one footer button, all marked `SEAM(P6.1)` in source and none of it touching the canvas, the
+markers or the sheet's drag/detent machinery (P6.1's stated scope: clustering, filters, Turf
+proximity, camera markers, overlay states — plan §5 P6.1). Placed there rather than behind a
+P5.2 seam because the phone's export entry point IS the map sheet's list footer, not the Export
+tab (ui-mapping 03:167,182; `04-tab-export.md:359` confirms `handleExportCaseMap` "is never
+called by `export.tsx` at all"). **Trigger:** P6.1's rebase — expect the three props, keep them.
+
+### 71i. Refutation — matrix row 20's "(#36)" cross-reference is stale
+
+Row 20's Delta says the phone's list-mode footer "additionally holds **Export Map** (#36)", and
+row 17's says the `useExportFlow` hook-in is "the only unmirrored piece (see #36)". Row 36 in
+the current matrix is *OCR Capture Route Wrapper*. There is no Export Map row; the pointer is
+left over from an earlier numbering. Recorded rather than fixed — agents do not edit the matrix.
+
+### 71j. Test-infra note — `vi.doMock` on a DYNAMICALLY-imported id contaminates the rest of the file
+
+Measured while pinning the failed-chunk arm. `vi.doMock('@/features/demo/engine/logic/case-map',
+() => { throw … })` inside one `it` correctly makes that test's `await import()` reject — and then
+every LATER test in the same file rejects too, even after `vi.doUnmock(...)` **and**
+`vi.resetModules()` in a `finally`. The throwing factory stays cached against the module id;
+`doUnmock` only stops future resolutions consulting the registry. Symptom is confusing: the
+sibling tests fail on a `findByTestId` timeout for a completely unrelated notice.
+
+The working shape is a SEPARATE suite file with a top-level `vi.mock`, since vitest's module
+isolation is per file — `DemoExperience.case-map-chunk.test.tsx`. Worth knowing before the next
+agent tries to pin a lazy-import failure inline. **Trigger:** none — this is a note, not a debt.
+
 ## 72. P6.1 map feature depth — deliberate choices and residuals
 
 **Source:** package P6.1 (plan §5, matrix row 19), branch `parity/p6-map`. Everything the brief
@@ -3973,6 +4244,727 @@ mechanism is not. **Real trigger:** the convergence work in §79i, i.e. the next
 seam.
 
 ---
+
+
+## 73. P5.2 (parity/p5-tab) — the Export tab: screen states not ported, decisions, and the seam P5.3 closes
+
+**Source:** parity plan §5 P5.2; matrix rows 7, 24, G7; phone `app/(tabs)/export.tsx`,
+`app/(tabs)/_layout.tsx`, `src/features/case-management/export-hub/components/*`, ui-mapping 04.
+Shipped as `features/demo/ui/screens/export/{ExportHub,ExportCaseCard,ExportLocationRow}.tsx`,
+the `TAB_VIEWS`/`TAB_LABELS` registry, and the bridge's selection state. Nothing below is a bug.
+
+### 73a. NOT PORTED — three of the hub's five screen states (loading / error / retry) and pagination
+
+The phone's `ExportHub` renders five states because `useCases` reads SQLite: a spinner until
+`hasLoaded`, an error state AHEAD of empty, a stale-data banner with Retry (BUG-037), and a
+`FlatList` with pull-to-refresh + `onEndReached` pagination. The demo's cases are already in
+memory in the session store and arrive as this render's own input — there is no read that can
+fail, no truncation to page past, and no second writer to refresh from. Faking any of them
+(least of all a "Couldn't load cases" banner over data that loaded fine) is the theatre the
+honesty rule exists to prevent. Empty and list are the two real states. **Trigger:** if the
+demo ever loads cases across an async boundary (a shareable session link, a server-backed
+sample dataset), port the error-ahead-of-empty precedence FIRST — it is the state whose absence
+would be a lie rather than a simplification.
+
+### 73b. NOT PORTED — the row-toggle haptic
+
+`ExportLocationRow.tsx:41` fires `Haptics.impactAsync(Light)` on every toggle, and the phone's
+a11y structure exists partly to guarantee exactly one haptic per press. The web has no
+equivalent that isn't a claim about a device the visitor may not be holding. **Trigger:** none.
+
+### 73c. Headerless by parity (decision, not an omission)
+
+The Export tab is the only tab screen with no title: `export.tsx` renders straight into
+`Screen` with no header, and ui-mapping 04 § Header records it. The demo's other tab screens
+(Cases, Dashboard) have big titles because the phone's do. Recorded so "the Export screen is
+missing its heading" isn't re-raised as a gap.
+
+### 73d. Prune on READ rather than in an effect (decision)
+
+Phone `export.tsx:51-69` re-validates the selection in a `useEffect` keyed on `cases`, because
+its list arrives asynchronously. The bridge instead calls `pruneSelection` in the render body
+(the same rule, one commit earlier), and every write starts from the pruned value rather than
+the raw state — so the state converges without a second render pass and there is never a frame
+in which a deleted location is still tickable. The raw `useState` may briefly hold a superset;
+it is unobservable, and writing it back would be the effect this deliberately avoids.
+**Trigger:** none, unless the demo's case list ever stops being synchronous (see 73a).
+
+### 73e. "This case's locations" is the RENDERED rows, not `DemoCase.locationIds` (decision)
+
+P5.1's brief offered `DemoCase` as a structural `ExportSelectableCase`. The bridge instead
+derives `{ id, locationIds }` from `caseCards` — the same view models the hub renders — and
+passes those to every engine call, while the card computes its tri-state from the rows it is
+drawing. The two are the same data today; deriving from the cards makes it impossible for the
+visible list, the checkbox state and the footer's N to disagree. A selection surface must only
+be able to select what it shows.
+
+### 73f. SEAM(P5.3) — what the modals package replaces, and with what
+
+Two grep-able markers in `ui/DemoExperience.tsx` (`// SEAM(P5.3): export flow dispatch`):
+
+1. `onExportPress` currently raises `EXPORT_RUN_NOTICE` ("Running an export isn't available yet
+   — it lands with the export modals."). P5.3's own seam note names the replacement exactly —
+   `requestExportFlow({ type, … })` keyed on `ExportSelectionPlan.dispatch`
+   (`'case' | 'location' | 'case-subset'`), ids travelling on the request. The join is
+   mechanical: the plan is already resolved once and already names the pipeline; the CTA must
+   NOT re-derive the branch (the export engine's invariant).
+2. `isExporting={false}` on the hub. P5.3 owns the flow state, so nothing can be running yet;
+   the literal becomes `isExporting(flow)` and the hub's already-built disabled treatment (case
+   checkbox, location rows, CTA — deliberately NOT Clear, matching the phone) goes live.
+
+Also for the reconciler: P5.2 retuned `EXPORT_ZIP_NOTICE` / `EXPORT_GEOJSON_NOTICE` from
+"it lands with the Export tab" (now false — the tab is here) to "it lands with the export
+flow". P5.3's `parity/p5-modals` routes those two call sites through the real flow instead;
+**P5.3's version supersedes this one** wherever the two branches touch.
+
+### 73g. RESIDUAL — Clear is not gated on a running export
+
+Ported as observed: the phone leaves the footer's Clear button enabled while every checkbox and
+the CTA lock during a run (`ExportHub.tsx:245-253` has no `disabled`), and ui-mapping 04 records
+it as observed-not-asserted. Kept identical rather than "fixed", so the demo doesn't silently
+diverge on a phone behaviour someone may have chosen. **Trigger:** if the phone ever gates it,
+gate it here in the same change.
+
+### 73h. RESIDUAL — the case status pill reads "Draft" where the phone's badge reads "Active"
+
+`CaseStatusBadge`'s `getStatusConfig` displays `CaseStatus.DRAFT` as **Active** (its own comment
+calls the enum rename a deferred follow-up); the demo's `caseStatusTheme` labels it **Draft**.
+Pre-existing and demo-wide — the Cases list and dashboard cards already read "Draft" — so the
+Export card reuses the same mapper rather than introducing a second vocabulary on one screen.
+**Trigger:** a single change to `screenData.caseStatusTheme` fixes every surface at once; do it
+there, never per-screen.
+
+### 73i. SETTLED — `isChapterId` now asks the registry (fixed here, recorded so it isn't re-derived)
+
+The store's guard was `v !== 'map' && !LAUNCHABLE.includes(v)`: a negative check that classified
+every FUTURE non-chapter view as a chapter. Adding the Export tab made `setView('export')` set
+`currentChapter: 'export'` — the value `closeLaunch()` returns to and the key
+`NARRATION[currentChapter]` is read with. It is now the positive `CHAPTERS.includes(v)`,
+matching `persistence.ts`'s own guard, and pinned by a test that loops the tab-only views rather
+than naming `map`. **No trigger — a decision, recorded because the same shape (a negative
+membership test standing in for a registry lookup) is what rotted.**
+
+### 73j. `TAB_LABELS` (engine) and `TAB_ICONS` (UI) are a pinned pair
+
+Tab order and labels live in `engine/content/screens.ts`; the SVG glyphs cannot (they are JSX —
+the `content/explore.ts` reason), so they live in `TabBar` as a total `Record<TabView, …>`. A tab
+added to the tuple therefore fails to compile until it has both. A test additionally pins that
+the rendered aria-labels equal the registry's, in registry order. **Trigger:** none; if the icon
+set ever moves to name-strings the way `DRAWER_DEFS.icon` does, fold both into one def list.
+
+### 73k. Refutation — ui-mapping 04's error-state copy is stale (the phone won)
+
+Doc line 20 quotes the hub's error state as `Couldn't load cases. Leave and reopen this tab to
+retry.`; the source renders `Couldn't load cases. {error}` plus a Retry button
+(`ExportHub.tsx:174-180`), and the doc's `ExportHub` line citations for the echo row/footer are
+~17 lines short because BUG-037's stale-data banner landed after the mapping. Immaterial to this
+package (73a ports neither state), but recorded so the next reader of that doc doesn't lift the
+dead sentence.
+
+## 74. P5.3 (parity/p5-modals) — export modals + the flow shell: boundaries, strengthenings, and the seams left open
+
+**Source:** parity plan §5 P5.3; matrix rows 25/27/28; decision D4; the P5.1 contracts in §70.
+Phone `src/components/export/{ExportModal,ExportActionSheet}.tsx`, `src/hooks/useExportFlow.ts`,
+`app/(form)/completion.tsx`, `app/(tabs)/cases.tsx`, ui-mapping `04-tab-export.md` +
+`08-wizard-d-completion.md`. Shipped as `ui/screens/{ExportModal,ExportActionSheet,exportNotices}`
+plus the flow shell in `ui/DemoExperience.tsx`. Nothing below is a bug.
+
+### 74a. §70k discharged — where the honest terminal lives, and what it says
+
+Every ZIP pipeline (`case` / `case-subset` / `location`) and both single-file pipelines end in a
+BLOCKING `AlertDialog` built by `describeExportTerminal` (`ui/screens/exportNotices.ts`), titled
+`Downloads Aren't Available in the Demo` — D4's own wording, so the shipped string matches the
+ruling. The body names what the real app would have written (so
+`CASE ZIP · CANONICAL · INCLUDES CASE MAP` and `The ZIP will be created without any PDF notes.`
+are ANSWERED rather than softened), says plainly why there is no file, and points at the Case
+Notes / Time-Offset PDFs, which print for real. A blocking dialog and not the auto-dismissing
+`DemoNotification`: the one honest sentence in the flow must not be able to time out unread.
+**No trigger — this is the decision, recorded so it is not re-litigated.**
+
+### 74b. STRENGTHENING over the phone — §70i's residual is closed in the shell, not the engine
+
+`requestExportFlow` returns early while `showValidationModal` is true. The engine is frozen
+(P5.1's), so the guard lives at the shell rather than inside `isExporting`. Rationale beyond the
+phone's: the phone relies on the modal physically covering the CTA, but the demo's narration rail
+sits OUTSIDE the phone frame and can move the visitor while the prompt is up. Pinned in
+`DemoExperience.export.test.tsx` ("§70i: with the validation prompt up, a second dispatch is
+inert"). **Trigger:** if the engine is ever unfrozen, fold `|| showValidationModal` into
+`isExporting` and delete the shell guard — one guard, not two.
+
+### 74c. §70j satisfied two different ways, on purpose
+
+`case` / `case-subset` / `location` flip to `validating` inside `startExportRun`, synchronously,
+before any timer — the contract as written. `location-geojson` and `case-map` never flip at all:
+they terminate inside the same handler, so there is no window a second press could enter. That
+is deliberate rather than an oversight — the phone gives neither pipeline an `onStageChange` and
+calls them sub-second (`useExportFlow.ts:906-911`), so printing "Validating locations..." over
+them would be inventing work. **Trigger:** if either ever gains real asynchronous work (P5.4's
+case-map download is the obvious candidate), it needs a stage flip in the starting handler before
+the first `await`.
+
+### 74d. The PDF pass is re-derived, never read off `validationResult`
+
+`pdfPassFor(run)` re-runs `validateLocationForPdf` against the store. The two routes into a run
+disagree about `validationResult`: a straight-through dispatch carries the verdict, while
+Continue-anyway CONSUMES it (`continueValidatedExport` nulls it in the same write that closes the
+modal), so a shell that read the field would generate zero PDFs after every "Continue". The phone
+has the same shape for the same reason — `executeExport` re-validates internally
+(`pdf-export-service.ts:971-993`) and never trusts the modal's earlier answer.
+
+### 74e. NOT BUILT — PasswordModal (matrix row 26), per D4
+
+No password round-trip, no `resolvePasswordPolicy`, no `encryptionNote` suffix (§70c). The
+terminal notice therefore never claims the archive would be encrypted, even though the phone's
+would be: an encryption promise with no encryption behind it is exactly the fake-security claim
+the honesty rule exists to prevent. **Trigger:** real client-side encryption (D4 leaves that door
+shut for now).
+
+### 74f. The `case-map` arm has no caller yet — SEAM(P5.4)
+
+`ExportRun` is a closed union and `describeExportTerminal` is exhaustive over it, so the
+`case-map` branch exists because the type demands it, not because a button reaches it. Neither
+Completion's scope sheet (`location` / `case` / `cancel`) nor the location chooser
+(`location` / `location-geojson`) dispatches it; the map tab's "Export Map" is a different
+surface. The dispatch point is marked `// SEAM(P5.4): real case-map download lands here` in
+`startExportRun`, and its interim copy says the map was NOT generated rather than blaming the
+platform — it is the one artifact D4 says a browser genuinely can produce. **Trigger:** P5.4's
+merge replaces that arm; P6 (or the map sheet) supplies the caller.
+
+### 74g. SEAM(P5.2) — the exact handler the Export tab's CTA calls
+
+`requestExportFlow(request: ExportRequest): void`, declared in `ui/DemoExperience.tsx`. The tab
+builds its request from `ExportSelectionPlan.dispatch`:
+`'case' → { type: 'case', caseId }`, `'location' → { type: 'location', locationId }`,
+`'case-subset' → { type: 'case-subset', caseId, locationIds }`. There is deliberately NO
+store-reading overload and no plan-shaped convenience wrapper: ids travel on the request and come
+back resolved on the returned `ExportRun`, which is the structural form of PR-87 HIGH-1 and the
+reason the demo needs neither the phone's `exportTarget` state nor its post-render dispatch
+effect (`cases.tsx:539-575`).
+
+### 74h. `exportScope` is not in `EXPLORE_ITEMS`
+
+The rail checklist lists destinations. The scope chooser is a step INSIDE Completion — the same
+relationship `ocr` has to Time Offset, which `explore.ts`'s own module note already uses to
+explain why that shape gets no row. Recorded in `explore.test.ts` next to the compile-time
+`Record<ModalId, true>` guard so the next person to add a modal id sees the decision. The Export
+TAB is a destination and brings its own row (P5.2).
+
+### 74i. §52.2 discharged — the chooser's two export buttons are live
+
+Both placeholder banners are deleted and the buttons run the real flow, dispatching against the
+PRESSED row (the phone's `source.id`, `cases.tsx:577-592`) rather than the open location. §52.2's
+trigger named P5.2/P5.3 and asked for exactly this; consider it closed.
+
+### 74j. RESIDUAL — a running pipeline follows the visitor across screens
+
+The progress overlay is portaled into the phone frame and is not view-scoped, so a rail jump
+mid-export leaves "Creating ZIP archive..." over the Cases screen for the remaining ~1s, and the
+terminal notice lands wherever the visitor now is. This is arguably MORE truthful than hiding it
+(the run really is still going, and the phone's own export is app-modal), and the standing
+"leaving Completion closes a standing alert" effect still clears the notice on the next
+navigation. Not fixed because every alternative — cancelling the run, or scoping the overlay to
+`view === 'completion'` — would either lie about what stopped or hide a live operation.
+**Trigger:** if a future pipeline runs long enough that stranding it reads as a stuck screen, add
+a run-generation token (the `importGen` idiom) and cancel on view change, saying so in the notice.
+
+### 74k. Stage cadence is a demo constant, not a ported value
+
+`EXPORT_STEP_MS = 550` in `ui/DemoExperience.tsx` (exported so the flow tests step by the real
+cadence). The phone's stages are however long the filesystem takes; there is no number to port.
+It is the only fabricated quantity in the flow — the stage ORDER, the k-of-n counter, the
+location names and every string are real. **No trigger.**
+
+### 74l. The prompt's THIRD arm lives in the shell (`pendingExportCaseId`)
+
+`ExportFlowState` arms the pipeline TYPE and the subset ids, but not the case — the engine takes
+the case id as an ARGUMENT to `continueValidatedExport`, by design (ids never re-read from
+state). So the shell holds `pendingExportCaseId`, written when `applyValidation` returns
+`prompt` and cleared on Cancel and on every non-ignored Continue, mirroring the machine's own
+"Continue consumes the modal on every path".
+
+Not cosmetic: the first draft re-derived the case at Continue time from the OPEN LOCATION, which
+is correct only while every validated dispatch comes from Completion (where the two always
+agree). P5.2's Export tab can arm a case that is not the open location's, at which point a
+prompt raised on case A would have resumed against case B — the scope escalation the arming
+rules exist to prevent. Pinned in `DemoExperience.export.test.tsx` ("Continue resumes the case
+the prompt was ARMED for"), which moves the open location out from under an open prompt.
+**Trigger for P5.2:** nothing to do — dispatch through `requestExportFlow` and the arm is taken
+from the request. Do NOT add a second Continue path that supplies its own case id.
+
+---
+
+## 75. P5.1 fix round (parity/p5-fix-engine) — R-12/R-15/R-16/R-25/R-26 dispositions
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`, the P5.1-routed minors.
+Four FIXED, one DEFERRED with the reviewer's own sanction. None refuted. Territory this round
+was `engine/logic/export/` only — three sibling agents were editing the UI/flow/case-map layers
+in parallel.
+
+### 75a. R-16 — `DEMO_EXPORT_STAGES` is now `advanceStage`'s parameter type (FIXED, `64a22e0`)
+
+§70l promised the constant would be "something to assert against rather than a comment" and
+then asserted nothing — `DemoExportStage` had zero uses, so `advanceStage(state, 'sharing')`
+compiled and would have printed "Opening share dialog..." in a browser with no share sheet.
+The signature now takes `DemoExportStage`; all seven call sites already conformed.
+
+A second exclusion the review did not name is now load-bearing too: `'idle'` is out because the
+return to rest belongs to `resetExportFlow`, which ALSO clears the counter and the location
+name — an `advanceStage(state, 'idle')` would have left both behind for the next run to
+inherit. Two `@ts-expect-error` probes pin both exclusions (tsc's unused-directive check is
+what keeps a probe honest), plus a loop over every member that must still pass.
+
+### 75b. R-26 — the dead guard deleted, the real invariant pinned (FIXED, `0b167f1`)
+
+`caseCheckboxState`'s `locationIds.length === 0` early return was unreachable-equivalent: the
+later `selectedCount === 0` check answers the empty case identically on every input. Deleted,
+along with the test's false claim to pin it.
+
+What actually keeps the phone's bug closed is now named in both the doc comment and the test:
+the phone needs an explicit `hasLocations` gate because its `allSelected` compares counts
+directly and `0 === 0` is true (`ExportCaseCard.tsx:82`); here the zero check is ORDERED AHEAD
+of the length comparison. **Mutation-verified** — swapping the two returns makes the empty case
+read `'all'` and the retitled test goes red (1 failed / 40 passed). A second assertion covers
+the armed-on-this-card path, where the ordering does the work.
+
+### 75c. R-25 — the misnamed prune test (FIXED, `0b167f1`, grouped with R-26)
+
+`selection.test.ts:155` was named "DISARMS the full-case intent when a location is dropped"
+while correctly asserting the intent is KEPT. Renamed to "KEEPS the intent when the dropped ids
+were never the case's", with the distinction from the genuine disarm (set intact, case grew
+underneath) spelled out and the covering test named. Grouped with 75b: same defect class — a
+test describing something other than what it defends — in one file.
+
+### 75d. R-12 — the contract strings pinned against the phone (FIXED, `c89c9ca`)
+
+Every existing assertion read `EXPORT_ALERTS` back THROUGH the machine, pinning the routing
+while staying green under any copy mutation (the tests lane proved it with `MUTANT-COPY-*`).
+One literal `toEqual` block now mirrors the `STAGE_MESSAGES` shape, with all six strings
+re-verified against phone source before writing. The two §70g adaptations are annotated INSIDE
+the expectation, so the block documents them rather than quietly baking them in.
+**Mutation-verified** (`'Please create a location first.'` → `MUTANT-COPY`: 1 failed / 45
+passed). Riders: no alert may ship blank, and the record stays frozen.
+
+**Half NOT fixed here:** `noSelection` still has no production caller. That is R-13, routed to
+ORCHESTRATOR-SEAM — the fix is in `DemoExperience.tsx`'s `onExportPress`, outside this round's
+territory.
+
+### 75e. R-15 — the three-part validation arm: DEFERRED (the reviewer's sanctioned outcome)
+
+**What:** the prompt's arm is decomposed into two engine fields (`pendingValidatedExport` +
+`pendingSubsetLocationIds`, `flow.ts:162,164`) plus a shell `useRef`
+(`pendingExportCaseId`, `DemoExperience.tsx:764`), hand-reassembled at Continue.
+`ValidatedExportRun` already pairs all three, so `pendingValidatedRun: ValidatedExportRun | null`
+would delete the second field, the reassembly, the bridge ref and both its assignments.
+
+**Why deferred:** the fix has no coherent engine-only half. Changing `ExportFlowState`'s shape
+changes `continueValidatedExport`'s signature (the case id stops being a parameter), which is a
+`DemoExperience.tsx` edit — a file this round was explicitly barred from and which a sibling
+agent was concurrently rewriting for R-5/R-6/R-7/R-14/R-17/R-18/R-22. Landing the engine half
+alone would not compile; landing both would collide on the exact lines the sibling was editing.
+Blast radius measured, not estimated: 8 files reference the three fields, 3 of them outside
+this round's territory (`ui/DemoExperience.tsx`, `ui/screens/ExportModal.tsx`,
+`ui/__tests__/DemoExperience.export.test.tsx`). The review anticipated this — "**a recorded
+deferral with trigger is an acceptable outcome** — but it must be recorded in the ledger, not
+left silent."
+
+**The risk it leaves standing is real, not theoretical.** §74l records that P5.3's first draft
+re-derived the case at Continue from the open location, which is correct only while every
+validated dispatch comes from Completion; the Export tab breaks that assumption and the bug
+was a scope escalation. That near-miss IS the evidence an incomplete arm invites caller
+mistakes. What holds the line today is `caaaea2`'s test ("Continue resumes the case the prompt
+was ARMED for") plus §74l's standing instruction not to add a second Continue path.
+
+**Trigger:** the NEXT round that opens `engine/logic/export/flow.ts` and `DemoExperience.tsx`
+together — one agent, one commit, no concurrent editor on the bridge. Collapse to
+`pendingValidatedRun: ValidatedExportRun | null`, drop the `caseId` parameter from
+`continueValidatedExport`, and delete the ref. Keep the `missingSubsetPayload` alert at the
+REQUEST boundary (`requestExport`'s empty-`locationIds` arm): that one guards a caller mistake
+the type cannot express, unlike the post-arm backstop the collapse makes unrepresentable.
+
+## 76. P5.2 fix round (parity/p5-fix-tab) — R-3 (+sibling), R-4, R-13, R-19, R-20, R-23, R-27
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`. Seven findings, seven commits,
+one-to-one. Two of them (R-3 primary, R-4) are the ORCHESTRATOR-SEAM items — the CTA→flow join
+written at P5.2's `SEAM(P5.3)` marker — which land here because the code lives in this territory.
+Everything below is FIXED; the residuals are named at the end.
+
+### 76a. R-3 [MAJOR] — FIXED, and the hole re-probed in both directions
+
+The join consumed `ExportSelectionPlan.dispatch` with a trailing `else`, at the one site the
+engine's invariant is about. Now a `switch` closed with `assertNever`, and `dispatch` is typed
+`Extract<ExportType, 'case' | 'location' | 'case-subset'>` (the `ValidatedExportType` discipline
+from `flow.ts:65`) instead of a hand-written triple. Probe: widening the union previously
+compiled clean and fell into the subset arm; it now fails at the switch —
+`Argument of type '"case-map"' is not assignable to parameter of type 'never'`. No import cycle:
+`flow.ts` imports `stage`/`validation`, never `selection`.
+
+**Sibling, same commit family:** `ariaChecked` in `ExportCaseCard` was a ternary chain whose
+fall-through told a screen reader `aria-checked="false"` — "nothing is selected" — for any 4th
+`CaseCheckboxState`. Also a closed switch now. (The other two siblings, `pdfPassFor` and
+`OptionIcon`, are P5.3's.)
+
+### 76b. R-4 [MAJOR] — FIXED; the three mutations are now each killed by exactly one test
+
+The seam block had one test, on the `case` arm, that could not distinguish a correctly-keyed
+dispatch from a hardcoded `'case'`. Three end-to-end tests added, written against the lane's
+surviving mutations and re-verified here — each mutation reddens exactly one test and nothing
+else: **subset** (2 of 3 ticked → `Location 1 of 2`, both ticked names, never the third, terminal
+"a ZIP of the 2 selected locations") kills the §74l scope escalation; **single** (terminal "a ZIP
+of this location", never "whole case") kills a nulled/dead location arm; **in-flight** (case
+checkbox + rows + CTA disabled, Clear not, lock lifts at the terminal) kills a reverted
+`isExporting={false}`. `seedExportable` + the P5.3 suite's `step`/`runToEnd` pair were lifted in;
+fake timers are scoped to that describe block only.
+
+### 76c. R-13 — FIXED (loud), with the reachability recorded
+
+`if (!exportFooter || !exportView) return` became two `raiseExportAlert` arms —
+`EXPORT_ALERTS.noSelection` (which had no caller until now) and `caseUnavailable`. Still
+unreachable: the footer that owns the CTA renders only when both resolve, so there is no UI path
+and **no test pins these arms** — the same call §70e makes about an unreachable guard. The value
+is the shape: the refactor that makes one reachable cannot present as a completed export.
+**Trigger:** if the footer ever renders on a nullable pair (a persisted selection, an async list),
+pin both arms in the same change.
+
+### 76d. R-19 — FIXED with `aria-current`, and that is the answer to "pick one"
+
+The bar signalled the active destination by hue alone across four tabs. Each button now carries
+`aria-current={active ? 'page' : undefined}`, pinned by a test that exactly one tab is current
+and that it moves. **The convention this settles:** `aria-current` for surfaces that NAVIGATE
+between destinations (this bar; `MediaLibrarySheet.tsx:558`'s selected row), `aria-pressed` for
+TOGGLE groups that change what one surface shows (§67c's media filter strip,
+`MediaCaptureScreen`'s mode pill). §67c is not being revisited — the two surfaces are different
+kinds of control, which is why they answer differently.
+
+### 76e. R-20 — FIXED — dead `showTabs` deleted
+
+A merge artifact: the pre-P5 three-tab rule surviving one line above its registry-derived
+replacement, with no reader and nothing in the toolchain (no `noUnusedLocals`, no ESLint) that
+would ever have said so. Recorded because the *class* recurs: this repo's only defence against a
+stale survivor is review, so a fix round that touches a merged bridge should grep its own
+predecessors.
+
+### 76f. R-23 — FIXED — both motion branches now execute
+
+ExportHub's reduced-motion arm had never run: the setup file's matchMedia stub pins
+`matches: false` and `useReducedMotion` latches a module-global on first use. Adopts the
+`ImportTerminalProgress` seam (hoisted `vi.mock` of `motion/react`), which additionally pins WHICH
+hook the footer consumes; mutation-verified. `slideDirection`'s widened dev guard gains its
+`'export'` case, asserting both the fade AND the silence under `NODE_ENV=development`.
+
+### 76g. R-27 — FIXED by construction; the test lost two arms because they stopped compiling
+
+`TAB_NARRATION` is now `Record<TabOnlyView, ChapterNarration>`, with
+`TabOnlyView = Exclude<TabView, ChapterId>` derived in the screens registry (not a third
+hand-written list) — the same id space `persistence.ts`'s `EXTRA_VIEWS` is exhaustive over. A
+missing tab-only entry and a chapter-key entry — which the bridge would let shadow that chapter's
+own copy, since it consults this record first — are both type errors now. The content test keeps
+only the runtime question (the copy is real); its two key-space arms were deleted because they no
+longer typecheck, which is the finding's own success condition. `content/narration.ts` also stops
+importing from `engine/store/` entirely.
+
+### 76h. RESIDUAL — the seam's fourth moving part is pinned behaviourally, not structurally
+
+R-4's in-flight test pins that `isExporting` is wired to the flow, but nothing prevents a future
+edit from passing a *different* boolean. The engine-level guarantee would be to hand the hub the
+flow state rather than a derived boolean; that is a prop-shape change across P5.2/P5.3 territory
+and was not in scope for a fix round. **Trigger:** if a second "is something running" source ever
+appears in the bridge (a download in flight, a sync), make the hub take the state and derive.
+
+### 76i. RESIDUAL — `EXPORT_ALERTS.noSelection` is called but still unproducible
+
+76c gives it a caller; it remains unreachable in practice (see the trigger there). It is now
+consistent with `caseUnavailable`, which has the same status at the two `pdfPassFor` sites.
+
+## 77. P5.3 fix round 1 (parity/p5-fix-modals) — R-5/R-6/R-7/R-3/R-17/R-18/R-22 dispositions, and the R-14 split flagged
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`. Every finding routed to P5.3 in
+that doc's owner table, plus the one it could not route cleanly.
+
+### 77a. R-5 — the §70i guard is now pinned by a dispatch it refuses (FIXED)
+
+The old test's second dispatch re-entered the *validated* pipeline, whose unguarded behaviour is
+byte-identical to the guarded one, so the guard could be deleted with the suite green. It is now
+`chooseScope('location')` — a `run`-arm dispatch, which unguarded runs to a terminal notice behind
+an unanswered prompt. **Probe, both directions:** guard deleted → exactly 1 failure (this test);
+restored → green. A closing assertion also pins that the refusal leaves the arm answerable, since
+a guard that ate the prompt would be its own bug.
+
+### 77b. R-6 — the progress overlay speaks now (FIXED)
+
+`role="progressbar"` has presentational children, so every visible line was pruned from the
+accessibility tree; and the `aria-live` sat on a node that mounted with its text in place. Both
+halves are gone: a sibling sr-only `role="status"` region written on the next tick (the idiom
+`ValidationContent` in the same file already documents), fed by the composed
+`stage — counter — "location"` string so stage changes AND location ticks are both announced, plus
+`aria-valuetext` on the bar. **Deliberate non-change:** the bar stays indeterminate — no
+`aria-valuenow`. The zipping step has no share of the PDF pass, so any percentage would be an
+invented number, which is the one thing this feature's honesty rule forbids. **Probe:** live region
+deleted → 3 failures.
+
+### 77c. R-7 — the action sheet takes focus, and its arrow keys are reachable (FIXED)
+
+Two-effect focus in/restore + `tabIndex={-1}`, `isConnected`-guarded. The second half matters more
+than the first: `keydown` dispatches at `document.activeElement`, which was outside the portal, so
+the container handler never fired on the only path that opens this sheet — `role="menu"`'s promise
+was unkeepable. Tests now fire from real focus rather than at the container. **Probe:** focus effect
+deleted → 4 failures.
+
+### 77d. R-3 siblings — both P5.3 sites closed (FIXED)
+
+`OptionIcon` and `pdfPassFor` both close with `assertNever`. `pdfPassFor` gained a narrowed
+parameter (`ZipExportRun = Extract<ExportRun, …>`) rather than a `default: return []`, because the
+honest statement is that the two single-file pipelines have already returned by then. The primary
+site (`onExportPress`) and the `ariaChecked` sibling are not ours.
+
+### 77e. R-17 — the prompt-visibility pair is discriminated at the props layer (FIXED, half)
+
+`ExportModalProps` is a union on `mode`; `{ mode: 'validation', validationResult: null }` is
+unconstructible and the component's runtime guard plus its apologetic comment are gone. The test
+that used to render that state is now a `@ts-expect-error` compile assertion, so loosening the
+pairing fails the build. **The `ExportFlowState` half is NOT changed** — it is the phone's ported
+shape and belongs to P5.1's frozen engine. **Trigger:** if the engine is ever reshaped (R-15 is the
+natural pairing), collapse `showValidationModal` + `validationResult` there too and the bridge's
+`&&` at the mount disappears with it.
+
+### 77f. R-18 — spinner gated on `prefers-reduced-motion` (FIXED)
+
+Reduced motion keeps the ring and drops the rotation — the ring is the only static signal that work
+is in flight, and the overlay is not dismissible, so removing it entirely would leave a blank scrim.
+In its own test file: the shared setup stub pins `matches: false` and overriding `matchMedia` inside
+the main suite leaks the preference into neighbouring renders.
+
+### 77g. R-22 — breadcrumb + no more `[object Object]` (FIXED, untested arm)
+
+`console.warn` before the dialog, and a non-`Error` throw now gets a plain sentence instead of
+`String(e)`. Deliberately NOT one of the ported `EXPORT_ALERTS` bodies — those name a specific
+cause, and naming the wrong one is worse than naming none.
+
+**RE-DISPOSITIONED, fix-delta D-9 — the carried test is not merely unwritten, it is
+unreachable-by-construction; do NOT write it.** The trigger this entry originally handed to
+P5.2's suite ("dispatch a subset whose ids the case does not own") cannot occur: the tab's
+selected ids and the validator's rows derive from the identical predicate over the same store
+snapshot in the same render, so a foreign id has no way in. The catch stays as a LOUD backstop
+under the §70e precedent — an unreachable guard kept because its silent alternative is what the
+feature's worst failure mode looks like — and the throw itself is already pinned at the engine
+level (`validation.test.ts:209-231`). **No trigger.** Reopen only if a caller ever hands the
+bridge ids from outside the store snapshot that produced them.
+
+### 77h. R-14 — NOT ACTIONED by P5.3, and why (FLAG for the orchestrator)
+
+Owner ruling is WIRE (option 1: route `exportCaseMap` through
+`requestExportFlow({ type: 'case-map', caseId })`). The finding spans two agents' files and **cannot
+be split without one of them shipping a lie**:
+
+- `exportNotices.ts`'s `case-map` branch (ours) says the map "is being built; it just is not wired
+  to this button yet". True only while the arm is unreachable — verified still true at
+  `3aab581`: `exportCaseMap` (`DemoExperience.tsx:1260`) bypasses the flow entirely and no caller
+  passes `{ type: 'case-map' }` to `requestExportFlow`.
+- `startExportRun`'s arm (P5.4's) currently shares one branch with `location-geojson` and routes
+  both to that same notice.
+
+Wiring the handler without replacing the copy makes the demo announce "not wired to this button
+yet" immediately after a real download. Replacing the copy without wiring makes it claim a download
+that did not happen. So the two edits belong in ONE commit, and that commit is the one that splits
+the arm — P5.4's, by the concurrency assignment we were given (they own the case-map arm; we were
+told not to touch it). We therefore changed nothing here rather than half-fix it or collide.
+
+**What P5.4 needs from our file, so their commit is mechanical:** delete the `if (run.type ===
+'case-map')` early return in `describeExportTerminal` and the `'case-map'` arm of `artifactOf`,
+narrow the parameter to `Exclude<ExportRun, { type: 'case-map' }>` (which makes the split at
+`startExportRun` a compile requirement rather than a convention), and delete the
+`the case-map interim says the map was NOT generated` test in `exportNotices.test.ts`. Their success
+terminal is theirs to word — it is a statement about a download we do not own. §74f gets its closing
+note in the same commit.
+
+**Trigger:** if the orchestrator would rather P5.3 own the copy, say so and we will take it on a
+follow-up round *after* P5.4's arm split lands — never before.
+
+## 78. P5.4 fix round (parity/p5-fix-casemap) — R-1/R-2/R-8 + R-9/R-10/R-11/R-21/R-24/R-28 dispositions
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`, the P5.4-routed findings.
+All nine FIXED, none refuted; two carried an owner ruling (R-14 → wire) that changed the shape
+of two others. Recorded here are the decisions a re-reader would otherwise have to reconstruct.
+
+### 78a. R-1 — the coverage predicate is now two predicates, deliberately
+
+`hasPlottableFeatures` (any non-camera feature) answered two different questions and got one of
+them wrong: it is the right guard for "is there anything at all worth exporting" (§71g's
+whole-case-GeoJSON refusal, which P5.2 will need) and the WRONG one for "does this map have any
+sites on it", because it counts the incident pin. Both are kept, each documented against the
+other, and `CaseMapCoverage.hasPlottedLocations` is the one the copy uses. Deleting either is a
+regression; a future reader who sees two similar predicates should read their doc comments
+before "simplifying".
+
+`summariseCaseMapCoverage` deliberately re-walks the locations rather than having
+`buildCaseMapGeoJson` return a pair: the builder's return type is the GeoJSON contract the
+template reads, and widening it to a tuple would put a UI concern in the artifact's shape. The
+cost is one extra pass over a list of tens.
+
+**CORRECTED (delta D-5).** The sentence "the pin that they cannot disagree is a test, not a
+type" described a real weakness and understated it: the walk re-IMPLEMENTED
+`locationToFeature`'s gate rather than consulting it, so one added term in the builder would
+have re-created r0 R-1's shape structurally — a banner over-reporting coverage against a file
+that dropped more than it admitted. The summariser now tests `locationToFeature(location) !==
+null`, which makes divergence impossible instead of merely unlikely, at the cost of building
+each feature twice per export. **Trigger (revised):** if that double build ever matters —
+it will not at demo scale — promote to a single `{ collection, coverage }` builder; do NOT go
+back to a second copy of the predicate.
+
+### 78b. R-2 — `requested`, and why no amount of code makes it `ok`
+
+`SaveFileOutcome.ok` → `requested`. Worth stating plainly for the next person tempted to
+"finish" this: there is no browser API that reports whether a `download` anchor produced a
+file. `HTMLAnchorElement.click()` returns void, synchronously, whether the download starts,
+is blocked by policy, is dropped by an extension, or fails silently in a hardened profile.
+The File System Access API (`showSaveFilePicker`) *would* confirm — at the price of a second
+user gesture, Safari/Firefox absence, and a permission prompt in a marketing demo. Not worth
+it. **Trigger:** none; this is a recorded non-fix. If it is ever revisited, the decision is
+about the picker, not about detection.
+
+### 78c. R-8 — retired by prefetching, not by a guard
+
+The owner ruling routed the export through `requestExportFlow`, and the review expected that
+to bring the entry guard with it. It does — but only for CONCURRENT presses, and the honest
+reading is that the guard is not what fixes this: the case-map run resets the stage to idle
+inside its own handler, so a second press after it completes is simply a second, complete
+export (which is what any download button does).
+
+What actually removes the defect is that the ~22 kB chunk is now fetched when the MAP OPENS.
+The press-to-outcome path holds no `await`, so the window the finding is about — "nothing
+visible while the network works, so press again" — does not exist. Belt: the footer disables
+while the chunk is in flight and while the terminal dialog is up.
+
+Recorded because the test that would "prove" the guard in jsdom would be lying: jsdom does no
+hit-testing, so three `fireEvent.click`s through a modal scrim produce three exports there and
+zero in a browser. The suite pins the two things that are true instead — the run is synchronous
+(no `waitFor` needed to see the file), and the button is `disabled` while the dialog is up.
+**Trigger:** if the case-map run ever regains an `await` (a bigger template, an async
+compression step), it needs a real in-flight stage and this note is the reason why.
+
+### 78d. R-9/R-14 — the terminal split is enforced by the type, not by discipline
+
+`describeExportTerminal` takes `SimulatedExportRun`, an `Exclude` of the real one. The interim
+"not wired to this button yet" sentence could not simply be deleted — it would have grown back
+the first time someone added a `case-map` arm "for completeness". Now the function cannot be
+called with that member at all, and `runZipPipeline` is narrowed for the same reason.
+
+Secondary drift closed: `EXPORT_ALERTS.noCaseSelectedForMap` (ported, unreachable) and the
+bridge's `NO_CASE_SELECTED_NOTICE` (live) were two hand-maintained copies of one phone string.
+The bridge copy is gone; the ported one is live. It remains unreachable FROM THE UI — the
+footer only renders inside a picked viewer case — and is pinned at the engine
+(`flow.test.ts:85`) rather than through a UI path that would have to be faked.
+
+### 78e. R-10/R-11/R-21/R-24/R-28 — small fixes, one shared observation
+
+Each landed as its own commit. The one thing worth carrying forward: **R-10 and R-11 are the
+same failure shape at two scales.** The token chain re-read its own output; the token tests
+validated ~80 bytes of an 85 kB artifact. Both were "the guard checks the thing it just did"
+rather than the thing that has to be true. The port tool (`tools/port-case-map-template.mjs`)
+still has R-11's blind spot in its own guards — it asserts the four tokens and a leaked `pk.`,
+nothing structural. **Trigger:** next edit to that script, give it the same structural
+assertions the test now makes (`endsWith('</html>')`, the CDN ref, `loadCase`, a length floor).
+
+R-21's 40 s revoke window is a bet, documented as one. If a future artifact is large enough
+that pinning it for 40 s matters, the answer is `pagehide` plus a shorter window, not a
+same-tick revoke.
+
+### 78f. Refutation — R-11's "correct the UI test's comment" half
+
+The vetted doc asks to "correct the UI test's 'app JS is inlined' comment (its assertion only
+proves no relative asset)". Verified against the file: the comment at
+`DemoExperience.case-map-export.test.tsx` reads "Self-contained: the CSS and the app JS are
+inlined, no relative asset is requested", and it is now accurate rather than aspirational —
+`build.test.ts` proves the inlining directly (`<style>` present, `function loadCase()` present,
+length floor), and the UI test's own assertion proves the consequence the comment's second
+clause names. Left as written; the finding's substance (nothing pinned the inlining) is fixed
+where it belongs, in the artifact's own suite.
+
+### 78h. Fix-delta micro-round (parity/p5-fix2-casemap) — D-1/D-3/D-4/D-5/D-6/D-10/D-12
+
+All seven FIXED, none refuted. Three carry a decision worth keeping:
+
+- **D-1** is the correction to 78a's own framing. §78a said `hasPlottableFeatures` and
+  `hasPlottedLocations` answered two different questions; there were in fact THREE, and the
+  terminal was reading the wrong one for the third. "Has site framing" (§71g's refusal), "has
+  any sites" (`plottedLocations > 0`) and "is empty" (`features.length === 0`) diverge on a
+  camera-only collection — reachable through P3.7's crosshair on a typed-not-picked location —
+  where the file renders camera pins and the sentence said it was blank. All three are now
+  enumerated in `hasPlottableFeatures`'s doc, which also records that it has **no production
+  reader today, deliberately**, so a dead-export sweep does not take the §71g predicate with it.
+
+- **D-10**: the pending state moved to the accessible NAME rather than gaining an sr-only
+  `role="status"` region. `pending` is normally false — the chunk lands while the map is still
+  drawing — and a live region that fires for a few hundred milliseconds on arrival at a screen
+  is noise. A disabled control is still read by a browse cursor, so the name reaches the same
+  person without the interruption. **Trigger:** if the chunk ever becomes slow enough that
+  `pending` is routinely observable (a much larger template, a compression step), revisit — a
+  live region earns its keep at that point.
+
+- **D-12** removed `hasPlottedLocations`; **D-5** removed the second copy of the plotted gate.
+  Both were the same species — a value derived from something that already existed, kept in
+  sync by hand — and both had already produced the thing the species produces: fixture pairs
+  that could contradict each other, and a count that could disagree with the file. §78a's
+  trigger is corrected in place rather than left to be read alongside its own correction.
+
+**Costs accepted, on the record:** `summariseCaseMapCoverage` now builds each location's feature
+twice per export (once to count, once to collect). At demo scale that is tens of objects on a
+button press. It buys structural agreement between the sentence and the artifact, which is the
+one thing this whole finding family has been about.
+
+### 78g. Residual — the thin `mapbox-gl` mock in the sibling map suites
+
+`MapCanvas` does `new Marker(...).setLngLat(...).addTo(map)` (`MapCanvas.tsx:160-162`), which
+throws on the `Marker: vi.fn()` mock that `DemoExperience.map.test.tsx` and
+`DemoExperience.incident-edit.test.tsx` still use. They are green only because they assert
+synchronously and the marker pass runs after the map's async `load` — the throw lands in the
+error boundary after the assertions have gone home. Both case-map suites now use a chainable
+`Marker` because they wait long enough to see it.
+
+Not fixed here: those files are P6.1's territory and the change is a mock swap that would
+conflict with an in-flight map package. **Trigger:** P6.1's first round — lift the chainable
+mock into a shared local (or a `__mocks__/mapbox-gl.ts`) so a map render failure cannot hide
+behind test timing again.
+
+### 77i. Fix-delta micro-round (parity/p5-fix2-modals) — D-2, D-7, D-11
+
+**D-2 (MAJOR, fix-introduced) — FIXED at the primitive.** `AlertDialog` no longer reads
+`document.activeElement` in its mount effect. A module-scope `pointerdown`/`keydown` CAPTURE
+listener records the activation origin, and the mount effect reads that. Capture-phase runs
+before the click handler, before a self-disabling control disables itself, and before HTML's
+focus fixup moves focus to `<body>` — the three-step sequence that made the old read capture the
+viewport and land a dismissing keyboard visitor at document start.
+
+Two properties worth keeping in mind before anyone "simplifies" this:
+
+- **The tracker is installed at MODULE scope, not on mount.** A listener armed when the dialog
+  mounts has already missed the gesture that opened it. This is the reason it is not a hook.
+- **The two validity checks are ASYMMETRIC on purpose.** At capture the origin is checked only
+  for `isConnected`; at restore it is also checked for `disabled`. Adding the disabled check to
+  the capture side re-breaks D-2 exactly — at mount the opener is very often disabled, because
+  disabling it is what raised the dialog. (This was caught by the new test during the fix round,
+  not by review.)
+
+Scope note: this retires the pre-existing `ExportHub.tsx:234` sibling too — every self-disabling
+opener in the demo now restores correctly, without touching either call site.
+
+**D-7 — FIXED.** The reduced-motion pin was a negative (`not.toHaveStyle(<exact string>)`), which
+a `spin 3s` mutation satisfied while still rotating. Now the positive
+`style.animation === ''`, the idiom `ExportHub.test.tsx:237` already uses. Probe: the slow-spin
+mutation reddens it.
+
+**D-11 — FIXED.** `runZipPipeline` takes `ZipExportRun` rather than `SimulatedExportRun`, which
+excluded only `case-map` and so nominally accepted a `location-geojson` run that returns from
+`startExportRun` before the pipeline is reached.
+
+**Not ours this round, noted for the record:** D-8's ruling (trim the vacuous runtime `expect`
+wrappers around load-bearing `@ts-expect-error` directives to bare directives when these files
+are next touched) applies to `exportNotices.test.ts` and `ExportModal.test.tsx`. Left alone
+deliberately — the ruling says "when next touched", and touching them for decoration alone in a
+micro-round is churn against a review-frozen tree.
+
+**Cross-bucket interaction (P5.4's D-10):** their sr-only/`aria-busy` decision on the Export Map
+button is now the ONLY remaining focus concern at that site — the restore half is handled here,
+in the primitive, for every caller.
 
 ## 79. P6 review round 1 — fix-round dispositions and what was deliberately left
 
