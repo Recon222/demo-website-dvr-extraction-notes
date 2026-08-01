@@ -52,6 +52,7 @@ export function LocationPane({ settings, onChange }: SettingsPaneProps) {
         help="Balances speed vs precision when acquiring GPS coordinates."
       >
         <SelectField
+          a11yLabel="GPS Accuracy Mode"
           value={settings.gpsAccuracyMode}
           options={GPS_ACCURACY_OPTIONS}
           onChange={(v) => onChange({ gpsAccuracyMode: v as GpsAccuracyMode })}
@@ -60,6 +61,7 @@ export function LocationPane({ settings, onChange }: SettingsPaneProps) {
 
       <PaneGroup label="GPS Timeout" help="Maximum time to wait for GPS signal before showing an error.">
         <SelectField
+          a11yLabel="GPS Timeout"
           value={String(settings.gpsTimeout)}
           options={GPS_TIMEOUT_OPTIONS}
           onChange={(v) => onChange({ gpsTimeout: Number(v) as GpsTimeoutOption })}

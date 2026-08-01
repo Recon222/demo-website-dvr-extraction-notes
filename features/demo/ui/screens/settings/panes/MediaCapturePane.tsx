@@ -84,6 +84,7 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         help="Resolution for video recordings. Higher resolution requires more storage."
       >
         <SelectField
+          a11yLabel="Video Quality"
           value={settings.videoQuality}
           options={VIDEO_QUALITY_OPTIONS}
           onChange={(v) => onChange({ videoQuality: v as VideoQualityOption })}
@@ -95,6 +96,7 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         help="H.264 offers maximum compatibility. H.265 provides better compression."
       >
         <SelectField
+          a11yLabel="Video Codec"
           value={settings.videoCodec}
           options={VIDEO_CODEC_OPTIONS}
           onChange={(v) => onChange({ videoCodec: v as VideoCodecOption })}
@@ -106,6 +108,7 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
         help={'Recording automatically stops after this duration. Select "Unlimited" for no limit.'}
       >
         <SelectField
+          a11yLabel="Maximum Video Duration"
           value={String(settings.maxVideoDuration)}
           options={MAX_DURATION_OPTIONS}
           onChange={(v) => onChange({ maxVideoDuration: Number(v) as MaxVideoDurationOption })}

@@ -412,9 +412,13 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
  *  own `label` prop unset and renders the label as a separate line above it (ui-mapping 12
  *  documents this on all six of them — it is why their bottom sheets read "Select an option").
  *  Omitting it here reproduces that exactly, and `Dropdown` already handles the absence, sheet
- *  title included. Wizard callers pass it as before. */
-export function SelectField({ label, value, onChange, options }: { label?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
-  return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
+ *  title included. Wizard callers pass it as before.
+ *
+ *  A label-less caller should pass `a11yLabel` (R-9): the sheet that opens on top of the
+ *  trigger is outside `PaneGroup`'s `role="group"` boundary, so without it the dialog and its
+ *  menu both announce the bare placeholder. */
+export function SelectField({ label, a11yLabel, value, onChange, options }: { label?: string; a11yLabel?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
+  return <Dropdown label={label} a11yLabel={a11yLabel} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 
 /** A labelled on/off switch (keyboard-operable). */

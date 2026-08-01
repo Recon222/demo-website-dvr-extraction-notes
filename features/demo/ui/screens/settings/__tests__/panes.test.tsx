@@ -184,6 +184,29 @@ describe('Media Capture pane', () => {
   })
 })
 
+describe('picker sheets are named for the setting they change (R-9)', () => {
+  // Omitting the visible label is correct phone parity, but `PaneGroup`'s `role="group"` cannot
+  // reach the sheet that opens ON TOP of the trigger: all six pickers announced "Select an
+  // option, dialog" with nothing saying which of the three settings in view was being changed.
+  it('Media Capture: each of the three pickers names itself when opened', () => {
+    renderPane('media-capture')
+    for (const name of ['Video Quality', 'Video Codec', 'Maximum Video Duration']) {
+      const group = screen.getByRole('group', { name })
+      fireEvent.click(within(group).getByRole('button'))
+      expect(screen.getByRole('menu', { name })).toBeInTheDocument()
+      expect(screen.queryByRole('menu', { name: 'Select an option' })).not.toBeInTheDocument()
+      fireEvent.keyDown(document, { key: 'Escape' })
+    }
+  })
+
+  it('Time Sync: the NTP picker names itself too', () => {
+    renderPane('time-sync')
+    const group = screen.getByRole('group', { name: 'NTP Server Region' })
+    fireEvent.click(within(group).getByRole('button'))
+    expect(screen.getByRole('menu', { name: 'NTP Server Region' })).toBeInTheDocument()
+  })
+})
+
 describe('Location pane', () => {
   it('renders the two pickers and the accuracy switch, and the switch emits', () => {
     const { onChange } = renderPane('location')

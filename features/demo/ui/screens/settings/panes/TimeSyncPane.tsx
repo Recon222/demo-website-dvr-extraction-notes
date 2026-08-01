@@ -42,6 +42,7 @@ export function TimeSyncPane({ settings, onChange }: SettingsPaneProps) {
         help="Determines which atomic clock authority your timestamps are traceable to."
       >
         <SelectField
+          a11yLabel="NTP Server Region"
           value={settings.ntpRegion}
           options={NTP_REGION_OPTIONS}
           onChange={(v) => onChange({ ntpRegion: v as NtpRegion })}
