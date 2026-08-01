@@ -4132,6 +4132,120 @@ The working shape is a SEPARATE suite file with a top-level `vi.mock`, since vit
 isolation is per file — `DemoExperience.case-map-chunk.test.tsx`. Worth knowing before the next
 agent tries to pin a lazy-import failure inline. **Trigger:** none — this is a note, not a debt.
 
+## 72. P6.1 map feature depth — deliberate choices and residuals
+
+**Source:** package P6.1 (plan §5, matrix row 19), branch `parity/p6-map`. Everything the brief
+asked for shipped; this section records the calls a reviewer would otherwise re-derive, and the
+three things left open.
+
+### 72a. DELIBERATE — the `supercluster` package, not mapbox-gl's built-in `cluster: true`
+
+Both run the same library. The phone's clustering is `@rnmapbox/maps`' ShapeSource, which its own
+comment describes as "supercluster under the hood" (`cluster-press-service.ts:5-9`); mapbox-gl's
+GeoJSON source runs supercluster in a Web Worker. Running it in-process buys three things the
+worker path cannot:
+
+- `getClusterExpansionZoom` is **synchronous and observable**. Behind the worker it is a promise
+  resolved by native code that jsdom cannot drive, so the phone's expansion maths
+  (`computeClusterExpansionCamera` — the 0.5 nudge, the zoom-20 clamp) would have been untestable
+  at unit level, which is precisely why the phone factored it into a pure service in the first
+  place.
+- the cluster **count label stays local**. Under mapbox-gl the count is a SymbolLayer, i.e. a
+  network glyph fetch — the failure mode `ClusterBadge.tsx:38-45` documents at length, where a
+  missing glyph renders no text and no error.
+- the existing **DOM-marker seam survives**. Location pins, the incident teardrop, cluster bubbles
+  and cameras are all `mapboxgl.Marker` elements carrying `data-marker-id` / `data-marker-kind`,
+  so the suite's marker assertions kept working and the marker chrome became testable without
+  WebGL (`markerElements.ts`).
+
+Cost: pins are re-plotted on every `moveend` rather than being GPU layers. At demo scale (a case's
+locations) that is dozens of DOM nodes. **Trigger to revisit:** an aggregate All-Cases map, or any
+projection that can exceed a few hundred pins.
+
+### 72b. DELIBERATE — three copy/behaviour adaptations, each because the phone's version asserts
+something untrue of the demo
+
+- **Error overlay copy.** Phone: the caught SQLite error's `.message`, fallback
+  `Failed to load map data` (ui-mapping 03:96). Demo: `Failed to load the map.` — there is no data
+  fetch; the only thing that can fail is the Mapbox style/tile load. `Retry` is verbatim.
+- **Proximity toggle fallback chain.** Phone tries previous centre → first plottable feature → a
+  GPS read → a static North-America centroid (MapHost.tsx:370-431). The demo keeps steps 1 and 2,
+  drops the GPS read, and uses the map's own centre instead of a static coordinate. A browser
+  geolocation prompt fired by a map-filter toggle asks for more than the feature needs, and the
+  live camera centre is strictly better information than a hard-coded continent centre.
+- **Controls placement.** `MapControls` stacks BELOW the "Change Case" pill rather than sharing its
+  band. On a 390-430 pt phone the two coexist; the demo's screen slot is 378 px wide, where three
+  status pills plus the pill collide. Control set, copy, and row order are otherwise the phone's.
+
+### 72c. RESIDUAL — no scale bar
+
+The phone's map carries `MapScaleBar` (ui-mapping 03:108): a fixed 80 pt bar whose label is
+recomputed from zoom + latitude and snapped to round steps, replacing the native ornament. The
+demo has neither — mapbox-gl's own `ScaleControl` is available and would be a two-line add, but it
+has the same defects the phone rejected the native ornament for (variable width, jumpy steps), and
+porting `compute-span-label.ts` is a package of its own. Not in P6.1's brief.
+**Trigger:** the next P6-territory round, or any review that treats ui-mapping 03's marker/overlay
+table as a completeness checklist.
+
+### 72d. RESIDUAL — clusters do not expose their members to the sheet
+
+Tapping a cluster expands the camera (phone parity). Neither app offers "list the N locations in
+this cluster" in the bottom sheet. Recorded so a future reviewer reads the omission as parity
+rather than a gap. **Trigger:** only if the phone grows the affordance first.
+
+### 72e. RESIDUAL — the long-press seam is a container-level pointer timer, not a mapbox event
+
+mapbox-gl has no `longpress`, so `MapCanvas` runs its own 500 ms timer (RN's `delayLongPress`,
+what the phone's `onLongPress` fires on) on the canvas container, with a 10 px slop that
+reclassifies a travelling hold as a map drag, then `map.unproject`. ~~Two known edges, both
+acceptable for a demo and neither observed: a two-finger pinch whose first contact never moves
+more than 10 px can still fire (mapbox handles the gesture itself, so the ring simply re-centres
+under the pinch), and a hold that starts on a marker element bubbles to the container, so a long
+hold on a pin both selects it and moves the ring.~~ **Trigger:** a review finding either behaviour
+on a touch device, or the arrival of a pointer-gesture helper in `ui/primitives/`.
+
+**AMENDED (P6 review R-5 — both filed edges were mis-stated; the seam itself stands, the two
+disclosures do not):**
+
+- **The marker edge was understated on three counts, and it is FIXED, not deferred.**
+  (1) *Consequence.* "Both selects it and moves the ring" is true only when proximity is already
+  on. From the default OFF state `handleLongPress` unconditionally activates it, so a hold on a
+  pin drops every other location and the incident off the map **and** out of the sheet at the
+  1 km default, centred on a point nobody chose — recoverable only by noticing the Proximity ON
+  pill, and landing in R-6's false empty-state copy when nothing survives.
+  (2) *Reach.* Not touch-only. Pointer events fire for mouse, so a press-and-hold left button
+  while reading a pin triggers it on the desktop path the demo is primarily viewed on — the
+  filed trigger ("a review finding either behaviour on a touch device") was met and exceeded.
+  (3) *Surface.* `Marker.addTo` appends into `map.getCanvasContainer()` and mapbox's attribution
+  control is a descendant of the same container, so a hold on "Improve this map" activated
+  proximity too — a surface the original disclosure never named.
+  Fixed in the P6 fix round: `onPointerDown` now refuses non-primary pointers and any target
+  under `[data-marker-id], .mapboxgl-ctrl`.
+
+- **The pinch edge is STRUCK as never-real.** `pressOrigin` is a single shared ref and every
+  `pointerdown` cancels-then-re-arms from the newest contact, so in a two-finger gesture
+  finger 1's first `pointermove` is measured against finger 2's origin — two contacts on a
+  378 px surface are essentially never within the 10 px slop, so the timer cancels immediately.
+  The cross-pointer comparison that reads like a bug is exactly what made the pinch safe. The
+  `isPrimary` guard added above now closes it by construction as well; recorded here so the
+  analysis is not re-derived a third time.
+
+What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather
+than a gesture primitive. ~~**Trigger (unchanged):** the arrival of a pointer-gesture helper in
+`ui/primitives/`.~~
+
+**TRIGGER CORRECTED (fix-delta, web NEW-2):** that sentence deferred to an arrival that had
+already happened. `ui/primitives/useLongPress.ts` predates P6 and has FOUR callers
+(`CasesScreen`, `RowActions`, `MediaLibrarySheet`, `DashboardScreen`); the map is its fifth
+hand-rolled sibling, not a pioneer waiting for a primitive. The micro-round took the cheap half —
+the map now imports `LONG_PRESS_MS` and `LONG_PRESS_MOVE_TOLERANCE_PX` from the primitive, and
+carries its `e.button !== 0` guard — so the FEEL and the button rules are shared even though the
+mechanism is not. **Real trigger:** the convergence work in §79i, i.e. the next touch to this
+seam.
+
+---
+
+
 ## 73. P5.2 (parity/p5-tab) — the Export tab: screen states not ported, decisions, and the seam P5.3 closes
 
 **Source:** parity plan §5 P5.2; matrix rows 7, 24, G7; phone `app/(tabs)/export.tsx`,
@@ -4851,3 +4965,152 @@ micro-round is churn against a review-frozen tree.
 **Cross-bucket interaction (P5.4's D-10):** their sr-only/`aria-busy` decision on the Export Map
 button is now the ONLY remaining focus concern at that site — the restore half is handled here,
 in the primitive, for every caller.
+
+## 79. P6 review round 1 — fix-round dispositions and what was deliberately left
+
+**Source:** `docs/code-reviews/parity/p6/p6-review-r1-vetted.md` (R-1…R-27), one code owner.
+25 of 27 findings FIXED; the two entries below are the deliberate partial-fixes, plus one new
+production defect the round surfaced and one item ruled against the ledger.
+
+### 79a. NEW (found while fixing R-10) — the long-press point ignored the phone-frame CSS scale
+
+Not a review finding; surfaced by writing the test R-10 asked for, exactly as the finding's
+carry-through note predicted it might. `onPointerDown` converted client coordinates to container
+pixels with a plain `clientX - rect.left`, but `getBoundingClientRect()` reports the CSS-
+TRANSFORMED box while `map.unproject` expects untransformed container pixels — and
+`PhoneFrame.tsx:42` wraps this whole screen in `transform: scale(usePhoneScale())`, which is
+below 1 on any viewport that cannot fit the 404x812 device at 1:1. A long press therefore landed
+progressively further from the finger the further it was from the container's top-left; at
+scale 0.5, 100 px in resolved 100 px short.
+
+FIXED in the R-10 commit with mapbox-gl's own formula (`getScaledPoint`,
+mapbox-gl-dev.js:57053-57059, `offsetWidth / rect.width`), so a long-press ring and a mapbox
+click now resolve to the same coordinate. Recorded here, not silently folded in, because it is
+new production behaviour rather than the test-strength item R-10 asked for — the fix-delta lane
+should treat it as unreviewed code.
+
+### 79b. DEFERRED (R-15, larger half) — `MapData` still carries `pins` and `incident`
+
+The duplication the finding named is gone: `narrowProjection` is now the single derivation both
+narrowing stages call, so `pins`/`incident`/`statusCounts` cannot disagree with `items`. What is
+NOT done is the shape change — shrinking `MapData` to `items` alone and deriving at the render
+boundary (`buildMarkers(items)`), per the `ScopeRetention` omit-so-it-can't-drift precedent.
+
+**Why deferred:** it changes the type every map surface reads, and P5.4's case-map export builder
+is the second consumer arriving imminently. Doing it once, with both consumers visible, is
+cheaper and safer than doing it now and again. **Trigger:** the P5.4 export-map reconciliation,
+or any third `MapData` consumer — whichever comes first.
+
+**Caveat (fix-delta):** `narrowProjection` covers the two NARROWING sites, not all three
+construction sites. `toMapData` still builds `pins`/`incident`/`items` independently from the
+location list — correctly, since it is the origin rather than a narrowing of something — so the
+invariant is enforced at 2 of 3. A change to the pin shape still has to be made twice. That is
+the residue the shape change above removes for good; until then, treat `toMapData` as the site
+this ledger entry is really about.
+
+### 79c. DEFERRED (R-16, larger half) — `LocationDetailCardProps` is still flat over a union `item`
+
+The invalid state the finding named is gone: `camerasShown`/`onToggleCameras` are one optional
+`cameras: { shown, onToggle }`, so "shown with no way to hide" is unrepresentable. What is NOT
+done is discriminating the whole props type on `item.kind` (the `RetentionView` precedent), which
+would also stop an incident item being handed location-only props.
+
+**Why deferred:** same reason as 79b — one caller today, P5.4 adds the second, and the union
+churn is worth doing once against both. **Trigger:** P5.4's detail-card caller landing.
+
+### 79d. DEFERRED (R-14, larger half) — four pipeline stages still share one nominal `MapData`
+
+`locationCountLabel` now takes `{ filteredCount, locationCount }` (the finding's stated minimum),
+so the two swappable positional numbers are gone. The `MapProjection` single-result shape that
+would make the stages distinct types is the owner-judgement half the finding itself routed to the
+P5.4 seam. ~~**Trigger:** as 79b.~~
+
+**TRIGGER AMENDED (fix-delta):** "as 79b" under-fired. The pressure this entry describes — more
+readers of more same-typed stages, each correct only by identifier choice — grows whenever
+`MapScreen`'s projection block gains a stage-derived count or reader, which happened TWICE in the
+fix round alone (`totalCount` off `mapData`, `emptyReason` off `display`/`filtered`), and MR-3
+then had to reach across two of them to get one clause right. **Trigger:** the P5.4
+reconciliation OR any new stage-derived count/reader added to that block — whichever comes first.
+
+### 79e. DEFERRED (R-7b remainder) — map pins have no accessible name to plumb
+
+Cluster bubbles are now focusable and Enter/Space-operable. Location and incident pins took the
+other branch the finding offered — `aria-hidden="true"`, with the sheet's real `LocationRow`
+buttons as the declared keyboard path — because `MarkerDescriptor` carries no label field and
+inventing one at the marker layer would duplicate naming logic the sheet already owns.
+
+**Trigger:** if `MarkerDescriptor` ever gains a display name for another reason, give the pins
+`tabIndex`/`aria-label` and drop the `aria-hidden` in the same commit.
+
+### 79f. RECORDED — the dynamic-import discipline is still grep-enforced
+
+Carried from the review's own "recorded, no action" list so it does not evaporate. Nothing
+prevents a future edit from statically importing `mapCluster` or `mapProximity` and pulling
+`supercluster`/`@turf/*` into the demo's own chunk; the fix round kept the boundary honest by
+hand (and by re-measuring the built chunks), not by a rule. An ESLint `no-restricted-imports`
+scoped to the eager map modules, or a chunk-content assertion in CI, is the durable enforcement.
+**Trigger:** the next time a lazy-chunk regression is found by measurement rather than prevented.
+
+### 79g. RECORDED — the two review items closed with no code change
+
+`W-8` (the 600 ms cover cross-fade has no reduced-motion gate — opacity-only, category guidance
+exempts it, and mapbox's own animations are already gated) and `W-9` (glass-pill contrast over
+bright satellite tiles — phone-verbatim tokens, pre-existing on the phone and the sheet, a design
+decision rather than a review call). Both stand as recorded; neither is a residual this feature
+owes work on.
+
+
+### 79h. LEDGERED (from MR-4) — no `webglcontextlost` subscription, and a third failure discriminant
+
+MR-4 deleted a dead `context lost` alternation from `isTerminalMapError`: verified in the
+installed mapbox-gl 3.25, context loss is raised as its own event
+(`this.fire(new Event('webglcontextlost'))`) and never travels through `'error'`, so the arm
+could not fire for its stated cause while the comment promised it would.
+
+What is NOT built: the real handling. `map.on('webglcontextlost')` → `console.error` + the
+overlay; `map.on('webglcontextrestored')` → clear it. It needs a THIRD failure value beside
+`'engine' | 'style'`, because a post-load death currently renders "Failed to load the map." for a
+map that demonstrably did load — the copy would be a second small lie.
+
+Not built now because it is a new failure path with new copy and new state, which is a fix round's
+worst shape. **Trigger:** the next touch to `MapCanvas`'s failure handling, or any report of a
+blank map that Retry does not fix.
+
+### 79i. LEDGERED (from MR-1) — the long-press convergence, and the durable §79a retirement
+
+Two entries that resolve together, both about the same seam.
+
+1. **Converge on `useLongPress`.** The map is its fifth hand-rolled long press. The primitive
+   needs two additions to absorb this caller — an extra bail selector (the map bails on
+   `[data-marker-id], .mapboxgl-ctrl`, the primitive bails on `NESTED_CONTROL_SELECTOR`) and an
+   originating-coordinates callback (the map needs the press point; the tray callers do not).
+   MR-1 shared the constants and the button rule; the mechanism is still duplicated. Retires
+   §72e's shape residual for real.
+2. **Retire `toContainerPoint` entirely.** Build the hold on `map.on('mousedown' / 'touchstart')`
+   instead of container pointer events: mapbox's own event objects carry `e.point` (already
+   scale-corrected by the very `getScaledPoint` §79a mirrors) and `e.lngLat` (already
+   unprojected). That deletes the conversion, its version-coupled citation, and its
+   padding/border-free precondition in one move.
+
+**Trigger:** either any mapbox minor/major bump (which is when the mirrored formula is most
+likely to drift), or the next feature touch to the long-press seam — whichever comes first.
+
+### 79j. LEDGERED (from the fix-delta) — map type-polish batch
+
+Explicitly routed here so it stops falling between commits and ledger entries:
+R-27d's `export type MarkerKind` (`data-marker-kind` is still written three ways — `d.kind`, the
+literal `'cluster'`, the literal `'camera'` — and both test helpers still take `kind: string`);
+the ~7 remaining positional `[number, number]` sites that should be `LngLat` (probe-verified zero
+caller breakage); a `ScreenPoint` labelled tuple for the container-pixel pair; and the three
+`Object.freeze(...) as X` assertions that a `satisfies` or a typed helper would avoid.
+
+**Trigger:** the next refactor commit in `features/demo/ui/screens/map/` — it is a single sweep,
+not a reason to open the territory on its own.
+
+### 79k. RECORDED (fix-delta) — commit `213d5dd`'s stated mutation no longer reproduces
+
+The R-9 commit body says reverting the stable-empty defaults reddens its settled-total pin. At the
+merged head it no longer does — and that is NOT a weak pin. R-4's structural split (which landed
+after R-9) removed the pin/camera coupling the mutation needed; the pin still reddens when that
+coupling is restored. Recorded so nobody re-derives it from the commit message and concludes the
+test is hollow.

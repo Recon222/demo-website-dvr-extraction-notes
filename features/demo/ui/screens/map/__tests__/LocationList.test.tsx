@@ -21,6 +21,8 @@ const item: SheetItem = {
   locationContact: '',
   locationPhone: '',
   coordinateSource: 'geocoded',
+  cameras: [],
+  cameraTotal: 0,
 }
 
 describe('LocationList — Export Map footer', () => {

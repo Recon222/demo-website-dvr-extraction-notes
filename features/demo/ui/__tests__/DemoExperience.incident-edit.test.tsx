@@ -2,17 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 
-// mapbox-gl is mocked (no WebGL); a constructable (non-arrow) Map so `new mapboxgl.Map(...)` works.
-const { mapInstance } = vi.hoisted(() => {
-  const mapInstance = {
-    on: vi.fn((evt: string, cb: () => void) => { if (evt === 'load') cb() }),
-    remove: vi.fn(), flyTo: vi.fn(), fitBounds: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn(),
-  }
-  return { mapInstance }
+// mapbox-gl is mocked (no WebGL). The shared stub is chainable and complete (MR-5): this file's
+// previous `Marker: vi.fn()` returned `undefined`, so `new Marker(...).setLngLat(...)` throws the
+// moment markers are actually plotted — which today they never are, because nothing here awaits
+// the map's async boot. One `await` away from ~15 confusing red tests.
+vi.mock('mapbox-gl', async () => {
+  const { createMapboxModuleStub } = await import('@/features/demo/ui/screens/map/__tests__/test-utils')
+  return createMapboxModuleStub().module
 })
-vi.mock('mapbox-gl', () => ({
-  default: { Map: vi.fn(function () { return mapInstance }), Marker: vi.fn(), accessToken: '' },
-}))
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 

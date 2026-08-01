@@ -2,12 +2,12 @@
 
 import type { CSSProperties } from 'react'
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
-import { MAP_PIN_COLORS, STATUS_LABEL, SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { MAP_PIN_COLORS, STATUS_LABEL, SHEET_COLORS, type StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 
 export interface SheetHandleProps {
   contentMode: 'list' | 'detail'
   locationCount: number
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
 }
 
 const STATUSES: LocationMapStatus[] = ['started', 'working', 'complete']

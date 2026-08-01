@@ -3,14 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
-import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { SHEET_COLORS, type StatusCounts } from '@/features/demo/ui/screens/map/mapTokens'
 import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
-import { LocationList } from '@/features/demo/ui/screens/map/LocationList'
+import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
-  statusCounts: { started: number; working: number; complete: number }
+  statusCounts: StatusCounts
   /** Controlled snap detent: 0 = peek, 1 = partial, 2 = full. */
   snapIndex: number
   onSnapChange(index: number): void
@@ -19,6 +19,10 @@ export interface MapBottomSheetProps {
   onSelect?(id: string): void
   /** Detail-mode content (Slice 8 fills this in). */
   detail?: React.ReactNode
+  /** Which stage emptied the list — threaded to `LocationList` (review R-6). */
+  emptyReason?: SheetEmptyReason
+  /** Recovery affordance for the `'filters'` empty reason. */
+  onClearFilters?(): void
   /**
    * List-mode footer action — "Export Map" (P5.4). Forwarded to `LocationList`; omit to
    * hide it. Pass-through only, exactly as the phone's sheet forwards it
@@ -55,6 +59,8 @@ export function MapBottomSheet({
   selectedId = null,
   onSelect,
   detail,
+  emptyReason,
+  onClearFilters,
   onExportMap,
   exportMapPending,
   exportMapBlocked,
@@ -148,7 +154,7 @@ export function MapBottomSheet({
         {contentMode === 'detail' ? (
           detail
         ) : (
-          <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} onExportMap={onExportMap} exportMapPending={exportMapPending} exportMapBlocked={exportMapBlocked} />
+          <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} emptyReason={emptyReason} onClearFilters={onClearFilters} onExportMap={onExportMap} exportMapPending={exportMapPending} exportMapBlocked={exportMapBlocked} />
         )}
       </div>
     </div>

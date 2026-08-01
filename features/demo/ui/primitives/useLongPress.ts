@@ -79,8 +79,15 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
  */
 export const LONG_PRESS_MS = 500
 
-/** A press that wanders further than this is a drag/scroll, not a hold. */
-const MOVE_TOLERANCE_PX = 10
+/**
+ * A press that wanders further than this is a drag/scroll, not a hold.
+ *
+ * Exported for the same reason `LONG_PRESS_MS` is (see above): P6's `MapCanvas` re-declared BOTH
+ * beats for its hand-rolled map hold, so the shared gesture feel could have been retuned here
+ * with the map left behind and every test green. The map's copies are gone; this is THE
+ * definition of both.
+ */
+export const LONG_PRESS_MOVE_TOLERANCE_PX = 10
 
 /**
  * Controls that own their own press. Anything matching this that is not the gesture surface
@@ -209,7 +216,10 @@ export function useLongPress(
     onPointerMove: (e) => {
       const start = origin.current
       if (start === null) return
-      if (Math.abs(e.clientX - start.x) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - start.y) > MOVE_TOLERANCE_PX) {
+      if (
+        Math.abs(e.clientX - start.x) > LONG_PRESS_MOVE_TOLERANCE_PX ||
+        Math.abs(e.clientY - start.y) > LONG_PRESS_MOVE_TOLERANCE_PX
+      ) {
         clear()
       }
     },
