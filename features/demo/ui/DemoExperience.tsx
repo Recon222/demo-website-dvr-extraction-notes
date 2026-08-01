@@ -70,6 +70,7 @@ import {
 import { SettingsModal } from '@/features/demo/ui/screens/settings/SettingsModal'
 import { toSettingsSections } from '@/features/demo/ui/screens/settings/settingsData'
 import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
+import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import {
   DEFAULT_SETTINGS,
   FORM_PROFILE_SHORT,
@@ -154,7 +155,7 @@ import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry, UserProfile } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -440,6 +441,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const capture = useStore(store, (s) => s.capture)
   /** The active form profile — the Settings "Form Fields" row's preview (SEAM(P7.3)). */
   const profile = useStore(store, (s) => s.profile)
+  /** The ANALYST's profile (P7.2) — the User Profile pane, the master row's preview, and the
+   *  Completion screen's `completedBy` autofill. */
+  const userProfile = useStore(store, (s) => s.userProfile)
 
   // Screen-transition direction: computed once per `view` change and held stable through the
   // animation (mutating refs during render = the "previous prop" pattern — no effect, no re-render,
@@ -647,18 +651,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     [],
   )
   const openSettings = useCallback(() => store.getState().openModal('settings'), [store])
+  /** Save from the profile editor (P7.2) — the whole trimmed record, committed in one write. */
+  const saveUserProfile = useCallback(
+    (next: UserProfile) => store.getState().updateUserProfile(next),
+    [store],
+  )
   const settingsSections = useMemo(
     () =>
       toSettingsSections({
         settings,
-        // SEAM(P7.2): the profile store does not exist yet, so the row reads the phone's own
-        // empty literal (`Not set`). P7.2 passes the live trimmed name here — one argument.
-        profileName: '',
+        // P7.2: the live name. `settingsPreview` trims it and falls back to the phone's own
+        // `Not set` literal when it is empty, so the row needs nothing else from here.
+        profileName: userProfile.name,
         // SEAM(P7.3): already live. The demo genuinely runs this profile, so the row is
         // truthful before P7.3 makes it changeable.
         formProfileLabel: FORM_PROFILE_SHORT[profile] ?? profile,
       }),
-    [settings, profile],
+    [settings, profile, userProfile.name],
   )
 
   // ---- Export tab (P5.2, matrix rows 7/24) ------------------------------------------------
@@ -2615,11 +2624,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           <SettingsModal
             sections={settingsSections}
             // The bridge is the pane resolver so the shell never has to know about the store.
-            // SEAM(P7.2) / SEAM(P7.3): their packages add a branch HERE — `if (id ===
-            // 'user-profile') return <UserProfilePane profile={…} …/>` — before falling through
-            // to the default map. `SettingsPaneProps` stays as it is; it is the eight
-            // settings-backed panes' contract, not a base class for the other two.
-            renderPane={(id) => renderSettingsPane(id, { settings, onChange: patchSettings })}
+            // A store-connected pane branches HERE, before the fall-through to the default map;
+            // `renderSettingsPane` takes `StubPaneId`, so a branch that goes missing is a compile
+            // error rather than a pane rendered without its data. `SettingsPaneProps` stays as it
+            // is — it is the settings-backed panes' contract, not a base class.
+            // SEAM(P7.3): `form-customization` gets the same treatment when its grid lands.
+            renderPane={(id) =>
+              id === 'user-profile' ? (
+                <UserProfilePane profile={userProfile} onSave={saveUserProfile} />
+              ) : (
+                renderSettingsPane(id, { settings, onChange: patchSettings })
+              )
+            }
             onClose={() => store.getState().closeModal()}
           />
         )

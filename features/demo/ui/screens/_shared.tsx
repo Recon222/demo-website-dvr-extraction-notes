@@ -41,6 +41,7 @@ export function ModalShell({
   onBack,
   backLabel = 'Back',
   fillBody = false,
+  elevation = 0,
   footer,
   children,
 }: {
@@ -54,6 +55,17 @@ export function ModalShell({
   onBack?(): void
   backLabel?: string
   fillBody?: boolean
+  /**
+   * Raises this sheet's two z-indexes above another overlay's (P7.2). Zero — every caller before
+   * the profile editor — leaves the lifted values 21/22 exactly as they were.
+   *
+   * Needed because the User Profile editor opens FROM INSIDE the Settings sheet, which is the
+   * demo's first modal-over-modal: both portal into the same phone-overlay root, and at equal
+   * z-index the winner would be decided by DOM insertion order — true today, and true for no
+   * reason anyone reading either file could see. Kept well under `PickerSheet`'s 31/32 so the
+   * date pickers INSIDE the editor still land on top of it.
+   */
+  elevation?: number
   footer?: ReactNode
   children: ReactNode
 }) {
@@ -67,7 +79,7 @@ export function ModalShell({
   }, [onClose])
   const content = (
     <>
-      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
+      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21 + elevation, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -79,7 +91,7 @@ export function ModalShell({
           right: 0,
           top: 34,
           bottom: 0,
-          zIndex: 22,
+          zIndex: 22 + elevation,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           background: '#0d1b2a',
