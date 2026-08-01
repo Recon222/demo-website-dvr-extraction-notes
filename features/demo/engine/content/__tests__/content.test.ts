@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { CHAPTERS } from '@/features/demo/engine/content/screens'
-import { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
+import { CHAPTERS, TAB_VIEWS, isTabOnlyView } from '@/features/demo/engine/content/screens'
+import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
 import { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
 import { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
 
@@ -29,6 +29,26 @@ describe('narration', () => {
       expect(n, `modal narration missing for "${id}"`).toBeTruthy()
       expect(n!.title.length).toBeGreaterThan(0)
       expect(n!.paras.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('carries copy for exactly the tab destinations that are NOT chapters (Map, Export)', () => {
+    // Since R-27 the KEY SPACE is closed by the type: `Record<TabOnlyView, ChapterNarration>`
+    // makes a missing tab-only entry and a chapter/launchable entry — which the bridge would
+    // let shadow that chapter's own copy, since it consults this record first — both compile
+    // errors. What is left for runtime is that the copy is real.
+    const tabOnly = TAB_VIEWS.filter(isTabOnlyView)
+    expect(tabOnly.length).toBeGreaterThan(0)
+    expect(Object.keys(TAB_NARRATION).sort()).toEqual([...tabOnly].sort())
+    for (const id of tabOnly) {
+      const n = TAB_NARRATION[id]
+      expect(n.eyebrow.length).toBeGreaterThan(0)
+      expect(n.title.length).toBeGreaterThan(0)
+      expect(n.paras.length).toBeGreaterThan(0)
+    }
+    // The chapters among the tabs keep their own copy in NARRATION, unshadowed.
+    for (const id of TAB_VIEWS.filter((v) => !isTabOnlyView(v))) {
+      expect(CHAPTERS, `tab "${id}" is neither a chapter nor tab-only`).toContain(id)
     }
   })
 })

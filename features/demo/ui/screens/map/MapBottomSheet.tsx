@@ -19,6 +19,20 @@ export interface MapBottomSheetProps {
   onSelect?(id: string): void
   /** Detail-mode content (Slice 8 fills this in). */
   detail?: React.ReactNode
+  /**
+   * List-mode footer action — "Export Map" (P5.4). Forwarded to `LocationList`; omit to
+   * hide it. Pass-through only, exactly as the phone's sheet forwards it
+   * (`MapBottomSheet.tsx:66-70`: "List mode only — case-level 'Export Map' action, rendered
+   * as the list footer. Forwarded to LocationList. Omit to hide it.").
+   *
+   * SEAM(P6.1): this is the whole of P5.4's footprint on the sheet — one forwarded prop, no
+   * change to the drag/detent machinery.
+   */
+  onExportMap?(): void
+  /** Forwarded to the footer — see `LocationList`. */
+  exportMapPending?: boolean
+  /** Forwarded to the footer — see `LocationList`. */
+  exportMapBlocked?: boolean
 }
 
 // Visible detent heights (px) within the 378×786 phone screen, above the tab bar.
@@ -41,6 +55,9 @@ export function MapBottomSheet({
   selectedId = null,
   onSelect,
   detail,
+  onExportMap,
+  exportMapPending,
+  exportMapBlocked,
 }: MapBottomSheetProps) {
   const dragStart = useRef<number | null>(null)
   const [dragOffset, setDragOffset] = useState(0)
@@ -128,7 +145,11 @@ export function MapBottomSheet({
         <SheetHandle contentMode={contentMode} locationCount={locationCount} statusCounts={statusCounts} />
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {contentMode === 'detail' ? detail : <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} />}
+        {contentMode === 'detail' ? (
+          detail
+        ) : (
+          <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} onExportMap={onExportMap} exportMapPending={exportMapPending} exportMapBlocked={exportMapBlocked} />
+        )}
       </div>
     </div>
   )

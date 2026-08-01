@@ -50,6 +50,12 @@ export type ModalId =
    *  rather than a flag on `newLocation` — the two mounts have different narration, different
    *  submit semantics, and the phone likewise mounts a second instance. */
   | 'newAddressLocation'
+  /** The ZIP scope chooser reached from Completion's "Export Zip" (P5.3 — phone
+   *  `ExportActionSheet`, whose only call site is `completion.tsx:610-617`). A modal id and
+   *  not flow state: it is opened and closed by a gesture, unlike the progress/validation
+   *  overlay, whose visibility is DERIVED from the export machine (`resolveExportModalMode`)
+   *  exactly as on the phone. */
+  | 'exportScope'
 
 /** The two flavours every duplicate action carries (phone `DuplicateMode`,
  *  `duplicate-location-service.ts:23`): submission info alone, or submission info plus a

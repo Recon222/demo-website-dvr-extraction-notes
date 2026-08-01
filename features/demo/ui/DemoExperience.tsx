@@ -8,8 +8,8 @@ import {
   type RestoreAllMode,
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
-import { NARRATION, MAP_NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
+import { isLaunchableId, isTabOnlyView, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -58,6 +58,15 @@ import { computeImportStage, type ImportUiStage } from '@/features/demo/engine/l
 import { buildImportedLocationView, type ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 import { ScreenStage } from '@/features/demo/ui/ScreenStage'
 import { MapScreen } from '@/features/demo/ui/screens/map/MapScreen'
+import { ExportHub, type ExportFooterView } from '@/features/demo/ui/screens/export/ExportHub'
+import {
+  pruneSelection,
+  resolveExportPlan,
+  toggleCaseSelection,
+  toggleLocationSelection,
+  type ExportSelectableCase,
+  type ExportSelection,
+} from '@/features/demo/engine/logic/export'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
@@ -77,6 +86,43 @@ import { CamerasScreen } from '@/features/demo/ui/screens/CamerasScreen'
 import { ExportInfoScreen } from '@/features/demo/ui/screens/ExportInfoScreen'
 import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen, type CompletionSummary } from '@/features/demo/ui/screens/CompletionScreen'
+import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
+import {
+  ExportActionSheet,
+  type ExportSheetOption,
+  type ExportSheetOptionId,
+} from '@/features/demo/ui/screens/ExportActionSheet'
+import {
+  describeCaseMapTerminal,
+  describeExportTerminal,
+  type CaseMapOutcome,
+  type ExportTerminalNotice,
+  type SimulatedExportRun,
+} from '@/features/demo/ui/screens/exportNotices'
+import {
+  EXPORT_ALERTS,
+  IDLE_EXPORT_FLOW,
+  advanceStage,
+  applyValidation,
+  cancelValidation,
+  continueValidatedExport,
+  failValidation,
+  isExporting as isExportInFlight,
+  reportProgress,
+  requestExport,
+  resetExportFlow,
+  resolveExportModalMode,
+  validateLocationForPdf,
+  validateLocationSubsetForPdf,
+  validateLocationsForPdf,
+  type CasePdfValidationResult,
+  type ExportAlert,
+  type ExportFlowState,
+  type ExportRequest,
+  type ExportRun,
+  type ValidatedExportRun,
+} from '@/features/demo/engine/logic/export'
+import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 import { DemoErrorBoundary } from '@/features/demo/ui/chrome/DemoErrorBoundary'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
@@ -97,6 +143,7 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
@@ -210,13 +257,40 @@ const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
  */
 const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
 /**
- * The chooser's two export actions (plan D4 / P3.5). They RENDER — this chooser is the phone's
- * location-level export entry point, and hiding the section would misrepresent the surface —
- * but they resolve to an honest notice instead of a fabricated download, the same treatment the
- * map gives Call/Email. Re-point them at the real flows when the Export tab lands (P5).
+ * Completion's export scope options (P5.3, matrix row 27). The list lives at the CALLER on the
+ * phone too — `completion.tsx:298-316` — and the sheet renders whatever it is handed; labels,
+ * descriptions and the icon choices are verbatim, with the Ionicons names mapped to the
+ * sheet's own named icons.
  */
-const EXPORT_ZIP_NOTICE = "Export ZIP isn't available yet — it lands with the Export tab."
-const EXPORT_GEOJSON_NOTICE = "Export GeoJSON isn't available yet — it lands with the Export tab."
+const EXPORT_SHEET_OPTIONS: readonly ExportSheetOption[] = [
+  {
+    id: 'location',
+    label: 'Export This Location',
+    description: 'ZIP with documents and media for current location',
+    icon: 'location',
+  },
+  {
+    id: 'case',
+    label: 'Export Full Case',
+    description: 'ZIP with all locations, documents, and media',
+    icon: 'folder',
+  },
+  { id: 'cancel', label: 'Cancel', icon: 'close' },
+]
+/** The only title a phone user ever sees for this sheet (`completion.tsx:612`). */
+const EXPORT_SHEET_TITLE = 'Choose Export Scope'
+/** How long each simulated pipeline stage is held. Long enough to read the stage line, short
+ *  enough that a non-dismissible overlay never feels stuck. Exported so the flow tests step the
+ *  pipeline by its real cadence instead of re-typing the number. */
+export const EXPORT_STEP_MS = 550
+/**
+ * The runs that go through the staged ZIP pipeline — everything except the two single-file
+ * artifacts, which terminate in their own handler. Derived from `ExportRun` (R-3), so a new
+ * export type is a compile error at `pdfPassFor` rather than a silent zero-PDF pipeline.
+ */
+type ZipExportRun = Extract<ExportRun, { type: 'case' | 'case-subset' | 'location' }>
+/** Dialog body for a validator throw that carried no `Error` message (R-22). */
+const UNKNOWN_VALIDATION_FAILURE = 'Validation could not be completed. Nothing was exported.'
 /**
  * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
  * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
@@ -375,7 +449,30 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
   const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
+  /**
+   * The Case Map builder, fetched when the map tab opens (review R-8).
+   *
+   * It is a ~22 kB gzip lazy chunk — kept out of /demo's First Load deliberately — and it used
+   * to be fetched INSIDE the export handler. That put a network wait between the visitor's
+   * click and any feedback, which is what made the double-press real: N presses, N builds, N
+   * downloads, and second-and-later downloads tripping Chrome's multiple-download blocking.
+   * Fetching it on arrival instead makes the export itself synchronous, so the flow's own
+   * entry guard is sufficient and the click stays inside the gesture that authorised it.
+   *
+   * `null` = not fetched yet · `'failed'` = it did not arrive · otherwise the module.
+   */
+  const [caseMapModule, setCaseMapModule] = useState<
+    typeof import('@/features/demo/engine/logic/case-map') | 'failed' | null
+  >(null)
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
+  /**
+   * The Export tab's selection (P5.2). Tab-local and EPHEMERAL, exactly as the phone declares
+   * it — "never persisted; the Map tab's mapViewerCaseId precedent" (`app/(tabs)/export.tsx:37`)
+   * — so it lives beside `mapViewerCaseId` above rather than in the store: no slice, and
+   * nothing added to the sessionStorage snapshot. A selection that must be re-validated against
+   * the live data every time that data changes is state that only makes sense alongside it.
+   */
+  const [exportSelection, setExportSelection] = useState<ExportSelection | null>(null)
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null)
   const [caseForm, setCaseForm] = useState<NewCaseFields>(blankCaseForm)
   // Which case the New Case sheet is serving. One modal id, two modes — the phone's own
@@ -495,13 +592,14 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // Rail copy, most-specific first (mirrors the manifest anchor in selectExploreStatus):
   // an open modal shows its own copy (Create a Case / Add a Location / Import Location),
   // else an open LAUNCH SCREEN with an entry shows its own (§60k — the OCR camera; the two
-  // media launchables carry no entry by decision §59e and fall through), else the Map tab its
-  // contextual copy, else the current chapter's. The ?? guards an id with no narration
-  // entry — falls back to the chapter rather than blanking.
+  // media launchables carry no entry by decision §59e and fall through), else a TAB-ONLY
+  // destination (Map, Export) its contextual copy, else the current chapter's. Each ?? guards
+  // an id with no narration entry — it falls back to the chapter rather than blanking.
   const narration =
     (modal && MODAL_NARRATION[modal]) ??
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
-    (view === 'map' ? MAP_NARRATION : NARRATION[currentChapter])
+    (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
+    NARRATION[currentChapter]
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
   // the anchor is modal → view → chapter, so `modal` must be a dep or the active row goes
@@ -522,6 +620,79 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     }
   }
   const caseCards = useMemo(() => toCaseCards(cases, locations), [cases, locations])
+
+  // ---- Export tab (P5.2, matrix rows 7/24) ------------------------------------------------
+  /**
+   * What the export machine counts as "this case's locations": the rows the hub RENDERS.
+   * Derived from `caseCards` rather than straight from `DemoCase.locationIds` so the visible
+   * list, the tri-state checkbox and the footer's N can never disagree — a selection surface
+   * must only be able to select what it shows.
+   */
+  const exportCases = useMemo<ExportSelectableCase[]>(
+    () => caseCards.map((c) => ({ id: c.id, locationIds: c.locations.map((l) => l.id) })),
+    [caseCards],
+  )
+  /**
+   * Prune on READ rather than in an effect. The phone re-validates in a `useEffect` keyed on
+   * `cases` (`export.tsx:51-69`) because its list arrives asynchronously from SQLite; here the
+   * store IS this render's input, so the same rule runs as a derivation — no extra commit, and
+   * no window in which a deleted location is still tickable. `pruneSelection` returns the same
+   * reference when nothing changed, so this costs no identity churn. Every write below starts
+   * from this pruned value, never from the raw state, so the state converges on its own.
+   */
+  const exportView = pruneSelection(exportSelection, exportCases)
+  const armedExportCase = exportView ? (caseCards.find((c) => c.id === exportView.caseId) ?? null) : null
+  /**
+   * ONE decision for the footer AND the dispatch (the export engine's invariant): the artifact
+   * descriptor, the detail line, the CTA label and the pipeline a press runs are all the same
+   * `ExportSelectionPlan`. Nothing downstream re-derives the full-case / single / subset branch.
+   */
+  const exportFooter: ExportFooterView | null =
+    exportView && armedExportCase
+      ? { caseNumber: armedExportCase.caseNumber, plan: resolveExportPlan(exportView, armedExportCase.locations.length) }
+      : null
+  const toggleExportLocation = (caseId: string, locationId: string) =>
+    setExportSelection(toggleLocationSelection(exportView, caseId, locationId))
+  const toggleExportCase = (caseId: string) => setExportSelection(toggleCaseSelection(exportView, exportCases, caseId))
+  /**
+   * The Export tab's CTA → the real flow (the P5.2/P5.3 seam, closed at merge). The request is
+   * keyed on `exportFooter.plan.dispatch` — the ONE plan that also feeds the footer — so the
+   * full-case / single / subset decision is never made a second time here (§73/§74 contract).
+   */
+  const onExportPress = () => {
+    // LOUD backstops (R-13), the phone's PR-90/89 doctrine that `flow.ts` already carries
+    // verbatim: "on an evidence app a silent return reads as success". Unreachable today — the
+    // footer that owns this button renders only when both are non-null — but they are derived
+    // from a list this component does not own, and a silent `return` here would make a future
+    // divergence look like a completed export. Both strings are P5.1's ported taxonomy;
+    // `noSelection` had no caller until now.
+    if (!exportView) {
+      raiseExportAlert(EXPORT_ALERTS.noSelection)
+      return
+    }
+    if (!exportFooter) {
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
+    const { dispatch } = exportFooter.plan
+    // CLOSED with `assertNever` (R-3), like every other union consumer in the flow. The trailing
+    // `else` this replaces made a widened `dispatch` compile straight into the subset arm — at
+    // the one site the engine's invariant is about, that is a footer promising the canonical
+    // case artifact over a subset ZIP. A new pipeline must now break the build here.
+    switch (dispatch) {
+      case 'case':
+        requestExportFlow({ type: 'case', caseId: exportView.caseId })
+        return
+      case 'location':
+        requestExportFlow({ type: 'location', locationId: Array.from(exportView.locationIds)[0] ?? null })
+        return
+      case 'case-subset':
+        requestExportFlow({ type: 'case-subset', caseId: exportView.caseId, locationIds: Array.from(exportView.locationIds) })
+        return
+      default:
+        return assertNever(dispatch)
+    }
+  }
   // The open sheet's read-only report. Recomputed from the store, so a status action's
   // result is visible the instant it lands (the phone needs a refetch + toast for this).
   const actionSheetCase = useMemo(() => {
@@ -582,6 +753,52 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // per render would tear down and re-add the listener on every store update.
   const closeAlert = useCallback(() => setAlert(null), [])
 
+  // ---- Export flow (P5.3, matrix rows 25/27/28) ------------------------------------------
+  /**
+   * The phone's `useExportFlow` state, held HERE and never persisted — the settled §70a
+   * verdict, which follows the phone's own comment on the same state ("Tab-local selection
+   * (never persisted; the Map tab's `mapViewerCaseId` precedent)", `export.tsx:37-38`) and the
+   * demo's literal mirror of that precedent two hundred lines above.
+   *
+   * Two holders on purpose. The REF is what the pure transitions read: an export CTA press and
+   * a pipeline tick both need the live value, and a render-closure read would hand a stale one
+   * to a machine whose entry guard is the only thing standing between a second press and a
+   * double export. The state exists to render, and `setExportFlow` writes both in one call so
+   * the two can never disagree.
+   */
+  const [exportFlow, setExportFlowState] = useState<ExportFlowState>(IDLE_EXPORT_FLOW)
+  const exportFlowRef = useRef<ExportFlowState>(IDLE_EXPORT_FLOW)
+  const setExportFlow = useCallback((next: ExportFlowState) => {
+    exportFlowRef.current = next
+    setExportFlowState(next)
+  }, [])
+  const exportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /**
+   * The case the OPEN validation prompt was armed for — the third arm, alongside the machine's
+   * `pendingValidatedExport` and `pendingSubsetLocationIds`.
+   *
+   * It lives here because `continueValidatedExport` takes the case id as an ARGUMENT (the
+   * engine deliberately never re-reads ids from state), which makes remembering it the shell's
+   * job. Re-deriving it at Continue time — from the open location, say — would let a prompt
+   * raised for one case resume against a different one, which is precisely the scope
+   * escalation the arming rules exist to prevent. Today every validated dispatch comes from
+   * Completion, where the two always agree; the moment P5.2's Export tab can arm a case that
+   * is not the open location's, they do not.
+   */
+  const pendingExportCaseId = useRef<string | null>(null)
+  // A pipeline left mid-flight when the experience unmounts must not keep ticking into a dead
+  // setState — the syncTimer rule, same reason.
+  useEffect(() => () => {
+    if (exportTimer.current) clearTimeout(exportTimer.current)
+  }, [])
+  /** Every export alert is a single-OK dialog on the phone (ui-mapping `04-tab-export.md:305`). */
+  const raiseExportAlert = useCallback(
+    (a: ExportAlert) => {
+      setAlert({ title: a.title, message: a.message, actions: [{ label: 'OK', onPress: closeAlert }] })
+    },
+    [closeAlert],
+  )
+
   // Auto-clear, mirroring the phone's effect (`completion.tsx:115-125`): the card disappears
   // the moment the operator fixes the underlying data — they never have to re-tap to find out.
   useEffect(() => {
@@ -593,6 +810,27 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => {
     setGateErrors(dropGateErrors)
   }, [currentLocationId])
+  // Fetch the Case Map builder as soon as the map is on screen, so pressing Export Map is a
+  // synchronous build rather than a click followed by a network wait (review R-8). Re-runs when
+  // `caseMapModule` returns to `null`, which is how the failure arm offers a retry.
+  useEffect(() => {
+    if (view !== 'map' || caseMapModule !== null) return
+    let cancelled = false
+    void import('@/features/demo/engine/logic/case-map').then(
+      (m) => {
+        if (!cancelled) setCaseMapModule(m)
+      },
+      (e: unknown) => {
+        // Never silent: an un-arrived chunk is indistinguishable from a slow one without this.
+        console.warn('[demo/case-map] the export builder failed to load:', e)
+        if (!cancelled) setCaseMapModule('failed')
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [view, caseMapModule])
+
   // The phone's Alert is OS-modal — nothing can navigate under it. The demo's rail sits OUTSIDE
   // the phone and can jump views, so an alert left standing over another screen would misstate
   // what it is blocking. Leaving Completion closes it.
@@ -939,10 +1177,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setDupState(null)
     st.openModal('newAddressLocation') // replaces the chooser
   }
-  /** "Export ZIP" / "Export GeoJSON": close the chooser (phone does), then tell the truth. */
-  const exportFromChooser = (message: string) => {
+  /**
+   * "Export ZIP" / "Export GeoJSON" from the location chooser (deferred §52.2's trigger, now
+   * discharged: the two placeholder notices are gone and both buttons run the real flow).
+   *
+   * The phone closes the chooser first and dispatches against the row that was PRESSED, not
+   * the open location (`cases.tsx:577-592` → `source.id`). It needs an `exportTarget` state
+   * and a post-render effect to get that id into `useExportFlow`'s closure; here the id simply
+   * travels ON the request, which is the whole point of the engine's argument-not-state rule.
+   */
+  const exportFromChooser = (request: ExportRequest) => {
     closeLocationActions()
-    setNotice(message)
+    requestExportFlow(request)
   }
   const closeNewAddressCard = () => {
     setNewAddrState(null)
@@ -1042,6 +1288,74 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     setIncidentForm(blankIncidentForm)
     store.getState().closeModal()
   }
+  /**
+   * "Export Map" (P5.4 / decision D4) — the ONE export that is genuinely real in the browser,
+   * dispatched through THE export flow like every other one (review R-14, owner ruling: wire).
+   *
+   * The phone's `handleExportCaseMap` builds the same self-contained HTML and hands it to the
+   * share sheet behind a Face ID + AES gate (`useExportFlow.ts`, ui-mapping 03:182). The demo
+   * has neither gate to honour — there is nothing to protect a file the visitor already has —
+   * but it does now share the phone's PREAMBLE: entry guard, precondition alert, blocking
+   * terminal. Going through `requestExportFlow` is what retires the hand-rolled re-entry gap
+   * (R-8) and the auto-dismissing failure banner (R-9) structurally rather than by adding a
+   * second, parallel guard.
+   */
+  const exportCaseMap = () => {
+    requestExportFlow({ type: 'case-map', caseId: mapViewerCaseId })
+  }
+
+  /**
+   * Build and hand over the file. Called from the flow's `case-map` arm and SYNCHRONOUS by
+   * contract — see that arm's note. Returns what happened; the caller turns it into copy.
+   */
+  const buildCaseMapDownload = (caseId: string): CaseMapOutcome => {
+    // Fetched when the map opened. `null` here means it never arrived (offline, or a stale
+    // chunk hash after a deploy) — a real, reachable state, and the one the flow says so about.
+    if (caseMapModule === null || caseMapModule === 'failed') return { kind: 'builder-unavailable' }
+    // Live store state, so an edit made since the last render exports as edited.
+    const st = store.getState()
+    const target = st.cases.find((c) => c.id === caseId)
+    // The BUILDER is fine here; the subject is gone (delta D-3). Reporting this as
+    // `builder-unavailable` named the wrong cause AND threw away a healthy loaded module,
+    // forcing a pointless re-fetch. Unreachable today — `confirmDelete` repairs
+    // `mapViewerCaseId` — but an unreachable backstop still has to be correct (R-13's rule).
+    if (!target) return { kind: 'case-unavailable' }
+    const locations = st.locations.filter((l) => l.caseId === caseId)
+
+    const geojson = caseMapModule.buildCaseMapGeoJson(target, locations)
+    const html = caseMapModule.buildCaseMapHtml(
+      geojson,
+      caseMapModule.buildCaseMapMeta(target, clock.now().toISOString()),
+      // Same env var the live map, the geocoder and the autocomplete already read. Absent is a
+      // supported state on both sides: the case DATA is embedded and renders offline, and only
+      // the basemap tiles need the token (phone `resolveMapboxToken`, :56-67).
+      process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '',
+    )
+    const outcome = saveTextFile({
+      content: html,
+      filename: caseMapModule.caseMapFileName(target),
+      mimeType: caseMapModule.CASE_MAP_MIME_TYPE,
+    })
+    if (!outcome.requested) {
+      return outcome.reason === 'unavailable' ? { kind: 'save-unavailable' } : { kind: 'save-failed' }
+    }
+    return {
+      kind: 'requested',
+      filename: outcome.filename,
+      // Over the SAME locations the builder was handed, so the count on screen can never
+      // disagree with the file.
+      coverage: caseMapModule.summariseCaseMapCoverage(locations),
+      // The collection's own emptiness, NOT `hasPlottableFeatures` (delta D-1, probe-verified).
+      // That predicate answers "does the map have site framing" (§71g's whole-case-GeoJSON
+      // refusal) and reads FALSE for a camera-only collection — a location typed rather than
+      // picked, with a per-camera fix from P3.7's crosshair. The exported file renders every
+      // one of those camera pins, so "it opens with an empty map" was flatly false about a
+      // file the visitor is holding, printed beside a true coverage clause.
+      mapIsEmpty: geojson.features.length === 0,
+      hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
+    }
+  }
+
   const submitLocation = () => {
     const caseId = targetCaseId ?? store.getState().currentCaseId
     if (caseId) {
@@ -1604,7 +1918,317 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     })
   }
 
-  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
+  // ---- Export flow handlers (P5.3) -------------------------------------------------------
+
+  /**
+   * The case an export acts on: the one that OWNS the open location, falling back to the
+   * selection when nothing is open. The R-19 law again — trusting `currentCaseId` while a
+   * location from another case is open would ZIP the wrong evidence package.
+   */
+  const exportCaseId = (): string | null => {
+    const st = store.getState()
+    const loc = st.locations.find((l) => l.id === st.currentLocationId)
+    return loc?.caseId ?? st.currentCaseId
+  }
+
+  /**
+   * The locations a ZIP run would actually generate PDFs for, by name and in card order —
+   * what the progress overlay counts through.
+   *
+   * Re-derived from the store rather than read off `validationResult`, because the two paths
+   * into a run disagree about that field: a straight-through dispatch carries the verdict,
+   * while Continue-anyway CONSUMES it (`continueValidatedExport` clears it in the same write
+   * that closes the modal). The phone has the same shape for the same reason — `executeExport`
+   * re-validates internally (`pdf-export-service.ts:971-993`) and never trusts the modal's
+   * earlier answer.
+   *
+   * `null` means the entity this run names is gone — the one condition that turns an
+   * authorised run back into an alert.
+   *
+   * Typed to the ZIP runs alone (R-3): the two single-file pipelines have already returned by
+   * the time this is reached, and saying so in the type is what lets the switch close with
+   * `assertNever` instead of a trailing `return []` that would run a zero-PDF pipeline for an
+   * export kind nobody taught it about.
+   */
+  const pdfPassFor = (run: ZipExportRun): readonly string[] | null => {
+    const st = store.getState()
+    switch (run.type) {
+      case 'location': {
+        const loc = st.locations.find((l) => l.id === run.locationId)
+        const owner = loc ? st.cases.find((c) => c.id === loc.caseId) : undefined
+        if (!loc || !owner) return null
+        return validateLocationForPdf(loc, owner.caseNumber).valid ? [loc.locationName] : []
+      }
+      case 'case':
+      case 'case-subset': {
+        const owner = st.cases.find((c) => c.id === run.caseId)
+        if (!owner) return null
+        const inCase = st.locations.filter((l) => l.caseId === owner.id)
+        const scoped =
+          run.type === 'case-subset' ? inCase.filter((l) => run.locationIds.includes(l.id)) : inCase
+        return scoped
+          .filter((l) => validateLocationForPdf(l, owner.caseNumber).valid)
+          .map((l) => l.locationName)
+      }
+      // R-3: closed over the ZIP runs, not a trailing `return []`. The old residual arm turned
+      // an unhandled export type into a silent zero-PDF pipeline that still reported a ZIP; the
+      // narrowed parameter now refuses one at the call site instead.
+      default:
+        return assertNever(run)
+    }
+  }
+
+  const terminalAlert = (notice: ExportTerminalNotice): AlertState => ({
+    title: notice.title,
+    message: notice.message,
+    actions: [{ label: 'OK', onPress: closeAlert }],
+  })
+  const exportTerminalAlert = (run: SimulatedExportRun): AlertState =>
+    terminalAlert(describeExportTerminal(run))
+
+  /**
+   * The simulated ZIP pipeline: `generating` once per location that will get a PDF (with the
+   * phone's k-of-n counter and location name), then `zipping`, then the honest terminal.
+   *
+   * The stage ORDER is the phone's service, not invention — `validating` → `generating` (only
+   * when at least one location validates, `pdf-export-service.ts:971-977`) → `zipping`
+   * (`:1046`). `sharing` is deliberately never entered: `DEMO_EXPORT_STAGES` excludes it
+   * because "Opening share dialog..." precedes an OS share sheet a browser tab does not have.
+   */
+  // `ZipExportRun`, the exact domain (review D-11): BOTH single-artifact arms — `case-map` and
+  // `location-geojson` — return before this is reached, so `SimulatedExportRun` (which only
+  // excluded the first) nominally accepted a run that can never arrive and would have staged a
+  // three-step ZIP pipeline over a sub-second GeoJSON write. It is also what makes the terminal
+  // this raises type-check: the case-map run has its own terminal and must never fall into
+  // this one (R-14).
+  const runZipPipeline = (run: ZipExportRun, pdfPass: readonly string[]) => {
+    // The entry guard already makes a concurrent run unreachable; this is the `runTimeSync`
+    // belt-and-braces, so a future caller that bypasses the guard cannot leave two pipelines
+    // ticking into one piece of state.
+    if (exportTimer.current) clearTimeout(exportTimer.current)
+    const steps: ((s: ExportFlowState) => ExportFlowState)[] = pdfPass.map(
+      (name, i) => (s: ExportFlowState) =>
+        reportProgress(advanceStage(s, 'generating'), i + 1, pdfPass.length, name),
+    )
+    steps.push((s) => advanceStage(s, 'zipping'))
+
+    let step = 0
+    const tick = () => {
+      if (step < steps.length) {
+        setExportFlow(steps[step++](exportFlowRef.current))
+        exportTimer.current = setTimeout(tick, EXPORT_STEP_MS)
+        return
+      }
+      exportTimer.current = null
+      // Back to rest FIRST, then the notice: the progress overlay must be gone before the
+      // alert lands on top of it, or the visitor reads "Creating ZIP archive..." behind a
+      // dialog telling them nothing was created.
+      setExportFlow(resetExportFlow(exportFlowRef.current))
+      setAlert(exportTerminalAlert(run))
+    }
+    exportTimer.current = setTimeout(tick, EXPORT_STEP_MS)
+  }
+
+  /**
+   * Begin an authorised dispatch. `run` carries its own resolved ids — they are never re-read
+   * from state, which is the engine's structural form of the phone's PR-87 HIGH-1 rule.
+   */
+  const startExportRun = (run: ExportRun, state: ExportFlowState) => {
+    if (run.type === 'case-map') {
+      // The one real artifact (decision D4). Everything below runs SYNCHRONOUSLY, which is what
+      // makes the flow's entry guard sufficient (review R-8): the handler returns with the
+      // stage back at rest and the terminal already raised, so there is no window for a second
+      // press — §70j's contract met by there being no gap, exactly as for `location-geojson`.
+      // The builder is a lazy chunk, so it is fetched when the map opens, NOT here; a network
+      // wait inside this handler would re-open that window and separate the click from the
+      // gesture that authorised it.
+      const outcome = buildCaseMapDownload(run.caseId)
+      // The builder's copy says "try again", so make that true: dropping the module back to
+      // `null` re-arms the fetch effect. A sentence that instructs a retry the code cannot
+      // perform is the same class of lie as a fake success. Scoped to the GENUINE builder
+      // failure (delta D-3) — a vanished case is no reason to discard a working module.
+      if (outcome.kind === 'builder-unavailable') setCaseMapModule(null)
+      setExportFlow(resetExportFlow(state))
+      setAlert(terminalAlert(describeCaseMapTerminal(outcome)))
+      return
+    }
+    if (run.type === 'location-geojson') {
+      // No stage theatre. The phone gives it no `onStageChange` at all and calls it
+      // "sub-second" (`useExportFlow.ts:906-911`); a fabricated "Validating locations..."
+      // would be inventing work. Terminates inside THIS handler — same no-gap contract.
+      setExportFlow(resetExportFlow(state))
+      setAlert(exportTerminalAlert(run))
+      return
+    }
+    const pdfPass = pdfPassFor(run)
+    if (pdfPass === null) {
+      setExportFlow(resetExportFlow(state))
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
+    // §70j: `requestExport` hands back the run state UNTOUCHED for the single-artifact
+    // pipelines, so the stage flip belongs to the handler that starts the run — `isExporting`
+    // is false until it happens. Idempotent for the validated paths, which arrive already at
+    // `validating`.
+    setExportFlow(advanceStage(state, 'validating'))
+    runZipPipeline(run, pdfPass)
+  }
+
+  /**
+   * Run the pre-export validator and hand its verdict straight back to the machine.
+   *
+   * Synchronous (§70f): the demo holds the rows in the store, so there is nothing to await —
+   * and an artificial Promise would open exactly the between-press gap §70j warns about.
+   */
+  const runExportValidation = (run: ValidatedExportRun) => {
+    const st = store.getState()
+    const owner = st.cases.find((c) => c.id === run.caseId)
+    if (!owner) {
+      setExportFlow(resetExportFlow(exportFlowRef.current))
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
+    const inCase = st.locations.filter((l) => l.caseId === owner.id)
+    let result: CasePdfValidationResult
+    try {
+      result =
+        run.type === 'case-subset'
+          ? validateLocationSubsetForPdf(owner, inCase, run.locationIds)
+          : validateLocationsForPdf(owner, inCase)
+    } catch (e) {
+      // R-22: a breadcrumb first, like every other export catch in the repo — the dialog says
+      // what the visitor can act on, the console keeps what a developer needs.
+      console.warn('[demo/export] validation threw — no export was started:', e)
+      // `CaseValidationError`'s own message is already operator-facing ("Selected locations not
+      // found in case: …"), which is what the phone's `getUserFriendlyMessage` produces for it.
+      // A non-`Error` throw has no such message, and `String({})` is "[object Object]" — a
+      // dialog body that tells the visitor nothing while looking like it tried. It gets a plain
+      // statement instead; the console line above carries the detail. Deliberately NOT one of
+      // the ported `EXPORT_ALERTS` bodies: those name a specific cause, and naming the wrong one
+      // is worse than naming none.
+      const failed = failValidation(
+        exportFlowRef.current,
+        e instanceof Error ? e.message : UNKNOWN_VALIDATION_FAILURE,
+      )
+      setExportFlow(failed.state)
+      raiseExportAlert(failed.alert)
+      return
+    }
+    const verdict = applyValidation(exportFlowRef.current, run, result)
+    // Armed in the same step the machine arms its own two — see the ref's note.
+    pendingExportCaseId.current = verdict.kind === 'prompt' ? run.caseId : null
+    setExportFlow(verdict.state)
+    if (verdict.kind === 'run') startExportRun(verdict.run, verdict.state)
+  }
+
+  /**
+   * THE export dispatch — every caller goes through here.
+   *
+   * SEAM(P5.2): the Export tab's footer CTA calls this with the request its selection plan
+   * resolves to — `{ type: 'case', caseId }`, `{ type: 'location', locationId }` or
+   * `{ type: 'case-subset', caseId, locationIds }`, matching `ExportSelectionPlan.dispatch`.
+   * Ids travel ON the request; there is deliberately no store-reading overload.
+   */
+  const requestExportFlow = (request: ExportRequest) => {
+    // Strengthening the §70i residual rather than inheriting it. The engine's entry guard is
+    // `stage !== 'idle'`, and opening the validation prompt RESETS the stage — so on the phone
+    // the only thing stopping a second press is the modal physically covering the button. The
+    // demo's narration rail sits OUTSIDE the phone and can move the visitor while the prompt is
+    // up, so the prompt is made part of the guard here instead of left to geometry.
+    if (exportFlowRef.current.showValidationModal) return
+
+    const outcome = requestExport(exportFlowRef.current, request)
+    switch (outcome.kind) {
+      case 'ignored':
+        return
+      case 'blocked':
+        raiseExportAlert(outcome.alert)
+        return
+      case 'validate':
+        setExportFlow(outcome.state)
+        runExportValidation(outcome.run)
+        return
+      case 'run':
+        startExportRun(outcome.run, outcome.state)
+        return
+      default:
+        return assertNever(outcome)
+    }
+  }
+
+  /**
+   * The validation prompt's Continue / Export Anyway (phone `handleValidationContinue`).
+   *
+   * Resumes against the case the prompt was ARMED for, never a case re-derived now — the same
+   * rule that makes the machine arm the pipeline TYPE rather than defaulting to whole-case.
+   * The arm is consumed here whatever the outcome, mirroring the machine's own "Continue
+   * consumes the modal on every path".
+   */
+  const continueExportFlow = () => {
+    const armedCaseId = pendingExportCaseId.current
+    const outcome = continueValidatedExport(exportFlowRef.current, armedCaseId)
+    if (outcome.kind !== 'ignored') pendingExportCaseId.current = null
+    switch (outcome.kind) {
+      case 'ignored':
+        return
+      case 'blocked':
+        setExportFlow(outcome.state)
+        raiseExportAlert(outcome.alert)
+        return
+      case 'run':
+        setExportFlow(outcome.state)
+        startExportRun(outcome.run, outcome.state)
+        return
+      default:
+        return assertNever(outcome)
+    }
+  }
+
+  /** The prompt's Cancel (phone `handleValidationCancel`): drops the prompt AND every arm. */
+  const cancelExportFlow = () => {
+    pendingExportCaseId.current = null
+    setExportFlow(cancelValidation(exportFlowRef.current))
+  }
+
+  /** Completion's "Export Zip" (phone `setShowExportSheet(true)`, completion.tsx:554). */
+  const openExportSheet = () => store.getState().openModal('exportScope')
+
+  /** The sheet's answer (phone `handleExportSheetSelect`, completion.tsx:278-292): close the
+   *  sheet FIRST, then dispatch — Cancel dispatches nothing. */
+  const selectExportScope = (id: ExportSheetOptionId) => {
+    store.getState().closeModal()
+    switch (id) {
+      case 'location':
+        requestExportFlow({ type: 'location', locationId: store.getState().currentLocationId })
+        return
+      case 'case':
+        requestExportFlow({ type: 'case', caseId: exportCaseId() })
+        return
+      case 'cancel':
+        return
+      default:
+        return assertNever(id)
+    }
+  }
+
+  const exportBusy = isExportInFlight(exportFlow)
+  // The one home of the phone's three hand-copied precedence ternaries (`export.tsx:169-176`,
+  // `cases.tsx:595-602`, `completion.tsx:102-112`).
+  const exportModalMode = resolveExportModalMode({
+    showValidationModal: exportFlow.showValidationModal,
+    validationResult: exportFlow.validationResult,
+    stage: exportFlow.stage,
+  })
+  /** Shared by both mounted arms of the discriminated `ExportModalProps` (R-17). */
+  const exportModalActions = {
+    isExporting: exportBusy,
+    onContinueAnyway: continueExportFlow,
+    onCancel: cancelExportFlow,
+  }
+
+  // The tab bar shows exactly on the tab destinations — derived from the registry (`TAB_VIEWS`),
+  // so the 4th tab needed no new arm here and a 5th won't either.
+  const tabView = isTabView(view) ? view : null
 
   function activeScreen() {
     // R-35: a wizard screen with no open location is a dead form (every keystroke silently
@@ -1849,6 +2473,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onChange={(f, v) => store.getState().updateField(`form.${f}`, v)}
             onPreviewPdf={previewCaseNotes}
             onPreviewTimeOffsetPdf={previewTimeOffset}
+            onExportZip={openExportSheet}
+            // Phone: `disabled={isExporting || !currentLocationId}` (completion.tsx:557). Both
+            // halves matter — the ZIP needs a location to scope itself to, and a second press
+            // mid-run would be inert anyway (the machine's entry guard), so saying so is
+            // better than letting it look live.
+            canExport={!!currentLocation && !exportBusy}
+            isExporting={exportBusy}
             onComplete={completeLocation}
             onReviewAgain={() => setReviewAgainFor(store.getState().currentLocationId)}
             onBackToDashboard={() => store.getState().setView('dashboard')}
@@ -1873,7 +2504,20 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} exportMapPending={caseMapModule === null} exportMapBlocked={alert !== null || exportModalMode !== 'hidden'} />
+      case 'export':
+        return (
+          <ExportHub
+            cases={caseCards}
+            selection={exportView}
+            footer={exportFooter}
+            isExporting={isExportInFlight(exportFlow)}
+            onToggleCase={toggleExportCase}
+            onToggleLocation={toggleExportLocation}
+            onClearSelection={() => setExportSelection(null)}
+            onExportPress={onExportPress}
+          />
+        )
       default:
         return placeholder(view)
     }
@@ -1911,6 +2555,18 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       }
+      case 'exportScope':
+        // The ZIP scope chooser (row 27). Reached ONLY from Completion's "Export Zip" — the
+        // Export tab dispatches from its own footer CTA, as on the phone.
+        return (
+          <ExportActionSheet
+            title={EXPORT_SHEET_TITLE}
+            options={EXPORT_SHEET_OPTIONS}
+            onSelect={selectExportScope}
+            onCancel={() => store.getState().closeModal()}
+            disabled={exportBusy}
+          />
+        )
       case 'editIncident':
         return <EditIncidentLocationModal values={incidentForm} onChange={(patch) => setIncidentForm((s) => ({ ...s, ...patch }))} onSubmit={submitIncidentLocation} onCancel={closeIncidentModal} />
       case 'mediaLibrary':
@@ -1936,8 +2592,8 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             onClose={closeLocationActions}
             onDuplicate={submitDuplicate}
             onNewAddress={openNewAddressCard}
-            onExportZip={() => exportFromChooser(EXPORT_ZIP_NOTICE)}
-            onExportGeoJSON={() => exportFromChooser(EXPORT_GEOJSON_NOTICE)}
+            onExportZip={() => exportFromChooser({ type: 'location', locationId: dupState.sourceId })}
+            onExportGeoJSON={() => exportFromChooser({ type: 'location-geojson', locationId: dupState.sourceId })}
           />
         ) : null
       case 'newAddressLocation':
@@ -2024,7 +2680,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
-          tabBar={showTabs ? <TabBar active={view === 'map' ? 'map' : view === 'dashboard' ? 'dashboard' : 'cases'} onSelect={(t) => store.getState().setView(t)} /> : undefined}
+          tabBar={tabView ? <TabBar active={tabView} onSelect={(t) => store.getState().setView(t)} /> : undefined}
         >
           {/* Catches render throws in the mounted screen subtree — screen/modal/drawer/
               overlay COMPONENT renders, incl. portaled modals (portal errors propagate
@@ -2115,6 +2771,24 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
               <DemoNotification message={notice} onDismiss={() => setNotice(null)} />
             </PhoneOverlayPortal>
           )}
+          {/* Export progress / pre-flight validation (rows 25/28). Not a `ModalId`: its
+              visibility is DERIVED from the export machine, exactly as on the phone, so the
+              mode ternary — not a store write — is what makes validation outrank progress. */}
+          {/* R-17: the props are discriminated on `mode`, so the payload is paired with its
+              mode HERE rather than passed flat and null-checked inside the component.
+              `resolveExportModalMode` only answers `'validation'` for a present, failing
+              result — the `&&` below is that contract restated in a form the type can carry. */}
+          {exportModalMode === 'validation' && exportFlow.validationResult ? (
+            <ExportModal mode="validation" validationResult={exportFlow.validationResult} {...exportModalActions} />
+          ) : exportModalMode === 'progress' ? (
+            <ExportModal
+              mode="progress"
+              stage={exportFlow.stage}
+              progress={exportFlow.progress}
+              currentLocationName={exportFlow.currentLocationName}
+              {...exportModalActions}
+            />
+          ) : null}
           {/* In-phone blocking alert (the phone's Alert.alert). Rendered last so it sits over
               every other overlay, like an OS alert does. */}
           {/* Spread, not a hand-listed triple: `AlertState` IS the primitive's props minus

@@ -1,3 +1,4 @@
+import type { TabOnlyView } from '@/features/demo/engine/content/screens'
 import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
 
 /**
@@ -271,6 +272,20 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Capture Media or Record Audio first, then come back — the library opens on the newest one.',
   },
+  exportScope: {
+    eyebrow: 'Export',
+    title: 'One location, or the whole case',
+    paras: [
+      'The same request usually covers several sites, so export asks what you mean: just the location you are standing in, or every location on the case in one package. Either way the archive carries the documents, the media and a JSON copy of the data.',
+      'Before it builds anything it checks every location against the four fields a Case Notes PDF needs. Anything short is named, one missing field at a time, and you decide whether to ship the package without those notes.',
+    ],
+    bullets: [
+      'Location ZIP or full-case ZIP — the case one also carries the case map',
+      'Pre-flight validation lists exactly which locations would ship without notes',
+      'In a browser the archive itself is the one thing that cannot be produced — the demo says so instead of faking a download',
+    ],
+    tip: 'Pick either scope — the validation pass and the progress stages are the real ones.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
@@ -306,4 +321,42 @@ export const MAP_NARRATION: ChapterNarration = {
     'Call / email the requester or contact straight from the card',
   ],
   tip: 'Pick a case, then tap a pin or a row to dive in.',
+}
+
+/**
+ * Rail copy for the **Export** tab (P5.2). Same shape as the map's: a tab destination rather
+ * than a guided chapter, so it lives outside the `ChapterId`-keyed record above.
+ *
+ * Describes the SELECTION surface, which is what this tab really is — deliberately stopping
+ * short of promising a download, because producing the package is a later package and the CTA
+ * says so itself.
+ */
+export const EXPORT_NARRATION: ChapterNarration = {
+  eyebrow: 'Evidence package',
+  title: 'Decide what leaves the building',
+  paras: [
+    'Open a case and tick the locations you need. The header checkbox arms the whole case; individual rows build a subset — and the footer names the exact artifact your selection would produce before you commit to it.',
+    'Arming the case is not the same gesture as ticking every location by hand, and the app keeps them apart: only the case checkbox promises the canonical package, the one that carries the interactive case map.',
+  ],
+  bullets: [
+    'One case at a time — a tick in another case moves the whole selection',
+    'Full case · single location · partial subset, each its own artifact',
+    'The footer states the artifact, the case number and the count before anything runs',
+  ],
+  tip: 'Arm a case from its header checkbox, then untick one location and watch the footer change its promise.',
+}
+
+/**
+ * Rail copy for the views that are NOT guided chapters and therefore cannot live in the
+ * `ChapterId`-keyed `NARRATION` record — the tab-only destinations.
+ *
+ * A TOTAL record over `TabOnlyView` (R-27), not a `Partial<Record<AppView, …>>`. Both failure
+ * halves are now closed by construction rather than by test: a tab-only view added without
+ * copy fails to compile, and an entry for a view that IS a chapter — which the bridge would
+ * silently let shadow that chapter's own narration, since it consults this record first — is
+ * not an expressible key. Same device as `persistence.ts`'s `EXTRA_VIEWS`, over the same ids.
+ */
+export const TAB_NARRATION: Record<TabOnlyView, ChapterNarration> = {
+  map: MAP_NARRATION,
+  export: EXPORT_NARRATION,
 }

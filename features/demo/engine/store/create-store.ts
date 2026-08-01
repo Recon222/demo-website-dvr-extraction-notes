@@ -25,7 +25,7 @@ import type {
   TimeOffsetData,
 } from '@/features/demo/engine/types'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
-import { LAUNCHABLE } from '@/features/demo/engine/content/screens'
+import { CHAPTERS, type TabView } from '@/features/demo/engine/content/screens'
 import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
 import {
   calculateCorrectedTimeRange,
@@ -145,9 +145,11 @@ export interface CaptureState {
   dvrAppliesDST: boolean
 }
 
-/** Everything the phone can display: wizard chapters, launch-only screens, and tab-only views (Map).
- *  'map' is a tab destination, NOT a guided chapter — it never becomes `currentChapter`. */
-export type AppView = ChapterId | LaunchableId | 'map'
+/** Everything the phone can display: wizard chapters, launch-only screens, and the tab bar's
+ *  destinations. The tab-only ones (Map, Export) are destinations, NOT guided chapters — they
+ *  never become `currentChapter`, since `setView` only promotes a `ChapterId`. Sourced from the
+ *  `TAB_VIEWS` registry, so a tab added there is displayable by construction. */
+export type AppView = ChapterId | LaunchableId | TabView
 
 export interface DemoState {
   profile: Profile
@@ -382,8 +384,17 @@ function requireCanonicalTime(value: string): string {
   return value
 }
 
-const isChapterId = (v: AppView): v is ChapterId =>
-  v !== 'map' && !(LAUNCHABLE as readonly string[]).includes(v)
+/**
+ * POSITIVE check against the chapter registry, matching `persistence.ts`'s own `isChapterId`.
+ *
+ * It used to be the negative `v !== 'map' && !LAUNCHABLE.includes(v)`, which silently treated
+ * every FUTURE non-chapter view as a chapter: P5.2's Export tab promoted itself to
+ * `currentChapter` on the first `setView('export')`, which is the value `closeLaunch()` returns
+ * to and the key the rail's chapter narration is looked up by — i.e. a launchable closed from
+ * the Export tab would have landed back on it, and `NARRATION[currentChapter]` would have been
+ * `undefined`. Asking the registry can't rot that way.
+ */
+const isChapterId = (v: AppView): v is ChapterId => (CHAPTERS as readonly string[]).includes(v)
 
 /**
  * The form a duplicated location starts life with (P3.5): blank everywhere, except that

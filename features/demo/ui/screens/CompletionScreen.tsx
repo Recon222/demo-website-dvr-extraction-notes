@@ -29,6 +29,13 @@ export interface CompletionScreenProps {
   onChange(field: 'dateTimeCompleted' | 'completedBy', value: string): void
   onPreviewPdf(): void
   onPreviewTimeOffsetPdf(): void
+  /** Opens the export scope chooser (phone `setShowExportSheet(true)`, completion.tsx:554). */
+  onExportZip(): void
+  /** Phone: `disabled={isExporting || !currentLocationId}` (completion.tsx:557). Split from
+   *  `canComplete` because the two disable for different reasons and say so differently. */
+  canExport: boolean
+  /** Phone: the label flips to `Exporting...` while a run is in flight (completion.tsx:562). */
+  isExporting: boolean
   onComplete(): void
   /** Back from the confirmation to the review form — the court PDF is never a one-shot. */
   onReviewAgain(): void
@@ -108,6 +115,18 @@ export function CompletionScreen(p: CompletionScreenProps) {
         {p.summary.offset && (
           <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Preview Time-Offset Calibration</button>
         )}
+        {/* Phone order (FormActions, completion.tsx:504-572): Preview/Export PDF → the
+            conditional Time-Offset preview → Export Zip → Complete & Save. */}
+        <button
+          type="button"
+          onClick={p.onExportZip}
+          disabled={!p.canExport}
+          aria-label="Export options"
+          title={p.canExport ? 'Choose between exporting this location or the full case' : 'Open a location first'}
+          style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: p.canExport ? 'pointer' : 'not-allowed', opacity: p.canExport ? 1 : 0.45, marginBottom: 10 }}
+        >
+          {p.isExporting ? 'Exporting...' : 'Export Zip'}
+        </button>
         <button
           type="button"
           onClick={p.onComplete}
