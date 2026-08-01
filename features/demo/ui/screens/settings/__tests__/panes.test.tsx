@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
-import {
-  renderSettingsPane,
-  SETTINGS_PANES,
-  STORE_CONNECTED_PANE_IDS,
-  type StubPaneId,
-} from '@/features/demo/ui/screens/settings/panes'
+import { BRIDGE_PANE_IDS, isBridgePaneId, renderSettingsPane, SETTINGS_PANES, type StubPaneId } from '@/features/demo/ui/screens/settings/panes'
 import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { clock } from '@/features/demo/ui/inputs/clock'
@@ -22,7 +17,11 @@ import { clock } from '@/features/demo/ui/inputs/clock'
 
 const patch = (overrides: Partial<DemoSettings> = {}) => ({ ...DEFAULT_SETTINGS, ...overrides })
 
-const STUB_PANE_IDS = Object.keys(SETTINGS_PANES) as StubPaneId[]
+/** The catalog rows THIS module renders — the bridge-owned ones (P7.2's User Profile, P7.3's
+ *  Form Fields) have their own suites, and `renderSettingsPane` no longer accepts their ids.
+ *  Derived from the CATALOG, not from `Object.keys(SETTINGS_PANES)`, so the equality below is a
+ *  real partition assertion rather than a tautology. */
+const STUB_PANE_IDS = SETTINGS_CATEGORY_IDS.filter((id): id is StubPaneId => !isBridgePaneId(id))
 
 function renderPane(id: StubPaneId, settings: DemoSettings = DEFAULT_SETTINGS) {
   const onChange = vi.fn()
@@ -33,14 +32,14 @@ function renderPane(id: StubPaneId, settings: DemoSettings = DEFAULT_SETTINGS) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('pane registry', () => {
-  it('partitions the catalog: every row is either store-connected or in this map, never both', () => {
-    // P7.2 moved `user-profile` out of the map and into the bridge's own branch. The
+  it('partitions the catalog: every row is either bridge-owned or in this map, never both', () => {
+    // P7.2 and P7.3 each moved their id out of the map and into the bridge's own branch. The
     // exhaustiveness property survives the move — it just spans two collections now — so a
     // category added to the catalog and forgotten in both still fails here (and in `tsc`).
-    expect([...Object.keys(SETTINGS_PANES), ...STORE_CONNECTED_PANE_IDS].sort()).toEqual(
-      [...SETTINGS_CATEGORY_IDS].sort(),
-    )
-    for (const id of STORE_CONNECTED_PANE_IDS) {
+    expect(Object.keys(SETTINGS_PANES).sort()).toEqual([...STUB_PANE_IDS].sort())
+    // Together the two sets are the whole catalog — no row can go unrendered by both.
+    expect([...STUB_PANE_IDS, ...BRIDGE_PANE_IDS].sort()).toEqual([...SETTINGS_CATEGORY_IDS].sort())
+    for (const id of BRIDGE_PANE_IDS) {
       expect(id in SETTINGS_PANES, `"${id}" is resolved twice`).toBe(false)
     }
   })
@@ -281,15 +280,13 @@ describe('About pane', () => {
 })
 
 describe('SEAM placeholders', () => {
-  // SEAM(P7.2) is gone — the User Profile pane is real, and lives in
-  // `__tests__/UserProfilePane.test.tsx` with its editor.
-
-  it('SEAM(P7.3): Form Fields describes the grid without hardcoding the active profile', () => {
-    renderPane('form-customization')
-    const pane = screen.getByTestId('settings-pane-form-customization')
-    expect(within(pane).getByTestId('settings-pane-stub-note')).toHaveTextContent(/Forensic, Limited, Canvas/)
-    // No chips, no grid, and above all no claim about WHICH profile is active — the master row
-    // beside it already shows the live value, and a second copy here is how the two drift.
-    expect(within(pane).queryAllByRole('switch')).toHaveLength(0)
+  // Both are closed. User Profile (P7.2) and Form Fields (P7.3) are real, store-connected panes
+  // and no longer resolvable through this module at all — `BRIDGE_PANE_IDS` holds both and the
+  // bridge branches for each. Their behaviour lives in `__tests__/UserProfilePane.test.tsx`,
+  // `__tests__/FormFieldsPane.test.tsx`, and the two `DemoExperience.*` suites.
+  it('SEAM(P7.2)/SEAM(P7.3): both panes are bridge-owned, not stubs in this registry', () => {
+    expect([...BRIDGE_PANE_IDS].sort()).toEqual(['form-customization', 'user-profile'])
+    expect('user-profile' in SETTINGS_PANES).toBe(false)
+    expect('form-customization' in SETTINGS_PANES).toBe(false)
   })
 })

@@ -11,6 +11,9 @@ import type {
   ChapterId,
   DemoCase,
   DemoLocation,
+  FormFieldId,
+  FormOverrides,
+  FormStepId,
   LaunchableId,
   LocationForm,
   MediaItem,
@@ -29,6 +32,8 @@ import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { CHAPTERS, type TabView } from '@/features/demo/engine/content/screens'
 import { assertCaseNumberFree } from '@/features/demo/engine/logic/case-number'
+import { getFieldGroupMembers, getFormField, getStepFields, isFieldAlwaysOn, isStepMustStay } from '@/features/demo/engine/content/form-customization'
+import { stepHasVisibleField } from '@/features/demo/engine/logic/form-visibility'
 import {
   calculateCorrectedTimeRange,
   calculateTimeDifference,
@@ -154,13 +159,22 @@ export interface CaptureState {
 export type AppView = ChapterId | LaunchableId | TabView
 
 export interface DemoState {
+  /** The active FORM profile — which screens and fields the wizard shows out of the box.
+   *  Nothing to do with the analyst's user profile (Settings → User Profile). */
   profile: Profile
   /**
-   * The ANALYST's profile (P7.2) — not to be confused with `profile` above, which is the FORM
-   * profile. Held in the store rather than in bridge state (where the cosmetic Settings values
-   * live, deferred §80c) for two reasons: it is real data the visitor typed, and it has a
-   * downstream consumer — Completion's `completedBy` autofill, which carries the name into the
-   * Case Notes PDF header. That makes it snapshot state (v7), so it survives a refresh.
+   * The visitor's sparse deviations from that profile's defaults (P7.3). Together with
+   * `profile` this satisfies `FormVisibility` structurally, which is why every resolver call
+   * site can pass the state itself and allocate nothing.
+   */
+  formOverrides: FormOverrides
+  /**
+   * The ANALYST's profile (P7.2) — not to be confused with `profile`/`formOverrides` above,
+   * which are the FORM profile and its overrides. Held in the store rather than in bridge state
+   * (where the cosmetic Settings values live, deferred §80c) for two reasons: it is real data
+   * the visitor typed, and it has a downstream consumer — Completion's `completedBy` autofill,
+   * which carries the name into the Case Notes PDF header. That makes it snapshot state (v7),
+   * so it survives a refresh.
    */
   userProfile: UserProfile
   cases: DemoCase[]
@@ -186,6 +200,28 @@ export interface DemoState {
 
 export interface DemoActions {
   reset(): void
+  /**
+   * Settings → Form Fields (P7.3). Stamp a profile: set it active and CLEAR every override, so
+   * "apply a profile" means the same thing here as it does on the phone — a fresh start from
+   * that profile's defaults, not a layer on top of the last one.
+   */
+  applyFormProfile(profile: Profile): void
+  /**
+   * Toggle a whole screen. A TRUE no-op for a must-stay step (the resolver forces those visible
+   * anyway, so persisting the override would only be a misleading record).
+   *
+   * Re-enabling a screen additionally guarantees it has something to show: first by clearing its
+   * field overrides back to the profile's defaults, then — if the profile itself hides every
+   * field on it — by forcing them on. Without that, switching Cameras back on under `canvas`
+   * lands the visitor on a screen with no inputs at all.
+   */
+  setFormStepVisible(id: FormStepId, on: boolean): void
+  /**
+   * Toggle one field. A TRUE no-op for an always-on field. Grouped fields (the two GPS blocks)
+   * move together, and turning off the LAST visible field of a removable screen also hides the
+   * screen — one-way: only the explicit screen toggle brings it back.
+   */
+  setFormFieldVisible(id: FormFieldId, on: boolean): void
   /** THROWS `DuplicateCaseNumberError` when `caseNumber` (trimmed, case-sensitive) is
    *  already in use — the demo's write-boundary stand-in for the phone's UNIQUE column.
    *  Callers that surface a user-facing form (the New Case modal) must catch it; see
@@ -353,6 +389,7 @@ export type DemoStore = StoreApi<DemoState & DemoActions>
 export type PersistedState = Pick<
   DemoState,
   | 'profile'
+  | 'formOverrides'
   | 'userProfile'
   | 'cases'
   | 'locations'
@@ -368,10 +405,18 @@ export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
 }
 
+/** No deviations from the active profile — the boot state, and what `applyFormProfile` returns
+ *  to. A fresh object each call: the maps are written by copy in every action, and a shared
+ *  literal would make an accidental in-place write invisible. */
+export function blankFormOverrides(): FormOverrides {
+  return { steps: {}, fields: {} }
+}
+
 /** The empty boot: the visitor creates everything (owner decision — no seed data). */
 export function initialState(): DemoState {
   return {
     profile: 'forensic',
+    formOverrides: blankFormOverrides(),
     userProfile: { ...DEFAULT_USER_PROFILE },
     cases: [],
     locations: [],
@@ -467,6 +512,68 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
      * snapshot is per-tab and dies with it.
      */
     reset: () => set({ ...initialState(), userProfile: get().userProfile }),
+
+    // ---- Form customization (P7.3) --------------------------------------------------------
+    applyFormProfile: (profile) => set({ profile, formOverrides: blankFormOverrides() }),
+
+    setFormStepVisible: (id, on) => {
+      // Must-stay steps are visible regardless, so refuse to record a contradicting override.
+      // An early return rather than a write that the resolver then ignores: a no-op must be a
+      // real no-op, or the pane's toggle appears to take and the snapshot grows a lie.
+      if (isStepMustStay(id)) return
+      set((s) => {
+        const steps = { ...s.formOverrides.steps, [id]: on }
+
+        // The symmetric inverse of the field-trim auto-hide below: a screen that is ON must
+        // always have at least one visible field, or the visitor lands on a blank form. First
+        // clear its field overrides (back to the profile's defaults); if the PROFILE hides
+        // every field on it — canvas + cameras is exactly this case — force them on. Fires only
+        // when nothing would otherwise show, so a deliberate partial trim is never wiped.
+        if (on) {
+          const fields = getStepFields(id)
+          if (fields.length > 0 && !stepHasVisibleField(id, { ...s, formOverrides: { ...s.formOverrides, steps } })) {
+            const cleared = { ...s.formOverrides.fields }
+            for (const f of fields) delete cleared[f.id]
+            let next: FormOverrides = { steps, fields: cleared }
+            if (!stepHasVisibleField(id, { ...s, formOverrides: next })) {
+              const forced = { ...cleared }
+              for (const f of fields) forced[f.id] = true
+              next = { steps, fields: forced }
+            }
+            return { formOverrides: next }
+          }
+        }
+
+        return { formOverrides: { steps, fields: s.formOverrides.fields } }
+      })
+    },
+
+    setFormFieldVisible: (id, on) => {
+      // Always-on fields cannot be hidden — same reason as above.
+      if (isFieldAlwaysOn(id)) return
+      set((s) => {
+        // Grouped fields (the two GPS blocks) are ONE decision — a coordinate without its
+        // accuracy or its provenance is not a smaller form, it is an unlabelled one.
+        const fields = { ...s.formOverrides.fields }
+        for (const m of getFieldGroupMembers(id)) fields[m.id] = on
+
+        // Auto-hide cascade, one-way: turning off the last visible field of a REMOVABLE screen
+        // hides the screen too, so the wizard never shows an empty step and the pane's screen
+        // toggle visibly flips with it. Must-stay screens are exempt — their always-on fields
+        // keep them populated. Re-showing is always the explicit screen toggle, never automatic.
+        if (!on) {
+          const screen = getFormField(id)?.screen
+          if (screen && !isStepMustStay(screen)) {
+            const next: FormOverrides = { steps: s.formOverrides.steps, fields }
+            if (!stepHasVisibleField(screen, { ...s, formOverrides: next })) {
+              return { formOverrides: { steps: { ...s.formOverrides.steps, [screen]: false }, fields } }
+            }
+          }
+        }
+
+        return { formOverrides: { steps: s.formOverrides.steps, fields } }
+      })
+    },
 
     createCase: (input) => {
       // The write boundary refuses a number that is already in use — the demo's stand-in for

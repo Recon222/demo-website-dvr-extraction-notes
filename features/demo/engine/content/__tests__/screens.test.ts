@@ -10,8 +10,6 @@ import {
   isTabOnlyView,
   chapterNumber,
   wizardNumber,
-  nextChapter,
-  prevChapter,
 } from '@/features/demo/engine/content/screens'
 
 // These registries are the single source of truth for ordering and numbering.
@@ -67,13 +65,6 @@ describe('flow registries', () => {
       expect(CHAPTERS).not.toContain(id)
       expect(WIZARD_SCREENS).not.toContain(id)
     }
-  })
-
-  it('walks the chapter order without wrapping', () => {
-    expect(prevChapter(CHAPTERS[0])).toBeNull()
-    expect(nextChapter(CHAPTERS[CHAPTERS.length - 1])).toBeNull()
-    expect(nextChapter(CHAPTERS[0])).toBe(CHAPTERS[1])
-    expect(prevChapter(CHAPTERS[1])).toBe(CHAPTERS[0])
   })
 
   it('has a DRAWER_DEFS entry, in order, for every wizard screen', () => {

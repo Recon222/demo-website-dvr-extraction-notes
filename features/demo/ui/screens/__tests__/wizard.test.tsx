@@ -4,7 +4,10 @@ import { SubmissionScreen } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+// `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
+// is the baseline these option/render tests are about. The gating arms live in
+// `field-visibility.test.tsx`.
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 describe('SubmissionScreen', () => {
   const fields = {

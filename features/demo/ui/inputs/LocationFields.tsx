@@ -74,6 +74,15 @@ export interface LocationFieldsProps {
   values: LocationFieldValues
   /** Partial patch — mirrors the phone's `onChange(updates: Partial<LocationFormValues>)`. */
   onChange(updates: Partial<LocationFieldValues>): void
+  /**
+   * Whether the GPS block — the capture control, its lookup notice and the coordinate card —
+   * is part of this deployment's form (P7.3, the `submission.*` coordinate group). The three
+   * text fields above it are always-on, so they have no switch of their own.
+   *
+   * Optional and defaulting to ON: the New Location modal mounts this component too, and a
+   * create-time capture is not a wizard field the profile grid governs.
+   */
+  showGps?: boolean
   /** Test seams. */
   deps?: UseGpsCaptureOptions['deps']
   reverseGeocode?: typeof defaultReverseGeocode
@@ -117,7 +126,7 @@ const LOOKUP_NOTICE_COPY: Record<Exclude<LookupNotice, 'none'>, string> = {
   partial: REVERSE_GEOCODE_PARTIAL,
 }
 
-export function LocationFields({ locationId, values, onChange, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
+export function LocationFields({ locationId, values, onChange, showGps = true, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
   // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
   // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
   // settings store; the demo has no settings surface until P7, so it lives here for now.
@@ -229,6 +238,8 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
         onChange={(v) => onChange({ city: v })}
         placeholder={LOCATION_FIELD_LABELS.cityPlaceholder}
       />
+      {showGps && (
+      <>
       <GpsCaptureControl
         key={locationId ?? '—'}
         // Remount on a location switch so `useGpsCapture`'s unmount abort fires for an
@@ -251,6 +262,8 @@ export function LocationFields({ locationId, values, onChange, deps, reverseGeoc
           accuracyM={values.accuracyM}
           source={values.coordinateSource}
         />
+      )}
+      </>
       )}
     </>
   )

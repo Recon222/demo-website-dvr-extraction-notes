@@ -7,7 +7,6 @@ import { AboutPane } from '@/features/demo/ui/screens/settings/panes/AboutPane'
 import { AppearancePane } from '@/features/demo/ui/screens/settings/panes/AppearancePane'
 import { CloudSyncPane } from '@/features/demo/ui/screens/settings/panes/CloudSyncPane'
 import { ExportSecurityPane } from '@/features/demo/ui/screens/settings/panes/ExportSecurityPane'
-import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
 import { LocationPane } from '@/features/demo/ui/screens/settings/panes/LocationPane'
 import { MediaCapturePane } from '@/features/demo/ui/screens/settings/panes/MediaCapturePane'
 import { SecurityPane } from '@/features/demo/ui/screens/settings/panes/SecurityPane'
@@ -29,27 +28,35 @@ import { TimeSyncPane } from '@/features/demo/ui/screens/settings/panes/TimeSync
  * class. `SettingsModal` takes a `renderPane` CALLBACK precisely so the store bridge can resolve
  * those ids to store-connected nodes of their own props and let everything else fall through here.
  *
- * `STORE_CONNECTED_PANE_IDS` below names them, and `StubPaneId` subtracts them — which keeps the
+ * `BRIDGE_PANE_IDS` below names them, and `StubPaneId` subtracts them — which keeps the
  * exhaustiveness property whole rather than trading it away: every catalog id is either in that
- * tuple or in this map, and `panes.test.tsx` asserts exactly that partition. (P7.2 removed
- * `user-profile`; **SEAM(P7.3)** — `form-customization` joins the tuple and leaves the map when the
- * profile chips + 57-toggle grid land, which is a one-line edit to each.)
+ * tuple or in this map, and `panes.test.tsx` asserts exactly that partition. Both SEAMs are now
+ * closed — P7.2 moved `user-profile` into the tuple and P7.3 `form-customization`, each a
+ * one-line edit to the tuple and one deletion from the map, exactly as the seam notes predicted.
  */
+/**
+ * The ids the STORE BRIDGE resolves itself, because their panes need store data that
+ * `SettingsPaneProps` cannot carry (P7.2's `user-profile`, P7.3's `form-customization`).
+ *
+ * Excluding them from `SETTINGS_PANES` is the point: `renderSettingsPane` then only ACCEPTS the
+ * settings-backed ids, so a bridge that forgot to branch for one of these is a compile error
+ * rather than a placeholder silently rendering in place of the real pane. Same
+ * exhaustive-by-construction device the record itself uses, pointed the other way.
+ */
+export const BRIDGE_PANE_IDS = ['user-profile', 'form-customization'] as const satisfies readonly SettingsCategoryId[]
+export type BridgePaneId = (typeof BRIDGE_PANE_IDS)[number]
+/** The ids this module can render — everything the bridge does not own. */
+export type StubPaneId = Exclude<SettingsCategoryId, BridgePaneId>
 
-/** Ids the STORE BRIDGE resolves itself, before falling through to `SETTINGS_PANES`. */
-export const STORE_CONNECTED_PANE_IDS = ['user-profile'] as const
-export type StorePaneId = (typeof STORE_CONNECTED_PANE_IDS)[number]
-
-/** Every other catalog id — the ones this map answers for. */
-export type StubPaneId = Exclude<SettingsCategoryId, StorePaneId>
+export function isBridgePaneId(id: SettingsCategoryId): id is BridgePaneId {
+  return (BRIDGE_PANE_IDS as readonly SettingsCategoryId[]).includes(id)
+}
 
 export const SETTINGS_PANES: Record<StubPaneId, ComponentType<SettingsPaneProps>> = {
   appearance: AppearancePane,
   'media-capture': MediaCapturePane,
   location: LocationPane,
   'time-sync': TimeSyncPane,
-  // SEAM(P7.3) — replaced by the profile chips + 57-toggle grid; see FormFieldsPane.tsx.
-  'form-customization': FormFieldsPane,
   security: SecurityPane,
   'export-security': ExportSecurityPane,
   'cloud-sync': CloudSyncPane,
@@ -58,9 +65,10 @@ export const SETTINGS_PANES: Record<StubPaneId, ComponentType<SettingsPaneProps>
 
 /**
  * Default resolution for a pane id. The bridge calls this as the TAIL of its own `renderPane`,
- * after its store-connected branches — which is why the parameter is `StubPaneId`: the branch
- * above it (`id === 'user-profile'`) is what narrows a `SettingsCategoryId` to this type, so
- * forgetting the branch is a compile error rather than a pane rendered without its data.
+ * after branching every `BridgePaneId` — which is why the parameter is `StubPaneId`: those
+ * branches (`id === 'user-profile'`, `id === 'form-customization'`) are what narrow a
+ * `SettingsCategoryId` down to this type, so a branch that goes missing is a compile error
+ * rather than a pane rendered without its data.
  */
 export function renderSettingsPane(id: StubPaneId, props: SettingsPaneProps): ReactNode {
   const Pane = SETTINGS_PANES[id]

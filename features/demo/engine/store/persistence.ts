@@ -15,6 +15,9 @@ import type {
   DemoLocation,
   DvrInformation,
   ExportInformation,
+  FormFieldId,
+  FormOverrides,
+  FormStepId,
   LaunchableId,
   LocationForm,
   MediaItem,
@@ -38,6 +41,7 @@ import {
   SYNC_METHODS,
 } from '@/features/demo/engine/types'
 import { CHAPTERS, LAUNCHABLE, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isKnownFormField, isKnownFormStep } from '@/features/demo/engine/logic/form-visibility'
 import type { SaveState } from '@/features/demo/engine/logic/save-status'
 import { withoutEphemeralMedia } from '@/features/demo/engine/logic/media'
 
@@ -78,11 +82,23 @@ export const PERSISTENCE_ENABLED = true
  *      is a field WIDENING, the one drift direction the compile-time devices explicitly do
  *      NOT catch (see R-30 below): a v5 build's schema would reject the url-less item this
  *      build writes and wipe the tab at boot. The bump makes the discard version-attributable.
- *  v7: `userProfile` — the analyst profile (P7.2, matrix rows 85/86). A new REQUIRED member of
- *      `PersistedState`, so a v6 snapshot (which has no such key) fails the shape guard outright;
- *      the bump is what makes that discard version-attributable instead of a mystery "corrupt
- *      snapshot" at boot. The Settings VALUES are still deliberately absent (deferred §80c) —
- *      those are cosmetic, a profile is data the visitor typed and the Completion screen reads. */
+ *  v7: ONE version, TWO packages — P7.2 (analyst profile) and P7.3 (form customization) each
+ *      took their own 6 → 7 on parallel branches, as both ledger entries said they would
+ *      (§81b, §82's v7 note); the shapes were unified here at the P7 wave-B merge. Three
+ *      changes under the one bump:
+ *      (a) `userProfile` joins `PersistedState` (P7.2, matrix rows 85/86) — the analyst
+ *          profile, a NEW REQUIRED member. The Settings VALUES are still deliberately absent
+ *          (deferred §80c): those are cosmetic, a profile is data the visitor typed and the
+ *          Completion screen reads.
+ *      (b) `formOverrides` joins `PersistedState` (P7.3, decision D9) — likewise a NEW REQUIRED
+ *          key, holding the visitor's sparse deviations from the active form profile.
+ *      (c) `PROFILES` widens `'forensic' | 'canvas'` → `+ 'limited'` (P7.3) — a tuple-backed
+ *          UNION widening, the drift direction device 3 closes only because the schema consumes
+ *          the very same tuple; a v6 build's `z.enum` would reject a `'limited'` snapshot.
+ *      Any one of the three would force the bump on its own: a v6 snapshot has neither new key,
+ *      so it fails the shape guard outright, and a v6 BUILD would reject what this one writes.
+ *      Sharing one version keeps both discards version-attributable rather than a mystery
+ *      "corrupt snapshot" at boot. */
 export const SNAPSHOT_VERSION = 7
 export const SNAPSHOT_KEY = 'dvr-demo-state-v7'
 
@@ -375,12 +391,25 @@ const MODAL_IDS: Record<ModalId, true> = {
 const isVisitId = (v: string): v is AppView | ModalId =>
   isAppView(v) || Object.prototype.hasOwnProperty.call(MODAL_IDS, v)
 
+/**
+ * Form-customization overrides (P7.3). `z.record(z.string(), …)` and NOT `z.record(z.enum(…))`
+ * on purpose — the same drift policy `visited` follows two blocks up: a snapshot naming a step
+ * or field id THIS build does not know loses that key on load (`loadSnapshot` filters), rather
+ * than failing the shape guard and wiping the visitor's entire tab. A settings preference is
+ * never worth a case.
+ */
+const formOverridesSchema: z.ZodType<FormOverrides, z.ZodTypeDef, unknown> = z.object({
+  steps: z.record(z.string(), z.boolean()),
+  fields: z.record(z.string(), z.boolean()),
+} satisfies FullShapeIn<FormOverrides>)
+
 // Device 1 (R-39): the Input-agnostic annotation — FullShapeIn alone enforces key presence,
 // not required-ness, so a required future field declared `.optional()` would pass device 2
 // silently; the output annotation catches exactly that (probe-verified TS2322).
 const persistedStateSchema: z.ZodType<PersistedState, z.ZodTypeDef, unknown> = z.object({
   profile: z.enum(PROFILES),
   userProfile: userProfileSchema,
+  formOverrides: formOverridesSchema,
   cases: z.array(demoCaseSchema),
   locations: z.array(demoLocationSchema),
   currentCaseId: z.string().nullable(),
@@ -408,6 +437,7 @@ export function snapshotOf(s: DemoState): PersistedState {
   return {
     profile: s.profile,
     userProfile: s.userProfile,
+    formOverrides: s.formOverrides,
     cases: s.cases,
     locations: withoutEphemeralMedia(s.locations),
     currentCaseId: s.currentCaseId,
@@ -482,6 +512,18 @@ export function loadSnapshot(
     if (isVisitId(key)) visited[key] = true
   }
 
+  // Same drop-what-we-don't-know rule for the form-customization overrides (P7.3). The registry
+  // may lead or lag a stored snapshot; an unknown id would sit in the map forever, resolving
+  // nothing and travelling into every future snapshot. Own-property reads only (R-7).
+  const steps: Partial<Record<FormStepId, boolean>> = {}
+  for (const [key, on] of Object.entries(d.formOverrides.steps)) {
+    if (isKnownFormStep(key)) steps[key] = on
+  }
+  const fields: Partial<Record<FormFieldId, boolean>> = {}
+  for (const [key, on] of Object.entries(d.formOverrides.fields)) {
+    if (isKnownFormField(key)) fields[key] = on
+  }
+
   // Selection integrity (R-15): dangling ids pass the shape guard but rehydrate a wizard
   // where updateField silently no-ops. Drop what doesn't resolve; if that leaves a wizard
   // view/chapter with no location, restore to 'cases' instead of a dead form.
@@ -517,6 +559,7 @@ export function loadSnapshot(
   return {
     profile: d.profile,
     userProfile: d.userProfile,
+    formOverrides: { steps, fields },
     cases: d.cases,
     locations: d.locations,
     currentCaseId,

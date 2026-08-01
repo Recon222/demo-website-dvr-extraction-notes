@@ -8,7 +8,10 @@ import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+// `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
+// is the baseline these option/render tests are about. The gating arms live in
+// `field-visibility.test.tsx`.
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 /** CamerasScreen additionally takes the per-camera GPS callback (P3.7). */
 const camNav = { ...nav, onCaptureGps: vi.fn() }
 const form = blankLocationForm()

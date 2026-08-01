@@ -18,12 +18,30 @@ export {
   DRAWER_DEFS,
   chapterNumber,
   wizardNumber,
-  nextChapter,
-  prevChapter,
 } from '@/features/demo/engine/content/screens'
 export { NARRATION, MODAL_NARRATION } from '@/features/demo/engine/content/narration'
 export { SAMPLE_REQUEST_DOC } from '@/features/demo/engine/content/seed'
-export { FORENSIC, getProfile } from '@/features/demo/engine/content/profiles'
+export {
+  PROFILE_DEFAULTS,
+  PROFILE_LABELS,
+  PROFILE_BLURBS,
+  DEFAULT_PROFILE,
+  describeProfile,
+  type ProfileReduction,
+} from '@/features/demo/engine/content/profiles'
+export {
+  FORM_STEPS,
+  LINEAR_FORM_STEPS,
+  ADDITIVE_FORM_STEPS,
+  FORM_FIELDS,
+  ALWAYS_ON_FIELDS,
+  getFormStep,
+  getFormField,
+  getFieldGroupMembers,
+  getStepFields,
+  isFieldAlwaysOn,
+  isStepMustStay,
+} from '@/features/demo/engine/content/form-customization'
 export {
   CUSTOM_VALUE,
   EXPORT_MEDIA_OPTIONS,

@@ -219,6 +219,13 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
       unitName: 'Forensic Video Unit',
       qualifications: 'Adobe certified; FVA member',
     })
+    // v7 (P7.3): a non-default form profile PLUS overrides in BOTH maps — the whole
+    // `formOverrides` shape, so a schema that dropped either half fails the whole-state diff.
+    // Applied AFTER the profile above: `applyFormProfile` clears the override maps, so the two
+    // toggles must follow it or the fixture would persist an empty `formOverrides`.
+    store.getState().applyFormProfile('canvas')
+    store.getState().setFormFieldVisible('dvr.dvrUsername', false)
+    store.getState().setFormStepVisible('arrivalDeparture', false)
     store.getState().completeCase(caseId)
     saveNow(store, storage)
 
@@ -246,6 +253,58 @@ describe('maximal round-trip (R-4b runtime pin)', () => {
     expect(address?.generatedContent).toContain('• Attended') // frozen baseline survives
     expect(loc.form.notesFreeText).toBe('additional observations')
     expect(rehydrated.getState().cases[0].incidentCoordinates).toEqual({ lat: 43.6087, lng: -79.6505, source: 'geocoded' })
+    expect(rehydrated.getState().profile).toBe('canvas')
+    expect(rehydrated.getState().formOverrides).toEqual({
+      steps: { arrivalDeparture: false },
+      fields: { 'dvr.dvrUsername': false },
+    })
+  })
+})
+
+describe('form-customization overrides (v7 — P7.3)', () => {
+  it('drops override keys this build does not know instead of wiping the tab', () => {
+    // The `visited` rule, applied to the two override maps: a settings preference from another
+    // build is never worth a visitor's whole case. The KNOWN keys in the same blob survive.
+    const storage = new FakeStorage()
+    const store = freshStore()
+    const caseId = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(caseId, newLocationInput())
+    store.getState().setFormStepVisible('cameras', false)
+    saveNow(store, storage)
+
+    const parsed = JSON.parse(storage.getItem(SNAPSHOT_KEY)!)
+    parsed.state.formOverrides.steps['someFutureStep'] = false
+    parsed.state.formOverrides.fields['dvr.someFutureField'] = false
+    parsed.state.formOverrides.fields['dvr.dvrUsername'] = false
+    storage.setItem(SNAPSHOT_KEY, JSON.stringify(parsed))
+
+    const loaded = loadSnapshot(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.cases).toHaveLength(1) // the case survived — no wipe
+    expect(loaded!.formOverrides).toEqual({
+      steps: { cameras: false },
+      fields: { 'dvr.dvrUsername': false },
+    })
+  })
+
+  it('discards a snapshot whose overrides are not booleans', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.getItem(SNAPSHOT_KEY)!)
+    parsed.state.formOverrides.steps['cameras'] = 'nope'
+    storage.setItem(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)).toBeNull()
+  })
+
+  it('discards a v6 snapshot outright — the key has no v6 form', () => {
+    const storage = new FakeStorage()
+    const store = freshStore()
+    saveNow(store, storage)
+    const parsed = JSON.parse(storage.getItem(SNAPSHOT_KEY)!)
+    delete parsed.state.formOverrides
+    storage.setItem(SNAPSHOT_KEY, JSON.stringify(parsed))
+    expect(loadSnapshot(storage)).toBeNull()
   })
 })
 
