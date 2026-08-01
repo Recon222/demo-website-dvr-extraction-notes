@@ -74,11 +74,7 @@ import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserP
 import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
 import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
 import { nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
-import {
-  DEFAULT_SETTINGS,
-  FORM_PROFILE_SHORT,
-  type DemoSettings,
-} from '@/features/demo/engine/content/settings-values'
+import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { toMapData } from '@/features/demo/ui/screens/map/mapData'
 import { slideDirection, type SlideDirection } from '@/features/demo/ui/motion'
@@ -718,8 +714,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
         // P7.2: the live name. `settingsPreview` trims it and falls back to the phone's own
         // `Not set` literal when it is empty, so the row needs nothing else from here.
         profileName: userProfile.name,
-        // P7.3: the live form profile, now changeable from the pane this row opens.
-        formProfileLabel: FORM_PROFILE_SHORT[profile] ?? profile,
+        // P7.3: the live form profile, now changeable from the pane this row opens. The PROFILE,
+        // not a label — `settingsPreview` owns the `FORM_PROFILE_SHORT` mapping (R-21).
+        formProfile: profile,
       }),
     [settings, profile, userProfile.name],
   )

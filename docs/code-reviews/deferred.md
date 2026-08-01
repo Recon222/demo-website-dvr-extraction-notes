@@ -5565,7 +5565,7 @@ deletion from `SETTINGS_PANES`.
 **What:** `DemoExperience`'s `renderPane` now branches `'user-profile'` → `UserProfilePane`, then
 `'form-customization'` → `FormFieldsPane`, then falls through to `renderSettingsPane`. Both preview
 wirings coexist in `settingsSections` (`profileName: userProfile.name` from P7.2,
-`formProfileLabel` from P7.1/P7.3). P7.2's Completion `completedBy` autofill effect and P7.3's
+the form profile from P7.1/P7.3 — see 83d for the shape that line settled on). P7.2's Completion `completedBy` autofill effect and P7.3's
 visibility closures were not modified by the merge.
 
 **Verified at the merge:** P7.3's claim that it left the `settingsSections` memo byte-unchanged
@@ -5575,3 +5575,25 @@ comments (`SEAM(P7.3)` on the `profile` subscription and on `formProfileLabel`) 
 same pass, since the seam they pointed at is now closed.
 
 **Trigger:** none.
+
+### 83d. FIXED (R-21) — the preview context takes the PROFILE, not a label, and the dead `??` is gone
+
+**What R-21 caught:** 83c retired the two `SEAM(P7.3)` comments but left the seam's *shape*.
+`SettingsPreviewContext.formProfileLabel` was a bare `string` — P7.1's honest choice while no
+profile store existed — even though the closed `Profile` union and its total label map
+(`FORM_PROFILE_SHORT`, itself an alias of `PROFILE_LABELS`) both live in that same file, and the
+bridge's `FORM_PROFILE_SHORT[profile] ?? profile` fallback was unreachable by the type.
+
+**Fixed, per the review's fix shape:** the member is `formProfile: Profile`; `settingsPreview`'s
+`'form-customization'` arm does the `FORM_PROFILE_SHORT[…]` mapping itself, which is where the
+phone does it (`useFormCustomizationPreview`, settings-catalog.tsx:158-167); the bridge passes
+`formProfile: profile` and the `??` is deleted with its now-unused import. A fourth profile is now
+a compile error in the label map rather than a raw id rendered on the master row. The suite's
+seam-era test ("shows whatever label the caller supplies") became a totality assertion over
+`PROFILES`.
+
+`profileName` stays a bare `string` deliberately — it is free text the visitor typed, and the
+blank case IS the domain (the phone's `Not set` literal). Only the closed one was narrowed.
+
+**Trigger:** none. Recorded here because the widened parameter was merge residue, not a P7.1
+oversight — the shape was correct for the package that wrote it and outlived its seam.

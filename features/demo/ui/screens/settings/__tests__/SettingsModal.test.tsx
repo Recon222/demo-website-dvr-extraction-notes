@@ -16,7 +16,7 @@ import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-c
 const sections = toSettingsSections({
   settings: DEFAULT_SETTINGS,
   profileName: '',
-  formProfileLabel: 'Forensic',
+  formProfile: 'forensic',
 })
 
 function renderShell(overrides: Partial<Parameters<typeof SettingsModal>[0]> = {}) {

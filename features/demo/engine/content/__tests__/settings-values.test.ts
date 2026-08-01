@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   DEFAULT_SETTINGS,
   ENCRYPTION_STRENGTH_OPTIONS,
+  FORM_PROFILE_SHORT,
   GPS_ACCURACY_OPTIONS,
   GPS_TIMEOUT_OPTIONS,
   MAX_DURATION_OPTIONS,
@@ -18,6 +19,7 @@ import {
   type SettingsPreviewContext,
 } from '@/features/demo/engine/content/settings-values'
 import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
+import { PROFILES } from '@/features/demo/engine/types'
 import { ACCURACY_MODE_TARGET_M } from '@/features/demo/engine/logic/gps'
 import { APP_NAME, APP_VERSION, DEMO_VERSION_LINE, SUPPORT_EMAIL } from '@/features/demo/engine/content/app-info'
 
@@ -35,7 +37,7 @@ import { APP_NAME, APP_VERSION, DEMO_VERSION_LINE, SUPPORT_EMAIL } from '@/featu
 const ctx = (o: Partial<SettingsPreviewContext> = {}): SettingsPreviewContext => ({
   settings: DEFAULT_SETTINGS,
   profileName: '',
-  formProfileLabel: 'Forensic',
+  formProfile: 'forensic',
   ...o,
 })
 
@@ -208,9 +210,16 @@ describe('settingsPreview', () => {
     expect(settingsPreview('user-profile', ctx({ profileName: '  Kris  ' }))).toBe('Kris')
   })
 
-  it('SEAM(P7.3): Form Fields shows whatever profile label the caller supplies', () => {
-    expect(settingsPreview('form-customization', ctx({ formProfileLabel: 'Forensic' }))).toBe('Forensic')
-    expect(settingsPreview('form-customization', ctx({ formProfileLabel: 'Canvas' }))).toBe('Canvas')
+  it('maps the ACTIVE PROFILE through FORM_PROFILE_SHORT itself — the caller passes no label (R-21)', () => {
+    // Total over `Profile`, so every member has a label and none needs a fallback. A fourth
+    // profile that reached this row unlabelled would be a compile error in the map, not a raw
+    // id on screen — which is the whole reason the context carries the id and not a string.
+    expect(settingsPreview('form-customization', ctx({ formProfile: 'forensic' }))).toBe('Forensic')
+    expect(settingsPreview('form-customization', ctx({ formProfile: 'limited' }))).toBe('Limited')
+    expect(settingsPreview('form-customization', ctx({ formProfile: 'canvas' }))).toBe('Canvas')
+    for (const p of PROFILES) {
+      expect(settingsPreview('form-customization', ctx({ formProfile: p }))).toBe(FORM_PROFILE_SHORT[p])
+    }
   })
 })
 
