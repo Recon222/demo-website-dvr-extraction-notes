@@ -5902,11 +5902,27 @@ rather than adding another assertion:
   a meaningful comparison — which is the finding restated.
 - **R-20** — the drawer's tool set was `{ capture, audio }`, ad-hoc names re-declared at the
   consumer, so a third additive tool would have compiled everywhere and silently never reached
-  the accordion. Now `Readonly<Record<AdditiveFormStepId, boolean>>` built FROM the tuple and
-  imported, not re-typed.
+  the accordion. The prop is now `Readonly<Record<AdditiveFormStepId, boolean>>`, imported rather
+  than re-declared, which closes the drift between selector and consumer.
+  **AMENDED (fix-delta FD-1) — the first attempt did NOT close the gap this bullet claimed, and
+  the claim is the §84a shape re-introduced by a fix commit.** `Readonly<Record<…>>` on the
+  signature is not a compile gate when the value is produced by
+  `Object.fromEntries(…) as Record<…>` (the cast absorbs a widened tuple) and consumed by two
+  hand-written `...(mediaTools.x ? [row] : [])` spreads (TypeScript has no unread-key check).
+  The reviewer's third-tool probe errored **zero** times in the two files this entry named. It is
+  true now, and by the device the rest of the feature uses: a total object LITERAL in
+  `selectMediaToolsVisible`, and a total `TOOL_ROWS: Record<AdditiveFormStepId, …>` at the drawer
+  with the rows derived from `ADDITIVE_FORM_STEP_IDS` and the ungated library row appended.
+  Re-probe: `selectors.ts` ×1 and `WizardDrawer.tsx` ×1, both required before a third tool
+  compiles. See §86g.
 - **R-24** — `ProfileDefaults` was typed total, documented total, built with `{} as Record<…>`
   and read back with `?? false`. Built by mapping the registries in one expression; both
-  fallbacks deleted.
+  fallbacks deleted. **Scope, stated precisely (fix-delta typescript obs 1):** `buildDefaults`
+  still ends in `Object.fromEntries(…) as Record<…>` — the same assert-don't-prove shape as
+  R-20's, and it is NOT a compile gate. It cannot be one: the key spaces are 12 and 58 ids read
+  off the registries at runtime, so a literal would be the registries written twice. The proof
+  is `content.test.ts`'s per-key totality pin, named in the code, and that is what this bullet
+  claims — nothing more.
 
 ### 86d. RECORDED — `selectDrawerStatus`'s second argument is a required MODE (R-23)
 
@@ -5932,3 +5948,56 @@ entry together with P7.1's, not conclude from the grid's fix that the surface is
 rather than kept as an untested near-twin of `countedArray`. Nothing else in P7.3 was removed
 this round. The earlier `nextChapter`/`prevChapter` and `FORENSIC`/`getProfile` deletions are
 §82f's and §82's, not this round's.
+
+### 86g. RECORDED (fix-delta FD-1, gate) — R-20's totality is now proven at both ends
+
+**What the delta found:** three texts — commit `e7eb681`, `selectors.ts`'s doc comment and §86c —
+all stated that a third `AdditiveFormStepId` "breaks here and at the drawer until both are wired".
+The aggregator's probe (append `'ocr'` to the tuple, satisfy the two pre-existing registries)
+produced errors in `content/form-customization.ts` ×2 — both registries that were already total
+BEFORE R-20 — and **zero** in `selectors.ts` and `WizardDrawer.tsx`, the two files the claim
+named. The new tool would have appeared as a switchable row in the Form Fields grid with no
+accordion row behind it: §82b's exact phone defect, a switch that moves nothing, re-introduced by
+the commit that claimed to prevent it.
+
+**Why neither end forced:**
+
+- `Object.fromEntries(…) as Record<AdditiveFormStepId, boolean>` — `fromEntries` returns
+  `{[k: string]: boolean}`, so the assertion CLAIMS totality; a widened tuple is absorbed by the
+  cast and can never break the function.
+- the drawer's `rows` was two independent `...(mediaTools.x ? [row] : [])` spreads. Reading two of
+  three keys off a total `Record` is not an error — TypeScript has no unread-key check — so that
+  end had no gate at all.
+
+**Fixed by the device the rest of the feature already uses** (`MODAL_IDS`, `STEP_CLASSIFICATION`,
+`ADDITIVE_STEP_LABELS` — which is why the probe's pass 1 caught two of them): a total object
+LITERAL in `selectMediaToolsVisible`, and a total `TOOL_ROWS: Record<AdditiveFormStepId,
+(h: MediaHandlers) => MediaRow>` at the drawer, with the accordion's rows derived from
+`ADDITIVE_FORM_STEP_IDS` (registry order, never hand-listed) and the ungated library row appended.
+The row builders stay in `WizardDrawer.tsx` because they carry JSX — the reason
+`ADDITIVE_STEP_LABELS`' own comment gives for keeping labels out of the engine.
+
+**Re-probe after the fix:** `selectors.ts` ×1 (`TS2741: Property 'ocr' is missing`) and
+`WizardDrawer.tsx` ×1. Both must be satisfied before a third tool compiles, which is what the
+three texts said all along. §86c's R-20 bullet is amended in place rather than deleted, so the
+overclaim and its correction stay legible together.
+
+**The incidental gate R-20 did leave** — three test files' `mediaTools` prop literals — is no
+longer load-bearing. It was the only thing standing between a third tool and a silent miss, and
+an ordinary shared-factory refactor of those fixtures would have removed it without a word.
+
+### 86h. RECORDED (fix-delta FD-5) — R-28's second direction was vacuous, and is now one honest pin
+
+**What:** the "lets no OTHER row collide with a form-step id" test filtered `others` by
+`!WIZARD_SCREENS.includes(i.id)` — which removes precisely the ids that could trip it — and then
+allowlisted the only two survivors that could be form steps. The assertion could not fail; the
+lane's probe (re-pointing the non-step `settings` row at `audioRecording`, the exact collision the
+test describes) passed.
+
+**Re-aimed rather than deleted.** The guarantee worth having spans the whole `FORM_STEPS` id
+space, both directions at once: **every one of the 12 step ids is carried by exactly one explore
+row.** A drifted slug drops that count to 0; a colliding non-step row raises it to 2. That single
+assertion covers what direction 1 covered for the ten linear screens AND the two additive tools
+direction 1 never reached, and it is the pin that actually reddens under the lane's probe.
+Direction 1 keeps the routing half it alone asserts (each wizard-screen row jumps to its own
+screen).

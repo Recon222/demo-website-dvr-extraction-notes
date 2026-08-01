@@ -1,6 +1,5 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
 import type { AdditiveFormStepId, DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
-import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
@@ -149,15 +148,23 @@ export function selectDrawerItems(s: DemoState): DrawerDef[] {
  * rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
  * gated on either side: it browses what is already captured.
  *
- * Keyed by `AdditiveFormStepId` and BUILT from the tuple (R-20). The ad-hoc `capture`/`audio`
- * names it used to carry meant a third additive tool would fail to compile in the two registries
- * and in NEITHER consumer — it would simply never reach the drawer, silently. Now the record is
- * total over the id space, so adding a tool breaks here and at the drawer until both are wired.
+ * A TOTAL OBJECT LITERAL over `AdditiveFormStepId`, which is the whole point (R-20, corrected by
+ * the fix-delta's FD-1). The ad-hoc `capture`/`audio` keys this used to carry meant a third
+ * additive tool compiled everywhere and silently never reached the accordion — §82b's exact
+ * phone defect, a grid switch that moves nothing.
+ *
+ * R-20's first attempt kept `Object.fromEntries(ADDITIVE_FORM_STEP_IDS.map(…)) as Record<…>`,
+ * which CLAIMS totality rather than proving it: `fromEntries` returns `{[k: string]: boolean}`
+ * and the assertion absorbs a widened tuple, so adding a key could never break this function.
+ * A literal is what the rest of this feature uses for exactly this job (`MODAL_IDS`,
+ * `STEP_CLASSIFICATION`, `ADDITIVE_STEP_LABELS`) and it is why those caught the same probe.
+ * `WizardDrawer`'s `TOOL_ROWS` is the other half — a new tool must be wired in both.
  */
 export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
-  return Object.fromEntries(
-    ADDITIVE_FORM_STEP_IDS.map((id) => [id, resolveStepVisible(id, s)]),
-  ) as Record<AdditiveFormStepId, boolean>
+  return {
+    mediaCapture: resolveStepVisible('mediaCapture', s),
+    audioRecording: resolveStepVisible('audioRecording', s),
+  }
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------

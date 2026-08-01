@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { AdditiveFormStepId, WizardScreenId } from '@/features/demo/engine/types'
+import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
 import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -161,6 +162,53 @@ interface MediaRow {
   onSelect(): void
 }
 
+/** The accordion's three `onSelect` handlers, passed as one object so `TOOL_ROWS` stays a
+ *  declaration rather than a closure over component scope. */
+interface MediaHandlers {
+  onCaptureMedia(): void
+  onRecordAudio(): void
+  onOpenMediaLibrary(): void
+}
+
+/**
+ * One row builder per additive capture tool — a TOTAL `Record` over `AdditiveFormStepId`
+ * (fix-delta FD-1).
+ *
+ * R-20 keyed the visibility prop by this id space but left the drawer hand-building two
+ * independent `...(mediaTools.x ? [row] : [])` spreads. Reading two of three keys off a total
+ * record is not a TypeScript error — there is no unread-key check — so the drawer end had no
+ * gate at all: a third tool compiled clean here and silently never reached the accordion, which
+ * is §82b's exact phone defect (a grid switch that moves nothing). A total record makes "wired
+ * at the drawer" a compile fact, and it is why the row defs stay in this file: they carry JSX,
+ * which `ADDITIVE_STEP_LABELS`' own comment says cannot live in the engine.
+ */
+const TOOL_ROWS: Record<AdditiveFormStepId, (h: MediaHandlers) => MediaRow> = {
+  mediaCapture: (h) => ({
+    key: 'capture',
+    label: 'Capture Media',
+    ariaLabel: 'Open camera to capture media',
+    icon: <CameraIcon />,
+    onSelect: h.onCaptureMedia,
+  }),
+  audioRecording: (h) => ({
+    key: 'audio',
+    label: 'Record Audio',
+    ariaLabel: 'Record audio note',
+    icon: <MicIcon />,
+    onSelect: h.onRecordAudio,
+  }),
+}
+
+/** The library row is UNGATED on both sides — it browses what is already captured, so it has
+ *  nothing to do with which capture screens are in the flow. Appended after the gated tools. */
+const libraryRow = (h: MediaHandlers): MediaRow => ({
+  key: 'library',
+  label: 'Media Library',
+  ariaLabel: 'Open media library',
+  icon: <FolderOpenIcon />,
+  onSelect: h.onOpenMediaLibrary,
+})
+
 /**
  * The drawer's Media section (matrix row 80's missing half).
  *
@@ -235,6 +283,7 @@ export function WizardDrawer({
   mediaTools,
 }: WizardDrawerProps) {
   const reduce = useReducedMotion()
+  const mediaHandlers: MediaHandlers = { onCaptureMedia, onRecordAudio, onOpenMediaLibrary }
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -333,13 +382,9 @@ export function WizardDrawer({
               {/* Appended AFTER the step list, exactly like the phone (CustomDrawerContent.tsx:265). */}
               <MediaAccordion
                 rows={[
-                  ...(mediaTools.mediaCapture
-                    ? [{ key: 'capture', label: 'Capture Media', ariaLabel: 'Open camera to capture media', icon: <CameraIcon />, onSelect: onCaptureMedia }]
-                    : []),
-                  ...(mediaTools.audioRecording
-                    ? [{ key: 'audio', label: 'Record Audio', ariaLabel: 'Record audio note', icon: <MicIcon />, onSelect: onRecordAudio }]
-                    : []),
-                  { key: 'library', label: 'Media Library', ariaLabel: 'Open media library', icon: <FolderOpenIcon />, onSelect: onOpenMediaLibrary },
+                  // Derived from the id space, in registry order — never hand-listed (FD-1).
+                  ...ADDITIVE_FORM_STEP_IDS.filter((id) => mediaTools[id]).map((id) => TOOL_ROWS[id](mediaHandlers)),
+                  libraryRow(mediaHandlers),
                 ]}
               />
             </div>
