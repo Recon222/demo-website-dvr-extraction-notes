@@ -160,8 +160,14 @@ export function SettingsModal({ sections, renderPane, onClose }: SettingsModalPr
         data-testid="settings-modal"
         style={sheet}
       >
+        {/* `role="group"` on the detail pane is load-bearing (R-10), not decoration: a role-less
+            div maps to ARIA `generic`, whose name-from is PROHIBITED, so the `aria-labelledby`
+            was discarded by the accessibility tree and the focus-time announcement this
+            component's own doc promises never fired. The cited `AlertDialog` idiom is role +
+            labelledby; only the second half had been ported. `group` rather than `region` — a
+            landmark inside a dialog is noise. */}
         {active ? (
-          <div key={active.id} ref={detailRef} tabIndex={-1} aria-labelledby={titleId} style={{ ...pane, ...enter }}>
+          <div key={active.id} ref={detailRef} role="group" tabIndex={-1} aria-labelledby={titleId} style={{ ...pane, ...enter }}>
             <SettingsNavBar variant="detail" title={active.title} titleId={titleId} onBack={closeDetail} />
             <div
               data-testid="settings-detail-body"
