@@ -229,6 +229,36 @@ describe('the control map is complete against the registry', () => {
   })
 })
 
+describe('the submission coordinate group is a BLOCK, not just its button (§82b)', () => {
+  const coordinates = { lat: 43.6087, lng: -79.6505, accuracyM: 8, source: 'gps' as const }
+
+  it('takes the coordinate card with the capture control', () => {
+    // The registry-driven loop above cannot cover this: its fixture carries no coordinates, so
+    // `CoordinateDisplay` is absent from BOTH arms of the visible/hidden diff and the card could
+    // be moved outside the gate unnoticed (review R-2a).
+    const { unmount } = render(
+      <SubmissionScreen occNumber="PR25-1" fields={submissionFields} coordinates={coordinates} isFieldVisible={all} onChange={vi.fn()} onCoordinates={vi.fn()} {...nav} />,
+    )
+    expect(screen.getByTestId('gps-capture-control')).toBeInTheDocument()
+    expect(screen.getByText(/43\.6087/)).toBeInTheDocument()
+    unmount()
+
+    render(
+      <SubmissionScreen
+        occNumber="PR25-1"
+        fields={submissionFields}
+        coordinates={coordinates}
+        isFieldVisible={(id) => id !== 'submission.latitude'}
+        onChange={vi.fn()}
+        onCoordinates={vi.fn()}
+        {...nav}
+      />,
+    )
+    expect(screen.queryByTestId('gps-capture-control')).not.toBeInTheDocument()
+    expect(screen.queryByText(/43\.6087/)).not.toBeInTheDocument()
+  })
+})
+
 describe('a section card goes when its last field does', () => {
   it('drops Requester Information, and keeps Location Information (address is always-on)', () => {
     const requester: FormFieldId[] = [
