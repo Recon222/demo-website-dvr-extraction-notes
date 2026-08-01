@@ -24,8 +24,14 @@ const ALL_FIELD_IDS: readonly FormFieldId[] = FORM_FIELDS.map((f) => f.id)
  * Expand an off-list into a TOTAL map. `Object.fromEntries` over the registry rather than
  * `{} as Record<…>` + a loop (review R-24): the empty-object cast asserted totality before a
  * single key existed, which is the assumption the resolver's `?? false` arms were hedging
- * against. Mapping every registry id in one expression makes the map total by construction —
- * `content.test.ts` pins the key sets against both registries, and the `??`s are gone.
+ * against. Mapping every registry id in one expression makes the map total by construction.
+ *
+ * The trailing cast is an ASSERTION, not a proof — same shape as the one FD-1 removed from
+ * `selectMediaToolsVisible`, and deliberately kept here because it cannot be removed the same
+ * way: the key spaces are 12 steps and 58 fields read off the registries at runtime, so a total
+ * literal would be those registries written a second time. What carries the guarantee instead is
+ * `content.test.ts`'s per-key totality pin over both id spaces — which is why the resolver's
+ * `?? false` arms could go. If that pin is ever weakened, put them back.
  */
 function buildDefaults(offSteps: readonly FormStepId[], offFields: readonly FormFieldId[]): ProfileDefaults {
   const offStepSet = new Set<FormStepId>(offSteps)
