@@ -37,9 +37,12 @@ describe('ExportModal — progress spinner under reduced motion', () => {
     preferReducedMotion()
     render(<ExportModal mode="progress" stage="zipping" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />)
 
-    const spinner = document.querySelector('[data-export-spinner]')
+    const spinner = document.querySelector<HTMLElement>('[data-export-spinner]')
     expect(spinner).toBeInTheDocument()
-    expect(spinner).not.toHaveStyle({ animation: 'spin 0.9s linear infinite' })
+    // D-7: assert NO animation, not "not this exact string" — the negative form stayed green
+    // for a `spin 3s` mutation, i.e. for a spinner that still rotates. This is the positive
+    // idiom `ExportHub.test.tsx:237` already uses for the same question.
+    expect(spinner!.style.animation).toBe('')
   })
 
   it('keeps the ring itself — the only static signal that work is in flight', () => {

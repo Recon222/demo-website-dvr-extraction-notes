@@ -1985,10 +1985,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * (`:1046`). `sharing` is deliberately never entered: `DEMO_EXPORT_STAGES` excludes it
    * because "Opening share dialog..." precedes an OS share sheet a browser tab does not have.
    */
-  // `SimulatedExportRun`, not `ExportRun`: the two single-artifact arms return before this is
-  // reached, and the narrower parameter is what makes the terminal it raises type-check (review
-  // R-14 — the case-map run has its own terminal and must never fall into this one).
-  const runZipPipeline = (run: SimulatedExportRun, pdfPass: readonly string[]) => {
+  // `ZipExportRun`, the exact domain (review D-11): BOTH single-artifact arms — `case-map` and
+  // `location-geojson` — return before this is reached, so `SimulatedExportRun` (which only
+  // excluded the first) nominally accepted a run that can never arrive and would have staged a
+  // three-step ZIP pipeline over a sub-second GeoJSON write. It is also what makes the terminal
+  // this raises type-check: the case-map run has its own terminal and must never fall into
+  // this one (R-14).
+  const runZipPipeline = (run: ZipExportRun, pdfPass: readonly string[]) => {
     // The entry guard already makes a concurrent run unreachable; this is the `runTimeSync`
     // belt-and-braces, so a future caller that bypasses the guard cannot leave two pipelines
     // ticking into one piece of state.
