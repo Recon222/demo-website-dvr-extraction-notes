@@ -394,22 +394,56 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
 }
 
 /** A labelled dropdown bound to a string value — the custom picker matching the phone app.
- *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`). */
-export function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
+ *  Options are plain strings or `{ label, value }` pairs (see `DropdownProps`).
+ *
+ *  `label` is OPTIONAL (P7.1): every settings picker on the phone leaves the shared `Picker`'s
+ *  own `label` prop unset and renders the label as a separate line above it (ui-mapping 12
+ *  documents this on all six of them — it is why their bottom sheets read "Select an option").
+ *  Omitting it here reproduces that exactly, and `Dropdown` already handles the absence, sheet
+ *  title included. Wizard callers pass it as before. */
+export function SelectField({ label, value, onChange, options }: { label?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
   return <Dropdown label={label} value={value} onChange={onChange} options={options} placeholder="Select…" />
 }
 
 /** A labelled on/off switch (keyboard-operable). */
-export function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick(): void }) {
+export function Toggle({
+  label,
+  on,
+  onClick,
+  disabled = false,
+}: {
+  label: string
+  on: boolean
+  onClick(): void
+  /**
+   * The switch states its value but refuses to change it (P7.1). `aria-disabled` + an inert
+   * handler, never the `disabled` attribute — this is a `role="switch"` div, and the house rule
+   * (`ModalActions.submitBlocked`, the GPS capture button's §45a precedent) is that a control
+   * stays focusable so a keyboard visitor can reach it and hear WHY it is unavailable from the
+   * copy beside it.
+   */
+  disabled?: boolean
+}) {
+  const activate = () => {
+    if (!disabled) onClick()
+  }
   return (
     <div
       role="switch"
       aria-checked={on}
+      aria-disabled={disabled || undefined}
       aria-label={label}
       tabIndex={0}
-      onClick={onClick}
-      onKeyDown={switchKeyDown(onClick)}
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 0' }}
+      onClick={activate}
+      onKeyDown={switchKeyDown(activate)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: '4px 0',
+        opacity: disabled ? 0.55 : 1,
+      }}
     >
       <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
       <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
