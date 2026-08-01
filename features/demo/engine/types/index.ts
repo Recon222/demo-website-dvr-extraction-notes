@@ -15,6 +15,48 @@
 export const PROFILES = ['forensic', 'canvas'] as const
 export type Profile = (typeof PROFILES)[number]
 
+// ---- The analyst's own profile ----------------------------------------------
+/**
+ * Who the analyst IS — the demo's port of the phone's `UserProfile`
+ * (`src/features/settings/user-profile/types.ts:11-28`, P7.2, matrix row 86).
+ *
+ * NOT to be confused with `Profile` above: that one is the FORM profile (which wizard screens
+ * and fields are shown); this one is the person filling them in. The phone keeps them in
+ * separate stores for the same reason.
+ *
+ * All seven fields are strings with empty-string defaults (`DEFAULT_USER_PROFILE`), and the two
+ * `*Start` fields hold the demo's canonical `'YYYY-MM-DD HH:MM:SS'` wall-clock string (the phone
+ * stores an ISO date there) which `computeCareerDuration` renders as `"12 years, 3 months"`.
+ *
+ * **`name` is the only field with a consumer today**: it autofills Completion's `completedBy`,
+ * which is what carries it into the Case Notes PDF header. The other six are groundwork for the
+ * will-say document — kept whole, typed, persisted and exported from this barrel so that feature
+ * inherits a real profile rather than re-deriving one.
+ *
+ * **The phone's eighth field, `agencyLogoUri`, is deliberately absent** (matrix row 86: it
+ * "exists on the type as `[Future]`, has no UI, and must not be built"). On the phone it is a
+ * declared-but-unimplemented member that is never written and never read; modelling it here would
+ * add a key to the snapshot shape guard, the defaults and the save transform to guard an absence
+ * — the same three-dead-things argument that kept `devOnly` off `SettingsCategory` (deferred
+ * §80a). Adding it later is a v-bump and three lines.
+ */
+export interface UserProfile {
+  /** Analyst's full name — autofills "Completed By" on the Completion screen. */
+  name: string
+  /** Badge / ID number. */
+  badgeNumber: string
+  /** When the analyst started in the forensic-video / investigative field. [Will Say] */
+  timeInFieldStart: string
+  /** When the analyst started at their current agency. [Will Say] */
+  timeAtAgencyStart: string
+  /** Current employer / police service. [Will Say] */
+  currentAgency: string
+  /** Unit / section name (e.g. "Forensic Video Unit"). [Will Say] */
+  unitName: string
+  /** Free-form qualifications, education, certifications. [Will Say] */
+  qualifications: string
+}
+
 // ---- Screen identifiers -----------------------------------------------------
 /** The 10 in-drawer wizard screens, in Next/Back order. */
 export type WizardScreenId =
