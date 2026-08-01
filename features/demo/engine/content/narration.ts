@@ -1,4 +1,4 @@
-import type { AppView } from '@/features/demo/engine/store/create-store'
+import type { TabOnlyView } from '@/features/demo/engine/content/screens'
 import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
 
 /**
@@ -348,12 +348,15 @@ export const EXPORT_NARRATION: ChapterNarration = {
 
 /**
  * Rail copy for the views that are NOT guided chapters and therefore cannot live in the
- * `ChapterId`-keyed `NARRATION` record — the tab-only destinations. The bridge consults this
- * between the launchable copy and the chapter copy, so an entry here for a view that IS a
- * chapter would shadow that chapter's own copy: the keys are pinned by test to the tab-only
- * views for exactly that reason.
+ * `ChapterId`-keyed `NARRATION` record — the tab-only destinations.
+ *
+ * A TOTAL record over `TabOnlyView` (R-27), not a `Partial<Record<AppView, …>>`. Both failure
+ * halves are now closed by construction rather than by test: a tab-only view added without
+ * copy fails to compile, and an entry for a view that IS a chapter — which the bridge would
+ * silently let shadow that chapter's own narration, since it consults this record first — is
+ * not an expressible key. Same device as `persistence.ts`'s `EXTRA_VIEWS`, over the same ids.
  */
-export const TAB_NARRATION: Partial<Record<AppView, ChapterNarration>> = {
+export const TAB_NARRATION: Record<TabOnlyView, ChapterNarration> = {
   map: MAP_NARRATION,
   export: EXPORT_NARRATION,
 }

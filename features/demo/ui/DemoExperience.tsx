@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, isTabOnlyView, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -597,7 +597,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const narration =
     (modal && MODAL_NARRATION[modal]) ??
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
-    TAB_NARRATION[view] ??
+    (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
     NARRATION[currentChapter]
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
