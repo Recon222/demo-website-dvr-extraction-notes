@@ -165,17 +165,8 @@ function checkFields(values: Array<string | undefined>): DrawerStatus {
   return n === values.length ? 'complete' : 'partial'
 }
 
-/** no items / all-blank items → empty · every item fully filled → complete · else partial */
-function checkArray<T>(items: T[], fields: (item: T) => Array<string | undefined>): DrawerStatus {
-  if (items.length === 0) return 'empty'
-  const per = items.map((it) => checkFields(fields(it)))
-  if (per.every((d) => d === 'complete')) return 'complete'
-  if (per.every((d) => d === 'empty')) return 'empty'
-  return 'partial'
-}
-
 /**
- * Extracted scopes diverge from checkArray on purpose: a present-but-blank GENERATED scope reads
+ * Extracted scopes diverge from `countedArray` on purpose: a present-but-blank GENERATED scope reads
  * 'partial', not 'empty' (only generateExtractedScopes populates this list, and a blank cameras
  * field legitimately → amber). 'empty' is reserved for 0 items.
  */
