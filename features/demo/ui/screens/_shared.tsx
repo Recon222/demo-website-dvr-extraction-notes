@@ -18,6 +18,23 @@ export function switchKeyDown(activate: () => void) {
   }
 }
 
+/**
+ * The layers a `ModalShell` may sit on (review R-29). The numbers are OFFSETS added to the
+ * shell's own lifted `21` (scrim) / `22` (sheet):
+ *
+ * - `base` — the prototype's own layer, used by every sheet that opens over a screen.
+ * - `overSheet` — for a sheet opened from INSIDE another sheet, which today is the User Profile
+ *   editor over the Settings sheet (the demo's only modal-over-modal). 25/26: above the Settings
+ *   sheet's 22, and below `PickerSheet`'s 31/32, so the date pickers the editor itself opens still
+ *   render over it. Without an explicit layer the winner would be DOM insertion order — true
+ *   today, and true for no reason a reader of either file could see.
+ *
+ * Add a member here rather than passing a number at a call site: the constraint is the ORDER of
+ * these values against each other and against `PickerSheet`, and it is only checkable in one place.
+ */
+export const MODAL_LAYER = { base: 0, overSheet: 4 } as const
+export type ModalLayer = (typeof MODAL_LAYER)[keyof typeof MODAL_LAYER]
+
 const grid: CSSProperties = {
   position: 'absolute',
   inset: 0,
@@ -41,7 +58,7 @@ export function ModalShell({
   onBack,
   backLabel = 'Back',
   fillBody = false,
-  elevation = 0,
+  elevation = MODAL_LAYER.base,
   footer,
   children,
 }: {
@@ -56,16 +73,17 @@ export function ModalShell({
   backLabel?: string
   fillBody?: boolean
   /**
-   * Raises this sheet's two z-indexes above another overlay's (P7.2). Zero — every caller before
-   * the profile editor — leaves the lifted values 21/22 exactly as they were.
+   * Which layer this sheet sits on. `MODAL_LAYER.base` (the default, every caller before the
+   * profile editor) leaves the lifted values 21/22 exactly as they were.
    *
-   * Needed because the User Profile editor opens FROM INSIDE the Settings sheet, which is the
-   * demo's first modal-over-modal: both portal into the same phone-overlay root, and at equal
-   * z-index the winner would be decided by DOM insertion order — true today, and true for no
-   * reason anyone reading either file could see. Kept well under `PickerSheet`'s 31/32 so the
-   * date pickers INSIDE the editor still land on top of it.
+   * A two-member union, not a number (review R-29): the invariant is a RANGE — above the other
+   * overlays that portal into the same phone-overlay root, and strictly below `PickerSheet`'s
+   * 31/32 so the pickers a sheet CONTAINS still land on top of it — and a bare `number` let any
+   * caller pick a value that breaks either end while reading as valid. With two named members the
+   * type carries what the comment carried alone, and a new layer has to be added here, next to
+   * the values it must sit between.
    */
-  elevation?: number
+  elevation?: ModalLayer
   footer?: ReactNode
   children: ReactNode
 }) {

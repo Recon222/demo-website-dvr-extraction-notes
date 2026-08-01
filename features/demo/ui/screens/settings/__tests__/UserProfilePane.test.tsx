@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
 import type { UserProfile } from '@/features/demo/engine/types'
 
 /**
@@ -253,5 +254,19 @@ describe('the editor — save and discard', () => {
     fireEvent.click(document.querySelectorAll('[data-modal-scrim]')[0])
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'User Profile' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the editor’s layer (R-29)', () => {
+  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
+    // The invariant `MODAL_LAYER` exists to carry: `SettingsModal`'s sheet is 22 and
+    // `PickerSheet` is 31/32, so the editor must land strictly between them.
+    expect(MODAL_LAYER.base).toBe(0)
+    expect(22 + MODAL_LAYER.overSheet).toBeGreaterThan(22)
+    expect(22 + MODAL_LAYER.overSheet).toBeLessThan(31)
+
+    openEditor(FULL)
+    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
+    expect(dialog.style.zIndex).toBe(String(22 + MODAL_LAYER.overSheet))
   })
 })
