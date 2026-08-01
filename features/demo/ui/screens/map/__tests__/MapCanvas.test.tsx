@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, toContainerPoint, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
+import { LONG_PRESS_MOVE_TOLERANCE_PX, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLongPress'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 
 // jsdom has no WebGL — mapbox-gl is always mocked. Map + Marker are constructable (regular fns).
@@ -421,6 +422,43 @@ describe('MapCanvas — long press', () => {
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()
     vi.useRealTimers()
+  })
+
+  it.each([
+    ['right', 2],
+    ['middle', 1],
+  ])('ignores a stationary %s-button hold — isPrimary is true for every mouse button', async (_label, button) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    // A secondary BUTTON, not a secondary contact: `isPrimary` stays true, so this reached the
+    // timer before the `button` guard. mapbox suppresses the context menu on its canvas, so the
+    // visitor would have got no menu AND a silently filtered map.
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true, button })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('still fires for the primary button', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true, button: 0 })
+    vi.advanceTimersByTime(500)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('holds the same beat as every other long-press surface in the demo', () => {
+    // Re-declaring these locally is the drift `useLongPress.ts:74-78` documents; the map now
+    // imports them. If this ever fails, the map grew its own copy again.
+    expect(LONG_PRESS_MS).toBe(500)
+    expect(LONG_PRESS_MOVE_TOLERANCE_PX).toBe(10)
   })
 
   it('ignores a hold on a marker — holding a pin must not ACTIVATE proximity', async () => {

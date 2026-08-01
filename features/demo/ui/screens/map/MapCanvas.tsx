@@ -11,6 +11,11 @@ import type { ClusterBbox, ClusterDescriptor, ClusterIndex, PlottedMarker } from
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 import type { ProximityRing } from '@/features/demo/ui/screens/map/mapProximity'
 import { createCameraEl, createClusterEl, createMarkerEl } from '@/features/demo/ui/screens/map/markerElements'
+// THE definitions of both long-press beats. This screen hand-rolls the gesture (mapbox has no
+// `longpress` event and the primitive returns React handlers this imperative surface cannot use),
+// but it must not hand-roll the FEEL: re-declaring them here is exactly the drift
+// `useLongPress.ts:74-78` was written about. Retiring the hand-rolled copy entirely is ledgered.
+import { LONG_PRESS_MOVE_TOLERANCE_PX, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLongPress'
 import { DEFAULT_MAP_CENTER, MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS, type LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 
 /** Imperative handle the orchestrator uses to drive the camera. */
@@ -60,11 +65,6 @@ const SINGLE_ZOOM = 15
 const COVER_FADE_DURATION_MS = 600
 const COVER_FAILSAFE_MS = 4000
 
-/** Long-press threshold. React Native's default `delayLongPress`, which is what the phone's
- *  `onLongPress` fires on. */
-const LONG_PRESS_MS = 500
-/** Pointer travel (px) that reclassifies a hold as a map drag and cancels the long press. */
-const LONG_PRESS_SLOP = 10
 
 /**
  * Stable empty defaults. A `= []` default parameter mints a fresh array on EVERY render, which
@@ -558,9 +558,16 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     const map = mapRef.current
     if (!container || !map) return
     cancelLongPress()
-    // Secondary contacts never arm a long press (review R-5). Belt-and-braces with the origin
-    // ref's cancel-then-re-arm, which already makes a pinch cancel itself.
+    // Two different "secondary", and R-5 only closed one of them:
+    //  - `isPrimary` filters secondary CONTACTS (the second finger of a pinch). It is `true`
+    //    for every mouse BUTTON, so a stationary right- or middle-button hold on the canvas
+    //    still armed the timer and activated proximity — and mapbox's own DragRotateHandler
+    //    `preventDefault()`s the context menu, so the visitor got nothing they asked for AND a
+    //    silently filtered map.
+    //  - `button !== 0` filters those. The repo already carries this exact line for this exact
+    //    lesson (`useLongPress.ts:194`).
     if (!event.isPrimary) return
+    if (event.button !== 0) return
     // `Marker.addTo` appends into `map.getCanvasContainer()`, and mapbox's own controls
     // (attribution, logo) are descendants too — so a press on a pin, a cluster bubble, a camera
     // glyph or "Improve this map" reaches this handler. Holding any of those must not ACTIVATE
@@ -583,7 +590,10 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     const origin = pressOrigin.current
     if (!origin) return
     // A hold that travels is a map drag, not a long press.
-    if (Math.abs(event.clientX - origin.x) > LONG_PRESS_SLOP || Math.abs(event.clientY - origin.y) > LONG_PRESS_SLOP) {
+    if (
+      Math.abs(event.clientX - origin.x) > LONG_PRESS_MOVE_TOLERANCE_PX ||
+      Math.abs(event.clientY - origin.y) > LONG_PRESS_MOVE_TOLERANCE_PX
+    ) {
       cancelLongPress()
     }
   }
