@@ -495,3 +495,282 @@ discriminated-result precedent. T2 and T4 are cheap and follow directly from PR 
 `ScopeRetention`'s established fixes. T3, T5, T6 are judgement calls worth an owner ruling — T3 in
 particular touches the P5.4 seam the PR body already flags for reconciliation, so it may be cheaper
 to do once, there, than twice.
+
+---
+
+# Fix-delta r1
+
+**Diff reviewed:** `b0381b7..fcfe774` (19 commits, merged head `fcfe774`). **Mode:** fix-delta,
+same lane. **Gate:** the orchestrator's merged-head gate is authoritative (226 files / 2744 green,
+cold `tsc` clean); per the standing rule I ran no full suite. Every claim below was checked against
+the merged head; the five marked **probe-verified** were confirmed with a throwaway `tsc --noEmit`
+probe and reverted. Worktree left clean; nothing committed.
+
+**Verdict: APPROVE.** All six MEDIUMs are discharged — three fixed outright (T1, T2, T6), three
+partial-with-ledger (T3/§79d, T4/§79b, T5/§79c) where the *named invalid state* is gone in every
+case and only the shape change is deferred. Seven of nine LOWs fixed. §79a's maths is correct and
+version-verified against the installed dependency. Four fresh nits, all one-token-to-one-line, none
+blocking.
+
+## Original findings — disposition
+
+| # | Item | Status | Where |
+|---|---|---|---|
+| T1 | supercluster cast-laundering | **FIXED** | `mapCluster.ts:126, 149-160` |
+| T2 | mutable module-level constants | **FIXED** | `mapFilters.ts:41-61`, `mapCluster.ts:55-59`, `MapCanvas.tsx:74-75`, `mapTokens.ts:19` |
+| T3 | stage typing / single-tally rule | **PARTIAL** — minimum landed, shape → §79d | `MapControls.tsx:143-152, 203` |
+| T4 | `MapData` derived fields | **PARTIAL** — duplication closed, shape → §79b | `mapData.ts:136-144` |
+| T5 | `LocationDetailCardProps` flat over a union | **PARTIAL** — invalid state closed, union → §79c | `LocationDetailCard.tsx:18-30` |
+| T6 | `MAP_FILTER_STATUSES` completeness | **FIXED** | `mapFilters.ts:31-39` |
+| L1 | redundant `as ProximityRing` | **FIXED** | `mapProximity.ts:64-67` |
+| L2 | redundant `cam.gps!` | **FIXED** | `mapData.ts:161-162` |
+| L3 | mapbox `Source` structural cast | **FIXED** | `MapCanvas.tsx:509` |
+| L4 | `MarkerKind` for the four kind literals | **NOT FIXED, unrouted** | `markerElements.ts:29, 65, 107` |
+| L5 | "only locations cluster" as a type | **FIXED** | `mapCluster.ts:74-79, 121` |
+| L6 | `readonly` params | **FIXED** (folded into R-13) | `mapData.ts:119,147`, `mapFilters.ts:76,86`, `mapProximity.ts:47`, `mapCluster.ts:120` |
+| L7 | `LngLat` for the positional pairs | **PARTIAL** — alias added, 5 of ~12 sites | `mapTokens.ts:8` |
+| L8a | `locationId` written-never-read | **REFUSED — accepted** (see below) | `mapData.ts:42-50` |
+| L8b | `resolution` truthy-only doc vs re-guarding consumer | **NOT FIXED** | `mapData.ts:37-38, 52` vs `markerElements.ts:129` |
+| L9 | `StatusCounts` alias | **FIXED** — all four copies | `mapTokens.ts:17` + 3 importers |
+
+## T1 (R-12) — FIXED, verified
+
+`buildClusterIndex` now closes **both** generics (`new Supercluster<PointProps, Record<string, never>>`,
+`mapCluster.ts:126`) and narrows with `'cluster' in props` (`:149`). All four assertions and the
+`?? 0` sentinel are gone; `count: props.point_count` and `clusterId: props.cluster_id` read straight
+off the narrowed arm, and the point arm is `return props.marker` (`:160`).
+
+**Probe:** `const bad: string = f.properties.point_count` on the cluster arm fails with
+`TS2322: Type 'number' is not assignable to type 'string'` — the field is a required `number`, not
+`any`. The fabricated-`count: 0` state is no longer representable.
+
+One precision note for the record: with `C = Record<string, never>` an arbitrary key still
+*resolves* — through that record's `[x: string]: never` index signature — but to `never`, not `any`.
+I probed for a hard error and my `@ts-expect-error` came back unused; the probe's expectation was
+wrong, not the fix. The `any` surface the finding named is genuinely gone, and `never` is inert.
+
+**Bonus, same commit:** R-27e landed too — `PointProps.marker: LocationMarker` (`:74-79`) with a
+type-predicate filter (`:121`), so my **L5** is fixed as well: "only locations cluster" is now a
+compile-time fact rather than the convention §72a described.
+
+## T2 (R-13) — FIXED; the freeze-not-factory call is SOUND
+
+`MapFilterState.statuses`/`searchText` are `readonly` (`mapFilters.ts:43-45`); `EMPTY_MAP_FILTERS`
+is frozen at **both** levels — object and inner array (`:58-61`); `WORLD_BBOX` (`mapCluster.ts:59`),
+`NO_MARKERS`/`NO_CAMERAS` (`MapCanvas.tsx:74-75`) and the new single-sourced `DEFAULT_MAP_CENTER`
+(`mapTokens.ts:19`) are frozen; `ClusterBbox` is now a `readonly` labelled tuple (`:55`). L6's
+`readonly` params landed across all six pure functions.
+
+**Judging "freeze, don't factory":** correct, and better than either option I offered. The identity
+claim is real — `EMPTY_MAP_FILTERS` is both the initial state and the case-switch reset value
+(`MapScreen.tsx:109`, `:174`), so `setFilters(EMPTY_MAP_FILTERS)` on an already-empty state hits
+React's `Object.is` bail-out. A factory would have minted a new object and forced a render on every
+no-op reset. Freezing keeps the bail-out *and* removes the poisoning hazard. Shallow-freeze would
+have left the array writable; they froze it too. Endorsed without reservation.
+
+## T3 (R-14) — PARTIAL as declared; **the deferral's cost grew during the round**
+
+The stated minimum landed: `locationCountLabel({ filteredCount, locationCount })`
+(`MapControls.tsx:143-152`, called at `:203`), so the transposable positional pair is gone.
+
+§79d defers the `MapProjection` single-result shape to the P5.4 seam. **The reason is sound** — one
+type read by every map surface, second consumer imminent, churn-once is cheaper — and I would make
+the same call. But the round itself added two new stage-derived readers on top of the six the
+finding counted:
+
+- **`totalCount`** ← `mapData.items` (`MapScreen.tsx:205`) — a **third** bare-`number` stage count on
+  `MapControlsProps` (`:43-45`), now sitting beside `locationCount` and `filteredCount`, all three
+  `number`, distinguishable only by name and doc comment.
+- **`emptyReason`** (`MapScreen.tsx:214-221`) — one expression that reads **three** stages
+  (`display.items`, `filtered.items`, `proximityResult`) to decide which one did the emptying.
+
+So the surface went 6 read sites / 2 counts → **9 read sites / 3 counts + a three-stage
+discriminator**. That does not overturn the deferral, but it does mean **§79d's trigger is not
+specific enough**. As written it fires on "the P5.4 export-map reconciliation, or any third `MapData`
+consumer" — neither of which describes what actually happened this round. Recommend amending it to
+also fire on *"any new stage-derived count or reader added to `MapScreen`'s projection block"*, which
+is the cheaper early warning and the thing that has now happened once.
+
+## T4 (R-15) — PARTIAL as declared; deferral sound, one wording overstatement
+
+`narrowProjection` (`mapData.ts:136-144`) is the single derivation; `applyMapFilters` (`:117`) and
+`computeProximity` (`:83`) both call it and the byte-identical `keptIds` filter is gone. The
+duplication half of the finding is genuinely closed, and the deferred half is now *less* risky than
+when it was filed, because the invariant lives in one function instead of three. §79b's trigger
+("the P5.4 export-map reconciliation, or any third `MapData` consumer — whichever comes first") is
+specific and checkable. **Accept the deferral.**
+
+One residual worth a line so it is not lost: `narrowProjection` covers *narrowing* stages only.
+`toMapData` (`mapData.ts:242`) still builds `pins`/`items`/`statusCounts` independently — it has no
+prior `MapData` to narrow, so it structurally cannot use the helper. The invariant is therefore
+enforced at 2 of 3 construction sites, not 3 of 3; §79b's "cannot disagree with `items`" reads
+stronger than what shipped. A half-sentence amendment, not a fix.
+
+## T5 (R-16) — PARTIAL as declared; deferral sound
+
+`cameras?: { shown: boolean; onToggle(): void }` (`LocationDetailCard.tsx:18-30`) makes the invalid
+state the finding named — cameras plotted with no way to hide them — unrepresentable: `shown` cannot
+exist without `onToggle`. Verified at the render guard (`:172`) and the caller (`MapScreen.tsx:320`).
+
+§79c defers the full `item.kind` discrimination with a specific trigger ("P5.4's detail-card caller
+landing"). **Accept** — one caller today, and the union is worth writing once against both. The
+residual is exactly what 79c says it is: `MapScreen.tsx:320` still passes `cameras={{…}}`
+unconditionally for both variants, and an `IncidentSheetItem` can still be handed `onCall`/`onEmail`/
+`onGoToLocation`. Correctly scoped.
+
+## T6 (R-17) — FIXED
+
+`STATUS_PILL_ORDER … satisfies Record<LocationMapStatus, number>` (`mapFilters.ts:31-35`) with the
+array derived by sorting its keys (`:37-39`) — §4's stated direction, exactly. A fourth
+`LocationMapStatus` now breaks the build at the record instead of silently vanishing from
+`toggleStatus`'s re-derivation. The `Object.keys(…) as LocationMapStatus[]` cast is unavoidable
+(`Object.keys` is typed `string[]` in lib.dom) and is the standard idiom.
+
+## L8a — the `locationId` refusal: ACCEPT, minus one false clause
+
+The finding asked the author to "pick one" of drop-it or document-it-as-reserved. They documented it
+(`mapData.ts:42-50`), which is a valid discharge: a silently-dead field became a stated one, with a
+real forward-parity citation (the phone's `visibleCameraLocationId` gate, `CaseMapView.tsx:397-400`).
+**Refusal endorsed.**
+
+One correction: the third justification — *"dropping it would make the composite id a string nobody
+could decompose"* — is false. `id` is `` `${locationId}:${cameraId}` ``, so `locationId` is exactly
+`id.slice(0, id.indexOf(':'))`; that decomposability **is** the duplication the finding named, now
+restated as a reason to keep the duplicate. The first two justifications carry the decision on their
+own. Recommend deleting the third clause so a future reader does not inherit a false premise.
+
+## L8b — NOT FIXED, and the claim got louder
+
+`MapCameraMarker.resolution` is still `?: string`, so `resolution: ''` remains representable, and
+`markerElements.ts:129` still truthiness-re-tests it. Meanwhile the round *added* a second assertion
+of the invariant: the interface doc (`mapData.ts:37-38`) and now a field-level doc (`:52`) both say
+the callout "can test presence rather than emptiness" — which it demonstrably does not do. Net effect
+of the round on this sub-item: an unenforced claim asserted twice instead of once. Still a nit.
+Either drop the consumer's guard or stop claiming presence-implies-non-empty; the same applies to
+`accuracyM`, guarded at construction (`:170`) and re-guarded at read (`markerElements.ts:135`).
+
+## L4 — NOT FIXED and unrouted
+
+R-27d (`export type MarkerKind` in `mapTokens.ts`) is the one R-27 sub-item with no commit and no
+§79 entry. `data-marker-kind` is still written three ways — `d.kind` (`markerElements.ts:29`), the
+literal `'cluster'` (`:65`), the literal `'camera'` (`:107`) — and both test helpers still take
+`kind: string` (`MapCanvas.test.tsx:105`, `MapScreen.test.tsx:56`). Six lines of change, or one
+ledger line; either is fine, but it should not fall between the two.
+
+## §79a (`toContainerPoint`) — fresh code, judged
+
+### The maths is correct, and I verified it against the installed dependency, not the citation
+
+`mapbox-gl@3.25.0` → `dist/mapbox-gl-dev.js:57053`:
+
+```js
+function getScaledPoint(el, rect, e) {
+  const scaling = el.offsetWidth === rect.width ? 1 : el.offsetWidth / rect.width;
+  return new index.Point((e.clientX - rect.left) * scaling, (e.clientY - rect.top) * scaling);
+}
+```
+
+`toContainerPoint` (`MapCanvas.tsx:224-234`) is the same formula — `offsetWidth / rect.width`, single
+X-derived factor applied to both axes (correct for a uniform `transform: scale()`, which is what
+`PhoneFrame` applies). Its guard is **strictly safer** than mapbox's: mapbox's equality
+short-circuit yields `Infinity` when a detached or zero-width node reports `rect.width === 0` while
+`offsetWidth` is non-zero; the demo's `rect.width > 0 && offsetWidth > 0` returns `1`. The cited line
+number is accurate at the installed version. Good fix, correctly reasoned.
+
+### FD-3 [LOW] — the fix put a *pixel* `[number, number]` in the file that just gained `LngLat` for *degrees*
+
+`toContainerPoint(): [number, number]` is container pixels; `MapCanvasHandle.getCenter(): [number, number] | null`
+(`MapCanvas.tsx:22`) is degrees. Both anonymous, both in the same module, one imported alongside
+`LngLat`. **Probe-verified** that mapbox's own surface accepts either for both: `map.unproject([lng, lat])`
+and `map.project([x, y])` compile with no complaint. Labels will not *enforce* the distinction
+(structural identity; brands are out of house), so this is a readability fix —
+`export type ScreenPoint = readonly [x: number, y: number]` — and it belongs with L7's unfinished
+migration rather than as its own change.
+
+### FD-4 [LOW] — the coupling is to a mapbox internal, pinned only by an unversioned citation
+
+`getScaledPoint` is not exported, so nothing can detect a divergence after a mapbox upgrade — no
+test, no type. The comment cites `mapbox-gl-dev.js:57053-57059`: accurate today, but it names a line
+in a **dev bundle the app never loads** (`package.json` `main` is `dist/mapbox-gl.js`) with no
+version qualifier. Cheapest durable fix: put the version in the citation.
+
+The fix that deletes the coupling: mapbox already hands both values over, typed. `map.on('mousedown' | 'touchstart', e => …)`
+gives `e.point` — already scale-corrected by mapbox's own `mousePos` — **and** `e.lngLat`, already
+unprojected. Building the long-press seam on those would remove the rect maths, the duplicated
+formula, the version-coupled citation, `toContainerPoint` and its three unit tests, and FD-3 along
+with them, because the handler would receive degrees and never hold a pixel pair at all. That
+reopens §72e's shape decision, so it is a **trigger to record, not a demand for this round**.
+
+### Not a finding — recorded so the fix-delta does not churn it
+
+The hand-written param type `container: { getBoundingClientRect(): { left; top; width }; offsetWidth }`
+is right as it stands. `Pick<HTMLElement, 'getBoundingClientRect' | 'offsetWidth'>` reads tidier but
+would require the stub to return a full `DOMRect`, which breaks the three-case unit test
+(`MapCanvas.test.tsx:391-397`) that exporting the function exists to enable.
+
+## Fresh nits from this round
+
+### FD-1 [LOW] — three avoidable `Object.freeze(...) as X` assertions, added while three others were being deleted
+
+`mapCluster.ts:59`, `mapFilters.ts:59`, `mapTokens.ts:19`. **Probe-verified** all three compile with
+no assertion:
+
+```ts
+const bbox: ClusterBbox = Object.freeze([-180, -85, 180, 85] as const)
+const center: LngLat = Object.freeze([-79.65, 43.61] as const)
+const statuses: readonly LocationMapStatus[] = Object.freeze([])   // no `as const` needed
+```
+
+Same round, same lane's territory: R-27a/b/c deleted three assertions and R-13 added three. One
+token each.
+
+### FD-2 [LOW] — an R-18b doc comment was orphaned onto the wrong symbol
+
+`mapTokens.ts:10-15` — the four-line block *"First-paint camera centre, and the proximity toggle's
+last-resort anchor … (review R-18b)"* now sits immediately above
+`/** The sheet-header / projection status tally … (review R-27h) */` and `export type StatusCounts`
+(`:16-17`), so TypeScript attaches it to `StatusCounts`, while `DEFAULT_MAP_CENTER` (`:19`) has no
+doc at all. Two review rationales collided during the merge. In a repo where the doc comment *is* the
+review record, this loses one of them. One-line move.
+
+### L7 — partial, and probe-verified why it stopped
+
+`LngLat` (`mapTokens.ts:8`) is adopted at five sites (`buildFitPoints`, `ClusterCameraTarget.center`,
+`computeClusterExpansionCamera`, `DEFAULT_MAP_CENTER`, `MapCanvasProps.fitPoints`/`fitToPoints`) but
+not at the ones that motivated it: `LocationSheetItem.coord` / `IncidentSheetItem.coord`
+(`mapData.ts:66`, `:100` — still `[number, number] // [lng, lat]`, the very comment the alias
+replaces), `AddressCard`'s `coord` (`LocationDetailCard.tsx:94`) which feeds
+`formatCoordinate(coord[1], coord[0])`, `mapProximity`'s three `center` params (`:48`, `:60`, `:76`),
+`MapScreen`'s `proximityCenter` state (`:130`), and `MapCanvasHandle.getCenter()` (`MapCanvas.tsx:22`)
+in the file that imports the alias.
+
+**Probe-verified cause and cure:** `readonly LngLat` is not assignable to a mutable `[number, number]`
+param, so `coord` cannot migrate until `mapProximity`'s three params do — and widening those to
+`LngLat` is backward-compatible for every existing caller (a mutable pair satisfies `LngLat`). So
+finishing it is ~7 mechanical sites in one direction with zero caller breakage. Worth doing with
+FD-3 in a single pass.
+
+## Also checked, no finding
+
+**`SheetEmptyReason`** (`LocationList.tsx:17`), new this round via R-6: a clean three-member union
+with an exhaustive `EMPTY_COPY: Record<SheetEmptyReason, string>` (`:44`), consulted only when the
+list is empty, and that constraint is stated in the prop's doc (`:24`). Registry↔type linkage done
+the house way. No action.
+
+## Fix-delta Summary
+
+| Severity | Original | Now |
+|---|---|---|
+| CRITICAL | 0 | 0 |
+| HIGH | 0 | 0 |
+| MEDIUM | 6 | 0 open (3 fixed, 3 partial with §79b/c/d ledger entries) |
+| LOW | 9 | 2 open (L4 unrouted, L8b) + L7 partial |
+| Fresh | — | 4 LOW (FD-1, FD-2, FD-3, FD-4) |
+
+Deferrals judged: **§79b sound** (trigger specific; add the `toMapData` caveat) · **§79c sound**
+(trigger specific) · **§79d sound but under-triggered** (amend to fire on a new stage-derived
+reader in `MapScreen`, which already happened once this round).
+
+**Verdict: APPROVE.** Nothing open blocks the merge. If one thing lands before it, make it FD-2 —
+a review rationale is currently attached to the wrong symbol, and that is the kind of loss this
+repo's doc-comment discipline exists to prevent.

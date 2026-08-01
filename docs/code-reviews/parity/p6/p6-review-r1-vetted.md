@@ -278,3 +278,58 @@ One code owner (P6.1's author). Granular, red+green together; groupings below ar
 | 18 | polish: nit bundles, opportunistic | R-26 (rest), R-27 |
 
 **Standing obligations for the fix round:** every deferred item from rows 17-18 gets a `deferred.md` §75+ entry before merge; §72e is amended per R-5; the commit→finding mapping table is posted as a PR comment; the fix-delta re-review resumes the five lane reviewers.
+
+---
+
+## Fix-delta r1 verdict
+
+**Delta:** `b0381b7..fcfe774` (merge `fcfe774`) · aggregated from the five lanes' `## Fix-delta r1` sections · orchestrator merged-head gate: 226 files / 2744 tests, cold tsc clean, 107 kB, lazy boundaries verified.
+**Lane verdicts:** typescript APPROVE · web APPROVE-w-comments · tests APPROVE-w-comments · silent-failures APPROVE · type-design APPROVE.
+
+### r0 disposition — all 27 vetted findings discharged
+
+24 FIXED outright (every lane re-verified by re-running its own probes/repros/mutations against the merged head, not by reading commits) · 3 PARTIAL-by-design (R-14/R-15/R-16 → §79d/b/c, each with the *named invalid state* closed and only the shape change deferred — all three deferrals judged sound by the type-design lane, one under-triggered, see MR-6) · R-25's refutation upheld at source (supercluster hemisphere-split re-verified by two lanes independently). The R-5 and §79a fixes each exceeded their briefs and each left exactly one verified residual — which is what this verdict is about.
+
+### Verdict: ONE MICRO-ROUND (6 small commits, ~8 items), then merge
+
+Every lane individually approves, and nothing surviving is worse than lane-MEDIUM. But two of the round's own repairs have verified, one-line-fixable holes in exactly the behaviours they were meant to close, against a warm owner. Too cheap to ledger, too real to merge over:
+
+- **The R-5 guard set is one input short.** `isPrimary` filters secondary *contacts*, not secondary *buttons* — it is `true` for every mouse button. A stationary right/middle hold on the bare canvas still activates proximity (and mapbox's `DragRotateHandler` `preventDefault()`s the context menu, so the visitor gets *nothing* they asked for and a silently filtered map). Web-lane repro red on `fcfe774`; guard region re-read by this aggregator — no `event.button` check exists. The fix is the repo's own: `useLongPress.ts` carries `e.button !== 0` for exactly this lesson.
+- **The §79a scale fix is revertable at its call site with the suite green.** Empirically re-confirmed by this aggregator: inlining the pre-§79a raw subtraction at the `toContainerPoint` call leaves **226/226 green** (the unit test pins the exported formula; the integration stub is identity-scale, `width: 378` / `offsetWidth: 378`, so both formulas agree). §79a is ledgered as the diff's most-likely-to-be-touched-again code; its *use* must be pinned. Tests lane verified the fix shape: stub `width: 189`, expect `unproject([200, 200])` — clean code green, call-site bypass red on exactly that test.
+
+### Micro-round item list
+
+| # | Commit | Items | Shape |
+|---|---|---|---|
+| MR-1 | fix(map): primary-button guard on the long-press seam | web NEW-1 + web NEW-2 minimum | `if (event.button !== 0) return` beside the `isPrimary` check (the `useLongPress.ts` idiom) + import `LONG_PRESS_MS` from the primitive instead of re-declaring it + pin (web lane's button-2/button-1 repro, red today) |
+| MR-2 | test(map): pin the §79a call site at non-identity scale | tests NEW-1 [MEDIUM] | one stub change in `MapCanvas.test.tsx:367-382` — `width: 189` painted vs `offsetWidth: 378`, expect `unproject([200, 200])`. Verified fix shape (tests lane); gap re-confirmed empirically (aggregator) |
+| MR-3 | fix(map): gate the 'filters' empty reason on plottable data | silent D-1 | `totalCount > 0 &&` clause at `MapScreen.tsx:210-217` + test — a search on a nothing-plottable case currently blames the filters for a data-caused emptiness (same honesty class R-6 just fixed; self-correcting, hence one clause not a redesign) |
+| MR-4 | fix(map): stop claiming context-loss coverage the classifier cannot see | silent D-2 minimum | drop the `context lost|contextlost` alternation from `isTerminalMapError` and the matching doc-comment clause — verified at source: mapbox 3.25 fires `webglcontextlost` as its own event, never through `'error'`, so the arm is dead for its stated cause. The real `webglcontextlost` subscription → ledger (below) |
+| MR-5 | test(demo): chainable mapbox stubs for the two DemoExperience suites | tests NEW-2 [MEDIUM, latent] | lift the chainable `Marker` + full `mapInstance` shape into `map/__tests__/test-utils.ts` (R-24's home) and import from both `DemoExperience.*` files. Verified at source: bare `Marker: vi.fn()`, zero `await`/`waitFor` in either file — green only because the map never boots; the first `await` any author adds turns 15 tests red with a TypeError that reads as a production bug |
+| MR-6 | docs(map/ledger): durability + accuracy bundle | ts-LOW ≡ TD FD-4 (merged) · TD FD-2 · ledger text | §79a citation anchored to *version + symbol* (`mapbox-gl 3.25.0, getScaledPoint`) not a dev-bundle line number, + note the container must stay padding/border-free; move the orphaned R-18b doc comment onto `DEFAULT_MAP_CENTER` (`mapTokens.ts:10-19` — it currently documents `StatusCounts`); correct §72e's closing trigger sentence (the `useLongPress` helper it defers to predates P6 — web NEW-2's evidence); amend §79d's trigger to also fire on "any new stage-derived count/reader in `MapScreen`'s projection block" (happened once this round: `totalCount`, `emptyReason`); add §79b's `toMapData` caveat (invariant enforced at 2 of 3 construction sites); delete L8a's false third clause; resolve L8b one way (drop the consumer's truthiness guard or the presence-claim doc) |
+
+Re-review routing: a **spot delta**, not a fan-out — web checks MR-1, tests check MR-2/MR-5, silent-failures checks MR-3/MR-4, type-design glances MR-6. No typescript re-entry needed.
+
+### Ledgered (next §-pool entries — route before merge)
+
+1. **Long-press convergence** (web NEW-2 full shape): extend `useLongPress` (extra bail selector + originating-coordinates callback) and delete `MapCanvas`'s fourth hand-rolled copy — retiring §72e's shape residual for real. Trigger: next touch to the long-press seam.
+2. **The durable §79a retirement** (TD FD-4's second half): build the long-press on `map.on('mousedown'/'touchstart')`, whose events carry `e.point` (mapbox-scale-corrected) *and* `e.lngLat` (already unprojected) — deletes `toContainerPoint`, the version-coupled citation, and FD-3 with it. Reopens §72e's shape decision; pairs with entry 1. Trigger: any mapbox minor/major bump, or entry 1's work.
+3. **`webglcontextlost`/`webglcontextrestored` subscription** (silent D-2 full): `console.error` + overlay on loss, clear on restore, plus the third failure discriminant (a post-load death currently renders "Failed to load the map." for a map that *did* load).
+4. **`MapBottomSheet` drag scale mixing** (web NEW-3): pre-existing P3-era viewport-px/local-px mixing, cosmetic under scale < 1; fix is the `toContainerPoint` divide or a shared helper. Not a P6 ask.
+5. **Map type-polish batch**: TD **L4 `MarkerKind`** (explicitly unrouted by the fix round — this entry routes it), L7's ~7 remaining `LngLat` sites (probe-verified zero caller breakage), FD-3 `ScreenPoint`, FD-1's three avoidable `Object.freeze(...) as X` assertions.
+
+### Recorded — no action
+
+- tests **L-1** (cluster-expansion `onError` wiring unpinned — the file's sole uncovered line): take opportunistically in MR-2's territory if convenient; not required.
+- tests **L-2** (`setCameraShownIds` reset deletable): accepted r0 residual, masked by id scoping, correctly not re-filed.
+- tests **L-3** (two immaterial `mapCluster` boundaries): unreachable at demo scale.
+- tests **L-4 / HIGH-2 note**: commit `213d5dd`'s stated mutation no longer reproduces at the merged head — **not** a weak pin; R-4's structural split (landed after R-9) removed the coupling the mutation needed, and the pin reddens when that coupling is restored. One line in the fix-round PR comment's commit→finding table so nobody re-derives it; no code change.
+- typescript lane's **worktree hazard** (operational, for the orchestrator): a mutation-sweeping lane ran live edits in the shared `parity-p6` worktree during verification; lanes bracketed their probes with clean-tree checks this time, but future mutation lanes should get their own worktree.
+
+### Dedupe map (new/open items)
+
+19 raw new-or-still-open lane items → 18 unique (ts-LOW and TD FD-4 are the same §79a-citation finding) → **8 to the micro-round** (MR-1..MR-6) · **5 ledgered** · **5 recorded-no-action**. The §72e family threads as: web NEW-1 = the actionable defect (MR-1) · web NEW-2 = its structural sibling (minimum in MR-1, convergence in ledger 1, trigger-sentence fix in MR-6). The §79a family threads as: tests NEW-1 = the call-site pin (MR-2) · ts-LOW/FD-4 = citation durability (MR-6) · FD-4's `e.lngLat` = durable retirement (ledger 2) · web NEW-3 = the sweep's one true sibling, pre-existing (ledger 4).
+
+### One-line rationale
+
+All five lanes approve and every r0 finding is closed or soundly ledgered — but the round's two flagship repairs (R-5's guard set, §79a's scale fix) each verifiably leave the exact door they were built to close ajar by one line, and with one warm owner that is a half-day micro-round, not a merge-over.

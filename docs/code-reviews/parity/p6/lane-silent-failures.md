@@ -424,3 +424,261 @@ rejection has no catch, no state change and no log — and both have a directly 
 precedent (`ocr-recognize.ts`'s un-poisoning catch, `app/demo/error.tsx`'s R-31 ChunkLoadError
 warn). S-3 is a copy/wiring seam this diff opened: the sheet's empty sentence was true when only
 data could empty it, and P6 gave the visitor three ways to empty it with a filter.
+
+---
+
+# Fix-delta r1
+
+**Diff verified:** `b0381b7..fcfe774` (20 commits on `parity/p6-fix-map`).
+**Method:** re-ran each original repro against the merged fix head as a throwaway vitest file, then
+deleted it — nothing committed. `mapbox-gl@3.25.0` and `supercluster@8.0.1` were re-read at source
+to judge the two classification claims the fixes rest on. Targeted suites only; the orchestrator's
+merged-head gate is authoritative for the full run.
+
+| Original | Fix | Disposition |
+|---|---|---|
+| S-1 major — map-boot chunk failure blank forever | R-3 `f7d5af3` | **FIXED** |
+| S-2 major — poisoned proximity chunk | R-2 `819f0d0` | **FIXED** |
+| S-3 major — filter-empty presented as data-empty | R-6 `e6b3d1b` | **FIXED** (one LOW residual, D-1) |
+| S-4 minor — post-load terminal causes swallowed | R-11 `a01f870` | **FIXED for the proven half**; context-loss arm is dead code (D-2) |
+| S-5 minor — stray long-press activates proximity | R-5 `720a988` | **FIXED** |
+| S-6 minor — undisclosed synthetic proximity anchor | R-18 `3281e44` | **FIXED** |
+| S-7 minor — cameras dropped uncounted | R-19 `cab59d4` | **FIXED** |
+
+New this round: **0 blocker · 0 major · 0 minor(MEDIUM) · 2 minor(LOW)**.
+
+---
+
+## Verification detail
+
+### S-1 → FIXED (`MapCanvas.tsx:299-359`)
+
+The whole path to a live `Map` is now inside `try`, and the catch warns then `setFailure('engine')`.
+A second, genuinely different sentence was added (`MAP_ENGINE_ERROR`, `:147`) rather than reusing
+the style/tile copy — the `'engine' | 'style'` discriminant keeps the two causes distinguishable at
+the overlay, which is more than I asked for. Re-ran the ChunkLoadError repro:
+
+```
+OVERLAY COPY: "The map engine couldn't load." + Retry     RETRY?: true     role: alert
+WARNS: ['[demo/map] the map engine failed to load — showing the retry overlay:']
+```
+
+Previously all three were absent. The malformed-token constructor throw lands in the same catch
+(the constructor is inside the try), so that variant is closed too. `if (mounted) setFailure(...)`
+keeps the unmount case clean; the warn fires either way, which is the right side to err on.
+
+### S-2 → FIXED (`MapScreen.tsx:133-160`)
+
+All three parts landed, and the un-poisoning is real rather than nominal. Re-ran with an
+import-counting mock:
+
+```
+TOGGLE: "Proximity"   aria-pressed: false        (reverted)
+NOTICE: "Proximity analysis couldn't load. Check your connection and try again."
+RADIUS PRESETS?: false                            (the dead controls are gone)
+WARNS: ['[demo/map] the proximity module failed to load — proximity stays off:']
+IMPORT ATTEMPTS — after 1st press: 1 · after 2nd press: 2   ← ref genuinely un-poisoned
+```
+
+Ordering is safe: the optimistic `setProximityActive(true)` runs synchronously in the click
+handler, the catch's revert runs in a later microtask, so the revert always wins. The chained
+`.catch` returns `null` rather than re-throwing, so the memoised promise resolves and no unhandled
+rejection remains. `handleLongPress` gets the same revert for free.
+
+*Noted, not filed:* the catch has no unmount/case-switch guard, so a rejection landing after a case
+switch raises the notice on a case the visitor already left. React 18 makes the setState a silent
+no-op rather than a warning, the notice self-dismisses, and the statement remains true — cosmetic.
+
+### S-3 → FIXED (`LocationList.tsx:16-60`, `MapControls.tsx:130-152,195-204`, `MapScreen.tsx:205-217`)
+
+`SheetEmptyReason` is a three-member discriminated union with distinct copy, a `data-empty-reason`
+hook, and a **Clear filters** affordance in the sheet itself. The count badge's gate moved from
+`locationCount > 0` to `totalCount > 0` (pre-filter), so the pill survives a zero-match filter and
+reads `No locations match` — and it gained `role="status"`, so the change is announced. Re-ran the
+original repro (three geocoded locations, no incident coordinates):
+
+```
+REASON: filters   COPY: "No locations match your filters." + [Clear filters]
+BADGE: "No locations match"   role: status
+```
+
+Previously: `"0 Locations"` + `"No located locations yet — add an address…"` with the badge gone.
+
+**The no-incident fixture reasoning is correct.** The incident is exempt from status/text filters
+(`mapFilters.ts:60`), so with a plotted incident `filtered.items` is never empty from those two
+predicates — the sheet keeps the incident row and never reaches an empty state at all. The
+`'filters'` branch is therefore reachable only on a case without plottable incident coordinates,
+which is the fixture used. The complementary case (filters remove every location, incident
+survives) is also handled honestly: the sheet shows the incident row while the badge reads
+`No locations match`, because `locationCount` counts locations only.
+
+The `emptyReason` ladder's inner-to-outer ordering is right — status/text is checked before
+proximity, so when both would empty the sheet the stage that actually did it is named.
+
+### S-4 → FIXED for the proven half; one dead arm (D-2)
+
+`isTerminalMapError` (`MapCanvas.tsx:169-176`) escalates on status 401/403/429 and on an
+access-token message; everything else keeps the warn-and-ignore, whose log line correctly dropped
+the word "transient". Verified in isolation:
+
+```
+baseline overlay: false
+after 'Failed to fetch tile'  → overlay: false · warn '[demo/map] mapbox error ignored after load:'
+after revokeAuth message      → overlay: true  · console.error '[demo/map] mapbox reported a terminal error after load:'
+classification: 401 T · 403 T · 429 T · 404 F · revokeAuth-message T · 'Failed to fetch' F · null F · string F
+```
+
+Escalation uses `console.error` and non-terminal keeps `console.warn`, which is the right severity
+split. See D-2 for the residual.
+
+### S-5 → FIXED (`MapCanvas.tsx:555-580`)
+
+Both disclosed edges are closed, and the fix went past what I proposed: `if (!event.isPrimary)
+return` kills the multi-touch wrong-fire, and `target?.closest?.('[data-marker-id], .mapboxgl-ctrl')`
+kills the marker-hold *and* mapbox's own controls. `cancelLongPress()` runs before both returns, so
+a secondary contact also disarms the primary's pending timer. The comment now states the real
+consequence (activation at the 1 km default, dropping every other location), so §72e's understated
+wording is corrected at the code.
+
+### S-6 → FIXED (`MapScreen.tsx:36-42,289-299`)
+
+`PROXIMITY_CENTRED_ON_VIEW` fires only on the derived-anchor arms — an anchor taken from a visible
+sheet row stays silent, which is the correct split. `FALLBACK_CENTER` was folded into the shared
+`DEFAULT_MAP_CENTER`, so the map's default centre and the anchor fallback can no longer drift
+apart. Verified on a case with nothing plottable:
+
+```
+ANCHOR NOTICE: "Proximity centred on the current view — long-press the map to move it."
+```
+
+Honest: a map is on screen and that *is* its view. Fires once per centre-less activation (the
+guard is `if (!proximityCenter)`), so it does not nag.
+
+### S-7 → FIXED (`mapData.ts:80-88,238`, `LocationDetailCard.tsx:65-73,169-190`)
+
+`cameraTotal` now rides on `LocationSheetItem`, the toggle reads `Show cameras (2 of 5)` via
+`cameraCountLabel`, and the aria-label appends `(3 without a GPS fix)`. The partial result is
+counted and stated — the `generateExtractedScopes` standard I cited. Markers, visible count and
+toggle still all read the one gated array, so nothing can disagree.
+
+---
+
+## New findings
+
+### D-1 — [minor (LOW)] A search term on a case with nothing plottable blames the filters
+
+**File:** `features/demo/ui/screens/map/MapScreen.tsx:210-217`
+
+```ts
+      : activeFilterCount > 0 && filtered.items.length === 0
+        ? 'filters'
+```
+
+**Sequence:** open a case whose locations are all typed-without-a-pick (nothing plottable — the
+honest `'no-data'` state, correctly shown on arrival), then type anything into the search box.
+
+**Observable — proven:**
+
+```
+EMPTY-CASE baseline reason: no-data
+EMPTY-CASE + search → REASON: filters  COPY: "No locations match your filters." + [Clear filters]
+EMPTY-CASE badge present?: false   (totalCount === 0, correctly)
+```
+
+The sheet now blames a filter for an emptiness the data caused, and offers a Clear-filters button
+that returns the visitor to the true answer — so the misattribution is self-correcting and no data
+is misrepresented, hence LOW rather than a repeat of S-3. But it is the same class of statement:
+the copy names a cause that isn't the cause.
+
+**Fix:** one clause — the derivation already computes `totalCount`; require it.
+`: totalCount > 0 && activeFilterCount > 0 && filtered.items.length === 0 ? 'filters'`.
+
+### D-2 — [minor (LOW)] `isTerminalMapError`'s context-loss arm is unreachable, and the comment asserts it is covered
+
+**File:** `features/demo/ui/screens/map/MapCanvas.tsx:156-176` (the regex at `:175`, the claim at
+`:162-163`)
+
+```ts
+  return /access token|context lost|contextlost/i.test(message)
+```
+
+with the doc comment stating "`AJAXError` 401/403/429 **and WebGL context loss** do the same
+[land in the ignored arm]".
+
+**Verified at source (`mapbox-gl@3.25.0`):** context loss does not reach this handler at all.
+`Map._contextLost` fires its own event, not an error event —
+
+```js
+_contextLost(event) { event.preventDefault(); … this.fire(new Event("webglcontextlost", {originalEvent: event})); }
+```
+
+and `MapCanvas` subscribes to exactly `load` / `error` / `moveend` (confirmed by enumerating the
+mock's registrations). So the `context lost` alternation can only ever match if some *other*
+mapbox error happens to contain that phrase — it is dead with respect to the stated cause.
+
+**Consequence:** a lost WebGL context (GPU driver reset, a backgrounded tab reclaimed on a
+low-memory device, a `WEBGL_lose_context` extension call) blanks the map with **no overlay, no
+Retry and no breadcrumb** — the exact shape of the original S-4 finding, for the one cause the fix
+claims to have covered. mapbox auto-restores via `webglcontextrestored` when the browser restores
+the context, but restoration is not guaranteed. Filed LOW rather than MEDIUM because it is rarer
+than the token/rate-limit causes the fix genuinely closed, and because the fix left the map in no
+worse a state than before.
+
+**Fix:** subscribe to the real event next to the existing three —
+`map.on('webglcontextlost', …)` → `console.error` + `setFailure('style')`, and
+`map.on('webglcontextrestored', …)` → clear it. Then drop the `context lost` alternation from
+`isTerminalMapError` and the corresponding clause from the comment, so the classifier's stated
+scope matches what it can actually see. (Minor, same fix: a *post-load* terminal error currently
+renders `MAP_LOAD_ERROR` — "Failed to load the map." — for a map that did load and then died.
+A third discriminant, or a small copy tweak, would close that.)
+
+---
+
+## Fix-introduced swallows — hunted, none found
+
+- **The new `try/catch` in `MapCanvas`** — scope is exactly "everything up to a live `Map`". No
+  post-`load` code is inside it, so it cannot mask a render/plot error; `if (mounted)` guards the
+  setState; the warn is deliberately un-guarded.
+- **The new `.catch` in `loadProximity`** — nulls the ref *after* the outer assignment (evaluation
+  order verified), returns `null` instead of re-throwing so nothing is left unhandled, and every
+  consumer already treats the module as nullable (`proximityResult` gates on `proximityModule`).
+- **§79a `getScaledPoint` port (`toContainerPoint`, `:224-232`)** — checked against mapbox's own
+  implementation at source: `const scaling = el.offsetWidth === rect.width ? 1 : el.offsetWidth /
+  rect.width`, applied to both axes. Same formula. The port's extra `rect.width > 0 &&
+  container.offsetWidth > 0` guard is *stricter* than mapbox's, which would yield `Infinity`/`NaN`
+  on a zero-width rect and push a `NaN` coordinate into `unproject`. Zero-scale and detached-node
+  cases both fall back to scaling `1`, which is the identity — the correct answer when there is no
+  transform — and neither state can produce a pointer event on a live container anyway. No
+  finding; a genuine hardening.
+- **`normalizeBbox` losing its clamp (R-25)** — the refutation is right, verified in the installed
+  `supercluster@8.0.1`: `getClusters` normalises longitude with `((lng+180)%360+360)%360-180`,
+  clamps latitude to ±90, short-circuits `>= 360`, and **splits the query across hemispheres**
+  when `minLng > maxLng`. The removed clamp was discarding the wrapped slice. Removing it plots
+  *more*, not less.
+- **`narrowProjection` replacing three hand-rolled derivations** — behaviour-identical for
+  `applyMapFilters`: the incident passes both predicates unconditionally (`mapFilters.ts:60`,
+  `:68`), so deriving `incident` from the surviving rows equals carrying it through, and now pins
+  cannot drift from rows.
+- **`'cluster' in props` replacing the cast + `?? 0`** — supercluster always sets `point_count` on
+  cluster features and never sets `cluster` on leaf props, so the removed fallback was
+  unreachable; the discriminant is sound.
+- **`EMPTY_MAP_FILTERS` / `WORLD_BBOX` freezing** — ESM is strict mode, so an accidental mutation
+  now throws rather than silently no-opping. Right direction.
+- **`aria-hidden` on location/incident pins** — a11y-lane territory; no silent-failure
+  consequence (the pins carry no tabindex, and `onPointerDown`'s `closest('[data-marker-id]')`
+  guard is unaffected).
+
+## Fix-delta summary
+
+```
+Fallback honesty (every substitution announced): yes — S-2/S-3/S-6 all now announce
+Failure-cause distinctions preserved:            yes for the reachable causes — one dead arm (D-2)
+Partial results flagged (not silently short):    yes — cameraTotal + "2 of 5"
+Async cancellation / stale-write safety:         yes
+Operator breadcrumbs intact:                     yes — both missing breadcrumbs added, severity split correct
+```
+
+**Fix-delta verdict: APPROVE.** All three majors and both mediums are genuinely closed, verified
+by re-running the original reproductions rather than by reading the fix commits. The two new items
+are LOW: a self-correcting empty-state misattribution (D-1, one clause) and a classifier arm that
+cannot fire for the cause it names (D-2, one `map.on`). Neither blocks merge.

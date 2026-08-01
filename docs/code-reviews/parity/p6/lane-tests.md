@@ -474,3 +474,170 @@ Determinism (clock/entropy injected): **yes** — fake timers are used explicitl
 no real-clock dependence; no `Math.random()`.
 
 **Verdict: REVISE**
+
+---
+
+# Fix-delta r1
+
+**Diff reviewed:** `b0381b7..fcfe774` (P6 fix round 1, 19 commits + merge)
+**Mode:** fix-delta — every r0 finding re-verified by re-running its original mutation against the merged head.
+**Method:** 30 mutations applied to production code and reverted, scoped to an explicit target list of
+13 map test files (212 tests) so concurrent lanes' untracked scratch suites in the same `__tests__/`
+directory could not contaminate counts. Baseline for that set: **212/212 green**. Tree left clean.
+
+## r0 disposition
+
+| r0 finding | Commit | Original mutation, re-run | Disposition |
+|---|---|---|---|
+| **HIGH-1** transient-tile test cannot fail | R-8 `0ce33ea` | delete the whole after-load arm (`MapCanvas.tsx:336-345`) → **4 tests RED** | **FIXED** |
+| **HIGH-2** fresh-`[]` re-plot unpinned | R-9 `213d5dd` + R-4 `81c287d` | see note below | **FIXED** |
+| **HIGH-3** long-press conversion unpinned | R-10 `25e4aad` + §79a | scale-divide deleted → **RED**; call-site bypassed → **GREEN** | **PARTIAL** → NEW-1 |
+| **MED-1** `on`-mock order dependence | R-8 `0ce33ea` | remove `defaultOn` reinstall from `beforeEach` → **5 tests RED** | **FIXED + guarded** |
+| **MED-2** one-sided long-press arms | R-21 `3cb5041` | 500→400 **RED** · 500→250 **RED** · slop 10→0 **RED** | **FIXED** |
+| **MED-3** proximity anchor chain | R-18 `3281e44` | drop map-centre step **RED** · always re-derive **RED** · drop notice **RED** | **FIXED** |
+| **MED-4** self-referential constants | R-22 `3cb5041` | `CLUSTER_EXPANSION_MAX_ZOOM` 20→25 **RED** · `RING_STEPS` 64→32 **RED** | **FIXED** |
+| **MED-5** case-switch reset 4-of-7 unpinned | R-23 `3cb5041` | delete `setSnapIndex(0)` **RED** · delete `setSelectedId`+`setSheetMode` **RED** · delete `setCameraShownIds` **GREEN** | **FIXED** (consequential half; residual accepted, see L-2) |
+| **MED-6** no fixture factory | R-24 `3cb5041` | n/a — zero `LocationSheetItem` literals remain outside `test-utils.ts` | **FIXED** |
+| **LOW-1** fake-timer teardown | R-8 `0ce33ea` | file-level `afterEach(vi.useRealTimers)` in both map suites | **FIXED** |
+| **LOW-2** uncovered defensive arms | R-27 `93044be` | `viewportBbox`/`currentZoom` catches now covered; `onError` wiring still **GREEN** under deletion | **MOSTLY FIXED** → L-1 |
+| **LOW-3** cluster arithmetic | R-27 `93044be` | `Math.round`→`floor` **RED** · NaN-zoom→22 **RED** · `abbreviateCount` round→floor **GREEN** · `normalizeBbox` `>=`→`>` **GREEN** | **MOSTLY FIXED** → L-3 |
+| **LOW-4** `MapScreen.test` cleared 3 of 13 stubs | R-26c `0ce33ea` | now `Object.values(...).mockClear?.()` + `on` reinstall | **FIXED** |
+| **LOW-5** camera callout across a re-plot | R-4 `81c287d` | re-plot cameras on `moveend` → **2 tests RED** (incl. `MapCanvas.test.tsx:287`) | **FIXED** |
+
+**HIGH-2 note (verification claim no longer reproduces — behaviour is nonetheless correct).**
+`213d5dd`'s message states "restoring the `= []` defaults reddens it". At the merged head it does not:
+reverting `cameras = NO_CAMERAS` alone, `markers = NO_MARKERS` alone, or both, all leave 212/212 green.
+That is **not** a weak pin — it is R-4 (`81c287d`, which landed *after* R-9) having closed the root cause
+structurally: splitting pins and cameras into separate effects/refs removed the coupling by which an
+unstable `cameras` default churned the *pins*. Post-split, an absent prop means an empty list means zero
+marker work, so both constants are now inert belt-and-braces. The pin itself is genuinely sensitive —
+restoring the pre-R-4 coupling (`renderPins` deps back to `[markers, cameras]` + `cameras = []`) reddens
+`MapCanvas.test.tsx:158` and nothing else. Recorded as **L-4** so the next reader does not re-derive it.
+
+**HIGH-3 answer to the delta question — "does it exercise a non-identity scale, or would `getScaledPoint`'s
+deletion survive?"** Both halves, separately:
+- The **unit** test (`MapCanvas.test.tsx:384`) *does* exercise a non-identity scale (`width: 189` painted /
+  `offsetWidth: 378` laid out → factor 2). Replacing `scaling` with a literal `1` reddens it. **The formula
+  is pinned.**
+- The **integration** test (`MapCanvas.test.tsx:367`) stubs `width: 378` / `offsetWidth: 378` → factor **1**.
+  So the *wiring* is only asserted at identity, and the call site can revert to the pre-§79a raw
+  subtraction with the whole suite green. See NEW-1.
+
+## New findings
+
+### [MEDIUM] NEW-1 — §79a's scale fix can be reverted at the call site with the suite green
+
+**Production code:** `features/demo/ui/screens/map/MapCanvas.tsx:572` — `const point = toContainerPoint(container, event.clientX, event.clientY)`
+**Tests covering it:** `MapCanvas.test.tsx:367-382` (integration, identity scale) and `:384-398` (unit, scaled)
+
+**Uncovered case:** `onPointerDown` stops calling `toContainerPoint` and inlines
+`[clientX - rect.left, clientY - rect.top]` — i.e. exactly the pre-§79a code the fix round replaced.
+
+**Proof:** mutating `:572` to the raw subtraction leaves **212/212 green**. The unit test still passes
+(it calls the exported function directly); the integration test still passes (its stubbed rect is
+identity-scaled, so both formulas agree).
+
+**Why it matters:** §79a is flagged in the ledger as *new, unreviewed production behaviour* — the one
+place in this diff most likely to be touched again — and it is the difference between a long-press ring
+landing under the finger and landing progressively short of it on every viewport that scales the phone
+frame (i.e. most of them). The formula has a pin; its use does not.
+
+**Fix (verified):** change one stub in the integration test so it is non-identity, and the expectation
+with it — `width: 189` (painted) against `offsetWidth: 378` (laid out), asserting
+`expect(mapInstance.unproject).toHaveBeenCalledWith([200, 200])`. Verified: clean code stays **212/212
+green**, and the call-site bypass goes **RED on exactly that test**. No new test file needed.
+
+### [MEDIUM] NEW-2 — the two `DemoExperience` sibling mapbox-gl mocks are still broken; they ride, latent
+
+**Tests:** `features/demo/ui/__tests__/DemoExperience.map.test.tsx:13-15` and
+`features/demo/ui/__tests__/DemoExperience.incident-edit.test.tsx:13-15`
+**Production code they claim to exercise:** `MapCanvas.tsx:390-408` / `:429-438` (`new Marker(...).setLngLat(...).addTo(...)`)
+
+Neither file was touched by the fix round (R-24's `test-utils.ts` is a `SheetItem`/`MapData` fixture
+factory — unrelated to the mapbox stubs). Both still declare `Marker: vi.fn()`, which is **not
+constructable-chainable**: `new Marker({...})` yields a bare object with no `setLngLat`, so the first
+plotted pin would throw `TypeError: ….setLngLat is not a function`. Their shared `mapInstance` also
+omits eight methods the current `MapCanvas` reaches for (`getBounds`, `getZoom`, `getCenter`,
+`unproject`, `addSource`/`getSource`/`removeSource`, `addLayer`/`getLayer`/`removeLayer`) — the optional-call
+guards absorb the reads, but nothing absorbs the `Marker` chain.
+
+**Proof:** replacing `Marker: vi.fn()` with a constructor that throws on construction leaves both suites
+**15/15 green** — the mock is never constructed. Cause: every test in those two files is fully
+synchronous (`fireEvent.click` → immediate assert, no `await`/`waitFor`), so `MapCanvas`'s
+`await import('mapbox-gl')` never resolves inside the test body and the map never boots.
+
+**Why it matters, two ways:** (a) those 15 tests assert Map-tab/incident-edit wiring against a canvas
+that never initialises — fine for what they claim, but worth knowing; (b) it is a live booby-trap: the
+first `await`/`waitFor`/`findBy*` any author adds to either file turns green tests red with a
+`setLngLat` TypeError that reads as a production bug. The three map-directory suites all use the correct
+chainable form (`MapCanvas.test.tsx:44-53`, `MapScreen.test.tsx:29-34`,
+`MapScreen.proximity-chunk.test.tsx:28-32`), so this is now the only inconsistent corner.
+
+**Fix:** lift the chainable `Marker` stub and the full `mapInstance` shape into a shared helper (natural
+home: `features/demo/ui/screens/map/__tests__/test-utils.ts`, which R-24 already created) and have both
+`DemoExperience.*` suites import it. Two-line change per file; no behaviour change to the 15 tests.
+
+### [LOW] L-1 — the cluster-expansion `onError` wiring is still unpinned
+
+`MapCanvas.tsx:418` (`onError: (error) => console.warn('[demo/map] cluster expansion failed:', error)`)
+is the only line v8 still reports uncovered for that file, and deleting it leaves 212/212 green.
+`mapCluster.test.ts` pins `expandCluster`'s error contract at unit level, so this is the wiring only.
+One `mapInstance`-level test (make `expansionZoom` throw, assert the breadcrumb) closes it.
+
+### [LOW] L-2 — `setCameraShownIds(new Set())` in the case-switch reset remains deletable
+
+Unchanged from r0 and consistent with what r0 said: masked by location-id scoping (a new case's ids
+never match the retained set), so no user-visible consequence. R-23 correctly targeted the one statement
+that *does* have one. Recorded as accepted, not re-filed.
+
+### [LOW] L-3 — two immaterial arithmetic details still unpinned in `mapCluster`
+
+`abbreviateCount`'s `Math.round(thousands*10)/10` → `Math.floor` and `normalizeBbox`'s `e - w >= 360` →
+`> 360` both survive (212/212 green). Unreachable at demo scale (a case never reaches 1000 clustered
+pins) and a pure boundary respectively. R-27 closed the two that mattered (`Math.round(zoom)`, the
+NaN-zoom fallback), both now caught.
+
+### [LOW] L-4 — `213d5dd`'s stated mutation verification no longer reproduces at the merged head
+
+See the HIGH-2 note above. The commit message asserts a mutation result that R-4 subsequently made
+un-reproducible. Behaviour is correct and the pin is sound; only the message is now misleading to
+someone re-verifying it. Worth one line in the disposition report rather than a code change.
+
+## Also verified good in this round (do not undo)
+
+- **R-4's split is pinned in both directions** — re-plotting cameras on `moveend` reddens
+  `MapCanvas.test.tsx:287` ("an open callout SURVIVES a map move") *and* the clustering re-plot test.
+- **R-5's new long-press guards are pinned** — dropping `isPrimary` reddens `:414`; dropping the
+  `[data-marker-id], .mapboxgl-ctrl` target guard reddens `:426` and its attribution sibling.
+- **R-25's `normalizeBbox` narrowing kept its non-finite guard pinned** — deleting the guard reddens
+  `mapCluster.test.ts`. The clamp removal did not leave a hole.
+- **`MapScreen.proximity-chunk.test.tsx` is a strong new suite** — own file (so the rejecting module mock
+  can't leak), chainable `Marker`, positive breadcrumb assertions, and a re-attempt test whose
+  discriminator (`warn` called **twice**) genuinely distinguishes a re-import from a parked rejected
+  promise. No findings.
+- **The leak repair is itself guarded** — `MapCanvas.test.tsx:569` ("a plain mount still plots") reddens
+  if the `defaultOn` reinstall is removed from `beforeEach`.
+
+## Fix-delta Summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 2 |
+| LOW | 4 |
+
+r0 findings: **14 raised · 12 FIXED · 1 FIXED-with-note (HIGH-2) · 1 PARTIAL (HIGH-3 → NEW-1)**.
+Coverage on the scoped set: `MapCanvas.tsx` **95.12 / 87.14 / 94.64 / 99.57** (uncovered: line 418 only,
+down from 161/170/257-258/322); `mapCluster.ts` 100 % lines.
+Behaviorally meaningful coverage: **strong** — 24 of 30 delta mutations caught; every miss is either an
+inert constant, an immaterial boundary, or NEW-1/L-1.
+Mock strategy: **at the IO edge**, and now consistent across the three map suites — the two
+`DemoExperience.*` siblings are the sole holdout (NEW-2).
+Factory usage: **canonical** — `map/__tests__/test-utils.ts` with derived `mapDataFrom`; no inline
+`LocationSheetItem` literals remain.
+Setup-shim traps: **none** — the `on`-implementation leak is repaired and guarded.
+Determinism: **yes** — file-level `afterEach(vi.useRealTimers)` in both map suites; no real-clock use.
+
+**Verdict: APPROVE with comments** (no HIGH remains open; NEW-1 is a one-stub change with a verified
+fix shape, NEW-2 is a latent trap in two files this diff did not touch).

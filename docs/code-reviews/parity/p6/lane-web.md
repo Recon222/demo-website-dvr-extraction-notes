@@ -331,3 +331,185 @@ Style-convention adherence: **correct half; lifted rules untouched**
 **Verdict: REVISE**
 
 Notes: W-1 is the one that changes behaviour the visitor will notice every session — it is the unfixed sibling of the cameras-toggle refit this PR already fixed and tested. W-5 is a §72e judgment, not a re-flag: the pinch edge is a non-issue, the marker edge is real, fires on mouse as well as touch, and *activates* proximity rather than merely re-centring the ring — the ledger text needs correcting either way.
+
+---
+
+# Fix-delta r1
+
+**Diff reviewed:** `b0381b7..fcfe774` (merge `fcfe774`, 19 commits on `parity/p6-fix-map`) · worktree `parity-p6`
+**Map read first:** PR #35's fix-round comment, `deferred.md` §72e (amended) and §79 (a–g).
+**Gate run here (targeted, per the standing rule):** `pnpm vitest run features/demo/ui/screens/map` → **17 files / 226 tests green** (orchestrator's merged-head gate is authoritative for the full suite).
+**Verification suite:** a 17-assertion scratch file (`ZZweb-delta-repro.test.tsx`, 17/17 passing, deleted after the run) — every claim below is a green or red assertion, not a reading.
+
+## Disposition of the r0 findings
+
+| # | Finding | Fix commit | Verdict |
+|---|---|---|---|
+| W-1 | Identity-keyed fit snapped the camera per keystroke | R-1 `83b5b95` | **FIXED** |
+| W-2 | `moveend` destroyed open camera callouts | R-4 `81c287d` | **FIXED** |
+| W-3 | Cluster announced-but-unreachable; pins unnamed | R-7b `86dc425` | **FIXED** (both branches judged sound) |
+| W-4 | Count pill inaudible / vanished at zero | R-7a `e6b3d1b` | **FIXED** |
+| W-5 | Held press on a pin / attribution activated proximity | R-5 `720a988` | **FIXED for the two named surfaces · residual → NEW-1** |
+| W-6 | Uncaught chunk rejections (proximity + map engine) | R-2 `819f0d0`, R-3 `f7d5af3` | **FIXED** (both halves) |
+| W-7 | `aria-expanded` on a non-disclosure toggle | R-20 `cab59d4` | **FIXED** |
+| W-8 / W-9 | Cover cross-fade · glass contrast | §79g, no code change | **Agreed closed** — that was this lane's own recommendation |
+
+### W-1 — FIXED
+
+`MapCanvas.tsx:428-455` now derives a `fitKey` (`lng,lat` pairs, sorted, joined) and keys the fit effect on that value, reading the point array through `fitPointsRef` so array identity can never re-trigger it; and `MapScreen.tsx:197` feeds `fitPoints` from `buildFitPoints(filtered)` — the **pre**-proximity projection. The index rebuild stayed identity-keyed, which is correct (clustering must track the plotted set).
+
+Three assertions, all green:
+
+- two search keystrokes over an unchanged result set, after a `flyTo`: `fitBounds` call count **1** (was 3 in the r0 repro), selection intact;
+- a search that genuinely drops a location still re-frames (falls to the single-point `setCenter([-79.5, 43.5])` branch) — the fix did not buy stability by disabling re-framing;
+- activating proximity and then tapping a radius preset: `fitBounds` still **1**, `setCenter` never called — the (a) half of the finding, which r0 only observed as a side effect of the long-press path.
+
+The `fitKey`'s `.sort()` runs on the array `.map()` produces, not the source, so `fitPoints` is not mutated; a fresh `Object.freeze([])` default and `readonly` prop types close the mutation route as well.
+
+### W-2 — FIXED
+
+Cameras moved out of `renderPins` into their own `renderCameras` (`MapCanvas.tsx:414-429`) with separate `pinObjsRef` / `cameraObjsRef`, and `renderRef.current = renderPins` — so `moveend` no longer touches camera markers. Verified: open a callout, fire `moveend` twice, and the **same element instance** is still mounted with `display:block` and `aria-expanded="true"`.
+
+Worth stating because it looks like a risk and is not: the camera markers still follow the map. `Marker.addTo` registers its own `map.on('move'/'moveend', …)` repositioning (verified in `node_modules/mapbox-gl/dist/mapbox-gl.js`), so dropping them from the demo's re-plot loses nothing.
+
+### W-3 — FIXED, and the §79e branch is the right one
+
+`createClusterEl` now sets `el.tabIndex = 0` alongside `role="button"` + `aria-label`, and `MapCanvas.tsx:394-399` attaches an Enter/Space `keydown` that `preventDefault()`s and calls the same `expandCluster` as the click. Verified: Enter expands, Space expands, `a` does nothing.
+
+**Judging §79e (pins → `aria-hidden="true"`, sheet as the declared path).** This was one of the two shapes r0 offered and it is the defensible one here. It is not "hiding the problem": each pin has a real `<button>` twin in `LocationList` that selects the same item and flies the camera to it, so nothing is lost from the a11y tree that is not reachable elsewhere — and an unnamed, unfocusable `role`-less `div` announced as a clickable thing would have been strictly worse than silence (WCAG 4.1.2 is about correct name/role/value, not about maximum node count). The asymmetry with the cluster is also correct and correctly reasoned in the ledger: below `CLUSTER_MAX_ZOOM` the bubble is the only on-map route to its members and it *does* have a name, so it stays exposed. The recorded trigger (give pins `tabIndex`/`aria-label` and drop `aria-hidden` in the same commit if `MarkerDescriptor` ever gains a display name) is the right carry-through. **No further action.**
+
+### W-4 — FIXED
+
+`MapControls.tsx:198-205`: `role="status"` on the pill, gated on the new pre-filter `totalCount` instead of the post-filter `locationCount`, and `locationCountLabel` returns `'No locations match'` at zero. So the live region **persists** across a filter session and only its text changes — which is the announcement-safe shape (a region inserted at the same moment its content appears is the pattern AT sometimes misses). Two behaviours checked and deliberately not flagged: a per-keystroke `polite` update is coalesced by AT and is the standard result-count contract (the repo's one documented opt-out, `MediaCaptureScreen.tsx:462-464`, is a per-second timer, a different case); and the pill still disappears when the case has nothing plottable at all, which is now correct because that case is carried by the sheet's own `'no-data'` copy.
+
+### W-6 — FIXED, both halves
+
+`MapScreen.tsx:135-155` catches the proximity import, **nulls `proximityLoadRef`** (so off→on re-attempts rather than replaying a parked rejection), reverts `proximityActive`, and raises `PROXIMITY_UNAVAILABLE` through the existing notification. `MapCanvas.tsx:300-357` wraps the whole engine-boot path — chunk fetch *and* `new Map()` — in a `try`, routing failure to `setFailure('engine')` with its own sentence (`MAP_ENGINE_ERROR`) rather than borrowing the style/tile copy. Both were the fix shapes this lane proposed; the `'engine'` vs `'style'` discrimination is a better answer than the one-message version I suggested.
+
+## New findings
+
+### [MINOR · lane-MEDIUM] NEW-1 — W-5 residual: a held **non-primary mouse button** still activates proximity
+
+**File:** `features/demo/ui/screens/map/MapCanvas.tsx:562` (`if (!event.isPrimary) return`)
+
+`isPrimary` means *"the first pointer of this pointerType"* — it is `true` for **every** mouse button, so it filters secondary *contacts* (the pinch case, correctly) but not secondary *buttons*. The `closest('[data-marker-id], .mapboxgl-ctrl')` guard on the next line closes the two surfaces r0 named; the bare canvas is still armed by a right or middle press.
+
+**Concrete failure.** Right-click the map and hold ~0.5 s without moving — a reflex on any map (people right-click looking for "measure distance"/"what's here"). mapbox's `dragRotate` claims right-button drag, so a *stationary* right-press rotates nothing, the 500 ms timer fires, and proximity activates at the 1 km default: every other location and the incident drop off the map and out of the sheet, centred on a point nobody chose. On release, mapbox's own `DragRotateHandler.contextmenu` calls `preventDefault()`, so **no context menu appears either** — the visitor right-clicked, got nothing they asked for, and silently got a filtered map. Identical consequence to W-5, narrower trigger.
+
+**Repro (both red on `fcfe774`).**
+
+```tsx
+fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true, button: 2 })
+vi.advanceTimersByTime(600)
+expect(onLongPress).toHaveBeenCalledWith(-79.7, 43.7)   // ← fires; should not
+// same for button: 1 (middle)
+```
+Controls in the same run: pin → not called ✓, `.mapboxgl-ctrl > a` → not called ✓, bare canvas + button 0 → called ✓.
+
+**Fix (one line, and it is the repo's own).** Add the guard the shared primitive already has (`ui/primitives/useLongPress.ts:194`, `if (e.button !== 0) return // primary button only; a right-click is the context-menu path`) next to the `isPrimary` check.
+
+### [MINOR · lane-MEDIUM] NEW-2 — this is the **fourth** hand-rolled long-press in `ui/`, and §72e's "trigger (unchanged)" has already fired
+
+**Files:** `features/demo/ui/screens/map/MapCanvas.tsx:64-67, 545-590` vs `features/demo/ui/primitives/useLongPress.ts` · `docs/code-reviews/deferred.md` §72e (amended text)
+
+§72e now closes with: *"What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather than a gesture primitive. **Trigger (unchanged):** the arrival of a pointer-gesture helper in `ui/primitives/`."*
+
+That helper is already there, and predates this work: `git ls-tree` finds `features/demo/ui/primitives/useLongPress.ts` at **`master`, `44d54b3` (P6 head), `b0381b7` and `fcfe774`**, with its own test file and four live callers (`CasesScreen.tsx:129, 226`, `DashboardScreen.tsx:82`, `MediaLibrarySheet.tsx:551`). Its module header is explicit about why a fifth copy matters:
+
+> *"ONE HOOK, for real this time (P3 review R-1). THREE shipped in P3 … the surviving lesson is worth stating plainly: **a shared primitive re-implemented at a new path, or inline in a screen, will not conflict with the copy it duplicates.**"*
+
+and about the constant specifically:
+
+> *"THE one definition: P3.2's card re-declared its own `LONG_PRESS_MS = 500` while three suites imported this one, so the shared beat could have been changed with the dashboard left behind and every test green."*
+
+`MapCanvas.tsx:65-67` re-declares `LONG_PRESS_MS = 500` and `LONG_PRESS_SLOP = 10` (the primitive's `LONG_PRESS_MS` / `MOVE_TOLERANCE_PX = 10`), and the fix round hardened the copy rather than converging it. NEW-1 is the concrete cost: the primitive's `e.button !== 0` lesson exists and this copy does not have it.
+
+**What I am *not* claiming.** The contextmenu half of the primitive's contract is not a live defect here: `DragRotateHandler`/`DragPitchHandler` call `e.preventDefault()` on `contextmenu` by default (verified in the mapbox dist), and `MapCanvas` registers no map `'contextmenu'` listener, so no OS menu appears over the ring and there is no double-fire to latch against. Nor is the hook drop-in — it invokes its callback with no coordinates (this caller needs `unproject`), and its `isNestedControl` selector (`button, a, input, select, textarea, [role="button"]`) covers cluster bubbles, camera buttons and attribution links but **not** the bare-`div` pins.
+
+**Fix (choose one).**
+1. Converge: extend `useLongPress` with an optional extra bail selector and pass the originating `PointerEvent` (or a `{clientX, clientY}`) to the callback, then delete `MapCanvas`'s timer. That also retires §72e's shape residual for real.
+2. Minimum: add the `e.button !== 0` guard (NEW-1) and import `LONG_PRESS_MS` from the primitive instead of re-declaring it.
+
+Either way, **§72e's closing trigger sentence should be corrected** — it currently defers to an event that happened before this branch existed.
+
+### [MINOR · lane-LOW] NEW-3 — §79a sweep answer: `MapBottomSheet`'s drag does the same unit mixing, uncorrected
+
+**Assigned question:** *does anything else read `getBoundingClientRect` for pointer math and need the same fix?*
+
+**Direct answer: no** — `MapCanvas.tsx:229` is the only `getBoundingClientRect` in `features/demo`, `lib` and `components`. But the *class* of defect §79a names (a pointer quantity in viewport px consumed as an untransformed local px) has one more instance, without a `getBoundingClientRect`:
+
+**File:** `features/demo/ui/screens/map/MapBottomSheet.tsx:59-93` (`endDrag`, `onPointerMove`)
+
+```ts
+const delta = start - clientY                 // viewport px
+if (delta > DRAG_THRESHOLD) onSnapChange(…)   // DRAG_THRESHOLD = 40, the sheet's own px
+setDragOffset(dragStart.current - e.clientY)  // viewport px → a height in local px
+```
+
+`PhoneFrame.tsx:42` scales the whole subtree by `usePhoneScale()` = `min(1, (innerHeight - 28) / 812)`, so `s < 1` on any viewport under ~840 px tall — ~0.81 on a 1366×768 laptop, ~0.70 in a 600 px-tall window. At `s = 0.7` the sheet grows only 0.7 px per px of finger travel (it visibly lags the drag), and the detent threshold needs 40 viewport px = 57 local px of sheet movement.
+
+**Repro (green on `fcfe774`, i.e. the mixing is real):** a 41-client-px drag on the handle calls `onSnapChange(2)` — a threshold expressed in the sheet's own px, crossed by a delta measured in the viewport's.
+
+**Provenance / severity.** Pre-existing (P3-era `MapBottomSheet`); this diff only threaded `emptyReason`/`onClearFilters` through it. Cosmetic (drag feel), never wrong data, and invisible at `s = 1`. Filed at LOW as the honest completion of the assigned sweep, not as a P6 ask.
+
+**Fix if taken:** same divide — multiply the delta by `offsetHeight / rect.height` of the sheet element, or lift `toContainerPoint`'s scaling half into a tiny shared helper next to it.
+
+**Two more places checked and cleared:** `MapCanvas.tsx:586`'s 10 px slop stays in client px, which is correct (finger travel is a viewport-space quantity) and matches `useLongPress.ts:212`'s `MOVE_TOLERANCE_PX`; `useLongPress.ts` itself never unprojects, so it needs no scale correction.
+
+## §79a judged as fresh code — the formula is right
+
+**File:** `features/demo/ui/screens/map/MapCanvas.tsx:211-233` (`toContainerPoint`)
+
+Verified character-for-character against the mapbox source it cites (`node_modules/mapbox-gl/dist/mapbox-gl.js`, the `getScaledPoint` helper):
+
+```js
+function T(t,i,o){ const r = t.offsetWidth === i.width ? 1 : t.offsetWidth / i.width;
+                   return new Point((o.clientX - i.left) * r, (o.clientY - i.top) * r) }
+```
+
+Same formula, plus a `rect.width > 0 && offsetWidth > 0` guard mapbox lacks (mapbox would yield `NaN`/`Infinity` on a zero-size box). Matching mapbox exactly is the *point*: the long-press coordinate and a mapbox click must resolve identically, so being independently "more correct" would be a bug.
+
+Correctness for scale + offset combinations, all four assertions green:
+
+- **scale only** — `offsetWidth 378`, `rect {left 40, width 189}` (s = 0.5), client `(140, 200)` → `(200, 200)` ✓
+- **1:1** — no-op ✓
+- **scale + translation / transform-origin** — `PhoneFrame` uses `transform-origin: top center` and `ScreenStage` adds a `translateX` push and percentage slide variants. Origin and translation are already folded into `rect.left`/`rect.top`, and neither changes `rect.width`, so the ratio is unaffected: `rect.left 300` at the same 0.5 scale still resolves `(400, 50)` → `(200, 100)` ✓
+- **degenerate box** — `offsetWidth 0`, `rect.width 0` → falls back to scale 1 rather than `NaN` ✓
+
+Three residual assumptions, all satisfied here and worth naming rather than discovering later:
+1. **Uniform scale.** The width ratio is applied to both axes. `scale(s)` is uniform and nothing in the demo uses `scale(sx, sy)`; a non-uniform scale would skew `y`. (Inherited from mapbox by design.)
+2. **No rotation/skew.** `getBoundingClientRect` would return the axis-aligned hull and both `left/top` and `width` would be wrong. Not used.
+3. **`offsetWidth` is integer-rounded.** The container is `position:absolute; inset:0` inside the 378 px screen, so `offsetWidth === 378` exactly; a fractional-width container would introduce up to ~0.13 % error. Negligible, non-blocking.
+
+One thing checked and cleared: mapbox applies this against `map.getCanvasContainer()`, not the outer container this helper is handed. They are the same box — the canvas container is a full-width child at the same origin — so `rect.left/top` and the ratio are identical, and the two conversions agree.
+
+## R-6 judged — the discriminated empty state and its Clear affordance are a11y-sound
+
+**Files:** `LocationList.tsx:9-58`, `MapScreen.tsx:206-219`
+
+- The recovery affordance is a real `<button type="button">` with a visible, self-describing label ("Clear filters") — the in-repo idiom, no `div onClick`, no icon-only control needing a label.
+- It is rendered **only** for the `'filters'` reason and only when a handler exists (§49a's honesty rule), so there is no button that cannot do what it says.
+- Nothing steals or strands focus; no colour-only signalling.
+- **The empty block has no live region, and does not need one:** the count pill next door is now `role="status"` and says "No locations match" for exactly the state that produces this copy, so the information *is* announced; and the recovery is duplicated by the always-present, `aria-label`led `clear-filters-button` in the controls overlay. A second live region on the same event would double-announce.
+- The discrimination order (`filters` before `proximity`, inner-to-outer) is right: if the status/text stage already emptied the list, proximity had nothing to remove, so naming proximity would be the false sentence the finding was about.
+
+**No finding.**
+
+## Fix-delta Summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 2 |
+| LOW | 1 |
+
+Orchestrator mapping: **0 blockers · 0 majors · 3 minors, all new (NEW-1, NEW-2, NEW-3)**. All nine r0 findings verified fixed or agreed-closed; W-5 is fixed for both surfaces it named, with NEW-1 as its last input path.
+
+Marketing↔demo isolation: **preserved** (no marketing file touched)
+Bundle impact: **none** — no new dependency, no import-shape change; the lazy boundaries are unchanged and the orchestrator's merged-head gate re-measured 107 kB
+Browser-resource cleanup: **complete** — the split `pinObjsRef`/`cameraObjsRef` are both swept in the create-map effect's cleanup; the new `try/catch` cannot leave a `Map` unreferenced (the local `map` binding is still what cleanup removes)
+Accessibility: **all three r0 gaps closed** (W-3, W-4, W-7); R-6's new empty state adds no gap
+Style-convention adherence: **correct half; lifted rules untouched**
+
+**Verdict: APPROVE with comments** — nothing here should hold the merge. NEW-1 is a one-line guard worth taking now (it is the last 10 % of W-5 and the fix is the repo's own primitive); NEW-2 and NEW-3 are ledger items, and §72e's closing trigger sentence should be corrected either way since the helper it waits for shipped before P6 began.
