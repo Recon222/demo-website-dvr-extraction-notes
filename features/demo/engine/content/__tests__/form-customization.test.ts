@@ -145,7 +145,11 @@ describe('capability invariants', () => {
      * COMPILE error here, not a silently hideable required field. The values are the fields a
      * visitor would have to fill to clear each rule; every one must be locked on.
      */
-    const coveredBy: Record<keyof typeof FINAL_SUBMISSION_MESSAGES, readonly FormFieldId[]> = {
+    // NON-EMPTY (R-26): `readonly FormFieldId[]` let a new rule discharge the compile gate with
+    // `[]` — the key would be forced, the assertion loop would iterate zero times, and the
+    // "a fourth rule is a compile error" claim would be satisfied by a value that proves
+    // nothing. The tuple type makes the coverage list itself mandatory.
+    const coveredBy: Record<keyof typeof FINAL_SUBMISSION_MESSAGES, readonly [FormFieldId, ...FormFieldId[]]> = {
       occNumber: ['submission.occNumber'],
       address: ['submission.address', 'submission.businessName', 'submission.streetAddress', 'submission.city'],
       scopes: ['scope.startDateTime', 'scope.endDateTime'],
