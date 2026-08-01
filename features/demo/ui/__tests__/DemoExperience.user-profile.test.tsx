@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { SNAPSHOT_KEY } from '@/features/demo/engine/store/persistence'
-import { selectCaseNotesData } from '@/features/demo/engine/store/selectors'
+import { selectCaseNotesData, selectDrawerStatus } from '@/features/demo/engine/store/selectors'
 import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /**
@@ -159,6 +159,46 @@ describe('Completed By autofill (phone completion.tsx:127-134)', () => {
     // The fill happens on ARRIVAL. Nothing about saving a profile reaches a screen already open.
     expect(completedByField()).toHaveValue('')
     expect(store.getState().locations[0].form.completedBy).toBe('')
+  })
+
+  it('writes NOTHING when the visitor has switched Completed By off [R-1b]', () => {
+    // A write must not outlive the visibility decision that hid its field: the input is not
+    // rendered, so an autofilled value could not be seen, edited or cleared — and it would still
+    // reach the Case Notes document and green the drawer dot.
+    const store = createDemoStore()
+    act(() => {
+      store.getState().updateUserProfile({ name: NAME })
+      store.getState().setFormFieldVisible('completion.completedBy', false)
+    })
+    render(<DemoExperience store={store} />)
+    setupCompletion(store)
+
+    expect(screen.queryByLabelText('Completed By')).not.toBeInTheDocument()
+    expect(store.getState().locations[0].form.completedBy).toBe('')
+    // …so the court document does not carry a name the visitor never saw.
+    expect(generateCaseNotesDoc(selectCaseNotesData(store.getState()))).not.toContain(NAME)
+    // …and the drawer dot is not greened by an invisible write.
+    expect(selectDrawerStatus(store.getState().locations[0], store.getState()).completion).not.toBe('complete')
+  })
+
+  it('fills again once the field is switched back on — hiding suppresses, it does not disable', () => {
+    const store = createDemoStore()
+    act(() => {
+      store.getState().updateUserProfile({ name: NAME })
+      store.getState().setFormFieldVisible('completion.completedBy', false)
+    })
+    render(<DemoExperience store={store} />)
+    setupCompletion(store)
+    expect(store.getState().locations[0].form.completedBy).toBe('')
+
+    // Separate acts: React commits between them, so `view` genuinely leaves 'completion' and
+    // comes back. Batched into one, the dep never changes and the arrival never happens.
+    act(() => {
+      store.getState().setFormFieldVisible('completion.completedBy', true)
+      store.getState().setView('cases')
+    })
+    act(() => store.getState().setView('completion'))
+    expect(completedByField()).toHaveValue(NAME)
   })
 
   it('treats a whitespace-only name as no name', () => {

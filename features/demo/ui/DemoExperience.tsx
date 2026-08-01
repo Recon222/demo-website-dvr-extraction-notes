@@ -1012,12 +1012,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * time any view can be 'completion'.
    *
    * From here the value follows the phone's own path: the store → the Case Notes PDF header.
+   *
+   * **The visibility guard is NOT part of that dependency contract** (review R-1b). It reads the
+   * resolver at fill time, changes nothing about WHEN the effect runs, and exists because a write
+   * must not outlive the visibility decision that hid its field: with `Completed By` switched off
+   * in the Form Fields grid, the input is not rendered, so a value written here could not be seen,
+   * edited or cleared — yet it printed in the Case Notes document's Completion Information section
+   * and turned the drawer dot green (`counted([])` ⇒ `'complete'`). The pane's own footnote covers
+   * data "already entered"; this is data the app would CREATE after being told not to. The phone
+   * has the same hole (`completion.tsx:127-133` never consults its `showCompletedBy`, resolved two
+   * lines away at `:58-59`) — filed as PHONE-BUG-LEDGER item 20.
    */
   useEffect(() => {
     if (view !== 'completion') return
     const s = store.getState()
     const location = s.locations.find((l) => l.id === s.currentLocationId)
     if (!location || location.form.completedBy) return
+    if (!resolveFieldVisible('completion.completedBy', s)) return
     const name = s.userProfile.name.trim()
     if (!name) return
     s.updateField('form.completedBy', name)
