@@ -5725,6 +5725,12 @@ was data the app CREATED after being told not to — the same shape as R-2's coo
 The dependency list is byte-identical: the guard reads the resolver at fill time and changes
 nothing about when the effect runs.
 
+**The boundary, in the same words as its twin (FD-8, §86a):** only NEW writing is suppressed. A
+name autofilled — or typed — BEFORE the field was switched off stays exactly where it is; hiding a
+field is not a request to delete what it already holds, and a settings toggle that erased entered
+data would be the opposite failure. R-1b and R-2b are one rule read at two sites: *a hidden field
+accepts no new writes, and loses none of its old ones.*
+
 **The contract (R-1a).** That dependency list is now pinned by two tests, one per plausible
 "fix", each verified red under its mutation. The suite was mutation-blind because every shipped
 test either arrived with a name already present or changed the profile from another view.
@@ -5785,6 +5791,24 @@ executing it would prove the runtime half, not the type half. R-25's `settings-v
 P7.1's and is deliberately untouched here.
 
 **Trigger:** none.
+
+### 85f. FIXED (FD-2 / FD-7) — the fix-delta micro-round
+
+**FD-2 (gate).** R-29's layer test re-typed both neighbours' z-indexes, so the two-sided invariant
+it was named for pinned neither side (the lane moved the Settings sheet 22→40 and the picker
+31/32→20/21 with the suite green both times). Both ends are now exported by the surfaces that own
+them — `SETTINGS_SHEET_Z` (`SettingsModal.tsx`, bound to `_shared`'s new `MODAL_SHEET_Z` because
+that sheet paints on the shared shell layer by value) and `PICKER_SHEET_Z` (`PickerSheet.tsx`, its
+SCRIM: the lowest layer it paints on, which is the one an opener must be under) — and the assertion
+is relational. `_shared.tsx`'s own `21 +`/`22 +` literals are retired with them. Per the ownership
+ruling the two `export const`s landed inside this package's commit rather than waking P7.1.
+
+**FD-7.** `persisted: boolean` became `saveState: SaveStateKind`. Three states are "not saved" and
+they are not the same news; the quota case (`failed`) — the one R-3 was filed about — was being
+told the browser stores nothing. Four clauses, exhaustive via `assertNever`.
+
+**Trigger:** none for either. The z-ordering has one home per end now; a third overlay layer joins
+`MODAL_LAYER` and is bounded by the same two exports.
 
 ### 85e. RECORDED — the rider (lane-typescript Obs-2) landed with R-1a's tests
 
