@@ -331,3 +331,232 @@ interacts with is `loadSnapshot`, where **M3** is the gap
 **Verdict: APPROVE with comments.** Nothing here blocks the merge. M1 and M2 are each a handful of
 lines and both have a probe-verified fix; M3 is one line at the boundary and closes the last way
 the pre-P8 meaning of `'splash'` can still reach the screen.
+
+---
+
+# Fix-delta r1
+
+**Verified against** `41f4a93..15b683b` (fix round 1, R-1..R-19) · commit map = PR #37's comment ·
+ledger §88.
+
+**Method.** Probes ran in **my own worktree** (`scratchpad/worktrees/p8-typedesign`, detached at
+`15b683b`, node_modules symlinked), so union-growth probes could edit real sources rather than
+replicas — every edit reverted, worktree removed, `git status` clean. Cold `tsc --noEmit`
+(`rm -f tsconfig.tsbuildinfo` first) **clean, exit 0** at baseline and after every revert.
+
+| r1 finding | Fix | Status |
+|---|---|---|
+| **M1** — `videoSrc`/`videoPoster` correlated-optional | R-1d + R-17 + A2 `2c08673` | **FIXED (exceeds)** |
+| **M2** — `SplashScreen`'s three `&&` branches | R-9 `9602d29` | **FIXED** (code); one comment defect remains → **N1** |
+| **M3** — `AppView` admits `'splash'`, loader doesn't catch it | R-10 `1dcfcbe` | **FIXED (exceeds)** |
+| **L1** — `BootPhase`'s two hand-written partitions | R-11 `44c82c2` | **FIXED (exceeds)** |
+| **L2** — the drop-in is "two constants" | R-17, inside `2c08673` | **FIXED (exceeds)** |
+
+**Counts: 3 MEDIUM fixed, 2 LOW fixed, 1 new LOW (N1). Verdict: APPROVE.**
+
+---
+
+## M1 — FIXED, and closed tighter than asked
+
+`BOOT_VIDEO_SRC` / `BOOT_VIDEO_POSTER` are gone (repo-wide grep: zero survivors, and the prop names
+`videoSrc`/`videoPoster` are gone with them). `BootVideo { readonly src: string; readonly poster:
+string | null }` at `boot.ts:96-99`, `BOOT_VIDEO: BootVideo | null = null` at `:126`,
+`BootSequenceProps.video: BootVideo | null` at `BootSequence.tsx:21`, `BootConfig.video` at `:135`.
+
+Probe (real types, cold tsc):
+
+| Case | Result |
+|---|---|
+| `<BootSequence video={{ poster: '/x.jpg' }} …>` | `TS2741: Property 'src' is missing` ✅ |
+| `const x: BootVideo \| null = { poster: '…' }` | `TS2741` ✅ |
+| `{ src, poster: null }` / `{ src, poster: '…' }` / `video={null}` | clean ✅ |
+| `v.src = '/other.mp4'` | `TS2540: Cannot assign … read-only` ✅ **beyond the ask** |
+| `<BootSequence videoSrc={null} videoPoster="/x.jpg" …>` | `TS2322` — the old shape is unconstructible ✅ |
+
+The `readonly` on both members is a genuine extra: my r1 fix sketch had it, but I never asked for it
+to be enforced and it is. `poster` staying nullable *inside* the pair is the right residual and the
+comment at `boot.ts:91-94` says why — once a source exists, a missing poster is a real, meaningful
+state, so it is `T | null` and not a third representable combination.
+
+Both branches of the §87d amendment landed: the ledger and `boot.ts:104-114` now describe a
+**one-constant** drop-in.
+
+## M2 — FIXED in code; the comment carries the defect §88c says it fixed → **N1**
+
+`statusBody: Record<AuthState, ReactNode>` at `SplashScreen.tsx:58`, consumed as
+`{statusBody[authState]}`. **Growth probe (real edit):** appending `'failed'` to `BOOT_HUD_STATES`
+yields **exactly one** diagnostic repo-wide —
+
+```
+features/demo/ui/screens/SplashScreen.tsx(58,9): error TS2741: Property 'failed' is missing in type
+  '{ idle: JSX.Element; scanning: JSX.Element; authorized: JSX.Element; }'
+  but required in type 'Record<"idle" | "scanning" | "authorized" | "failed", ReactNode>'.
+```
+
+— which is precisely what `boot.ts:44-46`'s corrected comment claims. `BOOT_HUD_STATES` as an
+`as const` tuple with `BootHudState = (typeof …)[number]` is a good extra: it gives the union a
+runtime witness, and `SplashScreen.test.tsx:32` now drives `it.each(BOOT_HUD_STATES)` instead of a
+hand list — the same derivation R-11b applied to the phase list.
+
+**My r1 write-up was wrong on one clause and the author was right to catch it.** M2 asserted that
+`HUD_STATE` "forces the author to make a decision *there*" when a fourth `BootHudState` is added. It
+does not: `HUD_STATE` is `Record<BootPhase, BootHudState>`, so widening the **value** type leaves
+every existing entry assignable and the record green. My probe B2 had tested `BootPhase` growth, not
+`BootHudState` growth, and I generalised across the two. The probe above settles it: zero errors in
+`boot.ts`, one in `SplashScreen.tsx`.
+
+## M3 — FIXED, and the fix is better than the one I specified
+
+`persistence.ts:554-561`, inside the existing normalization block, before the wizard-without-location
+arm. `SNAPSHOT_VERSION` still `7`, `SNAPSHOT_KEY` still `dvr-demo-state-v7` — no bump, as specified.
+Pinned by `persistence.test.ts:612-628`.
+
+Probe D re-run (4/4 green):
+
+- **D2** — a `splash` snapshot restores `view: 'cases'`, `currentChapter: 'cases'` ✅
+- **D3** — a hand-edited one is **normalized, not discarded**: `loadSnapshot` returns non-null, so
+  the visitor's cases and locations survive. A `discard()` would have wiped a tab's work over a
+  navigation id ✅
+- **D4** — **better than my sketch.** I wrote `restoredView = restoredChapter` / `restoredChapter =
+  'cases'`; the shipped order runs the chapter line first, so `{ view: 'splash', currentChapter:
+  'dashboard' }` restores to **dashboard**, not a blanket Cases. A real restored position is
+  preserved where one exists; mine would have thrown it away in exactly the case §87e cares about.
+
+Probe E re-run (2/2 green): a tampered snapshot now yields **one** boot, position kept (E1). The
+`case 'splash'` arm still mounts on a direct `setView('splash')` (E2) — correct and deliberate: the
+store is untouched, no writer exists, and the arm remains the honest total-switch answer. The comment
+at `DemoExperience.tsx:2489-2494` now says "unreachable by CONSTRUCTION rather than by convention",
+which is accurate: the loader was the only ingress and it is closed.
+
+## L1 — FIXED, and this is the finding whose rework I was asked to judge
+
+**Yes — the hand-partition class is genuinely closed, at the class level rather than site by site.**
+Both offenders were removed by moving the partition into the same total-record family, not by
+patching each in place:
+
+- **R-11a.** The deny-list `phase !== 'idle' && phase !== 'scanning' && phase !== 'authorized'` is
+  gone from the component. `SURFACE: Record<BootPhase, 'hud' | 'video'>` (`boot.ts:179-187`) +
+  `bootSurface()` now answer it, and `BootSequence.tsx:228` reads
+  `liveVideo !== null && bootSurface(phase) === 'video'`. The `liveVideo !== null` half stays in the
+  component and is correctly documented at `boot.ts:189` ("assuming there IS a video") — the record
+  answers *which layer owns the surface*, the component answers *whether a video exists at all*.
+  Two questions, two homes, neither guessing.
+- **R-11b.** `BOOT_PHASES = Object.keys(PHASE_MS) as readonly BootPhase[]` (`boot.ts:169`), and
+  `boot.test.ts:36` is now `const ALL_PHASES = BOOT_PHASES`. Total by construction: a
+  `Record<BootPhase, …>` object literal can neither omit a key nor carry an excess one, so the key
+  set **is** the union. The `as` is the one unavoidable seam (`Object.keys` is typed `string[]`) and
+  it is sound here for that reason. Every "is total over the phase union" loop is now actually total.
+
+**Growth probe (real edit):** inserting `'preflight'` before `'scanning'` yields **four** errors,
+all in `boot.ts` — up from three, and the new one is the site that used to be silent:
+
+```
+boot.ts(147,7)  TS2741  PHASE_MS       — missing 'preflight'
+boot.ts(179,7)  TS2741  SURFACE        — missing 'preflight'   ← was the component's deny-list
+boot.ts(206,67) TS2366  nextBootPhase  — lacks ending return statement
+boot.ts(227,7)  TS2741  HUD_STATE      — missing 'preflight'
+```
+
+Every consumer of `BootPhase` that has to make a decision is now compile-forced, all four in one
+file, and the two that could have been wrong-by-default no longer exist. The opacity allow-list at
+`BootSequence.tsx:250` is the only remaining literal phase test and it defaults to the safe side
+(visible), as it did before.
+
+## L2 — FIXED, and the claim is now empirically true
+
+R-17 amended `boot.ts:120-124` **and** fixed the cause: `DemoExperience.boot.test.tsx:16-24`'s
+`runSequence` now fires `ended` and consumes `HOLD_MS` when a video element is present.
+
+**Probe (real edit — the actual drop-in):** setting
+`BOOT_VIDEO = { src: '/demo-media/boot-intro.mp4', poster: '/demo-media/boot-intro-poster.jpg' }`
+and running the **full suite**:
+
+```
+Test Files  1 failed | 264 passed (265)
+     Tests  1 failed | 3472 passed (3473)
+FAIL  boot.test.ts > the intro-video slot > ships empty — the owner supplies … (D7)
+```
+
+One red, and it is the intentional announcement guard. The three bridge tests I predicted would
+stall are green. "The drop-in is ONE constant" is now a measured statement, not a claim.
+
+---
+
+## New
+
+### [LOW] N1 — the R-9 fix's own comments: one inherited error left in place, one over-claim left standing
+
+§88c records: *"Both comments now say that."* Ran it (§84a's own lesson, which §88c invokes). One
+does.
+
+**N1a — `SplashScreen.tsx:52-53` still carries the inherited error.**
+
+> "a fourth `BootHudState` — which **`HUD_STATE` in the engine would compile-force someone to add**
+> — rendered an EMPTY live region…"
+
+Disproven by the growth probe above: adding a fourth member produces **zero** diagnostics at
+`HUD_STATE` and exactly one at `statusBody`, three lines below this comment. It also now directly
+contradicts its corrected sibling — `boot.ts:43` says *"`HUD_STATE` below is keyed by `BootPhase`,
+so growing THIS union leaves it untouched."* Two comments about one mechanism, disagreeing.
+
+**N1b — `SplashScreen.tsx:7-8` still carries the original R-9 over-claim.**
+
+> "Aliased to the engine's union (`bootHudState`) so the phase machine and this component **cannot
+> drift**"
+
+This is the exact sentence `boot.ts:40-42` disowns (*"makes the NAME undriftable — no more. The
+comment here used to claim the alias stopped the two from drifting at all (review R-9, the §84a
+shape)"*). The claim is now true in **effect** — `statusBody` closes the branch set — but it credits
+the alias, which is the reasoning R-9 was filed to remove. So `SplashScreen.tsx` currently holds both
+retired versions of the argument while the engine file documents both as wrong.
+
+**N1c — trivia, same family.** `boot.ts:32` still reads *"`nextBootPhase` routes around them when
+`videoSrc` is null"*; the field was renamed to `cfg.video` by R-1d.
+
+**Why LOW and not lower:** no runtime or type consequence — the code is correct and probe-verified.
+It is filed because this exact defect class is what R-9 *was*, and because §88c asserts it was
+cleared. Fix is three comment edits: point N1a at `statusBody`, delete or narrow N1b's clause, rename
+N1c's identifier.
+
+## Recorded, not filed
+
+- **`ExitDialog.tsx:29-36`** — R-7 chose `e.stopPropagation()` with a one-line rationale over an
+  `escapeEnabled?: boolean` prop, naming §84f as the reason. The lesson from my own M1 applied
+  pre-emptively in an unrelated fix, by the same author, in the same round. Worth noting as the
+  round's best type-design moment even though it produced no type.
+- **`BootSequence.tsx:279-281`** — `onLoadedMetadata` narrows `HTMLMediaElement.duration` (typed
+  `number`, but `NaN` before metadata and `Infinity` for streams) with
+  `Number.isFinite(d) && d > 0 ? d * 1000 : null` into a `number | null` state. Honest handling of a
+  DOM-reported value the lib type over-promises. Correct, and the kind of thing that usually isn't.
+- **`PhoneFrameProps.screenRef?: RefObject<HTMLDivElement | null>`** — a single optional handle with
+  a meaningful absent state and no correlated sibling. Not a §84f shape. Fine.
+- **`VIDEO_CEILING_MS` / `VIDEO_OVERRUN_MS` live in `BootSequence.tsx`**, not beside the four phase
+  dwells in `boot.ts`. Considered and cleared: they are not phase dwells — `PHASE_MS.video` is
+  `null` because the phase waits on `ended`, and folding a watchdog bound in would break that
+  contract. Failure bounds belong with the timer that arms them.
+- **`boot.test.ts:130-131`** now asserts `BOOT_PHASES.filter(…)` against ordered literals, so
+  `PHASE_MS`'s declaration order is load-bearing for two assertions. Acceptable — that order is the
+  phase order — but worth knowing before anyone "tidies" the record.
+- **Outside this lane:** `DemoExperience.tsx:487-497` has two adjacent `/** */` blocks where the
+  first (R-2's focus rationale) sits on R-12's `visited` effect, and R-2's actual effect ten lines
+  down is undocumented. Placement only; flagging for whoever owns docs/TS.
+
+## Fix-delta summary
+
+| Severity | Outstanding |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 0 |
+| LOW | 1 (new: N1) |
+
+Correlated state modelled as a union: **closed** (M1 — compile-enforced at both levels, plus
+`readonly`).
+Exhaustiveness enforced: **closed and widened** (M2 + L1 — four compile-forced `BootPhase`
+consumers, one for `BootHudState`; both hand partitions retired).
+Id spaces typed: **closed at the boundary** (M3 — normalized, no version bump, restored position
+preserved).
+Derived-not-duplicated lists: **closed** (`BOOT_PHASES` off `PHASE_MS`, `BOOT_HUD_STATES` driving
+both the union and its test).
+
+**Verdict: APPROVE.** N1 is a comment-only item and does not block the merge.

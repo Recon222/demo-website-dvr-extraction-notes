@@ -310,3 +310,210 @@ Notes: the machine itself is the best part — `PHASE_MS`, `HUD_STATE` and the `
 in `BootSequence.tsx`, where that verified union meets the DOM: an unscoped `<video onError>` (M1,
 reproduced), an unscoped window Escape listener (M2, reproduced), and two hand-rolled phase
 partitions the compiler doesn't cover (M3).
+
+---
+
+## Fix-delta r1
+
+**Range:** `41f4a93..15b683b` (fix round 1, R-1..R-19; §88 dispositions)
+**Gates re-run:** cold `pnpm exec tsc --noEmit --incremental false` → **clean** (9.3 s user, full
+program). Targeted suites (`boot`, `BootSequence`, `SplashScreen`, `DemoExperience.boot`,
+`DemoExperience.boot-boundary`, `boot-activation`, `persistence`, `store`) → **8 files / 165 tests
+green**. All probes run in a private detached worktree at `15b683b`; every probe file removed,
+nothing committed.
+
+**Disposition: 5/5 of my findings FIXED. 0 regressions of substance. 2 new LOW.**
+
+| Mine | Commit | Disposition | Verified how |
+|---|---|---|---|
+| M1 — unscoped `<video onError>` | `ec22c6e` (+`a5ea4b1`) | **FIXED** | probe re-run, both arms |
+| M2 — Escape collision with `ExitDialog` | `9418c2f` (+`fe24e9c`) | **FIXED** | probe re-run, both directions |
+| M3 — hand partitions over `BootPhase` | `44c82c2` | **FIXED** | growth probe: 3 errors → 4 |
+| L1 — §84f `videoSrc`/`videoPoster` pair | `2c08673` | **FIXED** | half-flip probe now `TS2741` |
+| L2(b) — the `splash` arm double-boot | `1dcfcbe` | **FIXED** | tampered-snapshot probe |
+| L2(a) — video phases by convention | — | unchanged, as filed (I asked for no change) | n/a |
+
+### M1 — FIXED, and better than I asked for
+
+`onError` is now `handleVideoError` (`BootSequence.tsx:167-175`), phase-scoped exactly as the fix
+shape asked: pre-surface → `setVideoFailed(true)`, which feeds `liveVideo = null` into the machine
+(`:110`) so `authorized` takes the already-built no-video route; on-surface → `setPhase('fading')`.
+Both arms breadcrumb with `[demo/boot]` and the element's `MediaError.code`/`message`. Re-ran my
+original probe inverted:
+
+```tsx
+render(<BootSequence video={VID} onComplete={onComplete} />)
+fireEvent.error(screen.getByTestId('demo-boot-video'))          // the preload 404, during idle
+expect(onComplete).not.toHaveBeenCalled()                        // ✅ was: called once
+expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()      // ✅ the boot survives
+expect(warn.mock.calls[0].join(' ')).toMatch(/\[demo\/boot\].*continuing without it/)  // ✅
+tap(); tick(SCAN_MS); tick(AUTHORIZED_MS); tick(FADE_MS)
+expect(onComplete).toHaveBeenCalledOnce()                        // ✅ full no-video route
+```
+
+and the on-surface arm fades rather than cuts (`onComplete` silent until `tick(FADE_MS)`). My
+secondary §84a note — that the cited `startFadeOut()` precedent fades where the code hard-cut — is
+closed too, and `a5ea4b1` found an unbounded wait I had missed (`video` is the one phase with
+`PHASE_MS === null` *and* an exit outside the app). §88a's two carried-forward shapes are the right
+generalisations of the defect, and its note that the R-17 flip probe "reds nothing now, and before
+the round it red three tests" is the honest version of what §87d had claimed.
+
+**§88a's disclosed extension — `play()` rejection fades rather than cuts (`:190-193`): SOUND, and
+disclose-not-smuggle was the right call.** It makes the three video failure modes (load error,
+playback error, autoplay rejection) exit through one door, and that door is the phone's. The
+consequence worth stating: after this round the *only* hard cuts to `done` left are SKIP and
+Escape, which should be instant. That is a coherent rule, not a residue.
+
+### M2 — FIXED
+
+`ExitDialog.tsx:27-36` now `stopPropagation()`s after `onStay()` — the exact fix shape, and
+correctly justified in-comment against the `escapeEnabled?: boolean` alternative on §84f grounds.
+Probe re-run, both directions:
+
+```tsx
+fireEvent.click(screen.getByRole('link', { name: /back to site/i }))
+fireEvent.keyDown(document, { key: 'Escape' })
+expect(screen.queryByRole('dialog', { name: 'Before you go' })).toBeNull()
+expect(screen.getByTestId('demo-boot')).toBeInTheDocument()   // ✅ boot survives (was: gone)
+// and with no dialog open, Escape still skips:                  ✅
+```
+
+**§88d's escalation is right and worth endorsing.** The review offered to leave the gate's
+window-`keydown` cleanup unpinned; R-7 changed the calculus, because a leaked handler is no longer
+a harmless `setPhase` on a dead tree — it would answer Escape *underneath* a live dialog, i.e.
+silently re-open the exact defect the `stopPropagation` closes. Pinning by handler identity is the
+correct pin: it is the ordering, not the mere presence, that R-7 made load-bearing.
+
+### M3 — FIXED, numbers confirmed
+
+`SURFACE: Record<BootPhase, 'hud' | 'video'>` + `bootSurface()` replaces the deny-list; the
+component now reads `bootSurface(phase) === 'video'` (`:228`). Growth probe (`+'zzz'` to
+`BootPhase`, cold `tsc`) — **four** errors where my initial round measured three, and the new one is
+the surface:
+
+```
+boot.ts(147,7)  TS2741 'zzz' missing in Record<BootPhase, number | null>          ← PHASE_MS
+boot.ts(179,7)  TS2741 'zzz' missing in Record<BootPhase, "video" | "hud">        ← SURFACE  (new)
+boot.ts(206,67) TS2366 Function lacks ending return statement                     ← nextBootPhase
+boot.ts(227,7)  TS2741 'zzz' missing in Record<BootPhase, BootHudState>           ← HUD_STATE
+```
+
+§88b's count is exactly right. `BOOT_PHASES = Object.keys(PHASE_MS) as readonly BootPhase[]`
+(R-11b) is the one new `as` in the diff and it is the justified idiom — keys of a total record,
+derived rather than hand-listed, which is what makes the "total over the phase union" tests
+actually total. No objection.
+
+### L1 / L2(b) — FIXED
+
+`BOOT_VIDEO: BootVideo | null` (`boot.ts:96-126`). Half-flip probe:
+`BOOT_VIDEO = { poster: '/p.jpg' }` → `boot.ts(126,14): TS2741: Property 'src' is missing in type
+'{ poster: string; }' but required in type 'BootVideo'`. The third state is closed and the drop-in
+procedure is now one constant, which is the better seam I asked for.
+
+`persistence.ts:554-561` normalizes `splash` on both `restoredChapter` and `restoredView`, ordered
+before the wizard-screen block so a `splash` view with a non-null location still resolves sanely.
+Probe: a tampered `{ view: 'splash', currentChapter: 'splash' }` snapshot restores to
+`cases`/`cases`. ✅ The `case 'splash'` arm survives as the honest total-switch answer, and its
+comment's claim moved from "convention" to "construction" — which is now true.
+
+### §88c — the self-catch, verified
+
+Probed independently: adding a fourth member to `BOOT_HUD_STATES` yields **exactly one** error —
+`SplashScreen.tsx(58,9): TS2741: Property 'failed' is missing … Record<"idle" | "scanning" |
+"authorized" | "failed", ReactNode>`. `HUD_STATE` stays green, precisely as the corrected comments
+in both files now say. The claim the author caught itself making (that `HUD_STATE` helps close
+`BootHudState`) was indeed false, and both replacement comments state the probed result rather than
+a guarantee. This is §84a applied to a fix for a §84a-shaped finding, and it is the strongest
+process signal in the round — it should be the template for future ledger entries: **name the
+mechanism, run it, put the output in the comment.**
+
+---
+
+### New — fix-introduced
+
+#### [LOW] N1 — the stall watchdog measures wall clock from phase entry, not time since progress
+
+**File:** `features/demo/ui/screens/BootSequence.tsx:211-222` (with `:49-51`)
+
+The ceiling is armed once on entering `video` and only re-armed when `videoDurationMs` changes —
+which normally happens *before* the phase (metadata preloads during the scan). So the budget is
+`duration + 5 s` of **wall clock from playback start**, i.e. a total rebuffering allowance for the
+whole intro, not a stall detector. A video that is demonstrably alive gets cut with the same
+breadcrumb as a frozen one. Probed:
+
+```tsx
+Object.defineProperty(el, 'duration', { value: 10 }); fireEvent.loadedMetadata(el)   // a 10 s intro
+tap(); tick(SCAN_MS); tick(AUTHORIZED_MS)                                            // -> 'video'
+for (let i = 0; i < 16; i++) { tick(1000); fireEvent.timeUpdate(el) }                 // alive throughout
+expect(warn).toMatch(/never finished within 15000 ms/)   // ✅ fired despite live progress
+tick(FADE_MS); expect(onComplete).toHaveBeenCalledOnce() // ✅ the healthy intro was cut short
+```
+
+This contradicts the constant's own stated intent — "Generous on purpose — it exists to end a
+stall, **never to cut a healthy intro short**" (`:46-48`) — which is why it is filed rather than
+left. LOW, not MEDIUM, on three counts: latent until drop-in; `preload="auto"` plus the unbounded
+`idle` gesture dwell means a short portrait intro is usually fully buffered before playback starts;
+and the failure mode is the graceful fade plus a breadcrumb, not a hang.
+
+**Fix shape (small).** Make the deadline mean "since last progress": add `onTimeUpdate` (or
+`onProgress`) that stores `el.currentTime` in a ref and bumps a tick the watchdog effect depends
+on — or, cheaper, have the watchdog fire on a repeating interval and only exit when `currentTime`
+has not advanced since the previous sample. Either turns `VIDEO_OVERRUN_MS` into what its name
+already implies. Keep `VIDEO_CEILING_MS` as the pre-metadata flat bound.
+
+#### [LOW] N2 — §88b's "last hand partition over `BootPhase`" is now off by two, both added this round
+
+**File:** ledger §88b vs `features/demo/ui/screens/BootSequence.tsx:126`, `:171`/`:173`, `:264`
+
+R-11 converted the one partition that pointed the unsafe way, and §88b rules that the container
+opacity check stays inline deliberately — both correct, and I am **not** asking for either to
+change (converting the opacity check would reverse a ruling). The record-keeping is what drifted:
+after this round there are **three** inline partitions over `BootPhase` in the component, two of
+them created by fixes that landed *after* R-11 and are unmentioned by §88b:
+
+| Site | Shape | Default for a new phase |
+|---|---|---|
+| `:264` opacity | allow-list `'fading' \| 'done'` | fully visible — **safe** (the blessed one) |
+| `:126` R-14 reduced-motion collapse | deny-list `!== 'idle' && !== 'done'` | collapse to `done` — safe |
+| `:171`/`:173` R-1a error scope | allow-list `'video' \| 'holding'` | degrade to no-video — safe |
+
+All three defaults are safe, so this is a docs-accuracy finding, not a code one: §88b's heading
+("`bootSurface` is the last hand partition over `BootPhase`") plus its "the opacity check is
+DELIBERATELY still an inline partition" reads as *exactly one remains*, and a future reader
+auditing growth safety will stop at one and miss two. One sentence in §88b naming all three, with
+the safe-default column, keeps the ruling and makes it true.
+
+#### Note (not filed) — `videoFailed` re-arms the current phase's timer at full length
+
+`liveVideo` (`:110`) is in `advance`'s dep list (`:114`), which is in the timer effect's dep list
+(`:133`). So flipping `videoFailed` tears down and re-arms the in-flight dwell: a preload error at
+t = 390 ms of `scanning` makes that scan run ~790 ms. Same mechanism R-14 just fixed for
+`reduceMotion`, but one-shot, on a failure path, and purely cosmetic — noted so a future reader who
+finds it knows it was seen, not filed.
+
+---
+
+## Fix-delta Summary
+
+| Severity | Initial | Fixed | Remaining | New |
+|---|---|---|---|---|
+| CRITICAL | 0 | — | 0 | 0 |
+| HIGH | 0 | — | 0 | 0 |
+| MEDIUM | 3 | 3 | 0 | 0 |
+| LOW | 2 | 2 | 0 | 2 |
+
+Store-bridge integrity: **preserved** (`booting` still mount-scoped; the R-12 `setView` replay and
+R-2 focus hand-off are both bridge-local, and `visit()` is identity-preserving so the replay is a
+true no-op on a restored view)
+Engine purity: **preserved** (`boot.ts` grew `BOOT_HUD_STATES`, `BOOT_PHASES`, `SURFACE`,
+`BootVideo` — still no React, no `'use client'`, no browser globals, no clock)
+Barrel + marketing/demo isolation: **preserved** (public barrel untouched; `boot.ts` still off the
+engine barrel)
+Determinism seam: **preserved** (the watchdog and the duration read are `setTimeout` + element
+metadata; no wall-clock read anywhere)
+
+**Verdict: APPROVE**
+
+Notes: 5/5 fixed, all verified by re-run probe rather than by reading the diff. The two new LOWs are
+a watchdog-tuning gap (N1) and a ledger-accuracy gap (N2) — neither blocks. §88a's extension and
+§88c's self-catch both check out; §88c in particular is the round's best artifact.

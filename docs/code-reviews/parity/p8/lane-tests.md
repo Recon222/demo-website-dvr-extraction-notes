@@ -324,3 +324,111 @@ Setup-shim traps: **one, and it is a finding** — jsdom's not-implemented `play
 Determinism (clock/entropy injected): **yes** — fake timers throughout, dwells read from the engine constants, no wall-clock or entropy reads.
 
 **Verdict: REVISE.** Three majors, each closed by one test and none requiring new machinery: a structural route guard (T-1, the `chrome-scope.test.tsx` idiom the repo already owns), boundary ticks in the test that already names the dwells (T-2), and a rejecting-`play` stub beside the existing error-path test (T-3). Everything else is minor. Nothing here questions the design — the phase machine, the gate/view split and the drop-in seam are all sound and mostly well pinned; the ledger's §87d claim about the autoplay path is the one statement that should not stand as written.
+
+---
+
+## Fix-delta r1
+
+**Reviewed at:** `15b683b` (fix round merged, `5b3213a..15b683b`) · same worktree, deps unchanged
+**Gates:** targeted P8 surface **178 passed / 9 files** · cold `tsc --noEmit` clean · tracked `features/` + `app/` diff empty at the close (verified after every probe)
+**Method, unchanged:** 22 mutation probes — each fix's guard/constant/prop deleted or inverted, paired suites re-run, every one reverted.
+
+**Prior findings: 9 raised, 9 FIXED.** New this round: **1 nit** (FD-1d, below). Verdict moves **REVISE → APPROVE**.
+
+### The three majors
+
+**T-1 FIXED** — R-3 `5862e2a`, `app/demo/__tests__/boot-activation.test.ts` (new). Three probes, all red as required:
+
+| Mutation on `app/demo/page.tsx` | Result |
+|---|---|
+| `<DemoExperience />` — the prop deleted | **1 failed / 2** ✅ |
+| `<DemoExperience bootMode />` — the prop renamed | **1 failed / 2** ✅ (`\bboot\b` finds no word boundary inside `bootMode`) |
+| `<DemoExperience /> /* boot lives here */` — the word left in a comment | **1 failed / 2** ✅ |
+
+The JSX anchor is **sound, not brittle**, and the third probe is the one that matters: `[^>]*` stops at the tag's own `>`, so the bare-word false-green that `chrome-scope.test.tsx`'s comment warns about is genuinely closed rather than merely cited. It is also formatting-proof — `[^>]*` is a character class, so it spans newlines and a prettier reflow onto multiple lines still matches. The second test (`.match(/<DemoExperience\b/g)` has length 1) closes the other direction, a second render site satisfying the first assertion. This is a better guard than the one I proposed.
+
+**T-2 FIXED** — R-4 `47d1f6b`. The exact mutation that was green in round 1 now reds:
+
+```
+setTimeout(advance, ms) → setTimeout(advance, 0)
+  BootSequence.test.tsx + DemoExperience.boot.test.tsx → 2 failed / 34
+    × runs SCANNING → AUTHORIZED → app on the phone-pinned dwells
+    × preloads during the scan, then plays through the same sequence slot
+```
+
+Both dwells in the scan test are now boundary pairs (`tick(SCAN_MS - 1)` still SCANNING → `tick(1)` AUTHORIZED, and the same for `AUTHORIZED_MS` and `FADE_MS`), and the fix went past the finding: `HOLD_MS` got the same treatment in the video test (`:125-127`), which is why the second suite reds too. The comment at `:50-53` states the monotone-assertion trap in its own words.
+
+**T-3 FIXED** — R-5 `a816a67`. The arm is genuinely *reached* now, not merely accompanied by a test named for it. Probe — neutering only the arm's body, leaving the `instanceof Promise` guard and the stub in place:
+
+```
+started.catch((reason) => { void reason })   // was: warn + setPhase('fading')
+  BootSequence.test.tsx → 1 failed / 24
+    × fades out when the browser REFUSES to autoplay — the likeliest field failure (R-5)
+```
+
+The test installs `video.play = () => Promise.reject(new DOMException(…, 'NotAllowedError'))` and settles it with `await act(async () => {})`, which is the only way past jsdom's not-implemented `play()`. §87d's coverage claim is now true as written. Note the fix also *changed* the arm — a rejection now fades out rather than cutting to `done`, consistent with R-1a's ruling — and the test pins the fade (`not.toHaveBeenCalled()` → `tick(FADE_MS)` → called) and the breadcrumb, so the behaviour change is pinned rather than merely applied.
+
+### The four minors
+
+- **N-1 FIXED** — R-15. Dropping `reduceMotion={reduceMotion}` from the `SplashScreen` call → **1 failed / 24** (`passes the preference DOWN to the HUD, not just into its own timers`). The composition is pinned where both halves were previously pinned only in isolation.
+- **N-2 FIXED, and structurally** — R-11a + R-16. The deny-list became a total record in the engine (`SURFACE: Record<BootPhase, 'hud' | 'video'>`), so the finding's *shape* is closed by the compiler, and the component test now asserts the AUTHORIZED beat between the two ticks. One mutation reds both: `SURFACE.authorized: 'hud' → 'video'` → **2 failed / 41**, one in `boot.test.ts` (the exact-partition assertion) and one in `BootSequence.test.tsx` (the beat).
+- **N-3 FIXED** — R-10. Closed at the loader rather than at the arm, which is the better place: `loadSnapshot` normalizes a hand-edited `splash` view/chapter to `cases` before it reaches the store, so the double-boot I probed has no ingress left. Removing the two normalization lines → **1 failed / 54** in `persistence.test.ts`. The `case 'splash'` arm stays as the total-switch answer with its reachability comment corrected from "a restored snapshot can carry it" to "unreachable by construction" — which is now true.
+- **N-4 FIXED (substantively)** — R-11b. `BOOT_PHASES = Object.keys(PHASE_MS) as readonly BootPhase[]` replaces the hand list. Probe — grow `BootPhase` by one member and fill the three records the compiler demands (`tsc` clean):
+
+  ```
+  round 1: 15 passed / 15   (the stale hand list silently covered 6 of 7)
+  now:      1 failed / 17   × gives the HUD every phase up to the video, and the video everything after (R-11a)
+  ```
+
+  The derivation is total for the same reason `PHASE_MS` is, so every "for every phase" loop widens automatically, and `bootSurface`'s exact-partition assertion is the one that turns the widening into a failure. **Residual, recorded not filed:** the three `is total over the phase union` assertions remain runtime-tautological by construction — `Object.keys(PHASE_MS)` cannot contain a key `PHASE_MS` lacks. That is fine now: the substance of N-4 was the mis-attribution, and `boot.ts:161-167` now says in its own words that the guarantee is the compiler's. `BOOT_PHASES` has no production consumer (one declaration, one test import) — a deliberate test-support export from a gated module, noted so a later reader doesn't take it for dead code.
+- **N-5 FIXED** — R-17, and the ledger's claim about it verified. Performing the owner's drop-in (`BOOT_VIDEO = { src: …, poster: null }`) now reds **exactly one test / 52**, the intended announcement — where in round 1 the same edit red 4, three of them collateral. `runSequence` fires `ended` when a video element is present, so the bridge suite walks the video path unchanged.
+- **N-6 FIXED** — R-19. Dropping the `keydown` cleanup → **1 failed / 24**; the pin asserts the *identity* of the removed handler against the registered one, matching the `useReducedMotion` unmount precedent rather than settling for "removeEventListener was called".
+
+### The author's claimed mutation evidence — re-run
+
+Nine of the round's own claims spot-checked; all hold.
+
+| Fix | Mutation | Result |
+|---|---|---|
+| R-1b (stall watchdog) | watchdog effect short-circuited | **2 failed / 24** — the stall test *and* the known-duration test ✅ |
+| R-2 (component half) | `skipRef.current?.focus()` → no-op | **1 failed / 34** ✅ |
+| R-2 (the `hadFocus` guard) | guard dropped, always focus SKIP | **1 failed / 24** — `leaves a mouse visitor's focus alone` ✅ (so that test is load-bearing, not a tautology on jsdom's non-focusing click) |
+| R-2 (bridge half) | `phoneScreenRef.current?.focus()` → no-op | **1 failed / 10** ✅ |
+| R-14 (mid-flight reduced motion) | the `if (reduceMotion)` short-circuit reverted | **1 failed / 24** ✅ |
+| R-7 (Escape ownership) | `e.stopPropagation()` removed | **1 failed / 10** ✅ |
+| R-8 (boundary recovery) | `onReturnToCases` back to bare `returnToCases` | **1 failed / 1** ✅ |
+| R-12 (visited seed) | the `setView(view)` replay effect deleted | **1 failed / 10** ✅ |
+| R-6 (disclosure contrast) | alpha `0.70 → 0.55` | **1 failed / 13** ✅ — *see the re-check note below* |
+
+Two compile-gated devices verified by `tsc`, not by reading:
+
+- **R-1d** — making `BootVideo.src` optional → `boot.test.ts(28,39): error TS2344: Type 'false' does not satisfy the constraint 'true'`. The `_PosterAloneIsNotAVideo` assertion is genuinely gated; the correlated-optional trap cannot be re-opened silently.
+- **R-9 / R-11b (HUD half)** — adding a fourth member to `BOOT_HUD_STATES` → exactly one `TS2741`, at `SplashScreen.tsx:58` (`statusBody`), precisely as `boot.ts:37-47` claims. The `it.each(BOOT_HUD_STATES)` sweep in `SplashScreen.test.tsx` widens with it, closing the smaller hand-list I named in N-4's tail.
+
+**Re-check note (R-6).** My first reading of the alpha mutation recorded 13/13 green, which would have been a false-coverage finding. **Not reproduced.** Two clean re-runs both red with an explicit `AssertionError: expected 0.55 to be greater than or equal to 0.65`, and a scratch probe confirms the machinery end to end (`style.color` serializes to `"rgba(153, 186, 221, 0.7)"`, the regex captures `"0.7"`). The first reading was an artifact of my own batched probe script, not of the suite. **No finding.** The pin's one honest limit, which its comment already implies: it asserts the *alpha*, not a computed contrast ratio, so a change to the boot **background** (`#000314`, owned by `BootSequence`, not by this component) would move the real ratio without moving this assertion. It fails safe in the other direction — a changed base colour makes the regex miss, `alpha` becomes `NaN`, and `NaN >= 0.65` is false.
+
+### New this round
+
+**[NIT] FD-1d — `boot={false}` satisfies the route guard**
+
+```
+<DemoExperience boot={false} />  →  app/demo/__tests__/boot-activation.test.ts: 2 passed / 2
+```
+
+`\bboot\b` matches the prop name regardless of its value, so the one edit that leaves the prop present and the phase off passes. Not raised higher: the guard exists for *accidental deletion* (the silent, total regression), and writing `boot={false}` is a deliberate act — the "temporarily disabled for debugging, forgot to restore" case rather than the tidy-up case. Closing it is one assertion if the fix round wants it: `expect(page).not.toMatch(/\bboot=\{false\}/)`, or tighten the positive to `/<DemoExperience\b[^>]*\sboot\s*\/?>/`.
+
+### Fix-delta summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL / blocker | 0 |
+| HIGH / major | 0 |
+| MEDIUM / minor | 0 |
+| LOW / nit | 1 (FD-1d) |
+
+Prior findings: **9 FIXED, 0 deferred, 0 standing.**
+Probes re-run this round: **22** — 20 reddened as required, 1 exposed the FD-1d nit, 1 (R-6) was a first-reading artifact resolved against the suite on re-run.
+Behaviorally meaningful coverage: **strong.** The round did not close the findings by adding assertions; it closed them by moving the invariants somewhere they cannot drift — the deny-list became a total record (N-2), the hand list became a derivation (N-4), the reachable ingress was closed at the loader rather than defended at the arm (N-3), and the correlated `src`/`poster` pair became one value with a compile guard. Three of the nine fixes are now enforced by `tsc` rather than by a test, which is the stronger outcome.
+Determinism: **unchanged** — no clock or entropy reads added; the two new async seams (`await act(async () => {})` for the `play()` rejection, the watchdog's fake-timer ceiling) are both explicit.
+
+**Verdict: APPROVE.** One nit, one assertion wide, and nothing that blocks the merge.

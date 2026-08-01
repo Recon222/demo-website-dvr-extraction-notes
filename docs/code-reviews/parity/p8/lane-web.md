@@ -392,3 +392,248 @@ Targeted suites run to confirm the branch is green under this lane's probing:
 `BootSequence.test.tsx`, `SplashScreen.test.tsx`, `DemoExperience.boot.test.tsx`, `boot.test.ts`,
 `screens/__tests__/a11y.test.tsx`, `components/marketing/__tests__/phone-frame.test.tsx`,
 `app/(default)/__tests__/chrome-scope.test.tsx` — **7 files / 58 tests passed**.
+
+---
+
+# Fix-delta r1
+
+**Range:** `5b3213a..15b683b` (merge `parity/p8-fix-boot`) · **Map:** PR #37's fix-round comment,
+`p8-review-r1-vetted.md`, ledger §88
+**Gates re-run in this lane's worktree:** `pnpm build` exit 0 · 10 targeted suites / **133 tests** green
+· probes rewritten against the new API and re-executed (throwaway file, deleted; worktree clean)
+
+Verdict on my six findings: **6/6 FIXED**, 0 partial, 0 refuted. **1 new LOW** from the fix itself.
+
+| Mine | Routed as | Commit | Disposition |
+|---|---|---|---|
+| HIGH — focus dropped on gate lift + at `authorized → video` | R-2 | `1def06a` | **FIXED** (both halves, all five lift paths) |
+| MEDIUM — `onError` conflates preload with playback failure | R-1a/R-1c (M1) | `ec22c6e` | **FIXED** |
+| MEDIUM — no stall rung in the failure ladder | R-1b (M2) | `a5ea4b1` | **FIXED** |
+| MEDIUM — disclosure 3.59:1, fails WCAG 1.4.3 | R-6 (M3) | `c2e688f` | **FIXED**, pin is real |
+| LOW — Escape double-fire with `ExitDialog` | R-7 | `9418c2f`.. | **FIXED** |
+| LOW — reduced-motion flip restarts the dwell | R-14 | `9418c2f`.. | **FIXED** |
+| LOW — SKIP's bare accessible name | R-18 | `9418c2f`.. | **FIXED** |
+
+---
+
+## HIGH → R-2 (`1def06a`) — FIXED, both halves, verified on every path
+
+Two mechanisms, correctly separated.
+
+**Boot → app.** `PhoneFrame` gained an optional `screenRef` and put `tabIndex={-1}` +
+`outline: 'none'` on the screen slot (`PhoneFrame.tsx:21-27, 138-143`); `DemoExperience` holds
+`phoneScreenRef` and a `wasBootingRef` edge detector that focuses it only on the `true → false`
+transition (`DemoExperience.tsx:511-517`). Re-ran my original repro **and every other way the gate
+can lift** — all five land on the screen slot instead of `<body>`:
+
+| Lift path | Probe | `document.activeElement` after |
+|---|---|---|
+| scan → full sequence (my original P1) | F1 | `DIV[data-phone-screen]` |
+| SKIP (my original P1b) | F1b | `DIV[data-phone-screen]` |
+| **reduced-motion instant-complete** | F1c | `DIV[data-phone-screen]` |
+| Escape | F1e | `DIV[data-phone-screen]` |
+| rail checklist jump | F1d | `DIV[data-phone-screen]` |
+
+**`authorized → video`.** SKIP takes the hand-off, gated on `hadFocusRef` — a `focus`/`blur`
+(focusin/focusout) pair on the boot root that tracks whether focus is *inside the gate*, with
+`e.currentTarget.contains(e.relatedTarget)` correctly treating a tab-out to the rail and a
+`relatedTarget: null` drop as "not ours" (`BootSequence.tsx:240-256`). Both arms verified:
+
+- Probe **F2** — focus on the scan button, cross into `video`: `hud gone? true`,
+  `focus = BUTTON:Skip the opening sequence`. My Q2 regression (`BODY`) is closed.
+- Probe **F2b** — mouse visitor, focus never inside the gate: `focus = BODY`, i.e. **not yanked**.
+  The guard does what its comment claims.
+
+The `hadFocus` discipline is the right call and is the detail I would have expected to be missed.
+
+**One residual, filed as a new LOW below:** that same discipline is *not* applied to the boot → app
+hand-off, which fires unconditionally — including on the rail-jump path (F1d), where focus was
+deliberately outside the gate.
+
+**Not a finding:** `outline: 'none'` on the focus target. The slot is `tabIndex={-1}`, so it is not
+keyboard-operable and WCAG 2.4.7 does not reach it; suppressing a ring around the entire 378×786
+screen is the standard SPA route-change idiom. The slot carries no accessible name, so an AT user
+hears the revealed content rather than a label — acceptable here (the content *is* the announcement)
+and strictly better than the `<body>` drop it replaces.
+
+---
+
+## M1 → R-1a/R-1c (`ec22c6e`) — FIXED
+
+`onError` is now phase-scoped (`BootSequence.tsx:167-175`): before the video owns the surface it sets
+`videoFailed`, and `liveVideo = videoFailed ? null : video` feeds the machine a null source so
+`authorized` takes the already-tested `fading` route; from `video`/`holding` it sets `fading` (a fade
+rather than my suggested hard end — §88a's disclosed consistency extension, and the better choice:
+it matches the phone's `startFadeOut()`). Both arms breadcrumb with the element's `MediaError` code.
+
+Probe **F4**, my exact P3 repro: `error` fired at `idle` →
+`completed at idle? 0 · TAP TO SCAN still there? true · video element gone? true`, then the scan runs
+(`SCANNING? true → AUTHORIZED? true`) and the sequence completes through the no-video route
+(`completed = 1`, one warning). The gate is no longer deleted by a decoration that failed to
+download. Removing the failed element from the DOM entirely (a consequence of the `liveVideo` guard
+at `:268`) is a bonus — no broken media element lingers behind the HUD.
+
+---
+
+## M2 → R-1b (`a5ea4b1`) — FIXED; the duration+5 s / flat-20 s shape is sound
+
+A watchdog effect scoped to `phase === 'video'` and torn down on phase exit
+(`BootSequence.tsx:211-222`), with `onLoadedMetadata` recording a finite positive duration
+(`:279-282`) and `VIDEO_CEILING_MS = 20_000` / `VIDEO_OVERRUN_MS = 5_000` exported as named
+constants.
+
+- Probe **F5** (my 10-minute repro, inverted): no metadata → nothing at `ceiling − 100 ms`, fades and
+  completes at the ceiling, warning names `20000 ms`.
+- Probe **F5b**: `duration = 3 s` → ceiling `8000 ms`, exact.
+- Probe **F5c**: a healthy 4 s video firing `ended` completes normally — **the watchdog never cuts a
+  working intro**, which is the failure mode a ceiling like this usually introduces.
+
+**Judgement on the shape:** correct. The one theoretical bad case — an intro longer than 20 s whose
+`loadedmetadata` has not landed by the time `video` begins — is not reachable in practice and is
+self-correcting in principle: `preload="auto"` starts at mount and the `video` phase begins 1.2 s
+later, and if metadata genuinely has not arrived then no frames are rendering either, so cutting at
+20 s is the *right* answer rather than a premature one. Re-arming the timer when `videoDurationMs`
+changes can extend the effective bound by the time already spent in `video`; bounded, harmless, and
+preferable to the alternative. Deriving the bound from the element rather than hard-coding one is
+better than what I asked for.
+
+---
+
+## M3 → R-6 (`c2e688f`) — FIXED at 5.27:1, and the pin is real
+
+Alpha `0.55 → 0.70` on the disclosure (`SplashScreen.tsx:140`). Independently recomputed rather than
+taken from the commit message: `rgba(153,186,221,0.70)` over `#000314` = **5.27:1**, clearing the
+4.5:1 Level-AA floor for 11 px text. Matches my own pre-fix sweep exactly (0.55 → 3.59, 0.65 → 4.65,
+0.70 → 5.27). The disclosure is no longer the least readable string on the surface.
+
+**The pin is genuine, and reds on both axes** — I checked rather than assumed. The test
+(`SplashScreen.test.tsx`, "is readable: the disclosure clears WCAG AA over the boot background")
+regex-extracts the alpha from `data-testid="boot-disclosure"`'s inline `color` and asserts `≥ 0.65`:
+
+- a revert to `0.55` captures `0.55` and fails the threshold;
+- a *different* RGB triple at any alpha fails the `rgba(\s*153,\s*186,\s*221,` anchor, yielding
+  `Number(undefined) → NaN`, and `expect(NaN).toBeGreaterThanOrEqual(0.65)` fails too.
+
+So it is not the usual "asserts the value it just wrote" shape — the anchor is what makes it hold.
+It pins the *input* (alpha over a known background) rather than a computed ratio, which is the right
+trade for a test: the derivation lives in the comment, with all three measured points recorded.
+
+---
+
+## LOWs — all three FIXED
+
+- **Escape ownership (R-7).** `ExitDialog` now calls `e.stopPropagation()` after `onStay()`
+  (`ExitDialog.tsx:27-36`). It listens on `document` and `BootSequence` on `window`, which is
+  strictly later in the bubble path, so stopping there is sufficient — and it is `stopPropagation`,
+  not `stopImmediatePropagation`, so sibling `document` listeners are untouched and §19/§20 are not
+  disturbed. Probe **F3**: `dialogClosed = true · bootStillUp = true`. My exact repro, inverted.
+  The "topmost dismissible owns Escape" rule stated in one line beats the `escapeEnabled?` prop that
+  §84f would have flagged.
+- **Reduced-motion collapse (R-14).** The timer effect short-circuits on `reduceMotion` before
+  reading the dwell (`BootSequence.tsx:125-128`), so the flip acts immediately instead of re-arming
+  a full-length timer; `idle` still correctly waits for the gesture. Probe **F6**:
+  `completed immediately on flip = 1` (was: only after a fresh 800 ms).
+- **SKIP's name (R-18).** `aria-label="Skip the opening sequence"` (`BootSequence.tsx:290`). Probe
+  **F7** confirms it stays focusable in every phase under the new name:
+  `idle:true scanning:true authorized:true fading:true`.
+
+---
+
+## New in r1
+
+### [LOW] The boot→app focus hand-off fires unconditionally, including when focus was deliberately outside the gate
+
+**File:** `features/demo/ui/DemoExperience.tsx:511-517`
+
+**Issue:** the same commit that introduced `hadFocusRef` for the *mid-sequence* hand-off left the
+*boot→app* hand-off ungated. `wasBootingRef` detects only the `booting` edge, so any lift moves focus
+into the phone — including the rail-checklist jump, where the visitor was navigating the rail by
+keyboard and focus was intentionally outside the gate. Probe **F1d**: focus after a rail jump =
+`DIV[data-phone-screen]`. Their next Tab now continues from inside the phone rather than to the next
+checklist row, and the same jump performed when *not* booting moves nothing — so one control behaves
+two ways depending on whether the gate happens to be up.
+
+**Why LOW, not higher:** it is user-initiated navigation revealing the content being focused, so
+WCAG 3.2.1/3.2.2 (unexpected context change) are not engaged, and it is a large net improvement over
+the `<body>` drop it replaced. It is an internal inconsistency with the guard the same fix
+introduced, not a defect against a visitor.
+
+**Fix (if a later round touches it):** reuse the discipline already written — have `BootSequence`
+report whether the gate held focus (or read `phoneScreenRef.current?.contains(document.activeElement)`
+before the swap) and skip the `.focus()` when it did not, exactly as `hadFocusRef` does one file over.
+
+---
+
+## Re-verified, unchanged
+
+- **Bundle.** Clean rebuild (`rm -rf .next && pnpm build`, exit 0). `/demo` First Load JS **107 kB**,
+  identical to r0; marketing untouched (`/` 121 kB, `/features` 110 kB, `/features/[slug]` 120 kB,
+  shared 106 kB — every figure byte-identical to the pre-fix table). Placement re-checked because the
+  import shape changed (`BOOT_VIDEO_SRC`/`BOOT_VIDEO_POSTER` → one `BOOT_VIDEO`, plus `PhoneFrame`'s
+  new prop): the boot strings still resolve to exactly one file, the lazy demo chunk
+  `.next/static/chunks/989.79f2a6a591e3f72d.js`, and to **neither** shared chunk. The wall is intact —
+  the only `features/demo` mention outside the demo remains the prose comment in
+  `components/marketing/phone-frame.tsx:7`.
+- **Resource cleanup: still complete, with one more timer to account for.** The new watchdog is
+  cleared by its own effect cleanup on any `phase`/`videoDurationMs` change (`:221`), so leaving
+  `video` by `ended`, by SKIP, by Escape or by error disarms it; the phase timer, the Escape listener
+  and the video element are unchanged. The new `focus`/`blur` handlers are React props on the boot
+  root — they die with it, no manual listener to leak. No new observers, intervals or object URLs.
+- **A11y idioms held while the code moved.** `SplashScreen`'s three `&&` blocks became a
+  `Record<AuthState, ReactNode>` (R-9) — the live region is still one persistent node with swapped
+  children (my r0 Q1 finding that it announces *changes* rather than mounting-with-text still holds,
+  and a fourth HUD state can no longer render an empty region under a dead button). `aria-disabled` +
+  no-op `onClick` unchanged. The deny-list `showVideo` became the `SURFACE` total record (R-11a) with
+  identical behaviour — re-confirmed by F4 (the HUD holds the surface through `authorized` on the
+  degraded path) and F2 (the video takes it on the healthy one).
+- **Style half.** All fix-round styling stays inline `CSSProperties` in `features/demo/ui/**`; the
+  only additions are `tabIndex`/`outline: 'none'` on the screen slot and one alpha. No Tailwind, no
+  new global CSS, no new keyframes, device math untouched.
+- **Render perf.** The new `setView(view)` replay effect (R-12, `DemoExperience.tsx:500-505`) costs
+  one extra store write and render at mount. `setView` sets `currentChapter` only for `ChapterId`s,
+  and a restored view that is a chapter always agreed with `currentChapter` already, so the replay is
+  a no-op beyond `visit` — no narration-anchor drift. Negligible; not a §84b-shaped addition.
+
+---
+
+## Fix-delta Summary
+
+| | Count |
+|---|---|
+| r0 findings FIXED | 6 / 6 (1 HIGH, 3 MEDIUM, 2 of my 3 LOWs + the third) |
+| Partial / refuted | 0 |
+| New this round | 1 LOW |
+| CRITICAL / HIGH outstanding | **0** |
+
+Marketing↔demo isolation: **preserved** (re-verified after the import-shape change)
+Bundle impact: **none** — `/demo` 107 kB and every marketing figure byte-identical to r0
+Browser-resource cleanup: **complete** (watchdog included)
+Accessibility: **no outstanding regressions** — the HIGH is closed on all five lift paths and the
+mid-sequence hand-off; one LOW consistency item remains
+Style-convention adherence: **correct half**, lifted rules untouched
+
+**Verdict: APPROVE**
+
+Notes: R-2 is the fix I would have written and then some — the `hadFocus` guard on the mid-sequence
+hand-off is the part that is easy to skip and it is there, tested, and correct in both directions.
+R-1b's watchdog derives its bound from the element rather than hard-coding one, and F5c proves it
+does not cut a healthy intro. The one new LOW is that same guard not being applied to the other
+hand-off; it does not gate merge.
+
+### Appendix B — fix-delta probes
+
+One throwaway vitest file (`features/demo/ui/screens/__tests__/ZZfd.test.tsx`), 14 probes, run at
+`15b683b` and deleted — `git status` clean, nothing committed. Every r0 repro was re-run in its
+original form (rewritten only for the `video: BootVideo | null` prop change) so each "FIXED" above is
+an inverted execution, not a reading of the diff.
+
+`F1`/`F1b`/`F1c`/`F1d`/`F1e` focus after each lift path · `F2`/`F2b` mid-sequence hand-off, held and
+not-held · `F3` Escape ownership · `F4` preload-error degradation · `F5`/`F5b`/`F5c` watchdog
+(flat ceiling, duration-derived ceiling, healthy video) · `F6` reduced-motion collapse · `F7` SKIP in
+every phase.
+
+Targeted suites at the fix head: `BootSequence.test.tsx`, `SplashScreen.test.tsx`,
+`DemoExperience.boot.test.tsx`, `DemoExperience.boot-boundary.test.tsx`, `boot.test.ts`,
+`app/demo/__tests__/boot-activation.test.ts`, `screens/__tests__/a11y.test.tsx`,
+`persistence.test.ts`, `phone-frame.test.tsx`, `chrome-scope.test.tsx` —
+**10 files / 133 tests passed**.

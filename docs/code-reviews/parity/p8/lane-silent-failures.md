@@ -211,3 +211,152 @@ Operator breadcrumbs intact: **removed** — the phone's two `console.error` bre
 **Verdict: APPROVE with comments.**
 
 No CRITICAL, no HIGH. All four MEDIUMs are cheap: two are one-liners (`endBoot()` in the recovery path; two `console.warn`s), and the two video-ladder gaps (scope `onError` to the phase; watchdog the one unbounded phase) are contained entirely inside `BootSequence.tsx` and touch neither the machine nor the bridge. Both video findings are **latent behind `BOOT_VIDEO_SRC === null`** — nothing in this PR ships them to a visitor — but §87d advertises the drop-in as "two constants, nothing needs restructuring", and as it stands flipping those constants also ships a hang and a self-deleting boot gate. Closing them now is what makes that sentence true.
+
+---
+
+# Fix-delta r1
+
+**Range:** `5b3213a..15b683b` · fix round 1, R-1..R-19 · 265 files / 3473 tests green
+**Method:** own detached worktree at `15b683b`; every r1 probe re-run against the fixes, plus new probes aimed at the fixes' own failure modes. Probe files deleted; nothing committed. Targeted suites re-run after cleanup: 7 files / 121 tests green (`boot.test.ts`, `BootSequence.test.tsx`, `SplashScreen.test.tsx`, `DemoExperience.boot.test.tsx`, `DemoExperience.boot-boundary.test.tsx`, `persistence.test.ts`, `boot-activation.test.ts`).
+
+## Verdict on my r1 findings
+
+| r1 finding | Fix | Disposition |
+|---|---|---|
+| MEDIUM 1 — boot-gate throw unrecoverable | R-8 `7133e8d` | **FIXED** |
+| MEDIUM 2 — preload error deletes the boot | R-1a/R-1c/R-16 `ec22c6e` | **FIXED** |
+| MEDIUM 3 — `video` phase strands on a stall | R-1b `a5ea4b1` | **FIXED** |
+| MEDIUM 4 — causes collapsed, no breadcrumb | `ec22c6e` + `a5ea4b1` | **FIXED** |
+| LOW 5 — gate Escape swallows the exit dialog's | R-7 `9418c2f` | **FIXED** |
+| LOW 6 — `case 'splash'` double-boots | R-10 `1dcfcbe` | **FIXED** |
+| LOW 7 — `SecurityPane` note under-describes | R-13 `9761160` | **FIXED** |
+| (bonus) Cases row pre-lit | R-12 `dcddb94` | **FIXED** |
+
+**7/7 of my findings fixed, plus the pre-light. 0 not-fixed. 0 refuted. 1 new LOW (observation-grade, fix-introduced).**
+
+---
+
+## Verification detail
+
+### MEDIUM 1 → FIXED (R-8, `7133e8d`)
+
+`DemoExperience.tsx:2996-3002` now wraps the callback: `onReturnToCases={() => { endBoot(); returnToCases() }}`.
+
+**Re-probe** (`SplashScreen` mocked to throw, **and left throwing** so recovery cannot depend on the fault clearing itself): before the fix the error card returned forever; now `{ stillShowingTheErrorCard: false, casesVisible: true, gateGone: true }`. The visitor lands on Cases with a live app. Pinned by the new `DemoExperience.boot-boundary.test.tsx`.
+
+### MEDIUM 2 → FIXED (R-1a/R-1c/R-16, `ec22c6e`)
+
+The fix is better than what I asked for: rather than a one-off guard it introduces `videoFailed` state and feeds the machine `liveVideo = videoFailed ? null : video` (`BootSequence.tsx:105-110`), so a failed preload routes down the **already-built, already-tested no-video path** instead of a new branch. `handleVideoError` (`:167-175`) is phase-scoped: pre-video → degrade; during `video`/`holding` → `setPhase('fading')`, matching the phone's `startFadeOut()`.
+
+**Re-probe** — fire `error` while the HUD still reads TAP TO SCAN:
+`{ completed: 0, tapToScan: true, disclosure: true, videoStillMounted: false, warned: 1 }`, and the full no-video sequence then runs to `onComplete` on the phone-pinned dwells. **The scan survives, and so does the disclosure that carries the package's honesty claim.** The `<video>` unmounts rather than lingering as a dead element — cleaner than the minimum.
+
+### MEDIUM 3 → FIXED (R-1b, `a5ea4b1`) — both rungs judged
+
+`BootSequence.tsx:211-222`: armed on entry to `video`, torn down by leaving it; ceiling = `videoDurationMs + VIDEO_OVERRUN_MS` once metadata reports a finite duration, else a flat `VIDEO_CEILING_MS` (20 s).
+
+Four probes, all clean:
+
+- **No metadata (the ten-minute strand from r1):** nothing at 19 999 ms, fires at 20 000 ms, `onComplete` 1, container opacity `0` — it **fades**, it does not cut — and one breadcrumb naming the ceiling. The r1 strand is closed.
+- **Known duration (6 s):** ceiling tightens to 11 000 ms exactly; nothing at 10 999, done at 11 000.
+- **Non-finite duration (live stream, `Infinity`):** `Number.isFinite(d) && d > 0 ? d * 1000 : null` (`:279-282`) falls back to the flat ceiling. **No NaN reaches the timer** — the lane's NaN-propagation pattern is explicitly guarded, not accidentally avoided.
+- **Metadata landing mid-phase** (the watchdog's own re-arm risk): at 19 900 ms into the flat ceiling, `loadedmetadata` re-arms at 11 000 ms. Total worst case ~31 s — longer than either ceiling alone, but **still bounded and still terminating**. Not a strand; not worth a fix.
+
+The one behavior I checked and accept: a video that rebuffers past `duration + 5 s` is cut and faded. That is a stalling video by any honest definition, and it logs.
+
+### MEDIUM 4 → FIXED — causes are now four-way distinguishable
+
+Probed message text, verbatim:
+
+- load/decode — `[demo/boot] the intro video failed (code {MediaError.code}): {message} —` + `'continuing without it'` / `'fading out early'`
+- autoplay — `[demo/boot] the intro video was not allowed to play — fading out early: {reason}`
+- stall — `[demo/boot] the intro video never finished within {ceiling} ms — fading out early. A stalled fetch or a frozen decode raises no error event, so this ceiling is the only exit.`
+
+Carrying `MediaError.code` splits network (2) from decode (3) from unsupported-source (4), so the operator can tell a 404 from a bad encode from a browser that won't play it — the four causes I flagged as collapsed are now four distinct log lines, each naming what it did next. This exceeds the phone's own two `console.error`s. Convention (`[demo/<area>]`) matched.
+
+### §88a — judged: the rejection fading is HONEST
+
+Probed the visitor's actual view at the moment `play()` rejects: `{ hudVisible: false, disclosureVisible: false, videoOpacity: '1', containerOpacity: '0' }` — the video layer already owns the surface (`SURFACE.video === 'video'`), so the visitor sees the video layer (its poster if configured, otherwise the `#000314` splash background) fade out over `FADE_MS`, then the app.
+
+**Nothing needs to say why, and adding a notice would be wrong.** The honesty rule governs *substituted results presented as the visitor's own* — a decorative intro that never plays substitutes nothing and claims nothing. The visitor was never promised a video, is shown no false artifact, and has nothing to act on. Meanwhile the party who *can* act — the operator — gets a distinct, cause-naming breadcrumb. That is the correct division.
+
+Two things make it better than the r1 hard cut, not merely different:
+- **The disclosure duty is already discharged.** The HUD carries the "Simulated scan…" line for the whole `idle → authorized` run (≥ 1200 ms) before the video layer takes over. The rejection happens after; nothing that needed saying goes unsaid.
+- **With a poster configured it is phone-faithful.** `poster={liveVideo.poster}` on an element at opacity 1 renders the still frame, which is exactly what `AuthenticatedSplashScreen` does while its video's first frame has not decoded (`:235-247`). A fade from a still frame reads as a deliberate exit, not as breakage.
+
+I would only reopen this if the video ever carried *content* rather than chrome — a caption, a claim, an instruction. It does not.
+
+### LOW 5 → FIXED (R-7, `9418c2f`)
+
+`ExitDialog.tsx:26-37` adds `e.stopPropagation()` after `onStay()`. I verified the mechanism rather than trusting the comment: `stopPropagation` on a `document` listener does not affect other `document` listeners (that needs `stopImmediatePropagation`) but does cut `window` listeners, which are strictly later in the bubble path — and a repo-wide sweep confirms **`BootSequence.tsx:148` is the only `window` keydown listener in the app**, so the cut is surgical. React's own delegation attaches at the root container, inside `document`, so it is unaffected.
+
+**Re-probe:** during boot, open the exit dialog, press Escape → `{ dialogOpen: false, gateUp: true }`. Press Escape again with the dialog gone → the gate skips. **Both controls work, neither swallows the other.**
+
+### LOW 6 → FIXED (R-10, `1dcfcbe`) — and fixed upstream, which is the right place
+
+`persistence.ts:554-561` normalizes `splash` away in the loader rather than patching the render arm, so the tampered state never reaches the store at all. The `case 'splash'` arm stays as the honest total-switch answer, which I agree with — deleting it would trade a live branch for a `null`.
+
+**Re-probe, end to end** (real snapshot written through `persistDemoStore`, then the view fields tampered the way a devtools edit would): loader returns `{ view: 'cases', chapter: 'cases' }`, and the bridge on `/demo` boots **exactly once** — `{ secondGate: false, secondTapToScan: false, landed: true }`. The r1 double-boot is gone. The committed `persistence.test.ts:611` pins the loader half.
+
+No `SNAPSHOT_VERSION` bump, correctly: this narrows what the loader *accepts*, exactly like the launchable-view line above it and the `visited` key-set policy. No shape changed.
+
+### LOW 7 (pre-light) → FIXED (R-12, `dcddb94`) — the seed-`{}` + replay shape judged
+
+`create-store.ts:430` drops to `visited: {}`; `DemoExperience.tsx:~507` replays `setView(view)` once the gate is down. I probed the three ways this shape could go wrong:
+
+- **Does anything now go unmarked?** No. A bridge that never boots (`boot=false` — the thirty-odd suites and any direct mount) still gets `visited.cases === true` on mount, because the replay's only guard is `if (booting) return`.
+- **Does the replay clobber a restored `currentChapter`?** No — the sharpest risk, since `setView` syncs `currentChapter` for chapter ids. Probed with the case that would expose it (`view: 'map'`, `currentChapter: 'timeOffset'`): after boot, `{ after: 'timeOffset', view: 'map' }`. `map` is not a `ChapterId`, so the sync arm is not taken and the wizard position survives. For chapter views the two are already equal by `setView`'s own invariant, so the write is a genuine no-op.
+- **Does it actually fix the visitor-facing symptom?** Yes: the exit dialog opened *during* boot now lists row 02, and after boot it does not.
+
+The replay is idempotent (`visit` returns the same object when already set), so a restored snapshot's own record is untouched.
+
+### LOW 8 (SecurityPane) → FIXED (`9761160`)
+
+The stub note gains: *"The scanner on the opening screen is the one exception, and it says so on its own face: it is an animation, it gates nothing, and these switches do not control it."* That closes all three halves of what I flagged — it names the exception, it says the scanner gates nothing, and it states outright that the `appLockEnabled` switch does not drive it, which is the §87b ruling written where the visitor actually reads it rather than only in the ledger. Nothing left open.
+
+**Unasked-for and worth crediting:** R-6 (`c2e688f`) raised the disclosure from 3.59:1 to 5.27:1. A low-vision visitor being shown a convincing biometric gate whose "this is fake" caption was the least readable string on the surface is a silent-failure of the honesty machinery in my lane's sense, and no lane filed it as such. Good catch.
+
+---
+
+## New finding
+
+### [LOW] A pre-video failure restarts the current dwell — the R-14 shape, left behind on the `videoFailed` seam
+
+**File:** `features/demo/ui/screens/BootSequence.tsx:112-114` (`advance` closes over `liveVideo`) + `:120-133` (the dwell effect depends on `advance`)
+
+R-14 fixed exactly this mechanism for `reduceMotion`, and its own commit message names it: *"`advance`'s identity moves when the preference flips, which tore down the pending timer and re-armed it at FULL length."* `liveVideo` is the other input to `advance`'s dependency list, and `setVideoFailed(true)` moves it the same way — so the fix for MEDIUM 2 re-introduced the pattern on a new seam.
+
+**Probe:** enter `authorized`, run 750 ms of the 800 ms dwell, then fire the video `error`. At the original 800 ms deadline the HUD still reads AUTHORIZED (`stillAuthorizedAtOriginalDeadline: true`); the beat runs to ~1600 ms. The same applies to a `fading` error re-arming `FADE_MS`. **It always terminates** (`completed: 1` in both probes) and it is bounded by one extra dwell.
+
+**Why LOW / observation-grade, and flagged only because the round named the class:** nothing becomes invisible — the visitor sees a longer green AUTHORIZED, not a wrong or missing one — so this is not a swallow. It is a consistency gap with a fix the round already shipped one line away. If it is not worth a commit, it is worth a sentence on the dwell effect saying the re-arm is accepted for this input.
+
+**Fix if taken:** have `advance` read `liveVideo` from a ref, or key the dwell effect on `bootPhaseDurationMs(phase)` rather than on `advance`'s identity.
+
+---
+
+## Observations (not filed)
+
+- **`handleVideoError`'s else-branch also covers `fading`/`done`.** An error landing during the fade takes the degrade arm: the `<video>` unmounts and the HUD remounts at AUTHORIZED. Probed — **invisible**, because the container is already at opacity 0 (`{ containerOpacity: '0', hudBack: true, videoGone: true }`), and the sequence still completes. The only residue is that the log says *"continuing without it"* when the sequence is in fact ending. A future reader debugging from logs could be briefly misled; not worth a commit on its own, worth folding in if `handleVideoError` is touched again.
+- **The R-12 replay effect is declared before the persistence effect**, so its store notification lands before `persistDemoStore` subscribes on a non-booting mount. Traced for data loss and found none: a fresh visitor has no snapshot to be short, and a returning visitor's restored record already carries the mark. Noted only so it is not re-derived.
+- **`BOOT_PHASES = Object.keys(PHASE_MS)`** makes the "total over the union" tests genuinely total. Not my lane, but it removes a false-coverage trap that would have hidden a future phase's missing dwell — i.e. a future silent strand. Good.
+
+---
+
+## Silent Failure Hunter Summary — fix-delta r1
+
+| Severity | Count |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 0 |
+| LOW | 1 (new, observation-grade) |
+
+Fallback honesty (every substitution announced): **yes** — and materially stronger than r1: the disclosure now survives a broken video (R-1a) and is legible at AA (R-6).
+Failure-cause distinctions preserved: **yes** — four distinguishable outcomes, four distinct breadcrumbs, `MediaError.code` carried.
+Partial results flagged (not silently short): **n/a**.
+Async cancellation / stale-write safety: **yes** — watchdog disarms on phase exit; the `videoFailed` re-arm is bounded and terminating; the R-12 replay is idempotent and does not clobber `currentChapter`.
+Operator breadcrumbs intact: **yes** — restored and extended beyond the phone's.
+
+**Verdict: APPROVE.**
+
+Every r1 finding is closed, and three of them are closed better than the minimum: the preload failure degrades down the existing no-video path rather than through a new branch, the splash tamper is normalized in the loader rather than papered over in the render arm, and the stall watchdog derives an honest bound from the element's own duration instead of a flat guess. The one new item is an observation-grade timing wart with no visibility consequence. Nothing in this lane blocks merge.
