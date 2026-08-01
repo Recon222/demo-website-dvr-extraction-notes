@@ -150,6 +150,32 @@ export const MAP_ENGINE_ERROR = "The map engine couldn't load."
 /** Which failure the overlay is reporting; `null` = none. */
 type MapFailure = 'engine' | 'style'
 
+/** HTTP statuses mapbox surfaces through `AJAXError` that are terminal for this session:
+ *  401 revoked/invalid token · 403 URL-restricted token on a new origin · 429 rate limit. */
+const TERMINAL_MAP_STATUSES: ReadonlySet<number> = new Set([401, 403, 429])
+
+/**
+ * Does a post-load `'error'` mean the map is DEAD, or just that one fetch missed? (review R-11)
+ *
+ * The tile rationale behind ignoring post-load errors is right and incomplete about the event:
+ * mapbox-gl 3.25 routes terminal conditions through the same handler. `_revokeAuth()` clears the
+ * GL buffers and then fires an access-token ErrorEvent, and because its session round-trip
+ * resolves AFTER `'load'` it always lands in the ignored arm; `AJAXError` 401/403/429 and WebGL
+ * context loss do the same. Two causes with opposite remedies were collapsing into one outcome
+ * and one log line: pins floating over a void, no message, no Retry.
+ *
+ * Exported for direct unit coverage — the branch is otherwise only reachable through a mapbox
+ * event this suite has to synthesise anyway.
+ */
+export function isTerminalMapError(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false
+  const status = (cause as { status?: unknown }).status
+  if (typeof status === 'number' && TERMINAL_MAP_STATUSES.has(status)) return true
+  const message = (cause as { message?: unknown }).message
+  if (typeof message !== 'string') return false
+  return /access token|context lost|contextlost/i.test(message)
+}
+
 /** Fit the camera to the plotted points: 1 → centre+zoom, ≥2 → fit the bounding box (leaving room for
  *  the controls overlay and the bottom sheet). */
 function fitToPoints(map: MapboxMap, points: readonly LngLat[]): void {
@@ -286,6 +312,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         if (!mounted) return
         const cause = (event as { error?: unknown })?.error
         if (readyRef.current) {
+          if (isTerminalMapError(cause)) {
+            // Terminal: the map is not coming back on its own, so say so and offer Retry.
+            console.error('[demo/map] mapbox reported a terminal error after load:', cause)
+            setFailure('style')
+            return
+          }
           console.warn('[demo/map] mapbox error ignored after load:', cause)
           return
         }

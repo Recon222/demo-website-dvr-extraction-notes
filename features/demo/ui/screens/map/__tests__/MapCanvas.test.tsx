@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
+import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, isTerminalMapError, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
@@ -468,6 +468,38 @@ describe('MapCanvas — loading + error states', () => {
     )
     expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument()
     warn.mockRestore()
+  })
+
+  it.each([401, 403, 429])('escalates a terminal HTTP %i after load to the overlay', async (status) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    emit('error', { error: Object.assign(new Error('AJAXError'), { status }) })
+    expect(await screen.findByTestId('map-error-overlay')).toHaveTextContent(MAP_LOAD_ERROR)
+    expect(screen.getByTestId('map-retry-button')).toBeInTheDocument()
+    expect(error).toHaveBeenCalledWith('[demo/map] mapbox reported a terminal error after load:', expect.anything())
+    error.mockRestore()
+  })
+
+  it('escalates a revoked access token after load — its round-trip always lands post-load', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<MapCanvas markers={[]} />)
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+    emit('error', { error: new Error('A valid Mapbox access token is required') })
+    expect(await screen.findByTestId('map-error-overlay')).toBeInTheDocument()
+    error.mockRestore()
+  })
+
+  it('classifies terminal vs ignorable causes', () => {
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 401 }))).toBe(true)
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 403 }))).toBe(true)
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 429 }))).toBe(true)
+    expect(isTerminalMapError(new Error('WebGL context lost'))).toBe(true)
+    // Ignorable: a missed tile, and anything unrecognisable.
+    expect(isTerminalMapError(Object.assign(new Error('x'), { status: 404 }))).toBe(false)
+    expect(isTerminalMapError(new Error('Failed to fetch tile'))).toBe(false)
+    expect(isTerminalMapError(undefined)).toBe(false)
+    expect(isTerminalMapError('boom')).toBe(false)
   })
 
   it('a plain mount still plots — the never-loads override must never leak forward', async () => {
