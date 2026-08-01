@@ -139,6 +139,17 @@ const retryStyle: CSSProperties = {
  */
 export const MAP_LOAD_ERROR = 'Failed to load the map.'
 
+/**
+ * The other way this screen can fail, and a genuinely different sentence (review R-3): the
+ * 1.8 MB `mapbox-gl` chunk — by far the largest thing on this screen — never arriving, or the
+ * `Map` constructor throwing on a malformed token. Neither produces a `Map` instance, so
+ * `map.on('error')` cannot fire and the style/tile copy would be a guess.
+ */
+export const MAP_ENGINE_ERROR = "The map engine couldn't load."
+
+/** Which failure the overlay is reporting; `null` = none. */
+type MapFailure = 'engine' | 'style'
+
 /** Fit the camera to the plotted points: 1 → centre+zoom, ≥2 → fit the bounding box (leaving room for
  *  the controls overlay and the bottom sheet). */
 function fitToPoints(map: MapboxMap, points: readonly LngLat[]): void {
@@ -212,7 +223,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   const readyRef = useRef(false)
 
   const [ready, setReady] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<MapFailure | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [coverMounted, setCoverMounted] = useState(true)
@@ -233,6 +244,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     let mounted = true
     let map: MapboxMap | null = null
     void (async () => {
+      // Everything up to a live `Map` is inside the try (review R-3). Before this, a rejected
+      // chunk or a throwing constructor left the IIFE rejecting unhandled: `'load'` never fired,
+      // the 4 s failsafe revealed the cover onto an EMPTY container, and the visitor got a dark
+      // rectangle with the controls and sheet floating on it — indistinguishable from very dark
+      // tiles. The overlay + Retry this feature added to make map failure honest never rendered.
+      try {
       const [mod, clusterMod] = await Promise.all([
         import('mapbox-gl'),
         import('@/features/demo/ui/screens/map/mapCluster'),
@@ -268,11 +285,18 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
           return
         }
         console.warn('[demo/map] mapbox failed before first load — showing the retry overlay:', cause)
-        setFailed(true)
+        setFailure('style')
       })
       map.on('moveend', () => {
         if (mounted) renderRef.current()
       })
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err))
+        console.warn('[demo/map] the map engine failed to load — showing the retry overlay:', error)
+        // Retry bumps `attempt`, which re-runs this whole effect; webpack re-attempts a failed
+        // chunk on the next `import()`, so Retry is a genuine recovery rather than a gesture.
+        if (mounted) setFailure('engine')
+      }
     })()
     return () => {
       mounted = false
@@ -416,8 +440,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
 
   // ---- loading cover ------------------------------------------------------------------------
   useEffect(() => {
-    if (ready || failed) setRevealed(true)
-  }, [ready, failed])
+    if (ready || failure) setRevealed(true)
+  }, [ready, failure])
 
   useEffect(() => {
     const failsafe = setTimeout(() => setRevealed(true), COVER_FAILSAFE_MS)
@@ -492,15 +516,15 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         onPointerLeave={cancelLongPress}
       />
       {coverMounted && <div data-testid="map-loading-cover" style={coverStyle(revealed)} />}
-      {failed && (
+      {failure && (
         <div data-testid="map-error-overlay" role="alert" style={errorOverlayStyle}>
-          <div>{MAP_LOAD_ERROR}</div>
+          <div>{failure === 'engine' ? MAP_ENGINE_ERROR : MAP_LOAD_ERROR}</div>
           <button
             type="button"
             data-testid="map-retry-button"
             style={retryStyle}
             onClick={() => {
-              setFailed(false)
+              setFailure(null)
               setReady(false)
               setRevealed(false)
               setCoverMounted(true)

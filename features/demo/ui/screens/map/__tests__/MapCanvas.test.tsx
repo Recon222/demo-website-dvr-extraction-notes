@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MAP_LOAD_ERROR, MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
+import { MAP_ENGINE_ERROR, MAP_LOAD_ERROR, MapCanvas, type MapCanvasHandle } from '@/features/demo/ui/screens/map/MapCanvas'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import { generateRadiusCircle } from '@/features/demo/ui/screens/map/mapProximity'
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
@@ -358,6 +358,37 @@ describe('MapCanvas — loading + error states', () => {
     emit('error', { error: new Error('tile 404') })
     await waitFor(() => expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument())
     expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('routes a throwing Map constructor into the overlay with the ENGINE copy', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // Stands in for the whole boot ladder: a rejected mapbox-gl/mapCluster chunk and a
+    // constructor that throws on a malformed token all reject the same async IIFE, and none of
+    // them can reach `map.on('error')` because no Map instance exists.
+    MapMock.mockImplementationOnce(() => {
+      throw new Error('Invalid access token')
+    })
+    render(<MapCanvas markers={[]} />)
+    expect(await screen.findByTestId('map-error-overlay')).toHaveTextContent(MAP_ENGINE_ERROR)
+    expect(screen.getByTestId('map-retry-button')).toBeInTheDocument()
+    expect(warn).toHaveBeenCalledWith(
+      '[demo/map] the map engine failed to load — showing the retry overlay:',
+      expect.any(Error),
+    )
+    warn.mockRestore()
+  })
+
+  it('Retry after a boot failure rebuilds the map and clears the overlay', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    MapMock.mockImplementationOnce(() => {
+      throw new Error('Invalid access token')
+    })
+    render(<MapCanvas markers={[]} />)
+    await screen.findByTestId('map-error-overlay')
+    fireEvent.click(screen.getByTestId('map-retry-button'))
+    await waitFor(() => expect(MapMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByTestId('map-error-overlay')).not.toBeInTheDocument())
     warn.mockRestore()
   })
 
