@@ -177,6 +177,30 @@ describe('BootSequence', () => {
         expect(warn).not.toHaveBeenCalled() // the degraded run is quiet — it already said its piece
       })
 
+      it('fades out when the browser REFUSES to autoplay — the likeliest field failure (R-5)', async () => {
+        // jsdom's own `play()` returns `undefined`, so `started instanceof Promise` is false and
+        // the rejection arm was never attached in any other test — declared covered in two
+        // documents, unreachable in all of them. iOS Low Power Mode blocks even muted autoplay,
+        // which makes this the arm most likely to run in the field.
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+        const video = screen.getByTestId('demo-boot-video') as HTMLVideoElement
+        const blocked = new DOMException('play() blocked by autoplay policy', 'NotAllowedError')
+        video.play = () => Promise.reject(blocked)
+
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+        await act(async () => {}) // let the rejection settle
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('[demo/boot] the intro video was not allowed to play'),
+          blocked,
+        )
+        expect(onComplete).not.toHaveBeenCalled()
+        tick(FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+      })
+
       it('a STALL has an exit: the watchdog fades out when `ended` never comes (R-1b)', () => {
         const onComplete = vi.fn()
         render(<BootSequence video={VIDEO} onComplete={onComplete} />)
