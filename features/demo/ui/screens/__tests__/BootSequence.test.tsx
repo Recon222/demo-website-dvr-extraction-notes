@@ -97,9 +97,16 @@ describe('BootSequence', () => {
       expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()
 
       tapScanner()
-      tickThrough(SCAN_MS, AUTHORIZED_MS)
+      tick(SCAN_MS)
 
-      // The video takes the surface; the HUD is gone.
+      // R-16: the AUTHORIZED beat is the phone's, and it holds its full 800 ms BEFORE the video
+      // takes the surface. Without this assertion the beat can silently become a black frame.
+      expect(screen.getByText('AUTHORIZED')).toBeInTheDocument()
+      expect(video.style.opacity).toBe('0')
+
+      tick(AUTHORIZED_MS)
+
+      // Now the video takes the surface; the HUD is gone.
       expect(video.style.opacity).toBe('1')
       expect(screen.queryByText('AUTHORIZED')).toBeNull()
       expect(onComplete).not.toHaveBeenCalled()
@@ -111,13 +118,75 @@ describe('BootSequence', () => {
       expect(onComplete).toHaveBeenCalledOnce()
     })
 
-    it('ends the sequence on a video error instead of stranding the visitor', () => {
-      const onComplete = vi.fn()
-      render(<BootSequence video={VIDEO} onComplete={onComplete} />)
-      tapScanner()
-      tickThrough(SCAN_MS, AUTHORIZED_MS)
-      fireEvent.error(screen.getByTestId('demo-boot-video'))
-      expect(onComplete).toHaveBeenCalledOnce()
+    describe('a failure is handled by where it lands (R-1a)', () => {
+      let warn: ReturnType<typeof vi.spyOn>
+      beforeEach(() => {
+        warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      })
+      afterEach(() => {
+        warn.mockRestore()
+      })
+
+      it('a PRELOAD failure degrades to the no-video route — it does not delete the boot', () => {
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+
+        // `preload="auto"` means this can fire while the visitor is still looking at the scan.
+        fireEvent.error(screen.getByTestId('demo-boot-video'))
+
+        // The gate is intact: the scan, and the disclosure that is this phase's honesty machinery.
+        expect(onComplete).not.toHaveBeenCalled()
+        expect(screen.getByText('TAP TO SCAN')).toBeInTheDocument()
+        expect(screen.getByText(/Simulated scan/)).toBeInTheDocument()
+        expect(screen.queryByTestId('demo-boot-video')).toBeNull()
+
+        // And it now runs exactly the null-source path: scan → authorized → fade → app.
+        tapScanner()
+        tick(SCAN_MS)
+        expect(screen.getByText('AUTHORIZED')).toBeInTheDocument()
+        tick(AUTHORIZED_MS)
+        expect(onComplete).not.toHaveBeenCalled()
+        tick(FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+      })
+
+      it('a failure DURING the video fades out from there, rather than cutting to done', () => {
+        const onComplete = vi.fn()
+        render(<BootSequence video={VIDEO} onComplete={onComplete} />)
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+
+        fireEvent.error(screen.getByTestId('demo-boot-video'))
+        // The phone's `startFadeOut()`: still one fade away, not already gone.
+        expect(onComplete).not.toHaveBeenCalled()
+        tick(FADE_MS)
+        expect(onComplete).toHaveBeenCalledOnce()
+      })
+
+      it('breadcrumbs the cause, and which of the two things it did (R-1c)', () => {
+        render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+        fireEvent.error(screen.getByTestId('demo-boot-video'))
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('[demo/boot] the intro video failed'),
+          'continuing without it',
+        )
+
+        warn.mockClear()
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+        expect(warn).not.toHaveBeenCalled() // the degraded run is quiet — it already said its piece
+      })
+
+      it('breadcrumbs differently when the failure lands during playback', () => {
+        render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+        tapScanner()
+        tickThrough(SCAN_MS, AUTHORIZED_MS)
+        fireEvent.error(screen.getByTestId('demo-boot-video'))
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('[demo/boot] the intro video failed'),
+          'fading out early',
+        )
+      })
     })
   })
 

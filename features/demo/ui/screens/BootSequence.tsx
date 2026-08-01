@@ -73,18 +73,33 @@ const videoStyle: CSSProperties = {
  * **The video slot.** The `<video>` is mounted as soon as a source exists — not when its phase
  * arrives — so it buffers during the scan, which is the phone's own trick ("always mounted to
  * preload during auth, plays when phase transitions", `AuthenticatedSplashScreen.tsx:249-269`).
- * `ended` advances; a load/playback/autoplay error ends the sequence instead of stranding the
- * visitor on a black rectangle, matching the phone's skip-to-completion error path
- * (`AuthenticatedSplashScreen.tsx:173-201`). See `BOOT_VIDEO_SRC` for the drop-in procedure.
+ * `ended` advances. A failure is handled by where it lands (review R-1a): before the video owns
+ * the surface it is a decoration that never arrived, so the sequence degrades to the no-video
+ * route; once it owns the surface the sequence fades out from there, matching the phone's
+ * `startFadeOut()` (`AuthenticatedSplashScreen.tsx:173-201`). Every arm breadcrumbs its cause.
+ * See `BOOT_VIDEO` for the drop-in procedure.
  */
 export function BootSequence({ video, onComplete }: BootSequenceProps) {
   const reduceMotion = useReducedMotion() ?? false
   const [phase, setPhase] = useState<BootPhase>('idle')
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  /**
+   * The element reported a failure before it ever owned the surface (review R-1a).
+   *
+   * `preload="auto"` means a 404, a dropped deploy or a bad codec can fire `error` during `idle`
+   * or `scanning` — while the visitor is looking at the scan and the simulation disclosure. The
+   * old handler ended the sequence outright, deleting the boot before it began. This flag
+   * degrades instead: the machine is fed a null source, so `authorized` routes to `fading`
+   * exactly as the already-built, already-tested no-video path does. Nobody loses the boot
+   * because a decoration failed to download.
+   */
+  const [videoFailed, setVideoFailed] = useState(false)
+  /** What the machine is allowed to believe about the video. */
+  const liveVideo = videoFailed ? null : video
 
   const advance = useCallback(() => {
-    setPhase((p) => nextBootPhase(p, { video, reduceMotion }) ?? p)
-  }, [video, reduceMotion])
+    setPhase((p) => nextBootPhase(p, { video: liveVideo, reduceMotion }) ?? p)
+  }, [liveVideo, reduceMotion])
 
   const skip = useCallback(() => setPhase('done'), [])
 
@@ -114,25 +129,56 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [skip])
 
-  // Start playback when the video phase arrives. A rejected `play()` (autoplay policy, decode
-  // failure) ends the sequence rather than leaving the visitor staring at a stalled frame.
+  /**
+   * The element's own failure report (review R-1a + R-1c).
+   *
+   * Phase-scoped, because "the video broke" means two different things. Before it owns the
+   * surface, it is a decoration that failed to arrive: mark it failed and let the sequence run
+   * the no-video route. Once it owns the surface there is nothing left to degrade to, so fade
+   * out from here — which is what the phone does (`startFadeOut()`,
+   * `AuthenticatedSplashScreen.tsx:173-201`), rather than the hard cut to `done` this used to do.
+   *
+   * Both arms breadcrumb. A 404, an undecodable codec and a blocked autoplay are three different
+   * operator problems, and the phone this component is ported from logs every one of them
+   * (`[AuthSplash] Video load error` / `playback error`) — the port had kept the completion half
+   * and dropped the diagnosis, on a path whose failure is *more* likely here (a network fetch,
+   * not a bundled `require()`).
+   */
+  const handleVideoError = useCallback(() => {
+    const err = videoRef.current?.error
+    console.warn(
+      `[demo/boot] the intro video failed (code ${err?.code ?? 'unknown'}): ${err?.message || 'no detail'} —`,
+      phase === 'video' || phase === 'holding' ? 'fading out early' : 'continuing without it',
+    )
+    if (phase === 'video' || phase === 'holding') setPhase('fading')
+    else setVideoFailed(true)
+  }, [phase])
+
+  // Start playback when the video phase arrives. A rejected `play()` (autoplay policy — iOS Low
+  // Power Mode blocks even muted autoplay — or a decode failure) fades out rather than leaving
+  // the visitor staring at a frozen frame.
   useEffect(() => {
     if (phase !== 'video') return
     const el = videoRef.current
     if (!el) {
-      setPhase('done')
+      setPhase('fading')
       return
     }
     el.muted = true // belt and braces: React's `muted` prop does not always reach the property
     const started: unknown = el.play()
-    if (started instanceof Promise) started.catch(() => setPhase('done'))
+    if (started instanceof Promise) {
+      started.catch((reason: unknown) => {
+        console.warn('[demo/boot] the intro video was not allowed to play — fading out early:', reason)
+        setPhase('fading')
+      })
+    }
   }, [phase])
 
-  const hasVideo = video !== null
   // The video takes over the moment its phase begins and keeps the surface until unmount; with
-  // no video the HUD holds it instead. Neither swaps out early — a gap would paint one frame of
-  // bare background between the fade and the parent's unmount.
-  const showVideo = hasVideo && phase !== 'idle' && phase !== 'scanning' && phase !== 'authorized'
+  // no video (configured, or left after a preload failure) the HUD holds it instead. Neither
+  // swaps out early — a gap would paint one frame of bare background between the fade and the
+  // parent's unmount.
+  const showVideo = liveVideo !== null && phase !== 'idle' && phase !== 'scanning' && phase !== 'authorized'
   const showHud = !showVideo
 
   return (
@@ -149,17 +195,17 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
         transition: reduceMotion ? undefined : `opacity ${FADE_MS}ms linear`,
       }}
     >
-      {video !== null && (
+      {liveVideo !== null && (
         <video
           ref={videoRef}
           data-testid="demo-boot-video"
-          src={video.src}
-          poster={video.poster ?? undefined}
+          src={liveVideo.src}
+          poster={liveVideo.poster ?? undefined}
           muted
           playsInline
           preload="auto"
           onEnded={advance}
-          onError={skip}
+          onError={handleVideoError}
           style={{ ...videoStyle, opacity: showVideo ? 1 : 0 }}
         />
       )}
