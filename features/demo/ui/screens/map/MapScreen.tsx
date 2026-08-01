@@ -48,6 +48,11 @@ export interface MapScreenProps {
    * `engine/logic/case-map/` and `ui/inputs/download-file.ts`.
    */
   onExportMap?(): void
+  /** The Case Map builder is still being fetched — the footer disables itself rather than
+   *  accepting a press it cannot serve synchronously (review R-8). */
+  exportMapPending?: boolean
+  /** A blocking dialog owns the screen — the footer is not live (review R-8). */
+  exportMapBlocked?: boolean
 }
 
 const changeCasePill: CSSProperties = {
@@ -84,7 +89,7 @@ const emptyStyle: CSSProperties = {
  * via props, no store. It owns only ephemeral interaction state (added in later slices). For now it
  * shows the live map when a viewer case is chosen, else a prompt (the picker arrives in Slice 3).
  */
-export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident, onExportMap }: MapScreenProps) {
+export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation, onEditIncident, onExportMap, exportMapPending, exportMapBlocked }: MapScreenProps) {
   const markers = useMemo(() => buildMarkers(mapData), [mapData])
   const [snapIndex, setSnapIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -151,6 +156,8 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onSelect={selectItem}
             detail={detail}
             onExportMap={onExportMap}
+            exportMapPending={exportMapPending}
+            exportMapBlocked={exportMapBlocked}
           />
           {pendingCall && (
             <CallConfirmSheet

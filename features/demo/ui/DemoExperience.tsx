@@ -92,7 +92,13 @@ import {
   type ExportSheetOption,
   type ExportSheetOptionId,
 } from '@/features/demo/ui/screens/ExportActionSheet'
-import { describeExportTerminal } from '@/features/demo/ui/screens/exportNotices'
+import {
+  describeCaseMapTerminal,
+  describeExportTerminal,
+  type CaseMapOutcome,
+  type ExportTerminalNotice,
+  type SimulatedExportRun,
+} from '@/features/demo/ui/screens/exportNotices'
 import {
   EXPORT_ALERTS,
   IDLE_EXPORT_FLOW,
@@ -137,9 +143,6 @@ import { buildRetentionView, type RetentionView } from '@/features/demo/engine/l
 import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
-// TYPE-ONLY (erased at build): the case-map module itself is a lazy chunk and must never enter
-// /demo's First Load graph — see the dynamic import in the export handler.
-import type { CaseMapCoverage } from '@/features/demo/engine/logic/case-map'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
@@ -280,78 +283,6 @@ const EXPORT_SHEET_TITLE = 'Choose Export Scope'
  *  enough that a non-dismissible overlay never feels stuck. Exported so the flow tests step the
  *  pipeline by its real cadence instead of re-typing the number. */
 export const EXPORT_STEP_MS = 550
-/**
- * The map's "Export Map" outcomes (P5.4). Unlike the two stubs above, this export is REAL —
- * the visitor ends up holding the file — so the copy is the phone's, plus whatever is true
- * about the artifact they now have.
- *
- * Base sentence: phone verbatim (`useExportFlow.ts:297-299`, `Case Map exported
- * successfully${encryptionNote}.` with an empty note — the demo encrypts nothing), joined
- * `title — body` like every notice above.
- *
- * The caveats have no phone counterpart by circumstance, not by choice: the phone's
- * missing-token case is a `logError` the OPERATOR never sees (`case-map-export-service.ts:59-64`),
- * and it has no empty case to warn about because the button sits behind a case with pins. Here
- * the person who clicked is the person who walks away with the file, so anything true about it
- * that they cannot see from the banner has to be on the banner.
- */
-/**
- * What the map does NOT contain (review R-1).
- *
- * A location the visitor typed rather than picked has no `gps`, so it cannot be plotted and
- * the builder drops it — correctly; a fabricated pin on a forensic artifact is worse. But the
- * demo's NORMAL mixed state is some-typed/some-picked, and the visitor was walking away with a
- * map missing two-thirds of their case under the bare word "Success". Three arms rather than
- * one, because "3 of 3 dropped" and "1 of 3 dropped" are different facts and the visitor acts
- * on them differently.
- */
-const caseMapCoverageClause = (coverage: CaseMapCoverage): string => {
-  if (coverage.totalLocations === 0) return ' This case has no locations yet.'
-  if (coverage.plottedLocations === 0) {
-    return ` None of its ${coverage.totalLocations} locations have coordinates yet, so none of them are on the map.`
-  }
-  if (coverage.droppedLocationNames.length > 0) {
-    return ` ${coverage.droppedLocationNames.length} of ${coverage.totalLocations} locations have no coordinates yet and are not on the map.`
-  }
-  return ''
-}
-/**
- * A REQUEST claim, not a completion claim (review R-2).
- *
- * The phone's string is `Case Map exported successfully.` — true there, because its service
- * awaits a filesystem write and a share sheet. In a browser `HTMLAnchorElement.click()` is
- * fire-and-forget: Chrome's automatic-download blocking, an extension, a hardened profile or
- * an expired user activation all return normally and drop the file. Detection is impossible,
- * so the sentence stops asserting what it cannot know and says exactly what happened — the
- * browser was asked, here is the filename, look in your downloads.
- */
-const caseMapExportedNotice = ({
-  filename,
-  coverage,
-  mapIsEmpty,
-  hasToken,
-}: {
-  filename: string
-  coverage: CaseMapCoverage
-  mapIsEmpty: boolean
-  hasToken: boolean
-}): string =>
-  `Case Map ready — your browser was asked to save ${filename}. Check your downloads.` +
-  caseMapCoverageClause(coverage) +
-  // Whether ANYTHING plots — the incident scene counts here, and only here. Gating the
-  // empty-map sentence on the old any-feature predicate is what kept it silent on a case with
-  // an incident pin and zero plotted locations (R-1's second half).
-  (mapIsEmpty ? ' Nothing plots yet, so it opens with an empty map.' : '') +
-  (hasToken ? '' : ' Without a Mapbox token its basemap stays blank.')
-/** Phone title (`Export Error`, useExportFlow.ts:301-305) with the only body this arm can have:
- *  its message is the thrown error's, and the browser's refusal is not one of those. */
-const CASE_MAP_EXPORT_FAILED_NOTICE = "Export Error — this browser wouldn't save the Case Map file."
-/** Same phone title, the other cause this arm can have: the lazily-loaded builder never
- *  arrived (offline, or a stale chunk hash after a deploy). */
-const CASE_MAP_MODULE_FAILED_NOTICE =
-  "Export Error — the Case Map builder couldn't be loaded. Check your connection and try again."
-/** Phone verbatim (`useExportFlow.ts:918-924`). */
-const NO_CASE_SELECTED_NOTICE = 'No Case Selected — Please select a case before exporting its map.'
 /**
  * The drawer's Media Library guard (P4.2). Phone parity, verbatim from the Toast the drawer's
  * `onOpenMediaLibrary` fires with no location selected (`app/(form)/_layout.tsx:334-345`,
@@ -510,6 +441,21 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   // Tab-local viewer case for the Map tab — distinct from the form's currentCaseId. The picker sets
   // it; null shows the mandatory picker. mapPickerOpen drives the dismissible "Change Case" overlay.
   const [mapViewerCaseId, setMapViewerCaseId] = useState<string | null>(null)
+  /**
+   * The Case Map builder, fetched when the map tab opens (review R-8).
+   *
+   * It is a ~22 kB gzip lazy chunk — kept out of /demo's First Load deliberately — and it used
+   * to be fetched INSIDE the export handler. That put a network wait between the visitor's
+   * click and any feedback, which is what made the double-press real: N presses, N builds, N
+   * downloads, and second-and-later downloads tripping Chrome's multiple-download blocking.
+   * Fetching it on arrival instead makes the export itself synchronous, so the flow's own
+   * entry guard is sufficient and the click stays inside the gesture that authorised it.
+   *
+   * `null` = not fetched yet · `'failed'` = it did not arrive · otherwise the module.
+   */
+  const [caseMapModule, setCaseMapModule] = useState<
+    typeof import('@/features/demo/engine/logic/case-map') | 'failed' | null
+  >(null)
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
   /**
    * The Export tab's selection (P5.2). Tab-local and EPHEMERAL, exactly as the phone declares
@@ -833,6 +779,27 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   useEffect(() => {
     setGateErrors(dropGateErrors)
   }, [currentLocationId])
+  // Fetch the Case Map builder as soon as the map is on screen, so pressing Export Map is a
+  // synchronous build rather than a click followed by a network wait (review R-8). Re-runs when
+  // `caseMapModule` returns to `null`, which is how the failure arm offers a retry.
+  useEffect(() => {
+    if (view !== 'map' || caseMapModule !== null) return
+    let cancelled = false
+    void import('@/features/demo/engine/logic/case-map').then(
+      (m) => {
+        if (!cancelled) setCaseMapModule(m)
+      },
+      (e: unknown) => {
+        // Never silent: an un-arrived chunk is indistinguishable from a slow one without this.
+        console.warn('[demo/case-map] the export builder failed to load:', e)
+        if (!cancelled) setCaseMapModule('failed')
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [view, caseMapModule])
+
   // The phone's Alert is OS-modal — nothing can navigate under it. The demo's rail sits OUTSIDE
   // the phone and can jump views, so an alert left standing over another screen would misstate
   // what it is blocking. Leaving Completion closes it.
@@ -1291,71 +1258,61 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     store.getState().closeModal()
   }
   /**
-   * "Export Map" (P5.4, decision D4) — the ONE export that is genuinely real in the browser.
+   * "Export Map" (P5.4 / decision D4) — the ONE export that is genuinely real in the browser,
+   * dispatched through THE export flow like every other one (review R-14, owner ruling: wire).
    *
    * The phone's `handleExportCaseMap` builds the same self-contained HTML and hands it to the
    * share sheet behind a Face ID + AES gate (`useExportFlow.ts`, ui-mapping 03:182). The demo
    * has neither gate to honour — there is nothing to protect a file the visitor already has —
-   * so this is the build and the save, nothing else: a real `Blob`, a real `<a download>`, a
-   * real file they keep. No `PasswordModal` (decision D4 skips it: a password that protects
-   * nothing is the one thing this demo's honesty machinery has always refused).
-   *
-   * The whole case-map module — including the ~85 KB template — is behind a dynamic
-   * `import()` so it lands in its own chunk and /demo's First Load stays at its pinned 107 kB.
-   * Async, so the click is `void`-ed and the outcome arrives on the banner.
+   * but it does now share the phone's PREAMBLE: entry guard, precondition alert, blocking
+   * terminal. Going through `requestExportFlow` is what retires the hand-rolled re-entry gap
+   * (R-8) and the auto-dismissing failure banner (R-9) structurally rather than by adding a
+   * second, parallel guard.
    */
   const exportCaseMap = () => {
-    // The viewer case is tab-local React state; its ROW is read from live store state, so an
-    // edit made since the last render exports as edited.
-    const target = store.getState().cases.find((c) => c.id === mapViewerCaseId) ?? null
-    if (!target) {
-      // Phone verbatim (`useExportFlow.ts:918-924`), joined `text1 — text2` like the notices
-      // above. Practically unreachable — the footer only renders inside a picked viewer case —
-      // but the phone guards it too, and a bridge that assumes its own precondition is how a
-      // dead button gets shipped.
-      setNotice(NO_CASE_SELECTED_NOTICE)
-      return
+    requestExportFlow({ type: 'case-map', caseId: mapViewerCaseId })
+  }
+
+  /**
+   * Build and hand over the file. Called from the flow's `case-map` arm and SYNCHRONOUS by
+   * contract — see that arm's note. Returns what happened; the caller turns it into copy.
+   */
+  const buildCaseMapDownload = (caseId: string): CaseMapOutcome => {
+    // Fetched when the map opened. `null` here means it never arrived (offline, or a stale
+    // chunk hash after a deploy) — a real, reachable state, and the one the flow says so about.
+    if (caseMapModule === null || caseMapModule === 'failed') return { kind: 'builder-unavailable' }
+    // Live store state, so an edit made since the last render exports as edited.
+    const st = store.getState()
+    const target = st.cases.find((c) => c.id === caseId)
+    if (!target) return { kind: 'builder-unavailable' }
+    const locations = st.locations.filter((l) => l.caseId === caseId)
+
+    const geojson = caseMapModule.buildCaseMapGeoJson(target, locations)
+    const html = caseMapModule.buildCaseMapHtml(
+      geojson,
+      caseMapModule.buildCaseMapMeta(target, clock.now().toISOString()),
+      // Same env var the live map, the geocoder and the autocomplete already read. Absent is a
+      // supported state on both sides: the case DATA is embedded and renders offline, and only
+      // the basemap tiles need the token (phone `resolveMapboxToken`, :56-67).
+      process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '',
+    )
+    const outcome = saveTextFile({
+      content: html,
+      filename: caseMapModule.caseMapFileName(target),
+      mimeType: caseMapModule.CASE_MAP_MIME_TYPE,
+    })
+    if (!outcome.requested) {
+      return outcome.reason === 'unavailable' ? { kind: 'save-unavailable' } : { kind: 'save-failed' }
     }
-    void (async () => {
-      let caseMap: typeof import('@/features/demo/engine/logic/case-map')
-      try {
-        caseMap = await import('@/features/demo/engine/logic/case-map')
-      } catch (e) {
-        // A lazy chunk can genuinely fail to arrive — offline, or a stale chunk hash requested
-        // after a deploy. Unhandled, that rejection is a button that does nothing, silently,
-        // which is the failure mode every honest-notice in this file exists to prevent.
-        console.warn('[demo/case-map] the export module failed to load — nothing was saved:', e)
-        setNotice(CASE_MAP_MODULE_FAILED_NOTICE)
-        return
-      }
-      const locations = store.getState().locations.filter((l) => l.caseId === target.id)
-      const geojson = caseMap.buildCaseMapGeoJson(target, locations)
-      const html = caseMap.buildCaseMapHtml(
-        geojson,
-        caseMap.buildCaseMapMeta(target, clock.now().toISOString()),
-        // Same env var the live map, the geocoder and the autocomplete already read. Absent is
-        // a supported state on both sides: the case DATA is embedded and renders offline, and
-        // only the basemap tiles need the token (phone `resolveMapboxToken`, :56-67).
-        process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '',
-      )
-      const outcome = saveTextFile({
-        content: html,
-        filename: caseMap.caseMapFileName(target),
-        mimeType: caseMap.CASE_MAP_MIME_TYPE,
-      })
-      setNotice(
-        outcome.requested
-          ? caseMapExportedNotice({
-              filename: outcome.filename,
-              // Over the SAME locations the builder was handed, so the count on screen can
-              // never disagree with the file.
-              coverage: caseMap.summariseCaseMapCoverage(locations),
-              mapIsEmpty: !caseMap.hasPlottableFeatures(geojson),
-              hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
-            })
-          : CASE_MAP_EXPORT_FAILED_NOTICE,
-      )
-    })()
+    return {
+      kind: 'requested',
+      filename: outcome.filename,
+      // Over the SAME locations the builder was handed, so the count on screen can never
+      // disagree with the file.
+      coverage: caseMapModule.summariseCaseMapCoverage(locations),
+      mapIsEmpty: !caseMapModule.hasPlottableFeatures(geojson),
+      hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
+    }
   }
 
   const submitLocation = () => {
@@ -1968,10 +1925,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     return []
   }
 
-  const exportTerminalAlert = (run: ExportRun): AlertState => {
-    const notice = describeExportTerminal(run)
-    return { title: notice.title, message: notice.message, actions: [{ label: 'OK', onPress: closeAlert }] }
-  }
+  const terminalAlert = (notice: ExportTerminalNotice): AlertState => ({
+    title: notice.title,
+    message: notice.message,
+    actions: [{ label: 'OK', onPress: closeAlert }],
+  })
+  const exportTerminalAlert = (run: SimulatedExportRun): AlertState =>
+    terminalAlert(describeExportTerminal(run))
 
   /**
    * The simulated ZIP pipeline: `generating` once per location that will get a PDF (with the
@@ -1982,7 +1942,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * (`:1046`). `sharing` is deliberately never entered: `DEMO_EXPORT_STAGES` excludes it
    * because "Opening share dialog..." precedes an OS share sheet a browser tab does not have.
    */
-  const runZipPipeline = (run: ExportRun, pdfPass: readonly string[]) => {
+  // `SimulatedExportRun`, not `ExportRun`: the two single-artifact arms return before this is
+  // reached, and the narrower parameter is what makes the terminal it raises type-check (review
+  // R-14 — the case-map run has its own terminal and must never fall into this one).
+  const runZipPipeline = (run: SimulatedExportRun, pdfPass: readonly string[]) => {
     // The entry guard already makes a concurrent run unreachable; this is the `runTimeSync`
     // belt-and-braces, so a future caller that bypasses the guard cannot leave two pipelines
     // ticking into one piece of state.
@@ -2015,12 +1978,27 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * from state, which is the engine's structural form of the phone's PR-87 HIGH-1 rule.
    */
   const startExportRun = (run: ExportRun, state: ExportFlowState) => {
-    if (run.type === 'location-geojson' || run.type === 'case-map') {
-      // No stage theatre for these two. The phone gives them no `onStageChange` at all and
-      // calls them "sub-second" (`useExportFlow.ts:906-911`); a fabricated "Validating
-      // locations..." would be inventing work. Both terminate inside THIS handler, so there is
-      // no window for a second press to enter — §70j's contract is met by there being no gap.
-      // SEAM(P5.4): real case-map download lands here.
+    if (run.type === 'case-map') {
+      // The one real artifact (decision D4). Everything below runs SYNCHRONOUSLY, which is what
+      // makes the flow's entry guard sufficient (review R-8): the handler returns with the
+      // stage back at rest and the terminal already raised, so there is no window for a second
+      // press — §70j's contract met by there being no gap, exactly as for `location-geojson`.
+      // The builder is a lazy chunk, so it is fetched when the map opens, NOT here; a network
+      // wait inside this handler would re-open that window and separate the click from the
+      // gesture that authorised it.
+      const outcome = buildCaseMapDownload(run.caseId)
+      // The builder's copy says "try again", so make that true: dropping the module back to
+      // `null` re-arms the fetch effect. A sentence that instructs a retry the code cannot
+      // perform is the same class of lie as a fake success.
+      if (outcome.kind === 'builder-unavailable') setCaseMapModule(null)
+      setExportFlow(resetExportFlow(state))
+      setAlert(terminalAlert(describeCaseMapTerminal(outcome)))
+      return
+    }
+    if (run.type === 'location-geojson') {
+      // No stage theatre. The phone gives it no `onStageChange` at all and calls it
+      // "sub-second" (`useExportFlow.ts:906-911`); a fabricated "Validating locations..."
+      // would be inventing work. Terminates inside THIS handler — same no-gap contract.
       setExportFlow(resetExportFlow(state))
       setAlert(exportTerminalAlert(run))
       return
@@ -2454,7 +2432,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} exportMapPending={caseMapModule === null} exportMapBlocked={alert !== null} />
       case 'export':
         return (
           <ExportHub

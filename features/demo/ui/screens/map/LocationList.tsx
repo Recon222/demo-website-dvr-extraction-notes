@@ -16,6 +16,24 @@ export interface LocationListProps {
    * host owns the export itself; this component only reports the press.
    */
   onExportMap?(): void
+  /**
+   * The Case Map builder — a lazy chunk — has not arrived yet (review R-8).
+   *
+   * The button disables rather than accepting the press, because the alternative is what this
+   * finding was about: a press that produces nothing visible while the network works, a second
+   * press, and N builds/downloads from N presses. Held briefly (the chunk is fetched when the
+   * map opens, not on the click), and `aria-busy` says why to anyone who cannot see the state.
+   */
+  exportMapPending?: boolean
+  /**
+   * A blocking dialog owns the screen, so the footer is not live (review R-8).
+   *
+   * The phone's `Alert.alert` is OS-modal — nothing underneath it can be pressed. The demo's
+   * `AlertDialog` renders its own scrim, which stops a real pointer, but "the overlay happens
+   * to cover it" is geometry rather than a contract: the same reasoning §70i rejected for the
+   * validation prompt. Disabling says it.
+   */
+  exportMapBlocked?: boolean
 }
 
 const list: CSSProperties = { padding: '4px 14px 18px' }
@@ -46,7 +64,16 @@ export const EXPORT_MAP_LABEL = 'Export Map'
 /** Phone `accessibilityLabel` (`LocationList.tsx:73`). */
 export const EXPORT_MAP_A11Y_LABEL = 'Export case map'
 
-function ExportMapFooter({ onExportMap }: { onExportMap(): void }) {
+function ExportMapFooter({
+  onExportMap,
+  pending,
+  blocked,
+}: {
+  onExportMap(): void
+  pending: boolean
+  blocked: boolean
+}) {
+  const disabled = pending || blocked
   return (
     <div style={footer}>
       <button
@@ -54,7 +81,10 @@ function ExportMapFooter({ onExportMap }: { onExportMap(): void }) {
         data-testid="export-map-button"
         aria-label={EXPORT_MAP_A11Y_LABEL}
         onClick={onExportMap}
-        style={exportButton}
+        disabled={disabled}
+        // Only the chunk fetch is "busy"; a dialog covering the button is not work in progress.
+        aria-busy={pending || undefined}
+        style={disabled ? { ...exportButton, opacity: 0.55, cursor: pending ? 'progress' : 'default' } : exportButton}
       >
         {/* Ionicons `map-outline` — the phone's icon, the same path the Map tab draws. */}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -67,12 +97,18 @@ function ExportMapFooter({ onExportMap }: { onExportMap(): void }) {
   )
 }
 
-export function LocationList({ items, selectedId, onSelect, onExportMap }: LocationListProps) {
+export function LocationList({ items, selectedId, onSelect, onExportMap, exportMapPending, exportMapBlocked }: LocationListProps) {
   // The footer rides BELOW the rows in both branches: on the phone it is the FlatList's
   // `ListFooterComponent`, which renders whether or not there is any data. A case whose
   // sites have no coordinates yet can still export its map (incident pin, header, timeline)
   // — and the handler says out loud when the file will open empty.
-  const exportFooter = onExportMap ? <ExportMapFooter onExportMap={onExportMap} /> : null
+  const exportFooter = onExportMap ? (
+    <ExportMapFooter
+      onExportMap={onExportMap}
+      pending={exportMapPending ?? false}
+      blocked={exportMapBlocked ?? false}
+    />
+  ) : null
 
   if (items.length === 0) {
     return (

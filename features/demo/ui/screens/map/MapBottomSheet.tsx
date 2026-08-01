@@ -29,6 +29,10 @@ export interface MapBottomSheetProps {
    * change to the drag/detent machinery.
    */
   onExportMap?(): void
+  /** Forwarded to the footer — see `LocationList`. */
+  exportMapPending?: boolean
+  /** Forwarded to the footer — see `LocationList`. */
+  exportMapBlocked?: boolean
 }
 
 // Visible detent heights (px) within the 378×786 phone screen, above the tab bar.
@@ -52,6 +56,8 @@ export function MapBottomSheet({
   onSelect,
   detail,
   onExportMap,
+  exportMapPending,
+  exportMapBlocked,
 }: MapBottomSheetProps) {
   const dragStart = useRef<number | null>(null)
   const [dragOffset, setDragOffset] = useState(0)
@@ -142,7 +148,7 @@ export function MapBottomSheet({
         {contentMode === 'detail' ? (
           detail
         ) : (
-          <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} onExportMap={onExportMap} />
+          <LocationList items={items} selectedId={selectedId} onSelect={onSelect ?? (() => undefined)} onExportMap={onExportMap} exportMapPending={exportMapPending} exportMapBlocked={exportMapBlocked} />
         )}
       </div>
     </div>
