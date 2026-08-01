@@ -9,7 +9,7 @@ import {
   type ScrapAllMode,
 } from '@/features/demo/engine/store/create-store'
 import { NARRATION, MODAL_NARRATION, TAB_NARRATION } from '@/features/demo/engine/content/narration'
-import { isLaunchableId, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
+import { isLaunchableId, isTabOnlyView, isTabView, nextChapter, prevChapter, WIZARD_SCREENS } from '@/features/demo/engine/content/screens'
 import {
   runImport as runTextImport,
   runPdfImport,
@@ -597,7 +597,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const narration =
     (modal && MODAL_NARRATION[modal]) ??
     (isLaunchableId(view) ? MODAL_NARRATION[view] : undefined) ??
-    TAB_NARRATION[view] ??
+    (isTabOnlyView(view) ? TAB_NARRATION[view] : undefined) ??
     NARRATION[currentChapter]
   // The manifest recomputes when the visit record, the active view, or the open modal
   // changes — all three are selectExploreStatus inputs (read via store.getState()), and
@@ -659,14 +659,37 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * full-case / single / subset decision is never made a second time here (§73/§74 contract).
    */
   const onExportPress = () => {
-    if (!exportFooter || !exportView) return
+    // LOUD backstops (R-13), the phone's PR-90/89 doctrine that `flow.ts` already carries
+    // verbatim: "on an evidence app a silent return reads as success". Unreachable today — the
+    // footer that owns this button renders only when both are non-null — but they are derived
+    // from a list this component does not own, and a silent `return` here would make a future
+    // divergence look like a completed export. Both strings are P5.1's ported taxonomy;
+    // `noSelection` had no caller until now.
+    if (!exportView) {
+      raiseExportAlert(EXPORT_ALERTS.noSelection)
+      return
+    }
+    if (!exportFooter) {
+      raiseExportAlert(EXPORT_ALERTS.caseUnavailable)
+      return
+    }
     const { dispatch } = exportFooter.plan
-    if (dispatch === 'case') {
-      requestExportFlow({ type: 'case', caseId: exportView.caseId })
-    } else if (dispatch === 'location') {
-      requestExportFlow({ type: 'location', locationId: Array.from(exportView.locationIds)[0] ?? null })
-    } else {
-      requestExportFlow({ type: 'case-subset', caseId: exportView.caseId, locationIds: Array.from(exportView.locationIds) })
+    // CLOSED with `assertNever` (R-3), like every other union consumer in the flow. The trailing
+    // `else` this replaces made a widened `dispatch` compile straight into the subset arm — at
+    // the one site the engine's invariant is about, that is a footer promising the canonical
+    // case artifact over a subset ZIP. A new pipeline must now break the build here.
+    switch (dispatch) {
+      case 'case':
+        requestExportFlow({ type: 'case', caseId: exportView.caseId })
+        return
+      case 'location':
+        requestExportFlow({ type: 'location', locationId: Array.from(exportView.locationIds)[0] ?? null })
+        return
+      case 'case-subset':
+        requestExportFlow({ type: 'case-subset', caseId: exportView.caseId, locationIds: Array.from(exportView.locationIds) })
+        return
+      default:
+        return assertNever(dispatch)
     }
   }
   // The open sheet's read-only report. Recomputed from the store, so a status action's
@@ -2122,8 +2145,6 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     validationResult: exportFlow.validationResult,
     stage: exportFlow.stage,
   })
-
-  const showTabs = view === 'dashboard' || view === 'cases' || view === 'map'
 
   // The tab bar shows exactly on the tab destinations — derived from the registry (`TAB_VIEWS`),
   // so the 4th tab needed no new arm here and a 5th won't either.

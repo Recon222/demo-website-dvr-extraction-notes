@@ -1,5 +1,15 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+
+// Controlled seam for motion/react's useReducedMotion (the ImportTerminalProgress precedent,
+// R-18): the real hook latches a module-global on first use, so the setup file's
+// `matches: false` matchMedia stub pins it and a per-test override cannot flip it. The mock
+// also pins WHICH hook the footer consumes.
+const motionState = vi.hoisted(() => ({ reduce: false as boolean | null }))
+vi.mock('motion/react', async (orig) => ({
+  ...(await orig<typeof import('motion/react')>()),
+  useReducedMotion: () => motionState.reduce,
+}))
 import { resolveExportPlan, type ExportSelection } from '@/features/demo/engine/logic/export'
 import { ExportHub, type ExportHubProps } from '@/features/demo/ui/screens/export/ExportHub'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
@@ -211,6 +221,24 @@ describe('ExportHub — pre-flight footer', () => {
     const one = selectionOf('c1', ['l1'])
     rerender({ selection: one, footer: footerFor(cardA, one) })
     expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toHaveStyle({ color: '#99badd' })
+  })
+
+  it('drops the rise animation under prefers-reduced-motion, keeping the footer itself (R-23)', () => {
+    const selection = selectionOf('c1', ['l1'])
+    const { rerender } = renderHub({ selection, footer: footerFor(cardA, selection) })
+    const footerEl = () => document.querySelector('[data-export-footer]') as HTMLElement
+    expect(footerEl().style.animation).toContain('exportFooterRise')
+
+    motionState.reduce = true
+    try {
+      rerender({ selection, footer: footerFor(cardA, selection) })
+      // Nothing moves — but the pre-flight panel and its CTA are still there, which is the
+      // half a "just disable the animation" refactor tends to take with it.
+      expect(footerEl().style.animation).toBe('')
+      expect(screen.getByRole('button', { name: 'Export 1 Location' })).toBeInTheDocument()
+    } finally {
+      motionState.reduce = false
+    }
   })
 
   it('hands the CTA and Clear presses straight out', () => {

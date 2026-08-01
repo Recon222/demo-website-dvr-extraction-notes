@@ -4466,3 +4466,97 @@ together — one agent, one commit, no concurrent editor on the bridge. Collapse
 `continueValidatedExport`, and delete the ref. Keep the `missingSubsetPayload` alert at the
 REQUEST boundary (`requestExport`'s empty-`locationIds` arm): that one guards a caller mistake
 the type cannot express, unlike the post-arm backstop the collapse makes unrepresentable.
+
+## 76. P5.2 fix round (parity/p5-fix-tab) — R-3 (+sibling), R-4, R-13, R-19, R-20, R-23, R-27
+
+**Source:** `docs/code-reviews/parity/p5/p5-review-r1-vetted.md`. Seven findings, seven commits,
+one-to-one. Two of them (R-3 primary, R-4) are the ORCHESTRATOR-SEAM items — the CTA→flow join
+written at P5.2's `SEAM(P5.3)` marker — which land here because the code lives in this territory.
+Everything below is FIXED; the residuals are named at the end.
+
+### 76a. R-3 [MAJOR] — FIXED, and the hole re-probed in both directions
+
+The join consumed `ExportSelectionPlan.dispatch` with a trailing `else`, at the one site the
+engine's invariant is about. Now a `switch` closed with `assertNever`, and `dispatch` is typed
+`Extract<ExportType, 'case' | 'location' | 'case-subset'>` (the `ValidatedExportType` discipline
+from `flow.ts:65`) instead of a hand-written triple. Probe: widening the union previously
+compiled clean and fell into the subset arm; it now fails at the switch —
+`Argument of type '"case-map"' is not assignable to parameter of type 'never'`. No import cycle:
+`flow.ts` imports `stage`/`validation`, never `selection`.
+
+**Sibling, same commit family:** `ariaChecked` in `ExportCaseCard` was a ternary chain whose
+fall-through told a screen reader `aria-checked="false"` — "nothing is selected" — for any 4th
+`CaseCheckboxState`. Also a closed switch now. (The other two siblings, `pdfPassFor` and
+`OptionIcon`, are P5.3's.)
+
+### 76b. R-4 [MAJOR] — FIXED; the three mutations are now each killed by exactly one test
+
+The seam block had one test, on the `case` arm, that could not distinguish a correctly-keyed
+dispatch from a hardcoded `'case'`. Three end-to-end tests added, written against the lane's
+surviving mutations and re-verified here — each mutation reddens exactly one test and nothing
+else: **subset** (2 of 3 ticked → `Location 1 of 2`, both ticked names, never the third, terminal
+"a ZIP of the 2 selected locations") kills the §74l scope escalation; **single** (terminal "a ZIP
+of this location", never "whole case") kills a nulled/dead location arm; **in-flight** (case
+checkbox + rows + CTA disabled, Clear not, lock lifts at the terminal) kills a reverted
+`isExporting={false}`. `seedExportable` + the P5.3 suite's `step`/`runToEnd` pair were lifted in;
+fake timers are scoped to that describe block only.
+
+### 76c. R-13 — FIXED (loud), with the reachability recorded
+
+`if (!exportFooter || !exportView) return` became two `raiseExportAlert` arms —
+`EXPORT_ALERTS.noSelection` (which had no caller until now) and `caseUnavailable`. Still
+unreachable: the footer that owns the CTA renders only when both resolve, so there is no UI path
+and **no test pins these arms** — the same call §70e makes about an unreachable guard. The value
+is the shape: the refactor that makes one reachable cannot present as a completed export.
+**Trigger:** if the footer ever renders on a nullable pair (a persisted selection, an async list),
+pin both arms in the same change.
+
+### 76d. R-19 — FIXED with `aria-current`, and that is the answer to "pick one"
+
+The bar signalled the active destination by hue alone across four tabs. Each button now carries
+`aria-current={active ? 'page' : undefined}`, pinned by a test that exactly one tab is current
+and that it moves. **The convention this settles:** `aria-current` for surfaces that NAVIGATE
+between destinations (this bar; `MediaLibrarySheet.tsx:558`'s selected row), `aria-pressed` for
+TOGGLE groups that change what one surface shows (§67c's media filter strip,
+`MediaCaptureScreen`'s mode pill). §67c is not being revisited — the two surfaces are different
+kinds of control, which is why they answer differently.
+
+### 76e. R-20 — FIXED — dead `showTabs` deleted
+
+A merge artifact: the pre-P5 three-tab rule surviving one line above its registry-derived
+replacement, with no reader and nothing in the toolchain (no `noUnusedLocals`, no ESLint) that
+would ever have said so. Recorded because the *class* recurs: this repo's only defence against a
+stale survivor is review, so a fix round that touches a merged bridge should grep its own
+predecessors.
+
+### 76f. R-23 — FIXED — both motion branches now execute
+
+ExportHub's reduced-motion arm had never run: the setup file's matchMedia stub pins
+`matches: false` and `useReducedMotion` latches a module-global on first use. Adopts the
+`ImportTerminalProgress` seam (hoisted `vi.mock` of `motion/react`), which additionally pins WHICH
+hook the footer consumes; mutation-verified. `slideDirection`'s widened dev guard gains its
+`'export'` case, asserting both the fade AND the silence under `NODE_ENV=development`.
+
+### 76g. R-27 — FIXED by construction; the test lost two arms because they stopped compiling
+
+`TAB_NARRATION` is now `Record<TabOnlyView, ChapterNarration>`, with
+`TabOnlyView = Exclude<TabView, ChapterId>` derived in the screens registry (not a third
+hand-written list) — the same id space `persistence.ts`'s `EXTRA_VIEWS` is exhaustive over. A
+missing tab-only entry and a chapter-key entry — which the bridge would let shadow that chapter's
+own copy, since it consults this record first — are both type errors now. The content test keeps
+only the runtime question (the copy is real); its two key-space arms were deleted because they no
+longer typecheck, which is the finding's own success condition. `content/narration.ts` also stops
+importing from `engine/store/` entirely.
+
+### 76h. RESIDUAL — the seam's fourth moving part is pinned behaviourally, not structurally
+
+R-4's in-flight test pins that `isExporting` is wired to the flow, but nothing prevents a future
+edit from passing a *different* boolean. The engine-level guarantee would be to hand the hub the
+flow state rather than a derived boolean; that is a prop-shape change across P5.2/P5.3 territory
+and was not in scope for a fix round. **Trigger:** if a second "is something running" source ever
+appears in the bridge (a download in flight, a sync), make the hub take the state and derive.
+
+### 76i. RESIDUAL — `EXPORT_ALERTS.noSelection` is called but still unproducible
+
+76c gives it a caller; it remains unreachable in practice (see the trigger there). It is now
+consistent with `caseUnavailable`, which has the same status at the two `pdfPassFor` sites.

@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { createDemoStore, type DemoStore } from '@/features/demo/engine/store/create-store'
 import { EXPORT_NARRATION } from '@/features/demo/engine/content/narration'
-import { DemoExperience } from '@/features/demo/ui/DemoExperience'
+import { DemoExperience, EXPORT_STEP_MS } from '@/features/demo/ui/DemoExperience'
 
 /**
  * P5.2 — the Export tab end to end through the bridge (matrix rows 7/24 + G7, ui-mapping 04).
@@ -28,6 +28,33 @@ function seed(count: number, caseNumber = 'PR25-0001'): DemoStore {
   })
   return store
 }
+
+/** One scope + both completion fields — what `validateLocationForPdf` needs to pass (lifted
+ *  from `DemoExperience.export.test.tsx:20-30`, the P5.3 suite's own recipe). */
+const SCOPE = [
+  { id: 'sc-1', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '' },
+]
+
+/** A case whose `count` locations all VALIDATE, so a dispatch runs the pipeline instead of
+ *  stopping at the validation prompt (which is what `seed` above is for). */
+function seedExportable(count: number, caseNumber = 'PR25-0001'): DemoStore {
+  const store = createDemoStore()
+  act(() => {
+    const caseId = store.getState().createCase({ caseNumber, displayName: 'Alpha', unit: 'VRU' })
+    for (let i = 1; i <= count; i++) {
+      const id = store.getState().addLocation(caseId, { locationName: `Location ${i}`, streetAddress: `${i} Main St`, city: 'Brampton' })
+      store.getState().switchLocation(id)
+      store.getState().updateField('form.scopes', SCOPE)
+      store.getState().updateField('form.dateTimeCompleted', '2025-03-09 04:10:00')
+      store.getState().updateField('form.completedBy', 'Det. Vega')
+    }
+  })
+  return store
+}
+
+/** One pipeline tick / run it to its terminal (the P5.3 suite's pair). */
+const step = (times = 1) => act(() => void vi.advanceTimersByTime(EXPORT_STEP_MS * times))
+const runToEnd = () => act(() => void vi.advanceTimersByTime(EXPORT_STEP_MS * 20))
 
 const openExportTab = () => fireEvent.click(screen.getByLabelText('Export'))
 const caseHeader = (caseNumber: string) => screen.getByRole('button', { name: `Case ${caseNumber}` })
@@ -176,6 +203,83 @@ describe('DemoExperience — Export selection', TIMEOUT, () => {
 })
 
 describe('DemoExperience — the P5.2/P5.3 seam, closed: the CTA runs the real flow', TIMEOUT, () => {
+  // Fake timers scoped to this block only: the pipeline is `setTimeout`-driven, and the
+  // selection tests above are pure `fireEvent` — no reason to freeze their clock too.
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  /**
+   * R-4: the seam has four moving parts and only the `case` arm was pinned, so three
+   * scope-changing mutations ran full-suite green — a subset dispatching the whole case (the
+   * §74l escalation), a dead single-location arm, and a reverted disabled-during-run treatment.
+   * The three tests below are those mutations' obituaries; they are what makes R-3's switch
+   * mean something at runtime as well as at compile time.
+   */
+
+  it('dispatches the SUBSET arm with exactly the ticked locations — not the whole case', () => {
+    render(<DemoExperience store={seedExportable(3)} />)
+    openExportTab()
+    fireEvent.click(caseHeader('PR25-0001'))
+    fireEvent.click(locationRow('Location 1'))
+    fireEvent.click(locationRow('Location 2'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export 2 of 3 Locations' }))
+
+    // The PDF pass is scoped to the selection: two locations, k-of-n counted against 2, not 3.
+    step()
+    expect(screen.getByText('Location 1 of 2')).toBeInTheDocument()
+    expect(screen.getByText('"Location 1"')).toBeInTheDocument()
+    step()
+    expect(screen.getByText('Location 2 of 2')).toBeInTheDocument()
+    expect(screen.getByText('"Location 2"')).toBeInTheDocument()
+    // The unticked location is never named by the pipeline (a `case` dispatch would name it).
+    expect(screen.queryByText('"Location 3"')).not.toBeInTheDocument()
+
+    runToEnd()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('a ZIP of the 2 selected locations')
+  })
+
+  it('dispatches the SINGLE-LOCATION arm — a live pipeline, not a dead button', () => {
+    render(<DemoExperience store={seedExportable(2)} />)
+    openExportTab()
+    fireEvent.click(caseHeader('PR25-0001'))
+    fireEvent.click(locationRow('Location 2'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export 1 Location' }))
+
+    step()
+    expect(screen.getByText('Location 1 of 1')).toBeInTheDocument()
+    expect(screen.getByText('"Location 2"')).toBeInTheDocument()
+
+    runToEnd()
+    const terminal = screen.getByRole('alertdialog')
+    expect(terminal).toHaveTextContent('a ZIP of this location')
+    expect(terminal).not.toHaveTextContent('whole case')
+  })
+
+  it('locks the hub while a run is in flight — every checkbox and the CTA, but never Clear', () => {
+    render(<DemoExperience store={seedExportable(2)} />)
+    openExportTab()
+    fireEvent.click(caseCheckbox('PR25-0001'))
+    const cta = screen.getByRole('button', { name: 'Export Full Case (2 locations)' })
+    expect(cta).toBeEnabled()
+
+    fireEvent.click(cta)
+    step()
+    expect(caseCheckbox('PR25-0001')).toBeDisabled()
+    expect(locationRow('Location 1')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export Full Case (2 locations)' })).toBeDisabled()
+    // Phone parity, ported as observed (§73g): Clear alone is not gated on the run.
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeEnabled()
+
+    // …and the lock lifts when the pipeline reaches its terminal.
+    runToEnd()
+    expect(caseCheckbox('PR25-0001')).toBeEnabled()
+  })
+
   it('dispatches the footer plan into the export flow instead of a placeholder notice', () => {
     render(<DemoExperience store={seed(2)} />)
     openExportTab()

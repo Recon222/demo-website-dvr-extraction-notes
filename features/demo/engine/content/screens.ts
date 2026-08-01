@@ -61,6 +61,22 @@ export function isTabView(v: string): v is TabView {
   return (TAB_VIEWS as readonly string[]).includes(v)
 }
 
+/**
+ * The tab destinations that are NOT also guided chapters: Map and Export.
+ *
+ * DERIVED, not a third hand-written list — it moves with `TAB_VIEWS` and with `CHAPTERS`, and
+ * it is the same id space `persistence.ts`'s `EXTRA_VIEWS` is exhaustive over
+ * (`Exclude<AppView, ChapterId | LaunchableId>`, since `AppView` adds only launchables on top
+ * of these two). Rail copy for these views cannot live in the `ChapterId`-keyed `NARRATION`
+ * record, so this is the key space that record's sibling uses.
+ */
+export type TabOnlyView = Exclude<TabView, ChapterId>
+
+/** Whether a view is a tab destination that is not also a chapter (Map, Export). */
+export function isTabOnlyView(v: string): v is TabOnlyView {
+  return isTabView(v) && !(CHAPTERS as readonly string[]).includes(v)
+}
+
 /** Whether a view id is a launch-only screen. The narration anchor needs this (§60k): a
  *  launchable's rail copy lives in `MODAL_NARRATION`, keyed by `ModalId | LaunchableId`, and
  *  indexing that record with the full `AppView` union would not typecheck. */

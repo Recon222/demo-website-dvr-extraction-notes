@@ -7,6 +7,7 @@ import {
   TAB_LABELS,
   TAB_VIEWS,
   isTabView,
+  isTabOnlyView,
   chapterNumber,
   wizardNumber,
   nextChapter,
@@ -51,6 +52,13 @@ describe('flow registries', () => {
   it('recognises exactly the registered tabs', () => {
     for (const id of TAB_VIEWS) expect(isTabView(id)).toBe(true)
     for (const id of ['submission', 'ocr', 'splash', 'nope']) expect(isTabView(id)).toBe(false)
+  })
+
+  it('narrows the tab-only destinations — a tab that is not also a chapter (R-27)', () => {
+    // The key space `TAB_NARRATION` and `persistence.ts`'s EXTRA_VIEWS are both closed over.
+    expect(TAB_VIEWS.filter(isTabOnlyView)).toEqual(['map', 'export'])
+    for (const id of ['dashboard', 'cases']) expect(isTabOnlyView(id)).toBe(false)
+    for (const id of ['submission', 'ocr', 'nope']) expect(isTabOnlyView(id)).toBe(false)
   })
 
   it('keeps OCR/media launch-only (never in the Next/Back flow)', () => {
