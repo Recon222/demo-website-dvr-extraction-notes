@@ -18,8 +18,11 @@ import { formatStored, nowParts, parsePartsLoose } from '@/features/demo/engine/
 import type { UserProfile } from '@/features/demo/engine/types'
 
 /** Every field empty — the phone's `DEFAULT_USER_PROFILE`, minus the absent `agencyLogoUri`
- *  (see the `UserProfile` doc for why). Frozen like `DEFAULT_SETTINGS`: it is only ever spread. */
-export const DEFAULT_USER_PROFILE: UserProfile = Object.freeze({
+ *  (see the `UserProfile` doc for why). Frozen like `DEFAULT_SETTINGS`, and annotated
+ *  `Readonly<…>` to KEEP what `Object.freeze` returns (review R-25): the previous mutable
+ *  annotation widened it straight back, so `DEFAULT_USER_PROFILE.name = 'x'` compiled and threw
+ *  at runtime instead of being refused. It is only ever spread. */
+export const DEFAULT_USER_PROFILE: Readonly<UserProfile> = Object.freeze({
   name: '',
   badgeNumber: '',
   timeInFieldStart: '',
