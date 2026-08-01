@@ -274,6 +274,32 @@ describe('DemoExperience — Export Map', () => {
     expect(terminal()).toBeInTheDocument()
   })
 
+  it('is not pressable while a validation prompt owns the flow (delta D-4)', async () => {
+    // The finding's own probe: arm the prompt from Completion, then take the narration rail
+    // back to the Map tab. That jump is possible because the rail sits OUTSIDE the phone, and
+    // neither overlay traps focus or sets `inert`, so the footer stays keyboard-reachable.
+    //
+    // This is the state where a press VANISHES rather than being merely redundant:
+    // `requestExportFlow`'s §70i guard returns early on `showValidationModal`. The terminal
+    // alert (the only state the original term covered) is the benign one.
+    const store = await openMap()
+    act(() => {
+      store.getState().switchLocation(store.getState().locations[0].id)
+      store.getState().setView('completion')
+    })
+    // The location has no scopes and no completion fields, so validation fails and prompts.
+    fireEvent.click(screen.getByText('Export Zip'))
+    fireEvent.click(screen.getByTestId('export-option-case'))
+    expect(screen.getByText(/Missing PDF Data/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Case Map, / }))
+    const button = screen.getByTestId('export-map-button')
+    expect(button).toBeDisabled()
+    // …and it disables because the press would otherwise land nowhere at all.
+    pressExportMap()
+    expect(saved).toHaveLength(0)
+  })
+
   it('is not pressable again while its terminal is up (review R-8)', async () => {
     // The phone's Alert is OS-modal; the demo's dialog renders a scrim that stops a real
     // pointer. The button disables as well, because "the overlay happens to cover it" is

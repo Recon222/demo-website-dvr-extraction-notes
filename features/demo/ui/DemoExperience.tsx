@@ -2501,7 +2501,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
           />
         )
       case 'map':
-        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} exportMapPending={caseMapModule === null} exportMapBlocked={alert !== null} />
+        return <MapScreen viewerCaseId={mapViewerCaseId} mapData={mapData} onChangeCase={() => setMapPickerOpen(true)} onGoToLocation={openLocation} onEditIncident={editIncident} onExportMap={exportCaseMap} exportMapPending={caseMapModule === null} exportMapBlocked={alert !== null || exportModalMode !== 'hidden'} />
       case 'export':
         return (
           <ExportHub

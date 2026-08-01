@@ -26,12 +26,19 @@ export interface LocationListProps {
    */
   exportMapPending?: boolean
   /**
-   * A blocking dialog owns the screen, so the footer is not live (review R-8).
+   * Something else owns the export flow, so the footer is not live (review R-8, delta D-4).
    *
    * The phone's `Alert.alert` is OS-modal — nothing underneath it can be pressed. The demo's
-   * `AlertDialog` renders its own scrim, which stops a real pointer, but "the overlay happens
-   * to cover it" is geometry rather than a contract: the same reasoning §70i rejected for the
+   * overlays render their own scrims, which stop a real pointer, but "the overlay happens to
+   * cover it" is geometry rather than a contract: the same reasoning §70i rejected for the
    * validation prompt. Disabling says it.
+   *
+   * THREE states, not one (D-4). The original term covered only the terminal alert — the state
+   * where a press is at worst redundant. The two it missed are the ones where a press VANISHES:
+   * with the validation prompt open, `requestExportFlow`'s §70i guard returns early; with a ZIP
+   * running, the engine's entry guard returns `ignored`. Both are reachable because the demo's
+   * narration rail sits outside the phone and can jump the visitor to the Map tab mid-flow, and
+   * neither overlay traps focus or sets `inert`, so the button stays keyboard-reachable.
    */
   exportMapBlocked?: boolean
 }
