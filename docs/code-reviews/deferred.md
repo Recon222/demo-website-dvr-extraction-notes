@@ -4678,9 +4678,17 @@ before "simplifying".
 `summariseCaseMapCoverage` deliberately re-walks the locations rather than having
 `buildCaseMapGeoJson` return a pair: the builder's return type is the GeoJSON contract the
 template reads, and widening it to a tuple would put a UI concern in the artifact's shape. The
-cost is one extra pass over a list of tens; the pin that they cannot disagree is a test, not a
-type. **Trigger:** if a third consumer needs the counts, promote to a single
-`{ collection, coverage }` builder rather than adding a third walk.
+cost is one extra pass over a list of tens.
+
+**CORRECTED (delta D-5).** The sentence "the pin that they cannot disagree is a test, not a
+type" described a real weakness and understated it: the walk re-IMPLEMENTED
+`locationToFeature`'s gate rather than consulting it, so one added term in the builder would
+have re-created r0 R-1's shape structurally — a banner over-reporting coverage against a file
+that dropped more than it admitted. The summariser now tests `locationToFeature(location) !==
+null`, which makes divergence impossible instead of merely unlikely, at the cost of building
+each feature twice per export. **Trigger (revised):** if that double build ever matters —
+it will not at demo scale — promote to a single `{ collection, coverage }` builder; do NOT go
+back to a second copy of the predicate.
 
 ### 78b. R-2 — `requested`, and why no amount of code makes it `ok`
 

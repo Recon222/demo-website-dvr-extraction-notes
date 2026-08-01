@@ -76,6 +76,24 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
     expect(plotted).toHaveLength(coverage.plottedLocations)
   })
 
+  it('follows `locationToFeature` rather than re-testing its predicate (delta D-5)', () => {
+    // The gate is the builder itself, so a term added to `locationToFeature` moves BOTH the
+    // file and the count. Simulating that: a location the builder rejects for a reason the
+    // old coverage predicate knew nothing about must still be counted as dropped.
+    const rejected = demoLocation({
+      id: 'x',
+      locationName: 'Out of range',
+      // Latitude past the pole — `hasCapturedCoordinates` rejects it, and so does the builder.
+      gps: { lat: 120, lng: -79.6, source: 'gps' },
+    })
+    expect(locationToFeature(rejected)).toBeNull()
+    expect(summariseCaseMapCoverage([rejected])).toMatchObject({
+      plottedLocations: 0,
+      droppedLocationNames: ['Out of range'],
+    })
+    expect(buildCaseMapGeoJson(null, [rejected]).features).toEqual([])
+  })
+
   it('does NOT count the incident pin as a plotted location', () => {
     // R-1's second half: `hasPlottableFeatures` counts the incident, so gating the empty-map
     // caveat on it kept the caveat silent for a case with an incident and zero plotted sites.

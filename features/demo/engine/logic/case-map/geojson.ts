@@ -227,14 +227,22 @@ export interface CaseMapCoverage {
 }
 
 /**
- * Summarise what `buildCaseMapGeoJson` will and will not include, over the SAME gate the
- * builder applies — one predicate, so the sentence on screen can never disagree with the file.
+ * Summarise what `buildCaseMapGeoJson` will and will not include.
+ *
+ * The gate is `locationToFeature` ITSELF, not a re-implementation of its predicate (delta
+ * D-5). The two used to test `hasCapturedCoordinates` independently — they agreed, but one
+ * added term in the builder's gate would have re-created r0 R-1's exact shape structurally:
+ * a banner over-reporting coverage against a file that dropped more than it admitted. Asking
+ * the builder makes divergence impossible rather than merely unlikely.
+ *
+ * The cost is building the features twice per export (once here, once in the collection) over
+ * a list of tens. That is the right trade against a silent miscount on a forensic artifact.
  */
 export function summariseCaseMapCoverage(locations: readonly DemoLocation[]): CaseMapCoverage {
   const dropped: string[] = []
   let plotted = 0
   for (const location of locations) {
-    if (hasCapturedCoordinates(location.gps)) plotted += 1
+    if (locationToFeature(location) !== null) plotted += 1
     else dropped.push(location.locationName)
   }
   return {
