@@ -79,6 +79,29 @@ describe('the grid is the wizard inventory', () => {
   })
 })
 
+describe('the row expander names itself once (R-31)', () => {
+  it('keeps the state in aria-expanded and out of the accessible name', () => {
+    renderPane()
+    const row = screen.getByTestId('fc-group-dvrInfo')
+    expect(row).toHaveAttribute('aria-label', 'DVR Information')
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(row)
+    // The name is stable across the state change — only `aria-expanded` moves, so AT does not
+    // announce "collapsed" twice (the rule `MediaAccordion` states and the other eight
+    // `aria-expanded` sites in the repo follow).
+    expect(screen.getByTestId('fc-group-dvrInfo')).toHaveAttribute('aria-label', 'DVR Information')
+    expect(screen.getByTestId('fc-group-dvrInfo')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('points the expander at the body it opens', () => {
+    renderPane()
+    fireEvent.click(screen.getByTestId('fc-group-dvrInfo'))
+    const controls = screen.getByTestId('fc-group-dvrInfo').getAttribute('aria-controls')
+    expect(controls).toBeTruthy()
+    expect(document.getElementById(controls!)).toBe(screen.getByTestId('fc-body-dvrInfo'))
+  })
+})
+
 describe('locks', () => {
   it('renders must-stay screens locked, on and inert', () => {
     const props = renderPane()

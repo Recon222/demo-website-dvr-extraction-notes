@@ -261,6 +261,7 @@ function ScreenRow({
   // twelve rows (and fifty field rows) never collide even though the pill copy is identical.
   const uid = useId()
   const lockId = (suffix: string) => `${uid}-lock-${suffix}`
+  const bodyId = `${uid}-body`
   const locked = isStepMustStay(step.id)
   const visible = isStepVisible(step.id)
   const fields = getStepFields(step.id)
@@ -271,8 +272,13 @@ function ScreenRow({
       <div style={rowStyle}>
         <button
           type="button"
+          // R-31: `aria-expanded` already carries the state, so the NAME must not repeat it —
+          // the repo's own `MediaAccordion` states this rule and the other eight
+          // `aria-expanded` sites follow it. The name is the step label, full stop; the state
+          // and the target come from the two attributes beside it.
           aria-expanded={expanded}
-          aria-label={`${step.label}, ${expanded ? 'expanded' : 'collapsed'}`}
+          aria-controls={bodyId}
+          aria-label={step.label}
           data-testid={`fc-group-${step.id}`}
           onClick={() => setExpanded((e) => !e)}
           style={chevronButton}
@@ -296,7 +302,7 @@ function ScreenRow({
       </div>
 
       {expanded && (
-        <div style={bodyStyle} data-testid={`fc-body-${step.id}`}>
+        <div id={bodyId} style={bodyStyle} data-testid={`fc-body-${step.id}`}>
           {!fieldCapable ? (
             <div style={noteStyle}>{SCREEN_NOTES[step.id] ?? COPY.noFields}</div>
           ) : !visible ? (
