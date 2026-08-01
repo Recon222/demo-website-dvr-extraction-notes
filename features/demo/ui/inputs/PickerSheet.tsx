@@ -13,6 +13,17 @@ export interface PickerSheetProps {
   footer?: ReactNode
 }
 
+/**
+ * The LOWEST layer a picker paints on — its scrim; the panel sits one above (`+ 1`).
+ *
+ * Exported (review FD-2) because it is the upper bound of the modal-over-modal ordering: a sheet
+ * that OPENS pickers (the User Profile editor, whose two date fields do) must stay strictly below
+ * this, or the picker it opened would render behind it. Bounding against the scrim rather than
+ * the panel is deliberate — the scrim is what dims the surface underneath, so it is the layer the
+ * opener has to be under.
+ */
+export const PICKER_SHEET_Z = 31
+
 const dot: CSSProperties = { width: 6, height: 6, borderRadius: 3, background: T.primary }
 
 /**
@@ -35,7 +46,7 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
       <div
         data-sheet-scrim
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, zIndex: 31, background: T.scrim, pointerEvents: 'auto' }}
+        style={{ position: 'absolute', inset: 0, zIndex: PICKER_SHEET_Z, background: T.scrim, pointerEvents: 'auto' }}
       />
       <div
         role="dialog"
@@ -47,7 +58,7 @@ export function PickerSheet({ title, onClose, children, footer }: PickerSheetPro
           left: 0,
           right: 0,
           bottom: 0,
-          zIndex: 32,
+          zIndex: PICKER_SHEET_Z + 1,
           pointerEvents: 'auto',
           maxHeight: '92%',
           display: 'flex',

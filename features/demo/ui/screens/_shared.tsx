@@ -35,6 +35,16 @@ export function switchKeyDown(activate: () => void) {
 export const MODAL_LAYER = { base: 0, overSheet: 4 } as const
 export type ModalLayer = (typeof MODAL_LAYER)[keyof typeof MODAL_LAYER]
 
+/**
+ * The two z-indexes a `ModalShell` paints on at `MODAL_LAYER.base` — scrim, then panel one above
+ * it. Named and exported rather than inlined (review FD-2) because they are one END of an
+ * ordering that spans three files: a sheet opened from inside another sheet lands at
+ * `SETTINGS_SHEET_Z + MODAL_LAYER.overSheet` and must stay strictly under `PICKER_SHEET_Z`. An
+ * invariant asserted against re-typed literals is asserted against nothing.
+ */
+export const MODAL_SCRIM_Z = 21
+export const MODAL_SHEET_Z = 22
+
 const grid: CSSProperties = {
   position: 'absolute',
   inset: 0,
@@ -97,7 +107,7 @@ export function ModalShell({
   }, [onClose])
   const content = (
     <>
-      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 21 + elevation, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
+      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: MODAL_SCRIM_Z + elevation, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
       <div
         role="dialog"
         aria-modal="true"
@@ -109,7 +119,7 @@ export function ModalShell({
           right: 0,
           top: 34,
           bottom: 0,
-          zIndex: 22 + elevation,
+          zIndex: MODAL_SHEET_Z + elevation,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           background: '#0d1b2a',

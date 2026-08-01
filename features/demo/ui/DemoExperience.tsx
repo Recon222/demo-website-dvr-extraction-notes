@@ -152,7 +152,7 @@ import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
-import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import { describeSaveStatus, type SaveStateKind, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
 import type { CameraEntry, CaseStatus, DuplicateMode, FormFieldId, FormStepId, MediaItem, MediaKind, NoteSectionId, OcrProof, Profile, ScopeEntry, UserProfile } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
@@ -665,21 +665,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     [store],
   )
   /**
-   * Is this tab genuinely storing? Sampled when the Settings sheet OPENS (review R-3).
+   * What is this tab's persistence layer doing? Sampled when the Settings sheet OPENS (review
+   * R-3; widened from a boolean to the KIND by FD-7, so the quota case gets its own sentence
+   * instead of being told the browser stores nothing).
    *
    * The User Profile pane's opening sentence promises refresh survival, and `persistence.ts`'s
    * `isLive()` doc makes gating such a sentence on the handle a rule, not a preference. Sampled
    * exactly like the drawer's save-status line — `flush()` first so a write still inside its
    * 250 ms debounce lands before we describe it, then read — and re-sampled on every open, so a
    * write failure that revoked the promise mid-session demotes the very next visit to the pane.
-   * A missing handle counts as "not storing": never assume a wired handle.
+   * A missing handle counts as `unavailable`: never assume a wired handle.
    */
-  const [profilePersisted, setProfilePersisted] = useState(false)
+  const [profileSaveState, setProfileSaveState] = useState<SaveStateKind>('unavailable')
   useEffect(() => {
     if (modal !== 'settings') return
     const handle = persistenceRef.current
     handle?.flush()
-    setProfilePersisted(handle?.saveState().kind === 'saved')
+    setProfileSaveState(handle?.saveState().kind ?? 'unavailable')
   }, [modal])
 
   // ---- Form customization (P7.3, matrix A2, decision D9) ----------------------------------
@@ -2773,7 +2775,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // contract, not a base class for these two.
             renderPane={(id) =>
               id === 'user-profile' ? (
-                <UserProfilePane profile={userProfile} onSave={saveUserProfile} persisted={profilePersisted} />
+                <UserProfilePane profile={userProfile} onSave={saveUserProfile} saveState={profileSaveState} />
               ) : id === 'form-customization' ? (
                 <FormFieldsPane
                   profile={profile}

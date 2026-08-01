@@ -4,7 +4,10 @@ import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserP
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
+import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
+import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
+import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 
 /**
  * The User Profile pane + its editor (P7.2, matrix rows 85/86).
@@ -26,9 +29,9 @@ const FULL = profile({
   qualifications: 'Adobe certified; FVA member',
 })
 
-function renderPane(p: UserProfile = DEFAULT_USER_PROFILE, persisted = true) {
+function renderPane(p: UserProfile = DEFAULT_USER_PROFILE, saveState: SaveStateKind = 'saved') {
   const onSave = vi.fn()
-  render(<UserProfilePane profile={p} onSave={onSave} persisted={persisted} />)
+  render(<UserProfilePane profile={p} onSave={onSave} saveState={saveState} />)
   return { onSave }
 }
 
@@ -103,8 +106,8 @@ describe('the pane — configured', () => {
 
   it('withdraws the storage promise when the tab is not storing [R-3]', () => {
     // `persistence.ts`'s `isLive()` rule: a surface may only promise refresh survival while the
-    // handle is actually writing. Private-browsing / quota-exhausted tabs clear the snapshot.
-    renderPane(FULL, false)
+    // handle is actually writing. Private-browsing tabs never store at all.
+    renderPane(FULL, 'unavailable')
     const note = screen.getByTestId('settings-pane-stub-note')
     expect(note).not.toHaveTextContent(/kept for this browser tab/)
     expect(note).toHaveTextContent(/isn’t storing the session/)
@@ -114,12 +117,39 @@ describe('the pane — configured', () => {
     expect(note).toHaveTextContent(/On the phone it lives on the device instead/)
   })
 
-  it('makes the promise only in the storing arm — the two clauses are exclusive', () => {
-    const { unmount } = render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted />)
-    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/isn’t storing the session/)
-    unmount()
-    render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted={false} />)
-    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/kept for this browser tab/)
+  it('gives the QUOTA case its own diagnosis, not the never-stored one [FD-7]', () => {
+    // The case R-3 was filed about: the browser stored fine until it ran out of room, the
+    // snapshot was cleared, and "this browser isn't storing the session" would be a wrong
+    // description of what just happened.
+    renderPane(FULL, 'failed')
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).toHaveTextContent(/the last save to this tab failed/)
+    expect(note).toHaveTextContent(/gone if you reload/)
+    expect(note).not.toHaveTextContent(/isn’t storing the session/)
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+  })
+
+  it('does not promise, or deny, before the first write has landed [FD-7]', () => {
+    renderPane(FULL, 'pending')
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).toHaveTextContent(/hasn’t stored anything yet, but it will as you go/)
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+    expect(note).not.toHaveTextContent(/failed/)
+  })
+
+  it('says exactly one true thing per state — the four clauses are mutually exclusive', () => {
+    // The promise sentence may appear in the `saved` arm and nowhere else; every other state
+    // must say something, and never that one.
+    const seen = new Set<string>()
+    for (const kind of ['saved', 'pending', 'failed', 'unavailable'] as const) {
+      const { unmount } = render(<UserProfilePane profile={FULL} onSave={vi.fn()} saveState={kind} />)
+      const text = screen.getByTestId('settings-pane-stub-note').textContent ?? ''
+      expect(text.includes('kept for this browser tab'), kind).toBe(kind === 'saved')
+      expect(text, kind).toContain('This one is real')
+      seen.add(text)
+      unmount()
+    }
+    expect(seen.size, 'two states share a sentence').toBe(4)
   })
 })
 
@@ -257,16 +287,32 @@ describe('the editor — save and discard', () => {
   })
 })
 
-describe('the editor’s layer (R-29)', () => {
-  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
-    // The invariant `MODAL_LAYER` exists to carry: `SettingsModal`'s sheet is 22 and
-    // `PickerSheet` is 31/32, so the editor must land strictly between them.
-    expect(MODAL_LAYER.base).toBe(0)
-    expect(22 + MODAL_LAYER.overSheet).toBeGreaterThan(22)
-    expect(22 + MODAL_LAYER.overSheet).toBeLessThan(31)
+describe('the editor’s layer (R-29 / FD-2)', () => {
+  /**
+   * Both neighbours are READ from the surfaces that own them. Re-typing either as a literal
+   * (the first version of this test did both) unpins the invariant in that direction: the
+   * neighbour can move and the assertion happily keeps comparing against the old number.
+   */
+  const editorZ = SETTINGS_SHEET_Z + MODAL_LAYER.overSheet
 
+  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
+    expect(MODAL_LAYER.base).toBe(0)
+    expect(editorZ).toBeGreaterThan(SETTINGS_SHEET_Z)
+    expect(editorZ).toBeLessThan(PICKER_SHEET_Z)
+  })
+
+  it('renders on exactly that layer', () => {
     openEditor(FULL)
-    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
-    expect(dialog.style.zIndex).toBe(String(22 + MODAL_LAYER.overSheet))
+    expect(screen.getByRole('dialog', { name: 'User Profile' }).style.zIndex).toBe(String(editorZ))
+  })
+
+  it('is the layer the Settings sheet and the pickers actually paint on', () => {
+    // The relational assertions above are only worth anything if the two constants are the
+    // values their own surfaces render — otherwise the ordering holds between two numbers that
+    // no longer describe the DOM.
+    openEditor(FULL)
+    fireEvent.click(within(screen.getByTestId('profile-time-in-field')).getByRole('button', { name: 'Set date' }))
+    expect(screen.getByRole('dialog', { name: 'Select Date' }).style.zIndex).toBe(String(PICKER_SHEET_Z + 1))
+    expect(document.querySelector('[data-sheet-scrim]')).toHaveStyle({ zIndex: String(PICKER_SHEET_Z) })
   })
 })
