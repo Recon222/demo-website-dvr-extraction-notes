@@ -10,7 +10,7 @@ import {
   describeProfile,
 } from '@/features/demo/engine/content/profiles'
 import { ALWAYS_ON_FIELDS, FORM_FIELDS, FORM_STEPS } from '@/features/demo/engine/content/form-customization'
-import { PROFILES } from '@/features/demo/engine/types'
+import { PROFILES, type Profile } from '@/features/demo/engine/types'
 
 describe('narration', () => {
   it('has non-empty copy for every tour chapter', () => {
@@ -118,6 +118,13 @@ describe('profiles', () => {
         expect(PROFILE_DEFAULTS[id].fields[field], `${id} hides mandatory "${field}"`).toBe(true)
       }
     }
+  })
+
+  it('falls back to the default profile when asked about one that is not in the universe', () => {
+    // Same defence-in-depth as the resolver's `profileDefaultsFor` (pinned in
+    // form-visibility.test.ts): a throw here would throw inside the settings pane's render.
+    expect(describeProfile('nope' as Profile)).toEqual(describeProfile(DEFAULT_PROFILE))
+    expect(describeProfile('nope' as Profile)).toEqual({ steps: 0, fields: 0 })
   })
 
   it('describes each profile by COUNTING its defaults, never by its blurb', () => {
