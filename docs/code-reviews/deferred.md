@@ -5393,6 +5393,10 @@ with it.
 and the group is already in the registry with a lock-free default, so the phone's own intent is
 legible. Filed for the phone as ledger item 19.
 
+**Completed by the P7 review's A2 ruling — see §86a.** The gate described here is the DISPLAY
+half; hiding the group also suppresses NEW coordinate stamping in `onPick`. Read the two
+together: this entry says why the gate exists, §86a says how far it reaches.
+
 **Trigger:** none here. If the phone wires its four ids, the two apps converge with no demo
 change.
 
@@ -5575,3 +5579,95 @@ comments (`SEAM(P7.3)` on the `profile` subscription and on `formProfileLabel`) 
 same pass, since the seam they pointed at is now closed.
 
 **Trigger:** none.
+
+## 86. P7 review round 1 — P7.3's fix dispositions, the A2 write-side ruling, and the A3 reset decision
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` (REVISE — 0B/7M/27m), the
+P7.3-owned rows of its routing table: majors R-2, R-4, R-6 (RowSwitch half); minors R-8, R-12,
+R-13, R-15, R-16, R-17, R-20, R-22, R-23, R-24, R-26, R-27, R-28, R-31. All seventeen are FIXED;
+nothing in this package was deferred. The entries below record the two rulings the doc attached
+to this owner (A2, A3) and the four decisions a later reader could otherwise mistake for drift.
+
+### 86a. RULED (A2, rides R-2) — the coordinate gate governs WRITES, not just pixels
+
+**What §82b said:** the demo invented a gate the phone does not have, because the phone's four
+`submission.*` coordinate ids are in its settings grid with no `useFieldVisible` reader — a
+switch that moves nothing. §82b described the demo's version as "the capture control + lookup
+notice + coordinate card go with it", i.e. display.
+
+**What it now means:** display **and** stamping. With the group hidden, `LocationFields`'
+`onPick` no longer writes `lat`/`lng`/`accuracyM`/`coordinateSource`; street and city are
+always-on and still write. The aggregator's ruling, and it is right on this project's own terms —
+a switch that governs what the visitor SEES while the app keeps writing what they cannot see,
+verify or clear re-creates the dishonesty the gate was invented to remove, one level down, and
+those coordinates reach the Map pin and the exported case map.
+
+**The boundary, stated once:** only NEW stamping is suppressed. A coordinate captured before the
+switch was flipped stays exactly where it is — that is the pane footnote's "already entered"
+case, and removing it would be the opposite failure (a settings toggle deleting evidence).
+
+**§82b stands as written**; this entry completes it rather than replacing it. The phone-side
+half is unchanged: ledger item 19 still asks the phone to gate its four ids at all.
+
+### 86b. RULED (A3, rides R-13) — `reset()` preserves the whole settings family
+
+**What was decided:** `reset()` now carries `userProfile`, `profile` AND `formOverrides` across.
+Previously it preserved the first (P7.2's branch, §81c) and wiped the other two (P7.3's) — two
+answers to one question, reached independently, reconciled nowhere, and asserted nowhere in
+either direction (the reviewer's probe flipped the behaviour and 280 tests stayed green).
+
+**Why preserve, not wipe:** all three are device-level configuration that the phone cannot reset
+at all, and both feature READMEs say so in the same words — `user-profile`'s "kept separate from
+the SQLite-backed case data", `form-customization/README.md:12-13`'s "device-level config —
+never case data". `reset()`'s own doc already scopes "start over" to the visitor's CASES. Which
+form a deployment runs is a configuration OF the wizard, not a thing the wizard holds.
+
+**What still forgets it:** the tab. The snapshot is per-tab and dies with it, and the one caller
+that exists — the route error net's "Start fresh" — clears the snapshot BEFORE it resets, so a
+genuinely poisoned session still boots clean.
+
+**Trigger:** an owner ruling the other way. If it comes, change all three together — the point
+of this entry is that the family has one rule, not that the rule is preserve.
+
+### 86c. RECORDED — three shapes hardened from "pinned by test" to "pinned by type"
+
+Each was a real gap the review found, and in each case the fix moved the guarantee down a level
+rather than adding another assertion:
+
+- **R-22** — `selectVisibleWizardScreens` cast `FormStepId` → `WizardScreenId` and explained that
+  a test would catch a leak. `LinearFormStepDef` (`id: WizardScreenId`, `additive?: false`) now
+  carries the narrowing from `DRAWER_DEFS` to the router, so an additive tool in the linear list
+  is a compile failure. The registry test's `additive !== true` assertion stopped typechecking as
+  a meaningful comparison — which is the finding restated.
+- **R-20** — the drawer's tool set was `{ capture, audio }`, ad-hoc names re-declared at the
+  consumer, so a third additive tool would have compiled everywhere and silently never reached
+  the accordion. Now `Readonly<Record<AdditiveFormStepId, boolean>>` built FROM the tuple and
+  imported, not re-typed.
+- **R-24** — `ProfileDefaults` was typed total, documented total, built with `{} as Record<…>`
+  and read back with `?? false`. Built by mapping the registries in one expression; both
+  fallbacks deleted.
+
+### 86d. RECORDED — `selectDrawerStatus`'s second argument is a required MODE (R-23)
+
+The drawer-dot vs map-pin split (§82f) was expressed by argument ABSENCE, so a caller who simply
+forgot got the map-pin semantics silently. The parameter is now required and its type names both
+readings: `FormVisibility | 'count-all'` (`COUNT_ALL_FIELDS`). §82f's reasoning is unchanged —
+the drawer asks "what is left for ME to fill" and the map asks "how far along is this LOCATION" —
+only the way a caller states which one is.
+
+### 86e. RECORDED — what the a11y half of this round did and did not cover
+
+R-6's RowSwitch half and R-31 are fixed here: locked grid switches point `aria-describedby` at
+their own "Always on" pill (so the reason is the pill's existing words, not new copy), and the
+row expander stopped baking `expanded`/`collapsed` into its accessible name.
+
+**Not covered here, by routing:** the shared `Toggle` + stub-pane half of R-6, and R-9/R-10/R-32/
+R-34 — all P7.1's. A reader auditing accessibility across the Settings surface should read this
+entry together with P7.1's, not conclude from the grid's fix that the surface is done.
+
+### 86f. RECORDED — the two dead-code deletions, so neither reads as an accident
+
+`checkArray` (R-16) lost its last caller when the dots became visibility-aware and was deleted
+rather than kept as an untested near-twin of `countedArray`. Nothing else in P7.3 was removed
+this round. The earlier `nextChapter`/`prevChapter` and `FORENSIC`/`getProfile` deletions are
+§82f's and §82's, not this round's.
