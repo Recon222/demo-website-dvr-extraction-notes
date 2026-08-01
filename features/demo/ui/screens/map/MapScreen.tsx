@@ -18,7 +18,7 @@ import {
   toggleStatus,
   type MapFilterState,
 } from '@/features/demo/ui/screens/map/mapFilters'
-import { DEFAULT_PROXIMITY_RADIUS, type LngLat, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
+import { DEFAULT_MAP_CENTER, DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
 import type { ProximityResult } from '@/features/demo/ui/screens/map/mapProximity'
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
@@ -32,13 +32,17 @@ const EMAIL_UNAVAILABLE = "Email isn't available in the demo."
  * filtering (§49a/R-9: a control must not assert what it cannot do).
  */
 const PROXIMITY_UNAVAILABLE = "Proximity analysis couldn't load. Check your connection and try again."
+/**
+ * Said once, when the ring's centre was chosen FOR the visitor rather than taken from a row they
+ * can see (review R-18a). Reachable whenever nothing is plotted — including after a zero-match
+ * filter, since the anchor chain reads the post-filter list — and without it the ring simply
+ * appears somewhere, filtering against a point nobody picked.
+ */
+const PROXIMITY_CENTRED_ON_VIEW = 'Proximity centred on the current view — long-press the map to move it.'
 
 /** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
 const NO_CAMERAS: readonly MapCameraMarker[] = Object.freeze([])
 
-/** Last-resort proximity centre when the case has nothing plotted and the map has no centre yet.
- *  Matches `MapCanvas`'s own default camera centre rather than inventing a coordinate. */
-const FALLBACK_CENTER: LngLat = Object.freeze([-79.65, 43.61]) as LngLat
 
 type ProximityModule = typeof import('@/features/demo/ui/screens/map/mapProximity')
 
@@ -285,8 +289,12 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     }
     void loadProximity()
     if (!proximityCenter) {
-      const anchor = filtered.items[0]?.coord ?? mapRef.current?.getCenter() ?? FALLBACK_CENTER
+      const plotted = filtered.items[0]?.coord
+      const anchor = plotted ?? mapRef.current?.getCenter() ?? DEFAULT_MAP_CENTER
       setProximityCenter([anchor[0], anchor[1]])
+      // Only the derived-anchor arms are announced: an anchor taken from a row the visitor can
+      // see in the sheet explains itself.
+      if (!plotted) setNotice(PROXIMITY_CENTRED_ON_VIEW)
     }
     setProximityActive(true)
   }, [proximityActive, proximityCenter, filtered.items, loadProximity])

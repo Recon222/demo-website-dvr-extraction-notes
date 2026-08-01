@@ -402,6 +402,50 @@ describe('MapScreen — the camera is never yanked (review R-1)', () => {
   })
 })
 
+describe('MapScreen — the proximity anchor chain (review R-18)', () => {
+  it('anchors on the first plotted row, silently — a visible row explains itself', async () => {
+    renderRich()
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
+    expect(screen.queryByText(/Proximity centred on the current view/)).not.toBeInTheDocument()
+  })
+
+  it("falls back to the map's own centre when nothing is plotted, and SAYS so", async () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
+    store.getState().addLocation(caseId, { locationName: 'Typed, never picked' })
+    const st = store.getState()
+    const empty = toMapData(st.cases.find((c) => c.id === caseId)!, st.locations.filter((l) => l.caseId === caseId))
+    render(<MapScreen viewerCaseId="x" mapData={empty} onEditIncident={vi.fn()} />)
+    // Wait for the map to exist, so the chain can reach step 2 rather than step 3.
+    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+
+    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    expect(await screen.findByText(/Proximity centred on the current view/)).toBeInTheDocument()
+    // The live camera centre, not a hard-coded continent centroid (the phone's step 4).
+    expect(mapInstance.getCenter).toHaveBeenCalled()
+  })
+
+  it('KEEPS a long-pressed centre across off→on — it must not re-derive an anchor', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { container } = renderRich()
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
+    vi.advanceTimersByTime(500)
+    vi.useRealTimers()
+    // The long-pressed centre is ~13 km from every fixture pin, so nothing survives.
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(0))
+
+    fireEvent.click(screen.getByTestId('proximity-toggle-button')) // off
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    fireEvent.click(screen.getByTestId('proximity-toggle-button')) // on again
+    // If the chain re-derived an anchor it would land on a plotted row and keep 2 of 3.
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(0))
+  })
+})
+
 describe('MapScreen — camera visibility', () => {
   function buildWithCameras(): MapData {
     const store = createDemoStore()

@@ -11,7 +11,7 @@ import type { ClusterBbox, ClusterDescriptor, ClusterIndex, PlottedMarker } from
 import type { MapCameraMarker } from '@/features/demo/ui/screens/map/mapData'
 import type { ProximityRing } from '@/features/demo/ui/screens/map/mapProximity'
 import { createCameraEl, createClusterEl, createMarkerEl } from '@/features/demo/ui/screens/map/markerElements'
-import { MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS, type LngLat } from '@/features/demo/ui/screens/map/mapTokens'
+import { DEFAULT_MAP_CENTER, MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS, type LngLat } from '@/features/demo/ui/screens/map/mapTokens'
 
 /** Imperative handle the orchestrator uses to drive the camera. */
 export interface MapCanvasHandle {
@@ -52,7 +52,6 @@ type MapboxGl = typeof import('mapbox-gl')
 type ClusterModule = typeof import('@/features/demo/ui/screens/map/mapCluster')
 
 const MAP_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12'
-const DEFAULT_CENTER: [number, number] = [-79.65, 43.61]
 const DEFAULT_ZOOM = 10
 const SINGLE_ZOOM = 15
 
@@ -316,7 +315,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
         accessToken: token,
         container: containerRef.current,
         style: MAP_STYLE,
-        center: DEFAULT_CENTER,
+        center: [DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1]],
         zoom: DEFAULT_ZOOM,
       })
       mapRef.current = map
