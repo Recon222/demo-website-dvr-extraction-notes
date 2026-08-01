@@ -279,5 +279,10 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     // possibly-under-reported recovered-footage line instead of shipping it silently.
     extractedScopesPartial: form?.extractedScopesPartial,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
+    // The phone's Completion Information section (P7.2). `completedBy` is where the analyst
+    // profile's name arrives, via the Completion screen's autofill — this is the last hop of
+    // "the profile reaches the court document".
+    dateTimeCompleted: form?.dateTimeCompleted,
+    completedBy: form?.completedBy,
   }
 }

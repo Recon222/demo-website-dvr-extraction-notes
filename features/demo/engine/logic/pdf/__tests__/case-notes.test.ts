@@ -38,6 +38,8 @@ const full: CaseNotesData = {
   ],
   notesFreeText: 'All footage recovered.',
   arrivalDepartures: [{ arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:00:00' }],
+  dateTimeCompleted: '2025-03-09 10:15:00',
+  completedBy: 'K. Vasilyev',
   generatedAt: '2025-03-09 10:00:00',
 }
 
@@ -56,6 +58,34 @@ describe('generateCaseNotesDoc', () => {
     expect(html).toContain('Individual Camera Details')
     expect(html).toContain('Export Information')
     expect(html).toContain('All footage recovered.')
+  })
+
+  describe('Completion Information (P7.2 — where the analyst profile lands)', () => {
+    it('prints both completion fields, in the phone’s section and position', () => {
+      const html = generateCaseNotesDoc(full)
+      expect(html).toContain('Completion Information')
+      expect(html).toContain('Completed By:')
+      expect(html).toContain('K. Vasilyev')
+      expect(html).toContain('Date &amp; Time Completed:')
+      expect(html).toContain('03/09/2025 10:15:00')
+      // Phone order: arrival/departure → completion → footer (case-notes-template.ts:323-350).
+      expect(html.indexOf('Completion Information')).toBeGreaterThan(html.indexOf('Arrival &amp; Departure'))
+      expect(html.indexOf('Completion Information')).toBeLessThan(html.indexOf('Report generated on'))
+    })
+
+    it('drops the empty row but keeps the section when only one field is set', () => {
+      const html = generateCaseNotesDoc({ occNumber: 'X', completedBy: 'K. Vasilyev' })
+      expect(html).toContain('Completion Information')
+      expect(html).toContain('Completed By:')
+      expect(html).not.toContain('Date &amp; Time Completed:')
+    })
+
+    it('omits the whole section when neither is set (phone hasCompletionInfo)', () => {
+      const html = generateCaseNotesDoc({ occNumber: 'X' })
+      expect(html).not.toContain('Completion Information')
+      // …and never prints `formatDocDate`'s N/A placeholder in its place.
+      expect(html).not.toContain('Completed By:')
+    })
   })
 
   it('assembles the notes body from the SECTIONED input in registry order (address before scopes, addendum inline, free text last)', () => {
