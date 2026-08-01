@@ -7,7 +7,6 @@ import { AboutPane } from '@/features/demo/ui/screens/settings/panes/AboutPane'
 import { AppearancePane } from '@/features/demo/ui/screens/settings/panes/AppearancePane'
 import { CloudSyncPane } from '@/features/demo/ui/screens/settings/panes/CloudSyncPane'
 import { ExportSecurityPane } from '@/features/demo/ui/screens/settings/panes/ExportSecurityPane'
-import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
 import { LocationPane } from '@/features/demo/ui/screens/settings/panes/LocationPane'
 import { MediaCapturePane } from '@/features/demo/ui/screens/settings/panes/MediaCapturePane'
 import { SecurityPane } from '@/features/demo/ui/screens/settings/panes/SecurityPane'
@@ -31,15 +30,32 @@ import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserP
  * those two ids to its own store-connected nodes and let everything else fall through to this
  * map. Each placeholder file carries the full hand-off note.
  */
-export const SETTINGS_PANES: Record<SettingsCategoryId, ComponentType<SettingsPaneProps>> = {
-  // SEAM(P7.2) — replaced by the real profile pane; see UserProfilePane.tsx.
+/**
+ * The ids the STORE BRIDGE resolves itself, because their panes need store data that
+ * `SettingsPaneProps` cannot carry (P7.3 closed `form-customization`).
+ *
+ * Excluding them from `SETTINGS_PANES` is the point: `renderSettingsPane` then only ACCEPTS the
+ * settings-backed ids, so a bridge that forgot to branch for one of these is a compile error
+ * rather than a placeholder silently rendering in place of the real pane. Same
+ * exhaustive-by-construction device the record itself uses, pointed the other way.
+ */
+export const BRIDGE_PANE_IDS = ['form-customization'] as const satisfies readonly SettingsCategoryId[]
+export type BridgePaneId = (typeof BRIDGE_PANE_IDS)[number]
+/** The ids this module can render — everything the bridge does not own. */
+export type StubPaneId = Exclude<SettingsCategoryId, BridgePaneId>
+
+export function isBridgePaneId(id: SettingsCategoryId): id is BridgePaneId {
+  return (BRIDGE_PANE_IDS as readonly SettingsCategoryId[]).includes(id)
+}
+
+export const SETTINGS_PANES: Record<StubPaneId, ComponentType<SettingsPaneProps>> = {
+  // SEAM(P7.2) — replaced by the real profile pane; see UserProfilePane.tsx. When P7.2 lands it
+  // joins BRIDGE_PANE_IDS above and this entry goes with it.
   'user-profile': UserProfilePane,
   appearance: AppearancePane,
   'media-capture': MediaCapturePane,
   location: LocationPane,
   'time-sync': TimeSyncPane,
-  // SEAM(P7.3) — replaced by the profile chips + 57-toggle grid; see FormFieldsPane.tsx.
-  'form-customization': FormFieldsPane,
   security: SecurityPane,
   'export-security': ExportSecurityPane,
   'cloud-sync': CloudSyncPane,
@@ -48,9 +64,9 @@ export const SETTINGS_PANES: Record<SettingsCategoryId, ComponentType<SettingsPa
 
 /**
  * Default resolution for a pane id. The bridge calls this as the tail of its own `renderPane`,
- * after any store-connected branch of its own.
+ * after branching every `BridgePaneId` — which the narrowed parameter type enforces.
  */
-export function renderSettingsPane(id: SettingsCategoryId, props: SettingsPaneProps): ReactNode {
+export function renderSettingsPane(id: StubPaneId, props: SettingsPaneProps): ReactNode {
   const Pane = SETTINGS_PANES[id]
   return <Pane {...props} />
 }

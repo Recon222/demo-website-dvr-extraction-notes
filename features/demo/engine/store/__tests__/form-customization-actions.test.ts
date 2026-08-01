@@ -35,6 +35,18 @@ describe('applyFormProfile', () => {
     expect(resolveStepVisible('cameras', store.getState())).toBe(false)
     expect(resolveFieldVisible('dvr.dvrUsername', store.getState())).toBe(true)
   })
+
+  it('is the reset path: leave the profile and come back, and the overrides are gone', () => {
+    // The phone has a `resetToProfileDefaults` action with NO caller anywhere in its UI
+    // (`FormCustomizationSection.tsx` never invokes it), so neither app ships a Reset control —
+    // re-stamping a profile is how a visitor gets back to defaults on both sides. Deferred §82.
+    const store = freshStore()
+    store.getState().setFormStepVisible('cameras', false)
+    store.getState().applyFormProfile('canvas')
+    store.getState().applyFormProfile('forensic')
+    expect(store.getState().formOverrides).toEqual({ steps: {}, fields: {} })
+    expect(resolveStepVisible('cameras', store.getState())).toBe(true)
+  })
 })
 
 describe('setFormStepVisible', () => {
@@ -148,18 +160,6 @@ describe('setFormFieldVisible', () => {
     const store = freshStore()
     store.getState().setFormStepVisible('cameras', false)
     store.getState().setFormFieldVisible('camera.cameraName', true)
-    expect(resolveStepVisible('cameras', store.getState())).toBe(false)
-  })
-})
-
-describe('resetFormCustomization', () => {
-  it('drops the overrides and keeps the profile', () => {
-    const store = freshStore()
-    store.getState().applyFormProfile('canvas')
-    store.getState().setFormStepVisible('cameras', true)
-    store.getState().resetFormCustomization()
-    expect(store.getState().profile).toBe('canvas')
-    expect(store.getState().formOverrides).toEqual({ steps: {}, fields: {} })
     expect(resolveStepVisible('cameras', store.getState())).toBe(false)
   })
 })

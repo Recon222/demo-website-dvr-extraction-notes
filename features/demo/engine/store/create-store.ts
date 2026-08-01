@@ -211,8 +211,6 @@ export interface DemoActions {
    * screen — one-way: only the explicit screen toggle brings it back.
    */
   setFormFieldVisible(id: FormFieldId, on: boolean): void
-  /** Drop every override, returning to the active profile's defaults. */
-  resetFormCustomization(): void
   /** THROWS `DuplicateCaseNumberError` when `caseNumber` (trimmed, case-sensitive) is
    *  already in use — the demo's write-boundary stand-in for the phone's UNIQUE column.
    *  Callers that surface a user-facing form (the New Case modal) must catch it; see
@@ -381,9 +379,9 @@ export function blankCapture(): CaptureState {
   return { dvrDateTime: '', actualDateTime: '', sync: null, method: 'manual', ocr: null, dvrAppliesDST: false }
 }
 
-/** No deviations from the active profile — the boot state, and what `applyFormProfile` and
- *  `resetFormCustomization` return to. A fresh object each call: the maps are written by copy
- *  in every action, and a shared frozen literal would make that difference invisible. */
+/** No deviations from the active profile — the boot state, and what `applyFormProfile` returns
+ *  to. A fresh object each call: the maps are written by copy in every action, and a shared
+ *  literal would make an accidental in-place write invisible. */
 export function blankFormOverrides(): FormOverrides {
   return { steps: {}, fields: {} }
 }
@@ -540,8 +538,6 @@ export function createDemoStore(initial?: PersistedState): DemoStore {
         return { formOverrides: { steps: s.formOverrides.steps, fields } }
       })
     },
-
-    resetFormCustomization: () => set({ formOverrides: blankFormOverrides() }),
 
     createCase: (input) => {
       // The write boundary refuses a number that is already in use — the demo's stand-in for

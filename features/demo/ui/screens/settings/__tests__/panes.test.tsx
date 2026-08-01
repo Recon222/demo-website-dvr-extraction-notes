@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
-import { renderSettingsPane, SETTINGS_PANES } from '@/features/demo/ui/screens/settings/panes'
-import { SETTINGS_CATEGORY_IDS, type SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
+import { BRIDGE_PANE_IDS, isBridgePaneId, renderSettingsPane, SETTINGS_PANES, type StubPaneId } from '@/features/demo/ui/screens/settings/panes'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
 import { DEFAULT_SETTINGS, type DemoSettings } from '@/features/demo/engine/content/settings-values'
 import { clock } from '@/features/demo/ui/inputs/clock'
 
@@ -17,7 +17,11 @@ import { clock } from '@/features/demo/ui/inputs/clock'
 
 const patch = (overrides: Partial<DemoSettings> = {}) => ({ ...DEFAULT_SETTINGS, ...overrides })
 
-function renderPane(id: SettingsCategoryId, settings: DemoSettings = DEFAULT_SETTINGS) {
+/** The catalog rows THIS module renders — the bridge-owned ones (P7.3's Form Fields) have
+ *  their own suites, and `renderSettingsPane` no longer accepts their ids. */
+const STUB_PANE_IDS = SETTINGS_CATEGORY_IDS.filter((id): id is StubPaneId => !isBridgePaneId(id))
+
+function renderPane(id: StubPaneId, settings: DemoSettings = DEFAULT_SETTINGS) {
   const onChange = vi.fn()
   render(<div>{renderSettingsPane(id, { settings, onChange })}</div>)
   return { onChange }
@@ -26,12 +30,14 @@ function renderPane(id: SettingsCategoryId, settings: DemoSettings = DEFAULT_SET
 afterEach(() => vi.restoreAllMocks())
 
 describe('pane registry', () => {
-  it('has a pane for every catalog row and nothing else (exhaustive by construction)', () => {
-    expect(Object.keys(SETTINGS_PANES).sort()).toEqual([...SETTINGS_CATEGORY_IDS].sort())
+  it('has a pane for every catalog row it owns and nothing else (exhaustive by construction)', () => {
+    expect(Object.keys(SETTINGS_PANES).sort()).toEqual([...STUB_PANE_IDS].sort())
+    // Together the two sets are the whole catalog — no row can go unrendered by both.
+    expect([...STUB_PANE_IDS, ...BRIDGE_PANE_IDS].sort()).toEqual([...SETTINGS_CATEGORY_IDS].sort())
   })
 
   it('every pane opens with an honest "in the demo" note — the D6 treatment', () => {
-    for (const id of SETTINGS_CATEGORY_IDS) {
+    for (const id of STUB_PANE_IDS) {
       const { unmount } = render(<div>{renderSettingsPane(id, { settings: DEFAULT_SETTINGS, onChange: vi.fn() })}</div>)
       expect(screen.getByTestId('settings-pane-stub-note'), `pane "${id}" ships no honest note`).toBeInTheDocument()
       unmount()
@@ -273,12 +279,11 @@ describe('SEAM placeholders', () => {
     expect(screen.queryByRole('button', { name: /Edit Profile/i })).not.toBeInTheDocument()
   })
 
-  it('SEAM(P7.3): Form Fields describes the grid without hardcoding the active profile', () => {
-    renderPane('form-customization')
-    const pane = screen.getByTestId('settings-pane-form-customization')
-    expect(within(pane).getByTestId('settings-pane-stub-note')).toHaveTextContent(/Forensic, Limited, Canvas/)
-    // No chips, no grid, and above all no claim about WHICH profile is active — the master row
-    // beside it already shows the live value, and a second copy here is how the two drift.
-    expect(within(pane).queryAllByRole('switch')).toHaveLength(0)
+  // SEAM(P7.3) closed: Form Fields is a real, store-connected pane and no longer resolvable
+  // through this module at all — `BRIDGE_PANE_IDS` excludes it and the bridge branches for it.
+  // Its behaviour is covered by FormFieldsPane.test.tsx + DemoExperience.form-customization.
+  it('SEAM(P7.3): Form Fields is bridge-owned, not a stub in this registry', () => {
+    expect(BRIDGE_PANE_IDS).toContain('form-customization')
+    expect('form-customization' in SETTINGS_PANES).toBe(false)
   })
 })

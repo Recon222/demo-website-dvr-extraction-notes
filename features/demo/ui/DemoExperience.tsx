@@ -70,6 +70,9 @@ import {
 import { SettingsModal } from '@/features/demo/ui/screens/settings/SettingsModal'
 import { toSettingsSections } from '@/features/demo/ui/screens/settings/settingsData'
 import { renderSettingsPane } from '@/features/demo/ui/screens/settings/panes'
+import { FormFieldsPane } from '@/features/demo/ui/screens/settings/panes/FormFieldsPane'
+import { PROFILE_LABELS } from '@/features/demo/engine/content/profiles'
+import { nextVisibleChapter, prevVisibleChapter, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import {
   DEFAULT_SETTINGS,
   FORM_PROFILE_SHORT,
@@ -154,7 +157,7 @@ import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
 import { describeSaveStatus, type SaveStatusView } from '@/features/demo/engine/logic/save-status'
 import { toCaseCards, toCaseSheet } from '@/features/demo/ui/screens/screenData'
-import type { CameraEntry, CaseStatus, DuplicateMode, MediaItem, MediaKind, NoteSectionId, OcrProof, ScopeEntry } from '@/features/demo/engine/types'
+import type { CameraEntry, CaseStatus, DuplicateMode, FormFieldId, FormStepId, MediaItem, MediaKind, NoteSectionId, OcrProof, Profile, ScopeEntry } from '@/features/demo/engine/types'
 import '@/features/demo/ui/demo.css'
 
 // Retention "today": the real clock — the demo boots empty and every case is
@@ -440,6 +443,9 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
   const capture = useStore(store, (s) => s.capture)
   /** The active form profile — the Settings "Form Fields" row's preview (SEAM(P7.3)). */
   const profile = useStore(store, (s) => s.profile)
+  // P7.3: subscribed so a Settings toggle re-renders the bridge — the wizard's visibility
+  // closures, the drawer, the rail checklist and the pane all read through it.
+  const formOverrides = useStore(store, (s) => s.formOverrides)
 
   // Screen-transition direction: computed once per `view` change and held stable through the
   // animation (mutating refs during render = the "previous prop" pattern — no effect, no re-render,
@@ -647,6 +653,54 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     [],
   )
   const openSettings = useCallback(() => store.getState().openModal('settings'), [store])
+
+  // ---- Form customization (P7.3, matrix A2, decision D9) ----------------------------------
+  /**
+   * The pane and the wizard both read visibility through these two — the resolver, bound to the
+   * live state. `formOverrides` is subscribed above so a toggle re-renders the bridge; the
+   * closures then read `store.getState()`, which keeps them free of the object-returning
+   * selector trap while still being recreated on every change that matters.
+   */
+  const isFormStepVisible = useCallback(
+    (id: FormStepId) => resolveStepVisible(id, store.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profile/formOverrides ARE the inputs, read through getState
+    [store, profile, formOverrides],
+  )
+  const isFormFieldVisible = useCallback(
+    (id: FormFieldId) => resolveFieldVisible(id, store.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profile/formOverrides ARE the inputs, read through getState
+    [store, profile, formOverrides],
+  )
+  /**
+   * Applying a profile CLEARS the visitor's overrides, so it confirms first when there are any —
+   * the phone's own rule (`ProfilePicker.tsx:41-49`), through this app's blocking primitive
+   * instead of `Alert.alert`. Re-picking the active profile is a no-op on both sides.
+   */
+  const applyFormProfile = useCallback(
+    (next: Profile) => {
+      const st = store.getState()
+      if (next === st.profile) return
+      const apply = () => {
+        store.getState().applyFormProfile(next)
+        setAlert(null)
+      }
+      const dirty =
+        Object.keys(st.formOverrides.steps).length > 0 || Object.keys(st.formOverrides.fields).length > 0
+      if (!dirty) {
+        apply()
+        return
+      }
+      setAlert({
+        title: 'Apply profile?',
+        message: `Switching to ${PROFILE_LABELS[next]} resets your custom field choices to that profile's defaults.`,
+        actions: [
+          { label: 'Cancel', style: 'cancel', onPress: () => setAlert(null) },
+          { label: 'Apply', style: 'destructive', onPress: apply },
+        ],
+      })
+    },
+    [store],
+  )
   const settingsSections = useMemo(
     () =>
       toSettingsSections({
@@ -2619,7 +2673,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // 'user-profile') return <UserProfilePane profile={…} …/>` — before falling through
             // to the default map. `SettingsPaneProps` stays as it is; it is the eight
             // settings-backed panes' contract, not a base class for the other two.
-            renderPane={(id) => renderSettingsPane(id, { settings, onChange: patchSettings })}
+            renderPane={(id) =>
+              // P7.3 owns 'form-customization': its data is the store's, not the settings
+              // record's. `renderSettingsPane` no longer ACCEPTS the bridge-owned ids, so
+              // dropping this branch is a compile error, not a silently wrong pane.
+              id === 'form-customization' ? (
+                <FormFieldsPane
+                  profile={profile}
+                  isStepVisible={isFormStepVisible}
+                  isFieldVisible={isFormFieldVisible}
+                  onApplyProfile={applyFormProfile}
+                  onToggleStep={(stepId, on) => store.getState().setFormStepVisible(stepId, on)}
+                  onToggleField={(fieldId, on) => store.getState().setFormFieldVisible(fieldId, on)}
+                />
+              ) : (
+                renderSettingsPane(id, { settings, onChange: patchSettings })
+              )
+            }
             onClose={() => store.getState().closeModal()}
           />
         )
