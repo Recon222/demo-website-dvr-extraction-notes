@@ -659,6 +659,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
     (next: UserProfile) => store.getState().updateUserProfile(next),
     [store],
   )
+  /**
+   * Is this tab genuinely storing? Sampled when the Settings sheet OPENS (review R-3).
+   *
+   * The User Profile pane's opening sentence promises refresh survival, and `persistence.ts`'s
+   * `isLive()` doc makes gating such a sentence on the handle a rule, not a preference. Sampled
+   * exactly like the drawer's save-status line — `flush()` first so a write still inside its
+   * 250 ms debounce lands before we describe it, then read — and re-sampled on every open, so a
+   * write failure that revoked the promise mid-session demotes the very next visit to the pane.
+   * A missing handle counts as "not storing": never assume a wired handle.
+   */
+  const [profilePersisted, setProfilePersisted] = useState(false)
+  useEffect(() => {
+    if (modal !== 'settings') return
+    const handle = persistenceRef.current
+    handle?.flush()
+    setProfilePersisted(handle?.saveState().kind === 'saved')
+  }, [modal])
 
   // ---- Form customization (P7.3, matrix A2, decision D9) ----------------------------------
   /**
@@ -998,7 +1015,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * 2. **A typed value is never overwritten.** The field is only filled when it is EMPTY, and
    *    neither `completedBy` nor the profile name is a dependency, so typing over the autofilled
    *    name — or clearing it — survives for as long as the screen stays open. On the phone the
-   *    same guard also protects a value loaded from SQLite.
+   *    same guard also protects a value loaded from SQLite. What that does NOT mean (review A1,
+   *    deferred §85a): a field left empty, including one the visitor deliberately cleared, is
+   *    filled again on the NEXT arrival — the phone's effect re-runs on every screen mount, so
+   *    this is parity, not a leak. "Survives" is scoped to the open screen.
    * 3. **Editing the profile later does not rewrite finished locations** (phone
    *    `user-profile/README.md`, workflow step 4): a location that already carries a name keeps
    *    it, whatever the profile says afterwards.
@@ -1009,12 +1029,23 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * time any view can be 'completion'.
    *
    * From here the value follows the phone's own path: the store → the Case Notes PDF header.
+   *
+   * **The visibility guard is NOT part of that dependency contract** (review R-1b). It reads the
+   * resolver at fill time, changes nothing about WHEN the effect runs, and exists because a write
+   * must not outlive the visibility decision that hid its field: with `Completed By` switched off
+   * in the Form Fields grid, the input is not rendered, so a value written here could not be seen,
+   * edited or cleared — yet it printed in the Case Notes document's Completion Information section
+   * and turned the drawer dot green (`counted([])` ⇒ `'complete'`). The pane's own footnote covers
+   * data "already entered"; this is data the app would CREATE after being told not to. The phone
+   * has the same hole (`completion.tsx:127-133` never consults its `showCompletedBy`, resolved two
+   * lines away at `:58-59`) — filed as PHONE-BUG-LEDGER item 20.
    */
   useEffect(() => {
     if (view !== 'completion') return
     const s = store.getState()
     const location = s.locations.find((l) => l.id === s.currentLocationId)
     if (!location || location.form.completedBy) return
+    if (!resolveFieldVisible('completion.completedBy', s)) return
     const name = s.userProfile.name.trim()
     if (!name) return
     s.updateField('form.completedBy', name)
@@ -2737,7 +2768,7 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
             // contract, not a base class for these two.
             renderPane={(id) =>
               id === 'user-profile' ? (
-                <UserProfilePane profile={userProfile} onSave={saveUserProfile} />
+                <UserProfilePane profile={userProfile} onSave={saveUserProfile} persisted={profilePersisted} />
               ) : id === 'form-customization' ? (
                 <FormFieldsPane
                   profile={profile}

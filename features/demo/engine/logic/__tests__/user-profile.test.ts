@@ -43,6 +43,15 @@ describe('DEFAULT_USER_PROFILE', () => {
 
   it('is frozen — it is only ever spread, never mutated into', () => {
     expect(Object.isFrozen(DEFAULT_USER_PROFILE)).toBe(true)
+    // …and the TYPE says so too (R-25): the annotation keeps `Object.freeze`'s `Readonly<T>`
+    // instead of widening it back to a mutable `UserProfile`, so a write is refused at compile
+    // time rather than throwing at runtime. Declared and never called — the assertion is the
+    // `@ts-expect-error`, which fails the BUILD if the annotation is widened back.
+    const readonlyProbe = () => {
+      // @ts-expect-error — readonly property
+      DEFAULT_USER_PROFILE.name = 'nope'
+    }
+    expect(typeof readonlyProbe).toBe('function')
   })
 })
 

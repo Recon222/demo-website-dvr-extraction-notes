@@ -18,9 +18,10 @@ import { formatStored, nowParts, parsePartsLoose } from '@/features/demo/engine/
 import type { UserProfile } from '@/features/demo/engine/types'
 
 /** Every field empty — the phone's `DEFAULT_USER_PROFILE`, minus the absent `agencyLogoUri`
- *  (see the `UserProfile` doc for why). Frozen like `DEFAULT_SETTINGS`: it is only ever spread.
- *  Annotated `Readonly<…>` (R-25) so the annotation keeps the freeze's guarantee instead of
- *  discarding it — the same one-line change `DEFAULT_SETTINGS` takes in this commit. */
+ *  (see the `UserProfile` doc for why). Frozen like `DEFAULT_SETTINGS`, and annotated
+ *  `Readonly<…>` to KEEP what `Object.freeze` returns (review R-25): the previous mutable
+ *  annotation widened it straight back, so `DEFAULT_USER_PROFILE.name = 'x'` compiled and threw
+ *  at runtime instead of being refused. It is only ever spread. */
 export const DEFAULT_USER_PROFILE: Readonly<UserProfile> = Object.freeze({
   name: '',
   badgeNumber: '',

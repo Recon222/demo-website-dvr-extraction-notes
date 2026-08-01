@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
 import type { UserProfile } from '@/features/demo/engine/types'
 
 /**
@@ -25,9 +26,9 @@ const FULL = profile({
   qualifications: 'Adobe certified; FVA member',
 })
 
-function renderPane(p: UserProfile = DEFAULT_USER_PROFILE) {
+function renderPane(p: UserProfile = DEFAULT_USER_PROFILE, persisted = true) {
   const onSave = vi.fn()
-  render(<UserProfilePane profile={p} onSave={onSave} />)
+  render(<UserProfilePane profile={p} onSave={onSave} persisted={persisted} />)
   return { onSave }
 }
 
@@ -98,6 +99,27 @@ describe('the pane — configured', () => {
     const note = screen.getByTestId('settings-pane-stub-note')
     expect(note).toHaveTextContent(/kept for this browser tab/)
     expect(note).toHaveTextContent(/Completed By/)
+  })
+
+  it('withdraws the storage promise when the tab is not storing [R-3]', () => {
+    // `persistence.ts`'s `isLive()` rule: a surface may only promise refresh survival while the
+    // handle is actually writing. Private-browsing / quota-exhausted tabs clear the snapshot.
+    renderPane(FULL, false)
+    const note = screen.getByTestId('settings-pane-stub-note')
+    expect(note).not.toHaveTextContent(/kept for this browser tab/)
+    expect(note).toHaveTextContent(/isn’t storing the session/)
+    expect(note).toHaveTextContent(/lasts until you leave or reload this page/)
+    // The rest of the note is unchanged — the autofill still happens, and still reaches the report.
+    expect(note).toHaveTextContent(/Completed By/)
+    expect(note).toHaveTextContent(/On the phone it lives on the device instead/)
+  })
+
+  it('makes the promise only in the storing arm — the two clauses are exclusive', () => {
+    const { unmount } = render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted />)
+    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/isn’t storing the session/)
+    unmount()
+    render(<UserProfilePane profile={FULL} onSave={vi.fn()} persisted={false} />)
+    expect(screen.getByTestId('settings-pane-stub-note')).not.toHaveTextContent(/kept for this browser tab/)
   })
 })
 
@@ -232,5 +254,19 @@ describe('the editor — save and discard', () => {
     fireEvent.click(document.querySelectorAll('[data-modal-scrim]')[0])
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'User Profile' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the editor’s layer (R-29)', () => {
+  it('sits above the sheet it opens from and below the pickers it opens itself', () => {
+    // The invariant `MODAL_LAYER` exists to carry: `SettingsModal`'s sheet is 22 and
+    // `PickerSheet` is 31/32, so the editor must land strictly between them.
+    expect(MODAL_LAYER.base).toBe(0)
+    expect(22 + MODAL_LAYER.overSheet).toBeGreaterThan(22)
+    expect(22 + MODAL_LAYER.overSheet).toBeLessThan(31)
+
+    openEditor(FULL)
+    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
+    expect(dialog.style.zIndex).toBe(String(22 + MODAL_LAYER.overSheet))
   })
 })

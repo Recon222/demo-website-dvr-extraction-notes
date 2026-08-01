@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { UserProfile } from '@/features/demo/engine/types'
 import { computeCareerDuration, trimProfile } from '@/features/demo/engine/logic/user-profile'
-import { Field, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { Field, MODAL_LAYER, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
@@ -96,8 +96,8 @@ export function UserProfileModal({ profile, onSave, onClose }: UserProfileModalP
     <ModalShell
       title="User Profile"
       onClose={onClose}
-      // Opens over the Settings sheet — the demo's one modal-over-modal (see ModalShell's prop).
-      elevation={4}
+      // Opens over the Settings sheet — the demo's one modal-over-modal (see `MODAL_LAYER`).
+      elevation={MODAL_LAYER.overSheet}
       footer={
         <button
           type="button"
