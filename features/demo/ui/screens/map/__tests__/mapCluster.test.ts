@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import type { MarkerDescriptor } from '@/features/demo/ui/screens/map/buildMarkers'
 import {
   CLUSTER_EXPANSION_MAX_ZOOM,
+  CLUSTER_EXPANSION_ZOOM_NUDGE,
   CLUSTER_MAX_ZOOM,
   CLUSTER_RADIUS,
   WORLD_BBOX,
@@ -24,6 +25,10 @@ describe('mapCluster — config parity', () => {
   it('uses the phone cluster config verbatim', () => {
     expect(CLUSTER_RADIUS).toBe(50)
     expect(CLUSTER_MAX_ZOOM).toBe(14)
+    // Literal, not self-referential (review R-22): asserting the constant against itself lets
+    // the phone-parity value drift silently. Phone `cluster-press-service.ts:42`.
+    expect(CLUSTER_EXPANSION_MAX_ZOOM).toBe(20)
+    expect(CLUSTER_EXPANSION_ZOOM_NUDGE).toBe(0.5)
   })
 })
 

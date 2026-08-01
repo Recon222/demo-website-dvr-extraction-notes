@@ -477,4 +477,20 @@ describe('MapScreen — case switch', () => {
     expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear')
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
   })
+
+  it('collapses the sheet back to peek and drops the detail card (review R-23)', async () => {
+    const { container, rerender } = render(<MapScreen viewerCaseId="a" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+
+    // Selecting a row raises the detent to at least 1 and opens the detail card.
+    fireEvent.click(screen.getByText('Loading dock'))
+    expect(screen.getByText('Location Details')).toBeInTheDocument()
+    expect(container.querySelector('[data-map-sheet]')).toHaveAttribute('data-snap', '1')
+
+    rerender(<MapScreen viewerCaseId="b" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
+    // `setSnapIndex(0)` is the user-visible half of the reset: a case switch must not leave the
+    // new case's map hidden behind a sheet the visitor opened for the old one.
+    await waitFor(() => expect(container.querySelector('[data-map-sheet]')).toHaveAttribute('data-snap', '0'))
+    expect(screen.queryByText('Location Details')).not.toBeInTheDocument()
+  })
 })

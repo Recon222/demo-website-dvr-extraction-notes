@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LocationDetailCard } from '@/features/demo/ui/screens/map/LocationDetailCard'
-import type { LocationSheetItem, IncidentSheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { cameraMarker, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 
-const fullLoc: LocationSheetItem = {
-  kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim Convenience', address: '1450 Eglinton, Mississauga',
+const fullLoc = sheetLocation({
+  businessName: 'Kim Convenience', address: '1450 Eglinton, Mississauga',
   status: 'working', coord: [-79.61, 43.61], streetAddress: '1450 Eglinton', city: 'Mississauga',
   requesterName: 'Liam McHugh', requesterBadge: '4471', requesterUnit: 'Central Robbery', requesterPhone: '905-555-1234', requesterEmail: 'det@peel.ca',
-  locationContact: 'Sandeep Gill', locationPhone: '905-555-0142', coordinateSource: 'geocoded', cameras: [],
-}
-const bareLoc: LocationSheetItem = { ...fullLoc, id: 'l2', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '' }
-const incItem: IncidentSheetItem = { kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.5, 43.5] }
+  locationContact: 'Sandeep Gill', locationPhone: '905-555-0142',
+})
+const bareLoc = sheetLocation({ ...fullLoc, id: 'l2', requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', locationContact: '', locationPhone: '' })
+const incItem = sheetIncident({ displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga' })
 
 const cb = () => ({ onBack: vi.fn(), onCall: vi.fn(), onEmail: vi.fn(), onGoToLocation: vi.fn(), onEditIncident: vi.fn() })
 
@@ -68,8 +68,8 @@ describe('LocationDetailCard', () => {
 
 // ---- cameras toggle (P6.1) ------------------------------------------------------------------
 describe('LocationDetailCard — cameras toggle', () => {
-  const cam = (id: string, name: string) => ({ id, locationId: 'l1', cameraName: name, lng: -79.61, lat: 43.61 })
-  const withCameras = { ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Rear')] }
+  const cam = (id: string, cameraName: string) => cameraMarker({ id, cameraName })
+  const withCameras = sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front'), cam('l1:c2', 'Rear')] })
 
   it('is absent when the location has no geolocated cameras', () => {
     render(<LocationDetailCard item={fullLoc} {...cb()} onToggleCameras={vi.fn()} />)
@@ -98,7 +98,7 @@ describe('LocationDetailCard — cameras toggle', () => {
   })
 
   it('singularises a lone camera in the accessibility label', () => {
-    render(<LocationDetailCard item={{ ...fullLoc, cameras: [cam('l1:c1', 'Front')] }} {...cb()} onToggleCameras={vi.fn()} />)
+    render(<LocationDetailCard item={sheetLocation({ ...fullLoc, cameras: [cam('l1:c1', 'Front')] })} {...cb()} onToggleCameras={vi.fn()} />)
     expect(screen.getByTestId('detail-cameras-toggle')).toHaveAccessibleName('Show 1 camera on the map')
   })
 

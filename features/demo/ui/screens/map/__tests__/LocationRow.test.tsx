@@ -1,18 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LocationRow } from '@/features/demo/ui/screens/map/LocationRow'
-import type { LocationSheetItem, IncidentSheetItem } from '@/features/demo/ui/screens/map/mapData'
+import { sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 
-const locItem: LocationSheetItem = {
-  kind: 'location', id: 'l1', locationName: 'Rear door', businessName: 'Kim', address: '1450 Eglinton, Mississauga',
-  status: 'started', coord: [-79.6, 43.6], streetAddress: '1450 Eglinton', city: 'Mississauga',
-  requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '',
-  locationContact: '', locationPhone: '', coordinateSource: 'geocoded', cameras: [],
-}
-const incItem: IncidentSheetItem = {
-  kind: 'incident', id: 'c1', caseNumber: 'PR25-1', displayName: 'Kim B&E', businessName: 'Kim',
+const locItem = sheetLocation({
+  businessName: 'Kim', address: '1450 Eglinton, Mississauga',
+  streetAddress: '1450 Eglinton', city: 'Mississauga',
+})
+const incItem = sheetIncident({
+  displayName: 'Kim B&E', businessName: 'Kim',
   streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.6, 43.6],
-}
+})
 
 describe('LocationRow', () => {
   it('location variant renders name + business + address and selects on press', () => {

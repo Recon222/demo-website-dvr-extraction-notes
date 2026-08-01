@@ -455,6 +455,37 @@ describe('MapCanvas — long press', () => {
     vi.useRealTimers()
   })
 
+  it('does not fire one tick BEFORE the threshold, and does at it (review R-21)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
+    // Lower bound: shortening the threshold (e.g. to 250 ms, which starts firing rings during a
+    // tap-and-hold-to-drag) has to be caught, not just lengthening it.
+    vi.advanceTimersByTime(499)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('tolerates jitter INSIDE the slop — a finger tremor is still a long press (review R-21)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
+    // 8 px < the 10 px slop. At slop 0 this test fails, which is the point: touch long-press
+    // would die of ordinary finger jitter.
+    fireEvent.pointerMove(canvas, { clientX: 108, clientY: 126 })
+    vi.advanceTimersByTime(500)
+    expect(onLongPress).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
   it('cancels when the pointer travels — a drag is a pan, not a long press', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const onLongPress = vi.fn()
