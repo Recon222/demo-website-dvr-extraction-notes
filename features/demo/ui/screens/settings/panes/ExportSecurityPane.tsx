@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
@@ -46,6 +47,8 @@ const PROMPT_TESTIDS: Record<string, string> = {
  */
 export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
   const anyEncryption = settings.zipEncryptionEnabled || settings.singleFileEncryptionEnabled
+  // R-6 — the inert Set-password button's reason, which is the note already beneath it.
+  const passwordReasonId = `${useId()}-password-reason`
 
   return (
     <div data-testid="settings-pane-export-security">
@@ -112,6 +115,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
               // Inert, and focusable on purpose (the house `aria-disabled`-over-`disabled`
               // rule): a keyboard visitor reaches it and hears the reason from the note below.
               aria-disabled="true"
+              aria-describedby={passwordReasonId}
               data-testid="export-security-set-password"
               onClick={() => {
                 /* inert — the demo stores no password; see the note below */
@@ -134,7 +138,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
             >
               Set Default Password
             </button>
-            <PaneNote tone="info">
+            <PaneNote tone="info" id={passwordReasonId}>
               The demo has nowhere to keep a password and nothing to unlock with it, so it never
               asks for one. On the phone this writes to the device keychain — never to the
               database, and never into an export.

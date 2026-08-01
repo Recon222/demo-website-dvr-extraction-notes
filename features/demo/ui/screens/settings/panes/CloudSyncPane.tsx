@@ -1,9 +1,11 @@
 'use client'
 
+import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import {
   PaneDescription,
   PaneGroup,
+  PaneNote,
   PaneStubNote,
 } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/panes/pane-props'
@@ -31,6 +33,8 @@ import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/pane
  * give.
  */
 export function CloudSyncPane({ settings }: SettingsPaneProps) {
+  // R-6 — the inert switch's reason, reachable from the switch itself.
+  const reasonId = `${useId()}-cloud-reason`
   return (
     <div data-testid="settings-pane-cloud-sync">
       <PaneStubNote>
@@ -51,10 +55,15 @@ export function CloudSyncPane({ settings }: SettingsPaneProps) {
           label="Enable cloud sync"
           on={settings.cloudSyncEnabled}
           disabled
+          describedBy={reasonId}
           onClick={() => {
-            /* inert — see the pane note above */
+            /* inert — see the note directly below */
           }}
         />
+        <PaneNote id={reasonId}>
+          Fixed off — cloud sync is out of scope for the demo, and a switch reading &ldquo;on&rdquo;
+          would suggest case data had left this tab.
+        </PaneNote>
       </PaneGroup>
     </div>
   )

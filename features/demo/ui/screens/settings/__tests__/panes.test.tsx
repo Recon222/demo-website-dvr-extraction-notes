@@ -53,6 +53,53 @@ describe('pane registry', () => {
   })
 })
 
+describe('inert controls announce their reason (R-6)', () => {
+  /**
+   * `aria-disabled` is a STATE, not a reason. In focus mode a screen reader reads the focused
+   * node's name/role/state and nothing else — so the doc comments' "hears WHY from the copy
+   * beside it" was true of the pixels and false of the accessibility tree. Every inert control
+   * in these panes now points at the short note next to it, the way `ModalActions` already did.
+   *
+   * Asserted by RESOLVING the id to real text, not by asserting the attribute exists: a
+   * `describedby` pointing at nothing announces exactly as much as no `describedby` at all.
+   */
+  const describedText = (el: HTMLElement): string => {
+    const id = el.getAttribute('aria-describedby')
+    expect(id, 'no aria-describedby on an aria-disabled control').toBeTruthy()
+    const target = document.getElementById(id as string)
+    expect(target, `aria-describedby points at "${id}", which is not in the document`).not.toBeNull()
+    return (target as HTMLElement).textContent ?? ''
+  }
+
+  it('Dark Mode: the reason resolves and says why it cannot move', () => {
+    renderPane('appearance')
+    const dark = screen.getByRole('switch', { name: 'Dark Mode' })
+    expect(dark).toHaveAttribute('aria-disabled', 'true')
+    expect(describedText(dark)).toMatch(/no light theme/i)
+  })
+
+  it('Cloud Sync: the reason resolves and names the impression it is avoiding', () => {
+    renderPane('cloud-sync')
+    const toggle = screen.getByRole('switch', { name: 'Enable cloud sync' })
+    expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    expect(describedText(toggle)).toMatch(/out of scope/i)
+  })
+
+  it('Set Default Password: points at the note already beneath it', () => {
+    renderPane('export-security', patch({ zipEncryptionEnabled: true }))
+    const button = screen.getByTestId('export-security-set-password')
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(describedText(button)).toMatch(/nowhere to keep a password/i)
+  })
+
+  it('an ENABLED switch carries no description — there is no reason to point at', () => {
+    renderPane('appearance')
+    const live = screen.getByRole('switch', { name: 'Show import process details' })
+    expect(live).not.toHaveAttribute('aria-disabled')
+    expect(live).not.toHaveAttribute('aria-describedby')
+  })
+})
+
 describe('Appearance pane', () => {
   it('states Dark Mode’s value but refuses to change it (there is no light theme to switch to)', () => {
     const { onChange } = renderPane('appearance')

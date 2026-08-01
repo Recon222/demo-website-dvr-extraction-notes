@@ -1,7 +1,8 @@
 'use client'
 
+import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
-import { PaneGroup, PaneStubNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import { PaneGroup, PaneNote, PaneStubNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/panes/pane-props'
 
 /**
@@ -23,6 +24,9 @@ import type { SettingsPaneProps } from '@/features/demo/ui/screens/settings/pane
  *   than leaving a visitor to discover it mid-import.
  */
 export function AppearancePane({ settings, onChange }: SettingsPaneProps) {
+  // R-6: the reason has to be reachable FROM the switch, not merely printed above it — a
+  // screen reader in focus mode reads the focused node and nothing else.
+  const darkReasonId = `${useId()}-dark-reason`
   return (
     <div data-testid="settings-pane-appearance">
       <PaneStubNote>
@@ -37,10 +41,14 @@ export function AppearancePane({ settings, onChange }: SettingsPaneProps) {
           label="Dark Mode"
           on={settings.darkMode}
           disabled
+          describedBy={darkReasonId}
           onClick={() => {
-            /* inert — see the pane note above */
+            /* inert — see the note directly below */
           }}
         />
+        <PaneNote id={darkReasonId}>
+          Fixed on — the demo&apos;s phone frame has no light theme to switch to.
+        </PaneNote>
       </PaneGroup>
 
       <PaneGroup label="Show import process details">

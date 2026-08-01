@@ -71,11 +71,26 @@ const NOTE_TONE: Record<PaneNoteTone, { fg: string; border: string; bg: string }
   success: { fg: '#10d177', border: 'rgba(16,209,119,0.35)', bg: 'rgba(16,209,119,0.09)' },
 }
 
-/** The phone's `infoBox` / `warningNote` / `successNote` boxes, one component, three tones. */
-export function PaneNote({ tone = 'info', children }: { tone?: PaneNoteTone; children: ReactNode }) {
+/**
+ * The phone's `infoBox` / `warningNote` / `successNote` boxes, one component, three tones.
+ *
+ * `id` (R-6) makes a note addressable as an `aria-describedby` target. Every inert control in
+ * these panes points at the short note beside it, so the reason is announced AT the control
+ * rather than only being legible to someone who scrolled past it.
+ */
+export function PaneNote({
+  tone = 'info',
+  id,
+  children,
+}: {
+  tone?: PaneNoteTone
+  id?: string
+  children: ReactNode
+}) {
   const t = NOTE_TONE[tone]
   return (
     <div
+      id={id}
       data-pane-note={tone}
       style={{
         padding: 13,
