@@ -65,7 +65,7 @@ export function caseToIncidentFeature(c: DemoCase): GeoJSONFeature | null {
   const ic = c.incidentCoordinates
   if (!hasCapturedCoordinates(ic)) return null
 
-  const properties: Record<string, unknown> = {
+  const properties: GeoJSONFeature['properties'] = {
     featureType: 'incident',
     // The incident pin's natural id is the case id (phone geojson-service.ts:191-194).
     id: c.id,
@@ -106,7 +106,7 @@ export function locationToFeature(location: DemoLocation): GeoJSONFeature | null
   if (!hasCapturedCoordinates(gps)) return null
 
   const form = location.form
-  const properties: Record<string, unknown> = {
+  const properties: GeoJSONFeature['properties'] = {
     featureType: 'location',
     id: location.id,
     caseId: location.caseId,
@@ -179,7 +179,7 @@ export function camerasToFeatures(location: DemoLocation): GeoJSONFeature[] {
     const gps = camera.gps
     if (!hasCapturedCoordinates(gps)) continue
 
-    const properties: Record<string, unknown> = {
+    const properties: GeoJSONFeature['properties'] = {
       featureType: 'camera',
       id: `${location.id}:${camera.id}`,
       cameraId: camera.id,

@@ -6,6 +6,7 @@ import {
   hasPlottableFeatures,
   locationToFeature,
 } from '@/features/demo/engine/logic/case-map/geojson'
+import { FEATURE_TYPES, type GeoJSONFeature } from '@/features/demo/engine/logic/case-map/types'
 import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { CameraEntry, LocationForm } from '@/features/demo/engine/types'
@@ -17,6 +18,39 @@ const camera = (over: Partial<CameraEntry> = {}): CameraEntry => ({
   resolution: '',
   recordingFps: '',
   ...over,
+})
+
+describe('featureType is a closed id space (review R-28)', () => {
+  it('every emitted featureType is a declared member', () => {
+    const collection = buildCaseMapGeoJson(
+      demoCase({ incidentCoordinates: { lat: 43.7, lng: -79.4, source: 'geocoded' } }),
+      [
+        demoLocation({
+          gps: { lat: 43.6, lng: -79.6, source: 'gps' },
+          form: form({ cameras: [camera({ gps: { lat: 43.6, lng: -79.6, source: 'gps', capturedAt: '2025-03-08T12:00:00.000Z' } })] }),
+        }),
+      ],
+    )
+    for (const feature of collection.features) {
+      expect(FEATURE_TYPES).toContain(feature.properties.featureType)
+    }
+    expect(new Set(collection.features.map((f) => f.properties.featureType))).toEqual(
+      new Set(FEATURE_TYPES),
+    )
+  })
+
+  it('refuses an undeclared featureType at compile time', () => {
+    // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it). A writer typo used to be
+    // invisible: it surfaced only as `hasPlottedLocations` mis-answering, i.e. as the wrong
+    // success sentence on a real download.
+    const typo: GeoJSONFeature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [0, 0] },
+      // @ts-expect-error 'locations' is not a FeatureType — this is the typo the type now catches
+      properties: { featureType: 'locations' },
+    }
+    expect(typo.type).toBe('Feature')
+  })
 })
 
 describe('caseToIncidentFeature', () => {
