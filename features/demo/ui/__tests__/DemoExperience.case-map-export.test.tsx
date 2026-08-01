@@ -109,7 +109,11 @@ describe('DemoExperience — Export Map', () => {
     expect(saved[0].filename).toBe('MapCase-Case-Map.html')
     expect(saved[0].blob.type).toBe('text/html')
     const html = await savedHtml()
+    // Both ends of the BUILT page, not the template constant (delta D-6): `build.test.ts`'s
+    // structural block asserts the builder's INPUT, so a truncation of its return value —
+    // `.slice(0, 45000)` — left 57 tests green. The tail is the half that was unobserved.
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
+    expect(html.trimEnd().endsWith('</html>')).toBe(true)
     // Self-contained: the CSS and the app JS are inlined, no relative asset is requested.
     expect(html).not.toMatch(/<script src="(?!https:\/\/)/)
     expect(html).toContain('<title>Case Map — PR25-MAP</title>')
