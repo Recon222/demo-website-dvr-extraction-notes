@@ -294,10 +294,20 @@ export function buildCaseMapGeoJson(
  * non-empty collection but has no location/incident framing, and the map would open on a
  * camera pin with no site around it.
  *
- * NOT the predicate for "does this map have any sites on it" — it counts the incident pin,
- * which is exactly why the empty-map caveat used to go silent on a case with zero plotted
- * locations (R-1). Use `CaseMapCoverage.hasPlottedLocations` for that; this one is kept for
- * its §71g purpose, the whole-case-GeoJSON refusal P5.2's Export tab will need.
+ * It answers exactly one question — "does this collection have site framing" — and is NOT the
+ * predicate for either of its lookalikes:
+ *
+ * - "does this map have any sites on it" → `coverage.plottedLocations > 0`. Counting the
+ *   incident pin here is why the empty-map caveat used to go silent on a case with zero
+ *   plotted locations (r0 R-1).
+ * - "is this map empty" → `collection.features.length === 0`. A camera-only collection has no
+ *   site framing but renders every camera pin, so reading this as "empty" told a visitor their
+ *   file was blank when it was not (delta D-1).
+ *
+ * NO PRODUCTION READER TODAY, deliberately: it is kept for its §71g purpose, the whole-case
+ * GeoJSON refusal P5.2's Export tab will need (`exportAndShareCaseGeoJSON`,
+ * geojson-service.ts:553-562). Distinct from a derived duplicate like the deleted
+ * `hasPlottedLocations` (delta D-12) — this is a predicate nothing else computes.
  */
 export function hasPlottableFeatures(collection: GeoJSONFeatureCollection): boolean {
   return collection.features.some((f) => f.properties.featureType !== 'camera')

@@ -1341,7 +1341,13 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
       // Over the SAME locations the builder was handed, so the count on screen can never
       // disagree with the file.
       coverage: caseMapModule.summariseCaseMapCoverage(locations),
-      mapIsEmpty: !caseMapModule.hasPlottableFeatures(geojson),
+      // The collection's own emptiness, NOT `hasPlottableFeatures` (delta D-1, probe-verified).
+      // That predicate answers "does the map have site framing" (§71g's whole-case-GeoJSON
+      // refusal) and reads FALSE for a camera-only collection — a location typed rather than
+      // picked, with a per-camera fix from P3.7's crosshair. The exported file renders every
+      // one of those camera pins, so "it opens with an empty map" was flatly false about a
+      // file the visitor is holding, printed beside a true coverage clause.
+      mapIsEmpty: geojson.features.length === 0,
       hasToken: Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN),
     }
   }
