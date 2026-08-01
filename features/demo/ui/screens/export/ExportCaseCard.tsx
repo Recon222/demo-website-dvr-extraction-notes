@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { CaseCheckboxState } from '@/features/demo/engine/logic/export'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
@@ -80,9 +81,24 @@ const boxBase: CSSProperties = {
   color: '#fff',
 }
 
-/** `aria-checked` for a tri-state control: `'mixed'` is the web's indeterminate. */
+/**
+ * `aria-checked` for a tri-state control: `'mixed'` is the web's indeterminate.
+ *
+ * Closed with `assertNever` (R-3 sibling): as a ternary chain, a 4th `CaseCheckboxState` fell
+ * through to `false` and told a screen reader "nothing is selected" — the quietest possible
+ * lie, on the control whose whole job is reporting how much is.
+ */
 function ariaChecked(state: CaseCheckboxState): boolean | 'mixed' {
-  return state === 'all' ? true : state === 'some' ? 'mixed' : false
+  switch (state) {
+    case 'all':
+      return true
+    case 'some':
+      return 'mixed'
+    case 'none':
+      return false
+    default:
+      return assertNever(state)
+  }
 }
 
 export function ExportCaseCard({
