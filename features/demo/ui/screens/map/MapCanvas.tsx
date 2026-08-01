@@ -496,6 +496,17 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     const map = mapRef.current
     if (!container || !map) return
     cancelLongPress()
+    // Secondary contacts never arm a long press (review R-5). Belt-and-braces with the origin
+    // ref's cancel-then-re-arm, which already makes a pinch cancel itself.
+    if (!event.isPrimary) return
+    // `Marker.addTo` appends into `map.getCanvasContainer()`, and mapbox's own controls
+    // (attribution, logo) are descendants too — so a press on a pin, a cluster bubble, a camera
+    // glyph or "Improve this map" reaches this handler. Holding any of those must not ACTIVATE
+    // proximity: at the 1 km default that drops every other location off the map and out of the
+    // sheet, centred on a point the visitor never chose. Not a touch-only edge — a press-and-hold
+    // left button while reading a pin does it on the desktop path the demo is mostly viewed on.
+    const target = event.target as Element | null
+    if (target?.closest?.('[data-marker-id], .mapboxgl-ctrl')) return
     const rect = container.getBoundingClientRect()
     const point: [number, number] = [event.clientX - rect.left, event.clientY - rect.top]
     pressOrigin.current = { x: event.clientX, y: event.clientY }

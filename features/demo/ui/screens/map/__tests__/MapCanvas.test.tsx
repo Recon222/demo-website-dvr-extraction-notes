@@ -315,7 +315,7 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     vi.advanceTimersByTime(500)
     expect(onLongPress).toHaveBeenCalledWith(-79.7, 43.7)
     vi.useRealTimers()
@@ -327,9 +327,53 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     vi.advanceTimersByTime(200)
     fireEvent.pointerUp(canvas, { clientX: 100, clientY: 120 })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('ignores a secondary contact — only the primary pointer may arm the timer', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')!
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: false })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('ignores a hold on a marker — holding a pin must not ACTIVATE proximity', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[loc('a', -79.6, 43.6)]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(elFor('location')).toHaveLength(1))
+    const canvas = container.querySelector('[data-map-canvas]')!
+    const pin = elFor('location')[0]._el
+    // Markers live inside the canvas container in production (`Marker.addTo` →
+    // `map.getCanvasContainer()`), so their pointerdown reaches this handler by bubbling.
+    canvas.appendChild(pin)
+    fireEvent.pointerDown(pin, { clientX: 100, clientY: 120, isPrimary: true })
+    vi.advanceTimersByTime(600)
+    expect(onLongPress).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it("ignores a hold on mapbox's own chrome (attribution / logo)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const onLongPress = vi.fn()
+    const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
+    await waitFor(() => expect(MapMock).toHaveBeenCalled())
+    const canvas = container.querySelector('[data-map-canvas]')! as HTMLElement
+    const ctrl = document.createElement('a')
+    ctrl.className = 'mapboxgl-ctrl mapboxgl-ctrl-attrib-inner'
+    ctrl.textContent = 'Improve this map'
+    canvas.appendChild(ctrl)
+    fireEvent.pointerDown(ctrl, { clientX: 100, clientY: 120, isPrimary: true })
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()
     vi.useRealTimers()
@@ -341,7 +385,7 @@ describe('MapCanvas — long press', () => {
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120 })
+    fireEvent.pointerDown(canvas, { clientX: 100, clientY: 120, isPrimary: true })
     fireEvent.pointerMove(canvas, { clientX: 160, clientY: 120 })
     vi.advanceTimersByTime(600)
     expect(onLongPress).not.toHaveBeenCalled()

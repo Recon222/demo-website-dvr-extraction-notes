@@ -284,7 +284,7 @@ describe('MapScreen — proximity', () => {
     const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40 })
+    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
     vi.advanceTimersByTime(500)
     vi.useRealTimers()
     await waitFor(() => expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity ON'))

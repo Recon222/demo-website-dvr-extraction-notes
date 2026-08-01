@@ -3926,9 +3926,39 @@ rather than a gap. **Trigger:** only if the phone grows the affordance first.
 
 mapbox-gl has no `longpress`, so `MapCanvas` runs its own 500 ms timer (RN's `delayLongPress`,
 what the phone's `onLongPress` fires on) on the canvas container, with a 10 px slop that
-reclassifies a travelling hold as a map drag, then `map.unproject`. Two known edges, both
+reclassifies a travelling hold as a map drag, then `map.unproject`. ~~Two known edges, both
 acceptable for a demo and neither observed: a two-finger pinch whose first contact never moves
 more than 10 px can still fire (mapbox handles the gesture itself, so the ring simply re-centres
 under the pinch), and a hold that starts on a marker element bubbles to the container, so a long
-hold on a pin both selects it and moves the ring. **Trigger:** a review finding either behaviour
+hold on a pin both selects it and moves the ring.~~ **Trigger:** a review finding either behaviour
 on a touch device, or the arrival of a pointer-gesture helper in `ui/primitives/`.
+
+**AMENDED (P6 review R-5 — both filed edges were mis-stated; the seam itself stands, the two
+disclosures do not):**
+
+- **The marker edge was understated on three counts, and it is FIXED, not deferred.**
+  (1) *Consequence.* "Both selects it and moves the ring" is true only when proximity is already
+  on. From the default OFF state `handleLongPress` unconditionally activates it, so a hold on a
+  pin drops every other location and the incident off the map **and** out of the sheet at the
+  1 km default, centred on a point nobody chose — recoverable only by noticing the Proximity ON
+  pill, and landing in R-6's false empty-state copy when nothing survives.
+  (2) *Reach.* Not touch-only. Pointer events fire for mouse, so a press-and-hold left button
+  while reading a pin triggers it on the desktop path the demo is primarily viewed on — the
+  filed trigger ("a review finding either behaviour on a touch device") was met and exceeded.
+  (3) *Surface.* `Marker.addTo` appends into `map.getCanvasContainer()` and mapbox's attribution
+  control is a descendant of the same container, so a hold on "Improve this map" activated
+  proximity too — a surface the original disclosure never named.
+  Fixed in the P6 fix round: `onPointerDown` now refuses non-primary pointers and any target
+  under `[data-marker-id], .mapboxgl-ctrl`.
+
+- **The pinch edge is STRUCK as never-real.** `pressOrigin` is a single shared ref and every
+  `pointerdown` cancels-then-re-arms from the newest contact, so in a two-finger gesture
+  finger 1's first `pointermove` is measured against finger 2's origin — two contacts on a
+  378 px surface are essentially never within the 10 px slop, so the timer cancels immediately.
+  The cross-pointer comparison that reads like a bug is exactly what made the pinch safe. The
+  `isPrimary` guard added above now closes it by construction as well; recorded here so the
+  analysis is not re-derived a third time.
+
+What genuinely remains of 72e is only the shape: this is a hand-rolled pointer timer rather
+than a gesture primitive. **Trigger (unchanged):** the arrival of a pointer-gesture helper in
+`ui/primitives/`.
