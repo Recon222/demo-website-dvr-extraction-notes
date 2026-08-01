@@ -262,6 +262,31 @@ describe('BootSequence', () => {
     })
   })
 
+  describe('focus is handed on, never dropped (R-2)', () => {
+    it('moves focus to SKIP when the video unmounts the HUD mid-sequence', () => {
+      render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+      const scanner = screen.getByRole('button', { name: 'Run the simulated biometric scan' })
+      scanner.focus()
+      expect(document.activeElement).toBe(scanner)
+
+      tapScanner()
+      tickThrough(SCAN_MS, AUTHORIZED_MS)
+
+      // The HUD is gone; without the hand-off the visitor would be on <body> mid-sequence.
+      expect(screen.queryByRole('button', { name: 'Run the simulated biometric scan' })).toBeNull()
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: /skip/i }))
+    })
+
+    it('leaves a mouse visitor’s focus alone', () => {
+      render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+      // No control was ever focused — clicking does not focus in jsdom, same as a real pointer
+      // click on a button that has been styled not to show a ring.
+      tapScanner()
+      tickThrough(SCAN_MS, AUTHORIZED_MS)
+      expect(document.activeElement).toBe(document.body)
+    })
+  })
+
   describe('escape hatches (the phone has none; a browser gate needs them)', () => {
     it('SKIP ends the sequence from the very first frame', () => {
       const onComplete = vi.fn()

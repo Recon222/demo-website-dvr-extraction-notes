@@ -219,9 +219,32 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
   const showVideo = liveVideo !== null && phase !== 'idle' && phase !== 'scanning' && phase !== 'authorized'
   const showHud = !showVideo
 
+  /**
+   * The mid-sequence focus hand-off (review R-2).
+   *
+   * `authorized → video` unmounts `SplashScreen` while its scan button may hold focus, dropping
+   * the keyboard visitor to `<body>` halfway through the app's first interaction. SKIP is the one
+   * control that outlives every phase, so it takes the hand-off — but only if the visitor was
+   * actually in here: `hadFocus` tracks the boot subtree, so a mouse visitor is never yanked and
+   * neither is someone who has tabbed out to the rail.
+   */
+  const skipRef = useRef<HTMLButtonElement | null>(null)
+  const hadFocusRef = useRef(false)
+  useEffect(() => {
+    if (showHud || !hadFocusRef.current) return
+    skipRef.current?.focus()
+  }, [showHud])
+
   return (
     <div
       data-testid="demo-boot"
+      onFocus={() => {
+        hadFocusRef.current = true
+      }}
+      onBlur={(e) => {
+        // Still ours only if focus stayed inside the gate.
+        hadFocusRef.current = e.currentTarget.contains(e.relatedTarget)
+      }}
       style={{
         position: 'absolute',
         inset: 0,
@@ -254,7 +277,7 @@ export function BootSequence({ video, onComplete }: BootSequenceProps) {
 
       {showHud && <SplashScreen authState={bootHudState(phase)} onScan={advance} reduceMotion={reduceMotion} />}
 
-      <button type="button" onClick={skip} style={skipButton}>
+      <button ref={skipRef} type="button" onClick={skip} style={skipButton}>
         SKIP
       </button>
     </div>

@@ -484,6 +484,22 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
    */
   const [booting, setBooting] = useState(boot)
   const endBoot = useCallback(() => setBooting(false), [])
+  /**
+   * Where focus goes when the gate lifts (review R-2).
+   *
+   * The gate holds the screen's only two focusable controls, so unmounting it dropped focus to
+   * `<body>` — the keyboard visitor who just pressed Space on the app's FIRST interaction had
+   * their next Tab restart from the top of the page, and no screen reader was told the gate was
+   * gone (WCAG 2.4.3). The revealed screen slot takes the hand-off: the `ExitDialog` `autoFocus`
+   * shape, inverted. Only on the boot→app transition, so a bridge that never booted is untouched.
+   */
+  const phoneScreenRef = useRef<HTMLDivElement | null>(null)
+  const wasBootingRef = useRef(booting)
+  useEffect(() => {
+    const was = wasBootingRef.current
+    wasBootingRef.current = booting
+    if (was && !booting) phoneScreenRef.current?.focus()
+  }, [booting])
 
   const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   // The dashboard's long-press target (the phone's `actionSheetCase`, home.tsx:48). Held by
@@ -2940,6 +2956,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     >
       <div style={{ flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start', padding: '28px 20px 28px 40px' }}>
         <PhoneFrame
+          screenRef={phoneScreenRef}
           // The tab bar is a sibling of the screen slot in PhoneFrame and paints above it, so the
           // boot gate cannot cover it — it has to be withheld instead, which is also what the
           // phone does by not mounting the tab navigator until the splash is gone.

@@ -112,6 +112,19 @@ describe('DemoExperience — boot gate', { timeout: 20000 }, () => {
     expect(railTitle(NARRATION.dashboard.title)).toBeInTheDocument()
   })
 
+  it('hands focus to the revealed screen when the gate lifts (R-2)', () => {
+    render(<DemoExperience boot />)
+    const scanner = screen.getByRole('button', { name: 'Run the simulated biometric scan' })
+    scanner.focus()
+
+    tapScanner()
+    runSequence()
+
+    // Not <body>: the keyboard visitor who just passed the app's first interaction keeps their
+    // place, and their next Tab starts inside the phone rather than at the top of the page.
+    expect(document.activeElement).toBe(document.querySelector('[data-phone-screen]'))
+  })
+
   it('SKIP gets the visitor straight in', () => {
     render(<DemoExperience boot />)
     fireEvent.click(screen.getByRole('button', { name: 'SKIP' }))

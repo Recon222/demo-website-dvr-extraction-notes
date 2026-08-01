@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
@@ -18,12 +18,18 @@ export interface PhoneFrameProps {
   children?: ReactNode
   /** Slot rendered above the home indicator (e.g. the bottom TabBar). */
   tabBar?: ReactNode
+  /**
+   * Handle on the screen slot, so the bridge can move focus INTO the phone when something
+   * outside the tab order reveals it — today, the boot gate lifting (review R-2). The slot
+   * carries `tabIndex={-1}` for the same reason: programmatically focusable, never tabbable.
+   */
+  screenRef?: RefObject<HTMLDivElement | null>
 }
 
 /** The device shell — lifted verbatim from the prototype (404 frame · 378×786 screen · status
  *  bar · dynamic island · scan sweep · home indicator). Children render in the screen slot;
  *  the screen is always interactive (the guided tour's pointer lock was removed with it). */
-export function PhoneFrame({ children, tabBar }: PhoneFrameProps) {
+export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
   const scale = usePhoneScale()
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null)
   return (
@@ -131,7 +137,10 @@ export function PhoneFrame({ children, tabBar }: PhoneFrameProps) {
               own vertical scroll so screens can overlay and cross-slide during transitions */}
           <div
             data-phone-screen
+            ref={screenRef}
+            tabIndex={-1}
             style={{
+              outline: 'none',
               position: 'absolute',
               top: 0,
               left: 0,
