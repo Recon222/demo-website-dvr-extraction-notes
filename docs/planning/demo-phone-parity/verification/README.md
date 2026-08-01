@@ -222,6 +222,28 @@ cd /Users/fvadev/Developer/extraction-notes/demo-website-dvr-extraction-notes
 pnpm install && pnpm dev --port 3001
 ```
 
+### Settings navigation — two traps that cost 30 s each
+
+* **The gear is on the Dashboard/Cases HEADERS only.** There is no gear inside the wizard, so a
+  settings round-trip mid-wizard must exit through the drawer's "Back to Cases" first, change
+  the setting, then re-enter the location.
+* **A detail pane has NO close button** — the nav bar swaps it for "Back to settings". A helper
+  that only clicks `settings-close-button` silently does nothing, the modal stays open, and
+  every subsequent click is intercepted by `[data-testid="settings-detail-body"]`. Always:
+
+  ```js
+  const back = p.locator('[data-testid="settings-back-button"]');
+  if (await back.count()) await back.click();          // list first
+  const c = p.locator('[data-testid="settings-close-button"]');
+  if (await c.count()) await c.click();                // then close
+  ```
+
+* **Date pickers: confirm with exact `Done`.** `getByRole('button', { name: /Set/i })` also
+  matches the "Set date" trigger, which re-opens the picker and blocks every later click.
+  Confirming an EMPTY date defaults to today — a zero span, so no career-duration line renders.
+  To exercise durations, step back with the `Previous month` button (fast in one
+  `page.evaluate` loop) and pick a day.
+
 ### Camera / microphone in Playwright — required for every capture surface
 
 `lib.js` `open()` now launches Chromium with a fake camera and grants camera+microphone, and
@@ -312,6 +334,10 @@ HEADED=1 ...                      # watch it run
 | `07-p4-ocr-pdf.js` | P4 surfaces 5 & 6 live-camera: landscape viewfinder with a real stream, then the Time-Offset PDF image-block check LIVE vs SAMPLE |
 | `08-p56-export-map.js` | P5: export hub (accordion, tri-state, footer), validation prompt, progress overlay, D4 terminal; plus the map pass |
 | `09-p56-map-depth.js` | P6 against a REAL Mapbox render: clustering, filters, empty states, proximity presets, long-press placement + right-button negative control, case-map download |
+| `10-p7-settings.js` | P7: settings shell, category order, padlocks, the four spot-checked stub panes, profile save → preview row, form-customization chips |
+| `12-p7-profile-flow.js` | P7: all 7 profile fields incl. real career dates → duration lines, Completion autofill |
+| `13-p7-pdf-and-toggles.js` | P7: Case Notes PDF Completion Information (fills a scope first to pass the gate) |
+| `14-p7-toggles-live.js` | P7: field toggles changing the wizard live, Canvas profile removing a screen from the drawer |
 | `lib.js` / `flows.js` | shared open/shot/step helpers and case/location/wizard sub-flows |
 | `probe.js` | scratch introspection — dumps the phone frame's text and every button name |
 
@@ -437,9 +463,16 @@ $SP/baselines/
     │                                       image-block check, LIVE vs SAMPLE
     ├── p56/                           21   export hub + tri-state + validation prompt +
     │                                       progress overlay + D4 terminal (+ downloads/)
-    └── p56-map/                       14   REAL Mapbox: clustering, filters, empty states,
-                                            proximity presets, long-press (+ downloads/)
+    ├── p56-map/                       14   REAL Mapbox: clustering, filters, empty states,
+    │                                       proximity presets, long-press (+ downloads/)
+    ├── p7/                            16   settings shell + stub panes + profile + chips
+    ├── p7b/ p7c/ p7d/                 13   profile end-to-end, Completion autofill, Case
+    │                                       Notes PDF Completion Information
+    └── p7e/                            6   live field toggles, Canvas drawer reduction
 ```
+
+Phone P7 set (`baselines/phone/p7/`, 7): settings shell + scrolled list, About pane, User
+Profile pane + editor (all 7 fields), Form Fields pane, Canvas chip.
 
 Phone P4 set (`baselines/phone/p4/`, 8): drawer Media collapsed/expanded, capture screen
 ("No camera device available"), audio recorder READY, media library empty state, rotated OCR
