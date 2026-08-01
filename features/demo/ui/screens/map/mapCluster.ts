@@ -51,9 +51,11 @@ export interface ClusterDescriptor {
 export type PlottedMarker = MarkerDescriptor | ClusterDescriptor
 
 /** [west, south, east, north] — supercluster's bbox order. */
-export type ClusterBbox = [number, number, number, number]
+export type ClusterBbox = readonly [west: number, south: number, east: number, north: number]
 
-export const WORLD_BBOX: ClusterBbox = [-180, -85, 180, 85]
+/** Frozen: this tuple is handed to callers (`MapCanvas` reads it off the module) and a mutation
+ *  would silently reshape every later clustering query in the session (review R-13). */
+export const WORLD_BBOX: ClusterBbox = Object.freeze([-180, -85, 180, 85]) as ClusterBbox
 
 export interface ClusterIndex {
   /** Cluster bubbles + loose location pins for the given viewport, plus every non-clustered
@@ -100,7 +102,7 @@ export function normalizeBbox(bbox: ClusterBbox): ClusterBbox {
  * Build the index for a marker set. Non-location markers bypass clustering entirely and are
  * re-emitted from every `markersFor` call.
  */
-export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
+export function buildClusterIndex(markers: readonly MarkerDescriptor[]): ClusterIndex {
   const locations = markers.filter((m): m is LocationMarker => m.kind === 'location')
   const passthrough = markers.filter((m) => m.kind !== 'location')
 
@@ -123,7 +125,10 @@ export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
       const safeZoom = Number.isFinite(zoom) ? Math.round(zoom) : 0
       // `'cluster' in props` narrows supercluster's own union — no casts, no all-optional bag,
       // and no fabricated `count: 0` fallback for a field the cluster branch always has.
-      const out: PlottedMarker[] = index.getClusters(normalizeBbox(bbox), safeZoom).map((feature) => {
+      // supercluster types its bbox parameter mutable; the copy keeps our own tuple readonly
+      // without handing the library a reference it could write through.
+      const [w, s, e, n] = normalizeBbox(bbox)
+      const out: PlottedMarker[] = index.getClusters([w, s, e, n], safeZoom).map((feature) => {
         const [lng, lat] = feature.geometry.coordinates
         const props = feature.properties
         if ('cluster' in props) {

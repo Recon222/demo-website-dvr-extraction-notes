@@ -24,13 +24,25 @@ export const MAP_FILTER_STATUSES: readonly LocationMapStatus[] = ['started', 'wo
 
 export interface MapFilterState {
   /** Active status pills. Empty = no status filter (phone: `statuses` undefined). */
-  statuses: LocationMapStatus[]
+  readonly statuses: readonly LocationMapStatus[]
   /** Search box text. Empty = no text filter (phone: `searchText` undefined). */
-  searchText: string
+  readonly searchText: string
 }
 
-/** The unfiltered starting state (phone: both filter slots `undefined`). */
-export const EMPTY_MAP_FILTERS: MapFilterState = { statuses: [], searchText: '' }
+/**
+ * The unfiltered starting state (phone: both filter slots `undefined`).
+ *
+ * Frozen rather than a factory (review R-13): its IDENTITY is load-bearing —
+ * `setFilters(EMPTY_MAP_FILTERS)` on an already-empty state is an `Object.is` bail-out that
+ * React uses to skip the re-render, which is what makes the case-switch reset free. A factory
+ * would mint a new object and force a render on every no-op reset. Freezing keeps the identity
+ * and removes the hazard: this literal is the LIVE filter state on every mount and every case
+ * switch, so a single in-place `push` would have poisoned every later mount in the session.
+ */
+export const EMPTY_MAP_FILTERS: MapFilterState = Object.freeze({
+  statuses: Object.freeze([]) as readonly LocationMapStatus[],
+  searchText: '',
+})
 
 /**
  * Badge count for the Clear pill — one per NON-EMPTY filter, not one per selected status
@@ -45,7 +57,7 @@ export function countActiveFilters(filters: MapFilterState): number {
 
 /** Toggle one status in/out of the active set, preserving the registry order of the pills. */
 export function toggleStatus(
-  statuses: LocationMapStatus[],
+  statuses: readonly LocationMapStatus[],
   status: LocationMapStatus,
 ): LocationMapStatus[] {
   const next = statuses.includes(status)
@@ -55,7 +67,7 @@ export function toggleStatus(
 }
 
 /** Phone `filterByStatus`: non-location rows always pass; an empty set is no filter. */
-export function matchesStatusFilter(item: SheetItem, statuses: LocationMapStatus[]): boolean {
+export function matchesStatusFilter(item: SheetItem, statuses: readonly LocationMapStatus[]): boolean {
   if (statuses.length === 0) return true
   if (item.kind !== 'location') return true
   return statuses.includes(item.status)

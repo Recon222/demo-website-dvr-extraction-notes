@@ -97,7 +97,7 @@ const joinAddress = (parts: Array<string | null | undefined>) => parts.filter(Bo
 
 /** Status tally over a set of sheet rows. The incident carries no status, so only location rows
  *  count — the same rule the phone applies in `computeStatusCounts` (sheet-data-service.ts). */
-export function countStatuses(items: SheetItem[]): { started: number; working: number; complete: number } {
+export function countStatuses(items: readonly SheetItem[]): { started: number; working: number; complete: number } {
   const counts = { started: 0, working: 0, complete: 0 }
   for (const item of items) {
     if (item.kind === 'location') counts[item.status]++
@@ -106,7 +106,7 @@ export function countStatuses(items: SheetItem[]): { started: number; working: n
 }
 
 /** "N locations" — cameras and the incident pin never inflate it (phone MapHost.tsx:250-254). */
-export function countLocations(items: SheetItem[]): number {
+export function countLocations(items: readonly SheetItem[]): number {
   return items.filter((i) => i.kind === 'location').length
 }
 

@@ -24,7 +24,7 @@ export interface MapCanvasHandle {
 
 export interface MapCanvasProps {
   /** Status-coloured location dots + the incident teardrop to plot. Locations cluster. */
-  markers?: MarkerDescriptor[]
+  markers?: readonly MarkerDescriptor[]
   /**
    * The points the camera frames. Deliberately a SEPARATE input from `markers` (review R-1a):
    * the caller feeds the status/text-filtered set, NOT the post-proximity one, so narrowing a
@@ -37,7 +37,7 @@ export interface MapCanvasProps {
   fitPoints?: readonly LngLat[]
   /** The visible location's cameras. Never clustered, never selectable — a tap toggles the
    *  camera's own name callout (phone CameraMarker, ui-mapping 03:105). */
-  cameras?: MapCameraMarker[]
+  cameras?: readonly MapCameraMarker[]
   /** Proximity radius polygon, drawn under the pins as a fill + border line. */
   proximityRing?: ProximityRing | null
   /** Fires with the marker's id when a pin is tapped. Clusters and cameras never reach it. */
@@ -72,8 +72,8 @@ const LONG_PRESS_SLOP = 10
  * would make `renderMarkers` a new function on every render and re-plot every marker on every
  * commit — including the ones this component's own `setState`s cause.
  */
-const NO_MARKERS: MarkerDescriptor[] = []
-const NO_CAMERAS: MapCameraMarker[] = []
+const NO_MARKERS: readonly MarkerDescriptor[] = Object.freeze([])
+const NO_CAMERAS: readonly MapCameraMarker[] = Object.freeze([])
 
 const PROXIMITY_SOURCE_ID = 'demo-proximity-ring'
 const PROXIMITY_FILL_ID = 'demo-proximity-ring-fill'
@@ -384,7 +384,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     pinObjsRef.current.forEach((m) => m.remove())
 
     const index = indexRef.current
-    const plotted: PlottedMarker[] = index
+    const plotted: readonly PlottedMarker[] = index
       ? index.markersFor(viewportBbox(map, clusterMod.WORLD_BBOX), currentZoom(map))
       : markers
 

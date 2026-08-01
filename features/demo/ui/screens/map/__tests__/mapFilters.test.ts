@@ -140,3 +140,17 @@ describe('mapFilters — applyMapFilters', () => {
     expect(JSON.stringify(d)).toBe(before)
   })
 })
+
+describe('mapFilters — the shared empty state is not a shared mutable', () => {
+  it('is frozen: the literal handed out on every mount and case switch cannot be pushed into', () => {
+    expect(Object.isFrozen(EMPTY_MAP_FILTERS)).toBe(true)
+    expect(Object.isFrozen(EMPTY_MAP_FILTERS.statuses)).toBe(true)
+  })
+
+  it('keeps its identity — a no-op reset must stay an Object.is bail-out, not a re-render', () => {
+    // `toggleStatus` and the reducers are spread-only, so resetting to this exact object is how
+    // the case-switch reset stays free.
+    expect(EMPTY_MAP_FILTERS).toBe(EMPTY_MAP_FILTERS)
+    expect(toggleStatus(EMPTY_MAP_FILTERS.statuses, 'started')).not.toBe(EMPTY_MAP_FILTERS.statuses)
+  })
+})

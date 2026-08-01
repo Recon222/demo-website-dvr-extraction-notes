@@ -44,7 +44,7 @@ export interface ProximityResult {
  * phone either, where only `featureType === 'camera'` short-circuits.
  */
 export function itemsWithinRadius(
-  items: SheetItem[],
+  items: readonly SheetItem[],
   center: [number, number],
   radiusKm: number,
 ): SheetItem[] {
