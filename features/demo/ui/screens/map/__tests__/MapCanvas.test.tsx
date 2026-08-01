@@ -365,20 +365,27 @@ describe('MapCanvas — long press', () => {
     vi.useRealTimers()
   })
 
-  it('converts client coordinates to CONTAINER pixels before unprojecting', async () => {
+  it('converts client coordinates to CONTAINER pixels before unprojecting, AT SCALE', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const onLongPress = vi.fn()
     const { container } = render(<MapCanvas markers={[]} onLongPress={onLongPress} />)
     await waitFor(() => expect(MapMock).toHaveBeenCalled())
     const canvas = container.querySelector('[data-map-canvas]') as HTMLElement
-    // jsdom hands out an all-zero rect, which makes the offset conversion a no-op and the whole
-    // conversion untestable — the reason this had no signal at all. Give it a real, OFFSET box.
-    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 378, height: 786, right: 418, bottom: 876, x: 40, y: 90, toJSON: () => ({}) })
+    // Two things this stub has to do at once.
+    //
+    // 1. jsdom hands out an all-zero rect, which makes the offset subtraction a no-op — that is
+    //    why the conversion had no signal at all before §79a.
+    // 2. The scale must be NON-IDENTITY. With `width === offsetWidth` the pre-§79a raw
+    //    subtraction and the corrected formula agree, so the call site could be reverted to the
+    //    old expression with this test still green (verified). Painted 189 px against a laid-out
+    //    378 px is `PhoneFrame`'s `transform: scale(0.5)` — the real production condition.
+    canvas.getBoundingClientRect = () => ({ left: 40, top: 90, width: 189, height: 393, right: 229, bottom: 483, x: 40, y: 90, toJSON: () => ({}) })
     Object.defineProperty(canvas, 'offsetWidth', { value: 378, configurable: true })
 
-    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true })
+    fireEvent.pointerDown(canvas, { clientX: 140, clientY: 190, isPrimary: true, button: 0 })
     vi.advanceTimersByTime(500)
-    expect(mapInstance.unproject).toHaveBeenCalledWith([100, 100])
+    // (140-40)*2, (190-90)*2 — the raw subtraction would give [100, 100].
+    expect(mapInstance.unproject).toHaveBeenCalledWith([200, 200])
     vi.useRealTimers()
   })
 
