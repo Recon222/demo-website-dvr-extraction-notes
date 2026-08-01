@@ -5707,6 +5707,29 @@ P7.3's and was being edited concurrently.
 
 **Trigger:** the P7 fix-round integration, or P7.3's next touch to that suite.
 
+### 84f. RECORDED (fix-delta micro-round) — the two correlated-optional traps this round created
+
+Both riders were shapes the r1 fix round introduced while fixing something else, and both were
+correct at every call site — traps, not bugs. Recorded because the round's own lesson (84a: "when
+a comment names a precedent, open the precedent") has a twin: **when a fix adds two props that
+are only meaningful together, it has added a third state nobody wants.**
+
+- **FD-3 — `role="region"` (from R-34).** It made the demo the owner of exactly one landmark, in
+  the same round whose R-10 commit argues a landmark inside a dialog is noise. The whole settings
+  surface is inside a `role="dialog"`; a landmark there adds a document-level navigation stop for
+  a block already reachable from the switch that reveals it. Now a named `group`, which gives
+  `aria-controls` its target with none of the landmark semantics.
+- **FD-4 — two correlated-optional pairs in `_shared.tsx`.** `Toggle`'s `controls?`/`expanded?`
+  (from R-34) permitted a switch advertising a disclosure relationship while withholding its
+  state — the shape that loses axe's disclosure carve-out. `SelectField`'s `label?`/`a11yLabel?`
+  (from R-9) permitted a picker with NEITHER, whose trigger, sheet title and menu all announce
+  the bare placeholder. Both are now closed by type: one `disclosure` member, and a
+  `SelectFieldName` union on the `RetentionView` precedent. Compile-probed — all three impossible
+  states are diagnostics (TS2741 on the split disclosure, TS2322 on both nameless/double-named
+  pickers); reverted.
+
+**Trigger:** none — closed. Kept as the pattern note for the next a11y fix in this chrome.
+
 ---
 
 ## 85. P7 review round 1 — P7.2's fix dispositions (R-1, R-3, R-29, R-25 half)

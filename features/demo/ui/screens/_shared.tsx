@@ -432,11 +432,37 @@ export function DateTimeField({ label, value, onChange }: { label: string; value
  *  Omitting it here reproduces that exactly, and `Dropdown` already handles the absence, sheet
  *  title included. Wizard callers pass it as before.
  *
- *  A label-less caller should pass `a11yLabel` (R-9): the sheet that opens on top of the
- *  trigger is outside `PaneGroup`'s `role="group"` boundary, so without it the dialog and its
- *  menu both announce the bare placeholder. */
-export function SelectField({ label, a11yLabel, value, onChange, options }: { label?: string; a11yLabel?: string; value: string; onChange(value: string): void; options: ReadonlyArray<string | PickerOption> }) {
+ *  A label-less caller MUST pass `a11yLabel` (R-9): the sheet that opens on top of the trigger
+ *  is outside `PaneGroup`'s `role="group"` boundary, so without it the dialog and its menu both
+ *  announce the bare placeholder. `SelectFieldName` is what makes that a compile error rather
+ *  than a convention (FD-4) — see its own note. */
+export function SelectField({ label, a11yLabel, value, onChange, options }: SelectFieldProps) {
   return <Dropdown label={label} a11yLabel={a11yLabel} value={value} onChange={onChange} options={options} placeholder="Select…" />
+}
+
+/**
+ * Naming, as a union: a `SelectField` is either visibly labelled or invisibly labelled, never
+ * neither (FD-4, the `RetentionView` precedent — "the union makes the impossible state
+ * unrepresentable").
+ *
+ * Two independent optionals permitted a THIRD state neither caller wants: no `label`, no
+ * `a11yLabel`, and a picker whose trigger, sheet title and menu all announce the bare
+ * placeholder. Every call site is correct today; this closes the shape, not a bug.
+ *
+ * The `label?: undefined` arm is load-bearing — without it, excess-property checking lets an
+ * object literal satisfy the a11y arm while also carrying a `label`, which is the very
+ * combination the phone-parity rule forbids for the settings pickers.
+ */
+export type SelectFieldName =
+  /** Visibly labelled (the wizard callers): `Dropdown` renders the line AND names the sheet. */
+  | { label: string; a11yLabel?: undefined }
+  /** Invisibly labelled (the six settings pickers): no visible line, sheet + menu still named. */
+  | { label?: undefined; a11yLabel: string }
+
+export type SelectFieldProps = SelectFieldName & {
+  value: string
+  onChange(value: string): void
+  options: ReadonlyArray<string | PickerOption>
 }
 
 /** A labelled on/off switch (keyboard-operable). */
@@ -446,8 +472,7 @@ export function Toggle({
   onClick,
   disabled = false,
   describedBy,
-  controls,
-  expanded,
+  disclosure,
 }: {
   label: string
   on: boolean
@@ -476,13 +501,18 @@ export function Toggle({
    */
   describedBy?: string
   /**
-   * Id of the region this switch reveals (R-34). Flipping a settings switch that inserts a whole
-   * configuration block below it announced "on" and nothing else; `aria-controls` + `expanded`
-   * name what appeared, so a focus-mode visitor gets the same signal a sighted one does.
+   * This switch reveals a block (R-34): the id it reveals, and whether it is revealed right now.
+   * Flipping a settings switch that inserts a whole configuration block announced "on" and
+   * nothing else; `aria-controls` + `aria-expanded` name what appeared, so a focus-mode visitor
+   * gets the signal a sighted one does.
+   *
+   * ONE member, not two optionals (FD-4). The split pair permitted `controls` without
+   * `expanded` — a switch advertising a disclosure relationship while withholding its state,
+   * which is exactly the shape that loses axe's disclosure carve-out and announces a control
+   * that governs something unknown. The two facts arrive together or not at all, so the type
+   * says so. Same move as R-7's required `valueText` and R-23/R-29's nameable modes.
    */
-  controls?: string
-  /** Whether `controls` is currently revealed. Only meaningful alongside `controls`. */
-  expanded?: boolean
+  disclosure?: { controls: string; expanded: boolean }
 }) {
   const activate = () => {
     if (!disabled) onClick()
@@ -493,8 +523,8 @@ export function Toggle({
       aria-checked={on}
       aria-disabled={disabled || undefined}
       aria-describedby={disabled ? describedBy : undefined}
-      aria-controls={controls}
-      aria-expanded={controls ? expanded : undefined}
+      aria-controls={disclosure?.controls}
+      aria-expanded={disclosure?.expanded}
       aria-label={label}
       tabIndex={0}
       onClick={activate}
