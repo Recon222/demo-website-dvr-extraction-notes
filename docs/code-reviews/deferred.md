@@ -5263,6 +5263,11 @@ pass's inventory.
 ui-mapping 12 § User Profile. The pane and its editor are REAL (decision D6 exempts this surface
 and Form Customization from the honest-stub treatment).
 
+**Amended by the P7 fix round — see §85.** Three statements in this section were completed there:
+the autofill now consults field visibility before writing (§85a, review R-1b), the pane's
+"kept for this browser tab" promise is conditional on the persistence handle (§85b, R-3), and
+§85a carries the corrected description of the autofill's re-entry behaviour (A1).
+
 ### 81a. RECORDED — no `resetProfile()`, and `agencyLogoUri` is absent from the TYPE, not just the UI
 
 **What:** the editor offers no reset/clear action and no agency-logo control, and the demo's
@@ -5573,5 +5578,92 @@ holds — its branch still carried the P7.1 placeholder `profileName: ''` and de
 profile]`, so the block auto-merged to P7.2's live-name version with no hand edit. Two stale SEAM
 comments (`SEAM(P7.3)` on the `profile` subscription and on `formProfileLabel`) were retired in the
 same pass, since the seam they pointed at is now closed.
+
+**Trigger:** none.
+
+---
+
+## 85. P7 review round 1 — P7.2's fix dispositions (R-1, R-3, R-29, R-25 half)
+
+**Source:** `docs/code-reviews/parity/p7/p7-review-r1-vetted.md` — the P7.2-owned findings, fixed
+on `parity/p7-fix-profile`. One commit per finding.
+
+### 85a. FIXED (R-1b) + A1 — the autofill's two corrections, and the corrected sentence
+
+**The write (R-1b).** The Completed-By autofill now returns early when
+`resolveFieldVisible('completion.completedBy', s)` is false. It previously wrote past the
+visitor's own OFF: the input is not rendered, so the value could not be seen, edited or cleared,
+yet it printed in the Case Notes document's Completion Information section (§81e) and greened the
+drawer dot (`counted([])` ⇒ `'complete'`). The pane's footnote covers data "already entered"; this
+was data the app CREATED after being told not to — the same shape as R-2's coordinate stamping.
+The dependency list is byte-identical: the guard reads the resolver at fill time and changes
+nothing about when the effect runs.
+
+**The contract (R-1a).** That dependency list is now pinned by two tests, one per plausible
+"fix", each verified red under its mutation. The suite was mutation-blind because every shipped
+test either arrived with a name already present or changed the profile from another view.
+
+**A1 — the amendment.** The PR body's *"fills once, only into an empty field, typing survives"*
+overclaims by omission. The accurate sentence, for the body and for anyone describing this effect:
+
+> **Completed-By autofill:** fills once **per arrival** at Completion, only into a field that is
+> both **empty and visible**; typing over it — or clearing it — survives **while the screen stays
+> open**, and a later profile edit never rewrites a location that already carries a name. A field
+> left empty, *including one the visitor cleared*, is filled again on the **next arrival** — phone
+> parity, since the phone's effect re-runs on every screen mount. The dependency list
+> `[store, view, currentLocationId]` is what makes all of that true; don't "fix" it.
+
+The re-entry refill is behaviour, not a defect: it is what the phone does, and §81's own effect
+comment was accurate about the open-screen case — it simply never said what happens on the next
+arrival. The comment now says both.
+
+**Phone twin filed:** PHONE-BUG-LEDGER item 20 — `completion.tsx:127-133` never reads the
+`showCompletedBy` it resolves at `:59`, with the same two downstream consequences (the court PDF
+prints it; the PDF validator's non-empty gate is silently satisfied).
+
+**Trigger:** none — closed. Re-flagging the re-entry refill should be answered with this entry.
+
+### 85b. FIXED (R-3) — the pane's storage promise is gated on the persistence handle
+
+**What:** `UserProfilePane` takes `persisted: boolean` and swaps its opening clause; the bridge
+samples `saveState().kind === 'saved'` when the Settings sheet OPENS, `flush()`-first, exactly
+like the drawer's save-status line.
+
+**Why it was a major:** `persistence.ts`'s `isLive()` doc states the rule in bold — any surface
+promising refresh survival must gate that sentence on the handle — and both other promise sites
+already did. A private-browsing or quota-exhausted tab (OCR data-URLs are the big payload) reaches
+`{ kind: 'failed' }`, the snapshot is CLEARED, and an unconditional "kept for this browser tab"
+kept promising storage that no longer existed.
+
+**Sampling, not subscribing — deliberate:** the fact is read when the surface is about to make the
+claim (R-2's rule), and re-read on every open, so a mid-session failure demotes the next visit. A
+live subscription would put a persistence read in the render path of a pane that is usually shut.
+
+**Trigger:** none. A third promise site should copy this shape rather than invent a fourth.
+
+### 85c. FIXED (R-29) — `ModalShell.elevation` is a named two-member union
+
+`MODAL_LAYER = { base: 0, overSheet: 4 } as const` + `ModalLayer`. The invariant is a RANGE —
+above the overlays sharing the phone-overlay root, strictly below `PickerSheet`'s 31/32 so the
+pickers a sheet CONTAINS still land on top — and a bare `number` let a caller break either end
+while reading as valid. Pinned against both neighbours plus the rendered `z-index`.
+
+**Trigger:** a third layer is a member here, next to the values it must sit between — never a
+number at a call site.
+
+### 85d. FIXED (R-25, P7.2 half) — `DEFAULT_USER_PROFILE` keeps `Object.freeze`'s `Readonly<T>`
+
+The `: UserProfile` annotation widened it straight back, so a write compiled and threw at runtime
+instead of being refused. Pinned by a declared-but-never-called `@ts-expect-error` probe —
+executing it would prove the runtime half, not the type half. R-25's `settings-values.ts` half is
+P7.1's and is deliberately untouched here.
+
+**Trigger:** none.
+
+### 85e. RECORDED — the rider (lane-typescript Obs-2) landed with R-1a's tests
+
+`user-profile-state.test.ts` now covers the symmetric v7 discard — the whole `userProfile` member
+deleted — beside P7.3's `delete parsed.state.formOverrides` equivalent. Both v7 members are
+required; a payload missing either is discarded, never defaulted.
 
 **Trigger:** none.

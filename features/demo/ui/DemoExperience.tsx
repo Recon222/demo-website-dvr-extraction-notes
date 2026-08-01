@@ -1018,7 +1018,10 @@ export function DemoExperience({ store: injectedStore }: DemoExperienceProps = {
    * 2. **A typed value is never overwritten.** The field is only filled when it is EMPTY, and
    *    neither `completedBy` nor the profile name is a dependency, so typing over the autofilled
    *    name — or clearing it — survives for as long as the screen stays open. On the phone the
-   *    same guard also protects a value loaded from SQLite.
+   *    same guard also protects a value loaded from SQLite. What that does NOT mean (review A1,
+   *    deferred §85a): a field left empty, including one the visitor deliberately cleared, is
+   *    filled again on the NEXT arrival — the phone's effect re-runs on every screen mount, so
+   *    this is parity, not a leak. "Survives" is scoped to the open screen.
    * 3. **Editing the profile later does not rewrite finished locations** (phone
    *    `user-profile/README.md`, workflow step 4): a location that already carries a name keeps
    *    it, whatever the profile says afterwards.
