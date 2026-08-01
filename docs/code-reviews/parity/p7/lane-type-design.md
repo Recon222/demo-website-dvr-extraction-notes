@@ -373,3 +373,243 @@ features/demo/ui/screens/settings/__tests__/panes.test.tsx
 
 Cold `tsc --noEmit` at `1505c00`: **clean**. All probe edits reverted; `git status --porcelain`
 empty in the probe worktree after each round.
+
+---
+
+# Fix-delta r1
+
+**Head** `2f57ba1` (Merge `parity/p7-fix-formcustom`) · verified in the same isolated worktree
+(`scratchpad/worktrees/p7-typedesign`, re-detached at `2f57ba1`), cold `tsc --noEmit` **exit 0**,
+15 targeted suites / **273 tests** green. Every probe below was run as a real edit and reverted;
+`git status --porcelain` empty after each.
+
+**Disposition: 4 MEDIUM FIXED · 7 LOW FIXED · 0 not-fixed · 2 new LOW.**
+
+| # | Commit | Disposition |
+|---|---|---|
+| M1 | R-20 `e7eb681` | **FIXED** (with a residual → **N1**) |
+| M2 | R-21 `fcb1ad5` | **FIXED** — better than proposed |
+| M3 | R-22 `6c936fa` | **FIXED** — replacement assertion is strictly stronger |
+| M4 | R-23 `a877130` | **FIXED** |
+| L1 | R-24 `74afd4d` | **FIXED** |
+| L2 | R-25 `6f345ae` + `d66c498` (merge-deduped) | **FIXED** — both halves |
+| L3 | R-26 `e6d99fd` | **FIXED** |
+| L4 | R-27 `059cd3e` | **FIXED** |
+| L5 | R-28 `252d0ca` | **FIXED** |
+| L6 | R-29 `33910c3` | **FIXED** |
+| L7 | R-30 `911a6ba` | **FIXED** |
+
+## Verification, finding by finding
+
+**M4 → R-23 — FIXED, probe-confirmed.** The omission probe now fails:
+`zz-typeprobe.ts(8,48): error TS2554: Expected 2 arguments, but got 1.` The mode is
+`DrawerStatusMode = FormVisibility | typeof COUNT_ALL_FIELDS`, required, with `COUNT_ALL_FIELDS`
+exported and named at the map call site (`selectors.ts:323`). The `mode === COUNT_ALL_FIELDS ||
+resolveFieldVisible(id, mode)` guard narrows correctly (object arm vs string-literal arm are
+disjoint). This is the second of the two shapes I proposed and the better one — the map/case-map
+reading is now *stated* at its call site rather than inherited from an omission.
+
+**M3 → R-22 — FIXED, probe-confirmed, and the replaced assertion holds.**
+`LinearFormStepDef extends FormStepDef { readonly id: WizardScreenId; readonly additive?: false }`
+(`types/index.ts:465-475`); `LINEAR_FORM_STEPS` and `getVisibleFormSteps` carry it; the cast at
+`selectors.ts:139` is gone. Probe: `LINEAR_FORM_STEPS[0].id` now types as `WizardScreenId`
+(`error TS2322: Type 'WizardScreenId' is not assignable to type '"mediaCapture" |
+"audioRecording"'`), so an additive tool cannot be typed into the linear list at all — a compile
+failure rather than the test failure the old comment promised.
+
+*On the replaced assertion (the specific thing to check):* the commit turned
+`expect(LINEAR_FORM_STEPS.every((s) => s.additive !== true)).toBe(true)` — which stopped
+type-checking as a meaningful comparison once `additive` narrowed to `false | undefined` (TS2367,
+no overlap with `true`) — into **two** assertions, not zero:
+`expect(LINEAR_FORM_STEPS.map((s) => s.additive)).toEqual(LINEAR_FORM_STEPS.map(() => undefined))`
+plus `expect(LINEAR_FORM_STEPS.map((s) => s.id)).toEqual([...WIZARD_SCREENS])`. The first is
+**strictly stronger** than what it replaced (`=== undefined` excludes `false`, which `!== true`
+admitted); the second pins the id-equality the whole narrowing rests on, which the original never
+asserted. The fact is preserved and widened. The one degenerate case — both sides `[]` if the
+registry emptied — is closed by the id-equality assertion beside it. Correctly REPLACED, not
+deleted.
+
+**M2 → R-21 — FIXED, and the integrator improved on the proposal.** `formProfile: Profile` on
+`SettingsPreviewContext` (`settings-values.ts:236`); `settingsPreview` maps through
+`FORM_PROFILE_SHORT` itself at `:274`; the bridge passes the id and the dead `?? profile` arm is
+gone **with its now-unused `FORM_PROFILE_SHORT` import** (`DemoExperience.tsx:721`). `profileName`
+correctly stays a bare `string` — free text whose blank case *is* the domain — and the doc now
+says why, which is the distinction that made the mismatch visible in the first place.
+*Judgement:* the seam-era test did not merely get its literal swapped; it became a **totality
+assertion** — `for (const p of PROFILES) expect(settingsPreview('form-customization', ctx({
+formProfile: p }))).toBe(FORM_PROFILE_SHORT[p])`. That is better than what I suggested: a fourth
+profile is now a compile error in the label map *and* automatically asserted by the loop, rather
+than needing a fourth hand-written expectation. Accept as-is.
+
+**M1 → R-20 — FIXED, but the gate is not where the commit says it is → new finding N1.**
+`selectMediaToolsVisible` returns `Readonly<Record<AdditiveFormStepId, boolean>>` built by mapping
+`ADDITIVE_FORM_STEP_IDS` (`selectors.ts:158-162`); `WizardDrawerProps.mediaTools` **imports** the
+type rather than re-declaring it (`WizardDrawer.tsx:53`); the reads are `mediaTools.mediaCapture`
+/ `.audioRecording`. The finding's failure mode is closed: a third tool can no longer land green.
+
+I re-ran the third-tool probe and isolated exactly which files gate it (`'ocr'` appended to
+`ADDITIVE_FORM_STEP_IDS`, then grouping the error set by file):
+
+```
+production files erroring: features/demo/engine/content/form-customization.ts   (only)
+all files erroring:        features/demo/engine/content/form-customization.ts
+                           features/demo/ui/controls/__tests__/controls.test.tsx
+                           features/demo/ui/controls/__tests__/WizardDrawer.test.tsx
+                           features/demo/ui/screens/__tests__/a11y.test.tsx
+```
+
+`selectors.ts` does **not** error (its `Object.fromEntries(…) as Record<…>` absorbs the widening —
+harmlessly, since mapping the tuple makes it automatically correct, so there is nothing to wire
+there). `WizardDrawer.tsx` does **not** error either. The commit message's "adding a tool now
+fails at the selector and at the accordion until both are wired" describes neither file; what
+actually fails is the eight `mediaTools` **prop-literal construction sites** in three test files,
+and `form-customization.ts`'s two total `Record`s, which predate R-20. See **N1**.
+
+**L1 → R-24 — FIXED.** `buildDefaults` now maps the registries in one `Object.fromEntries`
+expression instead of `{} as Record<…>` + a loop, and **both `?? false` arms are gone**
+(`form-visibility.ts:58,78`). The type, the construction and the consumer now give one answer
+about totality, which was the whole ask. The residual `as Record<…>` on `Object.fromEntries` is
+the unavoidable idiom (its return is `{[k: string]: T}`) and is correct by construction.
+
+**L2 → R-25 — FIXED, both halves, dedup verified.** Probe: `DEFAULT_SETTINGS.darkMode = false` →
+`TS2540: Cannot assign to 'darkMode' because it is a read-only property`; same for
+`DEFAULT_USER_PROFILE.name` (`TS2540`). The double-landing (`6f345ae` shell half + `d66c498` P7.2
+half) reconciled to **one** `Readonly<UserProfile>` annotation carrying the routed owner's fuller
+comment — verified `grep -c "Readonly<UserProfile>" == 1`, no duplicated declaration. The
+`@ts-expect-error` probe kept in `user-profile.test.ts` is a good touch: it fails the *build* if
+the annotation is ever widened back, which is the one thing a runtime `Object.isFrozen` assertion
+cannot do.
+
+**L3 → R-26 — FIXED, probe-confirmed.** `readonly [FormFieldId, ...FormFieldId[]]`. Probe:
+setting `occNumber: []` → `form-customization.test.ts(153,7): error TS2322: Type '[]' is not
+assignable to type 'readonly [FormFieldId, ...FormFieldId[]]'. Source has 0 element(s) but target
+requires 1.` The escape hatch I described (discharge the key with an empty list, loop iterates
+zero times, claim satisfied by a value that proves nothing) is closed. Native tuple syntax, no
+helper type introduced — right call for this codebase.
+
+**L4 → R-27 — FIXED.** `getFormStep` / `getFormField` / `getFieldGroupMembers` take `string`;
+`isKnownFormStep` / `isKnownFormField` call them with no cast. The signatures now agree with the
+callers that exist, and the `| undefined` return is reachable for the reason it was written.
+
+**L5 → R-28 — FIXED.** New `content/__tests__/explore-step-ids.test.ts` pins the join in **both**
+directions: one explore row per `WIZARD_SCREENS` id slugged with that id (drift), and no
+*other* row's slug colliding with a `FormStepId` except the two capture tools, which are the
+deliberate exception (collision). That is exactly the pair I described, and the "other direction"
+half is the one I would have expected to be skipped.
+
+**L6 → R-29 — FIXED.** `MODAL_LAYER = { base: 0, overSheet: 4 } as const` +
+`type ModalLayer = (typeof MODAL_LAYER)[keyof typeof MODAL_LAYER]`, with the ordering constraint
+(above the sibling overlays, strictly below `PickerSheet`'s 31/32) documented at the one place the
+values sit together. Noted without filing: `ModalLayer` resolves to `0 | 4`, so a bare
+`elevation={4}` still type-checks — the union is over the *values*, not the names. That is fine:
+the invariant at issue was "a caller can pick a number that breaks either end", and `12` is now
+unrepresentable. Forcing the *name* would need a nominal wrapper this codebase does not use.
+
+**L7 → R-30 — FIXED.** Deleted, and the tombstone comment at `settings-catalog.ts:136-147` is the
+right artifact: it records that the phone needs `getCategoryById` because *its* `activeId` is
+`string | null` while the demo's is `SettingsCategoryId | null`, which is the actual reason the
+port had no caller. That is the §84a lesson applied in reverse — the comment now explains a
+deletion instead of describing behaviour that was never shipped.
+
+## New findings
+
+### [LOW] N1 — R-20's compile gate rides on test fixtures, not on the two production files its commit names
+
+**Type:** `selectMediaToolsVisible(): Readonly<Record<AdditiveFormStepId, boolean>>`
+(`features/demo/engine/store/selectors.ts:158-162`) and the accordion's hand-built `rows` array
+(`features/demo/ui/controls/WizardDrawer.tsx:334-345`).
+
+**What the probe shows:** adding a third `AdditiveFormStepId` errors in one production file
+(`content/form-customization.ts` — `STEP_CLASSIFICATION` and `ADDITIVE_STEP_LABELS`, both of which
+gated it *before* R-20) and in three test files (the `mediaTools` prop literals, R-20's actual
+contribution). `selectors.ts` and `WizardDrawer.tsx` are both clean.
+
+**Why it still matters (and why only LOW):** the finding is genuinely fixed — the build cannot go
+green with an unwired third tool, and whoever fixes the fixtures is looking straight at the
+accordion. But the guard is *incidental*: it exists because three suites happen to construct the
+prop as an object literal. Fold those into a shared factory that spreads
+`selectMediaToolsVisible(...)`'s output — an ordinary test refactor — and the gate silently
+evaporates, restoring the exact original failure mode. A compile gate that a test refactor can
+delete is not the same asset as one anchored in the production file.
+
+**Fix (small):** build the two tool rows from the id space in the accordion, e.g. a
+`const TOOL_ROWS: Record<AdditiveFormStepId, { label: string; ariaLabel: string; icon: ReactNode;
+onSelect(): void }>` mapped through `ADDITIVE_FORM_STEP_IDS` and filtered by
+`mediaTools[id]`, with the ungated Media Library row appended after. A third tool is then a
+compile error in `WizardDrawer.tsx` — where the commit message already says it is. Same device the
+selector now uses, pointed at the consumer.
+
+**Round-lesson tie-in (§84a):** this is the class the round lesson names, one level up — a *commit
+message* asserting a compile gate at two named sites, where the compiler gates neither. When a
+commit claims a compile error, run it.
+
+### [LOW] N2 — `SelectField` can be rendered with no accessible name at all: `label` and `a11yLabel` are both optional
+
+**Type:** `SelectField({ label, a11yLabel, value, onChange, options }: { label?: string;
+a11yLabel?: string; … })` at `features/demo/ui/screens/_shared.tsx:438`.
+
+**Permitted invalid state:** the two props are correlated — exactly one of them must be present
+for the control to have a name — and the type asks for neither. Probe-verified:
+`<SelectField value="" onChange={() => {}} options={['a','b']} />` compiles clean.
+
+**How it got here:** P7.1 made `label` optional so the settings pickers could reproduce the
+phone's label-above-the-control layout; R-9 then added `a11yLabel` to restore the name those
+label-less pickers lost. Both steps were right; neither closed the "neither" state the first one
+opened. Every current caller passes one (`PaneSelect` requires `a11yLabel`, wizard callers pass
+`label`), so nothing is broken today — hence LOW, not MEDIUM.
+
+**Fix:** the house pattern for coupled props — a union, so the invalid combination is
+unrepresentable:
+
+```ts
+type SelectFieldProps = { value: string; onChange(v: string): void; options: … } &
+  ({ label: string; a11yLabel?: string } | { label?: never; a11yLabel: string })
+```
+
+Repo precedent: `RetentionView` (`engine/logic/retention.ts`) — "the union makes 'no total ⇒ no
+scopes' unrepresentable otherwise". Same shape, same reason.
+
+## Fix-introduced regression hunt — clean
+
+- **`TypedOption<T extends string | number>`** (`settings-values.ts:156`, R-11): genuinely
+  cast-free. `PaneSelect` narrows by **looking the value up in the list**
+  (`options.find((o) => String(o.value) === picked)`), not by asserting — so the eight `as`
+  narrowings are gone and none was replaced by a hidden one. The `number` arm removes the
+  stringify-at-the-list / re-parse-at-the-handler round trip for `maxVideoDuration` and
+  `gpsTimeout`. Note in passing (not a finding, and not new): the `*_OPTIONS` lists are arrays, so
+  they are still not *exhaustive* over their `*_VALUES` tuples — a dropped member compiles. Each
+  list is pinned literal-for-literal in `settings-values.test.ts:105-160`, which is the §27
+  static-literal precedent, and R-11 strictly improved the other direction (a typo'd value is now
+  a compile error). `PaneRadioGroup`'s narrower `T extends string` is correct — both radio groups
+  are string unions.
+- **`MODAL_LAYER`** — covered under L6. No regression; `elevation` went from `number` to `0 | 4`.
+- **Key renames** — `mediaTools.capture`/`.audio` → `.mediaCapture`/`.audioRecording`, and
+  `formProfileLabel` → `formProfile`. Both are required-property renames on non-optional members,
+  so every reader and every construction site is compiler-visible; cold tsc is clean and no
+  stringly-typed reader survives (`grep` for the old keys returns nothing outside the diffs).
+- **`ADDITIVE_FORM_STEPS` left at `readonly FormStepDef[]`** while its linear sibling narrowed to
+  `LinearFormStepDef` — an asymmetry, not a gap: nothing routes on those ids as
+  `AdditiveFormStepId`, so there is no cast for a narrowing to remove. Correctly not done.
+- **`PaneSelect` drops an unrecognised picked string** (`if (hit) onChange(hit.value)`) — a silent
+  no-op, but unreachable (the dropdown's option list *is* `options`), and it is the
+  silent-failure lane's call, not mine. Recorded, not filed.
+- `selectDrawerStatus`'s new required `mode`, the `LinearFormStepDef` narrowing and the
+  `Readonly<>` annotations all propagated without a single new `as` anywhere in the diff.
+
+## Fix-delta summary
+
+| Severity | Outstanding |
+|---|---|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 0 |
+| LOW | 2 (new: N1, N2) |
+
+Id spaces typed: **all four r1 regressions closed** (M1, M2, L5, L7).
+`readonly` discipline: **closed** (L2, both halves, compile-enforced).
+Exhaustiveness enforced: **strengthened** — the R-26 non-empty tuple, the R-21 totality loop and
+the R-28 two-way join each replaced a device that could be discharged without proving anything.
+Correlated state modelled as a union: **one new gap found** (N2).
+
+**Verdict: APPROVE.** Both new items are LOW and neither blocks the merge.
+

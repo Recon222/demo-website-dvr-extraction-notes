@@ -380,3 +380,174 @@ Snapshot guard (v7): **intact** — all three devices probe-verified across the 
 Notes: the only reproduced wrong render is the stale rail manifest (fix is one dep list); the
 Retention dead-end is three clicks from the pane; the `as`-cast cluster's own fix is already in the
 file, unconsumed.
+
+---
+
+# Fix-delta r1
+
+**Head:** `feat/parity-p7` @ `2f57ba1` (four fix branches merged) · **Base for the delta:** `1505c00`
+**Probe worktree:** `scratchpad/worktrees/p7-lane-ts-delta` (registered in `git worktree list`, detached at `2f57ba1`, `node_modules` symlinked from the shared worktree). All probe edits reverted; `git status` clean, cold `tsc` re-verified clean afterwards.
+
+**Result: 4/4 MEDIUM FIXED · 1/1 LOW FIXED · 2/2 judged sound · 1 NEW MEDIUM.**
+
+Applying §84a's round lesson — *when a comment cites a precedent, open the precedent* — I probed every claimed compile-time guarantee rather than reading the comment that asserts it. Five of six hold under probe. One does not, and it is a fix-round commit whose message and ledger entry both state the guarantee it did not deliver.
+
+## Gates (re-run in the probe worktree)
+
+| Gate | Result |
+|---|---|
+| **COLD `tsc --noEmit`** (fresh worktree, no `.tsbuildinfo`) | **clean**, exit 0, 14.7 s |
+| Engine targeted suites (27 files: content, form-visibility, user-profile, store, barrel) | 407 passed |
+| UI targeted suites (117 files: bridge, settings, screens, controls, inputs) | 1485 passed |
+| `useStore` outside `DemoExperience.tsx` | 0 — bridge intact |
+| React / `'use client'` under `engine/` | 0 — engine pure |
+| `selectDrawerStatus` production call sites | 2/2 correct (`DemoExperience:835` → visibility; `selectLocationMapStatus:323` → `COUNT_ALL_FIELDS`) |
+| New `any` / `as any` / `@ts-ignore` / `console.log` in the delta | 0 (the one `@ts-expect-error` is R-25's build-failing pin on `Readonly<UserProfile>` — it does real work, since a cold clean `tsc` means the error it expects is actually produced) |
+
+---
+
+## My r1 findings — dispositions
+
+### MED-1 · explore memo deps → **FIXED** (R-4, `111b4d8`) — re-probed
+
+Deps are now `[store, visited, view, modal, profile, formOverrides]` and the comment was rewritten to name all five inputs. Re-ran my r1 probe verbatim against `2f57ba1`:
+
+```
+BEFORE                    → cameras row: true  | counter: 1/21 explored
+AFTER TOGGLE, sheet OPEN  → cameras row: false | counter: 2/20 explored     ← was `true | 2/21`
+AFTER CLOSE               → cameras row: false | counter: 2/20 explored
+```
+
+The rail now drops the row and corrects the denominator on the toggle itself, beside the pane that removed it. `DemoExperience.form-customization.test.tsx` gained a test that toggles *after* render — the visitor's actual path, and the one all three pre-existing rail tests missed by seeding first.
+
+### MED-2 · DVR Retention dead-end → **FIXED** (R-8, `db7a4ef`)
+
+The placeholder branches on `show.firstRecordedDate` and, when the picker is hidden, says `'Turn First Recorded Date back on in Settings → Form Fields to calculate retention.'` — advice the visitor can act on instead of a control that is not there. The new test renders both arms and asserts the picker's absence in the second (`queryByText(/^First Recorded Date$/)`), so the copy cannot drift back to naming it. My sibling sweep of the other five gated screens still finds no second instance.
+
+### MED-3 · eight `as` casts + seven dead tuples → **FIXED** (R-11 `f2924cd`, with R-27 `059cd3e`) — probed
+
+All eight casts are gone (`grep " as [A-Z]" features/demo/ui/screens/settings/` → 0 hits). The mechanism is stronger than the fix I proposed: `TypedOption<T>` types each list off its union, and `PaneSelect`/`PaneRadioGroup` became generic and narrow by **lookup**, not assertion —
+
+```ts
+onChange={(picked) => { const hit = options.find((o) => String(o.value) === picked); if (hit) onChange(hit.value) }}
+```
+
+so an unrecognised string is dropped rather than smuggled into the union. Probe (typo an option value in two lists):
+
+```
+settings-values.ts(164,31): TS2820 — Type '"1080P"' is not assignable to type '"720p" | "1080p" | "2160p"'. Did you mean '"1080p"'?
+settings-values.ts(182,26): TS2322 — Type '1801' is not assignable to type '0 | 60 | 120 | 300 | 600 | 900 | 1800'
+```
+
+The seven tuples are no longer dead: `settings-values.test.ts:176-184` pins `values(X_OPTIONS) ≡ [...X_VALUES]` for each, so list and tuple are locked together in both directions. The commit also absorbed the stringify/re-parse round trip on the two numeric unions — `MAX_DURATION_OPTIONS`/`GPS_TIMEOUT_OPTIONS` now carry `number` values and `PaneSelect` stringifies once at the `Dropdown` boundary.
+
+### MED-4 · narration counts → **FIXED** (R-5, `ea69431`) — both stale literals now test-forbidden
+
+Both numbers are interpolated: `SETTINGS_CATEGORY_IDS.length` (through a `NUMBER_WORDS` map, so the prose still reads as prose) and a new `SWITCHABLE_FORM_FIELDS` export — the `field-capable` filter, which is 58 − 8 screen-only = **50**, and which `FormFieldsPane.test.tsx` was already re-deriving inline (§84e's dedup, taken).
+
+Verified the forbidding is real, not just derivation: `content.test.ts` asserts `para` **contains** the derived values and `.not.toContain('Eleven categories')` / `.not.toContain('57 form fields')`. Cycle check on the two new content imports — `narration → settings-catalog` (imports nothing) and `narration → form-customization → {types, screens}` (neither imports narration): acyclic, and a cycle would have surfaced as `undefined.length` at module eval anyway.
+
+### LOW · `Record<string, string>` testid maps → **FIXED** (folded into R-11's second half)
+
+`STRENGTH_TESTIDS` / `PROMPT_TESTIDS` are now `Record<ZipEncryptionStrength, string>` / `Record<ZipPromptMode, string>`, and `PaneRadioGroup.testIdOf` is typed `(value: T) => string`.
+
+---
+
+## Judged (assigned, not my r1 findings)
+
+### R-22 · `LinearFormStepDef` → **sound**, and it forces
+
+The cast I *didn't* flag (`step.id as WizardScreenId`, which I explicitly left alone in r1 as documented + test-pinned) was deleted properly rather than re-annotated. Probe — type an additive tool into `LINEAR_FORM_STEPS`:
+
+```
+form-customization.ts(70,62):  TS2322 — Type '"mediaCapture"' is not assignable to type 'WizardScreenId'
+form-customization.ts(70,135): TS2322 — Type 'true' is not assignable to type 'false'
+```
+
+Both halves of the narrowing (`id: WizardScreenId`, `additive?: false`) bite independently. The registry test correctly stopped asserting `additive !== true` — that comparison no longer typechecks as meaningful — and replaced it with a value assertion plus `LINEAR_FORM_STEPS.map(s => s.id) === [...WIZARD_SCREENS]`, which is the fact the narrowing rests on. Correct move: the guarantee went down a level instead of gaining another assertion.
+
+### R-23 · required `FormVisibility | 'count-all'` → **arity trap closed**
+
+Probe — call the selector with one argument:
+
+```
+selectors.ts(326,54): TS2554 — Expected 2 arguments, but got 1
+```
+
+`COUNT_ALL_FIELDS` is a `const` string literal, so `mode === COUNT_ALL_FIELDS` narrows the else-branch to `FormVisibility` with no cast. Both production call sites state their mode explicitly, and `drawer-status.test.ts` names it on both arms (its comment "neither is *the default* and neither is signalled by an omitted argument" is the finding restated correctly). No new trap introduced: the mode cannot be reached by an untyped string.
+
+---
+
+## NEW finding
+
+### [MEDIUM] R-20's stated guarantee does not hold at the drawer — a third capture tool still reaches the grid and silently never reaches the accordion
+
+**Files:** `features/demo/engine/store/selectors.ts:154-160` · `features/demo/ui/controls/WizardDrawer.tsx:334-344`
+**Introduced by:** R-20 (`e7eb681`), recorded as closed in ledger §86c.
+
+**The claim.** Three places assert the same thing:
+
+- commit `e7eb681`: *"the record is total over the id space, so adding a tool breaks here **and at the drawer** until both are wired."*
+- `selectors.ts`'s own doc comment: the identical sentence.
+- §86c: *"a third additive tool would have compiled everywhere and silently never reached the accordion. Now `Readonly<Record<AdditiveFormStepId, boolean>>` built FROM the tuple and imported, not re-typed."*
+
+**Probe — add a third id to `ADDITIVE_FORM_STEP_IDS`** (reusing the existing launchable `'ocr'` so the tuple's `satisfies readonly LaunchableId[]` still holds).
+
+*Pass 1* (tuple only) — two errors, both in `content/form-customization.ts`: `STEP_CLASSIFICATION` and `ADDITIVE_STEP_LABELS`. Both are `Record<…>` literals that were **already total before R-20**.
+
+*Pass 2* (both registries satisfied) — **zero non-test errors.** `selectMediaToolsVisible` compiles. `WizardDrawer` compiles. The new tool appears as a switchable row in the Form Fields grid, and has no accordion row: a switch that moves nothing — the same defect §82b filed against the phone.
+
+**Why it doesn't force, at both ends:**
+
+1. `selectMediaToolsVisible` ends in `Object.fromEntries(ADDITIVE_FORM_STEP_IDS.map(…)) as Record<AdditiveFormStepId, boolean>`. `fromEntries` returns `{[k: string]: boolean}`, so the assertion **claims** totality rather than proving it. Adding a key can never break this function — the cast absorbs it. (Contrast the device the rest of this PR uses: `MODAL_IDS`, `GLYPHS`, `STEP_CLASSIFICATION`, `ADDITIVE_STEP_LABELS` are total object *literals*, which is why pass 1 caught two of them.)
+2. `WizardDrawer`'s `rows` is a hand-built array of two independent `...(mediaTools.mediaCapture ? [row] : [])` spreads. Reading two of three keys off a total `Record` is not an error in TypeScript — there is no unread-key check — so the drawer end has no gate at all.
+
+R-20 did deliver a real improvement (the prop is now imported rather than re-declared, so `capture`/`audio` can no longer drift between selector and consumer). It is the *invariant* that is over-claimed — and it is the §84a shape the round lesson names, re-introduced by a fix commit rather than found in the original code.
+
+**Fix.** Drop the cast by returning a total literal, and give the drawer the same device one level up:
+
+```ts
+// selectors.ts — no cast; a new AdditiveFormStepId is a compile error HERE
+export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
+  return {
+    mediaCapture: resolveStepVisible('mediaCapture', s),
+    audioRecording: resolveStepVisible('audioRecording', s),
+  }
+}
+```
+
+```tsx
+// WizardDrawer.tsx — the row defs carry JSX, which is exactly why ADDITIVE_STEP_LABELS' own
+// comment says they must live here. A total Record makes "wired at the drawer" a compile fact.
+const TOOL_ROWS: Record<AdditiveFormStepId, (h: ToolHandlers) => MediaRow> = { mediaCapture: …, audioRecording: … }
+rows={[...ADDITIVE_FORM_STEP_IDS.filter((id) => mediaTools[id]).map((id) => TOOL_ROWS[id](handlers)), LIBRARY_ROW]}
+```
+
+Either half alone closes one end; both together make the sentence in `selectors.ts` true.
+
+---
+
+## Observations (not findings)
+
+1. **R-24 moved a guarantee sideways, not down.** `resolveStepVisible`/`resolveFieldVisible` lost their `?? false` fallbacks on the strength of `ProfileDefaults` being total — but `buildDefaults` swapped `{} as Record<…>` + a loop for `Object.fromEntries(…) as Record<…>`, which is the same assertion in different clothes (and the same shape as the R-20 cast above). Risk today is nil: `ALL_STEP_IDS`/`ALL_FIELD_IDS` are mapped straight off the registries, the import graph is acyclic, and `content.test.ts:91` pins per-key totality. Recorded only because the runtime net was removed while the proof stayed an assertion — if a cycle ever made those maps empty, the resolvers would now return `undefined` where they returned `false`, and `aria-checked={undefined}` drops the attribute rather than rendering `"false"`.
+2. **R-5's negative pin will false-fail on a legitimate 11th category** — the copy would then correctly read "Eleven categories" and `.not.toContain('Eleven categories')` would redden. Harmless: `expect(SETTINGS_CATEGORY_IDS).toHaveLength(10)` fires first, so a human is forced to look at both lines together. Noted so it is read as a notice-me pin, not a bug.
+3. **The narration's "50 form fields" is true as written** (50 rows render), though 7 of them render locked and §82a's "43 actually move" is the number a pedant would want. Derived and defensible — not re-flagged.
+4. **My r1 Obs-2 landed** (§85e): `user-profile-state.test.ts:137` now pins the symmetric v7 discard (`delete state.userProfile`), plus a partial-member case at `:148`.
+5. **My r1 Obs-3 was ruled and fixed** (§86b / R-13): `reset()` now preserves `userProfile`, `profile` and `formOverrides` as one family. The asymmetry I flagged is gone and the rule is stated once.
+6. **My r1 Obs-1 is resolved** — the untracked `zzprobe.test.tsx` is no longer in the worktree.
+7. **R-1b's visibility gate does not disturb the autofill deps contract I verified in r1.** The dep array is byte-identical (`[store, view, currentLocationId]`); the gate is a fill-time read. No stale-gate hole either: Settings is unreachable from a wizard screen (§82h), so the visitor cannot change `completion.completedBy`'s visibility without leaving Completion, and returning re-runs the effect.
+
+---
+
+## Fix-delta Summary
+
+| | r1 | delta |
+|---|---|---|
+| CRITICAL | 0 | 0 |
+| HIGH | 0 | 0 |
+| MEDIUM | 4 | **1 new** (4 r1 fixed) |
+| LOW | 1 | 0 (fixed) |
+
+Store-bridge integrity: **preserved** · Engine purity: **preserved** · Barrel + marketing/demo isolation: **preserved** · Determinism seam: **preserved** · Snapshot guard (v7): **intact**
+
+**Verdict: APPROVE with comments.** Every r1 finding is genuinely closed — four of the five by a stronger mechanism than the one I proposed. The one new item is a type-level guarantee that three separate texts state and the compiler does not enforce; it blocks nothing today (there are two additive tools and no third planned) and is ~10 lines from being true.

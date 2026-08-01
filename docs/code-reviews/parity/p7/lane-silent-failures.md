@@ -347,3 +347,201 @@ visibility decision; M-2 is a promise that never reads the fact it depends on.)
 `/private/tmp/claude-501/-Users-fvadev-Developer-extraction-notes-DVR-Extraction-Notes-ReactNative/7423d8f5-e7f4-4135-a726-296308b62d4d/scratchpad/worktrees/p7-silentfail`
 (detached @ `1505c00`; `node_modules` is a symlink into the shared `parity-p7` worktree — remove
 the symlink, not its target). No commits, no branch.
+
+---
+
+# Fix-delta r1
+
+**Head:** `feat/parity-p7` @ `2f57ba1` (260 files / 3402 tests) · **Base of delta:** `1505c00`
+**Method:** read every cited fix commit, then re-ran my own probes against `2f57ba1` in the
+isolated worktree (`.../worktrees/p7-silentfail`, moved to `2f57ba1`; probe files deleted after
+running). Targeted suites re-run solo: **7 files / 168 tests green**
+(`DemoExperience.user-profile`, `UserProfilePane`, `field-visibility`, `location-coordinates`,
+`panes`, `FormFieldsPane`, `settings-values`). Phone repo read-only.
+
+**Result: 8/8 of my findings FIXED. 1 new LOW. 0 not-fixed, 0 regressions.**
+
+| Mine | Fix | Commit | Disposition |
+|---|---|---|---|
+| M-1 | R-1b | `88ff851` | **FIXED** — probe-verified, all arms |
+| — | R-1c/A1 phone bug 20 | `914c166` | **ACCURATE** — all five file:line claims exact |
+| M-2 | R-3 | `74d2c32` | **FIXED** — plus new **D-1 (LOW)** |
+| M-3 | R-2 | `40d9ef0` | **FIXED** — §86a boundary verified |
+| L-1 | R-8 | `db7a4ef` | **FIXED** |
+| L-2 | R-17 | `ca0169c` | **FIXED** |
+| L-3 | R-18 | `6937a15` | **FIXED** — better than proposed |
+| L-4 | R-19 | `73daa90` | **FIXED** |
+| L-5 | A1 | `914c166` + PR body | **FIXED** — corrected sentence matches observed behaviour |
+
+---
+
+## M-1 → R-1b — FIXED
+
+`DemoExperience.tsx:1051` adds `if (!resolveFieldVisible('completion.completedBy', s)) return`
+between the empty-check and the name read. Probe (4 cases, all pass at `2f57ba1`):
+
+- **hidden** ⇒ `form.completedBy === ''`; `generateCaseNotesDoc` contains neither the name **nor
+  the `Completion Information` heading**; and the drawer dot reads `'empty'`, not the false
+  `'complete'` I reported — the `counted([])` green was a *consequence* of the write, and it went
+  with it.
+- **re-enabled** ⇒ fills on the next arrival. Hiding suppresses; it does not disable.
+- **cleared then re-entered** ⇒ refills, exactly as the A1 sentence now says.
+- **`[store, view, currentLocationId]` is byte-identical** — verified mechanically:
+  `git diff 1505c00..2f57ba1 -- DemoExperience.tsx | grep 'store, view, currentLocationId'`
+  returns nothing, so the dependency contract the PR body protects was not touched.
+
+**Phone bug 20 (`914c166`) — filing is accurate.** Checked every claim at source:
+`completion.tsx:59` resolves `showCompletedBy` ✓; its *only* consumer is the render gate at
+`:492` ✓; the effect at `:127-133` writes without reading it ✓;
+`case-notes-template.ts:341-345` is exactly the `${hasValue(formData.completedBy) ? …}` block, so
+the gate is value-based, not visibility-based ✓; `case-notes-validator.ts:53` is the
+`!formData.completedBy || …trim() === ''` check ✓. The entry also lands **a consequence I
+missed**: the validator's non-empty requirement is *silently satisfied* by the invisible autofill,
+so the phone's PDF gate stops asking for a value the operator never supplied. Correctly framed as
+the inverse of item 19 (19 = a toggle that changes nothing; 20 = a toggle the app overrides).
+
+---
+
+## M-2 → R-3 — FIXED, with one new LOW
+
+`UserProfilePane` takes `persisted: boolean` and swaps its opening clause; the bridge samples
+`saveState().kind === 'saved'` in a `[modal]` effect, `flush()`-first
+(`DemoExperience.tsx:666-682`). The rule cited in `persistence.ts:610-614` is now honoured at all
+three promise sites.
+
+**The flush timing question — checked, and the flush is load-bearing.** Probe with fake timers:
+a fresh handle reads `pending`; `openModal('settings')` (the store change opening the sheet makes)
+schedules the debounced write and the handle still reads `pending`; `flush()` lands it and the
+handle reads `saved`. So on a healthy tab the sample never catches the `pending` state — **which
+matters, because `pending` renders the withdrawn arm**. Without the flush, every first visit to
+the pane on a healthy tab would have told the visitor their browser isn't storing the session.
+The ordering holds structurally too: the store subscription sets the timer synchronously inside
+`set()`, before React re-renders, so the timer is always armed by the time the `[modal]` effect
+runs.
+
+### [LOW] D-1 (new, fix-introduced) — the withdrawn arm reports `unavailable`'s cause for a `failed` tab
+
+**File:** `features/demo/ui/screens/settings/panes/UserProfilePane.tsx:99-106`
+
+```tsx
+This one is real, but this browser isn&rsquo;t storing the session — what you enter
+lasts until you leave or reload this page.
+```
+
+`persisted: boolean` collapses `pending`, `unavailable` and `failed` into one arm, and that arm
+borrows the **`unavailable`** wording. For the quota case this lane's M-2 was written about — the
+tab that *was* storing until `setItem` threw and the snapshot was cleared — "this browser isn't
+storing the session" is the wrong diagnosis. Probe-verified that the two are genuinely distinct at
+the handle: an injected throwing backend yields `{ kind: 'failed' }` while a null backend yields
+`{ kind: 'unavailable' }`, and `describeSaveStatus` already carries the right sentence for each
+(`'Not saved · the last save to this tab failed'`).
+
+Kept at LOW because the **actionable** half is true in every arm ("what you enter lasts until you
+leave or reload this page"), so the visitor is not misled about what to do — only about why. This
+is the fallback-cause-collapse pattern at its lowest stakes, and the repo already owns the
+vocabulary to close it.
+
+**Fix:** take `SaveStateKind` instead of `boolean` (the pane is already the third consumer of this
+fact), or keep the boolean and use a cause-neutral clause — "this page isn't holding on to the
+session right now" — that is true for all three.
+
+**Recorded, not a finding:** `profilePersisted` is sampled at sheet-open only, so a write failure
+occurring *while* the pane is open leaves the promise arm standing for the rest of that visit.
+§85b states this deliberately ("re-read on every open, so a mid-session failure demotes the very
+next visit") and the alternative puts a persistence read in the render path of a usually-shut
+pane. Bounded and disclosed — no action.
+
+---
+
+## M-3 → R-2 — FIXED
+
+`LocationFields.tsx:238` — `...(showGps && p.coordinates ? {…} : {})`. Street and city still
+write (always-on); the coordinate keys are simply absent from the patch, so **an existing
+coordinate is not nulled either** — the §86a boundary ("only NEW stamping is suppressed") holds
+structurally, not just by convention. `handleCapture`, the other writer, is unreachable while the
+control is hidden.
+
+The two shipped tests pin exactly the right things and are the ones I would have asked for:
+`location-coordinates.test.tsx` asserts `onCoordinates` is never called on a pick with the group
+off *while* street and city still write; `field-visibility.test.tsx` renders a **coordinates-
+bearing** fixture to catch the card — the reviewer's note that the registry-driven loop could not
+see it (absent from both arms of a no-coordinate fixture) is correct and was worth the extra test.
+
+**The brief's honesty question — "does the visitor learn the pick was address-only?"** No, and
+that is right: with the group off there is no coordinate control, no lookup notice and no
+coordinate card anywhere on the screen, so nothing the visitor asked for failed to happen. There
+is no dangling state either — `setLookupNotice('none')` still runs but the notice only renders
+inside the gate. Silence is the correct treatment here; an explanation would be describing a
+feature the visitor switched off.
+
+**Recorded, not a finding:** §85a does not state for R-1b the boundary §86a states for its twin.
+Probe-verified that the behaviour is the same and correct — a name autofilled *before* the field
+was hidden stays put and still prints, the pane footnote's "already entered" case. Worth one
+sentence in §85a so the two fixes read as one rule rather than two decisions.
+
+---
+
+## The LOWs
+
+- **L-1 → R-8 `db7a4ef` — FIXED.** The placeholder now branches: it asks for the date while the
+  picker is on screen and reads *"Turn First Recorded Date back on in Settings → Form Fields to
+  calculate retention"* when it is not. Both arms pinned, and the test also asserts the picker
+  label really is absent — so it cannot pass on a mis-wired fixture.
+- **L-2 → R-17 `ca0169c` — FIXED.** *"This profile hides nothing **by default**."* /
+  *"Hides 1 screen · 12 fields **by default**."* Scoped to what `describeProfile` actually counts.
+  The added test puts the visitor on `forensic` with Cameras switched off and asserts both the
+  line and the off switch — i.e. it pins the exact falsification I reported.
+- **L-3 → R-18 `6937a15` — FIXED, and better than what I proposed.** The promise is gone and the
+  copy now *names the failure mode* ("if nothing happens, this machine has no mail app
+  registered"), with `SUPPORT_EMAIL` printed below as selectable text. The commit's reasoning —
+  degrade to something usable rather than to silence — is the right generalisation.
+- **L-4 → R-19 `73daa90` — FIXED.** `settingsPreview('export-security')` returns `'Not applied'`
+  unconditionally; the test asserts it across all four flag combinations, so the row cannot drift
+  back to a claim. The switches stay live (D6's cosmetic arm) and the pane's reveal logic is
+  untouched, so the control still visibly does something in-pane — no dead-control impression.
+  §84c records the ruling.
+- **L-5 → A1 — FIXED as documentation.** The PR body's bullet, the effect's own doc comment
+  (`DemoExperience.tsx:1023-1026`) and §85a now all carry the corrected sentence, and my probe
+  confirms observed behaviour matches it clause for clause — including "a field left empty,
+  *including one the visitor cleared*, is filled again on the next arrival."
+
+---
+
+## Fix-introduced swallow hunt — clean
+
+- **"Profile hides the field WHILE Completion is open"** — still unreachable. `openSettings` has
+  exactly two callers (`DashboardScreen`, `CasesScreen` headers) and no gear was added to the
+  wizard drawer, so §82h's condition holds unchanged. The only orderings that exist are
+  hide-then-arrive (suppressed) and fill-then-hide (kept, "already entered").
+- **R-4 `111b4d8`** (adjacent to my surfaces) is a genuine stale-derivation fix, not a new
+  swallow: `profile`/`formOverrides` joined the explore memo's deps, closing a case where toggling
+  Cameras off with the sheet open left a stale row and an inflated denominator on the rail. All
+  visibility-reading derivations now have complete deps (`:632`, `:695`, `:700`); `drawerStatus`
+  and `mediaTools` are computed inline per render.
+- **R-23** made `selectDrawerStatus`'s second argument a **required** `DrawerStatusMode`
+  (`FormVisibility | 'count-all'`). This is a strengthening in my lane's direction: "forgot to
+  pass visibility" was previously a silent count-everything and is now a compile error, and the
+  map-pin caller states its intent explicitly (`selectors.ts:323`, `COUNT_ALL_FIELDS`), preserving
+  the §82f asymmetry.
+
+---
+
+## Fix-delta summary
+
+| Severity | Opened | Fixed | Remaining |
+|---|---|---|---|
+| CRITICAL | 0 | — | 0 |
+| HIGH | 0 | — | 0 |
+| MEDIUM | 3 | 3 | 0 |
+| LOW | 5 | 5 | **1 new (D-1)** |
+
+Fallback honesty: **yes** · Failure-cause distinctions preserved: **one collapse introduced (D-1)**
+Partial results flagged: **yes** · Stale-write safety: **yes** · Breadcrumbs intact: **yes**
+
+**Verdict: APPROVE** — every finding in this lane is closed. D-1 is a LOW that does not gate the
+merge; it is a two-word copy change or a `boolean` → `SaveStateKind` widening whenever the fix
+round next opens that pane.
+
+**Worktree for cleanup:** `.../scratchpad/worktrees/p7-silentfail` (detached @ `2f57ba1`;
+`node_modules` is a symlink into the shared `parity-p7` worktree — remove the symlink, not its
+target). No commits, no branch, probes deleted, `git status` clean.

@@ -264,3 +264,168 @@ Style-convention adherence: **correct half** — inline `CSSProperties` througho
 **Verdict: APPROVE with comments.**
 
 Notes: nothing here blocks a flow or a bundle; the recurring shape is a doc comment that names the right a11y idiom (`aria-describedby` beside `aria-disabled`, the `AlertDialog` role+label pairing, `aria-expanded` carrying its own state) while the code ships only half of it. W-1, W-2, W-4 and W-5 are one-to-four-line fixes each; W-3 is a prop threaded to six call sites; W-6 and W-7 are legitimate defers if the round would rather log them than build them.
+
+---
+
+# Fix-delta r1
+
+**Reviewed at:** `2f57ba1` (`Merge parity/p7-fix-formcustom (P7 fix round 1)`), same worktree, tree clean.
+**Map:** PR #36's commit→finding comment; ledger §§84–86 + the §80g amendment.
+**Round lesson applied (§84a):** every citation in a fix commit was opened and checked against the precedent it names, not taken on the comment's word.
+
+## Gates re-run
+
+| Gate | Result |
+|---|---|
+| `pnpm build` | ✅ clean, 19/19 static pages, exit 0 |
+| `/demo` First Load JS | **107 kB — unmoved**; every marketing route byte-identical to the pre-fix table (`/` 121 · `/beta` 111 · `/features` 110 · `/privacy` 106 · shared 106) |
+| New deps / wall / heavy-import shape | unchanged — no `package.json` delta, no marketing import, no static `mapbox-gl`/`pdfjs-dist` |
+| New animations, listeners, browser globals in the fix round | **none** (scanned the whole `1505c00..2f57ba1` UI diff) |
+| Targeted suites (settings + a11y + field-visibility + the three DemoExperience settings suites + controls + shared-inputs) | 15 files / **249 passed** |
+
+## Dispositions
+
+| Lane finding | Route | Verdict |
+|---|---|---|
+| W-1 `aria-disabled` without `aria-describedby` | R-6 (`5e6223f` + `3864138`) | **FIXED, both halves** |
+| W-2 slider announces the wrong number | R-7 `fce7d39` | **FIXED** |
+| W-3 picker sheets named "Select an option" | R-9 `e6daf30` (+ R-11 `PaneSelect`) | **FIXED, and hardened past what I asked** |
+| W-4 `aria-labelledby` on a role-less div | R-10 `dd49e1d` | **FIXED** |
+| W-5 state baked into the expander's name | R-31 `1d632a5` | **FIXED** (+ the `aria-controls` I suggested) |
+| W-6 nested `aria-modal` | A4 `4d0b825` → §80g item 1 | **ITEMISED — accepted** |
+| W-7 settings record in the bridge | R-33 → §84b | **LEDGERED — accepted** |
+| W-8 silent disclosure reveals | R-34 `ffb0fb0` | **FIXED** |
+| W-9 second Escape collision | A4 → §80g item 2 | **ITEMISED — accepted** |
+| W-10 focus never returns to the gear | A4 → §80g item 3 | **ITEMISED — accepted** |
+| (not mine) About's mailto claim | R-18 `6937a15` | sound from this lane too |
+
+**Not-FIXED: 0. Regressions on my findings: 0. New: 2 (both MINOR).**
+
+### W-1 → R-6 — verified at source, both halves, and every reason is genuinely reachable
+
+`Toggle` gains `describedBy` emitted **only while `disabled`** (`_shared.tsx:463`); `PaneNote` gains `id` (`_pane-chrome.tsx:100`). The three inert controls point at a **short note beside the control** rather than at the far-away `PaneStubNote` — the tighter of the two options I offered, and the right one: "Fixed on — the demo's phone frame has no light theme to switch to" reads well announced, where a three-sentence stub note would not. The two new one-liners also help a sighted visitor who never scrolled past the top of the pane.
+
+`RowSwitch` gains the same prop (`FormFieldsPane.tsx:175`), pointed at the row's own `LockPill`, so the announced reason is the pill's existing words ("Always on") and no new copy was written. Ids come from one `useId()` per `ScreenRow` (`:261`) plus a `-lock-<id>` suffix.
+
+**Reachability checked, not assumed** — for each of the four controls I confirmed the target renders in the same subtree in every state where the attribute is emitted:
+
+- Dark Mode → `PaneNote` inside the same `PaneGroup`; Cloud Sync → same shape; Set Default Password → the `PaneNote` already beneath it, which only renders inside the `anyEncryption` block *where the button also lives*, so the two can never be separated.
+- Locked grid rows → `LockPill` and `RowSwitch` are siblings gated on the **same** `locked` / `fieldLocked` boolean (`:290`/`:317`), so the pill exists in exactly the states the attribute is emitted.
+- Both suites RESOLVE the id (`document.getElementById` → real text) rather than asserting the attribute exists, and both pin the negative (a live switch carries no description).
+
+**Id uniqueness across ten panes — checked, clean.** Every new id in the round is `useId()`-derived; there is not one string literal id anywhere in the settings surface. Cross-pane collision is therefore impossible even if two panes were mounted at once (they aren't — only the open detail renders). Within `FormFieldsPane`, the per-row `uid` prefix makes twelve screen rows and fifty field rows disjoint despite identical pill copy, and step ids (`submission`) vs dotted field ids (`submission.occNumber`) cannot collide inside one row. `ExportSecurityPane` calls `useId()` twice for its two independent targets — also fine. The dotted field ids embedded in an id are valid HTML and resolve via `getElementById`/IDREF (they would break `querySelector('#…')`, which nothing here uses).
+
+Minor observation, not a finding: `describedBy` is passed to *every* row switch, locked or not (`:290`, `:317`) and gated inside `RowSwitch`. Harmless today; it means a future edit that drops the `disabled ?` gate would silently create ~43 dangling IDREFs at once. The gate is the load-bearing line.
+
+### W-2 → R-7 — the announced string cannot drift from the shown one
+
+`valueText` is **required** (`_pane-chrome.tsx:255`), so a second slider cannot repeat the defect; `aria-valuetext` is emitted; the dead `useId`/`id` pair is gone. The match is structural rather than coincidental: `PaneGroup value` (`MediaCapturePane.tsx:64`) and `valueText` (`:70`) are the *same expression over the same input* — `` `${photoQualityPercent(settings.photoQuality)}%` `` — so 85% on screen is 85% announced by construction. Tests pin 85% and 50%, and negatively pin that it is never the raw `'0.5'`.
+
+### W-3 → R-9 — fixed, and then made unrepeatable
+
+`a11yLabel` threads through `SelectField` → `Dropdown`'s single `sheetName` (`Dropdown.tsx:47`), which feeds **both** `PickerSheet title` and the `role="menu"` name. I checked the half the test doesn't: `PickerSheet.tsx:41-43` is `role="dialog" aria-modal="true" aria-label={title}`, so the *dialog* is named too, not just the menu. All six call sites pass it.
+
+Better than asked: R-11's `PaneSelect` wrapper (`_pane-chrome.tsx:236-260`) makes `a11yLabel` a **required** prop and is now what all six panes use, so a seventh settings picker cannot ship unnamed.
+
+### W-4 → R-10 · W-5 → R-31 — both fixed, both pinned by the query that would fail without the fix
+
+R-10 adds `role="group"` (`SettingsModal.tsx:166`); the test asserts through `getByRole('group', { name: 'Export Security' })` and that focus lands on it — precisely the assertion a discarded name fails, so it pins the fix rather than the attribute.
+
+R-31 makes the name `step.label`, stable across the toggle, and adds `aria-controls` → the body's new `useId`-derived id. The collapsed-state dangle is correct, not an oversight: `aria-controls` may reference a not-yet-rendered element when `aria-expanded="false"` sits on the same node (axe's documented exception for the disclosure pattern), and `aria-expanded` is present in both states.
+
+### W-8 → R-34 — judgement on the opt-in `role="status"` split: **sound**
+
+Four reasons, in the order I checked them:
+
+1. **Opt-in is the right default.** Blanket `role="status"` on `PaneNote` would have created a live region on every static note across ten panes — each one announcing nothing and each one an extra AT boundary. The `role?: 'status'` prop with no default is the correct shape.
+2. **The two chosen notes are the right two.** They are the only `PaneNote`s in the surface whose *presence* is a function of a control the visitor just operated (`maxVideoDuration === 0`, `!shutterSound`). Every other note is pane furniture.
+3. **The negative test is the real pin.** `expect(screen.queryByRole('status')).not.toBeInTheDocument()` on the default Media Capture pane is what stops a later "just default `PaneNote` to `role=status`" from passing green.
+4. **The `aria-controls`/`aria-expanded` half is done correctly, including the subtle part.** Both Export Security switches point at one shared region id because either switch reveals it (the phone's shared-config architecture), and `aria-expanded={anyEncryption}` therefore describes the *region*, not the switch's own value — unusual-looking, correct, and documented. `aria-controls` dangles while the region is absent, which the test asserts *deliberately*; that is permitted only because `aria-expanded="false"` is on the same element, and it is. `aria-controls` is a global ARIA property, and `aria-expanded` is inherited by `switch` from its `checkbox` superclass, so neither attribute is misapplied.
+
+**One caveat, recorded not filed.** Both new `role="status"` nodes are mounted *together with* their text (`{cond && <PaneNote role="status">}`), which is the less reliable half of the live-region contract — a live region announces most dependably when the container is already in the a11y tree and only its contents change (Safari + VoiceOver is the weak pair). I am not filing it, for two reasons: it is the established repo-wide shape (roughly ten of this feature's ~25 `role="status"` sites are conditionally mounted — `NewLocationModal.tsx:204`, `DuplicateLocationModal.tsx:165`, `MediaCaptureScreen.tsx:533`, `GpsCaptureControl.tsx:188`, `LocationFields.tsx:266`, …), and the robust alternative already in-repo (`DemoNotification.tsx:55`, `ImportTerminalProgress.tsx:535` — always mounted, contents swapped) is a repo-wide idiom decision rather than a P7 fix. It belongs in the §80g / §7 a11y pass's inventory, not in this round.
+
+### W-6 / W-9 / W-10 → §80g, and W-7 → §84b — accepted
+
+§80g's amendment itemises all three overlay items by name, records that the z-mechanics were walked and found sound (21/22 · 25/26 · 31/32 · 60/61), and marks W-6 as NEW with P7 rather than folded into §7. That is exactly the obligation. §84b's ledger of W-7 states the right reason to defer — three fix branches were editing `DemoExperience`'s render body concurrently, and restructuring it mid-round manufactures the merge conflict the split existed to avoid — and the design is genuinely pre-settled by the `BRIDGE_PANE_IDS` / `StubPaneId` partition, with a concrete trigger. Accepted; no further ask from this lane.
+
+### R-18 (not my finding) — sound from this lane
+
+The link itself was already clean; the defect was the *note's* claim. The fix is right in web terms: a `mailto:` with no registered handler produces no navigation, no error and no observable event, so the page genuinely cannot detect it. Printing the address as selectable text (`AboutPane.tsx:112-118`) degrades the failure to something usable. Contrast of `#7a9fc4` at 12 px on the pane background is 6.85:1 — passes AA.
+
+## New findings
+
+### [MINOR · lane-LOW] W-11 — R-34 introduced the feature's only landmark, in the one place R-10 argued against it
+
+**File:** `features/demo/ui/screens/settings/panes/ExportSecurityPane.tsx:100`
+
+```tsx
+<div id={configId} role="region" aria-label="Encryption options" data-testid="export-security-shared-config">
+```
+
+`role="region"` is a **landmark**. This is the only one in `features/demo/ui/**` (grepped), and it sits inside `role="dialog"` → the R-10 `role="group"` detail pane. Thirty lines of the same round argued the opposite case, in a commit comment now shipping in `SettingsModal.tsx:158-165`: *"`group` rather than `region` — a landmark inside a dialog is noise."* Both calls are defensible alone; together they are inconsistent, and this is the one that contradicts the stated rule.
+
+**Concrete effect.** NVDA/JAWS landmark navigation (`D`) now lists "Encryption options, region" among the page's landmarks while a modal is open. Nothing breaks; it is exactly the noise R-10 declined.
+
+**Fix.** `role="group"`, same `aria-label`. `aria-controls`/`aria-expanded` need the target to have an **id**, not a landmark role, and a named `group` announces identically on entry. One word, and the test's `getByRole('region', …)` moves with it.
+
+### [MINOR · lane-LOW] W-12 — `Toggle`'s two new disclosure props are independently optional, so the one invalid combination is the one the type allows
+
+**File:** `features/demo/ui/screens/_shared.tsx:460-466`, rendered at `:475-476`
+
+```tsx
+controls?: string
+/** Whether `controls` is currently revealed. Only meaningful alongside `controls`. */
+expanded?: boolean
+…
+aria-controls={controls}
+aria-expanded={controls ? expanded : undefined}
+```
+
+Passing `controls` without `expanded` emits `aria-controls` pointing at an element that may not exist, with **no `aria-expanded` beside it** — which is precisely the shape that loses axe's disclosure carve-out and becomes a real `aria-valid-attr-value` violation. The doc comment says "only meaningful alongside `controls`"; the type does not.
+
+No caller does it today (`ExportSecurityPane` passes both, always), so this is a trap rather than a bug — but the round's own lesson was to make the required half required, which R-7 did for `valueText` and R-29 did for `elevation`.
+
+**Fix.** One optional member instead of two: `disclosure?: { controls: string; expanded: boolean }`, spread at the two attributes. (Overlaps type-design's lane; filed here because the failure it permits is invalid ARIA, not an unsound type.)
+
+## Test-run observation (not a finding — `test-analyzer`'s lane, handed over with evidence)
+
+The cross-file flake I recorded in the initial review **recurred once at this commit**, in a different file and a different test:
+
+```
+FAIL features/demo/ui/__tests__/DemoExperience.user-profile.test.tsx
+  > Completed By autofill > "a profile name set while Completion is OPEN does not fill it"
+  Test Files 1 failed | 14 passed (15) · Tests 1 failed | 248 passed (249)
+```
+
+Characterisation, so the lane that owns it does not start from zero:
+
+- **Only in multi-file runs.** Solo: 18/18 passed. The earlier instance (`panes.test.tsx:288` receiving a three-element `BRIDGE_PANE_IDS` that the source cannot produce) also passed 27/27 solo.
+- **Not reproducible on demand.** Four further runs of the identical multi-file command — three warm, one after `rm -rf node_modules/.vite node_modules/.vitest` — were all 249/249. Two observations across two sessions, roughly 1 in 8 multi-file runs.
+- **Tree was clean** at this occurrence (no concurrent editor, no concurrent `next build`), which retires my earlier "concurrent build" guess.
+- **The two failures do not share a product surface,** and the first is *impossible from source*, which points at worker/module-registry crosstalk in the vitest pool rather than at the components under test. `vitest.config.mts`'s pool + isolation settings are where I would look first.
+
+Command that produced both:
+
+```
+pnpm vitest run features/demo/ui/screens/settings \
+  features/demo/ui/screens/__tests__/a11y.test.tsx \
+  features/demo/ui/screens/__tests__/field-visibility.test.tsx \
+  features/demo/ui/__tests__/DemoExperience.settings.test.tsx \
+  features/demo/ui/__tests__/DemoExperience.user-profile.test.tsx \
+  features/demo/ui/__tests__/DemoExperience.form-customization.test.tsx \
+  features/demo/ui/controls/__tests__ \
+  features/demo/ui/screens/__tests__/_shared-inputs.test.tsx
+```
+
+## Fix-delta summary
+
+| Disposition | Count |
+|---|---|
+| FIXED, verified at source | 6 (W-1 both halves · W-2 · W-3 · W-4 · W-5 · W-8) |
+| Dispositioned to ledger, accepted | 4 (W-6 · W-7 · W-9 · W-10) |
+| Not fixed / regressed | **0** |
+| New findings | 2 (both MINOR / lane-LOW) |
+
+Bundle: **107 kB re-verified, unmoved.** Marketing↔demo isolation: preserved. Browser-resource cleanup: complete (no new listeners, timers, globals or animations in the round). Accessibility: **all seven original gaps closed**, three of them structurally so a repeat is a compile error (`valueText` required, `a11yLabel` required on `PaneSelect`, `elevation` a named union).
+
+**Fix-delta verdict: APPROVE.** The two new items are one-word and one-type-shape respectively, and neither blocks the merge — they are cheap enough to take now and legitimate to log.

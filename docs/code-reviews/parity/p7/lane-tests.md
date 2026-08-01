@@ -279,3 +279,103 @@ Setup-shim traps: **none** — nothing new touches `getContext`, `mediaDevices`,
 Determinism (clock/entropy injected): **yes** — both clock-dependent surfaces take the seam and both assert on it.
 
 **Verdict: REVISE** — two HIGH, both single-test fixes, both verified red-under-mutation / green-at-baseline. Nothing here blocks; the two MEDIUMs are each one assertion.
+
+---
+
+# Fix-delta r1
+
+**Reviewed at:** `2f57ba1` (`feat/parity-p7`, all four fix branches merged) · diff `1505c00..2f57ba1`
+**Round map:** PR #36's fix-round comment · ledger §§84–86 (§84a's round lesson applied: every fix whose comment cites a precedent was checked against the precedent, not against the comment).
+**Method unchanged:** every disposition below is a mutation probe run in this worktree and reverted. `git status` under `features/`/`lib/`/`app/` is clean; `pnpm exec tsc --noEmit` → 0 errors.
+
+## Gates at the fix head
+
+| Gate | Result |
+|---|---|
+| `pnpm test` (cold, full) | **260 files / 3402 passed** — matches the round's claim (+1 file, +37 tests over `1505c00`) |
+| `pnpm exec tsc --noEmit` | **0 errors** |
+| Clean re-run of every suite I mutated (140 files) | 1935 passed |
+| Deleted tests audited | one — `settings-catalog.test.ts`'s `getSettingsCategory` block, removed with the dead function it covered (R-30). Legitimate: `grep -rn "function getSettingsCategory"` returns nothing |
+
+## Disposition of my eight findings
+
+| # | Fix | Probe re-run | Disposition |
+|---|---|---|---|
+| **T-1** | R-1a `f061b45` | deps `+ currentLocation?.form.completedBy` → **1 failed / 17 passed**, on *"a CLEARED field stays cleared"*. deps `+ userProfile.name` → **1 failed / 17 passed**, on *"a profile name set while Completion is OPEN does not fill it"*. Each mutation reddens exactly its own test and nothing else. | **FIXED** |
+| — rider | R-1a `f061b45` | `userProfile` made `.optional()` in `persistedStateSchema` → **2 failed**, incl. the new *"refuses a v7 payload that lost the profile MEMBER outright"*. The v7 discard is now symmetric with P7.3's `delete parsed.state.formOverrides`. | **FIXED** |
+| — R-1b (new production behaviour) | `88ff851` | deleting `if (!resolveFieldVisible('completion.completedBy', s)) return` → **2 failed / 16 passed**. Both new tests are load-bearing, and the second (*"fills again once the field is switched back on"*) correctly separates *suppress* from *disable*. The dep list is byte-identical, so my T-1 pins still measure what they measured. | **FIXED, and the new guard is itself pinned** |
+| **T-2** | R-2 `40d9ef0` | **render half:** relocating `CoordinateDisplay` outside the `showGps` fragment → **1 failed**, only *"takes the coordinate card with the capture control"*. **write half:** dropping `showGps &&` from `onPick` → **1 failed**, only *"does NOT stamp coordinates from a pick while the coordinate group is hidden (R-2b)"*. Each half reddens **independently**, exactly as §86a claims — neither probe touches the other's test. | **FIXED** (and widened: A2 turned a display gate into a write gate) |
+| **T-3** | R-12 `45ca7af` | deleting `&& !isStepMustStay(screen)` → **1 failed / 74 passed**. The extension drives `completion` (the branch's only reachable case) and asserts on `formOverrides.steps`, i.e. the write side — so it no longer passes through the READ-force layer. | **FIXED** |
+| **T-4** | R-13 `ddf5407` (+ ruling A3) | production behaviour *changed*, so the probe is inverted: reverting `reset()` to wipe `profile`/`formOverrides` → **1 failed**, on the re-maximalised *"reset() returns a dirtied store to the same empty boot state"*. The fixture now dirties both new members and asserts their survival. | **FIXED** (and the family now has one rule, on the record) |
+| **T-5** | R-14 `0f79d7b` | blanking the About pane's note body → **1 failed**, with the right message: `pane "about"'s honest note carries no prose: expected 11 to be greater than 60`. | **FIXED** |
+| **T-6** | not routed (was "no change required") | unchanged. Restating for the record: `panes.test.tsx:39` carries the whole partition guarantee; `:41` and `:42-44` remain implied by it. Not a defect. | **N/A — stands** |
+| **T-7** | R-15 `bf08745` | both fallbacks pinned: `getFieldGroupMembers('dvr.nope') → []` (`form-customization.test.ts`) and `describeProfile('nope') === describeProfile(DEFAULT_PROFILE)` (`content.test.ts:143-144`), the latter asserted against the sibling rather than against a literal. | **FIXED** |
+| **T-8** | R-16 `b5322c7` | `grep -rn "function checkArray"` → nothing. | **FIXED** |
+
+**8/8 dispositioned: 7 FIXED, 1 stands as recorded. 0 regressions in my lane's surface.**
+
+## Requested spot-probes
+
+| Target | Probe | Result |
+|---|---|---|
+| **R-5** `ea69431` — derived narration counts | flip `exportInfo` to `screen-only` in the classification map (drops 5 switchable fields) → *"quotes the Settings registries rather than hand-typed counts (R-5)"* **fails**: `expected […] to have a length of 50 but got 45` | **Moves.** Worth naming precisely: the *copy* can no longer drift, because it is interpolated — so the test's job is the **canary** (`toHaveLength(50/10)`) that forces a human to re-read the sentence when a registry moves. Confirmed by the control probe: re-hardcoding the string with today's correct numbers is green, which is inherent to a string comparison and not a gap. The drift class R-5 names is closed by the derivation, and the canary is what surfaces the next legitimate count change. |
+| **R-14** `0f79d7b` — note-content assertions | see T-5 above | **Reddens** |
+| **R-28** `252d0ca` — explore-id join, direction 1 | re-slug the generated step rows `${d.id}-row` → **3 failed** across `explore-step-ids.test.ts` + `explore.test.ts` | **Reddens** |
+| **R-28** — direction 2 | see **N-2** below | **Vacuous** |
+
+## New findings (fix-introduced)
+
+### [MINOR · lane-MEDIUM] N-1 — R-29's layer test re-types both of its neighbours' z-indexes, so neither can be caught moving
+
+**Test:** `features/demo/ui/screens/settings/__tests__/UserProfilePane.test.tsx:260-271` — *"sits above the sheet it opens from and below the pickers it opens itself"*.
+**Production:** `features/demo/ui/screens/_shared.tsx:35` (`MODAL_LAYER = { base: 0, overSheet: 4 }`) and `:112` (`zIndex: 22 + elevation`); the neighbours are `settings/SettingsModal.tsx:66` (`zIndex: 22`) and `inputs/PickerSheet.tsx:38,50` (`zIndex: 31` / `32`).
+
+The test's comment states the invariant correctly — *"`SettingsModal`'s sheet is 22 and `PickerSheet` is 31/32, so the editor must land strictly between them"* — and I checked the precedent per §84a: those numbers are right today. But the test **re-types 22 and 31 as literals** rather than reading them, so it constrains only `MODAL_LAYER.overSheet` and the dialog's own computed style.
+
+**Probes:**
+
+| Mutation | Suites run | Result |
+|---|---|---|
+| `SettingsModal.tsx:66` `zIndex: 22` → `40` (the editor now renders **under** the sheet it opened from) | `features/demo/ui/screens/settings` | **100 passed, 0 failed** |
+| `PickerSheet.tsx` `31/32` → `20/21` (a date picker opened inside the editor now renders **under** it) | `…/settings` + `features/demo/ui/inputs` | **404 passed, 0 failed** |
+
+**Why it matters.** Both are realistic — a z-index on a sheet gets nudged when a new overlay lands, which is precisely the change this test exists to catch — and both produce a visibly broken, interaction-blocking result. The test named for the relation cannot see either end of it.
+
+**Fix.** Export the two magic numbers (`SETTINGS_SHEET_Z` from `SettingsModal`, `PICKER_SHEET_Z` from `PickerSheet`) and assert the relation from them: `expect(SETTINGS_SHEET_Z + MODAL_LAYER.overSheet).toBeGreaterThan(SETTINGS_SHEET_Z)` and `.toBeLessThan(PICKER_SHEET_Z)`. That also retires `_shared.tsx:112`'s duplicate literal `22`, which is the same number written a third time. (The production duplication is the TS/web lane's call; the test change stands on its own.)
+
+### [MINOR · lane-LOW] N-2 — R-28's second direction is vacuous by construction
+
+**Test:** `features/demo/engine/content/__tests__/explore-step-ids.test.ts:27-35` — *"lets no OTHER row collide with a form-step id"*.
+
+`FORM_STEPS` is exactly `WIZARD_SCREENS ∪ { mediaCapture, audioRecording }` (pinned by `form-customization.test.ts`: `LINEAR_FORM_STEPS.map(s => s.id)` equals `WIZARD_SCREENS`, and `ADDITIVE_FORM_STEP_IDS` is the two tools). The test's `others` filter drops every row whose id is a `WIZARD_SCREENS` member, and the only known-form-step ids left are the two the allowlist explicitly permits — so **the assertion can never fail.**
+
+**Probe.** Re-pointing the non-step `settings` row at `audioRecording` — the exact collision the test describes — → **2 passed**. The wizard-screen collision I also tried (`mediaLibrary` → `cameras`) reddens, but via direction 1's `toHaveLength(1)`, not this test.
+
+Direction 1 does catch every real collision, so nothing is unprotected; the finding is that R-28's commit message and the suite's doc both claim "both directions" when one carries the whole guarantee. **Fix:** either delete the second test and say so, or give it teeth by asserting against the *whole* `FORM_STEPS` id space rather than `others`-minus-wizard-screens — e.g. every `EXPLORE_ITEMS` row whose `jumpTo` is **not** a form step must not carry a form-step id.
+
+### [NIT] N-3 — R-26's commit message cites the wrong diagnostic
+
+`e6d99fd` claims *"setting `scopes: []` now fails typecheck (TS2739)"*. Verified: the device works, but the error is **TS2322** (`Type '[]' is not assignable to type 'readonly [FormFieldId, ...FormFieldId[]]'`). No code change; noted only because §84a's round lesson is about citations being checkable.
+
+## Type-level devices verified (no findings)
+
+Both new `tsc`-gated assertions are genuinely gated — `tsconfig.json`'s `include` is `**/*.ts(x)` and `tsc --listFilesOnly` shows **268** `__tests__` files:
+
+- **R-25** — widening `DEFAULT_USER_PROFILE: Readonly<UserProfile>` back to `UserProfile` → `user-profile.test.ts(51,7): error TS2578: Unused '@ts-expect-error' directive.` The runtime-assertion-free probe (`expect(typeof readonlyProbe).toBe('function')`) is fine here: the real assertion is the directive, and it fires.
+- **R-26** — `coveredBy.scopes = []` → `form-customization.test.ts(155,7): error TS2322`. The non-empty-tuple gate is what the comment says it is.
+
+## Fix-delta summary
+
+| Severity | Count |
+|---|---|
+| CRITICAL / blocker | 0 |
+| HIGH / major | 0 |
+| MEDIUM / minor | 1 (N-1) |
+| LOW / minor | 2 (N-2, N-3) |
+
+Prior findings: **7 FIXED, 1 stands as recorded (T-6, was already "no change required")**.
+Probes re-run this round: **16** — 13 reddened as required, 2 confirmed a claim is vacuous or literal-bound (N-1, N-2), 1 was a control.
+Behaviorally meaningful coverage: **strong, and stronger than round 1** — the fixes landed as mutation-verified pins, not as extra assertions, and R-1b/R-2b each turned a review finding into a real production behaviour change with its own separate probe.
+Determinism: **unchanged** — no new clock or entropy reads; the R-1b arrival test's two-`act` split is deliberate and correct (batching them would never change `view`, and the comment says so).
+
+**Verdict: APPROVE with comments.** N-1 is one export apiece and an assertion rewrite; N-2 is a delete-or-strengthen call; N-3 is a commit-message correction. None blocks the merge.
