@@ -236,11 +236,15 @@ function ProfilePicker({
         })}
       </div>
       <div style={{ fontSize: 12.5, color: '#99badd', marginTop: 10 }}>{PROFILE_BLURBS[profile]}</div>
-      {/* Derived from PROFILE_DEFAULTS, never from the blurb above it. */}
+      {/* Derived from PROFILE_DEFAULTS, never from the blurb above it.
+          R-17: scoped to the PROFILE, because that is all `describeProfile` counts. The old
+          "every screen and field is on" was a present-tense claim about the live form, which
+          the visitor's own overrides can falsify one row below — the counterweight §82d built
+          against a stale blurb must not need one of its own. */}
       <div data-testid="fc-profile-reduction" style={{ fontSize: 11.5, color: '#7a9fc4', marginTop: 3 }}>
         {reduction.steps === 0 && reduction.fields === 0
-          ? 'Hides nothing — every screen and field is on.'
-          : `Hides ${plural(reduction.steps, 'screen')} · ${plural(reduction.fields, 'field')}.`}
+          ? 'This profile hides nothing by default.'
+          : `Hides ${plural(reduction.steps, 'screen')} · ${plural(reduction.fields, 'field')} by default.`}
       </div>
     </div>
   )

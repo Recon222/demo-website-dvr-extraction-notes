@@ -199,12 +199,20 @@ describe('the profile picker', () => {
     // The phone's copy — carried verbatim — promises a reduction…
     expect(screen.getByText('Comprehensive, lightly reduced (SPC/SOCO).')).toBeInTheDocument()
     // …and the count, read off the same map the resolver reads, tells the truth.
-    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides nothing — every screen and field is on.')
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('This profile hides nothing by default.')
+  })
+
+  it('scopes the line to the PROFILE, so overrides cannot falsify it (R-17)', () => {
+    // The visitor is on forensic with Cameras switched off. "Every screen and field is on"
+    // would be false on the row directly below; "by default" is exactly what is counted.
+    renderPane({ isStepVisible: (id) => id !== 'cameras' })
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('This profile hides nothing by default.')
+    expect(screen.getByTestId('fc-screen-toggle-cameras')).toHaveAttribute('aria-checked', 'false')
   })
 
   it('pluralises the canvas reduction correctly', () => {
     renderPane({}, 'canvas')
-    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides 1 screen · 12 fields.')
+    expect(screen.getByTestId('fc-profile-reduction')).toHaveTextContent('Hides 1 screen · 12 fields by default.')
   })
 })
 
