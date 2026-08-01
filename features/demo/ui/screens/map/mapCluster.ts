@@ -63,9 +63,17 @@ export interface ClusterIndex {
   expansionZoom(clusterId: number): number
 }
 
+/**
+ * What each loaded point carries. `LocationMarker` (not the whole `MarkerDescriptor` union) so
+ * the index literally cannot hold an incident — the passthrough split below is then a compile-time
+ * fact rather than a convention (review R-12, R-27e).
+ */
 interface PointProps {
-  marker: MarkerDescriptor
+  marker: LocationMarker
 }
+
+/** The union member the index accepts. */
+type LocationMarker = MarkerDescriptor & { kind: 'location' }
 
 /**
  * Mapbox's `point_count_abbreviated` rule: counts under 1000 print whole; 1000+ collapse to one
@@ -93,10 +101,15 @@ export function normalizeBbox(bbox: ClusterBbox): ClusterBbox {
  * re-emitted from every `markersFor` call.
  */
 export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
-  const locations = markers.filter((m) => m.kind === 'location')
+  const locations = markers.filter((m): m is LocationMarker => m.kind === 'location')
   const passthrough = markers.filter((m) => m.kind !== 'location')
 
-  const index = new Supercluster<PointProps>({ radius: CLUSTER_RADIUS, maxZoom: CLUSTER_MAX_ZOOM })
+  // Both generics closed: point props AND cluster props. Leaving the second open defaults it to
+  // `any`, which is what made every read below need a cast (review R-12).
+  const index = new Supercluster<PointProps, Record<string, never>>({
+    radius: CLUSTER_RADIUS,
+    maxZoom: CLUSTER_MAX_ZOOM,
+  })
   index.load(
     locations.map((m) => ({
       type: 'Feature' as const,
@@ -108,22 +121,23 @@ export function buildClusterIndex(markers: MarkerDescriptor[]): ClusterIndex {
   return {
     markersFor(bbox, zoom) {
       const safeZoom = Number.isFinite(zoom) ? Math.round(zoom) : 0
+      // `'cluster' in props` narrows supercluster's own union — no casts, no all-optional bag,
+      // and no fabricated `count: 0` fallback for a field the cluster branch always has.
       const out: PlottedMarker[] = index.getClusters(normalizeBbox(bbox), safeZoom).map((feature) => {
         const [lng, lat] = feature.geometry.coordinates
-        const props = feature.properties as Partial<Supercluster.ClusterProperties> & Partial<PointProps>
-        if (props.cluster) {
-          const count = props.point_count ?? 0
+        const props = feature.properties
+        if ('cluster' in props) {
           return {
             kind: 'cluster',
             id: `cluster-${props.cluster_id}`,
-            clusterId: props.cluster_id as number,
+            clusterId: props.cluster_id,
             lng,
             lat,
-            count,
-            label: abbreviateCount(count),
+            count: props.point_count,
+            label: abbreviateCount(props.point_count),
           }
         }
-        return props.marker as MarkerDescriptor
+        return props.marker
       })
       return [...out, ...passthrough]
     },
