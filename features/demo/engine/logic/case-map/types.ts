@@ -19,7 +19,7 @@ export interface GeoJSONPoint {
  *
  * Typed rather than left as free strings (review R-28): `featureType` is written in three
  * places and read in several, and a writer typo does not surface as a type error — it surfaces
- * as `hasPlottedLocations`/`hasPlottableFeatures` mis-answering, i.e. as the WRONG success
+ * as the coverage/emptiness predicates mis-answering, i.e. as the WRONG success
  * sentence on a real download (R-1's machinery). Declared `as const` so the union and any
  * future runtime check stay one edit apart.
  */

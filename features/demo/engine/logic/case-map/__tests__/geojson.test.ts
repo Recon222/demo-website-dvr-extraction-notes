@@ -35,7 +35,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       totalLocations: 3,
       plottedLocations: 1,
       droppedLocationNames: ['Rear Alley', 'Loading Bay'],
-      hasPlottedLocations: true,
     })
   })
 
@@ -43,7 +42,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
     expect(summariseCaseMapCoverage([typedOnly('a', 'One'), typedOnly('b', 'Two')])).toMatchObject({
       totalLocations: 2,
       plottedLocations: 0,
-      hasPlottedLocations: false,
     })
   })
 
@@ -52,7 +50,6 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       totalLocations: 0,
       plottedLocations: 0,
       droppedLocationNames: [],
-      hasPlottedLocations: false,
     })
   })
 
@@ -76,6 +73,24 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
     expect(plotted).toHaveLength(coverage.plottedLocations)
   })
 
+  it('follows `locationToFeature` rather than re-testing its predicate (delta D-5)', () => {
+    // The gate is the builder itself, so a term added to `locationToFeature` moves BOTH the
+    // file and the count. Simulating that: a location the builder rejects for a reason the
+    // old coverage predicate knew nothing about must still be counted as dropped.
+    const rejected = demoLocation({
+      id: 'x',
+      locationName: 'Out of range',
+      // Latitude past the pole — `hasCapturedCoordinates` rejects it, and so does the builder.
+      gps: { lat: 120, lng: -79.6, source: 'gps' },
+    })
+    expect(locationToFeature(rejected)).toBeNull()
+    expect(summariseCaseMapCoverage([rejected])).toMatchObject({
+      plottedLocations: 0,
+      droppedLocationNames: ['Out of range'],
+    })
+    expect(buildCaseMapGeoJson(null, [rejected]).features).toEqual([])
+  })
+
   it('does NOT count the incident pin as a plotted location', () => {
     // R-1's second half: `hasPlottableFeatures` counts the incident, so gating the empty-map
     // caveat on it kept the caveat silent for a case with an incident and zero plotted sites.
@@ -84,7 +99,7 @@ describe('summariseCaseMapCoverage (review R-1)', () => {
       [typedOnly('b', 'Rear Alley')],
     )
     expect(hasPlottableFeatures(collection)).toBe(true) // the incident is a feature…
-    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).hasPlottedLocations).toBe(false) // …but not a site
+    expect(summariseCaseMapCoverage([typedOnly('b', 'Rear Alley')]).plottedLocations).toBe(0) // …but not a site
   })
 
   it('dev-warns when the builder omits a location, like generateExtractedScopes does', () => {
@@ -121,7 +136,7 @@ describe('featureType is a closed id space (review R-28)', () => {
 
   it('refuses an undeclared featureType at compile time', () => {
     // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it). A writer typo used to be
-    // invisible: it surfaced only as `hasPlottedLocations` mis-answering, i.e. as the wrong
+    // invisible: it surfaced only as the coverage predicates mis-answering, i.e. as the wrong
     // success sentence on a real download.
     const typo: GeoJSONFeature = {
       type: 'Feature',

@@ -220,28 +220,35 @@ export interface CaseMapCoverage {
   plottedLocations: number
   /** The rest, in input order — dropped for want of a captured coordinate. */
   droppedLocationNames: readonly string[]
-  /** True when at least one LOCATION plots. Deliberately NOT "any feature": the incident pin
-   *  is not a site, and counting it is what let the empty-map caveat stay silent on a case
-   *  with zero plotted locations (R-1's second half). */
-  hasPlottedLocations: boolean
+  // NO `hasPlottedLocations` (delta D-12). It was `plottedLocations > 0` under another name:
+  // a derived field with no production reader, whose only effect was hand-maintained fixture
+  // pairs that could contradict the count they were derived from. Callers write
+  // `coverage.plottedLocations > 0`.
 }
 
 /**
- * Summarise what `buildCaseMapGeoJson` will and will not include, over the SAME gate the
- * builder applies — one predicate, so the sentence on screen can never disagree with the file.
+ * Summarise what `buildCaseMapGeoJson` will and will not include.
+ *
+ * The gate is `locationToFeature` ITSELF, not a re-implementation of its predicate (delta
+ * D-5). The two used to test `hasCapturedCoordinates` independently — they agreed, but one
+ * added term in the builder's gate would have re-created r0 R-1's exact shape structurally:
+ * a banner over-reporting coverage against a file that dropped more than it admitted. Asking
+ * the builder makes divergence impossible rather than merely unlikely.
+ *
+ * The cost is building the features twice per export (once here, once in the collection) over
+ * a list of tens. That is the right trade against a silent miscount on a forensic artifact.
  */
 export function summariseCaseMapCoverage(locations: readonly DemoLocation[]): CaseMapCoverage {
   const dropped: string[] = []
   let plotted = 0
   for (const location of locations) {
-    if (hasCapturedCoordinates(location.gps)) plotted += 1
+    if (locationToFeature(location) !== null) plotted += 1
     else dropped.push(location.locationName)
   }
   return {
     totalLocations: locations.length,
     plottedLocations: plotted,
     droppedLocationNames: dropped,
-    hasPlottedLocations: plotted > 0,
   }
 }
 
@@ -294,10 +301,20 @@ export function buildCaseMapGeoJson(
  * non-empty collection but has no location/incident framing, and the map would open on a
  * camera pin with no site around it.
  *
- * NOT the predicate for "does this map have any sites on it" — it counts the incident pin,
- * which is exactly why the empty-map caveat used to go silent on a case with zero plotted
- * locations (R-1). Use `CaseMapCoverage.hasPlottedLocations` for that; this one is kept for
- * its §71g purpose, the whole-case-GeoJSON refusal P5.2's Export tab will need.
+ * It answers exactly one question — "does this collection have site framing" — and is NOT the
+ * predicate for either of its lookalikes:
+ *
+ * - "does this map have any sites on it" → `coverage.plottedLocations > 0`. Counting the
+ *   incident pin here is why the empty-map caveat used to go silent on a case with zero
+ *   plotted locations (r0 R-1).
+ * - "is this map empty" → `collection.features.length === 0`. A camera-only collection has no
+ *   site framing but renders every camera pin, so reading this as "empty" told a visitor their
+ *   file was blank when it was not (delta D-1).
+ *
+ * NO PRODUCTION READER TODAY, deliberately: it is kept for its §71g purpose, the whole-case
+ * GeoJSON refusal P5.2's Export tab will need (`exportAndShareCaseGeoJSON`,
+ * geojson-service.ts:553-562). Distinct from a derived duplicate like the deleted
+ * `hasPlottedLocations` (delta D-12) — this is a predicate nothing else computes.
  */
 export function hasPlottableFeatures(collection: GeoJSONFeatureCollection): boolean {
   return collection.features.some((f) => f.properties.featureType !== 'camera')

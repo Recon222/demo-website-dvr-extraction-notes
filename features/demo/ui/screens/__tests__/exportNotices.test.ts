@@ -5,7 +5,7 @@ import {
   EXPORT_DOWNLOAD_TITLE,
   type SimulatedExportRun,
 } from '@/features/demo/ui/screens/exportNotices'
-import { EXPORT_TYPES } from '@/features/demo/engine/logic/export'
+import { EXPORT_ALERTS, EXPORT_TYPES } from '@/features/demo/engine/logic/export'
 import type { CaseMapCoverage } from '@/features/demo/engine/logic/case-map'
 
 /**
@@ -31,7 +31,6 @@ const coverage = (over: Partial<CaseMapCoverage> = {}): CaseMapCoverage => ({
   totalLocations: 2,
   plottedLocations: 2,
   droppedLocationNames: [],
-  hasPlottedLocations: true,
   ...over,
 })
 
@@ -144,7 +143,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
     const { message } = describeCaseMapTerminal({
       kind: 'requested',
       filename: 'f.html',
-      coverage: coverage({ totalLocations: 2, plottedLocations: 0, droppedLocationNames: ['a', 'b'], hasPlottedLocations: false }),
+      coverage: coverage({ totalLocations: 2, plottedLocations: 0, droppedLocationNames: ['a', 'b'] }),
       mapIsEmpty: false,
       hasToken: true,
     })
@@ -157,7 +156,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
       describeCaseMapTerminal({
         kind: 'requested',
         filename: 'f.html',
-        coverage: coverage({ totalLocations: 0, plottedLocations: 0, hasPlottedLocations: false }),
+        coverage: coverage({ totalLocations: 0, plottedLocations: 0 }),
         mapIsEmpty: true,
         hasToken: true,
       }).message,
@@ -168,7 +167,7 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
     const { message } = describeCaseMapTerminal({
       kind: 'requested',
       filename: 'f.html',
-      coverage: coverage({ totalLocations: 0, plottedLocations: 0, hasPlottedLocations: false }),
+      coverage: coverage({ totalLocations: 0, plottedLocations: 0 }),
       mapIsEmpty: true,
       hasToken: false,
     })
@@ -176,18 +175,29 @@ describe('describeCaseMapTerminal — the one real export (decision D4)', () => 
     expect(message).toContain('Without a Mapbox token its basemap stays blank.')
   })
 
-  it('distinguishes the three failures, and none of them claims a file', () => {
+  it('distinguishes the four failures, and none of them claims a file', () => {
     const builder = describeCaseMapTerminal({ kind: 'builder-unavailable' })
+    const caseGone = describeCaseMapTerminal({ kind: 'case-unavailable' })
     const unavailable = describeCaseMapTerminal({ kind: 'save-unavailable' })
     const failed = describeCaseMapTerminal({ kind: 'save-failed' })
-    for (const notice of [builder, unavailable, failed]) {
+    for (const notice of [builder, caseGone, unavailable, failed]) {
       expect(notice.title).toBe('Export Error')
       expect(notice.message).not.toMatch(/asked to save|check your downloads/i)
     }
     expect(builder.message).toContain('could not be loaded')
+    expect(caseGone.message).toContain('The selected case is no longer available.')
     expect(unavailable.message).toContain('no way to save a file')
     expect(failed.message).toContain('refused to save it')
     // Distinct causes, distinct sentences — a visitor acts differently on each.
-    expect(new Set([builder.message, unavailable.message, failed.message]).size).toBe(3)
+    expect(new Set([builder.message, caseGone.message, unavailable.message, failed.message]).size).toBe(4)
+  })
+
+  it('reuses the taxonomy s existing wording for a vanished case (delta D-3)', () => {
+    // The ZIP path already raises `EXPORT_ALERTS.caseUnavailable` for this condition. The
+    // terminal repeats the sentence rather than importing it (this module is a pure string
+    // table), so the two are pinned against each other here.
+    expect(describeCaseMapTerminal({ kind: 'case-unavailable' }).message).toContain(
+      EXPORT_ALERTS.caseUnavailable.message,
+    )
   })
 })

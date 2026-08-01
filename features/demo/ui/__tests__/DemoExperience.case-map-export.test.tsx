@@ -109,7 +109,11 @@ describe('DemoExperience — Export Map', () => {
     expect(saved[0].filename).toBe('MapCase-Case-Map.html')
     expect(saved[0].blob.type).toBe('text/html')
     const html = await savedHtml()
+    // Both ends of the BUILT page, not the template constant (delta D-6): `build.test.ts`'s
+    // structural block asserts the builder's INPUT, so a truncation of its return value —
+    // `.slice(0, 45000)` — left 57 tests green. The tail is the half that was unobserved.
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
+    expect(html.trimEnd().endsWith('</html>')).toBe(true)
     // Self-contained: the CSS and the app JS are inlined, no relative asset is requested.
     expect(html).not.toMatch(/<script src="(?!https:\/\/)/)
     expect(html).toContain('<title>Case Map — PR25-MAP</title>')
@@ -181,6 +185,41 @@ describe('DemoExperience — Export Map', () => {
     expect(features.filter((f: { properties: { featureType: string } }) => f.properties.featureType === 'location')).toHaveLength(1)
   })
 
+  it('does not call a camera-only map empty (delta D-1)', async () => {
+    // Probe-reproduced. No incident fix, a location typed rather than picked (no `gps`), and a
+    // camera carrying a fix from P3.7's crosshair — so the collection is CAMERA-ONLY.
+    // `hasPlottableFeatures` reads false (no site framing, §71g's question), but the exported
+    // file renders that camera pin, so the old sentence was flatly false about a file the
+    // visitor is holding, printed beside a true coverage clause.
+    const store = createDemoStore()
+    render(<DemoExperience store={store} />)
+    act(() => {
+      const c = store.getState().createCase({ caseNumber: 'PR25-CAM', displayName: 'CamCase', unit: 'R' })
+      const locId = store.getState().addLocation(c, {
+        locationName: 'Rear Alley', streetAddress: '9 Back Ln', city: 'Mississauga',
+      })
+      store.getState().switchLocation(locId)
+      store.getState().updateField('form.cameras', [
+        { id: 'cam1', cameraName: 'Till', resolution: '', recordingFps: '' },
+      ])
+      store.getState().setCameraGps('cam1', {
+        lat: 43.61, lng: -79.61, source: 'gps', capturedAt: '2025-03-08T12:00:00.000Z',
+      })
+    })
+    fireEvent.click(screen.getByLabelText('Map'))
+    fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('CamCase'))
+    await waitFor(() => expect(screen.getByTestId('export-map-button')).toBeEnabled())
+    pressExportMap()
+
+    const notice = terminal()
+    expect(notice).not.toHaveTextContent('opens with an empty map')
+    // The true half still fires: the SITE is missing, and that is a different sentence.
+    expect(notice).toHaveTextContent('None of its 1 location have coordinates yet')
+    await waitFor(() => expect(saved).toHaveLength(1))
+    const features = JSON.parse((await savedHtml()).match(/id="case-geojson">([\s\S]*?)<\/script>/)![1]).features
+    expect(features.map((f: { properties: { featureType: string } }) => f.properties.featureType)).toEqual(['camera'])
+  })
+
   it('says nothing about coverage when every location made it in', async () => {
     await openMap()
     pressExportMap()
@@ -239,6 +278,32 @@ describe('DemoExperience — Export Map', () => {
     expect(terminal()).toBeInTheDocument()
   })
 
+  it('is not pressable while a validation prompt owns the flow (delta D-4)', async () => {
+    // The finding's own probe: arm the prompt from Completion, then take the narration rail
+    // back to the Map tab. That jump is possible because the rail sits OUTSIDE the phone, and
+    // neither overlay traps focus or sets `inert`, so the footer stays keyboard-reachable.
+    //
+    // This is the state where a press VANISHES rather than being merely redundant:
+    // `requestExportFlow`'s §70i guard returns early on `showValidationModal`. The terminal
+    // alert (the only state the original term covered) is the benign one.
+    const store = await openMap()
+    act(() => {
+      store.getState().switchLocation(store.getState().locations[0].id)
+      store.getState().setView('completion')
+    })
+    // The location has no scopes and no completion fields, so validation fails and prompts.
+    fireEvent.click(screen.getByText('Export Zip'))
+    fireEvent.click(screen.getByTestId('export-option-case'))
+    expect(screen.getByText(/Missing PDF Data/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Case Map, / }))
+    const button = screen.getByTestId('export-map-button')
+    expect(button).toBeDisabled()
+    // …and it disables because the press would otherwise land nowhere at all.
+    pressExportMap()
+    expect(saved).toHaveLength(0)
+  })
+
   it('is not pressable again while its terminal is up (review R-8)', async () => {
     // The phone's Alert is OS-modal; the demo's dialog renders a scrim that stops a real
     // pointer. The button disables as well, because "the overlay happens to cover it" is
@@ -267,9 +332,12 @@ describe('DemoExperience — Export Map', () => {
     // the click can never be separated from the gesture that authorised it.
     const button = screen.getByTestId('export-map-button')
     expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('aria-busy', 'true')
+    // The reason rides on the NAME (delta D-10): `aria-busy` on an out-of-tab-order button with
+    // no spinner and no label change announced to nobody. A screen reader's browse cursor still
+    // reads a disabled control's name.
+    expect(button).toHaveAccessibleName('Export case map (preparing)')
     await waitFor(() => expect(button).toBeEnabled())
-    expect(button).not.toHaveAttribute('aria-busy')
+    expect(button).toHaveAccessibleName('Export case map')
   })
 })
 
