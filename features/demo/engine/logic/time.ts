@@ -43,7 +43,14 @@ export function calculateTimeDifference(dvrDateTime: string, actualDateTime: str
   }
 }
 
-export function isDvrTimeCorrect(diff: TimeDifference): boolean {
+/**
+ * "Correct" = the displayed offset is 00:00:00 — keyed off the DISPLAYED string, never
+ * `differenceMs` (phone parity: bidirectional-time.ts:49 — persistence/import paths can
+ * reconstruct `differenceMs` as 0 while `formattedDifference` stays faithful). Accepts
+ * the narrowest sufficient input (`Pick`) so render surfaces that carry only the display
+ * string — the notes time-offset formatter — can call it with no type widening.
+ */
+export function isDvrTimeCorrect(diff: Pick<TimeDifference, 'formattedDifference'>): boolean {
   return diff.formattedDifference === '00:00:00'
 }
 
@@ -126,11 +133,19 @@ export function getCurrentFormattedTime(timestamp?: number): string {
 /**
  * Round a 'YYYY-MM-DD HH:MM:SS' time to a 5-minute boundary — 'down' (floor) for a scope
  * start, 'up' (ceil) for a scope end. Seconds are zeroed. UTC-based, so DST-agnostic.
+ *
+ * Empty input passes through: '' is a scope bound the visitor hasn't set — absence, which
+ * this model represents explicitly, not a broken value. Anything else that fails to parse
+ * THROWS, like applyTimeOffset above: returning the junk unchanged (the pre-G8 behaviour,
+ * deferred §15) would have carried "not-a-date" onto the extracted-scope screen and from
+ * there onto a forensic document. The only caller, `generateExtractedScopes`, already wraps
+ * each scope in the per-entry isolation that counts the drop, flags it via
+ * `extractedScopesPartial` and dev-warns — so a throw here is surfaced, never swallowed.
  */
 export function roundTo5Min(dateStr: string, direction: 'up' | 'down'): string {
   if (!dateStr) return dateStr
   const d = new Date(dateStr.replace(' ', 'T') + 'Z')
-  if (isNaN(d.getTime())) return dateStr
+  if (isNaN(d.getTime())) throw new Error('Unable to parse date value')
   const five = 5 * 60 * 1000
   const ms =
     direction === 'down' ? Math.floor(d.getTime() / five) * five : Math.ceil(d.getTime() / five) * five

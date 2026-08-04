@@ -1,9 +1,11 @@
 import type { AppView, DemoState } from '@/features/demo/engine/store/create-store'
-import type { DemoCase, DemoLocation, DrawerDef, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
-import { getProfile } from '@/features/demo/engine/content/profiles'
+import type { AdditiveFormStepId, DemoCase, DemoLocation, DrawerDef, FormFieldId, FormVisibility, ScopeEntry, WizardScreenId } from '@/features/demo/engine/types'
+import { getVisibleFormSteps, isKnownFormStep, resolveFieldVisible, resolveStepVisible } from '@/features/demo/engine/logic/form-visibility'
 import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
 import { EXPLORE_ITEMS } from '@/features/demo/engine/content/explore'
+import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { calculateCorrectedTimeRange } from '@/features/demo/engine/logic/time'
+import { extractNotesRelevantData, reconcileSections } from '@/features/demo/engine/logic/notes'
 import type { CaseNotesData } from '@/features/demo/engine/logic/pdf/case-notes'
 
 /** Pure derived reads so components stay dumb (props in, no store logic). */
@@ -37,7 +39,11 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
       : EXPLORE_ITEMS.some((it) => it.covers.includes(state.view))
         ? state.view
         : state.currentChapter
-  return EXPLORE_ITEMS.map((item, i) => ({
+  // A row for a screen the visitor's profile has switched OFF can never light — and the exit
+  // dialog lists unlit rows as things they missed. Drop those rows (P7.3): the checklist tracks
+  // THIS visitor's flow, not the maximal one. Numbering stays positional over what remains,
+  // which is the same rule the registry has always used.
+  return EXPLORE_ITEMS.filter((item) => !isKnownFormStep(item.id) || resolveStepVisible(item.id, state)).map((item, i) => ({
     id: item.id,
     number: String(i + 1).padStart(2, '0'),
     label: item.label,
@@ -50,6 +56,8 @@ export function selectExploreStatus(state: DemoState): ExploreStatus[] {
 export interface AdjustedScopeRow {
   id: string
   reqLabel: string
+  /** The domain the adjusted times are IN — always the inverse of `reqLabel`. */
+  adjLabel: string
   reqStart: string
   reqEnd: string
   adjStart: string
@@ -62,6 +70,15 @@ export interface AdjustedScopeRow {
  * NO rounding. The Time-Offset screen shows these (the actual difference calculation); the
  * Extracted-Scope screen rounds them to 5-minute boundaries separately (`generateExtractedScopes`).
  * A scope whose requested time isn't canonical yet leaves its adjusted fields blank.
+ *
+ * BOTH domains are converted here, DVR-time rows included — verified against the phone, which
+ * runs `calculateCorrectedTimeRange(..., scope.isActualTime)` over every scope with both
+ * endpoints in `performCalculation` (`app/(form)/time-offset.tsx:290-327`) and renders the
+ * result under an INVERSE label: `REQUESTED (<Real Time | DVR Time>)` at `:556` against
+ * `ADJUSTED (<DVR Time | Real Time>)` at `:578` (spec `docs/ui-mapping/06-wizard-b-time.md:69-70`).
+ * That is the informational read-across D10 describes: for a DVR-time request the adjusted row
+ * answers "what real-world time was that?", which is display only and never feeds the extracted
+ * window (see `generateExtractedScopes`, where DVR-time requests pass through untouched).
  */
 export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
   const loc = selectCurrentLocation(s)
@@ -75,11 +92,21 @@ export function selectAdjustedScopes(s: DemoState): AdjustedScopeRow[] {
       adjStart = cr.startDateTime
       adjEnd = cr.endDateTime
     } catch {
-      // non-canonical requested time — adjusted stays blank (the extracted screen surfaces it)
+      // Non-canonical requested time — adjusted stays blank; the document surfaces it via
+      // adjustedScopesPartial. DELIBERATELY silent here (R-33): this selector runs in the
+      // bridge's render body (per keystroke, doubled under StrictMode), so the §15/R-27
+      // breadcrumb is emitted once per EVENT at TWO of the three creating boundaries —
+      // generateExtractedScopes (Calculate) and applyImport (post-offset import). The third
+      // — editing/adding a requested-scope row after an offset exists — deliberately does
+      // NOT warn (P1 review R-26, logged in deferred §15): scope rows write through
+      // updateField per keystroke, so an "event" warn there degenerates into the same
+      // per-keystroke spam R-33 removed. Operator-only gap; the visitor surface stays
+      // annotated either way.
     }
     return {
       id: sc.id,
       reqLabel: sc.isActualTime ? 'real time' : 'DVR time',
+      adjLabel: sc.isActualTime ? 'DVR time' : 'real time',
       reqStart: sc.startDateTime,
       reqEnd: sc.endDateTime,
       adjStart,
@@ -101,13 +128,43 @@ export function selectLocationsForCase(s: DemoState, caseId: string): DemoLocati
   return s.locations.filter((l) => l.caseId === caseId)
 }
 
+/**
+ * The wizard screens currently in the flow — the visible LINEAR steps, resolved through the
+ * active profile and the visitor's overrides (P7.3). No cast: `LINEAR_FORM_STEPS` is built from
+ * `DRAWER_DEFS` and typed `LinearFormStepDef`, so the ids ARE `WizardScreenId` and an additive
+ * tool leaking into the linear list is a compile failure rather than a bad route at runtime.
+ */
 export function selectVisibleWizardScreens(s: DemoState): WizardScreenId[] {
-  return getProfile(s.profile).wizardScreens
+  return getVisibleFormSteps(s).map((step) => step.id)
 }
 
 export function selectDrawerItems(s: DemoState): DrawerDef[] {
-  const visible = new Set(selectVisibleWizardScreens(s))
+  const visible = new Set<string>(selectVisibleWizardScreens(s))
   return DRAWER_DEFS.filter((d) => visible.has(d.id))
+}
+
+/**
+ * Whether the drawer's Media accordion should offer each capture tool — the phone gates both
+ * rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`). The library row is NOT
+ * gated on either side: it browses what is already captured.
+ *
+ * A TOTAL OBJECT LITERAL over `AdditiveFormStepId`, which is the whole point (R-20, corrected by
+ * the fix-delta's FD-1). The ad-hoc `capture`/`audio` keys this used to carry meant a third
+ * additive tool compiled everywhere and silently never reached the accordion — §82b's exact
+ * phone defect, a grid switch that moves nothing.
+ *
+ * R-20's first attempt kept `Object.fromEntries(ADDITIVE_FORM_STEP_IDS.map(…)) as Record<…>`,
+ * which CLAIMS totality rather than proving it: `fromEntries` returns `{[k: string]: boolean}`
+ * and the assertion absorbs a widened tuple, so adding a key could never break this function.
+ * A literal is what the rest of this feature uses for exactly this job (`MODAL_IDS`,
+ * `STEP_CLASSIFICATION`, `ADDITIVE_STEP_LABELS`) and it is why those caught the same probe.
+ * `WizardDrawer`'s `TOOL_ROWS` is the other half — a new tool must be wired in both.
+ */
+export function selectMediaToolsVisible(s: DemoState): Readonly<Record<AdditiveFormStepId, boolean>> {
+  return {
+    mediaCapture: resolveStepVisible('mediaCapture', s),
+    audioRecording: resolveStepVisible('audioRecording', s),
+  }
 }
 
 // ---- Wizard drawer completion dots ----------------------------------------------------------
@@ -122,17 +179,8 @@ function checkFields(values: Array<string | undefined>): DrawerStatus {
   return n === values.length ? 'complete' : 'partial'
 }
 
-/** no items / all-blank items → empty · every item fully filled → complete · else partial */
-function checkArray<T>(items: T[], fields: (item: T) => Array<string | undefined>): DrawerStatus {
-  if (items.length === 0) return 'empty'
-  const per = items.map((it) => checkFields(fields(it)))
-  if (per.every((d) => d === 'complete')) return 'complete'
-  if (per.every((d) => d === 'empty')) return 'empty'
-  return 'partial'
-}
-
 /**
- * Extracted scopes diverge from checkArray on purpose: a present-but-blank GENERATED scope reads
+ * Extracted scopes diverge from `countedArray` on purpose: a present-but-blank GENERATED scope reads
  * 'partial', not 'empty' (only generateExtractedScopes populates this list, and a blank cameras
  * field legitimately → amber). 'empty' is reserved for 0 items.
  */
@@ -148,8 +196,28 @@ function checkExtractedScopes(items: ScopeEntry[]): DrawerStatus {
  * DVR `serialModelNumber` and export `mediaPlayerIncluded` (a screen goes green without them).
  * Notes is two-state; extracted-scope is empty only at 0 items; completion counts its two entry
  * fields. `null` location → all empty. See docs/planning/demo-drawer-status-dots for the mapping.
+ *
+ * **The second argument is a MODE, not a configuration** (review R-23). The two consumers ask
+ * genuinely different questions, so the mode is named rather than signalled by absence:
+ *
+ * - a `FormVisibility` ⇒ *"what is left for ME to fill"* — a HIDDEN field stops being counted,
+ *   which is what the phone does (`use-section-completion.ts` reads the store +
+ *   `resolveFieldVisible`). Without it a canvas visitor's DVR dot could never go green: five of
+ *   its nine counted fields are hidden, so they are permanently empty AND unfillable.
+ * - `'count-all'` ⇒ *"how far along is this LOCATION"* — every counted field counts, because the
+ *   map pin and the exported case map must not read differently on a reader whose device runs a
+ *   different profile.
+ *
+ * A screen whose counted fields are ALL hidden reads 'complete': there is nothing outstanding.
  */
-export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScreenId, DrawerStatus> {
+/** The map-pin / exported-case-map reading: grade the location, not this device's form. */
+export const COUNT_ALL_FIELDS = 'count-all'
+export type DrawerStatusMode = FormVisibility | typeof COUNT_ALL_FIELDS
+
+export function selectDrawerStatus(
+  loc: DemoLocation | null,
+  mode: DrawerStatusMode,
+): Record<WizardScreenId, DrawerStatus> {
   if (!loc) {
     return {
       submission: 'empty',
@@ -166,17 +234,79 @@ export function selectDrawerStatus(loc: DemoLocation | null): Record<WizardScree
   }
   const f = loc.form
   const dvr = f.dvr
+  // Counted values, each paired with the toggle that governs it. `counted` drops the hidden ones
+  // (when a visibility is supplied) and reads an all-hidden list as 'complete'.
+  const shown = (id: FormFieldId) => mode === COUNT_ALL_FIELDS || resolveFieldVisible(id, mode)
+  const counted = (entries: ReadonlyArray<readonly [FormFieldId, string | undefined]>): DrawerStatus => {
+    const values = entries.filter(([id]) => shown(id)).map(([, v]) => v)
+    return values.length === 0 ? 'complete' : checkFields(values)
+  }
+  const countedArray = <T,>(
+    items: T[],
+    fields: (item: T) => ReadonlyArray<readonly [FormFieldId, string | undefined]>,
+  ): DrawerStatus => {
+    if (items.length === 0) return 'empty'
+    const per = items.map((it) => counted(fields(it)))
+    if (per.every((d) => d === 'complete')) return 'complete'
+    if (per.every((d) => d === 'empty')) return 'empty'
+    return 'partial'
+  }
   return {
-    submission: checkFields([loc.requesterName, loc.requesterBadge, loc.requesterPhone, loc.requesterEmail, loc.businessName, loc.streetAddress, loc.city, loc.locationContact, loc.locationPhone]),
-    requestedScope: checkArray(f.scopes, (s) => [s.startDateTime, s.endDateTime, s.cameras]),
-    arrivalDeparture: checkArray(f.arrivalDepartures, (a) => [a.arrival, a.departure]),
+    submission: counted([
+      ['submission.requesterName', loc.requesterName],
+      ['submission.requesterBadgeNumber', loc.requesterBadge],
+      ['submission.requesterPhone', loc.requesterPhone],
+      ['submission.requesterEmail', loc.requesterEmail],
+      ['submission.businessName', loc.businessName],
+      ['submission.streetAddress', loc.streetAddress],
+      ['submission.city', loc.city],
+      ['submission.locationContact', loc.locationContact],
+      ['submission.locationPhone', loc.locationPhone],
+    ]),
+    requestedScope: countedArray(f.scopes, (s) => [
+      ['scope.startDateTime', s.startDateTime],
+      ['scope.endDateTime', s.endDateTime],
+      ['scope.cameras', s.cameras],
+    ]),
+    arrivalDeparture: countedArray(f.arrivalDepartures, (a) => [
+      ['arrival.arrivalDateTime', a.arrival],
+      ['arrival.departureDateTime', a.departure],
+    ]),
     timeOffset: checkFields([f.timeOffset?.dvrDateTime, f.timeOffset?.actualDateTime]),
     extractedScope: checkExtractedScopes(f.extractedScopes),
-    dvrInfo: checkFields([dvr.dvrLocation, dvr.dvrTypeBrand, dvr.dvrUsername, dvr.dvrPassword, dvr.numberOfChannels, dvr.activeCameras, dvr.resolution, dvr.recordingFps, dvr.firstRecordedDate]),
-    cameras: checkArray(f.cameras, (c) => [c.cameraName, c.resolution, c.recordingFps]),
-    exportInfo: checkFields([f.export.exportMedia, f.export.fileType, f.export.sizeGb, f.export.mediaProvidedVia]),
-    notes: isFilled(f.notesText) ? 'complete' : 'empty',
-    completion: checkFields([f.dateTimeCompleted, f.completedBy]),
+    dvrInfo: counted([
+      ['dvr.dvrLocation', dvr.dvrLocation],
+      ['dvr.dvrTypeBrand', dvr.dvrTypeBrand],
+      ['dvr.dvrUsername', dvr.dvrUsername],
+      ['dvr.dvrPassword', dvr.dvrPassword],
+      ['dvr.numberOfChannels', dvr.numberOfChannels],
+      ['dvr.activeCameras', dvr.activeCameras],
+      ['dvr.resolution', dvr.resolution],
+      ['dvr.recordingFps', dvr.recordingFps],
+      ['dvr.firstRecordedDate', dvr.firstRecordedDate],
+    ]),
+    cameras: countedArray(f.cameras, (c) => [
+      ['camera.cameraName', c.cameraName],
+      ['camera.resolution', c.resolution],
+      ['camera.recordingFps', c.recordingFps],
+    ]),
+    exportInfo: counted([
+      ['export.exportMedia', f.export.exportMedia],
+      ['export.fileType', f.export.fileType],
+      ['export.sizeGb', f.export.sizeGb],
+      ['export.mediaProvidedVia', f.export.mediaProvidedVia],
+    ]),
+    // Phone rule (use-section-completion:293): two-state only — any section content,
+    // any addendum, or a non-blank free-text tail → complete; never 'partial'.
+    notes:
+      f.notesSections.some((sec) => sec.content.trim() !== '' || !!sec.userAddendum) ||
+      isFilled(f.notesFreeText)
+        ? 'complete'
+        : 'empty',
+    completion: counted([
+      ['completion.dateTimeCompleted', f.dateTimeCompleted],
+      ['completion.completedBy', f.completedBy],
+    ]),
   }
 }
 
@@ -193,7 +323,11 @@ export function aggregateMapStatus(statuses: DrawerStatus[]): LocationMapStatus 
 }
 
 export function selectLocationMapStatus(loc: DemoLocation): LocationMapStatus {
-  return aggregateMapStatus(Object.values(selectDrawerStatus(loc)))
+  // An explicitly completed location (Complete & Save, R-1) IS complete — the visitor said so.
+  // Field-derived aggregation only grades locations still in progress. This keeps the Cases
+  // row/map pin consistent with the card the same action turned green.
+  if (loc.form.completed) return 'complete'
+  return aggregateMapStatus(Object.values(selectDrawerStatus(loc, COUNT_ALL_FIELDS)))
 }
 
 /** Assemble the current case + location into the Case Notes PDF input shape. */
@@ -205,9 +339,15 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
   // "Adjusted Scope (Calculated Times)" is the EXACT corrected time (matches the app's PDF) — not
   // the rounded extracted scope. Rounding is the extracted-scope screen's job, not the document's.
   const adjusted = selectAdjustedScopes(s)
+  // Flow F (phone parity, useCaseNotesExport.deriveNotesFromStore): reconcile READ-ONLY
+  // before assembling, so the court PDF can never embed stale un-edited notes even if
+  // the Notes screen was never focused. Nothing is written back to the store.
+  const notesSections = loc
+    ? reconcileSections(extractNotesRelevantData(loc), loc.form.notesSections).sections
+    : []
   return {
     occNumber: caseObj?.caseNumber,
-    address: loc ? [loc.businessName, loc.streetAddress, loc.city].filter(Boolean).join(', ') : '',
+    address: formatAddress(loc?.businessName, loc?.streetAddress, loc?.city),
     requesterName: loc?.requesterName,
     requesterBadgeNumber: loc?.requesterBadge,
     requesterUnit: caseObj?.unit,
@@ -229,9 +369,21 @@ export function selectCaseNotesData(s: DemoState): CaseNotesData {
     dvrDateTime: off?.dvrDateTime,
     actualDateTime: off?.actualDateTime,
     dvr: form?.dvr,
-    cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps })),
+    // `gps` rides along so the document can print the per-camera fix (P3.7) — the ONE output
+    // that surfaces it, since the `cameras` notes section is deliberately '' (PR-86).
+    cameras: form?.cameras.map((c) => ({ name: c.cameraName, resolution: c.resolution, fps: c.recordingFps, gps: c.gps })),
     export: form?.export,
-    notes: form?.notesText,
+    notesSections,
+    notesFreeText: form?.notesFreeText,
+    // R-3: the stored extracted list can be SHORT (non-canonical scopes dropped at the
+    // last Calculate) — the flag rides with the notes so the document annotates the
+    // possibly-under-reported recovered-footage line instead of shipping it silently.
+    extractedScopesPartial: form?.extractedScopesPartial,
     arrivalDepartures: form?.arrivalDepartures.map((a) => ({ arrival: a.arrival, departure: a.departure })),
+    // The phone's Completion Information section (P7.2). `completedBy` is where the analyst
+    // profile's name arrives, via the Completion screen's autofill — this is the last hop of
+    // "the profile reaches the court document".
+    dateTimeCompleted: form?.dateTimeCompleted,
+    completedBy: form?.completedBy,
   }
 }

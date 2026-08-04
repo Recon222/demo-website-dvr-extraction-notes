@@ -9,6 +9,16 @@ This repo is the marketing + beta-recruitment site for **DVR Extraction Notes** 
 - **Marketing pages** (`app/(default)/`, `components/`, `lib/content/`) — content-driven server components rendering the feature catalog in `lib/content/features.ts`. Being restyled to the **"Case File"** design system (see `docs/features/case-file-redesign/`).
 - **The interactive demo** (`app/demo/`, `features/demo/`) — a self-contained client-only product demo with its own conventions; read `features/demo/CLAUDE.md` before touching it. **Marketing code must never import from `@/features/demo`** (it would pull mapbox-gl/pdfjs/motion into marketing bundles).
 
+## ACTIVE INITIATIVE — Demo↔Phone Parity (2026-07-30, in progress)
+
+The demo is being brought to full parity with the phone app by an orchestrated agent fleet. **If you are picking this effort up (fresh instance, post-compaction, new session), read these IN ORDER before doing anything:**
+
+1. `docs/planning/demo-phone-parity/HANDOFF.md` — the live handoff runbook: current state, agent roster + continuity handles, standing rules, next-step queue. Continuously updated; trust its newest snapshot.
+2. `docs/planning/demo-phone-parity/01-master-parity-plan.md` — the phased plan (P0–P8), owner-ratified decisions D1–D9 (§3), binding agent conventions (§4), execution model (§6), progress tracker (§7).
+3. `docs/planning/demo-phone-parity/00-surface-parity-matrix.md` — the 94-surface gap matrix + owner rulings (§7).
+
+The phone repo (`../DVR-Extraction-Notes-ReactNative`) is **strictly read-only** for this effort — spec source (`docs/ui-mapping/`) and simulator runtime only.
+
 ## Commands
 
 `pnpm` is the configured package manager (see `packageManager` in `package.json`); the README recommends it. A stray `package-lock.json` may appear — prefer pnpm to keep `pnpm-lock.yaml` authoritative.
@@ -55,3 +65,25 @@ pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/
 - SVGs and images are imported as modules from `@/public/...` and passed to `next/image` (static imports give `StaticImageData`).
 - TypeScript is `strict`; `target` is `es5` with `jsx: preserve`.
 - Fonts are exposed as CSS variables (`--font-inter`, `--font-nacelle`, `--font-stmono`, `--font-jbmono`) applied on `<body>`; use the `font-inter` / `font-nacelle` / `font-stmono` / `font-jbmono` utilities.
+
+## Review workflow
+
+Implementation PRs are reviewed by a multi-agent pipeline: **`/demo-code-review`** (`.claude/skills/demo-code-review/SKILL.md`). It fans out five read-only lane specialists in parallel — `typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer` (`.claude/agents/`) — verifies each finding against the code, then issues a strict decision: any CRITICAL → BLOCK, any HIGH → REVISE, otherwise APPROVE.
+
+```bash
+/demo-code-review            # current branch's PR
+/demo-code-review 31         # a specific PR
+/demo-code-review 31 --fix-delta   # re-review the fixes with the SAME reviewers resumed
+```
+
+- **Two modes.** The initial run dispatches fresh agents and records their agent IDs in the review doc. `--fix-delta` reads those IDs back and resumes the original reviewers with their full context, so each one judges the fixes to *its own* findings.
+- **Every revision pass gets a fix-delta re-review before merge**, and the review artifacts are committed. Reviews live in `docs/code-reviews/` as `pr-<N>-review.md` and `pr-<N>-fixes-review.md`.
+- **Merges are merge commits** — `gh pr merge <N> --merge --delete-branch`. Never squash, never rebase.
+- **Commits are granular**, red and green together (the failing test and the code that passes it land in the same commit), and each fix commit maps to a review finding. Post the commit→finding table as a PR comment after each fix round.
+- **This is the gate for the demo↔phone parity effort** — see `docs/planning/demo-phone-parity/01-master-parity-plan.md` §6. Brief every reviewer with the phase's package scope so they don't flag surfaces that are scheduled for a later phase.
+
+### Deferral ledger
+
+`docs/code-reviews/deferred.md` is the living record of findings deliberately **not** fixed. Log every deferral there **before merging**, in the house format — a numbered `## N. <title>` section with **Source**, **What**, **Why deferred**, and **Trigger**.
+
+The ledger's bar is explicit and enforced by the fix-delta reviewers: *each entry needs a real reason to wait **and** a concrete un-defer trigger.* It is not a TODO dump — a vague deferral or a missing trigger is itself a review finding. Resolved entries are struck through and marked `✅ RESOLVED — PR #<N>` rather than deleted, so the history of the decision survives.

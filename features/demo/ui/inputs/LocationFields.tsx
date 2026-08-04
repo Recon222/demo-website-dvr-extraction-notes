@@ -1,0 +1,282 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+
+import type { GpsFix } from '@/features/demo/engine/logic/gps'
+import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
+import { CoordinateDisplay } from '@/features/demo/ui/inputs/CoordinateDisplay'
+import { GpsCaptureControl } from '@/features/demo/ui/inputs/GpsCaptureControl'
+import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
+import { Field } from '@/features/demo/ui/screens/_shared'
+import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
+import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
+
+/**
+ * The demo's port of the phone's `LocationForm`
+ * (`src/features/location/components/LocationForm.tsx`) — the reusable address block shared by
+ * every screen that captures a recovery location. Render order is the phone's, verbatim
+ * (LocationForm.tsx:168-224, ui-mapping 05:35-40):
+ *
+ *   Business/Location Name → Street Address (autocomplete) → City → GPS capture + Geocode
+ *   toggle → CoordinateDisplay (only once both coordinates exist)
+ *
+ * Ownership is the phone's too: the GPS control captures, THIS component reverse-geocodes when
+ * the toggle is on, and the parent screen owns the values. `coordinateSource` is stamped here —
+ * `'geocoded'` for an address pick (LocationForm.tsx:108), `'gps'` for a capture (:123) — which
+ * is the reconciliation the parity matrix's row 29 asks for: one component decides provenance,
+ * so the two paths can never disagree.
+ *
+ * WRITE GUARD (p2-review R-1, extended by R-32). Every `onChange` here ends in the bridge's
+ * `store.getState().updateField(...)`, which resolves its target at CALL time
+ * (`create-store.ts` reads `get().currentLocationId`). This component has TWO writes that land
+ * after an unbounded await — the reverse-geocode result and the address-pick result — so
+ * without a token either one can put location A's data (and, on the pick path, A's coordinates
+ * stamped `'geocoded'`) onto location B.
+ *
+ * `canWriteFor(issuedFor)` is the single guard both paths use: a write is allowed only while
+ * the component is mounted AND the location it was issued for is still the open one. The two
+ * paths differ only in where the identity comes from — `handleCapture` reads it before its
+ * await; `onPick`'s handler closes over the `locationId` of the render that created it, which
+ * IS the location the visitor picked the suggestion on (the Mapbox `retrieve` continuation
+ * calls that same closure, `AddressAutocomplete.tsx` `choose`).
+ *
+ * Deliberately NOT a generation counter (the round-1 shape): a counter bumped in an effect
+ * cleanup is incremented AFTER the re-render that follows a `locationId` change, so a handler
+ * created in that render captures the OLD generation and refuses its own first write — a
+ * mutation test pins exactly that regression.
+ *
+ * The capture half additionally has `useGpsCapture`'s `abortedRef`; the `key` on the control
+ * extends that guard from "unmounted" to "different location" too.
+ */
+
+/** The address block's working values. The coordinate half is a deliberately FLATTENED,
+ *  all-optional projection of `GpsCoordinates` (a half-filled form is a real state here, unlike
+ *  a stored fix). Being a homomorphic mapped type, it TRACKS the canonical shape automatically:
+ *  a field added there appears here as optional, and a field removed there disappears here.
+ *
+ *  It does not, on its own, make anything fail to compile — the round-1 comment claimed that and
+ *  was wrong (R-34). Enforcement lives in `__tests__/coordinate-shapes.test.ts`, which asserts
+ *  key-exhaustiveness for this and the six other carriers. */
+type CoordinateProjection = { [K in keyof GpsCoordinates]?: GpsCoordinates[K] }
+
+export interface LocationFieldValues extends CoordinateProjection {
+  businessName: string
+  streetAddress: string
+  city: string
+  coordinateSource?: GpsSource
+}
+
+export interface LocationFieldsProps {
+  /** Identity of the location these values belong to — the write-guard token (see header).
+   *  Optional so a caller without a selection still renders; an undefined id is its own
+   *  generation, so a switch to or from "no location" invalidates in-flight lookups too. */
+  locationId?: string
+  values: LocationFieldValues
+  /** Partial patch — mirrors the phone's `onChange(updates: Partial<LocationFormValues>)`. */
+  onChange(updates: Partial<LocationFieldValues>): void
+  /**
+   * Whether the coordinate group — the capture control, its lookup notice, the coordinate card,
+   * AND the coordinate half of an address pick — is part of this deployment's form (P7.3, the
+   * `submission.*` coordinate group). The three text fields above it are always-on, so they have
+   * no switch of their own.
+   *
+   * The write half is not optional garnish (P7 review R-2b, owner-ruled): with the group off,
+   * `onPick` must not stamp `lat`/`lng`/`accuracyM`/`coordinateSource`, or the visitor carries
+   * coordinates they cannot see, verify or clear into the Map pin and the exported case map.
+   * Only NEW stamping is suppressed — anything captured before the switch was flipped stays.
+   *
+   * Optional and defaulting to ON: the New Location modal mounts this component too, and a
+   * create-time capture is not a wizard field the profile grid governs.
+   */
+  showGps?: boolean
+  /** Test seams. */
+  deps?: UseGpsCaptureOptions['deps']
+  reverseGeocode?: typeof defaultReverseGeocode
+}
+
+/** Phone copy, verbatim (ui-mapping 05:36-38 / LocationForm.tsx:172-201). */
+export const LOCATION_FIELD_LABELS = {
+  businessName: 'Business/Location Name',
+  businessNamePlaceholder: 'Optional',
+  streetAddress: 'Street Address',
+  streetAddressPlaceholder: 'Start typing an address...',
+  city: 'City',
+  cityPlaceholder: 'City name',
+} as const
+
+/** Demo-only. The phone's Submission passes no `onReverseGeocodeError`, so a failed lookup is
+ *  logged and never surfaced (ui-mapping 05:35). The demo says so instead of going quiet —
+ *  and states the part that matters: the coordinates were kept. */
+export const REVERSE_GEOCODE_UNAVAILABLE = 'Address lookup unavailable — the captured coordinates were kept.'
+
+/** R-17. Mapbox routinely returns `context.address` without `context.place` (rural addresses,
+ *  reduced-context tokens). Writing that through blanked an operator-typed City with a
+ *  success-shaped outcome and no notice — and `formatAddress` drops empty components, so the
+ *  loss propagated silently to the PDF header, the notes, the Cases row and the map sheet.
+ *  Only the components the lookup actually resolved are written; this says the rest stands. */
+export const REVERSE_GEOCODE_PARTIAL = 'Address lookup found only part of the address — the rest was left as you typed it.'
+
+/** Which post-lookup notice the block is showing. A union, not two booleans: the outcomes are
+ *  mutually exclusive and the "both true" state has no rendering. */
+type LookupNotice = 'none' | 'failed' | 'partial'
+
+/** R-39 (§45i): a TOTAL map over the noticing states, not a binary ternary. The old
+ *  `lookupNotice === 'failed' ? … : …` read "not failed" as "partial", so a fourth member —
+ *  `'rate-limited'` and `'no-token'` are the named candidates — would have rendered the
+ *  partial-address copy, telling the operator the rest of their address stood when nothing had
+ *  been looked up at all. Adding a member is a compile error here instead. Same guarantee R-25's
+ *  `never` check gives `gpsSourceLabel`, in the shape the review named — and with no unreachable
+ *  default arm to carry. `'none'` is excluded because it has no copy: the notice is not rendered. */
+const LOOKUP_NOTICE_COPY: Record<Exclude<LookupNotice, 'none'>, string> = {
+  failed: REVERSE_GEOCODE_UNAVAILABLE,
+  partial: REVERSE_GEOCODE_PARTIAL,
+}
+
+export function LocationFields({ locationId, values, onChange, showGps = true, deps, reverseGeocode = defaultReverseGeocode }: LocationFieldsProps) {
+  // Per-context "reverse-geocode on capture" preference. Default ON, matching the phone's
+  // `locationReverseGeocode` setting default (ui-mapping 05:39). The phone persists it in the
+  // settings store; the demo has no settings surface until P7, so it lives here for now.
+  const [geocodeEnabled, setGeocodeEnabled] = useState(true)
+  const [reverseGeocoding, setReverseGeocoding] = useState(false)
+  const [lookupNotice, setLookupNotice] = useState<LookupNotice>('none')
+
+  // R-1/R-32 write guard (see header). `openLocation` always names the currently-open location;
+  // `mounted` closes the "left the wizard entirely" path, where the id would otherwise still
+  // match while the store's target has moved on.
+  const openLocation = useRef(locationId)
+  const mounted = useRef(true)
+  useEffect(() => {
+    openLocation.current = locationId
+  })
+  useEffect(
+    () => () => {
+      mounted.current = false
+    },
+    [],
+  )
+  const canWriteFor = (issuedFor: string | undefined) => mounted.current && issuedFor === openLocation.current
+
+  // Transient lookup state belongs to the location that produced it (fix-delta observation,
+  // adjacent to R-32). This component is NOT remounted on a switch, so without the reset the
+  // new location wears the old one's "Looking up address…" spinner and lookup notice until the
+  // stale promise settles.
+  useEffect(() => {
+    setReverseGeocoding(false)
+    setLookupNotice('none')
+  }, [locationId])
+
+  const handleCapture = async (fix: GpsFix) => {
+    // Coordinates land first and stand on their own (phone LocationForm.tsx:119-126).
+    onChange({ lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM, coordinateSource: 'gps' })
+    setLookupNotice('none')
+    if (!geocodeEnabled) return
+
+    const issuedFor = locationId
+    setReverseGeocoding(true)
+    try {
+      const address = await reverseGeocode(fix.lat, fix.lng)
+      // The open location changed (or this unmounted) while the lookup was in flight — the
+      // address belongs to a location nobody is editing any more. Drop it silently: writing it
+      // would overwrite whoever is open NOW, and a notice about an abandoned lookup on a
+      // location the visitor has left is noise.
+      if (!canWriteFor(issuedFor)) return
+      if (!address) {
+        setLookupNotice('failed')
+        return
+      }
+      // R-17: write ONLY what the lookup resolved. An empty component means "not found",
+      // never "clear what the operator typed".
+      const patch: Partial<LocationFieldValues> = {}
+      if (address.streetAddress) patch.streetAddress = address.streetAddress
+      if (address.city) patch.city = address.city
+      if (Object.keys(patch).length > 0) onChange(patch)
+      setLookupNotice(address.streetAddress && address.city ? 'none' : 'partial')
+    } catch {
+      if (!canWriteFor(issuedFor)) return
+      // `reverseGeocode` soft-fails by contract, so this only fires for an injected seam or a
+      // future implementation that throws. Treat it as "no address" — the notice below already
+      // says the coordinates were kept — rather than letting it escape as an unhandled
+      // rejection and strand the button in its "Looking up address…" state.
+      setLookupNotice('failed')
+    } finally {
+      // Only the location this lookup belongs to owns the spinner: a stale settle must not
+      // clear a spinner that by now belongs to a DIFFERENT location's lookup.
+      if (canWriteFor(issuedFor)) setReverseGeocoding(false)
+    }
+  }
+
+  const hasCoordinates = values.lat !== undefined && values.lng !== undefined
+
+  return (
+    <>
+      <Field
+        label={LOCATION_FIELD_LABELS.businessName}
+        value={values.businessName}
+        onChange={(v) => onChange({ businessName: v })}
+        placeholder={LOCATION_FIELD_LABELS.businessNamePlaceholder}
+      />
+      <AddressAutocomplete
+        label={LOCATION_FIELD_LABELS.streetAddress}
+        required
+        value={values.streetAddress}
+        onChange={(v) => onChange({ streetAddress: v })}
+        onPick={(p) => {
+          // R-32: this closure was created while `locationId` was open, and Mapbox's `retrieve`
+          // continuation calls THIS closure — so `locationId` is the location the suggestion was
+          // picked on. A pick that resolves after a switch writes street/city AND coordinates
+          // stamped `'geocoded'`; dropping it is the same call the geocode path makes.
+          if (!canWriteFor(locationId)) return
+          // P7 R-2(b): the coordinate half of the pick is governed by the SAME switch that
+          // governs the coordinate display. Street and city are always-on and always write; the
+          // coordinates do not, because a switch that hides a value while the app keeps writing
+          // it invisibly is the dishonesty the gate was invented to remove, one level down —
+          // and these reach the Map pin and the exported case map. Coordinates captured BEFORE
+          // the group was hidden stay put: that is the pane footnote's "already entered" case.
+          onChange({
+            streetAddress: p.streetAddress,
+            city: p.city,
+            ...(showGps && p.coordinates
+              ? { lat: p.coordinates.lat, lng: p.coordinates.lng, accuracyM: p.accuracyM, coordinateSource: 'geocoded' as const }
+              : {}),
+          })
+          setLookupNotice('none')
+        }}
+        placeholder={LOCATION_FIELD_LABELS.streetAddressPlaceholder}
+      />
+      <Field
+        label={LOCATION_FIELD_LABELS.city}
+        required
+        value={values.city}
+        onChange={(v) => onChange({ city: v })}
+        placeholder={LOCATION_FIELD_LABELS.cityPlaceholder}
+      />
+      {showGps && (
+      <>
+      <GpsCaptureControl
+        key={locationId ?? '—'}
+        // Remount on a location switch so `useGpsCapture`'s unmount abort fires for an
+        // in-flight CAPTURE too (R-1's other half) — a 30-120s budget easily outlives a switch.
+        onCapture={handleCapture}
+        geocodeEnabled={geocodeEnabled}
+        onToggleGeocode={setGeocodeEnabled}
+        reverseGeocoding={reverseGeocoding}
+        deps={deps}
+      />
+      {lookupNotice !== 'none' && (
+        <div role="status" data-testid="reverse-geocode-notice" style={{ fontSize: 12, color: '#ffd93d', marginTop: -8, marginBottom: 14 }}>
+          {LOOKUP_NOTICE_COPY[lookupNotice]}
+        </div>
+      )}
+      {hasCoordinates && (
+        <CoordinateDisplay
+          lat={values.lat!}
+          lng={values.lng!}
+          accuracyM={values.accuracyM}
+          source={values.coordinateSource}
+        />
+      )}
+      </>
+      )}
+    </>
+  )
+}

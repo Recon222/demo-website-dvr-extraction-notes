@@ -1,7 +1,31 @@
 'use client'
 
 import { Field, SectionCard, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
+import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inputs/LocationFields'
+import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
+import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
+import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
+
+/**
+ * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
+ *
+ * Render order and copy are the phone's, section for section (submission.tsx:108-208):
+ *   Case Information (read-only OCC#)
+ *   Requester Information ×5
+ *   Location Information: LocationFields (business → street → city → GPS → coordinates)
+ *                         then Contact Person + Contact Phone
+ *
+ * CONTACT-FIELD PLACEMENT (matrix row 29 asked this to be verified before building): the two
+ * contact fields belong to the Location Information SECTION but sit OUTSIDE the shared
+ * location form — the phone renders them after `<LocationForm/>`, i.e. after the GPS control
+ * and the coordinate card (submission.tsx:189-207, ui-mapping 05:41-42). They already existed
+ * in the demo directly under City; adding the GPS block above them is what puts them in the
+ * phone's position.
+ *
+ * Presentational: values in, callbacks out (`onChange` for the flat text fields,
+ * `onCoordinates` for the coordinate write) — the store lives in DemoExperience.
+ */
 
 export interface SubmissionFields {
   requesterName: string
@@ -16,49 +40,125 @@ export interface SubmissionFields {
   locationPhone: string
 }
 
+/** The stored fix, as the screen consumes it. Derived from the store's own shape (R-24) so a
+ *  change to `DemoLocation.gps` is a compile error here rather than a silent divergence — the
+ *  `accuracyM?` widening had to be hand-applied to seven copies, and one was missed. */
+export type SubmissionCoordinates = NonNullable<DemoLocation['gps']>
+
 export interface SubmissionScreenProps {
   occNumber: string
+  /** Identity of the open recovery location — forwarded to `LocationFields` as its write-guard
+   *  token so an in-flight reverse-geocode can never land on a location the visitor switched
+   *  away from (p2-review R-1). */
+  locationId?: string
   fields: SubmissionFields
+  /** The recovery location's stored fix, if any — drives the coordinate card. */
+  coordinates?: SubmissionCoordinates
   onChange(field: keyof SubmissionFields, value: string): void
+  /** Fires whenever a coordinate lands — from a GPS capture (`gps`) or an address pick
+   *  (`geocoded`). One write path, so the two sources can never stamp inconsistently. */
+  onCoordinates(coords: SubmissionCoordinates): void
+  /** Which of this screen's fields the visitor's form profile keeps (P7.3). The three address
+   *  components are always-on, so they carry no gate; everything else on the screen does. */
+  isFieldVisible(id: FormFieldId): boolean
   onNext(): void
   onBack(): void
   onMenu(): void
-  /** Fires when an address pick yields geocoded coordinates for this recovery location. */
-  onPickCoords(coords: { lat: number; lng: number }): void
+  /** Test seams, forwarded to the GPS capture + reverse-geocode I/O. */
+  gpsDeps?: UseGpsCaptureOptions['deps']
+  reverseGeocode?: typeof reverseGeocode
 }
 
-export function SubmissionScreen({ occNumber, fields, onChange, onNext, onBack, onMenu, onPickCoords }: SubmissionScreenProps) {
+/** Phone copy, verbatim (submission.tsx:109-206 / ui-mapping 05:26-42). */
+const COPY = {
+  caseNumber: 'Case Number',
+  requesterName: 'Requester Name',
+  requesterNamePlaceholder: 'Who requested video from this location',
+  requesterBadge: 'Requester Badge',
+  requesterBadgePlaceholder: 'Badge number',
+  requesterUnit: 'Requester Unit',
+  requesterUnitPlaceholder: 'Unit (defaults to case unit if empty)',
+  requesterUnitHint: 'Leave empty to use case unit, or override for this location',
+  requesterPhone: 'Requester Phone',
+  requesterPhonePlaceholder: 'e.g., 905-555-1234',
+  requesterEmail: 'Requester Email',
+  requesterEmailPlaceholder: 'e.g., cop@dept.ca',
+  contactPerson: 'Contact Person',
+  contactPhone: 'Contact Phone',
+  contactPlaceholder: 'Optional',
+} as const
+
+export function SubmissionScreen({
+  occNumber,
+  locationId,
+  fields,
+  coordinates,
+  isFieldVisible,
+  onChange,
+  onCoordinates,
+  onNext,
+  onBack,
+  onMenu,
+  gpsDeps,
+  reverseGeocode,
+}: SubmissionScreenProps) {
+  const locationValues: LocationFieldValues = {
+    businessName: fields.businessName,
+    streetAddress: fields.streetAddress,
+    city: fields.city,
+    lat: coordinates?.lat,
+    lng: coordinates?.lng,
+    accuracyM: coordinates?.accuracyM,
+    coordinateSource: coordinates?.source,
+  }
+
+  // The phone's `handleLocationChange` (submission.tsx:63-86): a partial patch is split into
+  // the flat field writes and the coordinate write.
+  const handleLocationChange = (updates: Partial<LocationFieldValues>) => {
+    if (updates.businessName !== undefined) onChange('businessName', updates.businessName)
+    if (updates.streetAddress !== undefined) onChange('streetAddress', updates.streetAddress)
+    if (updates.city !== undefined) onChange('city', updates.city)
+    if (updates.lat !== undefined && updates.lng !== undefined) {
+      onCoordinates({
+        lat: updates.lat,
+        lng: updates.lng,
+        accuracyM: updates.accuracyM,
+        source: updates.coordinateSource ?? 'geocoded',
+      })
+    }
+  }
+
+  // A section card with a title and nothing under it reads as broken, so the requester block
+  // goes when its last field does. Location Information always keeps the address components
+  // (always-on), and Case Information is the always-on OCC number.
+  const showRequester =
+    isFieldVisible('submission.requesterName') ||
+    isFieldVisible('submission.requesterBadgeNumber') ||
+    isFieldVisible('submission.requesterUnit') ||
+    isFieldVisible('submission.requesterPhone') ||
+    isFieldVisible('submission.requesterEmail')
+
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Submission Details" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Case Number</div>
-          <div style={{ width: '100%', borderRadius: 8, border: '1px solid #1e3a5f', background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
+          <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
+        {showRequester && (
         <SectionCard title="Requester Information">
-          <Field label="Requester Name" value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder="Who requested video" />
-          <Field label="Requester Badge" value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder="Badge number" />
-          <Field label="Requester Unit" value={fields.requesterUnit} onChange={(v) => onChange('requesterUnit', v)} placeholder="Section / unit" hint="Defaults to the case unit if left blank." />
-          <Field label="Requester Phone" value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder="e.g., 905-555-1234" />
-          <Field label="Requester Email" value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder="e.g., det@dept.ca" />
+          {isFieldVisible('submission.requesterName') && <Field label={COPY.requesterName} value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder={COPY.requesterNamePlaceholder} />}
+          {isFieldVisible('submission.requesterBadgeNumber') && <Field label={COPY.requesterBadge} value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder={COPY.requesterBadgePlaceholder} />}
+          {isFieldVisible('submission.requesterUnit') && <Field label={COPY.requesterUnit} value={fields.requesterUnit} onChange={(v) => onChange('requesterUnit', v)} placeholder={COPY.requesterUnitPlaceholder} hint={COPY.requesterUnitHint} />}
+          {isFieldVisible('submission.requesterPhone') && <Field label={COPY.requesterPhone} value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder={COPY.requesterPhonePlaceholder} />}
+          {isFieldVisible('submission.requesterEmail') && <Field label={COPY.requesterEmail} value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder={COPY.requesterEmailPlaceholder} />}
         </SectionCard>
+        )}
         <SectionCard title="Location Information">
-          <Field label="Business Name" value={fields.businessName} onChange={(v) => onChange('businessName', v)} placeholder="Business at this location" />
-          <AddressAutocomplete
-            label="Street Address"
-            value={fields.streetAddress}
-            onChange={(v) => onChange('streetAddress', v)}
-            onPick={(p) => {
-              onChange('streetAddress', p.streetAddress)
-              onChange('city', p.city)
-              if (p.coordinates) onPickCoords({ lat: p.coordinates.lat, lng: p.coordinates.lng })
-            }}
-            placeholder="Start typing an address…"
-          />
-          <Field label="City" value={fields.city} onChange={(v) => onChange('city', v)} placeholder="City" />
-          <Field label="Contact Person" value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder="On-site coordinator" />
-          <Field label="Contact Phone" value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder="Contact phone" />
+          <LocationFields locationId={locationId} values={locationValues} onChange={handleLocationChange} showGps={isFieldVisible('submission.latitude')} deps={gpsDeps} reverseGeocode={reverseGeocode} />
+          {isFieldVisible('submission.locationContact') && <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />}
+          {isFieldVisible('submission.locationPhone') && <Field label={COPY.contactPhone} value={fields.locationPhone} onChange={(v) => onChange('locationPhone', v)} placeholder={COPY.contactPlaceholder} />}
         </SectionCard>
         <WizardNext label="Next: Requested Scope" onClick={onNext} />
       </div>

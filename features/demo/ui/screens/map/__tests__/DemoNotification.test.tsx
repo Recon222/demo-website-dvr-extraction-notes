@@ -14,6 +14,32 @@ describe('DemoNotification', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
+  it('gives a SECOND notice its own full dwell, not the first one\'s remainder [R-8]', () => {
+    // The bridge renders this element positionally, so a `notice` change re-uses the same
+    // instance. With `[durationMs]` deps the text swapped and the timer did not restart: a
+    // notice raised at t≈2.4s lived ~200ms. P3 made this banner the ENTIRE outcome of the two
+    // export actions and the failure arms, so a sub-perceptual flash reads as a dead button —
+    // exactly what the honest-notice treatment exists to prevent.
+    const onDismiss = vi.fn()
+    const { rerender } = render(<DemoNotification message="Export ZIP isn't available yet." onDismiss={onDismiss} />)
+
+    act(() => vi.advanceTimersByTime(2400))
+    expect(onDismiss).not.toHaveBeenCalled()
+
+    rerender(<DemoNotification message="Export GeoJSON isn't available yet." onDismiss={onDismiss} />)
+    act(() => vi.advanceTimersByTime(2400)) // past the FIRST notice's deadline, short of its own
+    expect(screen.getByText(/GeoJSON/)).toBeInTheDocument()
+    expect(onDismiss).not.toHaveBeenCalled()
+
+    act(() => vi.advanceTimersByTime(300))
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('is a live region — for the export and failure arms it is the only feedback there is [R-9]', () => {
+    render(<DemoNotification message="Error — Location not found." onDismiss={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Error — Location not found.')
+  })
+
   it('clears its timer on unmount (no post-unmount dismiss)', () => {
     const onDismiss = vi.fn()
     const { unmount } = render(<DemoNotification message="x" onDismiss={onDismiss} />)

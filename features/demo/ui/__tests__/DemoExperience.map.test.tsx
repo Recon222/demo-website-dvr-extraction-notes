@@ -1,28 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, within } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 
-// mapbox-gl is mocked (no WebGL); a constructable (non-arrow) Map so `new mapboxgl.Map(...)` works.
-const { mapInstance } = vi.hoisted(() => {
-  const mapInstance = {
-    on: vi.fn((evt: string, cb: () => void) => { if (evt === 'load') cb() }),
-    remove: vi.fn(), flyTo: vi.fn(), fitBounds: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn(),
-  }
-  return { mapInstance }
+// mapbox-gl is mocked (no WebGL). The shared stub is chainable and complete (MR-5): this file's
+// previous `Marker: vi.fn()` returned `undefined`, so `new Marker(...).setLngLat(...)` throws the
+// moment markers are actually plotted — which today they never are, because nothing here awaits
+// the map's async boot. One `await` away from ~15 confusing red tests.
+vi.mock('mapbox-gl', async () => {
+  const { createMapboxModuleStub } = await import('@/features/demo/ui/screens/map/__tests__/test-utils')
+  return createMapboxModuleStub().module
 })
-vi.mock('mapbox-gl', () => ({
-  default: { Map: vi.fn(function () { return mapInstance }), Marker: vi.fn(), accessToken: '' },
-}))
 
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { MAP_NARRATION } from '@/features/demo/engine/content/narration'
+import { latestMapboxStub } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
 afterEach(() => vi.unstubAllEnvs())
 
-describe('DemoExperience — Map tab wiring', () => {
+// Generous suite timeout (R-6): full-experience renders are heavy under jsdom and this file
+// runs alongside sibling suites under CPU contention (observed 5.8s on a loaded runner) —
+// not a loop; isolation runs finish well inside the default.
+describe('DemoExperience — Map tab wiring', { timeout: 20000 }, () => {
   it('clicking the Map tab opens the Map screen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -50,6 +51,38 @@ describe('DemoExperience — Map tab wiring', () => {
     expect(screen.getByText(MAP_NARRATION.title)).toBeInTheDocument()
   })
 
+  it('plots real markers once the map has actually booted (MR-5 stub guard)', async () => {
+    // The ONLY test in this file that awaits the map's async boot, and it exists to keep the
+    // shared mapbox stub honest: with a bare `Marker: vi.fn()` the chain
+    // `new Marker(...).setLngLat(...).addTo(map)` throws, and every other test here passes only
+    // because it returns before the boot resolves. If this goes red with a TypeError about
+    // `setLngLat`, the stub regressed — not `MapCanvas`.
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({
+      caseNumber: 'PR25-MR5',
+      displayName: 'Stub guard',
+      unit: 'R',
+      incidentCoordinates: { lat: 43.6, lng: -79.6, source: 'geocoded' },
+    })
+    store.getState().addLocation(caseId, { locationName: 'Rear door', gps: { lat: 43.61, lng: -79.61, source: 'geocoded' } })
+    render(<DemoExperience store={store} />)
+    fireEvent.click(screen.getByLabelText('Map'))
+    fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('Stub guard'))
+
+    // Asked of the constructor, not the DOM: a stubbed Marker's `addTo` is a no-op, so nothing
+    // is ever appended. What matters is that the full chain ran without throwing.
+    //
+    // `latestMapboxStub()` is read INSIDE the waitFor: `MapCanvas` imports mapbox-gl lazily, so
+    // the mock factory has not run when this test's body starts.
+    await waitFor(() => expect(latestMapboxStub().Marker).toHaveBeenCalled())
+    const { markerInstances } = latestMapboxStub()
+    expect(markerInstances.length).toBeGreaterThan(0)
+    for (const marker of markerInstances) {
+      expect(marker.setLngLat).toHaveBeenCalled()
+      expect(marker.addTo).toHaveBeenCalled()
+    }
+  })
+
   it('keeps the tab bar visible on the map view', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
@@ -58,7 +91,7 @@ describe('DemoExperience — Map tab wiring', () => {
   })
 })
 
-describe('DemoExperience — Map case picker', () => {
+describe('DemoExperience — Map case picker', { timeout: 20000 }, () => {
   it('shows the mandatory picker (no Cancel) when no viewer case is chosen', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)

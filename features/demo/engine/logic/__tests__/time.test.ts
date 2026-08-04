@@ -114,11 +114,18 @@ describe('roundTo5Min', () => {
 
   it('zeros the seconds and passes through empty input', () => {
     expect(roundTo5Min('2025-03-08 23:45:30', 'down')).toBe('2025-03-08 23:45:00')
+    // '' is ABSENCE, not corruption — an unset scope bound. Explicitly representable, so it
+    // passes through; only a non-empty string that fails to parse is a broken value.
     expect(roundTo5Min('', 'down')).toBe('')
   })
 
-  it('returns a non-empty unparseable string unchanged', () => {
-    expect(roundTo5Min('not-a-date', 'down')).toBe('not-a-date')
+  // G8 / deferred §15 (second half): the old behaviour returned the junk unchanged, which
+  // would have written "not-a-date" straight onto a forensic document. Fail loud, exactly
+  // like applyTimeOffset — its throw is what the caller's counted/flagged/dev-warned
+  // isolation in generateExtractedScopes is built to absorb.
+  it('throws on a non-empty unparseable string rather than passing the junk through', () => {
+    expect(() => roundTo5Min('not-a-date', 'down')).toThrow('Unable to parse date value')
+    expect(() => roundTo5Min('2025-13-45 99:99:99', 'up')).toThrow('Unable to parse date value')
   })
 })
 

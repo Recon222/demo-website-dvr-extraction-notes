@@ -4,10 +4,12 @@ import {
   WIZARD_SCREENS,
   LAUNCHABLE,
   DRAWER_DEFS,
+  TAB_LABELS,
+  TAB_VIEWS,
+  isTabView,
+  isTabOnlyView,
   chapterNumber,
   wizardNumber,
-  nextChapter,
-  prevChapter,
 } from '@/features/demo/engine/content/screens'
 
 // These registries are the single source of truth for ordering and numbering.
@@ -27,19 +29,42 @@ describe('flow registries', () => {
     expect(new Set(nums).size).toBe(nums.length)
   })
 
+  it('lists the four tabs in the phone\'s own order, each labelled', () => {
+    // `app/(tabs)/_layout.tsx:26-66` — Dashboard, Cases, Map, Export, in that sequence.
+    expect(TAB_VIEWS).toEqual(['dashboard', 'cases', 'map', 'export'])
+    expect(Object.keys(TAB_LABELS).length).toBe(TAB_VIEWS.length)
+    expect(TAB_VIEWS.map((t) => TAB_LABELS[t])).toEqual(['Dashboard', 'Cases', 'Map', 'Export'])
+  })
+
+  it('splits the tabs into chapters (Dashboard/Cases) and tab-only destinations (Map/Export)', () => {
+    // The tab-only ones must never be reachable via Next/Back, and must never become a
+    // `currentChapter` — the store's setView only promotes a ChapterId.
+    for (const id of ['dashboard', 'cases'] as const) expect(CHAPTERS).toContain(id)
+    for (const id of ['map', 'export'] as const) {
+      expect(CHAPTERS).not.toContain(id)
+      expect(WIZARD_SCREENS).not.toContain(id)
+      expect(LAUNCHABLE).not.toContain(id)
+    }
+  })
+
+  it('recognises exactly the registered tabs', () => {
+    for (const id of TAB_VIEWS) expect(isTabView(id)).toBe(true)
+    for (const id of ['submission', 'ocr', 'splash', 'nope']) expect(isTabView(id)).toBe(false)
+  })
+
+  it('narrows the tab-only destinations — a tab that is not also a chapter (R-27)', () => {
+    // The key space `TAB_NARRATION` and `persistence.ts`'s EXTRA_VIEWS are both closed over.
+    expect(TAB_VIEWS.filter(isTabOnlyView)).toEqual(['map', 'export'])
+    for (const id of ['dashboard', 'cases']) expect(isTabOnlyView(id)).toBe(false)
+    for (const id of ['submission', 'ocr', 'nope']) expect(isTabOnlyView(id)).toBe(false)
+  })
+
   it('keeps OCR/media launch-only (never in the Next/Back flow)', () => {
     expect(LAUNCHABLE).toContain('ocr')
     for (const id of ['ocr', 'mediaCapture', 'audioRecording'] as const) {
       expect(CHAPTERS).not.toContain(id)
       expect(WIZARD_SCREENS).not.toContain(id)
     }
-  })
-
-  it('walks the chapter order without wrapping', () => {
-    expect(prevChapter(CHAPTERS[0])).toBeNull()
-    expect(nextChapter(CHAPTERS[CHAPTERS.length - 1])).toBeNull()
-    expect(nextChapter(CHAPTERS[0])).toBe(CHAPTERS[1])
-    expect(prevChapter(CHAPTERS[1])).toBe(CHAPTERS[0])
   })
 
   it('has a DRAWER_DEFS entry, in order, for every wizard screen', () => {

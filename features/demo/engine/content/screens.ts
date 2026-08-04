@@ -29,6 +29,61 @@ export const CHAPTERS: readonly ChapterId[] = ['splash', 'dashboard', 'cases', .
 /** Launch-only screens — reached by an action button, never Next/Back. */
 export const LAUNCHABLE: readonly LaunchableId[] = ['ocr', 'mediaCapture', 'audioRecording']
 
+/**
+ * The bottom tab bar's destinations, in the phone's own order — Dashboard · Cases · Map ·
+ * Export (`app/(tabs)/_layout.tsx:26-66`, where the four `<Tabs.Screen>` entries appear in
+ * exactly this sequence).
+ *
+ * Array order IS the tab order, same rule as `WIZARD_SCREENS`: `TabBar` maps over this tuple
+ * rather than hand-listing buttons, and the bridge decides "is the tab bar showing" with
+ * `isTabView` instead of a widening `||` chain. Two of the four (`dashboard`, `cases`) are
+ * also guided chapters; `map` and `export` are tab-only destinations that never become
+ * `currentChapter`.
+ */
+export const TAB_VIEWS = ['dashboard', 'cases', 'map', 'export'] as const
+export type TabView = (typeof TAB_VIEWS)[number]
+
+/**
+ * Tab labels, from the phone's `options.title` (`_layout.tsx:31,42,53,64`). A TOTAL record, so
+ * a tab added to the tuple above cannot ship unlabelled. The icons stay in the UI layer
+ * (`ui/controls/TabBar.tsx`) — they are JSX, the same reason the drawer's Media accordion rows
+ * can't live here (see `content/explore.ts`); the pairing is pinned by test.
+ */
+export const TAB_LABELS: Record<TabView, string> = {
+  dashboard: 'Dashboard',
+  cases: 'Cases',
+  map: 'Map',
+  export: 'Export',
+}
+
+/** Whether a view id is a tab destination — the tab bar's visibility rule. */
+export function isTabView(v: string): v is TabView {
+  return (TAB_VIEWS as readonly string[]).includes(v)
+}
+
+/**
+ * The tab destinations that are NOT also guided chapters: Map and Export.
+ *
+ * DERIVED, not a third hand-written list — it moves with `TAB_VIEWS` and with `CHAPTERS`, and
+ * it is the same id space `persistence.ts`'s `EXTRA_VIEWS` is exhaustive over
+ * (`Exclude<AppView, ChapterId | LaunchableId>`, since `AppView` adds only launchables on top
+ * of these two). Rail copy for these views cannot live in the `ChapterId`-keyed `NARRATION`
+ * record, so this is the key space that record's sibling uses.
+ */
+export type TabOnlyView = Exclude<TabView, ChapterId>
+
+/** Whether a view is a tab destination that is not also a chapter (Map, Export). */
+export function isTabOnlyView(v: string): v is TabOnlyView {
+  return isTabView(v) && !(CHAPTERS as readonly string[]).includes(v)
+}
+
+/** Whether a view id is a launch-only screen. The narration anchor needs this (§60k): a
+ *  launchable's rail copy lives in `MODAL_NARRATION`, keyed by `ModalId | LaunchableId`, and
+ *  indexing that record with the full `AppView` union would not typecheck. */
+export function isLaunchableId(v: string): v is LaunchableId {
+  return (LAUNCHABLE as readonly string[]).includes(v)
+}
+
 /** The in-phone wizard drawer, in display order (mirrors WIZARD_SCREENS). */
 export const DRAWER_DEFS: readonly DrawerDef[] = [
   { id: 'submission', label: 'Submission Details', icon: 'document-text' },
@@ -53,14 +108,8 @@ export function wizardNumber(id: WizardScreenId): number {
   return WIZARD_SCREENS.indexOf(id) + 1
 }
 
-/** The next chapter in tour order, or null at the end / for an unknown id. */
-export function nextChapter(id: ChapterId): ChapterId | null {
-  const i = CHAPTERS.indexOf(id)
-  return i >= 0 && i < CHAPTERS.length - 1 ? CHAPTERS[i + 1] : null
-}
-
-/** The previous chapter in tour order, or null at the start / for an unknown id. */
-export function prevChapter(id: ChapterId): ChapterId | null {
-  const i = CHAPTERS.indexOf(id)
-  return i > 0 ? CHAPTERS[i - 1] : null
-}
+// The unfiltered `nextChapter`/`prevChapter` walkers lived here until P7.3. They are superseded
+// by `logic/form-visibility`'s `nextVisibleChapter`/`prevVisibleChapter`, which walk the same
+// registry through the active profile — and which the resolver suite pins as IDENTICAL to the
+// raw chain under forensic. Keeping a second pair that ignores visibility is how a screen ends
+// up hidden from the drawer and still reachable by Continue.

@@ -1,4 +1,21 @@
+import type { TabOnlyView } from '@/features/demo/engine/content/screens'
 import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/features/demo/engine/types'
+import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
+import { SWITCHABLE_FORM_FIELDS } from '@/features/demo/engine/content/form-customization'
+
+/**
+ * Copy that quotes a count READS the count (R-5). The Settings paragraph shipped "Eleven
+ * categories … 57 form fields" over a surface rendering ten and fifty — permanent, visitor-facing
+ * copy disproved by the pixels beside it, and the drift class D6's honesty ruling exists to
+ * prevent. Both numbers now come from the registries the pane itself renders, so a category or a
+ * field cannot be added or removed without the sentence following. Spelled in words because the
+ * surrounding prose is prose; the map covers the plausible range and falls back to digits.
+ */
+const NUMBER_WORDS: Record<number, string> = {
+  8: 'Eight', 9: 'Nine', 10: 'Ten', 11: 'Eleven', 12: 'Twelve', 13: 'Thirteen', 14: 'Fourteen',
+}
+const settingsCategoryCount = NUMBER_WORDS[SETTINGS_CATEGORY_IDS.length] ?? String(SETTINGS_CATEGORY_IDS.length)
+const switchableFieldCount = SWITCHABLE_FORM_FIELDS.length
 
 /**
  * The story-rail copy, keyed by chapter. Lifted verbatim from the prototype (Kris's
@@ -8,18 +25,22 @@ import type { ChapterId, ChapterNarration, LaunchableId, ModalId } from '@/featu
  * into the text — which is what fixes the colliding-number bug.
  */
 export const NARRATION: Record<ChapterId, ChapterNarration> = {
+  // P8.1 made this chapter reachable, which turned two lines of prototype copy into claims about
+  // what is happening on the visitor's own screen. The bullets describe the PHONE and are true of
+  // it; the first para and the tip now say whose gate this is, because a browser tab has no
+  // sensor and the demo does not let its chrome imply otherwise (parity plan §4, honesty rule).
   splash: {
     eyebrow: 'Secure entry',
     title: 'Biometric lock',
     paras: [
-      'Every session starts behind Face ID. Evidence work needs a hard gate, so the app opens to a surveillance-style scanner instead of a generic login screen.',
+      'On the phone, every session starts behind Face ID. Evidence work needs a hard gate, so the app opens to a surveillance-style scanner instead of a generic login screen.',
     ],
     bullets: [
       'Face ID / Touch ID gate before any case data loads',
       'The same biometric check guards PDF export later in the flow',
       'Animated scanner HUD — corner brackets, sweep line, status readout',
     ],
-    tip: 'Tap the scanner to authenticate.',
+    tip: 'Tap the scanner to run the simulated scan — nothing is authenticated here.',
   },
   dashboard: {
     eyebrow: 'Command center',
@@ -145,14 +166,14 @@ export const NARRATION: Record<ChapterId, ChapterNarration> = {
     eyebrow: 'Auto notes',
     title: 'Case notes',
     paras: [
-      'The app assembles bullet-point notes from everything you captured — occurrence, location, offset, scopes, export. Edit freely; regenerate to rebuild from the data.',
+      'Seven auto-generated sections — attendance, time offset, recovered footage, retention, export, time on scene — each tracked independently. Rewrite any section and it stays yours; the rest keep regenerating from your data.',
     ],
     bullets: [
-      'Auto-generated from all form data',
-      'Editable, with a one-tap regenerate',
+      'Sections regenerate from the wizard data',
+      'Your edits are never overwritten',
       'Becomes the body of the court PDF',
     ],
-    tip: 'Press "Regenerate" to rebuild from the latest data.',
+    tip: 'Tap any paragraph to edit it. If the data changes under an edited section, a reset offer appears.',
   },
   completion: {
     eyebrow: 'Review + export',
@@ -183,7 +204,10 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
       'The incident location is captured here at the case level',
       'Duplicate-number detection stops you clobbering an existing case',
     ],
-    tip: 'The form is pre-filled — just press Create Case.',
+    // The scripted-tour era pre-filled this form; the hands-on demo boots empty, so the old
+    // "The form is pre-filled — just press Create Case." tip was describing a demo that no
+    // longer exists. Replaced with what the visitor actually has to do (P3.3).
+    tip: 'Case number and unit are required — everything else can wait.',
   },
   newLocation: {
     eyebrow: 'Case management',
@@ -212,6 +236,90 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     ],
     tip: 'Press "Paste text" then "Extract & import" — or drop your own PDF.',
   },
+  editIncident: {
+    eyebrow: 'Case map',
+    title: 'Move the incident pin',
+    paras: [
+      'The red marker is the occurrence scene, held on the case rather than on any one recovery location. This editor is the only place it can be corrected from the map — and it writes back nothing else: the case number, the officers and the notes stay exactly as they were.',
+      'Type coordinates and the address is looked up for you; pick an address and the coordinates come with it. Either way the pin carries where the number came from.',
+    ],
+    bullets: [
+      'Incident-only edit — the rest of the case is out of reach here',
+      'Address lookup from typed coordinates, and coordinates from a picked address',
+      'The pin, the sheet row and the card refresh the moment you save',
+    ],
+    tip: 'Try typing a latitude and longitude, then tab out of the field.',
+  },
+  duplicateLocation: {
+    eyebrow: 'Case management',
+    title: 'Location actions',
+    paras: [
+      'Hold a location row — or tap its ⋯ button — for everything you can do with that site. Canvassing a plaza means the same request against six DVRs, so duplicating the submission info beats retyping it six times.',
+      'The suggested name is already de-duplicated the way Windows does it: "Main Store - Copy", then "- Copy (2)", "- Copy (3)". Duplicating a copy never yields "Copy - Copy".',
+    ],
+    bullets: [
+      'Duplicate carries address, contact and the requesting officer — never the DVR data',
+      '"with Scopes" also clones the requested time ranges',
+      '"New Location w/ Sub Info" keeps the request but asks for a new address',
+    ],
+    tip: 'Try "Duplicate Location with Scopes", then re-open the chooser — the suggested name has moved on.',
+  },
+  newAddressLocation: {
+    eyebrow: 'Case management',
+    title: 'Copy the request to a new address',
+    paras: [
+      'Same request, different site. The requesting officer, badge, unit, phone and email come across from the location you pressed — you only enter the address you are standing at.',
+      'The new location is independent, not a copy: it gets its own DVR data, its own time offset, its own scopes.',
+    ],
+    bullets: [
+      'Street address is required here — that is the whole point of the flow',
+      'The name is pre-filled with the first free "New Location"',
+      'Creating it drops you straight into the recovery form',
+    ],
+    tip: 'Type an address (Mapbox suggests as you go), then press Create Location.',
+  },
+  mediaLibrary: {
+    eyebrow: 'Media',
+    title: 'Everything captured here',
+    paras: [
+      'Photos, video and audio notes taken at this location, split by kind and read newest first. Tap a row to preview it in place; expand a photo or clip to fill the screen.',
+      'The bytes live in this tab and nowhere else — the demo never writes captured media into browser storage, so a refresh keeps the record of a capture and honestly says the file itself is gone.',
+    ],
+    bullets: [
+      'Photos / Video / Audio tabs, each with its own count',
+      'Inline preview with filename, notes and when it was taken',
+      'Hold a row — or use its Delete button — to remove a capture',
+    ],
+    tip: 'Capture Media or Record Audio first, then come back — the library opens on the newest one.',
+  },
+  exportScope: {
+    eyebrow: 'Export',
+    title: 'One location, or the whole case',
+    paras: [
+      'The same request usually covers several sites, so export asks what you mean: just the location you are standing in, or every location on the case in one package. Either way the archive carries the documents, the media and a JSON copy of the data.',
+      'Before it builds anything it checks every location against the four fields a Case Notes PDF needs. Anything short is named, one missing field at a time, and you decide whether to ship the package without those notes.',
+    ],
+    bullets: [
+      'Location ZIP or full-case ZIP — the case one also carries the case map',
+      'Pre-flight validation lists exactly which locations would ship without notes',
+      'In a browser the archive itself is the one thing that cannot be produced — the demo says so instead of faking a download',
+    ],
+    tip: 'Pick either scope — the validation pass and the progress stages are the real ones.',
+  },
+  settings: {
+    eyebrow: 'Settings',
+    title: 'What the app lets you change',
+    paras: [
+      `${settingsCategoryCount} categories behind the gear: who you are, how the camera captures, which atomic clock you trace to, how exports are protected, and which of the ${switchableFieldCount} form fields you actually want to fill in. The whole surface is here so you can see how much of the app is configurable rather than assumed.`,
+      'Most of it is a replica. A browser tab has no camera codec to pick, no biometric sensor and no keychain, so those panes render honestly and say what each control would do on the phone — every one of them explains itself rather than pretending to work.',
+    ],
+    bullets: [
+      'Master list → detail pane, with the current value on every row',
+      'Media, Location, Time Sync, Export Security, Security, Cloud Sync, About',
+      'Each pane states plainly what it does and does not do in the demo',
+    ],
+    tip: 'Open Location — it tells you exactly what accuracy the demo’s real GPS capture uses.',
+  },
   ocr: {
     eyebrow: 'OCR capture',
     title: 'Read the DVR clock',
@@ -222,9 +330,10 @@ export const MODAL_NARRATION: Partial<Record<ModalId | LaunchableId, ChapterNarr
     bullets: [
       'Live webcam capture, or a generated sample DVR clock',
       'Real OCR → ported text cleaning → multi-format timestamp parse',
-      'Confidence score; confirm to calculate the offset automatically',
+      'Confidence score; correct the parsed time before you commit it',
+      'Warns when a date could read either MM/DD or DD/MM, and never accepts an assumed date silently',
     ],
-    tip: 'Press "Use sample DVR clock" (works without a camera) — or capture a live frame.',
+    tip: 'Press "Use sample DVR clock" (works without a camera) — or try the awkward frames underneath it.',
   },
 }
 
@@ -246,4 +355,42 @@ export const MAP_NARRATION: ChapterNarration = {
     'Call / email the requester or contact straight from the card',
   ],
   tip: 'Pick a case, then tap a pin or a row to dive in.',
+}
+
+/**
+ * Rail copy for the **Export** tab (P5.2). Same shape as the map's: a tab destination rather
+ * than a guided chapter, so it lives outside the `ChapterId`-keyed record above.
+ *
+ * Describes the SELECTION surface, which is what this tab really is — deliberately stopping
+ * short of promising a download, because producing the package is a later package and the CTA
+ * says so itself.
+ */
+export const EXPORT_NARRATION: ChapterNarration = {
+  eyebrow: 'Evidence package',
+  title: 'Decide what leaves the building',
+  paras: [
+    'Open a case and tick the locations you need. The header checkbox arms the whole case; individual rows build a subset — and the footer names the exact artifact your selection would produce before you commit to it.',
+    'Arming the case is not the same gesture as ticking every location by hand, and the app keeps them apart: only the case checkbox promises the canonical package, the one that carries the interactive case map.',
+  ],
+  bullets: [
+    'One case at a time — a tick in another case moves the whole selection',
+    'Full case · single location · partial subset, each its own artifact',
+    'The footer states the artifact, the case number and the count before anything runs',
+  ],
+  tip: 'Arm a case from its header checkbox, then untick one location and watch the footer change its promise.',
+}
+
+/**
+ * Rail copy for the views that are NOT guided chapters and therefore cannot live in the
+ * `ChapterId`-keyed `NARRATION` record — the tab-only destinations.
+ *
+ * A TOTAL record over `TabOnlyView` (R-27), not a `Partial<Record<AppView, …>>`. Both failure
+ * halves are now closed by construction rather than by test: a tab-only view added without
+ * copy fails to compile, and an entry for a view that IS a chapter — which the bridge would
+ * silently let shadow that chapter's own narration, since it consults this record first — is
+ * not an expressible key. Same device as `persistence.ts`'s `EXTRA_VIEWS`, over the same ids.
+ */
+export const TAB_NARRATION: Record<TabOnlyView, ChapterNarration> = {
+  map: MAP_NARRATION,
+  export: EXPORT_NARRATION,
 }

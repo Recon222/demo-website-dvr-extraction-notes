@@ -12,11 +12,29 @@ import { DRAWER_DEFS } from '@/features/demo/engine/content/screens'
  * `visited`. The registry may lead or lag the built screens safely: unknown visited
  * ids are ignored, and unbuilt screens simply aren't listed yet.
  *
- * `splash` is deliberately absent (unreachable until the deferred video entry);
- * the media screens join when built (see docs/features/demo-explorer/).
+ * `splash` is deliberately absent — and STAYS absent now that P8.1 made it reachable. The
+ * checklist is a list of places the visitor can choose to go; boot is the gate they pass through
+ * to get anywhere at all, so a row for it would arrive pre-lit on every session and inflate the
+ * denominator without ever telling anyone anything.
+ * The three media surfaces joined once all of them were built (§63g, after P4.7) — as a
+ * group, because the numbering is positional and a half-listed accordion reads worse than
+ * an unlisted one. `ocr` still has no entry: it is a step INSIDE Time Offset rather than a
+ * destination of its own, and the Time Offset row is what stays active while it is open
+ * (pinned in `selectors.test.ts`).
  */
 export interface ExploreItem {
-  /** Stable slug (tests, future analytics). */
+  /**
+   * Stable slug (tests, future analytics) — and, since P7.3, LOAD-BEARING at runtime:
+   * `selectExploreStatus` drops a row whose id names a form step the visitor has switched off
+   * (`isKnownFormStep(item.id) && !resolveStepVisible(...)`).
+   *
+   * It stays a bare `string` because most rows are not steps at all (`newCase`, `mediaLibrary`,
+   * `map`, `settings`), but that means the join is by CONVENTION: a step row whose slug drifts
+   * from its `FormStepId` silently stops being filterable, and a non-step row that happens to
+   * collide with one would be filtered spuriously. Both directions are pinned by
+   * `explore-step-ids.test.ts` — every row whose `jumpTo` is a wizard screen must carry that
+   * screen's id here, and no other row may (review R-28).
+   */
   id: string
   /** Rail display name. */
   label: string
@@ -40,5 +58,30 @@ export const EXPLORE_ITEMS: readonly ExploreItem[] = [
   { id: 'import', label: 'Import Location', covers: ['import'], jumpTo: 'cases' },
   // The 10 wizard screens, labels shared with the in-phone drawer — one source of truth.
   ...DRAWER_DEFS.map((d) => ({ id: d.id, label: d.label, covers: [d.id], jumpTo: d.id })),
+  // The drawer's Media accordion, in its own order and appended after the step list exactly
+  // as the drawer appends it (`WizardDrawer.tsx:329-335`, itself phone parity). Labels are the
+  // accordion rows' visible text; those row defs carry JSX icons and handlers, so they cannot
+  // live in the engine the way `DRAWER_DEFS` does — the pairing is pinned by test instead.
+  //
+  // The two capture screens are LAUNCHABLES, so `jumpTo` names them directly: for a non-chapter
+  // view `setView` and `launch` are the same write (`create-store.ts:708-718` — both set `view`
+  // + `visited` and leave `currentChapter` alone), which is the property that makes closing the
+  // screen return the visitor to the wizard step they jumped from.
+  { id: 'mediaCapture', label: 'Capture Media', covers: ['mediaCapture'], jumpTo: 'mediaCapture' },
+  { id: 'audioRecording', label: 'Record Audio', covers: ['audioRecording'], jumpTo: 'audioRecording' },
+  // The library is a MODAL, so it has no view to jump to. Same treatment as the three
+  // case-management rows above: route to where its opener lives — here the wizard, whose drawer
+  // holds the Media accordion — and let the visitor press it, which keeps the row's own
+  // no-location gate (a toast, not an empty sheet) on the one path that can hit it.
+  { id: 'mediaLibrary', label: 'Media Library', covers: ['mediaLibrary'], jumpTo: 'submission' },
   { id: 'map', label: 'Case Map', covers: ['map'], jumpTo: 'map' },
+  // The Export tab (P5.2) — the 4th tab, and a destination in its own right, so it earns a row
+  // exactly as the map did. Listed last because it is the last tab; the run itself lands with
+  // P5.3, but the row is honest today: the tab exists and does what its rail copy describes.
+  { id: 'export', label: 'Export', covers: ['export'], jumpTo: 'export' },
+  // Settings (P7.1) — a modal, so it takes the `newCase`/`newLocation`/`import`/`mediaLibrary`
+  // treatment: route to a screen that carries its opener (the gear sits on the Cases AND
+  // Dashboard headers) and let the visitor press it. Listed LAST because it is chrome around
+  // the app rather than a step through it — the tabs stay the tail of the journey.
+  { id: 'settings', label: 'Settings', covers: ['settings'], jumpTo: 'cases' },
 ]

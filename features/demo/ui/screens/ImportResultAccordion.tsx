@@ -4,6 +4,7 @@ import { useId } from 'react'
 import type { CSSProperties } from 'react'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportResultAccordionProps {
   view: ImportedLocationView
@@ -35,7 +36,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
         <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 5, background: '#10d177', flexShrink: 0, boxShadow: '0 0 6px rgba(16,209,119,0.6)' }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#f0f4f8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{view.title}</span>
-          <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
+          <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
         </span>
         {view.isSample && (
           <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '2px 7px' }}>
@@ -52,7 +53,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
           <button
             type="button"
             onClick={() => onOpenLocation(view.locId)}
-            style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
+            style={{ width: '100%', padding: 12, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
           >
             Open location
           </button>

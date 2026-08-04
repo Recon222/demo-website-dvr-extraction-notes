@@ -40,6 +40,28 @@ describe('ModalShell', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('renders no back chevron unless onBack is provided', () => {
+    render(
+      <ModalShell title="x" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
+  })
+
+  it('with onBack renders a labelled chevron that fires onBack, not onClose', () => {
+    const onBack = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <ModalShell title="x" onClose={onClose} onBack={onBack} backLabel="Back to import options">
+        <div />
+      </ModalShell>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Back to import options' }))
+    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('calls onClose when the scrim is clicked', () => {
     const onClose = vi.fn()
     const { container } = render(

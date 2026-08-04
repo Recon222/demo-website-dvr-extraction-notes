@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { WizardScreenId } from '@/features/demo/engine/types'
+import type { AdditiveFormStepId, WizardScreenId } from '@/features/demo/engine/types'
+import { ADDITIVE_FORM_STEP_IDS } from '@/features/demo/engine/types'
+import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic/save-status'
+import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -22,6 +26,33 @@ export interface WizardDrawerProps {
   onClose(): void
   onNavigate(id: WizardScreenId): void
   onBackToCases(): void
+  /** Media accordion → `mediaCapture` (phone: push `/(form)/media-capture` + close drawer). */
+  onCaptureMedia(): void
+  /** Media accordion → `audioRecording` (phone: push `/(form)/audio-recording` + close drawer). */
+  onRecordAudio(): void
+  /** Media accordion → the Media Library sheet. The phone's caller decides whether the drawer
+   *  closes: it stays OPEN behind a "No Location" toast when nothing is selected
+   *  (`app/(form)/_layout.tsx:334-345`), so this row deliberately does not close it itself. */
+  onOpenMediaLibrary(): void
+  /**
+   * The footer's save-status line, already worded by `describeSaveStatus` (the drawer is
+   * presentational — it neither reads the persistence handle nor owns a clock).
+   *
+   * `null` renders NO line, and that is the honest reading of "not sampled yet": the bridge
+   * samples on open, so the value is absent for the first frame of the slide-in. A placeholder
+   * there would be a claim about a state nobody has looked at.
+   */
+  saveStatus: SaveStatusView | null
+  /**
+   * Which capture TOOLS the visitor's form profile leaves in the accordion (P7.3). The phone
+   * gates the same two rows on step visibility (`CustomDrawerContent.tsx:61-62,312,342`); the
+   * Media Library row is ungated on both sides — it browses what is already captured, so it
+   * has nothing to do with which capture screens are in the flow.
+   *
+   * IMPORTED, not re-declared (R-20): the key space is the additive-tool id space, so a third
+   * tool cannot be added to the registry and silently never reach this accordion.
+   */
+  mediaTools: Readonly<Record<AdditiveFormStepId, boolean>>
 }
 
 const itemButton: CSSProperties = {
@@ -32,8 +63,8 @@ const itemButton: CSSProperties = {
   margin: '0 10px 8px',
   padding: '13px 15px',
   borderRadius: 10,
-  border: '1px solid rgba(30,58,95,0.5)',
-  background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
+  border: GLASS.borderSoft,
+  background: GLASS.gradientCard,
   cursor: 'pointer',
   width: 'calc(100% - 20px)',
   textAlign: 'left',
@@ -49,11 +80,210 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
   partial: { background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' },
 }
 
+// ---- Footer chrome --------------------------------------------------------
+
+/**
+ * Save-status tone. Redundant with the wording (the text already says which state it is), so
+ * this is emphasis, never the carrier — the same rule the completion dots' `aria-label` obeys.
+ */
+const SAVE_STATUS_COLOR: Record<SaveStateKind, string> = {
+  saved: '#5d7a9a',
+  pending: '#5d7a9a',
+  unavailable: '#c9a227',
+  failed: '#c9a227',
+}
+
+// ---- Media accordion ------------------------------------------------------
+// The phone's CustomDrawerContent.tsx:265-400 — THE entry point to every media surface.
+// Copy, a11y labels and hints are lifted verbatim from there (and ui-mapping 14 §
+// CustomDrawerContent). Icons are the web equivalents of the phone's Ionicons: this drawer
+// has no icon font, and the media rows are the one place in it where the icon carries meaning
+// (camera / mic / folder), so they are drawn as inline SVG in the drawer's existing stroke
+// colour rather than dropped.
+
+const iconStroke = '#99badd'
+
+/** Ionicons `albums-outline` — two stacked cards. */
+const AlbumsIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="7" width="18" height="14" rx="3" />
+    <path d="M6 4h12" />
+  </svg>
+)
+
+/** Ionicons `camera`. */
+const CameraIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z" />
+    <circle cx="12" cy="13.5" r="3.5" />
+  </svg>
+)
+
+/** Ionicons `mic`. */
+const MicIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0014 0M12 18v3" />
+  </svg>
+)
+
+/** Ionicons `folder-open-outline`. */
+const FolderOpenIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 8V6a1 1 0 011-1h5l2 2h6a1 1 0 011 1v1" />
+    <path d="M3 8h17.2a1 1 0 01.97 1.24l-1.75 8A1 1 0 0118.45 18H4a1 1 0 01-1-1V8z" />
+  </svg>
+)
+
+/** The accordion's sub-rows. Indented and lighter than a step row, like the phone's. */
+const mediaSubItem: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  margin: '0 10px 6px 24px',
+  padding: '10px 13px',
+  borderRadius: 10,
+  border: GLASS.borderSoft,
+  background: GLASS.gradientCard,
+  cursor: 'pointer',
+  width: 'calc(100% - 34px)',
+  textAlign: 'left',
+  fontSize: 14,
+  fontWeight: 500,
+  color: '#cdd9e6',
+}
+
+interface MediaRow {
+  key: string
+  label: string
+  /** Verbatim phone `accessibilityLabel` (CustomDrawerContent.tsx:319/350/377). */
+  ariaLabel: string
+  icon: ReactNode
+  onSelect(): void
+}
+
+/** The accordion's three `onSelect` handlers, passed as one object so `TOOL_ROWS` stays a
+ *  declaration rather than a closure over component scope. */
+interface MediaHandlers {
+  onCaptureMedia(): void
+  onRecordAudio(): void
+  onOpenMediaLibrary(): void
+}
+
+/**
+ * One row builder per additive capture tool — a TOTAL `Record` over `AdditiveFormStepId`
+ * (fix-delta FD-1).
+ *
+ * R-20 keyed the visibility prop by this id space but left the drawer hand-building two
+ * independent `...(mediaTools.x ? [row] : [])` spreads. Reading two of three keys off a total
+ * record is not a TypeScript error — there is no unread-key check — so the drawer end had no
+ * gate at all: a third tool compiled clean here and silently never reached the accordion, which
+ * is §82b's exact phone defect (a grid switch that moves nothing). A total record makes "wired
+ * at the drawer" a compile fact, and it is why the row defs stay in this file: they carry JSX,
+ * which `ADDITIVE_STEP_LABELS`' own comment says cannot live in the engine.
+ */
+const TOOL_ROWS: Record<AdditiveFormStepId, (h: MediaHandlers) => MediaRow> = {
+  mediaCapture: (h) => ({
+    key: 'capture',
+    label: 'Capture Media',
+    ariaLabel: 'Open camera to capture media',
+    icon: <CameraIcon />,
+    onSelect: h.onCaptureMedia,
+  }),
+  audioRecording: (h) => ({
+    key: 'audio',
+    label: 'Record Audio',
+    ariaLabel: 'Record audio note',
+    icon: <MicIcon />,
+    onSelect: h.onRecordAudio,
+  }),
+}
+
+/** The library row is UNGATED on both sides — it browses what is already captured, so it has
+ *  nothing to do with which capture screens are in the flow. Appended after the gated tools. */
+const libraryRow = (h: MediaHandlers): MediaRow => ({
+  key: 'library',
+  label: 'Media Library',
+  ariaLabel: 'Open media library',
+  icon: <FolderOpenIcon />,
+  onSelect: h.onOpenMediaLibrary,
+})
+
+/**
+ * The drawer's Media section (matrix row 80's missing half).
+ *
+ * DEVIATION from the phone, deliberate: the sub-rows are UNMOUNTED while collapsed rather than
+ * clipped to a 0-height container. The phone keeps them mounted (an animated height with a
+ * measured/164px fallback) and therefore has to bolt three extra props onto the container —
+ * `pointerEvents: 'none'`, `accessibilityElementsHidden`, `importantForAccessibility:
+ * 'no-hide-descendants'` — to stop a collapsed row being focusable or announced. Not rendering
+ * them achieves all three by construction, and on the web `aria-hidden` on a subtree containing
+ * focusable buttons would be an a11y defect rather than a fix.
+ */
+function MediaAccordion({ rows }: { rows: readonly MediaRow[] }) {
+  const reduce = useReducedMotion()
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div data-media-accordion>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-label="Media section"
+        aria-expanded={expanded}
+        // The phone's accessibilityHint, verbatim. On the web `aria-expanded` already carries
+        // the STATE, so this rides as the tooltip — the closest native analog to a hint.
+        title={expanded ? 'Collapse media options' : 'Expand media options'}
+        style={{ ...itemButton, gap: 10 }}
+      >
+        <AlbumsIcon />
+        <span style={{ flex: '1 1 auto', minWidth: 0, fontSize: 15, fontWeight: 500, color: '#cdd9e6', textAlign: 'left' }}>Media</span>
+        <motion.span
+          aria-hidden="true"
+          style={{ display: 'flex' }}
+          animate={{ rotate: expanded ? 180 : 0 }}
+          transition={reduce ? { duration: 0 } : drawerTransition}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </motion.span>
+      </button>
+      {expanded && (
+        <motion.div
+          initial={reduce ? false : { height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          transition={reduce ? { duration: 0 } : drawerTransition}
+          style={{ overflow: 'hidden' }}
+        >
+          {rows.map((row) => (
+            <button key={row.key} type="button" onClick={row.onSelect} aria-label={row.ariaLabel} style={mediaSubItem}>
+              {row.icon}
+              <span style={{ flex: '1 1 auto', minWidth: 0 }}>{row.label}</span>
+            </button>
+          ))}
+        </motion.div>
+      )}
+    </div>
+  )
+}
+
 /** The wizard navigation drawer — right-anchored, slides in from the right (the screen behind is
  *  pushed left by ScreenStage) with a backdrop fade; reverses on close via AnimatePresence. The
  *  backdrop and panel are separate stably-keyed children so rapid open/close can't strand one. */
-export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }: WizardDrawerProps) {
+export function WizardDrawer({
+  open,
+  items,
+  onClose,
+  onNavigate,
+  onBackToCases,
+  onCaptureMedia,
+  onRecordAudio,
+  onOpenMediaLibrary,
+  saveStatus,
+  mediaTools,
+}: WizardDrawerProps) {
   const reduce = useReducedMotion()
+  const mediaHandlers: MediaHandlers = { onCaptureMedia, onRecordAudio, onOpenMediaLibrary }
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -108,7 +338,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '54px 18px 14px',
-                borderBottom: '1px solid #1e3a5f',
+                borderBottom: GLASS.border,
                 background: 'linear-gradient(180deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))',
               }}
             >
@@ -120,7 +350,7 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
               </button>
             </div>
 
-            <div style={{ padding: '12px 12px 14px', borderBottom: '1px solid #1e3a5f' }}>
+            <div style={{ padding: '12px 12px 14px', borderBottom: GLASS.border }}>
               <button
                 type="button"
                 onClick={onBackToCases}
@@ -149,11 +379,30 @@ export function WizardDrawer({ open, items, onClose, onNavigate, onBackToCases }
                   {it.status && <div data-dot={it.status} aria-hidden="true" style={{ ...dotBase, ...DOT[it.status] }} />}
                 </button>
               ))}
+              {/* Appended AFTER the step list, exactly like the phone (CustomDrawerContent.tsx:265). */}
+              <MediaAccordion
+                rows={[
+                  // Derived from the id space, in registry order — never hand-listed (FD-1).
+                  ...ADDITIVE_FORM_STEP_IDS.filter((id) => mediaTools[id]).map((id) => TOOL_ROWS[id](mediaHandlers)),
+                  libraryRow(mediaHandlers),
+                ]}
+              />
             </div>
 
-            <div style={{ padding: '14px 18px', borderTop: '1px solid #1e3a5f', textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>DVR Extraction Notes</div>
-              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>v1.0.0</div>
+            <div style={{ padding: '14px 18px', borderTop: GLASS.border, textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
+              {saveStatus && (
+                <div data-save-status={saveStatus.kind} style={{ fontSize: 11, marginBottom: 8, color: SAVE_STATUS_COLOR[saveStatus.kind] }}>
+                  {saveStatus.text}
+                </div>
+              )}
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#5d7a9a' }}>{APP_NAME}</div>
+              {/* The phone renders `v{Constants.expoConfig?.version}` here — this is the same
+                  chrome, labelled for what the visitor is actually looking at. The version is
+                  the app's (phone `app.config.js:11`), and this is its demo, not a build of it;
+                  a bare "v1.0.0" in a browser would imply otherwise. Both literals moved to
+                  `engine/content/app-info.ts` at P7.1, when the About pane became a second
+                  reader — see that module's note. */}
+              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>{DEMO_VERSION_LINE}</div>
             </div>
           </motion.div>
         )}

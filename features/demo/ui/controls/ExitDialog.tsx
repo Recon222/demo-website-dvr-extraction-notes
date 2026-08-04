@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
+import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 export interface ExitDialogProps {
   open: boolean
@@ -23,7 +24,16 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onStay()
+      if (e.key !== 'Escape') return
+      onStay()
+      // "The topmost dismissible owns Escape" (review R-7). This is the app's first pair of
+      // Escape listeners that can be live at the same time: the rail and this dialog sit OUTSIDE
+      // the boot gate by §87c design, so one keypress aimed at this dialog also silently skipped
+      // the boot sequence. Every other overlay in the demo binds on `document` too, so stopping
+      // here is enough — `BootSequence` listens on `window`, which is strictly later in the
+      // bubble path. Stated in one line rather than an `escapeEnabled?: boolean` prop, which
+      // would be another §84f correlated optional.
+      e.stopPropagation()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -58,7 +68,7 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
             >
               <span style={{ fontFamily: mono, fontSize: 10, color: '#46607e' }}>{u.number}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#7a9fc4' }}>{u.label}</span>
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, border: '1px solid #2a4a6f', flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, border: GLASS.borderBtn, flexShrink: 0 }} />
             </div>
           ))}
         </div>
@@ -68,13 +78,13 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
             type="button"
             autoFocus
             onClick={onStay}
-            style={{ flex: 1, padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
           >
             Keep exploring
           </button>
           <a
             href={leaveHref}
-            style={{ display: 'flex', alignItems: 'center', padding: '0 18px', borderRadius: 10, border: '1px solid #2a4a6f', color: '#99badd', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 18px', borderRadius: 10, border: GLASS.borderBtn, color: '#99badd', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
           >
             Leave anyway
           </a>

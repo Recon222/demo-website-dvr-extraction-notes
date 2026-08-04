@@ -1,8 +1,9 @@
 'use client'
 
 import type { SyncResult } from '@/features/demo/engine/types'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
-const mono = "'JetBrains Mono',monospace"
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 function formatOffset(offsetMs: number): { text: string; direction: string } {
   const text = `${Math.abs(offsetMs / 1000).toFixed(3)}s`
@@ -74,7 +75,7 @@ export function SyncStatusCard({ sync, syncing }: SyncStatusCardProps) {
           {sync.rttMs !== undefined && <Row label="Network Delay" value={`${(sync.rttMs / 2).toFixed(2)}ms`} />}
           {sync.timestamp !== undefined && <Row label="Calibrated at" value={format24h(sync.timestamp)} />}
           {sync.traceability && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #1e3a5f' }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: GLASS.border }}>
               <div style={{ fontSize: 10, color: '#7a9fc4', marginBottom: 4 }}>Traceable to</div>
               <div style={{ fontSize: 10.5, color: '#9fc0db', fontStyle: 'italic', lineHeight: 1.5 }}>{sync.traceability}</div>
             </div>

@@ -4,7 +4,10 @@ import { SubmissionScreen } from '@/features/demo/ui/screens/SubmissionScreen'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { ArrivalDepartureScreen } from '@/features/demo/ui/screens/ArrivalDepartureScreen'
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+// `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
+// is the baseline these option/render tests are about. The gating arms live in
+// `field-visibility.test.tsx`.
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
 
 describe('SubmissionScreen', () => {
   const fields = {
@@ -22,7 +25,7 @@ describe('SubmissionScreen', () => {
   it('shows the occ number, edits a field, and advances', () => {
     const onChange = vi.fn()
     const onNext = vi.fn()
-    render(<SubmissionScreen occNumber="PR25-0098213" fields={fields} onChange={onChange} {...nav} onNext={onNext} onPickCoords={vi.fn()} />)
+    render(<SubmissionScreen occNumber="PR25-0098213" fields={fields} onChange={onChange} {...nav} onNext={onNext} onCoordinates={vi.fn()} />)
     expect(screen.getByText('PR25-0098213')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Requester Name'), { target: { value: 'Liam' } })
     expect(onChange).toHaveBeenCalledWith('requesterName', 'Liam')

@@ -1,4 +1,7 @@
 import { escapeHtml, formatDocDate, nowStamp } from '@/features/demo/engine/logic/pdf/shared'
+import { assembleNotesString } from '@/features/demo/engine/logic/notes/notes-assembler'
+import { hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
+import type { GpsCoordinates, NoteSection } from '@/features/demo/engine/types'
 
 /**
  * The Case Notes court document — a print-ready HTML report modelled on the app's
@@ -20,6 +23,9 @@ export interface CaseNotesCamera {
   name: string
   resolution: string
   fps: string
+  /** Per-camera fix (P3.7). Optional — a camera that was never GPS-captured prints no GPS row,
+   *  which is also the phone's behaviour (`cameras-table.ts:50-70`). */
+  gps?: GpsCoordinates
 }
 export interface CaseNotesOffset {
   isCorrect: boolean
@@ -71,8 +77,35 @@ export interface CaseNotesData {
   dvr?: CaseNotesDvr
   cameras?: CaseNotesCamera[]
   export?: CaseNotesExport
-  notes?: string
+  /**
+   * SECTIONED notes input (P2.1 — phone parity): the document consumes the
+   * seven-section structure + free-text tail and assembles the flat body itself via
+   * the canonical `assembleNotesString`, exactly like the phone's template path
+   * (`deriveNotesFromStore` → the template's single `.notes` block). Callers pass the
+   * READ-ONLY-reconciled sections (Flow F — `selectCaseNotesData`), never a
+   * pre-flattened string, so the document's notes body can't fork from the assembler.
+   */
+  notesSections?: NoteSection[]
+  notesFreeText?: string
+  /**
+   * True when `generateExtractedScopes` dropped ≥1 non-canonical requested scope, so
+   * `extractedScopes` — the list the notes' recovered-footage line is built from — is
+   * SHORT. The document must say so (P2 review R-3): unlike `adjustedScopesPartial`
+   * (recomputed live), this flag describes the stored extracted list, which stays stale
+   * until the visitor recalculates — the court PDF may otherwise under-report the
+   * recovery with no warning anywhere.
+   */
+  extractedScopesPartial?: boolean
   arrivalDepartures?: CaseNotesArrival[]
+  /**
+   * The Completion screen's two fields, which the phone prints as its own
+   * `COMPLETION INFORMATION` section (`case-notes-template.ts:331-348`) and the demo did not
+   * carry until P7.2 — `completedBy` is where the analyst profile's name lands, so leaving it
+   * out would have made the profile pane's "carries it into the Case Notes report" untrue.
+   * The section is gated on either having a value, exactly like the phone's `hasCompletionInfo`.
+   */
+  dateTimeCompleted?: string
+  completedBy?: string
   generatedAt?: string
 }
 
@@ -182,9 +215,26 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   <div class="section"><div class="section-title">DVR Information</div><div class="info-grid">${dvrRows}</div></div>`
     : ''
 
+  // Per-camera GPS (P3.7): a full-width continuation row under the camera it belongs to,
+  // matching the phone (`cameras-table.ts:63-70`, whose spare leading cell exists because its
+  // table carries an extra index column). Gated by the SHARED `hasCapturedCoordinates` policy,
+  // so a (0,0) "fix" from a failed capture can never print as an authoritative location in a
+  // court document; the accuracy clause is dropped when nothing measured one (R-18).
+  const camGpsRow = (gps: GpsCoordinates | undefined): string => {
+    if (!gps || !hasCapturedCoordinates(gps)) return ''
+    const accuracy =
+      gps.accuracyM !== undefined && Number.isFinite(gps.accuracyM)
+        ? ` <span style="color:#666">(±${Math.round(gps.accuracyM)}m)</span>`
+        : ''
+    return `<tr><td></td><td colspan="2"><span class="label">GPS Location</span> ${e(gps.lat.toFixed(6))}, ${e(gps.lng.toFixed(6))}${accuracy}</td></tr>`
+  }
   const camRows = (d.cameras || [])
     .filter((c) => c.name || c.resolution || c.fps)
-    .map((c) => `<tr><td>${e(c.name || '—')}</td><td>${e(c.resolution || '—')}</td><td>${e(c.fps || '—')}</td></tr>`)
+    .map(
+      (c) =>
+        `<tr><td>${e(c.name || '—')}</td><td>${e(c.resolution || '—')}</td><td>${e(c.fps || '—')}</td></tr>` +
+        camGpsRow(c.gps),
+    )
     .join('')
   const camerasSection = camRows
     ? `
@@ -205,10 +255,23 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   <div class="section"><div class="section-title">Export Information</div><div class="info-grid">${exRows}</div></div>`
     : ''
 
+  // The notes body is assembled from the SECTIONED input here — the canonical
+  // assembler is the only flattening path (matches the phone's template semantics:
+  // one pre-wrap `.notes` block containing the registry-ordered section blocks).
+  const notesFlat = assembleNotesString(d.notesSections ?? [], d.notesFreeText ?? '')
+  // R-3: a flagged-partial extracted list means the recovered-footage line above was
+  // built from a SHORT list — annotate, don't silently under-report (the
+  // adjustedScopesPartial idiom). Rendered even if the notes body is empty: the flag
+  // describes the recovery record, not the prose.
+  const notesPartialNote = d.extractedScopesPartial
+    ? `<p style="font-size:10pt;color:#d9534f;font-weight:bold;">&#9888; One or more requested time ranges could not be converted to DVR time when the extracted scopes were last calculated — the recovered footage reported in these notes may be incomplete. Recalculate on the Time Offset screen after correcting the requested times.</p>`
+    : ''
   const notesSection =
-    d.notes && d.notes.trim()
+    notesFlat.trim() || notesPartialNote
       ? `
-  <div class="section"><div class="section-title">Case Notes</div><div class="notes">${e(d.notes)}</div></div>`
+  <div class="section"><div class="section-title">Case Notes</div>${
+    notesFlat.trim() ? `<div class="notes">${e(notesFlat)}</div>` : ''
+  }${notesPartialNote}</div>`
       : ''
 
   const adRows = (d.arrivalDepartures || [])
@@ -219,6 +282,20 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
     ? `
   <div class="section"><div class="section-title">Arrival &amp; Departure Times</div>
     <table><thead><tr><th>Arrival</th><th>Departure</th></tr></thead><tbody>${adRows}</tbody></table></div>`
+    : ''
+
+  // Phone `COMPLETION INFORMATION` (case-notes-template.ts:331-348), same position (after
+  // arrival/departure, before the footer) and the same `hasCompletionInfo` gate: the section
+  // appears when EITHER field has a value, and each row is dropped individually when its own is
+  // empty — which `row()` already does.
+  // `formatDocDate` answers 'N/A' for an unset value, so the date is formatted only when there
+  // is one — otherwise the row's own empty-value drop would never fire.
+  const completionRows =
+    row('Date & Time Completed:', d.dateTimeCompleted ? formatDocDate(d.dateTimeCompleted) : '') +
+    row('Completed By:', d.completedBy)
+  const completionSection = completionRows
+    ? `
+  <div class="section"><div class="section-title">Completion Information</div><div class="info-grid">${completionRows}</div></div>`
     : ''
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>FVU Case Notes - ${e(
@@ -246,6 +323,7 @@ export function generateCaseNotesDoc(d: CaseNotesData): string {
   ${exportSection}
   ${notesSection}
   ${adSection}
+  ${completionSection}
   <div class="footer"><p>Report generated on ${e(d.generatedAt || nowStamp())}</p><p>Forensic Video Unit - Case Report System v1.0</p></div>
   </body></html>`
 }

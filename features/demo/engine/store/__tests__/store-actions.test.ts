@@ -57,20 +57,79 @@ describe('applyImport', () => {
     expect(loc.form.scopes).toHaveLength(1)
     expect(loc.form.scopes[0].cameras).toBe('cameras 3, 4 and 7')
   })
+
+  // R-33 event-scoped breadcrumb: a post-offset import is the one path that creates
+  // non-canonical adjusted rows without passing through Calculate.
+  const bogusFramesPatch = () => {
+    const base = mapAiToForm(SAMPLE_EXTRACTION)
+    return {
+      ...base,
+      _import: {
+        ...base._import,
+        timeFrames: [{ startDateTime: 'sometime friday', endDateTime: 'later that night', isActualTime: true, cameras: '' }],
+      },
+    }
+  }
+  const withOffset = () => {
+    const store = withLocation()
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    return store
+  }
+
+  it('dev-warns ONCE per import when post-offset frames are non-canonical (§15 / R-27 / R-33)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withOffset()
+    store.getState().applyImport(bogusFramesPatch())
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("1 imported time frame(s) aren't canonical"))
+    warn.mockRestore()
+  })
+
+  it('does not warn without an offset (Calculate will warn later via generateExtractedScopes)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withLocation()
+    store.getState().applyImport(bogusFramesPatch())
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does not warn when post-offset imported frames are canonical', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = withOffset()
+    store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION))
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
 })
 
 describe('media', () => {
   it('addMedia / deleteMedia manage the photo/video/audio buckets on the current location', () => {
     const store = withLocation()
-    store.getState().addMedia('photo', media())
-    store.getState().addMedia('video', media({ id: 'm2', kind: 'video' }))
-    store.getState().addMedia('audio', media({ id: 'm3', kind: 'audio' }))
+    store.getState().addMedia(media())
+    store.getState().addMedia(media({ id: 'm2', kind: 'video' }))
+    store.getState().addMedia(media({ id: 'm3', kind: 'audio' }))
     const m = () => selectCurrentLocation(store.getState())!.form.media
     expect(m().photos).toHaveLength(1)
     expect(m().videos).toHaveLength(1)
     expect(m().audios).toHaveLength(1)
-    store.getState().deleteMedia('photo', 'm1')
+    store.getState().deleteMedia({ kind: 'photo', id: 'm1' })
     expect(m().photos).toHaveLength(0)
+  })
+
+  it('files each capture by ITS OWN kind — the bucket is derived, never supplied (R-23)', () => {
+    // The old `(kind, item)` pair let `kind !== item.kind` compile, and the end state of that
+    // mismatch is a row filed under one tab and deleted from another: an undeletable capture.
+    const store = withLocation()
+    store.getState().addMedia(media({ id: 'v1', kind: 'video' }))
+    const m = () => selectCurrentLocation(store.getState())!.form.media
+    expect(m().videos.map((x) => x.id)).toEqual(['v1'])
+    expect(m().photos).toHaveLength(0)
+
+    // …and it comes back out of the same bucket it went into.
+    store.getState().deleteMedia({ kind: 'video', id: 'v1' })
+    expect(m().videos).toHaveLength(0)
   })
 })
 
@@ -99,10 +158,16 @@ describe('guards', () => {
     store.getState().updateField('businessName', 'x')
     store.getState().calculateOffset()
     store.getState().generateExtractedScopes()
-    store.getState().generateNotes()
+    store.getState().reconcileNotes()
+    store.getState().commitNoteSection('address', 'x')
+    store.getState().commitNoteAddendum('address', 'x')
+    store.getState().resetNoteSection('address')
+    store.getState().scrapAllNotes('blank')
+    store.getState().restoreAllNotes('keep')
+    store.getState().commitNotesFreeText('x')
     store.getState().applyImport(mapAiToForm(SAMPLE_EXTRACTION))
-    store.getState().addMedia('photo', media())
-    store.getState().deleteMedia('photo', 'm1')
+    store.getState().addMedia(media())
+    store.getState().deleteMedia({ kind: 'photo', id: 'm1' })
     expect(store.getState().locations).toHaveLength(0)
   })
 
@@ -121,6 +186,26 @@ describe('selectCaseNotesData', () => {
     expect(data.address).toBe('')
     expect(data.scopes).toBeUndefined()
     expect(data.timeOffset).toBeNull()
+  })
+
+  it('R-20: projects cameras and arrival/departures field-by-field (a resolution↔fps swap must fail here)', () => {
+    const store = withLocation()
+    store.getState().updateField('form.cameras', [
+      { id: 'cam1', cameraName: 'Till', resolution: '1920x1080', recordingFps: '15' },
+      { id: 'cam2', cameraName: 'Rear door', resolution: '4CIF', recordingFps: '30' },
+    ])
+    store.getState().updateField('form.arrivalDepartures', [
+      { id: 'v1', arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:30:00' },
+    ])
+    const data = selectCaseNotesData(store.getState())
+    // Distinct resolution/fps values so a type-correct field swap cannot ship green.
+    expect(data.cameras).toEqual([
+      { name: 'Till', resolution: '1920x1080', fps: '15' },
+      { name: 'Rear door', resolution: '4CIF', fps: '30' },
+    ])
+    expect(data.arrivalDepartures).toEqual([
+      { arrival: '2025-03-09 09:00:00', departure: '2025-03-09 10:30:00' },
+    ])
   })
 })
 

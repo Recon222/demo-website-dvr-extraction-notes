@@ -243,6 +243,55 @@ export function disambiguateDateFormat(
   }
 }
 
+/** The three strings `DateDisambiguationWarning` renders. */
+export interface DisambiguationWarningCopy {
+  title: string
+  description: string
+  suggestion: string
+}
+
+/**
+ * Build the operator-facing warning copy for an ambiguous read.
+ *
+ * Lifted verbatim (strings and interpolation alike) from the phone's OCR copy of this module,
+ * `src/features/ocr-time-capture/utils/date-disambiguation.ts:232-280` — including the
+ * `parseInt(day, 10)` de-padding of the day numerals inside the prose while the leading quoted
+ * `"MM/DD"` fragment keeps the zero-padded strings (ui-mapping 06 fact-check row 3).
+ */
+export function generateDisambiguationWarning(result: DateDisambiguationResult): DisambiguationWarningCopy {
+  const chosenFormatLabel = result.chosenFormat === 'MM-DD' ? 'Month-Day (US)' : 'Day-Month (European)'
+  const alternativeFormatLabel = result.chosenFormat === 'MM-DD' ? 'Day-Month (European)' : 'Month-Day (US)'
+
+  const [, month, day] = result.chosenDate.split('-')
+  const chosenMonthName = getMonthName(parseInt(month, 10))
+  const [, altMonth, altDay] = result.alternativeDate.split('-')
+  const altMonthName = getMonthName(parseInt(altMonth, 10))
+
+  const description =
+    result.reason === 'equidistant'
+      ? `The date "${month}/${day}" is ambiguous. Both interpretations are equally close to today. `
+        + `System chose ${chosenFormatLabel} format: ${chosenMonthName} ${parseInt(day, 10)}. `
+        + `Alternative interpretation: ${altMonthName} ${parseInt(altDay, 10)} (${alternativeFormatLabel}).`
+      : `The date "${month}/${day}" could be interpreted as either ${chosenMonthName} ${parseInt(day, 10)} (${chosenFormatLabel}) `
+        + `or ${altMonthName} ${parseInt(altDay, 10)} (${alternativeFormatLabel}). System chose ${chosenFormatLabel} format as it's `
+        + `${result.chosenDistanceDays} day(s) from today vs ${result.alternativeDistanceDays} day(s) for the alternative.`
+
+  return {
+    title: 'Date Format Ambiguity Detected',
+    description,
+    suggestion: 'Please verify the displayed date matches the DVR screen. If incorrect, edit the date manually.',
+  }
+}
+
+const MONTH_NAMES = [
+  '', 'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+] as const
+
+function getMonthName(month: number): string {
+  return MONTH_NAMES[month] || 'Unknown'
+}
+
 function formatDate(month: number, day: number, year: number): string {
   const y = year.toString().padStart(4, '0')
   const m = month.toString().padStart(2, '0')

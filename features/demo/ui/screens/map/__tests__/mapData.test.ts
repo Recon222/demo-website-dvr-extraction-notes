@@ -31,6 +31,45 @@ describe('toMapData', () => {
     expect(data.items[0].kind).toBe('incident')
   })
 
+  // ---- the plotting policy (review R-7, discharging §49g) -----------------------------------
+  //
+  // `hasCapturedCoordinates` is the app's answer to "should this ever DISPLAY as a captured
+  // position?", and P3.7 wired the case sheet, the PDF camera row and the notes formatter to it
+  // while the map kept reading plain presence. One stored pair, three consumers, two behaviours.
+
+  it('does not plot a (0,0) incident — Null Island is never a captured position', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({
+      caseNumber: 'PR25-NULL',
+      displayName: 'Null Island',
+      unit: 'Robbery',
+      // Geometrically valid, and `parseCoordinate` accepts it, so a visitor CAN type it.
+      incidentCoordinates: { lat: 0, lng: 0, source: 'manual' },
+    })
+    const s = store.getState()
+    const data = toMapData(s.cases.find((c) => c.id === caseId)!, [])
+
+    expect(data.incident).toBeNull()
+    expect(data.items.some((i) => i.kind === 'incident')).toBe(false)
+  })
+
+  it('does not plot a (0,0) location, and does not count it in the status tallies', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-NULL2', displayName: 'X', unit: 'Robbery' })
+    store.getState().addLocation(caseId, { locationName: 'Null Island', gps: { lat: 0, lng: 0, source: 'manual' } })
+    store.getState().addLocation(caseId, { locationName: 'Real', gps: { lat: 43.61, lng: -79.61, source: 'gps' } })
+    const s = store.getState()
+    const data = toMapData(
+      s.cases.find((c) => c.id === caseId)!,
+      s.locations.filter((l) => l.caseId === caseId),
+    )
+
+    expect(data.pins).toHaveLength(1)
+    expect(data.pins[0]).toMatchObject({ lat: 43.61, lng: -79.61 })
+    expect(data.items.filter((i) => i.kind === 'location')).toHaveLength(1)
+    expect(data.statusCounts.started).toBe(1)
+  })
+
   it('plots only located locations (a coord-less location is excluded from pins and items)', () => {
     const { viewerCase, locations } = build()
     const data = toMapData(viewerCase, locations)
@@ -56,5 +95,93 @@ describe('toMapData', () => {
     const data = toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
     expect(data.incident).toBeNull()
     expect(data.items.every((i) => i.kind === 'location')).toBe(true)
+  })
+})
+
+// ---- per-camera GPS → camera markers (P3.7 feeds P6.1) --------------------------------------
+describe('toMapData — camera markers', () => {
+  function buildWithCameras() {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-3', displayName: 'Cams', unit: 'R' })
+    const locId = store.getState().addLocation(caseId, {
+      locationName: 'Rear door',
+      gps: { lat: 43.61, lng: -79.61, source: 'geocoded' },
+    })
+    store.getState().switchLocation(locId)
+    store.getState().updateField('form.cameras', [
+      { id: 'cam-1', cameraName: 'Front entry', resolution: '1080p', recordingFps: '15' },
+      { id: 'cam-2', cameraName: 'Loading bay', resolution: '', recordingFps: '' },
+      { id: 'cam-3', cameraName: 'No fix', resolution: '4K', recordingFps: '30' },
+    ])
+    return { store, caseId, locId }
+  }
+
+  const fix = (lat: number, lng: number, accuracyM?: number) => ({
+    lat,
+    lng,
+    source: 'gps' as const,
+    capturedAt: '2026-07-31T12:00:00.000Z',
+    ...(accuracyM != null ? { accuracyM } : {}),
+  })
+
+  function project(store: ReturnType<typeof createDemoStore>, caseId: string) {
+    const s = store.getState()
+    return toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+  }
+
+  it('plots only cameras with a captured fix, keyed by the composite locationId:cameraId', () => {
+    const { store, caseId, locId } = buildWithCameras()
+    store.getState().setCameraGps('cam-1', fix(43.615, -79.615, 4.2))
+    store.getState().setCameraGps('cam-2', fix(43.616, -79.616))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    expect(item.kind).toBe('location')
+    if (item.kind !== 'location') return
+    expect(item.cameras.map((c) => c.id)).toEqual([`${locId}:cam-1`, `${locId}:cam-2`])
+    expect(item.cameras[0]).toMatchObject({ cameraName: 'Front entry', lng: -79.615, lat: 43.615, resolution: '1080p', accuracyM: 4.2 })
+  })
+
+  it('omits resolution and accuracy keys when absent, rather than emitting empty values', () => {
+    const { store, caseId } = buildWithCameras()
+    store.getState().setCameraGps('cam-2', fix(43.616, -79.616))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras[0]).not.toHaveProperty('resolution')
+    expect(item.cameras[0]).not.toHaveProperty('accuracyM')
+  })
+
+  it('never plots a (0,0) camera fix — the same Null Island policy as the location pins', () => {
+    const { store, caseId } = buildWithCameras()
+    store.getState().setCameraGps('cam-1', fix(0, 0, 3))
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toEqual([])
+  })
+
+  it('gives a location with no geolocated cameras an empty array (hides the toggle)', () => {
+    const { store, caseId } = buildWithCameras()
+    const item = project(store, caseId).items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toEqual([])
+  })
+})
+
+describe('toMapData — cameraTotal', () => {
+  it('counts every camera the location has, plotted or not (review R-19)', () => {
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-4', displayName: 'Partial', unit: 'R' })
+    const locId = store.getState().addLocation(caseId, { locationName: 'Rear door', gps: { lat: 43.6, lng: -79.6, source: 'geocoded' } })
+    store.getState().switchLocation(locId)
+    store.getState().updateField('form.cameras', [
+      { id: 'c1', cameraName: 'A', resolution: '', recordingFps: '' },
+      { id: 'c2', cameraName: 'B', resolution: '', recordingFps: '' },
+      { id: 'c3', cameraName: 'C', resolution: '', recordingFps: '' },
+    ])
+    store.getState().setCameraGps('c1', { lat: 43.6001, lng: -79.6001, source: 'gps', capturedAt: '2026-07-31T12:00:00.000Z' })
+    const s = store.getState()
+    const item = toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+      .items.find((i) => i.kind === 'location')!
+    if (item.kind !== 'location') return
+    expect(item.cameras).toHaveLength(1)
+    expect(item.cameraTotal).toBe(3)
   })
 })

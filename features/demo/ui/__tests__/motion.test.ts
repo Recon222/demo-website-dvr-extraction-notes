@@ -26,6 +26,20 @@ describe('slideDirection', () => {
     expect(slideDirection('submission', 'mediaCapture')).toBe('none')
   })
 
+  it('fades the tab-only destinations, and does not report them as unregistered (R-23)', () => {
+    // Map and Export have no position in the tour order, so they intentionally fade. The dev
+    // guard was widened from `id === 'map'` to the TAB_VIEWS registry when Export landed —
+    // without this, a tab-only view that stopped being recognised would only show up as a
+    // console warning nobody reads.
+    vi.stubEnv('NODE_ENV', 'development')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(slideDirection('cases', 'export')).toBe('none')
+    expect(slideDirection('export', 'cases')).toBe('none')
+    expect(slideDirection('map', 'export')).toBe('none')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
   it('warns in development for a view in neither CHAPTERS nor LAUNCHABLE (missing registration)', () => {
     vi.stubEnv('NODE_ENV', 'development')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
   SearchBoxCore,
   SearchSession,
@@ -18,6 +19,11 @@ export interface AddressPick {
   city: string
   /** [lng, lat] from the Mapbox retrieve feature — geocoded coordinates, when present. */
   coordinates?: { lng: number; lat: number }
+  /** Accuracy estimate in metres for those coordinates — present ONLY for a rooftop match.
+   *  Verbatim port of phone `mapbox-service.ts:246-247` ("Set accuracy estimate for rooftop
+   *  geocoding (approximately 5 meters)"); any other match quality carries no accuracy at all
+   *  rather than a made-up number. */
+  accuracyM?: number
 }
 
 interface Suggestion {
@@ -29,7 +35,7 @@ interface Suggestion {
 const inputStyle: CSSProperties = {
   width: '100%',
   borderRadius: 8,
-  border: '1px solid #1e3a5f',
+  border: GLASS.border,
   background: '#0d1b2a',
   color: '#f0f4f8',
   fontSize: 15,
@@ -52,6 +58,7 @@ export function pickFromFeature(feature: unknown): AddressPick {
     streetAddress: ctx.address?.name ?? (typeof p.name === 'string' ? p.name : '') ?? '',
     city: ctx.place?.name ?? '',
     coordinates: extractCoordinates(f),
+    accuracyM: p.accuracy === 'rooftop' ? 5 : undefined,
   }
 }
 
@@ -86,12 +93,16 @@ export function AddressAutocomplete({
   onChange,
   onPick,
   placeholder,
+  required,
 }: {
   label: string
   value: string
   onChange(value: string): void
   onPick(parts: AddressPick): void
   placeholder?: string
+  /** Renders the shared `Field` required marker (" *"). Phone: Street Address is `required`
+   *  on every LocationForm caller (LocationForm.tsx:188, ui-mapping 05:57). */
+  required?: boolean
 }) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   const sessionRef = useRef<AddressSession | null>(null)
@@ -157,7 +168,10 @@ export function AddressAutocomplete({
 
   return (
     <div ref={boxRef} style={{ marginBottom: 14, position: 'relative' }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
+        {label}
+        {required && <span style={{ color: '#ff4757' }}> *</span>}
+      </div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -174,7 +188,7 @@ export function AddressAutocomplete({
         <ul
           role="listbox"
           aria-label={`${label} suggestions`}
-          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: '#0b1626', border: '1px solid #2a4a6f', borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
+          style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, listStyle: 'none', margin: '4px 0 0', padding: 4, background: '#0b1626', border: GLASS.borderBtn, borderRadius: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}
         >
           {suggestions.map((s, i) => (
             <li key={i} role="option" aria-selected={false}>

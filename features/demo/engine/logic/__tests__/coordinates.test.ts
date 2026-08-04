@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCoordinate, formatCoordinate } from '@/features/demo/engine/logic/coordinates'
+import { parseCoordinate, formatCoordinate, hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
 
 // Mirrors the phone app's strictParseNumber + range guards in IncidentLocationForm:
 // the whole string must be a finite number (parseFloat-style truncation is unsafe for
@@ -47,5 +47,30 @@ describe('parseCoordinate', () => {
 describe('formatCoordinate', () => {
   it('renders a fixed 6-decimal "lat, lng" pair', () => {
     expect(formatCoordinate(43.6087, -79.6505)).toBe('43.608700, -79.650500')
+  })
+})
+
+// Phone parity: guards.ts hasCapturedCoordinates (BUG-008 display half). The policy question
+// ("should this DISPLAY as a captured position?") is not the geometry question parseCoordinate
+// answers — (0,0) is a valid pair and still must never render as an authoritative fix.
+describe('hasCapturedCoordinates', () => {
+  it('accepts a real captured position', () => {
+    expect(hasCapturedCoordinates({ lat: 43.6087, lng: -79.6505 })).toBe(true)
+  })
+
+  it('rejects Null Island — the zero-init / failed-fix artifact', () => {
+    expect(hasCapturedCoordinates({ lat: 0, lng: 0 })).toBe(false)
+  })
+
+  it('keeps the equator and the prime meridian — they are real places', () => {
+    expect(hasCapturedCoordinates({ lat: 0, lng: -79.6505 })).toBe(true)
+    expect(hasCapturedCoordinates({ lat: 43.6087, lng: 0 })).toBe(true)
+  })
+
+  it('rejects absent and non-finite pairs', () => {
+    expect(hasCapturedCoordinates(undefined)).toBe(false)
+    expect(hasCapturedCoordinates(null)).toBe(false)
+    expect(hasCapturedCoordinates({ lat: Number.NaN, lng: 12 })).toBe(false)
+    expect(hasCapturedCoordinates({ lat: 12, lng: Number.POSITIVE_INFINITY })).toBe(false)
   })
 })

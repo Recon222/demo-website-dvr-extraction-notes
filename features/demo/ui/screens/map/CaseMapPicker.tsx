@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface CaseMapPickerCase {
   id: string
@@ -28,7 +29,7 @@ const accent = '#4ba3d4'
 
 const header: CSSProperties = {
   padding: '54px 18px 14px',
-  borderBottom: '1px solid #1e3a5f',
+  borderBottom: GLASS.border,
   background: 'linear-gradient(180deg,#13243a,#0e1d30)',
 }
 const title: CSSProperties = { fontSize: 22, fontWeight: 700, color: '#e7eef6' }
@@ -43,7 +44,7 @@ const baseRow: CSSProperties = {
   padding: '14px 16px',
   marginBottom: 10,
   borderRadius: 10,
-  border: '1px solid #1e3a5f',
+  border: GLASS.border,
   background: 'rgba(19,34,54,0.6)',
   cursor: 'pointer',
 }
@@ -51,12 +52,12 @@ const allCasesRow: CSSProperties = { ...baseRow, opacity: 0.5, cursor: 'default'
 const rowTitle: CSSProperties = { fontSize: 15, fontWeight: 600, color: '#e7eef6' }
 const rowSub: CSSProperties = { fontSize: 13, color: '#9fb6d0', marginTop: 2 }
 const rowMeta: CSSProperties = { fontSize: 11, color: '#7a9fc4', marginTop: 4 }
-const footer: CSSProperties = { padding: 16, borderTop: '1px solid #1e3a5f' }
+const footer: CSSProperties = { padding: 16, borderTop: GLASS.border }
 const cancelBtn: CSSProperties = {
   width: '100%',
   padding: '13px 0',
   borderRadius: 12,
-  border: '1px solid #2a4a6f',
+  border: GLASS.borderBtn,
   background: 'rgba(19,34,54,0.85)',
   color: '#cdd9e6',
   fontSize: 15,
@@ -129,7 +130,7 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
                 style={{
                   ...baseRow,
                   borderColor: selected ? accent : '#1e3a5f',
-                  borderLeft: selected ? `4px solid ${accent}` : '1px solid #1e3a5f',
+                  borderLeft: selected ? `4px solid ${accent}` : GLASS.border,
                 }}
               >
                 {dot && <span style={{ width: 10, height: 10, borderRadius: 5, background: dot, flex: '0 0 auto' }} />}

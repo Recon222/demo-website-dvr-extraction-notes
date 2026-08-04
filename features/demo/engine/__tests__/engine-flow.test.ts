@@ -19,18 +19,87 @@ describe('sandbox pass (headless)', () => {
     store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
     store.getState().calculateOffset()
     store.getState().generateExtractedScopes()
-    store.getState().generateNotes()
+    store.getState().reconcileNotes()
 
     const loc = selectCurrentLocation(store.getState())
     expect(loc?.businessName).toBe("Kim's Convenience")
     expect(loc?.form.timeOffset?.formattedDifference).toBe('00:05:30')
     expect(loc?.form.extractedScopes.length).toBeGreaterThan(0) // DVR-time scopes from the offset
-    expect(loc?.form.notesText).toContain('PR25-0098213')
+    // Sectioned notes (P2.1): the address section carries the attendance line with the
+    // derived corrected (DVR Time) range; the scopes section uses the extracted scopes.
+    const sections = loc?.form.notesSections ?? []
+    expect(sections).toHaveLength(7)
+    expect(sections.find((s) => s.id === 'address')?.content).toContain("Kim's Convenience")
+    expect(sections.find((s) => s.id === 'address')?.content).toContain('DVR Time:')
+    expect(sections.find((s) => s.id === 'scopes')?.content).toContain('(DVR time)')
 
     const html = generateCaseNotesDoc(selectCaseNotesData(store.getState()))
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('PR25-0098213')
     expect(html).toContain('Extraction Scope')
+    expect(html).toContain("Attended Kim's Convenience") // the assembled notes body reached the PDF
+  })
+
+  it('PDF header and notes body abbreviate the address IDENTICALLY (phone parity, §42.2 pin)', () => {
+    // Phone: the header composes resolvedAddress via formatAddress
+    // (case-notes-template.ts:51-54, rendered :86) and the notes body composes its
+    // location string via the SAME formatAddress (notes/formatters/address-formatter.ts:37)
+    // — header and body agree, both abbreviated. The demo mirrors that: selectors.ts
+    // (address: formatAddress(...)) + the shared engine/logic/address-format module in
+    // the notes address-formatter. This test pins the agreement end-to-end.
+    const store = freshStore()
+    store.getState().createCase(newCaseInput())
+    const c = store.getState().currentCaseId!
+    store.getState().addLocation(c, newLocationInput({ streetAddress: '1450 Eglinton Avenue West' }))
+    store.getState().reconcileNotes()
+    const html = generateCaseNotesDoc(selectCaseNotesData(store.getState()))
+    // Location: header row — abbreviated
+    expect(html).toContain("Kim's Convenience, 1450 Eglinton Ave West, Mississauga")
+    // notes body attendance line — the SAME abbreviated string
+    expect(html).toContain("Attended Kim's Convenience, 1450 Eglinton Ave West, Mississauga")
+    // the full word never reaches the document from either surface
+    expect(html).not.toContain('Eglinton Avenue')
+  })
+
+  it('Flow F (R-8): the court PDF carries reconciled notes even if the Notes screen was never opened, and writes nothing back', () => {
+    // The single most likely visitor path: Completion's CTA reaches the document without
+    // ever focusing Notes — only selectCaseNotesData's READ-ONLY reconcile puts notes in.
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.dvr.totalDvrRetention', '35 days')
+    // NOTE: reconcileNotes() is deliberately NOT called — this is the never-opened-Notes path.
+    const html = generateCaseNotesDoc(selectCaseNotesData(store.getState()))
+    expect(html).toContain("Attended Kim's Convenience")
+    expect(html).toContain('DVR retention period: 35 days')
+    // …and the read-only promise: the store is untouched.
+    expect(selectCurrentLocation(store.getState())?.form.notesSections).toEqual([])
+  })
+
+  it('R-3: the review\'s nothing-warns trace now warns — stale-short extracted list annotates the PDF even after adjustedScopesPartial clears', () => {
+    // (1) Calculate with one non-canonical scope → extracted list SHORT, flag true.
+    const store = freshStore()
+    const c = store.getState().createCase(newCaseInput())
+    store.getState().addLocation(c, newLocationInput())
+    store.getState().updateField('form.scopes', [
+      { id: 'bad', startDateTime: '11:45 PM on March 8 2025', endDateTime: 'whenever', isActualTime: true, cameras: '1' },
+      { id: 'good', startDateTime: '2025-03-08 23:45:00', endDateTime: '2025-03-09 01:30:00', isActualTime: true, cameras: '3' },
+    ])
+    store.getState().updateField('capture.dvrDateTime', '2025-03-08 12:05:30')
+    store.getState().updateField('capture.actualDateTime', '2025-03-08 12:00:00')
+    store.getState().calculateOffset()
+    store.getState().generateExtractedScopes()
+    // (2) visitor fixes the bad scope's times but does NOT re-Calculate…
+    store.getState().updateField('form.scopes.0.startDateTime', '2025-03-08 20:00:00')
+    store.getState().updateField('form.scopes.0.endDateTime', '2025-03-08 21:00:00')
+    // (3) …so adjustedScopesPartial (live recompute) clears while the stored extracted
+    // list is still one entry short.
+    const data = selectCaseNotesData(store.getState())
+    expect(data.adjustedScopesPartial).toBe(false)
+    expect(data.extractedScopesPartial).toBe(true)
+    // (4) the document now carries the warning instead of silently under-reporting.
+    const html = generateCaseNotesDoc(data)
+    expect(html).toContain('recovered footage reported in these notes may be incomplete')
   })
 
   it('creates a case + two locations and round-trips updateField per location', () => {

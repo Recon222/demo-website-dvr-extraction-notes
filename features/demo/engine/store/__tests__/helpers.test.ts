@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { setPath, mediaBucket } from '@/features/demo/engine/store/helpers'
+import { setPath, mediaBucket, maxIdSeq, cloneScopesWithNewIds } from '@/features/demo/engine/store/helpers'
 
 describe('setPath', () => {
   it('immutably sets a nested path, cloning along the way', () => {
@@ -44,5 +44,59 @@ describe('mediaBucket', () => {
     expect(mediaBucket('photo')).toBe('photos')
     expect(mediaBucket('video')).toBe('videos')
     expect(mediaBucket('audio')).toBe('audios')
+  })
+})
+
+describe('cloneScopesWithNewIds (P3.5 duplicate flow)', () => {
+  const scopes = [
+    { id: 'sc1', startDateTime: '2025-03-08 22:00:00', endDateTime: '2025-03-09 02:00:00', isActualTime: true, cameras: 'ch 3, 4' },
+    { id: 'sc2', startDateTime: '2025-03-09 06:00:00', endDateTime: '2025-03-09 07:30:00', isActualTime: false, cameras: 'ch 1' },
+  ]
+
+  it('copies the times and the time domain, mints ids from the injected factory, blanks cameras', () => {
+    let n = 0
+    const out = cloneScopesWithNewIds(scopes, () => `new${++n}`)
+
+    expect(out).toEqual([
+      { id: 'new1', startDateTime: '2025-03-08 22:00:00', endDateTime: '2025-03-09 02:00:00', isActualTime: true, cameras: '' },
+      { id: 'new2', startDateTime: '2025-03-09 06:00:00', endDateTime: '2025-03-09 07:30:00', isActualTime: false, cameras: '' },
+    ])
+  })
+
+  it('leaves the source array and its entries untouched', () => {
+    const out = cloneScopesWithNewIds(scopes, () => 'x')
+    expect(scopes[0].cameras).toBe('ch 3, 4')
+    expect(out[0]).not.toBe(scopes[0])
+  })
+
+  it('returns an empty list for an empty source', () => {
+    expect(cloneScopesWithNewIds([], () => 'x')).toEqual([])
+  })
+})
+
+describe('maxIdSeq (rehydration id-counter seed)', () => {
+  it('finds the highest numeric id suffix across nested objects and arrays', () => {
+    const snapshot = {
+      cases: [
+        { id: 'c2', locationIds: ['l1', 'l3'] }, // locationIds are not `id` props — ignored
+        { id: 'c12' },
+      ],
+      locations: [{ id: 'l3', form: { scopes: [{ id: 'sc7' }], cameras: [{ id: 'ui-c9' }] } }],
+    }
+    expect(maxIdSeq(snapshot)).toBe(12)
+  })
+
+  it('reads UI-minted ids (ui-s7) and store ids (es3) alike — trailing digits only', () => {
+    expect(maxIdSeq({ list: [{ id: 'ui-s7' }, { id: 'es3' }] })).toBe(7)
+  })
+
+  it('ignores ids without a numeric suffix, non-string ids, and non-id keys', () => {
+    expect(maxIdSeq({ id: 'draft', other: 99, nested: { id: 42, caseId: 'c88' } })).toBe(0)
+  })
+
+  it('returns 0 for the empty boot (no ids anywhere)', () => {
+    expect(maxIdSeq({ cases: [], locations: [] })).toBe(0)
+    expect(maxIdSeq(null)).toBe(0)
+    expect(maxIdSeq(undefined)).toBe(0)
   })
 })

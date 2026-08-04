@@ -4,7 +4,16 @@ import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 
 const items = [{ id: 'submission' as const, label: 'Submission', active: true }]
-const cb = { onClose: vi.fn(), onNavigate: vi.fn(), onBackToCases: vi.fn() }
+const cb = {
+  onClose: vi.fn(),
+  onNavigate: vi.fn(),
+  onBackToCases: vi.fn(),
+  onCaptureMedia: vi.fn(),
+  onRecordAudio: vi.fn(),
+  onOpenMediaLibrary: vi.fn(),
+  saveStatus: null,
+  mediaTools: { mediaCapture: true, audioRecording: true },
+}
 
 describe('WizardDrawer', () => {
   it('portals into the PhoneOverlayContext node when present (pins to the phone viewport, outside the scroller)', () => {
@@ -49,5 +58,23 @@ describe('WizardDrawer', () => {
     render(<WizardDrawer open={false} items={items} {...cb} onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('the media accordion follows the form profile (P7.3)', () => {
+  it('drops a capture row the visitor switched off, and never the library', () => {
+    render(<WizardDrawer open items={items} {...cb} mediaTools={{ mediaCapture: false, audioRecording: true }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Media section' }))
+    expect(screen.queryByRole('button', { name: 'Open camera to capture media' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record audio note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open media library' })).toBeInTheDocument()
+  })
+
+  it('keeps the accordion — and the library — when BOTH capture tools are off', () => {
+    render(<WizardDrawer open items={items} {...cb} mediaTools={{ mediaCapture: false, audioRecording: false }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Media section' }))
+    expect(screen.queryByRole('button', { name: 'Open camera to capture media' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record audio note' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open media library' })).toBeInTheDocument()
   })
 })

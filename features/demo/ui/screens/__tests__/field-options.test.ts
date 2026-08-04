@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { parseRecordingSchedule, toggleRecordingSchedule } from '@/features/demo/ui/screens/field-options'
+import * as uiOptions from '@/features/demo/ui/screens/field-options'
+import * as engineOptions from '@/features/demo/engine/content/form-options'
 
-describe('recording schedule helpers', () => {
-  it('parses the comma-joined string to a lowercase list', () => {
-    expect(parseRecordingSchedule('continuous, motion')).toEqual(['continuous', 'motion'])
-    expect(parseRecordingSchedule('Continuous')).toEqual(['continuous'])
-    expect(parseRecordingSchedule('')).toEqual([])
+// field-options.ts must stay a PURE re-export of the engine module — the same object
+// references, not copies. A locally-redefined list here is exactly the drift that produced
+// parity gap G5 (two hand-typed copies of the same enums disagreeing).
+describe('ui/screens/field-options is a pure re-export of engine/content/form-options', () => {
+  it('re-exports every engine export by reference', () => {
+    for (const key of Object.keys(engineOptions) as (keyof typeof engineOptions)[]) {
+      expect(uiOptions[key], `field-options must re-export "${key}" by reference`).toBe(engineOptions[key])
+    }
   })
 
-  it('toggles an option, returning the canonical comma-joined value (continuous before motion)', () => {
-    expect(toggleRecordingSchedule('continuous', 'Motion')).toBe('continuous, motion')
-    expect(toggleRecordingSchedule('continuous, motion', 'Continuous')).toBe('motion')
-    expect(toggleRecordingSchedule('', 'Continuous')).toBe('continuous')
-    // order is canonical regardless of toggle order
-    expect(toggleRecordingSchedule('motion', 'Continuous')).toBe('continuous, motion')
+  it('defines nothing of its own', () => {
+    expect(Object.keys(uiOptions).sort()).toEqual(Object.keys(engineOptions).sort())
   })
 })

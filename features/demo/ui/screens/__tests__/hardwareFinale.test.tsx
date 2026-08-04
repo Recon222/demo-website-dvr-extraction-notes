@@ -8,7 +8,12 @@ import { NotesScreen } from '@/features/demo/ui/screens/NotesScreen'
 import { CompletionScreen } from '@/features/demo/ui/screens/CompletionScreen'
 import { PdfPreview } from '@/features/demo/ui/chrome/PdfPreview'
 
-const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
+// `isFieldVisible` is the P7.3 visibility gate; the forensic default shows everything, which
+// is the baseline these option/render tests are about. The gating arms live in
+// `field-visibility.test.tsx`.
+const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
+/** CamerasScreen additionally takes the per-camera GPS callback (P3.7). */
+const camNav = { ...nav, onCaptureGps: vi.fn() }
 const form = blankLocationForm()
 
 describe('DvrInfoScreen', () => {
@@ -23,7 +28,7 @@ describe('DvrInfoScreen', () => {
 describe('CamerasScreen', () => {
   it('renders the empty state and adds a camera', () => {
     const onAdd = vi.fn()
-    render(<CamerasScreen cameras={[]} onChange={vi.fn()} onAdd={onAdd} onRemove={vi.fn()} {...nav} />)
+    render(<CamerasScreen cameras={[]} onChange={vi.fn()} onAdd={onAdd} onRemove={vi.fn()} {...camNav} />)
     expect(screen.getByText(/No cameras yet/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('+ Add Camera'))
     expect(onAdd).toHaveBeenCalledOnce()
@@ -35,7 +40,7 @@ describe('CamerasScreen', () => {
       { id: 'c1', cameraName: 'A', resolution: '', recordingFps: '' },
       { id: 'c2', cameraName: 'B', resolution: '', recordingFps: '' },
     ]
-    render(<CamerasScreen cameras={cameras} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...nav} />)
+    render(<CamerasScreen cameras={cameras} onChange={vi.fn()} onAdd={vi.fn()} onRemove={onRemove} {...camNav} />)
     fireEvent.click(screen.getAllByText('Remove')[1])
     expect(onRemove).toHaveBeenCalledWith(1)
   })
@@ -50,12 +55,36 @@ describe('ExportInfoScreen', () => {
   })
 })
 
-describe('NotesScreen', () => {
-  it('regenerates the notes', () => {
-    const onRegenerate = vi.fn()
-    render(<NotesScreen notes="case notes" onChange={vi.fn()} onRegenerate={onRegenerate} {...nav} />)
-    fireEvent.click(screen.getByText('Regenerate'))
-    expect(onRegenerate).toHaveBeenCalledOnce()
+describe('NotesScreen (smoke — full behavioral suite in NotesScreen.test.tsx)', () => {
+  it('renders a section paragraph and commits an edit on blur', () => {
+    const onCommitSection = vi.fn()
+    render(
+      <NotesScreen
+        sections={[
+          {
+            id: 'address',
+            label: 'address & visits',
+            content: '• Attended Shop to recover requested video evidence.',
+            manuallyEdited: false,
+            stale: false,
+            freshContent: '• Attended Shop to recover requested video evidence.',
+          },
+        ]}
+        freeText=""
+        copyAllText=""
+        onCommitSection={onCommitSection}
+        onCommitAddendum={vi.fn()}
+        onResetSection={vi.fn()}
+        onScrapAll={vi.fn()}
+        onRestoreAll={vi.fn()}
+        onCommitFreeText={vi.fn()}
+        {...nav}
+      />,
+    )
+    const body = screen.getByLabelText('address & visits')
+    fireEvent.change(body, { target: { value: 'my own account' } })
+    fireEvent.blur(body)
+    expect(onCommitSection).toHaveBeenCalledWith('address', 'my own account')
   })
 })
 
@@ -66,7 +95,7 @@ describe('CompletionScreen', () => {
     const onPreviewPdf = vi.fn()
     const onComplete = vi.fn()
     const onChange = vi.fn()
-    render(<CompletionScreen summary={summary} isComplete={false} dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onComplete={onComplete} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={onChange} onPreviewPdf={onPreviewPdf} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     expect(screen.getByText(/PR25-0098213/)).toBeInTheDocument()
     expect(screen.getByText('00:05:30 AHEAD OF')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Completed By'), { target: { value: 'Det. X' } })
@@ -77,23 +106,50 @@ describe('CompletionScreen', () => {
     expect(onComplete).toHaveBeenCalledOnce()
   })
 
-  it('shows the case-complete state', () => {
-    render(<CompletionScreen summary={summary} isComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onComplete={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
-    expect(screen.getByText('Case Complete')).toBeInTheDocument()
+  it('shows the location-complete state with a way back to the review form (R-1)', () => {
+    const onReviewAgain = vi.fn()
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={vi.fn()} onReviewAgain={onReviewAgain} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Review / Export again'))
+    expect(onReviewAgain).toHaveBeenCalledOnce()
+  })
+
+  it('renders the phone’s Required Fields Missing card, one `- rule` line each (P2.4/G9)', () => {
+    render(<CompletionScreen summary={summary} validationErrors={['OCC number is required', 'Address is required']} isComplete={false} canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={vi.fn()} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    const card = screen.getByRole('alert')
+    expect(card).toHaveTextContent('Required Fields Missing')
+    expect(card).toHaveTextContent('- OCC number is required')
+    expect(card).toHaveTextContent('- Address is required')
+  })
+
+  it('never shows the card on the completed confirmation — nothing left to fix there', () => {
+    render(<CompletionScreen summary={summary} validationErrors={['OCC number is required']} isComplete canComplete dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={vi.fn()} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    expect(screen.getByText('Location Complete')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('disables Complete & Save when no location is open (R-1: no silent no-op)', () => {
+    const onComplete = vi.fn()
+    render(<CompletionScreen summary={summary} validationErrors={[]} isComplete={false} canComplete={false} dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
+    const btn = screen.getByRole('button', { name: 'Complete & Save' })
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    expect(onComplete).not.toHaveBeenCalled()
   })
 })
 
 describe('PdfPreview', () => {
   it('renders the document HTML in an iframe and closes', () => {
     const onClose = vi.fn()
-    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} onSave={vi.fn()} />)
+    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
     expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Close'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('sandboxes the preview iframe (defense-in-depth)', () => {
-    render(<PdfPreview title="Doc" html="<!DOCTYPE html><html><body><p>x</p></body></html>" onClose={vi.fn()} onSave={vi.fn()} />)
-    expect(screen.getByTitle('Doc')).toHaveAttribute('sandbox', '')
+  it('sandboxes the preview iframe (defense-in-depth: print-only tokens, never allow-scripts)', () => {
+    render(<PdfPreview title="Doc" html="<!DOCTYPE html><html><body><p>x</p></body></html>" onClose={vi.fn()} />)
+    // Pinned exactly (see the PdfPreview suite for the per-token rationale).
+    expect(screen.getByTitle('Doc')).toHaveAttribute('sandbox', 'allow-modals allow-same-origin')
   })
 })
