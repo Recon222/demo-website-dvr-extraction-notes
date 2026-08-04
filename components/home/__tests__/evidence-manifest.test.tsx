@@ -35,8 +35,8 @@ describe('EvidenceManifest (Case-File)', () => {
   })
 
   // The CLASS column and its CORE/FIELD/TRUST/MARQUEE chips were removed (owner
-  // decision): the taxonomy meant nothing to a visitor. `classLabel` still drives the
-  // feature page's breadcrumb chip, so this pins the removal from the TABLE only.
+  // decision): the taxonomy meant nothing to a visitor, and it has since been removed
+  // from the data model entirely (see the catalog's own no-class-taxonomy test).
   it('publishes no class taxonomy in the table', () => {
     render(<EvidenceManifest features={features} />)
     expect(screen.queryByText('CLASS')).not.toBeInTheDocument()

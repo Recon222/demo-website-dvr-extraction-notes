@@ -35,7 +35,6 @@ export const features: readonly Feature[] = [
       'A dozen addresses per job, files scattering the moment you start. One tidy tree instead.',
     intro:
       'One recovery job can span a dozen addresses, and the files for each scatter the moment you start. Here the case is the container: **every address gets its own place, and everything you capture knows where it belongs.**',
-    classLabel: 'FIELD',
     tip: {
       variant: 'gold',
       body: 'This is the spine everything else hangs off: the wizard, the media, the map, and the report all read from the same case tree.',
@@ -81,7 +80,6 @@ export const features: readonly Feature[] = [
       'Re-typing case numbers, addresses, requesters, time windows. The case fills itself in, on-device.',
     intro:
       'Every job starts with a request (a PDF, an email) and ten minutes of re-typing case numbers, addresses, requesters, and time windows into a form. **That step is gone.** Import the document and the case is waiting for your verification.',
-    classLabel: 'CORE',
     tip: {
       variant: 'cyan',
       body: "The reading happens with Apple's on-device intelligence. The request (names, case numbers, everything in it) **never leaves the phone.** Not to us, not to anyone.",
@@ -126,7 +124,6 @@ export const features: readonly Feature[] = [
     painLine: 'Copy pending. The wizard that walks the scene with you, field by field.',
     intro:
       "PAIN LINE LANDS HERE: one sentence naming what the notes grind used to cost. Kris writes this; the wizard's fields feed both the auto-generated bullets and the final report.",
-    classLabel: 'CORE',
     tip: {
       variant: 'gold',
       body: 'Known already: the wizard captures the fields, the app writes the bullet-point notes and the formal report from them. You verify, the app types.',
@@ -167,7 +164,6 @@ export const features: readonly Feature[] = [
       '"Where exactly was this, and where were the cameras?" GPS-pin the site and every camera on it.',
     intro:
       'Back at the office, "where exactly was this, and where were the cameras?" is hard to reconstruct from memory. Here it\'s captured while you\'re standing there: **the site gets coordinates, and every camera gets its own pin.**',
-    classLabel: 'FIELD',
     tip: {
       variant: 'cyan',
       body: 'GPS fixes are multi-sampled and accuracy-filtered: a bad fix gets thrown out before it ever lands in your case.',
@@ -207,7 +203,6 @@ export const features: readonly Feature[] = [
       'The whole case on one map. Tap a pin to call or email the investigator or site contact.',
     intro:
       'Multi-location cases are hard to hold in your head, and reaching a contact means digging for a number. On the map, **the shape of the job is obvious, and every contact is one tap away.**',
-    classLabel: 'FIELD',
     tip: {
       variant: 'cyan',
       body: 'The pins carry people, not just places: the requesting investigator and the on-site contact ride with each location.',
@@ -243,7 +238,6 @@ export const features: readonly Feature[] = [
       'The DVR clock is wrong. Yours is provably right, calibrated against atomic time at capture.',
     intro:
       "DVR clocks are almost always wrong. That's fine, expected even. What ends people on the stand is the other clock: proving **your own device's time** was right. This app answers that question before it's asked.",
-    classLabel: 'MARQUEE',
     tip: {
       variant: 'gold',
       body: "The old way: an external time site, a manual reference check, and a hand-typed note you'll be asked about a year later. The new way is a receipt, printed into every report.",
@@ -285,7 +279,6 @@ export const features: readonly Feature[] = [
       'Scene media scattered through your camera roll. Now it lands inside the case, filed automatically.',
     intro:
       "Scene media ends up scattered in your camera roll, cut off from the case it belongs to. Here you shoot from inside the location, **and every file lands in the right folder the moment it's captured.**",
-    classLabel: 'FIELD',
     tip: {
       variant: 'cyan',
       body: 'Native resolution, no compression games: what the sensor saw is what the case keeps.',
@@ -328,7 +321,6 @@ export const features: readonly Feature[] = [
       "The write-up you'd still owe after all the field work. Generated from what you already captured.",
     intro:
       "After the scene work is done, the write-up still has to be produced: formatted, complete, every time. Here it's already waiting: **everything you captured, assembled into the finished PDF.** You verify, the app types.",
-    classLabel: 'CORE',
     tip: {
       variant: 'gold',
       body: 'Nothing in the report is invented. Every section is assembled from fields you entered and verified during the job. The report is the receipt for the work.',
@@ -369,7 +361,6 @@ export const features: readonly Feature[] = [
       'Handing off a case means the report plus every file. One password-protected archive, your password.',
     intro:
       'Delivering a case means the report and every file that backs it, together, intact, and not readable by whoever finds the USB stick. One export: **documents and media in a tidy folder structure, inside a password-protected archive.**',
-    classLabel: 'FIELD',
     tip: {
       variant: 'cyan',
       body: 'The password is yours: set by you, known to you, **never stored by us.** Exporting itself can be gated behind Face ID.',
@@ -409,7 +400,6 @@ export const features: readonly Feature[] = [
       'Evidence software that phones home is a non-starter. Case data lives on your device, encrypted, behind Face ID.',
     intro:
       'Evidence software that quietly ships data to a vendor cloud is a non-starter. This one was built by someone whose own cases would be in it.',
-    classLabel: 'TRUST',
     // No tip card — the two trust cards carry the page (canvas 4f).
     layout: 'trust-cards',
     rows: [

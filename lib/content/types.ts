@@ -1,13 +1,6 @@
 /** Priority tier for build/sequencing (see docs/planning/02-app-feature-inventory.md). */
 export type FeaturePriority = 'p0' | 'p1' | 'p2'
 
-/**
- * Manifest class chip (Case-File design). Values are transcribed from the design
- * canvas: CORE = gold, FIELD = blue, TRUST = cyan, MARQUEE = the one flagship item
- * (06 Time Offset) — gold with a blinking dot and a tinted manifest row.
- */
-export type FeatureClass = 'CORE' | 'FIELD' | 'TRUST' | 'MARQUEE'
-
 /** The one tip card on a feature page: gold (bulb) or cyan (lock/pin) variant. */
 export interface FeatureTip {
   variant: 'gold' | 'cyan'
@@ -81,8 +74,6 @@ export interface Feature {
    * hatched-block explainer copy.
    */
   intro?: string
-  /** Manifest class chip. Required — every manifest row renders one. */
-  classLabel: FeatureClass
   /** The one tip card on the page (absent on Security & Privacy — trust cards instead). */
   tip?: FeatureTip
   /** Ordered pain→fix content rows. */

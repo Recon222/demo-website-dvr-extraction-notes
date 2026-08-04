@@ -114,17 +114,14 @@ describe('feature content model', () => {
 // manifest class chips, page intros, tip cards, row kickers/chips/REC labels, and
 // per-page beta lines — all transcribed from the design canvas (final intent).
 describe('Case-File content fields', () => {
-  const CLASSES = ['CORE', 'FIELD', 'TRUST', 'MARQUEE'] as const
-
-  it('gives every feature a classLabel from the union', () => {
+  // The CORE / FIELD / TRUST / MARQUEE taxonomy was removed from the data model after
+  // its last rendering site went (the feature-page breadcrumb chip). This pins the
+  // removal: it was internal vocabulary a visitor could not decode, so it should not
+  // come back as a field before it comes back as a design.
+  it('carries no class taxonomy', () => {
     for (const f of features) {
-      expect(CLASSES, `feature "${f.slug}" classLabel`).toContain(f.classLabel)
+      expect(f, `feature "${f.slug}"`).not.toHaveProperty('classLabel')
     }
-  })
-
-  it('marks exactly one feature MARQUEE — time-calibration', () => {
-    const marquee = features.filter((f) => f.classLabel === 'MARQUEE')
-    expect(marquee.map((f) => f.slug)).toEqual(['time-calibration'])
   })
 
   it('keeps Notes flagged draft with a draft banner note', () => {

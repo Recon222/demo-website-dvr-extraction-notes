@@ -16,8 +16,8 @@ const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26
  * removed there was nothing left to explain why one row looked different, so the
  * highlight read as decoration rather than meaning.
  *
- * `classLabel` still drives the feature page's breadcrumb chip, so the field stays
- * in the catalog — the table just stopped rendering anything from it.
+ * The taxonomy is gone from the data model too: nothing rendered it once the
+ * feature-page breadcrumb chip went, so `classLabel` was dropped from `Feature`.
  *
  * The draft item is marked by its italic muted pain line alone; the DRAFT pill that
  * used to float beside the title was removed with the same pass.
