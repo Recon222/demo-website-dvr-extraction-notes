@@ -12,15 +12,17 @@ export const siteConfig = {
   // The chosen one-liner (doc 07 Q6 — resolved by the Case-File design's hero H1).
   tagline: 'The whole extraction, documented before you leave the scene.',
   description:
-    'DVR Extraction Notes is a CCTV/DVR evidence recovery documentation app for iOS, built by a practitioner with 15 years and 1,500+ extractions to remove the busywork — from request to court-ready report.',
+    'DVR Extraction Notes is a CCTV/DVR evidence recovery documentation app for iOS, built by a practitioner with 15 years and 1,500+ extractions to remove the busywork, from request to court-ready report.',
   url: 'https://example.com', // TODO(doc 07 Q3): real domain
   // TODO(doc 07 Q2): confirm the canonical public address — the app policy lists
   // fvadd.dev@gmail.com; the design canvas shows a contact@fva.dev placeholder.
   contactEmail: 'kcfva.dev@gmail.com',
-  /** The four header links (Case-File design). The beta link is `cta`, not nav. */
+  /** The four header links (Case-File design). The beta link is `cta`, not nav.
+   *  Features leads The job — mirrors the home page's section order after the
+   *  manifest was moved above the chain of work. */
   nav: [
-    { label: 'The job', href: '/#how-it-works' },
     { label: 'Features', href: '/#features' },
+    { label: 'The job', href: '/#how-it-works' },
     { label: 'Live demo', href: '/demo' },
     { label: 'Privacy', href: '/privacy' },
   ],
