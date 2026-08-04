@@ -23,8 +23,17 @@ export function Hero() {
   return (
     // pt trimmed 84 → 48: with the tab strip gone the eyebrow chip already separates
     // the hero from the header, and every pixel here pushes the phone below the fold.
-    <section className="flex flex-col items-start gap-14 px-10 pb-[72px] pt-12 lg:flex-row lg:justify-between lg:px-20">
-      <div className="max-w-[640px]">
+    //
+    // The copy column is `lg:flex-1`, NOT a fixed max-width — same as the feature-page
+    // header (components/feature-page.tsx). It used to be `max-w-[640px]` inside a
+    // `justify-between` row, which capped the column and then turned every surplus
+    // pixel into a dead gap between the copy and the phone on a wide window. Growing
+    // the column instead lets the H1 reflow onto fewer lines as the viewport widens,
+    // which also shortens this column on big screens — welcome, since the phone has to
+    // clear the fold. The sub-paragraph keeps its own 560px cap: body copy wants a
+    // 65-75 character measure no matter how wide the window is.
+    <section className="flex flex-col items-start gap-14 px-10 pb-[72px] pt-12 lg:flex-row lg:gap-16 lg:px-20">
+      <div className="w-full lg:flex-1">
         {/* credential eyebrow chip */}
         <div className="mb-[26px] inline-flex items-center gap-[10px] rounded-[20px] border border-cyan/30 bg-cyan/5 px-[14px] py-[7px]">
           <span
@@ -32,7 +41,7 @@ export function Hero() {
             className="h-[7px] w-[7px] animate-[blinkDot_2.4s_ease-in-out_infinite] rounded-full bg-cyan shadow-[0_0_9px_rgba(78,205,196,0.9)]"
           />
           <span className="font-stmono text-[11px] tracking-[2px] text-cyan">
-            BUILT ON THE BENCH — 15 YEARS · 1,500+ EXTRACTIONS
+            BUILT ON EXPERIENCE — 15 YEARS · 1,500+ EXTRACTIONS
           </span>
         </div>
 
