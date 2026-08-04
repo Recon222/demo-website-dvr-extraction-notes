@@ -15,8 +15,12 @@ import { CornerBrackets } from "./corner-brackets";
  * first real recording landed: the screen captures carry the device's REAL
  * chrome, and the mocked overlays doubled every element on top of it.
  *
- * A Server Component at a FIXED scale (ceil'd footprint boxes: hero 0.78 →
- * 316×634; feature rows 0.62 → 251×504), wrapped in the corner-bracket framing.
+ * A Server Component at a FIXED scale (ceil'd footprint boxes: hero 0.68 →
+ * 275×553; feature rows 0.62 → 251×504), wrapped in the corner-bracket framing.
+ * The hero was 0.78 (316×634) until the above-the-fold pass: at 0.78 the phone's
+ * bottom sat ~928px down the page and got clipped on any laptop-height viewport.
+ * 0.68 puts the framed block's bottom edge — brackets included, since those sit at
+ * the padding box, not the device — at ~707px, which clears a ~730px viewport.
  * The only client leaf inside is whatever the caller renders in the screen slot
  * (typically <AppDemo/>, a looping muted video).
  */
@@ -55,7 +59,7 @@ const gridStyle: CSSProperties = {
 };
 
 export interface MarketingPhoneFrameProps {
-  /** Fixed display scale: 0.78 for the hero, 0.62 for feature rows. */
+  /** Fixed display scale: 0.68 for the hero, 0.62 for feature rows. */
   scale: number;
   /** Corner-bracket label chip, e.g. `REC 01 — CASES` or `LIVE CAPTURE · 378×786`. */
   label: string;

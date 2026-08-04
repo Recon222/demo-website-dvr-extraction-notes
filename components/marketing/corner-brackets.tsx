@@ -9,7 +9,7 @@ const BRACKET_BASE = "pointer-events-none absolute h-5 w-5 border-cyan/55";
  */
 export function CornerBrackets({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="relative p-5">
+    <div className="relative p-4">
       <span aria-hidden="true" className={`${BRACKET_BASE} left-0 top-0 border-l border-t`} />
       <span aria-hidden="true" className={`${BRACKET_BASE} right-0 top-0 border-r border-t`} />
       <span aria-hidden="true" className={`${BRACKET_BASE} bottom-0 left-0 border-b border-l`} />

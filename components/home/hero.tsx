@@ -7,18 +7,23 @@ import { siteConfig } from '@/lib/site-config'
 // Hero copy transcribed from the design canvas (artboard 1a) — final intent.
 // The H1 is siteConfig.tagline (one source for hero + metadata; resolves doc 07 Q6).
 const SUB =
-  'An iOS field tool built by a working CCTV analyst — not a vendor. The request imports itself, the DVR clock gets calibrated against atomic time, the media files itself by location, and the report writes itself. You verify. You leave.'
+  'An iOS field tool built by a working CCTV analyst, not a vendor. The request imports itself, the DVR clock gets calibrated against atomic time, the media files itself by location, and the report writes itself. You verify. You leave.'
 
-const CRED_CELLS = [
-  { value: '15 yrs', label: 'IN VIDEO EVIDENCE', gold: false },
-  { value: '1,500+', label: 'EXTRACTIONS LOGGED', gold: false },
-  { value: '10 min → <5', label: 'PER-SCENE PAPERWORK', gold: true },
-] as const
-
-/** Case-File split hero: credential chip, H1, sub, CTA row, cred strip ⟷ bracketed phone. */
+/**
+ * Case-File split hero: credential chip, H1, sub, CTA row, narrative slot ⟷ bracketed phone.
+ *
+ * The three-cell credential strip that used to close this column was removed (owner
+ * decision): it restated the eyebrow chip's "15 YEARS · 1,500+ EXTRACTIONS" verbatim,
+ * and its third cell published a per-scene time saving that is NOT confirmed for
+ * publication (see PRODUCT.md §Evidence on Hand). Its footprint is held below so the
+ * replacement narrative — a summary of the features that hands off into the manifest —
+ * can drop straight in without the column resizing.
+ */
 export function Hero() {
   return (
-    <section className="flex flex-col items-start gap-14 px-10 pb-[72px] pt-[84px] lg:flex-row lg:justify-between lg:px-20">
+    // pt trimmed 84 → 48: with the tab strip gone the eyebrow chip already separates
+    // the hero from the header, and every pixel here pushes the phone below the fold.
+    <section className="flex flex-col items-start gap-14 px-10 pb-[72px] pt-12 lg:flex-row lg:justify-between lg:px-20">
       <div className="max-w-[640px]">
         {/* credential eyebrow chip */}
         <div className="mb-[26px] inline-flex items-center gap-[10px] rounded-[20px] border border-cyan/30 bg-cyan/5 px-[14px] py-[7px]">
@@ -55,29 +60,15 @@ export function Hero() {
           </Link>
         </div>
 
-        {/* cred strip */}
-        <div className="flex max-w-[620px] items-stretch rounded-[14px] border border-row-divider bg-[linear-gradient(135deg,rgba(19,34,54,0.6),rgba(26,45,68,0.65))]">
-          {CRED_CELLS.map((cell, index) => (
-            <div key={cell.label} className="flex flex-1 items-stretch">
-              {index > 0 ? <div aria-hidden="true" className="my-3 w-px bg-[rgba(30,58,95,0.7)]" /> : null}
-              <div className="flex-1 px-[22px] py-4">
-                <div
-                  className={`font-jbmono text-[22px] font-bold ${cell.gold ? 'text-gold' : 'text-heading'}`}
-                >
-                  {cell.value}
-                </div>
-                <div className="mt-1 font-stmono text-[10px] tracking-[1.6px] text-muted">
-                  {cell.label}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* NARRATIVE SLOT — reserved footprint of the removed cred strip (see the
+            component doc above). Holds the column's height steady until the feature-
+            summary copy that hands off into the evidence manifest lands here. */}
+        <div aria-hidden="true" className="h-[71px] max-w-[620px]" />
       </div>
 
       {/* hero phone — the walkthrough loop (media file is local-pending the
           pre-launch media strategy: committed assets vs LFS vs blob storage) */}
-      <MarketingPhoneFrame scale={0.78} label="LIVE CAPTURE · 378×786">
+      <MarketingPhoneFrame scale={0.68} label="LIVE CAPTURE · 378×786">
         <AppDemo
           src="demos/home/walkthrough.mp4"
           poster="demos/home/walkthrough.webp"

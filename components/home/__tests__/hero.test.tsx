@@ -38,15 +38,22 @@ describe('Hero (Case-File)', () => {
     )
   })
 
-  it('renders the three-cell cred strip with the gold paperwork stat', () => {
+  // The cred strip was removed (owner decision): it restated the eyebrow chip, and its
+  // third cell published a per-scene time saving that is NOT confirmed for publication.
+  // This replaces the old three-cell test — it pins the removal so the unverified claim
+  // cannot quietly return, which is the invariant that actually matters now.
+  it('publishes no unconfirmed per-scene time-saving claim', () => {
     render(<Hero />)
-    expect(screen.getByText('15 yrs')).toBeInTheDocument()
-    expect(screen.getByText('1,500+')).toBeInTheDocument()
-    expect(screen.getByText('PER-SCENE PAPERWORK')).toBeInTheDocument()
-    // The design invariant this test is NAMED for: gold on the marquee stat only.
-    expect(screen.getByText('10 min → <5')).toHaveClass('text-gold')
-    expect(screen.getByText('15 yrs')).not.toHaveClass('text-gold')
-    expect(screen.getByText('1,500+')).not.toHaveClass('text-gold')
+    expect(screen.queryByText(/10 min/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/PER-SCENE PAPERWORK/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the confirmed credentials, carried by the eyebrow chip alone', () => {
+    render(<Hero />)
+    // Confirmed and publishable (PRODUCT.md §Evidence on Hand) — but stated ONCE.
+    expect(screen.getByText(/15 YEARS · 1,500\+ EXTRACTIONS/)).toBeInTheDocument()
+    expect(screen.queryByText('15 yrs')).not.toBeInTheDocument()
+    expect(screen.queryByText('1,500+')).not.toBeInTheDocument()
   })
 
   it('renders the hero phone with the live-capture label', () => {

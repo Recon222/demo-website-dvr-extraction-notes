@@ -23,19 +23,19 @@ describe('MarketingPhoneFrame', () => {
     expect(screen.getByTestId('loop')).toBeInTheDocument()
   })
 
-  it('applies the given fixed scale transform (hero 0.78, rows 0.62)', () => {
+  it('applies the given fixed scale transform (hero 0.68, rows 0.62)', () => {
     const { container } = render(
-      <MarketingPhoneFrame scale={0.78} label="L">
+      <MarketingPhoneFrame scale={0.68} label="L">
         <div />
       </MarketingPhoneFrame>,
     )
-    expect(container.innerHTML).toContain('scale(0.78)')
+    expect(container.innerHTML).toContain('scale(0.68)')
   })
 
   it('sizes the wrapper box to the scaled device footprint at BOTH shipped scales', () => {
     // Ceil contract: 404×812 at 0.62 → the design's hand-picked 251×504 row box;
-    // at 0.78 (the hero) → 316×634 (1px over the canvas's 315×633 — transparent,
-    // un-clipped, never under-fits; see the component's rationale comment).
+    // at 0.68 (the hero) → 275×553. Ceil, never round: the box must not under-fit
+    // the scaled device (see the component's rationale comment).
     const rows = render(
       <MarketingPhoneFrame scale={0.62} label="L">
         <div />
@@ -45,12 +45,12 @@ describe('MarketingPhoneFrame', () => {
     expect(rows.container.innerHTML).toContain('height: 504px')
 
     const hero = render(
-      <MarketingPhoneFrame scale={0.78} label="L">
+      <MarketingPhoneFrame scale={0.68} label="L">
         <div />
       </MarketingPhoneFrame>,
     )
-    expect(hero.container.innerHTML).toContain('width: 316px')
-    expect(hero.container.innerHTML).toContain('height: 634px')
+    expect(hero.container.innerHTML).toContain('width: 275px')
+    expect(hero.container.innerHTML).toContain('height: 553px')
   })
 
   it('never imports from @/features/demo (bundle isolation — CRITICAL)', () => {
