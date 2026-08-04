@@ -11,6 +11,10 @@ import { join } from 'node:path'
 const root = process.cwd()
 const rootLayout = readFileSync(join(root, 'app', 'layout.tsx'), 'utf8')
 const defaultLayout = readFileSync(join(root, 'app', '(default)', 'layout.tsx'), 'utf8')
+// The tab strip moved OUT of the group layout (owner decision): it is feature
+// navigation, it duplicated the evidence manifest on the home page, and its wrapped
+// rows cost ~96px above the fold. It now mounts only for the /features subtree.
+const featuresLayout = readFileSync(join(root, 'app', '(default)', 'features', 'layout.tsx'), 'utf8')
 
 describe('marketing chrome scope (guards /demo)', () => {
   // All assertions anchor to the JSX form (`<Header`), not the bare word:
@@ -30,10 +34,15 @@ describe('marketing chrome scope (guards /demo)', () => {
 
   // UtilityStrip was removed from the chrome entirely (owner decision — seamless
   // background work): no assertions reference it anymore.
-  it('renders the chrome from the (default) group layout', () => {
+  it('renders the page-wide chrome from the (default) group layout', () => {
     expect(defaultLayout).toMatch(/<Header\b/)
-    expect(defaultLayout).toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
     expect(defaultLayout).toMatch(/<Footer\b/)
+  })
+
+  it('scopes the manifest tab strip to the /features subtree, not the whole group', () => {
+    expect(featuresLayout).toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
+    // Keeping it out of the group layout is what keeps it off home, privacy, and beta.
+    expect(defaultLayout).not.toMatch(/<(FeatureNav|ManifestTabStrip)\b/)
   })
 
   it('makes the (default) layout a server component with no AOS', () => {

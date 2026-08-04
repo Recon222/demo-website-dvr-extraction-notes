@@ -1,19 +1,16 @@
 import Header from "@/components/ui/header";
 import Footer from "@/components/ui/footer";
-import { ManifestTabStrip } from "@/components/ui/manifest-tab-strip";
-import { getAllFeatures } from "@/lib/content/features";
-
-// Minimal serialized props for the one client island in the chrome — never the
-// whole Feature objects (RSC boundary serializes everything it's handed).
-const tabItems = getAllFeatures().map(({ slug, navLabel }) => ({ slug, navLabel }));
 
 /**
- * Marketing group layout — owns ALL marketing chrome (header, manifest tab
- * strip, footer — the utility strip was removed in the seamless-background
- * pass) so that /demo, which lives outside this route group, renders none of
- * it. A server component by design: the tab strip's active-route highlight is
- * the only client island. (AOS was removed with the Case-File redesign — the
- * design reads fine static.)
+ * Marketing group layout — owns the page-wide marketing chrome (header, footer,
+ * ambient background) so that /demo, which lives outside this route group,
+ * renders none of it. A pure server component. (AOS was removed with the
+ * Case-File redesign — the design reads fine static.)
+ *
+ * The manifest tab strip used to mount here too. It now lives in
+ * app/(default)/features/layout.tsx: it is feature navigation, it duplicated the
+ * evidence manifest on the home page, and its wrapped rows cost ~96px above the
+ * fold. The utility strip was removed entirely in the seamless-background pass.
  */
 export default function DefaultLayout({
   children,
@@ -41,7 +38,6 @@ export default function DefaultLayout({
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[260px] w-[1100px] -translate-x-1/2 bg-[radial-gradient(550px_260px_at_50%_0%,rgba(43,140,193,0.16),transparent_70%)]"
       />
       <Header />
-      <ManifestTabStrip items={tabItems} />
       <main className="relative flex grow flex-col overflow-hidden">{children}</main>
       <Footer />
     </div>
