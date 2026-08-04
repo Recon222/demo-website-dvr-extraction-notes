@@ -138,7 +138,7 @@ components:
 **Creative North Star: "The Case File"**
 
 This is not a site *about* evidence work — it is filed like evidence work. The homepage's
-feature catalog is a **feature manifest**: a table with `NO. / ITEM / WHAT IT KILLS`
+feature catalog is a **feature manifest**: a table with `NO. / FEATURE / WHAT IT KILLS`
 columns, one numbered row per feature. Feature pages open on a gold item line reading
 `06 — TIME OFFSET`, caption their diagrams `FIG. 06-A`, and stamp unfinished copy `DRAFT`
 in gold. The recruitment panel is tabbed `EXHIBIT A — YOUR NEXT SCENE`. Numbering is never
@@ -224,10 +224,16 @@ whole system, spent deliberately.
 
 ### Named Rules
 
-**The Gold Scarcity Rule.** Gold marks the one thing to do next and the one flagship item —
-nothing else. At most one gold call-to-action is visible in a viewport. Its rarity against an
-entirely cold palette is the whole mechanism; spend it twice on a screen and it stops
+**The Gold Scarcity Rule.** Gold marks the one thing to *do*, and nothing else competes at
+that weight. At most one gold call-to-action is visible in a viewport. Its rarity against an
+entirely cold palette is the whole mechanism; spend it twice on a button and it stops
 meaning anything.
+
+The one sanctioned exception is the manifest's FEATURE column, where gold runs down all ten
+rows. It survives the rule on **weight, not colour**: those labels are 12.5px letterspaced
+Share Tech Mono, so their ink coverage is a fraction of a button's or a heading's. Gold at
+label weight is an accent; gold at heading weight is a claim. If a future use cannot say
+which of the two it is, it is the wrong use.
 
 **The Class Colour Rule.** Accents carry fixed meaning inherited from the manifest system:
 **gold = core / flagship**, **blue = field**, **cyan = trust / security**. Choose the accent
@@ -488,8 +494,13 @@ Two tiers, both in the marketing chrome:
 ### Signature Components
 
 **The Feature Manifest table.** The homepage's feature catalog rendered as a filed table —
-a `70px 230px 1fr 46px` grid with a `NO. / ITEM / WHAT IT KILLS` header row on
+a `70px 230px 1fr 46px` grid with a `NO. / FEATURE / WHAT IT KILLS` header row on
 `rgba(10,20,34,0.8)`, then one linked row per feature. Rows hover to `blue/7%`.
+
+The FEATURE cell carries the feature's **nav label in gold letterspaced Share Tech Mono**,
+never its page title — the title is a headline that should land for the first time on the
+feature page, and the nav label is what the visitor already knows the feature as from the
+tab strip. It is the table's only colour, and the reason the rows scan as an index.
 
 **Every row is identical.** The table previously singled out the flagship feature with a
 gold tint, gold number, gold arrow, brighter pain-line text, and a 3px inset gold left edge,

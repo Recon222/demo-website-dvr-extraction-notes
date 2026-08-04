@@ -29,9 +29,27 @@ describe('EvidenceManifest (Case-File)', () => {
     features.forEach((feature, index) => {
       expect(rows[index]).toHaveAttribute('href', `/features/${feature.slug}`)
       expect(rows[index]).toHaveTextContent(String(index + 1).padStart(2, '0'))
-      expect(rows[index]).toHaveTextContent(feature.title)
+      expect(rows[index]).toHaveTextContent(feature.navLabel.toUpperCase())
       expect(rows[index]).toHaveTextContent(feature.painLine)
     })
+  })
+
+  // The FEATURE column shows navLabel, not title: the nav label is what the visitor
+  // already knows the feature as, and the page title is a headline that should land
+  // for the first time ON the feature page rather than be spent in a table row.
+  it('lists the nav label in gold, never the page title', () => {
+    render(<EvidenceManifest features={features} />)
+    expect(screen.getByText('FEATURE')).toBeInTheDocument()
+    expect(screen.queryByText('ITEM')).not.toBeInTheDocument()
+
+    const label = screen.getByText('CASES & LOCATIONS')
+    expect(label).toHaveClass('text-gold')
+    expect(label).toHaveClass('font-stmono')
+
+    // No feature-page headline leaks into the table.
+    for (const feature of features) {
+      expect(screen.queryByText(feature.title), `title of "${feature.slug}"`).not.toBeInTheDocument()
+    }
   })
 
   // The CLASS column and its CORE/FIELD/TRUST/MARQUEE chips were removed (owner
@@ -50,8 +68,8 @@ describe('EvidenceManifest (Case-File)', () => {
   // there was nothing left to explain the difference, so the whole treatment went.
   it('renders every row identically, with no flagship treatment', () => {
     render(<EvidenceManifest features={features} />)
-    const exMarquee = screen.getByRole('link', { name: /The timestamp you can defend/ })
-    const ordinary = screen.getByRole('link', { name: /The case fills itself in/ })
+    const exMarquee = screen.getByRole('link', { name: /TIME OFFSET/ })
+    const ordinary = screen.getByRole('link', { name: /IMPORT REQUEST/ })
 
     // Both are mid-table rows, so identical classes is the whole assertion.
     expect(exMarquee.className).toBe(ordinary.className)
@@ -65,7 +83,7 @@ describe('EvidenceManifest (Case-File)', () => {
   it('marks the draft row by its italic pain line, not a floating pill', () => {
     render(<EvidenceManifest features={features} />)
     expect(screen.queryByText('DRAFT')).not.toBeInTheDocument()
-    const draftRow = screen.getByRole('link', { name: /wizard that walks the scene/ })
+    const draftRow = screen.getByRole('link', { name: /NOTES WIZARD/ })
     expect(within(draftRow).getByText(/Copy pending/)).toHaveClass('italic')
   })
 })

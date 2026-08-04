@@ -6,9 +6,15 @@ import { cn } from '@/lib/cn'
 const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26px]'
 
 /**
- * The evidence manifest: the feature catalog as a Case-File table
- * (NO. / ITEM / WHAT IT KILLS), one linked row per feature. Numbering derives
+ * The feature manifest: the feature catalog as a Case-File table
+ * (NO. / FEATURE / WHAT IT KILLS), one linked row per feature. Numbering derives
  * from array order.
+ *
+ * The FEATURE cell shows `navLabel`, NOT `title`. Two reasons: the nav label is what
+ * the visitor already knows the feature as (it's the tab-strip label), and the page
+ * title is a headline that should land for the first time ON the feature page, not be
+ * spent in a table row. It is also short enough to hold one line, which `title` was
+ * not at this column width.
  *
  * EVERY ROW IS IDENTICAL. The table used to single out the MARQUEE feature with a
  * gold tint, a gold number, a gold arrow, brighter pain-line text, and a 3px inset
@@ -48,7 +54,7 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
           )}
         >
           <div>NO.</div>
-          <div>ITEM</div>
+          <div>FEATURE</div>
           <div>WHAT IT KILLS</div>
           <div />
         </div>
@@ -69,8 +75,12 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
               <div className="font-jbmono text-[13px] text-cyan">
                 {String(index + 1).padStart(2, '0')}
               </div>
-              <div className="flex items-center gap-2 font-nacelle text-base font-semibold text-heading">
-                {feature.title}
+              {/* Share Tech Mono, not Nacelle: a short identifying name is a LABEL, not
+                  a heading (DESIGN.md, The Four Voices Rule). Gold at label weight and
+                  size keeps ink coverage low enough that ten of them read as an accent
+                  column rather than ten competing headlines. */}
+              <div className="font-stmono text-[12.5px] tracking-[1.5px] text-gold">
+                {feature.navLabel.toUpperCase()}
               </div>
               <div
                 className={cn(
