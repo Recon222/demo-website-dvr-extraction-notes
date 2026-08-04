@@ -18,7 +18,10 @@ import type { Feature } from './types'
  * See DESIGN.md §Typography.
  *
  * STATUS NOTES (per Kris):
- *  - `notes` (03) is DRAFT — hatched placeholder copy ships until Kris's copy lands.
+ *  - `notes` (03) still carries scaffolding copy, written with Kris last. The draft
+ *    machinery that used to flag it on-page (gold DRAFT banner, hatched blocks, a
+ *    prev/next chip) was removed once every page's copy was slated for a rewrite —
+ *    so nothing marks it now. It reads as finished copy until it is.
  *  - `reports` (08) copy is PROVISIONAL — finalized last (the `COPY PROVISIONAL` chip
  *    in the canvas is a review annotation and stays OFF production).
  *
@@ -114,9 +117,7 @@ export const features: readonly Feature[] = [
     priority: 'p0',
   },
   {
-    // DRAFT — Kris is writing the Notes copy. The design ships an honest draft state:
-    // gold banner + hatched placeholder blocks whose copy is the canvas's own
-    // scaffolding explainers (exempt from the placeholder guard via `draft`).
+    // Kris is writing the Notes copy. Everything below is scaffolding until it lands.
     slug: 'notes',
     navLabel: 'Notes Wizard',
     eyebrow: 'Notes wizard',
@@ -149,9 +150,6 @@ export const features: readonly Feature[] = [
       heading: 'Fields in, notes and report out',
       caption: "Caption pending. Lands with Kris's copy.",
     },
-    draft: true,
-    draftNote:
-      "Copy pending. The Notes screens hold the deepest domain knowledge in the app, so this page ships last, written with Kris. Layout, slots, and structure are final; the words below are scaffolding.",
     priority: 'p0',
   },
   {

@@ -103,12 +103,16 @@ describe('FeaturePage (Case-File)', () => {
     expect(screen.queryByText(/FIG\./)).not.toBeInTheDocument()
   })
 
-  it('renders the draft state for Notes: banner, hatched copy, and NO beta strip', () => {
+  // The draft machinery was removed: no gold DRAFT banner, no hatched blocks, no
+  // prev/next chip. Notes now renders exactly like any other feature page, scaffolding
+  // copy and all — this pins that, so the banner cannot creep back in.
+  it('renders Notes as an ordinary page, with no draft chrome', () => {
     renderFeature('notes')
-    expect(screen.getByText(/Copy pending\. The Notes screens hold/)).toBeInTheDocument()
-    expect(screen.getAllByText('DRAFT').length).toBeGreaterThan(0)
-    expect(screen.getByText(/HEADING \+ STORY LAND HERE: what the wizard asks/)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Join the TestFlight beta/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('DRAFT')).not.toBeInTheDocument()
+    expect(screen.queryByText(/The Notes screens hold the deepest domain/)).not.toBeInTheDocument()
+    // Its row copy renders as ordinary prose, not a hatched scaffolding block.
+    const body = screen.getByText(/HEADING \+ STORY LAND HERE: what the wizard asks/)
+    expect(body.className).not.toContain('border-dashed')
   })
 
   it('renders prev/next cards with the dashed edges at 01 and 10', () => {
@@ -121,10 +125,10 @@ describe('FeaturePage (Case-File)', () => {
     expect(screen.getByText(/PREV · 09 ENCRYPTED EXPORT/)).toBeInTheDocument()
   })
 
-  it('marks the draft neighbour with a DRAFT chip in its prev/next card', () => {
+  it('gives the Notes neighbour a plain prev/next card, with no DRAFT chip', () => {
     renderFeature('import')
     const nextCard = screen.getByRole('link', { name: /03 NOTES WIZARD/ })
-    expect(within(nextCard).getByText('DRAFT')).toBeInTheDocument()
+    expect(within(nextCard).queryByText('DRAFT')).not.toBeInTheDocument()
   })
 
   it('renders the per-page beta strip with its line and CTA', () => {
@@ -139,17 +143,17 @@ describe('FeaturePage (Case-File)', () => {
   // ── Forward-looking variant guards (M-E review M1–M3): the catalog can't reach
   //    these branches today, so local fixtures exercise them directly. ──
 
-  it('hatches a media-less row on a draft feature (no un-hatched scaffolding can ship)', () => {
+  it('renders a media-less row as the callout card on any feature', () => {
+    // This used to hatch when the feature was a draft; with that branch gone, every
+    // media-less row takes the callout shape regardless of which feature it sits on.
     const notes = getFeatureBySlug('notes')!
     const withCallout = {
       ...notes,
       rows: [...notes.rows, { kicker: '03 — PENDING', heading: 'Callout pending', body: 'CALLOUT SCAFFOLDING TEXT' }],
     }
     render(<FeaturePage feature={withCallout} index={indexOf('notes')} />)
-    // Rendered inside a hatched block, not the callout card (no icon tile / chips row).
-    const body = screen.getByText('CALLOUT SCAFFOLDING TEXT')
-    expect(body.className).toContain('border-dashed')
-    expect(screen.queryByText('Callout pending')).not.toBeInTheDocument()
+    expect(screen.getByText('Callout pending')).toBeInTheDocument()
+    expect(screen.getByText('CALLOUT SCAFFOLDING TEXT').className).not.toContain('border-dashed')
   })
 
   it('never renders a tip card on a trust-cards (centered) page, even if data adds one', () => {
@@ -159,11 +163,16 @@ describe('FeaturePage (Case-File)', () => {
     expect(screen.queryByText('A tip that has no home here.')).not.toBeInTheDocument()
   })
 
-  it('never renders a beta strip on a draft page, even if data sets a line', () => {
+  // Notes carries no betaStripLine today, so no strip renders on it — but that is now
+  // a gap in the data, not a rule in the component. Given a line, it recruits like any
+  // other page; the draft suppression that used to block it is gone.
+  it('renders the beta strip on Notes once its data carries a line', () => {
     const notes = getFeatureBySlug('notes')!
-    const withStrip = { ...notes, betaStripLine: 'Should never appear.' }
-    render(<FeaturePage feature={withStrip} index={indexOf('notes')} />)
-    expect(screen.queryByText('Should never appear.')).not.toBeInTheDocument()
+    render(<FeaturePage feature={notes} index={indexOf('notes')} />)
     expect(screen.queryByRole('link', { name: /Join the TestFlight beta/ })).not.toBeInTheDocument()
+
+    const withStrip = { ...notes, betaStripLine: 'Now it recruits.' }
+    render(<FeaturePage feature={withStrip} index={indexOf('notes')} />)
+    expect(screen.getByText('Now it recruits.')).toBeInTheDocument()
   })
 })

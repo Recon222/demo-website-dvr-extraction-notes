@@ -6,14 +6,6 @@ const CARD =
 const EDGE =
   'flex flex-col gap-2 rounded-[14px] border border-dashed border-[rgba(30,58,95,0.5)] bg-[rgba(8,16,28,0.35)] px-[26px] py-[22px]'
 
-function DraftChip() {
-  return (
-    <span className="rounded-lg border border-gold/40 bg-gold/[0.08] px-[7px] py-0.5 font-stmono text-[8.5px] tracking-[1.4px] text-gold">
-      DRAFT
-    </span>
-  )
-}
-
 /** Prev/next manifest navigation; dashed non-link cards at the manifest edges. */
 export function PrevNext({
   prev,
@@ -30,7 +22,6 @@ export function PrevNext({
         <Link href={`/features/${prev.slug}`} className={CARD}>
           <span className="flex items-center gap-2 font-stmono text-[10px] tracking-[2px] text-faint">
             ← PREV · {String(index).padStart(2, '0')} {prev.navLabel.toUpperCase()}
-            {prev.draft ? <DraftChip /> : null}
           </span>
           <span className="font-nacelle text-lg font-semibold text-tab-label">{prev.title}</span>
         </Link>
@@ -45,7 +36,6 @@ export function PrevNext({
         <Link href={`/features/${next.slug}`} className={`${CARD} md:text-right`}>
           <span className="flex items-center gap-2 font-stmono text-[10px] tracking-[2px] text-faint md:justify-end">
             NEXT · {String(index + 2).padStart(2, '0')} {next.navLabel.toUpperCase()}
-            {next.draft ? <DraftChip /> : null}
             <span aria-hidden="true">→</span>
           </span>
           <span className="font-nacelle text-lg font-semibold text-tab-label">{next.title}</span>

@@ -70,8 +70,7 @@ export interface Feature {
   painLine: string
   /**
    * Feature-page intro paragraph. `**bold**` marks the emphasized phrase
-   * (rendered heading-colored/600 per the design). On draft features this is the
-   * hatched-block explainer copy.
+   * (rendered heading-colored/600 per the design).
    */
   intro?: string
   /** The one tip card on the page (absent on Security & Privacy — trust cards instead). */
@@ -82,21 +81,11 @@ export interface Feature {
   layout?: 'trust-cards'
   /** Optional technical diagram + caption for the "under the hood" section. */
   diagram?: FeatureDiagram
-  /** Nacelle line for the gold per-page beta strip. Absent on drafts (no strip). */
+  /**
+   * Nacelle line for the gold per-page beta strip; no line means no strip. Every
+   * feature carries one except Notes, whose copy is still being written.
+   */
   betaStripLine?: string
   /** Build/priority tier. */
   priority: FeaturePriority
-  /**
-   * Marks unfinished/placeholder copy. A draft feature still renders and stays in the
-   * nav (so it isn't forgotten), but is exempt from the "no placeholder copy" content
-   * guard, shows the gold DRAFT banner, and renders its intro/row bodies as hatched
-   * placeholder blocks. Drop the flag when real copy lands.
-   *
-   * Modelled as an opt-in `true` (not `boolean`): a feature is either a draft
-   * (`draft: true`) or it isn't (field omitted). `draft: false` is not a meaningful
-   * state, so the type rejects it.
-   */
-  draft?: true
-  /** Copy for the gold DRAFT banner under the tab strip (draft features only). */
-  draftNote?: string
 }

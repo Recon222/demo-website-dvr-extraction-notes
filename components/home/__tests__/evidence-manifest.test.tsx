@@ -80,10 +80,15 @@ describe('EvidenceManifest (Case-File)', () => {
     expect(within(ordinary).getByText('02')).toHaveClass('text-cyan')
   })
 
-  it('marks the draft row by its italic pain line, not a floating pill', () => {
+  // Nothing marks a row as unfinished any more: the DRAFT pill and the italic muted
+  // pain line both went with the draft machinery, which existed to flag one feature's
+  // placeholder copy back when the others' copy was considered final.
+  it('marks no row as a draft', () => {
     render(<EvidenceManifest features={features} />)
     expect(screen.queryByText('DRAFT')).not.toBeInTheDocument()
-    const draftRow = screen.getByRole('link', { name: /NOTES WIZARD/ })
-    expect(within(draftRow).getByText(/Copy pending/)).toHaveClass('italic')
+    const notesRow = screen.getByRole('link', { name: /NOTES WIZARD/ })
+    const painLine = within(notesRow).getByText(/Copy pending/)
+    expect(painLine).not.toHaveClass('italic')
+    expect(painLine).toHaveClass('text-body-2')
   })
 })

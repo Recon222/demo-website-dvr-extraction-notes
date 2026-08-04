@@ -3,9 +3,6 @@ import { MarketingPhoneFrame } from '@/components/marketing/phone-frame'
 import type { FeatureRow } from '@/lib/content/types'
 import { cn } from '@/lib/cn'
 
-const HATCH =
-  'rounded-xl border border-dashed border-[rgba(93,122,154,0.5)] bg-[repeating-linear-gradient(45deg,rgba(153,186,221,0.03)_0_10px,transparent_10px_20px)] px-6 py-[22px] font-jbmono text-xs leading-[1.8] tracking-[1px] text-muted'
-
 function Chips({ chips }: { chips?: readonly string[] }) {
   if (!chips?.length) return null
   return (
@@ -27,34 +24,15 @@ const calloutIcon = (
 )
 
 /**
- * One feature-page content row. Three shapes, chosen by the data:
+ * One feature-page content row. Two shapes, chosen by the data:
  *  - media row: bracketed phone (0.62, REC label, AppDemo) ⇄ copy, alternating sides
  *  - media-less row: the wide horizontal callout card (Cases row 3)
- *  - draft row: kicker + hatched scaffolding copy beside the phone
+ *
+ * A third shape — hatched scaffolding copy for rows on a `draft` feature — was removed
+ * with the rest of the draft machinery (owner decision).
  */
-export function FeatureRowView({
-  row,
-  reversed,
-  draft,
-}: {
-  row: FeatureRow
-  reversed: boolean
-  draft?: boolean
-}) {
+export function FeatureRowView({ row, reversed }: { row: FeatureRow; reversed: boolean }) {
   if (!row.media) {
-    // Draft features hatch EVERY row shape — a media-less row on a draft would
-    // otherwise ship un-hatched scaffolding copy (drafts are exempt from the
-    // placeholder-copy guard, so nothing else catches it).
-    if (draft) {
-      return (
-        <div>
-          {row.kicker ? (
-            <div className="mb-[14px] font-stmono text-[11px] tracking-[2.4px] text-blue">{row.kicker}</div>
-          ) : null}
-          <div className={cn(HATCH, 'max-w-[560px]')}>{row.body}</div>
-        </div>
-      )
-    }
     return (
       <div className="flex items-center gap-10 rounded-2xl border border-[rgba(30,58,95,0.6)] bg-[linear-gradient(135deg,rgba(19,34,54,0.6),rgba(26,45,68,0.65))] px-9 py-[30px]">
         <div className="hidden h-[54px] w-[54px] flex-none items-center justify-center rounded-[14px] border border-blue/40 bg-blue/10 md:flex">
@@ -93,17 +71,11 @@ export function FeatureRowView({
         {row.kicker ? (
           <div className="mb-[14px] font-stmono text-[11px] tracking-[2.4px] text-blue">{row.kicker}</div>
         ) : null}
-        {draft ? (
-          <div className={cn(HATCH, 'max-w-[560px]')}>{row.body}</div>
-        ) : (
-          <>
-            <h2 className="mb-4 font-nacelle text-[32px] font-semibold tracking-[-0.6px] text-heading">
-              {row.heading}
-            </h2>
-            <p className="max-w-[520px] text-[15.5px] leading-[1.7] text-body">{row.body}</p>
-            <Chips chips={row.chips} />
-          </>
-        )}
+        <h2 className="mb-4 font-nacelle text-[32px] font-semibold tracking-[-0.6px] text-heading">
+          {row.heading}
+        </h2>
+        <p className="max-w-[520px] text-[15.5px] leading-[1.7] text-body">{row.body}</p>
+        <Chips chips={row.chips} />
       </div>
     </div>
   )

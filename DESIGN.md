@@ -140,8 +140,8 @@ components:
 This is not a site *about* evidence work — it is filed like evidence work. The homepage's
 feature catalog is a **feature manifest**: a table with `NO. / FEATURE / WHAT IT KILLS`
 columns, one numbered row per feature. Feature pages open on a gold item line reading
-`06 — TIME OFFSET`, caption their diagrams `FIG. 06-A`, and stamp unfinished copy `DRAFT`
-in gold. The recruitment panel is tabbed `EXHIBIT A — YOUR NEXT SCENE`. Numbering is never
+`06 — TIME OFFSET` and caption their diagrams `FIG. 06-A`. The recruitment panel is tabbed
+`EXHIBIT A — YOUR NEXT SCENE`. Numbering is never
 typed by hand; it derives from array position in the catalog, so the file renumbers itself
 when its contents change. A visitor who recovers footage for a living recognises the filing
 system before they read a word of the pitch — and that recognition *is* the credibility
@@ -185,7 +185,7 @@ whole system, spent deliberately.
 
 - **Evidence Gold** (`#ffd93d`): The one warm note. It marks the single next action (every
   CTA, gradient-filled `#ffe06a → #f5c62e` with near-black `#241d00` text), the active
-  manifest tab, the `EXHIBIT` / `INTAKE` / `DRAFT` tabs, the insight tip card, and the
+  manifest tab, the manifest's FEATURE column, the `EXHIBIT` / `INTAKE` tabs, the tip card, and the
   logo's centre dot. Against a page with no other warmth it reads as heat, which is exactly
   the point.
 
@@ -408,11 +408,12 @@ text on solid gold or cyan: `EXHIBIT A — YOUR NEXT SCENE`, `INTAKE FORM — 60
 `LINK ACTIVE`. The roadmap uses the same shape on the right edge for its `ROADMAP · NOT IN
 BETA` stamps.
 
-Two more textures carry state: **dashed borders** (`rgba(93,122,154,0.45)`) mark anything not
-yet real — roadmap cards, pending diagrams; and **45° hatching**
-(`repeating-linear-gradient(45deg, rgba(153,186,221,0.03) 0 10px, transparent 10px 20px)`)
-fills draft copy blocks, so scaffolding text is visually impossible to mistake for finished
-copy.
+One more texture carries state: **dashed borders** (`rgba(93,122,154,0.45)`) mark anything not
+yet real — roadmap cards, pending diagrams, the prev/next cards at the manifest's edges.
+
+A second, **45° hatching**, filled draft copy blocks so scaffolding could not be mistaken for
+finished copy. It was removed with the rest of the draft machinery and no longer appears
+anywhere; see The Honest Placeholder Rule below for what that costs.
 
 ### Named Rules
 
@@ -420,9 +421,16 @@ copy.
 value, an exhibit — gets the four cyan brackets and a label chip. Nothing else does. The
 brackets are a claim about what the content *is*, not decoration.
 
-**The Honest Placeholder Rule.** Unfinished content announces itself in the visual language:
-dashed border for *not built*, 45° hatching for *not written*, a gold `DRAFT` stamp for *not
-final*. Never let provisional content render as though it were finished.
+**The Honest Placeholder Rule.** Unfinished *structure* announces itself: a dashed border
+means *not built* — roadmap cards, a diagram that has not been produced, the edges of the
+manifest.
+
+Unfinished **copy** no longer does. The hatched blocks and the gold `DRAFT` stamp were
+removed (owner decision) once every page's copy was slated for a rewrite, which made a
+"this one is a draft" distinction meaningless. The live cost: the Notes feature page renders
+scaffolding as though it were finished prose, and nothing on screen says otherwise. That is
+a deliberate, temporary state — not a licence to ship placeholder copy quietly. If unfinished
+copy ever needs marking again, mark it; do not let this rule's absence become permission.
 
 ## Components
 
@@ -538,8 +546,9 @@ tuning lives in four custom properties (`--scan-duration`, `--scan-band-h`,
   uppercase letterspaced Share Tech Mono.
 - **Do** derive item, step, and figure numbers from array position.
 - **Do** give framed evidence the four cyan corner brackets and a label chip.
-- **Do** mark unfinished content honestly — dashed for not-built, hatched for not-written,
-  gold `DRAFT` for not-final.
+- **Do** mark unfinished structure honestly with a dashed border — a roadmap card, a
+  diagram not yet produced. (Unfinished *copy* is no longer marked; see The Honest
+  Placeholder Rule.)
 - **Do** keep body measures at 520–640px even though sections run full bleed.
 - **Do** gate new class-based animation behind the existing
   `@media (prefers-reduced-motion: reduce)` block in `app/css/style.css`.

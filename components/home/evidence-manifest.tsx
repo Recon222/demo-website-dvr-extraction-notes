@@ -25,8 +25,9 @@ const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26
  * The taxonomy is gone from the data model too: nothing rendered it once the
  * feature-page breadcrumb chip went, so `classLabel` was dropped from `Feature`.
  *
- * The draft item is marked by its italic muted pain line alone; the DRAFT pill that
- * used to float beside the title was removed with the same pass.
+ * Nothing marks a row as unfinished any more: the DRAFT pill and the italic muted pain
+ * line went with the rest of the draft machinery, which distinguished one feature's
+ * placeholder copy back when the others' copy was considered final.
  */
 export function EvidenceManifest({ features }: { features: readonly Feature[] }) {
   return (
@@ -82,14 +83,7 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
               <div className="font-stmono text-[12.5px] tracking-[1.5px] text-gold">
                 {feature.navLabel.toUpperCase()}
               </div>
-              <div
-                className={cn(
-                  'text-[13.5px] leading-normal',
-                  feature.draft ? 'italic text-muted' : 'text-body-2',
-                )}
-              >
-                {feature.painLine}
-              </div>
+              <div className="text-[13.5px] leading-normal text-body-2">{feature.painLine}</div>
               <div aria-hidden="true" className="text-right font-jbmono text-sm text-faint">
                 →
               </div>

@@ -13,9 +13,6 @@ import { BetaStrip } from '@/components/feature/beta-strip'
 
 const PAD = 'px-10 lg:px-20'
 
-const HATCH =
-  'rounded-[10px] border border-dashed border-[rgba(93,122,154,0.5)] bg-[repeating-linear-gradient(45deg,rgba(153,186,221,0.03)_0_10px,transparent_10px_20px)] px-[18px] py-4 font-jbmono text-[11.5px] leading-[1.7] tracking-[1px] text-muted'
-
 const trustIcons = {
   cyan: (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ecdc4" strokeWidth="2" aria-hidden="true">
@@ -120,9 +117,15 @@ export interface FeaturePageProps {
 }
 
 /**
- * The Case-File feature page: breadcrumb + class chip, (draft banner,) headline +
- * intro beside the tip card, content rows (phone rows / wide callout / trust cards
- * / draft hatching — chosen by the data), under-the-hood, prev/next, beta strip.
+ * The Case-File feature page: item line, headline + intro beside the tip card,
+ * content rows (phone rows / wide callout / trust cards — chosen by the data),
+ * under-the-hood, prev/next, beta strip.
+ *
+ * The draft machinery is gone (owner decision): a gold DRAFT banner, hatched
+ * scaffolding blocks, a DRAFT chip in prev/next, and a beta-strip suppression, all
+ * keyed off `Feature.draft`. It marked one feature's copy as placeholder — a
+ * distinction that stopped meaning anything once every page's copy was slated for a
+ * rewrite. See the catalog for the surviving guard against shipping placeholder copy.
  */
 export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
   const number = String(index + 1).padStart(2, '0')
@@ -145,17 +148,6 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
 
   return (
     <article className="relative">
-      {feature.draft && feature.draftNote ? (
-        <div className={cn(PAD, 'pt-7')}>
-          <div className="flex items-center gap-[14px] rounded-xl border border-gold/40 bg-gold/[0.07] px-5 py-[14px]">
-            <span className="rounded-lg bg-gold px-[11px] py-1 font-stmono text-[10px] font-bold tracking-[2px] text-[#241d00]">
-              DRAFT
-            </span>
-            <div className="text-[13.5px] leading-normal text-[#e7d9a6]">{feature.draftNote}</div>
-          </div>
-        </div>
-      ) : null}
-
       {/* feature header */}
       <div className={cn(PAD, 'pb-14 pt-16', !centered && 'flex flex-col items-start gap-16 lg:flex-row')}>
         <div className={cn('flex-1', centered && 'text-center')}>
@@ -169,18 +161,14 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
             {featureHeadline(feature)}
           </h1>
           {feature.intro ? (
-            feature.draft ? (
-              <div className={cn(HATCH, 'max-w-[560px]')}>{feature.intro}</div>
-            ) : (
-              <p
-                className={cn(
-                  'text-[17px] leading-[1.65] text-body',
-                  centered ? 'mx-auto max-w-[620px]' : 'max-w-[560px]',
-                )}
-              >
-                <BoldText text={feature.intro} />
-              </p>
-            )
+            <p
+              className={cn(
+                'text-[17px] leading-[1.65] text-body',
+                centered ? 'mx-auto max-w-[620px]' : 'max-w-[560px]',
+              )}
+            >
+              <BoldText text={feature.intro} />
+            </p>
           ) : null}
         </div>
         {/* Tip cards belong to the split-header layout only — a centered
@@ -198,12 +186,7 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
       ) : (
         <div className={cn(PAD, 'flex flex-col gap-16 pb-16 pt-10')}>
           {feature.rows.map((row, rowIndex) => (
-            <FeatureRowView
-              key={row.heading + rowIndex}
-              row={row}
-              reversed={rowIndex % 2 === 1}
-              draft={feature.draft}
-            />
+            <FeatureRowView key={row.heading + rowIndex} row={row} reversed={rowIndex % 2 === 1} />
           ))}
         </div>
       )}
@@ -212,9 +195,7 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
 
       <div className={cn(PAD, 'flex flex-col gap-11 border-t border-[rgba(30,58,95,0.45)] pb-16 pt-12')}>
         <PrevNext prev={prev} next={next} index={index} />
-        {/* Never recruit from a draft page — defense-in-depth over the catalog
-            guarantee that drafts carry no betaStripLine. */}
-        {!feature.draft && feature.betaStripLine ? <BetaStrip line={feature.betaStripLine} /> : null}
+        {feature.betaStripLine ? <BetaStrip line={feature.betaStripLine} /> : null}
       </div>
     </article>
   )

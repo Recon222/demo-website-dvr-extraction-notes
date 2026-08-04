@@ -51,11 +51,13 @@ describe('feature content model', () => {
     expect(new Set(labels).size).toBe(labels.length)
   })
 
-  it('keeps placeholder copy out of shipped (non-draft) features', () => {
-    // Unfinished features must carry `draft: true` rather than smuggling the literal
-    // word "placeholder" into user-facing copy. This guard fails the day a draft is
-    // un-flagged without its real copy, so the placeholder can't ship unnoticed.
-    for (const f of features.filter((feature) => !feature.draft)) {
+  it('keeps placeholder copy out of every feature', () => {
+    // Applies to the whole catalog now: the `draft` flag that used to exempt one
+    // feature is gone. NOTE this only catches the literal word "placeholder" — Notes
+    // still carries scaffolding phrased as real copy ("Copy pending.", "LANDS HERE"),
+    // which this guard deliberately does not fail on, or the suite would be red until
+    // that copy is rewritten. It is not marked on-page either; see the catalog header.
+    for (const f of features) {
       const copy = [
         f.eyebrow,
         f.title,
@@ -63,7 +65,7 @@ describe('feature content model', () => {
         ...f.rows.flatMap((row) => [row.heading, row.body]),
         f.diagram?.caption ?? '',
       ].join(' ')
-      expect(copy, `non-draft feature "${f.slug}" still contains placeholder copy`).not.toMatch(
+      expect(copy, `feature "${f.slug}" still contains placeholder copy`).not.toMatch(
         /placeholder/i,
       )
     }
@@ -124,22 +126,30 @@ describe('Case-File content fields', () => {
     }
   })
 
-  it('keeps Notes flagged draft with a draft banner note', () => {
-    const notes = getFeatureBySlug('notes')
-    expect(notes?.draft).toBe(true)
-    expect(notes?.draftNote?.length).toBeGreaterThan(0)
+  // The draft machinery (a `draft: true` flag plus a `draftNote` banner, hatched
+  // scaffolding blocks, and a prev/next chip) was removed from the data model: it
+  // marked one feature's copy as placeholder, which stopped meaning anything once
+  // every page's copy was slated for a rewrite.
+  it('carries no draft flag or draft note', () => {
+    for (const f of features) {
+      expect(f, `feature "${f.slug}"`).not.toHaveProperty('draft')
+      expect(f, `feature "${f.slug}"`).not.toHaveProperty('draftNote')
+    }
   })
 
-  it('gives every non-draft feature an intro paragraph', () => {
-    for (const f of features.filter((feature) => !feature.draft)) {
+  it('gives every feature an intro paragraph', () => {
+    for (const f of features) {
       expect(f.intro?.length, `feature "${f.slug}" intro`).toBeGreaterThan(0)
     }
   })
 
-  it('gives every non-draft feature a beta strip line (drafts have none)', () => {
+  // Notes is the one feature without a beta strip line — it never had one, because it
+  // used to be exempt as a draft. Now that nothing marks it, this is the only place
+  // the gap is recorded: when its copy lands, it needs a line like every other page.
+  it('gives every feature a beta strip line except Notes', () => {
     for (const f of features) {
-      if (f.draft) {
-        expect(f.betaStripLine, `draft "${f.slug}" must not have a beta strip`).toBeUndefined()
+      if (f.slug === 'notes') {
+        expect(f.betaStripLine, 'Notes still needs a beta strip line').toBeUndefined()
       } else {
         expect(f.betaStripLine?.length, `feature "${f.slug}" betaStripLine`).toBeGreaterThan(0)
       }
