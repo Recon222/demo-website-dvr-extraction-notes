@@ -1,0 +1,36 @@
+/* Nacelle — the brand display family. Hand-authored (not generated): these
+   woff2s already live in the repo at public/fonts/, mirroring the `localFont`
+   declaration in app/layout.tsx. Paths are relative to this file; the converter
+   parses them and copies the woff2s into the bundle's fonts/. */
+
+@font-face {
+  font-family: 'Nacelle';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../public/fonts/nacelle-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nacelle';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../public/fonts/nacelle-italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nacelle';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../public/fonts/nacelle-semibold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nacelle';
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../public/fonts/nacelle-semibolditalic.woff2') format('woff2');
+}

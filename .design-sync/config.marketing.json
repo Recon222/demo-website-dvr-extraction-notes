@@ -1,0 +1,44 @@
+{
+  "projectId": "a388b560-fcdf-42cd-a5d7-5df5cad10ae7",
+  "pkg": "open-pro-next",
+  "globalName": "CaseFile",
+  "shape": "package",
+
+  "buildCmd": "node .design-sync/compile-css.mjs",
+
+  "srcDir": "components",
+  "tsconfig": ".design-sync/tsconfig.sync.json",
+  "cssEntry": ".design-sync/.cache/case-file.css",
+
+  "extraEntries": [
+    "./.design-sync/shims/process-polyfill.ts",
+    "./.design-sync/shims/default-exports.tsx",
+    "next/navigation"
+  ],
+
+  "extraFonts": [".design-sync/fonts-google.css", ".design-sync/fonts-nacelle.css"],
+
+  "docsDir": "docs/features/case-file-redesign",
+  "guidelinesGlob": ["docs/features/case-file-redesign/01-*.md"],
+  "readmeHeader": ".design-sync/conventions-marketing.md",
+
+  "overrides": {
+    "FeaturePage": { "cardMode": "single", "viewport": "1000x1600" },
+    "BetaPageView": { "cardMode": "single", "viewport": "1000x1400" },
+    "ManifestTabStrip": { "cardMode": "column", "viewport": "1000x150" },
+    "Header": { "cardMode": "column", "viewport": "1000x150" },
+    "Footer": { "cardMode": "column", "viewport": "1000x360" },
+    "BetaStrip": { "cardMode": "column", "viewport": "1000x180" },
+    "Hero": { "cardMode": "single", "viewport": "1200x1100" },
+    "EvidenceManifest": { "cardMode": "single", "viewport": "1200x1300" },
+    "ChainOfWork": { "cardMode": "single", "viewport": "1200x820" },
+    "RoadmapTease": { "cardMode": "single", "viewport": "1100x820" },
+    "BetaCta": { "cardMode": "single", "viewport": "1100x820" },
+    "BetaNextSteps": { "cardMode": "single", "viewport": "1000x900" },
+    "BetaForm": { "cardMode": "single", "viewport": "900x900" },
+    "AppDemo": { "cardMode": "column", "viewport": "760x520" },
+    "MarketingPhoneFrame": { "cardMode": "column", "viewport": "760x820" },
+    "TipCard": { "cardMode": "column", "viewport": "1000x260" },
+    "FeatureRowView": { "cardMode": "column", "viewport": "1000x900" }
+  }
+}

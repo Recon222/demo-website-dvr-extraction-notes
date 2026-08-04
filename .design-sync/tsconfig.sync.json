@@ -1,0 +1,32 @@
+{
+  // cfg.tsconfig — the repo's tsconfig with the three changes design-sync needs.
+  // esbuild reads compilerOptions.paths from here so `@/…` and the Next shims
+  // both resolve in synth-entry mode. The root tsconfig.json is left untouched:
+  // it belongs to Next, and next/link must keep resolving to the real thing there.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // `extends` REPLACES paths rather than merging, so "@/*" must be restated.
+    // baseUrl is set explicitly to the repo root: the root config relies on
+    // paths being resolved relative to its own location, and inheriting that
+    // from a subdirectory would silently repoint every alias at .design-sync/.
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./*"],
+      "next/link": [".design-sync/shims/next-link.tsx"],
+      "next/navigation": [".design-sync/shims/next-navigation.tsx"],
+      // FeaturePage is a server component and probes the filesystem while
+      // rendering. Neither builtin exists in a browser, so esbuild fails to
+      // resolve them outright ([UNRESOLVED_IMPORT]). See the shims for why
+      // existsSync returning false is the honest answer here.
+      "node:fs": [".design-sync/shims/node-fs.ts"],
+      "node:path": [".design-sync/shims/node-path.ts"]
+    },
+    // The root config is "preserve" because Next's compiler consumes the JSX.
+    // Nothing downstream of esbuild does, so it must be transformed here or the
+    // bundle ships raw JSX. React 19 => automatic runtime, no React import needed.
+    "jsx": "react-jsx",
+    // The root config targets es5 for Next's own browser matrix. The design
+    // runtime is evergreen Chromium; es5 would down-level React 19 pointlessly.
+    "target": "es2020"
+  }
+}

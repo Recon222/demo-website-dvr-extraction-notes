@@ -1,0 +1,63 @@
+/* Hand-authored Case File fixups. NOT the whole stylesheet — compile-css.mjs
+ * APPENDS this file to the compiled Tailwind output to produce cfg.cssEntry at
+ * .design-sync/.cache/case-file.css. Edit this file; never edit the .cache output.
+ *
+ * Why appended rather than @imported: the converter copies cssEntry verbatim into
+ * _ds_bundle.css without resolving its @imports, so a wrapper that imports the
+ * compiled CSS ships as a dangling 2KB stub and every token silently vanishes
+ * from the design closure ([CSS_PLACEHOLDER]). Concatenation is the fix.
+ *
+ * ── 1. The font vars ──
+ * In the real app the four families come from next/font, which self-hosts them at
+ * build time and sets --font-* on <body>. The @theme block therefore declares
+ * them as pass-through placeholders, and they compile to:
+ *
+ *     @layer theme { :root { --font-inter: var(--font-inter), sans-serif; } }
+ *
+ * — self-referential. Outside Next nothing ever sets those vars, so each resolves
+ * to itself, is invalid at computed-value time, and every font-* utility silently
+ * falls back to sans-serif/monospace. The Case File look leans hard on Share Tech
+ * Mono, so that failure is not subtle, but it IS silent.
+ *
+ * Redeclaring them with real family names fixes the vars and, with them, every
+ * .font-inter/.font-nacelle/.font-stmono/.font-jbmono utility compiled into
+ * @layer utilities. This :root is deliberately UNLAYERED: unlayered declarations
+ * outrank any @layer, so it beats the @layer theme values without !important.
+ *
+ * The @font-face rules live in cfg.extraFonts (fonts-google.css, fonts-nacelle.css)
+ * so the converter copies the woff2s into fonts/ and rewrites their urls. */
+
+:root {
+  --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-nacelle: 'Nacelle', ui-sans-serif, system-ui, sans-serif;
+  --font-stmono: 'Share Tech Mono', ui-monospace, monospace;
+  --font-jbmono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── 2. The dark ground ──
+ * The marketing surface is dark by construction: app/(default)/layout.tsx puts
+ * bg-gray-950 + text-gray-200 on <body>, and every Case File component is drawn
+ * assuming that ground. A component like FeaturePage sets no background of its
+ * own — its headings are near-white (text-heading #f0f4f8), so on a white page
+ * they're invisible. Previews and rendered designs get no <body> class from this
+ * repo, so the ground has to come from here.
+ *
+ * The !important on <body> is deliberate: the preview-card template hardcodes an
+ * inline `body{background:#fff}` (it assumes a light-mode DS), and an inline style
+ * beats a linked one at equal specificity. Forcing the dark body is the honest
+ * default for a DS that has no light mode — it's exactly what the app's own
+ * layout does. Any design can still paint a lighter surface on an inner subtree. */
+html {
+  background-color: var(--color-ink-950);
+}
+body {
+  background-color: var(--color-ink-950) !important;
+  color: var(--color-body);
+  font-family: var(--font-inter);
+}
+/* Preview-card grid/single cells are transparent over that white body — paint
+   them dark too so each card composites on the real ground, not the template's. */
+.ds-cell,
+.ds-single {
+  background-color: var(--color-ink-950);
+}

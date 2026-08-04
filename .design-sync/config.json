@@ -1,0 +1,189 @@
+{
+  "projectId": "e89f59b7-5369-410f-a867-5196e61aebc4",
+  "pkg": "open-pro-next",
+  "globalName": "DVRDemoUI",
+  "shape": "package",
+  "tsconfig": "tsconfig.json",
+  "srcDir": "features/demo/ui",
+  "cssEntry": "features/demo/ui/demo.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": [
+    "features/demo/CLAUDE.md"
+  ],
+  "componentSrcMap": {
+    "TypewriterText": "features/demo/ui/primitives/TypewriterText.tsx",
+    "AddressAutocomplete": "features/demo/ui/inputs/AddressAutocomplete.tsx",
+    "Calendar": "features/demo/ui/inputs/Calendar.tsx",
+    "DateField": "features/demo/ui/inputs/DateField.tsx",
+    "DateTimeField": "features/demo/ui/inputs/DateTimeField.tsx",
+    "Dropdown": "features/demo/ui/inputs/Dropdown.tsx",
+    "PickerSheet": "features/demo/ui/inputs/PickerSheet.tsx",
+    "TimeField": "features/demo/ui/inputs/TimeField.tsx",
+    "TimeWheel": "features/demo/ui/inputs/TimeWheel.tsx",
+    "ExitDialog": "features/demo/ui/controls/ExitDialog.tsx",
+    "ExploreChecklist": "features/demo/ui/controls/ExploreChecklist.tsx",
+    "TabBar": "features/demo/ui/controls/TabBar.tsx",
+    "WizardDrawer": "features/demo/ui/controls/WizardDrawer.tsx",
+    "PdfPreview": "features/demo/ui/chrome/PdfPreview.tsx",
+    "ModalShell": "features/demo/ui/screens/_shared.tsx",
+    "SyncStatusCard": "features/demo/ui/screens/SyncStatusCard.tsx",
+    "ArrivalDepartureScreen": "features/demo/ui/screens/ArrivalDepartureScreen.tsx",
+    "CamerasScreen": "features/demo/ui/screens/CamerasScreen.tsx",
+    "CasesScreen": "features/demo/ui/screens/CasesScreen.tsx",
+    "CompletionScreen": "features/demo/ui/screens/CompletionScreen.tsx",
+    "DashboardScreen": "features/demo/ui/screens/DashboardScreen.tsx",
+    "DvrInfoScreen": "features/demo/ui/screens/DvrInfoScreen.tsx",
+    "ExportInfoScreen": "features/demo/ui/screens/ExportInfoScreen.tsx",
+    "ExtractedScopeScreen": "features/demo/ui/screens/ExtractedScopeScreen.tsx",
+    "NotesScreen": "features/demo/ui/screens/NotesScreen.tsx",
+    "OcrCaptureScreen": "features/demo/ui/screens/OcrCaptureScreen.tsx",
+    "RequestedScopeScreen": "features/demo/ui/screens/RequestedScopeScreen.tsx",
+    "SplashScreen": "features/demo/ui/screens/SplashScreen.tsx",
+    "SubmissionScreen": "features/demo/ui/screens/SubmissionScreen.tsx",
+    "TimeOffsetScreen": "features/demo/ui/screens/TimeOffsetScreen.tsx",
+    "ImportModal": "features/demo/ui/screens/ImportModal.tsx",
+    "NewCaseModal": "features/demo/ui/screens/NewCaseModal.tsx",
+    "NewLocationModal": "features/demo/ui/screens/NewLocationModal.tsx",
+    "DemoExperience": null,
+    "PhoneOverlayContext": null,
+    "MapCanvas": null,
+    "MapScreen": null
+  },
+  "dtsPropsFor": {
+    "AddressAutocomplete": "label: string; onChange: (value: string) => void; onPick: (parts: { streetAddress: string; city: string; coordinates?: { lng: number; lat: number } }) => void; placeholder?: string; value: string",
+    "ArrivalDepartureScreen": "onAdd: () => void; onBack: () => void; onChange: (index: number, patch: { id?: string; arrival?: string; departure?: string }) => void; onMenu: () => void; onNext: () => void; onRemove: (index: number) => void; visits: { id: string; arrival: string; departure: string }[]",
+    "Calendar": "onNextMonth: () => void; onPrevMonth: () => void; onSelectDay: (day: number) => void; selected: null | { y: number; mo: number; d: number }; today: { y: number; mo: number; d: number }; viewMonth: number; viewYear: number",
+    "CamerasScreen": "cameras: { id: string; cameraName: string; resolution: string; recordingFps: string; gps?: { lat: number; lng: number; accuracyM: number } }[]; onAdd: () => void; onBack: () => void; onChange: (index: number, patch: { id?: string; cameraName?: string; resolution?: string; recordingFps?: string; gps?: { lat: number; lng: number; accuracyM: number } }) => void; onMenu: () => void; onNext: () => void; onRemove: (index: number) => void",
+    "CasesScreen": "cases: { id: string; caseNumber: string; displayName: string; status: { label: string; color: string; bg: string; border: string }; personnel: { role: string; name: string; badge?: string }[]; createdLabel: string; locations: { id: string; locationName: string; address: string; status: { label: string; color: string; bg: string; border: string } }[]; locationCountLabel: string }[]; expandedId: null | string; onAddLocation: (caseId: string) => void; onImport: (caseId: string) => void; onNewCase: () => void; onOpenLocation: (locationId: string) => void; onToggle: (caseId: string) => void",
+    "CompletionScreen": "completedBy: string; dateTimeCompleted: string; isComplete: boolean; onBack: () => void; onBackToCases: () => void; onBackToDashboard: () => void; onChange: (field: 'dateTimeCompleted' | 'completedBy', value: string) => void; onComplete: () => void; onMenu: () => void; onPreviewPdf: () => void; onPreviewTimeOffsetPdf: () => void; summary: { occNumber: string; location: string; dvr: string; offset: null | string; scopes: number; cameras: number; export: string }",
+    "DashboardScreen": "cases: { id: string; caseNumber: string; displayName: string; status: { label: string; color: string; bg: string; border: string }; personnel: { role: string; name: string; badge?: string }[]; createdLabel: string; locations: { id: string; locationName: string; address: string; status: { label: string; color: string; bg: string; border: string } }[]; locationCountLabel: string }[]; onOpenLocation: (locationId: string) => void",
+    "DateField": "onChange: (value: string) => void; value: string",
+    "DateTimeField": "label: string; onChange: (value: string) => void; value: string",
+    "Dropdown": "label?: string; onChange: (value: string) => void; options: string[]; placeholder?: string; value: string",
+    "DvrInfoScreen": "dvr: { dvrLocation: string; dvrTypeBrand: string; serialModelNumber: string; dvrUsername: string; dvrPassword: string; numberOfChannels: string; activeCameras: string; recordingSchedule: string; resolution: string; recordingFps: string; firstRecordedDate: string; totalDvrRetention: string }; onBack: () => void; onChange: (field: 'resolution' | 'recordingFps' | 'dvrLocation' | 'dvrTypeBrand' | 'serialModelNumber' | 'dvrUsername' | 'dvrPassword' | 'numberOfChannels' | 'activeCameras' | 'recordingSchedule' | 'firstRecordedDate' | 'totalDvrRetention', value: string) => void; onMenu: () => void; onNext: () => void; retention: { totalRetention: null; scopes: [] } | { totalRetention: number; scopes: { label: string; daysUntilOverwritten: number; overwrittenDate: string }[] }",
+    "ExitDialog": "leaveHref: string; onStay: () => void; open: boolean; unseen: { number: string; label: string }[]",
+    "ExploreChecklist": "activeDetail?: React.ReactNode; items: { id: string; number: string; label: string; visited: boolean; active: boolean; jumpTo: 'splash' | 'dashboard' | 'cases' | 'submission' | 'requestedScope' | 'arrivalDeparture' | 'timeOffset' | 'extractedScope' | 'dvrInfo' | 'cameras' | 'exportInfo' | 'notes' | 'completion' | 'ocr' | 'mediaCapture' | 'audioRecording' | 'map' }[]; onJump: (view: 'splash' | 'dashboard' | 'cases' | 'submission' | 'requestedScope' | 'arrivalDeparture' | 'timeOffset' | 'extractedScope' | 'dvrInfo' | 'cameras' | 'exportInfo' | 'notes' | 'completion' | 'ocr' | 'mediaCapture' | 'audioRecording' | 'map') => void",
+    "ExportInfoScreen": "data: { exportMedia: string; fileType: string; sizeGb: string; mediaPlayerIncluded: boolean; mediaProvidedVia: string }; onBack: () => void; onChange: (field: 'exportMedia' | 'fileType' | 'sizeGb' | 'mediaProvidedVia', value: string) => void; onMenu: () => void; onNext: () => void; onToggleMediaPlayer: () => void",
+    "ExtractedScopeScreen": "onBack: () => void; onChange: (index: number, patch: { id?: string; startDateTime?: string; endDateTime?: string; isActualTime?: boolean; cameras?: string }) => void; onMenu: () => void; onNext: () => void; onRegenerate: () => void; onRemove: (index: number) => void; scopes: { id: string; startDateTime: string; endDateTime: string; isActualTime: boolean; cameras: string }[]",
+    "ImportModal": "batch: null | { current: number; total: number }; onBack: () => void; onCancel: () => void; onChoosePaste: () => void; onOpenLocation: (locId: null | string) => void; onPickPdf: () => void; onRetry: () => void; onRun: () => void; onTextChange: (value: string) => void; result: null | { ok: boolean; locations: { locId: null | string; title: string; caseNumber: string; fieldCount: number; timeFrameCount: number; sections: { heading: string; rows: { label: unknown; value: unknown }[] }[]; scopes: { label: string; range: string; isActualTime: boolean; cameras: string }[]; warnings: { field: string; reason: string }[]; isSample: boolean }[]; failures: { filename: string; error: string }[]; notice?: string } | { ok: boolean; error: string; failures?: { filename: string; error: string }[] }; stage: 'picker' | 'paste' | 'progress' | 'result'; stages: { label: string; state: 'done' | 'active' | 'pending' }[]; text: string",
+    "ModalShell": "children: React.ReactNode; onClose: () => void; title: string",
+    "NewCaseModal": "form: { caseNumber: string; displayName: string; unit: string; oicName: string; oicBadge: string; vcName: string; vcBadge: string; incidentBusinessName: string; incidentStreetAddress: string; incidentCity: string; incidentLatitude: string; incidentLongitude: string; incidentCoordinateSource: string; notes: string }; onCancel: () => void; onChange: (field: 'notes' | 'caseNumber' | 'displayName' | 'unit' | 'oicName' | 'oicBadge' | 'vcName' | 'vcBadge' | 'incidentBusinessName' | 'incidentStreetAddress' | 'incidentCity' | 'incidentLatitude' | 'incidentLongitude' | 'incidentCoordinateSource', value: string) => void; onSubmit: () => void",
+    "NewLocationModal": "form: { locationName: string; businessName: string; streetAddress: string; city: string; locationContact: string; locationPhone: string; coordinates?: { lat: number; lng: number } }; onCancel: () => void; onCaptureGps: () => void; onChange: (field: 'locationName' | 'businessName' | 'streetAddress' | 'city' | 'locationContact' | 'locationPhone' | 'coordinates', value: string) => void; onPickCoords: (coords: { lat: number; lng: number }) => void; onSubmit: () => void",
+    "NotesScreen": "notes: string; onBack: () => void; onChange: (value: string) => void; onMenu: () => void; onNext: () => void; onRegenerate: () => void",
+    "OcrCaptureScreen": "onCancel: () => void; onCapture: () => void; onConfirm: () => void; onRetake: () => void; onUseSample: () => void; result: null | { ok: boolean; dvrTime: string; confidence: { label: string; color: string }; actual: string } | { ok: boolean; rawText: string }",
+    "PdfPreview": "html: string; onClose: () => void; onSave: () => void; title: string",
+    "PickerSheet": "children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; title: string",
+    "RequestedScopeScreen": "onAdd: () => void; onBack: () => void; onChange: (index: number, patch: { id?: string; startDateTime?: string; endDateTime?: string; isActualTime?: boolean; cameras?: string }) => void; onMenu: () => void; onNext: () => void; onRemove: (index: number) => void; scopes: { id: string; startDateTime: string; endDateTime: string; isActualTime: boolean; cameras: string }[]",
+    "SplashScreen": "authState: 'idle' | 'scanning' | 'authorized'; onScan: () => void",
+    "SubmissionScreen": "fields: { requesterName: string; requesterBadge: string; requesterUnit: string; requesterPhone: string; requesterEmail: string; businessName: string; streetAddress: string; city: string; locationContact: string; locationPhone: string }; occNumber: string; onBack: () => void; onChange: (field: 'businessName' | 'streetAddress' | 'city' | 'locationContact' | 'locationPhone' | 'requesterName' | 'requesterBadge' | 'requesterUnit' | 'requesterPhone' | 'requesterEmail', value: string) => void; onMenu: () => void; onNext: () => void; onPickCoords: (coords: { lat: number; lng: number }) => void",
+    "SyncStatusCard": "sync: null | { method: 'NTP' | 'HTTP'; server: string; offsetMs: number; uncertaintyMs: number; rttMs?: number; traceability?: string; timestamp?: number; stratum?: number }; syncing: boolean",
+    "TabBar": "active: 'dashboard' | 'cases' | 'map'; onSelect: (tab: 'dashboard' | 'cases' | 'map') => void",
+    "TimeField": "onChange: (value: string) => void; value: string",
+    "TimeOffsetScreen": "actualDateTime: string; correctedScopes: { id: string; reqLabel: string; reqStart: string; reqEnd: string; adjStart: string; adjEnd: string; cameras: string }[]; dvrAppliesDST: boolean; dvrDateTime: string; onBack: () => void; onCalculate: () => void; onCaptureOcr: () => void; onChangeActual: (value: string) => void; onChangeDvr: (value: string) => void; onMenu: () => void; onNext: () => void; onToggleDst: () => void; onUseCurrentTime: () => void; result: null | { diff: string; direction: string; isCorrect: boolean }; sync: null | { method: 'NTP' | 'HTTP'; server: string; offsetMs: number; uncertaintyMs: number; rttMs?: number; traceability?: string; timestamp?: number; stratum?: number }; syncing: boolean",
+    "TimeWheel": "onChange: (next: { h: number; mi: number; s: number }) => void; value: { h: number; mi: number; s: number }",
+    "TypewriterText": "active?: boolean; className?: string; perCharMs?: number; style?: React.CSSProperties; text: string",
+    "WizardDrawer": "items: { id: 'submission' | 'requestedScope' | 'arrivalDeparture' | 'timeOffset' | 'extractedScope' | 'dvrInfo' | 'cameras' | 'exportInfo' | 'notes' | 'completion'; label: string; icon?: React.ReactNode; active: boolean; status?: 'complete' | 'partial' }[]; onBackToCases: () => void; onClose: () => void; onNavigate: (id: 'submission' | 'requestedScope' | 'arrivalDeparture' | 'timeOffset' | 'extractedScope' | 'dvrInfo' | 'cameras' | 'exportInfo' | 'notes' | 'completion') => void; open: boolean"
+  },
+  "overrides": {
+    "Dropdown": {
+      "cardMode": "column"
+    },
+    "SplashScreen": {
+      "cardMode": "column"
+    },
+    "SubmissionScreen": {
+      "cardMode": "column"
+    },
+    "WizardDrawer": {
+      "cardMode": "column"
+    },
+    "TypewriterText": {
+      "cardMode": "column"
+    },
+    "AddressAutocomplete": {
+      "cardMode": "column"
+    },
+    "Calendar": {
+      "cardMode": "column"
+    },
+    "DateField": {
+      "cardMode": "column"
+    },
+    "DateTimeField": {
+      "cardMode": "column"
+    },
+    "PickerSheet": {
+      "cardMode": "column"
+    },
+    "TimeField": {
+      "cardMode": "column"
+    },
+    "TimeWheel": {
+      "cardMode": "column"
+    },
+    "ExitDialog": {
+      "cardMode": "single",
+      "primaryStory": "ManyUnseen"
+    },
+    "ExploreChecklist": {
+      "cardMode": "column"
+    },
+    "TabBar": {
+      "cardMode": "column"
+    },
+    "PdfPreview": {
+      "cardMode": "column"
+    },
+    "ModalShell": {
+      "cardMode": "column"
+    },
+    "SyncStatusCard": {
+      "cardMode": "column"
+    },
+    "ArrivalDepartureScreen": {
+      "cardMode": "column"
+    },
+    "CamerasScreen": {
+      "cardMode": "column"
+    },
+    "CasesScreen": {
+      "cardMode": "column"
+    },
+    "CompletionScreen": {
+      "cardMode": "column"
+    },
+    "DashboardScreen": {
+      "cardMode": "column"
+    },
+    "DvrInfoScreen": {
+      "cardMode": "column"
+    },
+    "ExportInfoScreen": {
+      "cardMode": "column"
+    },
+    "ExtractedScopeScreen": {
+      "cardMode": "column"
+    },
+    "NotesScreen": {
+      "cardMode": "column"
+    },
+    "OcrCaptureScreen": {
+      "cardMode": "column"
+    },
+    "RequestedScopeScreen": {
+      "cardMode": "column"
+    },
+    "TimeOffsetScreen": {
+      "cardMode": "column"
+    },
+    "ImportModal": {
+      "cardMode": "column"
+    },
+    "NewCaseModal": {
+      "cardMode": "column"
+    },
+    "NewLocationModal": {
+      "cardMode": "column"
+    }
+  }
+}
