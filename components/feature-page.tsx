@@ -1,8 +1,7 @@
-import Link from 'next/link'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Feature, FeatureClass, FeatureRow } from '@/lib/content/types'
+import type { Feature, FeatureRow } from '@/lib/content/types'
 import { featureHeadline } from '@/lib/content/features'
 import { toPublicUrl } from '@/lib/to-public-url'
 import { cn } from '@/lib/cn'
@@ -16,14 +15,6 @@ const PAD = 'px-10 lg:px-20'
 
 const HATCH =
   'rounded-[10px] border border-dashed border-[rgba(93,122,154,0.5)] bg-[repeating-linear-gradient(45deg,rgba(153,186,221,0.03)_0_10px,transparent_10px_20px)] px-[18px] py-4 font-jbmono text-[11.5px] leading-[1.7] tracking-[1px] text-muted'
-
-// Breadcrumb class chips (no dot — the dotted variants live in the manifest table).
-const CLASS_CHIP: Record<FeatureClass, string> = {
-  CORE: 'border-gold/40 bg-gold/[0.08] text-gold',
-  MARQUEE: 'border-gold/40 bg-gold/[0.08] text-gold',
-  FIELD: 'border-blue/40 bg-blue/10 text-[#6fb1d8]',
-  TRUST: 'border-cyan/35 bg-cyan/[0.08] text-cyan',
-}
 
 const trustIcons = {
   cyan: (
@@ -137,28 +128,18 @@ export function FeaturePage({ feature, index, prev, next }: FeaturePageProps) {
   const number = String(index + 1).padStart(2, '0')
   const centered = feature.layout === 'trust-cards' // Security (10): centered header, no tip
 
+  // The item line, and nothing else (owner decision). It used to open with a MANIFEST
+  // link and a `/` separator and close with a CLASS chip; the taxonomy meant nothing to
+  // a visitor, and the crumb trail was one word of chrome in front of the only part
+  // that identified the page. Back-navigation lives in the header nav and PrevNext.
   const breadcrumb = (
     <div
       className={cn(
-        'mb-5 flex items-center gap-[10px] font-stmono text-[11px] tracking-[2px] text-faint',
+        'mb-5 flex items-center font-stmono text-[11px] tracking-[2px] text-gold',
         centered && 'justify-center',
       )}
     >
-      <Link href="/#features" className="transition-colors hover:text-carolina">
-        MANIFEST
-      </Link>
-      <span>/</span>
-      <span className="text-gold">
-        ITEM {number} — {feature.navLabel.toUpperCase()}
-      </span>
-      <span
-        className={cn(
-          'rounded-[10px] border px-[9px] py-[3px] font-stmono text-[9px] tracking-[1.6px]',
-          CLASS_CHIP[feature.classLabel],
-        )}
-      >
-        {feature.classLabel}
-      </span>
+      {number} — {feature.navLabel.toUpperCase()}
     </div>
   )
 

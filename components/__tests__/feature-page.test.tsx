@@ -28,11 +28,16 @@ function renderFeature(slug: string) {
 }
 
 describe('FeaturePage (Case-File)', () => {
-  it('renders the breadcrumb with the manifest link, gold item label, and class chip', () => {
+  // The breadcrumb is now the item line alone: no MANIFEST crumb, no `/`, no CLASS chip.
+  it('renders the breadcrumb as the gold item line only', () => {
     renderFeature('time-calibration')
-    expect(screen.getByRole('link', { name: 'MANIFEST' })).toHaveAttribute('href', '/#features')
-    expect(screen.getByText('ITEM 06 — TIME OFFSET')).toBeInTheDocument()
-    expect(screen.getByText('MARQUEE')).toBeInTheDocument()
+    expect(screen.getByText('06 — TIME OFFSET')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'MANIFEST' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/^ITEM /)).not.toBeInTheDocument()
+    // The class taxonomy no longer renders anywhere in the UI.
+    for (const label of ['MARQUEE', 'CORE', 'FIELD', 'TRUST']) {
+      expect(screen.queryByText(label), `${label} chip should be gone`).not.toBeInTheDocument()
+    }
   })
 
   it('renders the display headline as the H1 (featureHeadline contract)', () => {
