@@ -22,7 +22,7 @@ describe('Hero (Case-File)', () => {
   it('renders the bench-credential eyebrow chip', () => {
     render(<Hero />)
     expect(
-      screen.getByText('BUILT ON THE BENCH — 15 YEARS · 1,500+ EXTRACTIONS'),
+      screen.getByText('BUILT ON EXPERIENCE — 15 YEARS · 1,500+ EXTRACTIONS'),
     ).toBeInTheDocument()
   })
 
