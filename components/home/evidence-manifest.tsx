@@ -10,14 +10,14 @@ const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26
  * (NO. / ITEM / WHAT IT KILLS), one linked row per feature. Numbering derives
  * from array order.
  *
- * REMOVED (owner decision): the CLASS column and its CORE/FIELD/TRUST/MARQUEE
- * chips — the taxonomy was never legible to a visitor and cost a fifth of the
- * table's width to explain nothing. `classLabel` still drives the feature page's
- * breadcrumb chip, so the field stays in the catalog.
+ * EVERY ROW IS IDENTICAL. The table used to single out the MARQUEE feature with a
+ * gold tint, a gold number, a gold arrow, brighter pain-line text, and a 3px inset
+ * gold left edge. All of it is gone (owner decision): once the CLASS column was
+ * removed there was nothing left to explain why one row looked different, so the
+ * highlight read as decoration rather than meaning.
  *
- * The marquee row keeps its gold tint, gold number, and gold arrow; its 3px inset
- * gold left edge was dropped (a coloured bar down one edge of a row is the side-tab
- * cliché — the tint carries the same signal without it).
+ * `classLabel` still drives the feature page's breadcrumb chip, so the field stays
+ * in the catalog — the table just stopped rendering anything from it.
  *
  * The draft item is marked by its italic muted pain line alone; the DRAFT pill that
  * used to float beside the title was removed with the same pass.
@@ -54,22 +54,19 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
         </div>
 
         {features.map((feature, index) => {
-          const isMarquee = feature.classLabel === 'MARQUEE'
           const isLast = index === features.length - 1
           return (
             <Link
               key={feature.slug}
               href={`/features/${feature.slug}`}
-              data-marquee={isMarquee ? 'true' : undefined}
               className={cn(
                 ROW_GRID,
                 'py-[17px] transition-colors hover:bg-blue/[0.07]',
                 !isLast && 'border-b border-row-divider',
-                isMarquee && 'bg-gold/[0.04]',
               )}
               style={{ contentVisibility: 'auto' }}
             >
-              <div className={cn('font-jbmono text-[13px]', isMarquee ? 'text-gold' : 'text-cyan')}>
+              <div className="font-jbmono text-[13px] text-cyan">
                 {String(index + 1).padStart(2, '0')}
               </div>
               <div className="flex items-center gap-2 font-nacelle text-base font-semibold text-heading">
@@ -78,15 +75,12 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
               <div
                 className={cn(
                   'text-[13.5px] leading-normal',
-                  feature.draft ? 'italic text-muted' : isMarquee ? 'text-[#cdd9e6]' : 'text-body-2',
+                  feature.draft ? 'italic text-muted' : 'text-body-2',
                 )}
               >
                 {feature.painLine}
               </div>
-              <div
-                aria-hidden="true"
-                className={cn('text-right font-jbmono text-sm', isMarquee ? 'text-gold' : 'text-faint')}
-              >
+              <div aria-hidden="true" className="text-right font-jbmono text-sm text-faint">
                 →
               </div>
             </Link>

@@ -45,19 +45,21 @@ describe('EvidenceManifest (Case-File)', () => {
     }
   })
 
-  it('flags the marquee row by tint and gold number, with no side-tab edge', () => {
+  // The MARQUEE feature used to be singled out with a gold tint, gold number, gold
+  // arrow, brighter pain line, and an inset gold left edge. With the CLASS column gone
+  // there was nothing left to explain the difference, so the whole treatment went.
+  it('renders every row identically, with no flagship treatment', () => {
     render(<EvidenceManifest features={features} />)
-    const marqueeRow = screen.getByRole('link', { name: /The timestamp you can defend/ })
-    expect(marqueeRow).toHaveAttribute('data-marquee', 'true')
-    expect(marqueeRow).toHaveClass('bg-gold/[0.04]')
-    expect(within(marqueeRow).getByText('06')).toHaveClass('text-gold')
-    // The 3px inset gold left edge was dropped — a coloured bar down one edge of a
-    // row is the side-tab cliché, and the tint already carries the signal.
-    expect(marqueeRow.className).not.toContain('inset_3px')
-    // …and a non-marquee row has none of the gold treatment.
-    const normalRow = screen.getByRole('link', { name: /The case fills itself in/ })
-    expect(normalRow).not.toHaveClass('bg-gold/[0.04]')
-    expect(within(normalRow).getByText('02')).toHaveClass('text-cyan')
+    const exMarquee = screen.getByRole('link', { name: /The timestamp you can defend/ })
+    const ordinary = screen.getByRole('link', { name: /The case fills itself in/ })
+
+    // Both are mid-table rows, so identical classes is the whole assertion.
+    expect(exMarquee.className).toBe(ordinary.className)
+    expect(exMarquee).not.toHaveAttribute('data-marquee')
+    expect(exMarquee.className).not.toContain('gold')
+    expect(exMarquee.className).not.toContain('inset_3px')
+    expect(within(exMarquee).getByText('06')).toHaveClass('text-cyan')
+    expect(within(ordinary).getByText('02')).toHaveClass('text-cyan')
   })
 
   it('marks the draft row by its italic pain line, not a floating pill', () => {
