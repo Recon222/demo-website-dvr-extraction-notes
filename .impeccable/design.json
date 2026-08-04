@@ -1,0 +1,385 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-04T00:00:00Z",
+  "title": "Design System: Case File",
+  "extensions": {
+    "colorMeta": {
+      "gold": {
+        "role": "primary",
+        "displayName": "Evidence Gold",
+        "canonical": "#ffd93d",
+        "tonalRamp": ["#2b2200", "#4d3d00", "#7a6200", "#a88700", "#d6ad10", "#ffd93d", "#ffe786", "#fff4c9"]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "Instrument Cyan",
+        "canonical": "#4ecdc4",
+        "tonalRamp": ["#0a1f1d", "#12403c", "#1c625c", "#26847c", "#35a89e", "#4ecdc4", "#8adfd9", "#c6efec"]
+      },
+      "blue": {
+        "role": "secondary",
+        "displayName": "Field Blue",
+        "canonical": "#2b8cc1",
+        "tonalRamp": ["#07161f", "#0d2b3c", "#144159", "#1b5877", "#227095", "#2b8cc1", "#6fb1d8", "#b3d5ea"]
+      },
+      "carolina": {
+        "role": "tertiary",
+        "displayName": "Carolina",
+        "canonical": "#99badd",
+        "tonalRamp": ["#101a26", "#1f3349", "#2e4c6d", "#3e6690", "#5d84ad", "#99badd", "#c0d3e9", "#e3ecf6"]
+      },
+      "ink-950": {
+        "role": "neutral",
+        "displayName": "Deep Ink",
+        "canonical": "#03060b",
+        "tonalRamp": ["#000000", "#03060b", "#080e17", "#101a26", "#1a2a3a", "#283d52", "#3d566f", "#5a7390"]
+      },
+      "ink-900": {
+        "role": "neutral",
+        "displayName": "Ink Ground",
+        "canonical": "#04070d",
+        "tonalRamp": ["#000000", "#04070d", "#0a1018", "#121c28", "#1c2a3a", "#2a3d52", "#40566f", "#5d7590"]
+      },
+      "panel-800": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "rgba(8, 16, 28, 0.55)",
+        "tonalRamp": ["#03060b", "#04070d", "#08101c", "#0d1826", "#132236", "#1a2d44", "#27415f", "#37587c"]
+      },
+      "chip": {
+        "role": "neutral",
+        "displayName": "Chip Slate",
+        "canonical": "#1a2d44",
+        "tonalRamp": ["#060b11", "#0d1722", "#131f30", "#1a2d44", "#27415f", "#37587c", "#4c739a", "#6b90b6"]
+      },
+      "heading": {
+        "role": "neutral",
+        "displayName": "Heading White",
+        "canonical": "#f0f4f8",
+        "tonalRamp": ["#1a1f26", "#2f3740", "#4a545f", "#6b7783", "#929ca7", "#bdc6cf", "#f0f4f8", "#ffffff"]
+      },
+      "body": {
+        "role": "neutral",
+        "displayName": "Body Steel",
+        "canonical": "#bcccde",
+        "tonalRamp": ["#141c26", "#25313f", "#38485a", "#4f6377", "#6b8096", "#8ba2b8", "#bcccde", "#e2eaf2"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Steel",
+        "canonical": "#7a9fc4",
+        "tonalRamp": ["#0e1620", "#1a2b3c", "#26405a", "#345678", "#4a7095", "#628cb0", "#7a9fc4", "#b5cbdf"]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint Steel",
+        "canonical": "#5d7a9a",
+        "tonalRamp": ["#0b1219", "#15202c", "#1f3143", "#2c445c", "#3d5c78", "#4d6c8a", "#5d7a9a", "#8ea9c4"]
+      },
+      "ghost": {
+        "role": "neutral",
+        "displayName": "Ghost Steel",
+        "canonical": "#445e7d",
+        "tonalRamp": ["#080d13", "#101823", "#182534", "#223448", "#2f455d", "#3a5069", "#445e7d", "#6d88a8"]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgba(30, 58, 95, 0.55)"
+      },
+      "row-divider": {
+        "role": "neutral",
+        "displayName": "Row Divider",
+        "canonical": "rgba(22, 40, 63, 0.6)"
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Input Stroke",
+        "canonical": "#2a4a6f"
+      },
+      "gold-ink": {
+        "role": "neutral",
+        "displayName": "Gold Ink",
+        "canonical": "#241d00"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display — Nacelle",
+        "purpose": "Page H1 only: the hero headline and feature-page headlines. Tight negative tracking (-1.5px)."
+      },
+      "headline": {
+        "displayName": "Headline — Nacelle",
+        "purpose": "Section H2. Always paired with a Share Tech Mono eyebrow above it."
+      },
+      "title": {
+        "displayName": "Title — Nacelle",
+        "purpose": "Feature-row headings (32px), trust cards (26px), callouts (22px), step and card titles (20px)."
+      },
+      "body": {
+        "displayName": "Body — Inter",
+        "purpose": "Paragraphs, capped at a 520-640px measure regardless of full-bleed sections."
+      },
+      "label": {
+        "displayName": "Label — Share Tech Mono",
+        "purpose": "ALWAYS uppercase and letterspaced (1.4-2.4px). Eyebrows, kickers, class chips, bracket labels, status lines."
+      },
+      "data": {
+        "displayName": "Data — JetBrains Mono",
+        "purpose": "Every number and machine token: item numbers, credential stats, spec chips, figure numbers, arrows."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cta-halo",
+        "value": "0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 24px -10px rgba(255,217,61,0.5)",
+        "purpose": "Warm light pooling under a gold button, plus the inset top highlight that gives the gradient its convexity. Hero variant deepens to 0 14px 34px -12px rgba(255,217,61,0.55)."
+      },
+      {
+        "name": "status-bloom-cyan",
+        "value": "0 0 9px rgba(78,205,196,0.9)",
+        "purpose": "Zero-offset halo on a live status dot. Signals running/verified."
+      },
+      {
+        "name": "status-bloom-gold",
+        "value": "0 0 10px rgba(255,217,61,0.7)",
+        "purpose": "The logo's centre dot and gold status indicators."
+      },
+      {
+        "name": "active-glow",
+        "value": "0 0 14px -4px rgba(255,217,61,0.4)",
+        "purpose": "The gold-lit active manifest tab."
+      },
+      {
+        "name": "scan-line",
+        "value": "0 0 18px rgba(78,205,196,0.45), 0 0 48px rgba(78,205,196,0.18)",
+        "purpose": "Two stacked halos on the 2px radar line sweeping the page background."
+      },
+      {
+        "name": "ambient-wash-blue",
+        "value": "radial-gradient(550px 260px at 50% 0%, rgba(43,140,193,0.16), transparent 70%)",
+        "purpose": "Not a shadow: the fixed blue light source at the top of every marketing page. The beta page swaps in the gold variant at 0.10."
+      },
+      {
+        "name": "device-shadow",
+        "value": "0 60px 100px -34px rgba(0,0,0,0.85), 0 0 0 1.5px rgba(255,255,255,0.05) inset, 0 2px 3px rgba(255,255,255,0.10) inset",
+        "purpose": "THE SOLE BLACK DROP SHADOW IN THE SYSTEM. Reserved for MarketingPhoneFrame, the one element meant to read as a physical object. Never reuse it on a card or panel."
+      }
+    ],
+    "motion": [
+      {
+        "name": "blinkDot",
+        "value": "blinkDot 2.4s ease-in-out infinite",
+        "purpose": "Opacity 0.15 to 1 to 0.15 on live status dots and the MARQUEE class chip."
+      },
+      {
+        "name": "glowPulse",
+        "value": "glowPulse 3s ease-in-out infinite",
+        "purpose": "Opacity 0.35 to 0.7 breathing on accent halos. Staggered 0.4s apart across the chain-of-work steps."
+      },
+      {
+        "name": "flicker",
+        "value": "flicker 6s linear infinite",
+        "purpose": "Rare CRT-style stutter (92-97% keyframe window) for instrument character."
+      },
+      {
+        "name": "scanSweep",
+        "value": "scanSweep 14s linear infinite",
+        "purpose": "The masked 34vh band travelling down the viewport. Paired with scanSweepHold, whose offsets must mirror it exactly and negate its transform so the lit grid stays pinned. 82% to 100% is the offscreen rest."
+      },
+      {
+        "name": "transition-colors",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "The only interaction transition in the system. Colours and borders change; nothing translates, scales, or lifts."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce)",
+        "purpose": "Class-matched kill switch in app/css/style.css: all ambient animations stop and .case-scan is display:none (not paused, which would freeze a visible stripe). The demo gates its own inline-styled motion separately via useReducedMotion."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The gold call-to-action. At most one visible per viewport — its scarcity against an entirely cold palette is the mechanism.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Join the TestFlight beta<span class=\"ds-btn-primary__arrow\" aria-hidden=\"true\">-&gt;</span></a>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 9px; border-radius: 11px; padding: 14px 24px; font-family: var(--font-inter, Inter, sans-serif); font-size: 15px; font-weight: 700; text-decoration: none; color: #241d00; background: linear-gradient(180deg, #ffe06a, #f5c62e); box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 14px 34px -12px rgba(255,217,61,0.55); transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: linear-gradient(180deg, #ffe786, #ffd93d); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-cyan, #4ecdc4); outline-offset: 3px; } .ds-btn-primary__arrow { font-family: var(--font-jbmono, 'JetBrains Mono', monospace); font-weight: 700; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The quiet companion to the gold CTA — bordered, Carolina-labelled, warms to cyan on hover.",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">Drive the live demo</a>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 9px; border-radius: 11px; border: 1px solid var(--color-input, #2a4a6f); background: rgba(12,23,39,0.6); padding: 14px 22px; font-family: var(--font-inter, Inter, sans-serif); font-size: 15px; font-weight: 600; text-decoration: none; color: var(--color-carolina, #99badd); transition: border-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-secondary:hover { border-color: var(--color-cyan, #4ecdc4); color: #cfeeea; } .ds-btn-secondary:focus-visible { outline: 2px solid var(--color-cyan, #4ecdc4); outline-offset: 3px; }"
+    },
+    {
+      "name": "Email Input",
+      "kind": "input",
+      "refersTo": "input-email",
+      "description": "The beta intake field. Its value is set in JetBrains Mono — an email address is treated as data, not prose.",
+      "html": "<input class=\"ds-input-email\" type=\"email\" aria-label=\"Email\" placeholder=\"name@agency.gov\">",
+      "css": ".ds-input-email { min-width: 0; border-radius: 10px; border: 1px solid var(--color-input, #2a4a6f); background: rgba(6,12,20,0.8); padding: 13px 16px; font-family: var(--font-jbmono, 'JetBrains Mono', monospace); font-size: 13px; color: var(--color-heading, #f0f4f8); transition: border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-input-email::placeholder { color: var(--color-faint, #5d7a9a); } .ds-input-email:focus { border-color: var(--color-cyan, #4ecdc4); outline: none; } .ds-input-email:disabled { opacity: 0.6; }"
+    },
+    {
+      "name": "Spec Chip",
+      "kind": "chip",
+      "refersTo": "chip-spec",
+      "description": "Lists a capability in JetBrains Mono on solid chip slate. Never carries meaning-colour — that is the class chip's job.",
+      "html": "<span class=\"ds-chip-spec\">NTP POOL</span>",
+      "css": ".ds-chip-spec { display: inline-block; border-radius: 8px; background: var(--color-chip, #1a2d44); padding: 6px 12px; font-family: var(--font-jbmono, 'JetBrains Mono', monospace); font-size: 11px; color: var(--color-muted, #7a9fc4); }"
+    },
+    {
+      "name": "Class Chip (Marquee)",
+      "kind": "chip",
+      "refersTo": "chip-spec",
+      "description": "The manifest class tag: tinted accent fill, matching accent border, and a status dot. The MARQUEE variant's dot blinks; CORE is gold, FIELD blue, TRUST cyan.",
+      "html": "<span class=\"ds-chip-class\"><span class=\"ds-chip-class__dot\" aria-hidden=\"true\"></span>MARQUEE</span>",
+      "css": ".ds-chip-class { display: inline-flex; align-items: center; gap: 6px; border-radius: 12px; border: 1px solid rgba(255,217,61,0.5); background: rgba(255,217,61,0.12); padding: 4px 10px; font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 9.5px; letter-spacing: 1px; color: var(--color-gold, #ffd93d); } .ds-chip-class__dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--color-gold, #ffd93d); animation: ds-blink 2.4s ease-in-out infinite; } @keyframes ds-blink { 0%, 20% { opacity: 0.15; } 50% { opacity: 1; } 100% { opacity: 0.15; } } @media (prefers-reduced-motion: reduce) { .ds-chip-class__dot { animation: none; } }"
+    },
+    {
+      "name": "Manifest Tab",
+      "kind": "nav",
+      "refersTo": "tab-manifest",
+      "description": "One numbered tab per feature, in catalog order. Resting state: steel border, cyan JetBrains Mono number.",
+      "html": "<a class=\"ds-tab\" href=\"#\"><span class=\"ds-tab__no\">03</span><span class=\"ds-tab__label\">Notes Wizard</span></a>",
+      "css": ".ds-tab { display: inline-flex; align-items: center; gap: 7px; border-radius: 8px; border: 1px solid var(--color-tab, #16283f); background: rgba(10,20,34,0.7); padding: 7px 11px; text-decoration: none; transition: border-color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-tab:hover { border-color: rgba(43,140,193,0.55); background: rgba(43,140,193,0.1); } .ds-tab:focus-visible { outline: 2px solid var(--color-cyan, #4ecdc4); outline-offset: 2px; } .ds-tab__no { font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 10px; color: var(--color-cyan, #4ecdc4); } .ds-tab__label { font-family: var(--font-inter, Inter, sans-serif); font-size: 12px; color: var(--color-tab-label, #cfe0f2); }"
+    },
+    {
+      "name": "Manifest Tab (Active)",
+      "kind": "nav",
+      "refersTo": "tab-manifest-active",
+      "description": "The active-route tab — the only reason any marketing chrome is a client component. Gold border, gold fill, active glow.",
+      "html": "<a class=\"ds-tab-active\" href=\"#\" aria-current=\"page\"><span class=\"ds-tab-active__no\">06</span><span class=\"ds-tab-active__label\">Time Offset</span></a>",
+      "css": ".ds-tab-active { display: inline-flex; align-items: center; gap: 7px; border-radius: 8px; border: 1px solid rgba(255,217,61,0.55); background: rgba(255,217,61,0.1); padding: 7px 11px; text-decoration: none; box-shadow: 0 0 14px -4px rgba(255,217,61,0.4); } .ds-tab-active__no { font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 10px; color: var(--color-gold, #ffd93d); } .ds-tab-active__label { font-family: var(--font-inter, Inter, sans-serif); font-size: 12px; font-weight: 600; color: #ffe786; }"
+    },
+    {
+      "name": "Tip Card (Cyan)",
+      "kind": "card",
+      "refersTo": "tip-card-cyan",
+      "description": "One per feature page. Cyan lock = a trust/security aside; the gold bulb variant = an insight aside. The emphasised phrase takes the accent colour.",
+      "html": "<div class=\"ds-tip-cyan\"><svg class=\"ds-tip-cyan__icon\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#4ecdc4\" stroke-width=\"2\" aria-hidden=\"true\"><rect x=\"3\" y=\"11\" width=\"18\" height=\"10\" rx=\"2\"></rect><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" stroke-linecap=\"round\"></path></svg><div class=\"ds-tip-cyan__body\">The request — names, case numbers, everything in it — <strong class=\"ds-tip-cyan__em\">never leaves the phone.</strong></div></div>",
+      "css": ".ds-tip-cyan { display: flex; gap: 12px; max-width: 400px; border-radius: 14px; border: 1px solid rgba(78,205,196,0.3); background: rgba(78,205,196,0.06); padding: 18px 20px; color: #aecbc8; } .ds-tip-cyan__icon { margin-top: 2px; flex: none; } .ds-tip-cyan__body { font-family: var(--font-inter, Inter, sans-serif); font-size: 14px; line-height: 1.625; } .ds-tip-cyan__em { font-weight: 600; color: var(--color-cyan, #4ecdc4); }"
+    },
+    {
+      "name": "Corner Brackets",
+      "kind": "custom",
+      "refersTo": "card-panel",
+      "description": "The system's viewfinder. Four 20x20 cyan L-brackets plus a notched label chip, marking a region as presented evidence. Wraps every screen recording on the site — and nothing else.",
+      "html": "<div class=\"ds-brackets\"><span class=\"ds-brackets__c ds-brackets__tl\" aria-hidden=\"true\"></span><span class=\"ds-brackets__c ds-brackets__tr\" aria-hidden=\"true\"></span><span class=\"ds-brackets__c ds-brackets__bl\" aria-hidden=\"true\"></span><span class=\"ds-brackets__c ds-brackets__br\" aria-hidden=\"true\"></span><span class=\"ds-brackets__label\">REC 02 — NTP SYNC</span><div class=\"ds-brackets__slot\"><div class=\"ds-brackets__value\">04:17:22</div><div class=\"ds-brackets__caption\">DVR OFFSET — VERIFIED</div></div></div>",
+      "css": ".ds-brackets { position: relative; padding: 20px; } .ds-brackets__c { pointer-events: none; position: absolute; width: 20px; height: 20px; border-color: rgba(78,205,196,0.55); border-style: solid; border-width: 0; } .ds-brackets__tl { top: 0; left: 0; border-top-width: 1px; border-left-width: 1px; } .ds-brackets__tr { top: 0; right: 0; border-top-width: 1px; border-right-width: 1px; } .ds-brackets__bl { bottom: 0; left: 0; border-bottom-width: 1px; border-left-width: 1px; } .ds-brackets__br { bottom: 0; right: 0; border-bottom-width: 1px; border-right-width: 1px; } .ds-brackets__label { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--color-ink-900, #04070d); padding: 2px 10px; font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 9px; letter-spacing: 2px; color: var(--color-cyan, #4ecdc4); } .ds-brackets__slot { padding: 16px 24px; text-align: center; } .ds-brackets__value { font-family: var(--font-jbmono, 'JetBrains Mono', monospace); font-size: 36px; font-weight: 700; color: var(--color-heading, #f0f4f8); } .ds-brackets__caption { margin-top: 4px; font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 11px; letter-spacing: 2px; color: var(--color-muted, #7a9fc4); }"
+    },
+    {
+      "name": "Exhibit Panel",
+      "kind": "card",
+      "refersTo": "card-panel",
+      "description": "The large recruitment panel with its notched tab hanging off the top-left edge. The tab is solid accent with ink-dark text; the panel fill is a 135deg gold-to-blue wash.",
+      "html": "<section class=\"ds-exhibit\"><span class=\"ds-exhibit__tab\">EXHIBIT A — YOUR NEXT SCENE</span><h2 class=\"ds-exhibit__h\">Be first to run it in the field</h2><p class=\"ds-exhibit__p\">iOS beta via TestFlight. Leave your email — you'll get the invite the moment a build clears review.</p></section>",
+      "css": ".ds-exhibit { position: relative; border-radius: 20px; border: 1px solid rgba(255,217,61,0.3); background: linear-gradient(135deg, rgba(255,217,61,0.07), rgba(255,217,61,0.02) 55%, rgba(43,140,193,0.05)); padding: 46px 52px; } .ds-exhibit__tab { position: absolute; top: -1px; left: 44px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; background: var(--color-gold, #ffd93d); padding: 3px 12px; font-family: var(--font-stmono, 'Share Tech Mono', monospace); font-size: 10px; letter-spacing: 2.4px; color: #241d00; } .ds-exhibit__h { margin: 0 0 12px; font-family: var(--font-nacelle, Nacelle, sans-serif); font-size: 34px; font-weight: 600; letter-spacing: -0.7px; color: var(--color-heading, #f0f4f8); } .ds-exhibit__p { margin: 0; max-width: 520px; font-family: var(--font-inter, Inter, sans-serif); font-size: 15.5px; line-height: 1.625; color: var(--color-body, #bcccde); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Case File",
+    "overview": "This is not a site about evidence work — it is filed like evidence work. The homepage's feature catalog is an evidence manifest: a table with NO. / ITEM / WHAT IT KILLS / CLASS columns, one numbered row per feature, each tagged with a class chip. Feature pages open on a breadcrumb reading MANIFEST / ITEM 06 — TIME OFFSET, caption their diagrams FIG. 06-A, and stamp unfinished copy DRAFT in gold. The recruitment panel is tabbed EXHIBIT A — YOUR NEXT SCENE. Numbering is never typed by hand; it derives from array position in the catalog, so the file renumbers itself when its contents change. A visitor who recovers footage for a living recognises the filing system before they read a word of the pitch — and that recognition is the credibility argument.\n\nThe surface underneath is a dark room with instruments in it. The ground is near-black ink (#04070d) carrying a faint blueprint grid at 46px, and a radar scan line travels down the viewport every 14 seconds with the grid illuminating in a soft halo around it. Nothing on the page casts a shadow; things emit light instead. A gold button pools warm light on the page beneath itself. A cyan status dot blooms and blinks. The active tab glows. This is what separates the system from the generic dark-SaaS look it superficially resembles: the depth is lit, not stacked.\n\nTypography does the technical register. Four families divide the labour strictly — Nacelle states, Inter explains, Share Tech Mono labels, JetBrains Mono measures — and the discipline is absolute enough that a stat in the wrong family reads as a bug. The tone is practitioner-to-practitioner: dry, exact, no hype. The design's restraint carries the same argument the copy does, which is that overclaiming would be the tell of someone who has not done the job.",
+    "keyCharacteristics": [
+      "Dark by construction — every component draws on an ink ground and sets no background of its own",
+      "Filed, not marketed — numbered items, class chips, exhibit tabs, figure captions",
+      "Lit, not stacked — coloured glow and 1px hairlines instead of drop shadows",
+      "Four strict type voices, one job each",
+      "Warm gold used sparingly against an entirely cold palette",
+      "Ambient motion (scan sweep, blinking dots, pulsing halos) that never blocks reading"
+    ],
+    "rules": [
+      {
+        "name": "The Gold Scarcity Rule",
+        "body": "Gold marks the one thing to do next and the one flagship item — nothing else. At most one gold call-to-action is visible in a viewport. Its rarity against an entirely cold palette is the whole mechanism; spend it twice on a screen and it stops meaning anything.",
+        "section": "colors"
+      },
+      {
+        "name": "The Class Colour Rule",
+        "body": "Accents carry fixed meaning inherited from the manifest system: gold = core / flagship, blue = field, cyan = trust / security. Choose the accent that matches intent, never the one that looks better in the composition.",
+        "section": "colors"
+      },
+      {
+        "name": "The Cold Ground Rule",
+        "body": "Every component is built for a dark ground and sets no background of its own; headings are near-white. Never place these components on a light surface. If a lighter surface is genuinely needed, paint it on an inner subtree only — the body stays ink.",
+        "section": "colors"
+      },
+      {
+        "name": "The Four Voices Rule",
+        "body": "Nacelle states it, Inter explains it, Share Tech Mono labels it, JetBrains Mono measures it. A number never appears in Inter; a heading never appears in a mono; a label is never sentence case. If you are unsure which family a string wants, ask what the string is — a claim, an explanation, a label, or a measurement.",
+        "section": "typography"
+      },
+      {
+        "name": "The Canvas-Literal Rule",
+        "body": "Pixel values come from the design canvas, not from a formula. Do not tidy 17.5px to 18px or 9.5px to 10px to satisfy a scale: the halves are deliberate and the canvas is the source of truth. An automated ramp check will flag most of this system's real sizes as off-scale; that is the checker misreading a transcribed system as a generated one.",
+        "section": "typography"
+      },
+      {
+        "name": "The Letterspaced Caps Rule",
+        "body": "Every Share Tech Mono string is uppercase and letterspaced (1.4-2.4px). Lowercase Share Tech Mono does not exist in this system, and an un-tracked all-caps label reads as a mistake.",
+        "section": "typography"
+      },
+      {
+        "name": "The Derived Number Rule",
+        "body": "Every item number, step number, and figure number is computed from array position — never typed. Reordering the feature catalog renumbers the manifest, the tab strip, the breadcrumbs, the figure captions, and prev/next together. Hand-typing a number breaks that guarantee silently.",
+        "section": "layout"
+      },
+      {
+        "name": "The Right-Hand Record Rule",
+        "body": "Section headers carry a JetBrains Mono metadata line on the far right at md+. It is a caption on the section-as-record, always terse, always uppercase-ish, and always the first thing to disappear on small screens.",
+        "section": "layout"
+      },
+      {
+        "name": "The Emitted Light Rule",
+        "body": "Depth is added with light the surface gives off, never with shadow it blocks. Coloured, near-zero-offset box-shadow in a palette accent is sanctioned; black or grey drop shadow is not, and neither is translateY card-lift on hover. If a new element needs to feel closer to the viewer, brighten its border or give it a halo.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "One-pixel borders do the structural work: hairline between sections and around panels, row-divider between table rows, tab and input on controls. A container without a border and without a hairline is not a container.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Corner Bracket Rule",
+        "body": "Anything presented as evidence — a screen recording, a captured value, an exhibit — gets the four cyan brackets and a label chip. Nothing else does. The brackets are a claim about what the content is, not decoration.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Honest Placeholder Rule",
+        "body": "Unfinished content announces itself in the visual language: dashed border for not built, 45-degree hatching for not written, a gold DRAFT stamp for not final. Never let provisional content render as though it were finished.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do build every surface for the ink ground. Components set no background of their own and their headings are near-white.",
+      "Do reach for the accent that matches intent — gold = core/flagship, blue = field, cyan = trust/security — and use the token utilities (text-cyan, border-gold/55, bg-chip) rather than writing hex values inline.",
+      "Do add depth with coloured light: a halo, a brighter border, a tonal step up the ink-950 → ink-900 → panel-800 → chip ladder.",
+      "Do put every number and machine token in JetBrains Mono, and every label in uppercase letterspaced Share Tech Mono.",
+      "Do derive item, step, and figure numbers from array position.",
+      "Do give framed evidence the four cyan corner brackets and a label chip.",
+      "Do mark unfinished content honestly — dashed for not-built, hatched for not-written, gold DRAFT for not-final.",
+      "Do keep body measures at 520-640px even though sections run full bleed.",
+      "Do gate new class-based animation behind the existing prefers-reduced-motion block in app/css/style.css."
+    ],
+    "donts": [
+      "Don't add a black or grey drop shadow, and don't lift cards on hover with translateY. The phone frame is the only object in this system that casts a shadow.",
+      "Don't spend gold twice in one viewport, or use it for anything that isn't the next action or the flagship item.",
+      "Don't place these components on a light surface, and don't introduce a light theme — the ground is dark by construction.",
+      "Don't use the leftover template styles: .form-input / .btn in app/css/additional-styles/utility-patterns.css are Cruip-era gray-700 / indigo-500 and belong to no part of this system, and the root app/layout.tsx body still carries bg-gray-950 text-gray-200 which the (default) layout overrides with bg-ink-900. Neither is Case File.",
+      "Don't import anything from @/features/demo into marketing code — that barrel pulls mapbox-gl, pdfjs-dist, and motion into marketing bundles. Duplicate the few pixel constants instead, as MarketingPhoneFrame deliberately does.",
+      "Don't restyle the demo's lifted inline styles or tidy the phone's pixel maths — the 404 = 378 + 13x2 arithmetic is load-bearing.",
+      "Don't render feature diagrams through next/image; the catalog ships SVGs the optimiser won't serve without dangerouslyAllowSVG.",
+      "Don't hand-type a manifest number, a step number, or a figure number.",
+      "Don't let Share Tech Mono appear in sentence case or without letterspacing."
+    ]
+  }
+}
