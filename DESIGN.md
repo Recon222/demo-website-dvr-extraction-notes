@@ -138,14 +138,19 @@ components:
 **Creative North Star: "The Case File"**
 
 This is not a site *about* evidence work — it is filed like evidence work. The homepage's
-feature catalog is an **evidence manifest**: a table with `NO. / ITEM / WHAT IT KILLS /
-CLASS` columns, one numbered row per feature, each tagged with a class chip. Feature pages
-open on a breadcrumb reading `MANIFEST / ITEM 06 — TIME OFFSET`, caption their diagrams
-`FIG. 06-A`, and stamp unfinished copy `DRAFT` in gold. The recruitment panel is tabbed
-`EXHIBIT A — YOUR NEXT SCENE`. Numbering is never typed by hand; it derives from array
-position in the catalog, so the file renumbers itself when its contents change. A visitor
-who recovers footage for a living recognises the filing system before they read a word of
-the pitch — and that recognition *is* the credibility argument.
+feature catalog is an **evidence manifest**: a table with `NO. / ITEM / WHAT IT KILLS`
+columns, one numbered row per feature. Feature pages open on a gold item line reading
+`06 — TIME OFFSET`, caption their diagrams `FIG. 06-A`, and stamp unfinished copy `DRAFT`
+in gold. The recruitment panel is tabbed `EXHIBIT A — YOUR NEXT SCENE`. Numbering is never
+typed by hand; it derives from array position in the catalog, so the file renumbers itself
+when its contents change. A visitor who recovers footage for a living recognises the filing
+system before they read a word of the pitch — and that recognition *is* the credibility
+argument.
+
+The filing is a claim about *order*, not about hierarchy. An earlier pass tagged every row
+with a CORE / FIELD / TRUST / MARQUEE class chip and gave the flagship row its own gold
+treatment; both were removed because the taxonomy was internal vocabulary a visitor had no
+way to decode. What survives is the numbering, which is real.
 
 The surface underneath is a dark room with instruments in it. The ground is near-black ink
 (`#04070d`) carrying a faint blueprint grid at 46px, and a radar scan line travels down the
@@ -180,9 +185,9 @@ whole system, spent deliberately.
 
 - **Evidence Gold** (`#ffd93d`): The one warm note. It marks the single next action (every
   CTA, gradient-filled `#ffe06a → #f5c62e` with near-black `#241d00` text), the active
-  manifest tab, the MARQUEE feature's row edge, the `EXHIBIT` / `INTAKE` / `DRAFT` tabs, the
-  insight tip card, and the logo's centre dot. Against a page with no other warmth it reads
-  as heat, which is exactly the point.
+  manifest tab, the `EXHIBIT` / `INTAKE` / `DRAFT` tabs, the insight tip card, and the
+  logo's centre dot. Against a page with no other warmth it reads as heat, which is exactly
+  the point.
 
 ### Secondary
 
@@ -430,15 +435,18 @@ final*. Never let provisional content render as though it were finished.
 
 ### Chips
 
-Three distinct chips, and mixing them is a category error:
+Two distinct chips, and mixing them is a category error:
 
 - **Spec chip** — JetBrains Mono `11px` muted on solid `chip` fill, `8px` radius,
   `6px 12px`. Lists capabilities: `PDF`, `NTP`, `AES-256`, `MULTI-SAMPLE GPS`.
-- **Class chip** — Share Tech Mono `9.5px` on a tinted accent fill with a matching `35–50%`
-  accent border and a 6px status dot, `12px` radius. Carries the manifest class; the MARQUEE
-  variant's dot blinks.
 - **Eyebrow pill** — `20px` radius on `cyan/5` with a `cyan/30` border and a blinking dot,
   holding a letterspaced credential line.
+
+A third — the **class chip** (CORE / FIELD / TRUST / MARQUEE on a tinted accent fill) — is
+**retired from the UI entirely**: from the manifest table with the CLASS column, and from
+the feature-page item line with the rest of the breadcrumb. `classLabel` remains in the
+feature catalog as metadata but nothing renders it. Do not reintroduce it without a reason
+a visitor would understand.
 
 ### Cards / Containers
 
@@ -480,10 +488,14 @@ Two tiers, both in the marketing chrome:
 ### Signature Components
 
 **The Evidence Manifest table.** The homepage's feature catalog rendered as a filed table —
-a `70px 230px 1fr 120px 46px` grid with a `NO. / ITEM / WHAT IT KILLS / CLASS` header row on
-`rgba(10,20,34,0.8)`, then one linked row per feature. Rows hover to `blue/7%`. The MARQUEE
-row is tinted `gold/4%` and carries a 3px inset gold left edge. Draft items get a gold
-`DRAFT` chip and their pain line goes italic muted.
+a `70px 230px 1fr 46px` grid with a `NO. / ITEM / WHAT IT KILLS` header row on
+`rgba(10,20,34,0.8)`, then one linked row per feature. Rows hover to `blue/7%`.
+
+**Every row is identical.** The table previously singled out the flagship feature with a
+gold tint, gold number, gold arrow, brighter pain-line text, and a 3px inset gold left edge,
+and tagged every row with a CLASS chip. All of it was removed: the taxonomy meant nothing to
+a visitor, and once the column went there was nothing left to explain why one row looked
+different. A draft item is marked only by its pain line going italic muted.
 
 **The bracketed phone.** `MarketingPhoneFrame` — a 404×812 device (13px bezel, `58px` outer
 radius) with a 378×786 screen at `46px` radius on `#0d1b2a`, its own 40px blueprint grid
