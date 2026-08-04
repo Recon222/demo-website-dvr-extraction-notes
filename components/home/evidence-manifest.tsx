@@ -28,7 +28,7 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
       <div className="mb-[34px] flex items-baseline justify-between">
         <div>
           <div className="mb-3 font-stmono text-[11px] tracking-[2.4px] text-blue">
-            EVIDENCE MANIFEST
+            FEATURE MANIFEST
           </div>
           <h2 className="font-nacelle text-[38px] font-semibold tracking-[-0.8px] text-heading">
             Every feature kills a pain point

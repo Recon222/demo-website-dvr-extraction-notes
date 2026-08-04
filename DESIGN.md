@@ -138,7 +138,7 @@ components:
 **Creative North Star: "The Case File"**
 
 This is not a site *about* evidence work — it is filed like evidence work. The homepage's
-feature catalog is an **evidence manifest**: a table with `NO. / ITEM / WHAT IT KILLS`
+feature catalog is a **feature manifest**: a table with `NO. / ITEM / WHAT IT KILLS`
 columns, one numbered row per feature. Feature pages open on a gold item line reading
 `06 — TIME OFFSET`, caption their diagrams `FIG. 06-A`, and stamp unfinished copy `DRAFT`
 in gold. The recruitment panel is tabbed `EXHIBIT A — YOUR NEXT SCENE`. Numbering is never
@@ -195,7 +195,7 @@ whole system, spent deliberately.
   its label chips, the lock-icon tip card, TRUST class chips, live status dots
   (`0 0 9px` bloom), the radar scan line, the beta success confirmation, and input focus
   borders. Where gold says *act*, cyan says *this is verified and running*.
-- **Field Blue** (`#2b8cc1`): Section eyebrows (`CHAIN OF WORK`, `EVIDENCE MANIFEST`, `UNDER
+- **Field Blue** (`#2b8cc1`): Section eyebrows (`CHAIN OF WORK`, `FEATURE MANIFEST`, `UNDER
   THE HOOD`), row kickers, FIELD class chips, hover states on inactive tabs and manifest
   rows, and the ambient radial wash at the top of every marketing page. The system's
   workhorse accent — present far more often than gold, and quieter than cyan.
@@ -322,9 +322,9 @@ index), each pairing a bracketed phone at `0.62` scale against copy, separated b
 decorative icons drop out entirely rather than wrapping.
 
 Grids are explicit and few: the chain of work is 4-up at `lg` and 2-up at `md`; the roadmap
-and trust cards are 3-up and 2-up at `md`. The evidence manifest is a fixed 5-column grid
-(`70px 230px 1fr 120px 46px`) shared by its header row and every data row, which is what
-makes the columns actually line up as a table.
+and trust cards are 3-up and 2-up at `md`. The feature manifest is a fixed 4-column grid
+(`70px 230px 1fr 46px`) shared by its header row and every data row, which is what makes
+the columns actually line up as a table.
 
 ### Named Rules
 
@@ -487,7 +487,7 @@ Two tiers, both in the marketing chrome:
 
 ### Signature Components
 
-**The Evidence Manifest table.** The homepage's feature catalog rendered as a filed table —
+**The Feature Manifest table.** The homepage's feature catalog rendered as a filed table —
 a `70px 230px 1fr 46px` grid with a `NO. / ITEM / WHAT IT KILLS` header row on
 `rgba(10,20,34,0.8)`, then one linked row per feature. Rows hover to `blue/7%`.
 
