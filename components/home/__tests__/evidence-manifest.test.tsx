@@ -34,34 +34,34 @@ describe('EvidenceManifest (Case-File)', () => {
     })
   })
 
-  it('renders each feature’s class chip', () => {
+  // The CLASS column and its CORE/FIELD/TRUST/MARQUEE chips were removed (owner
+  // decision): the taxonomy meant nothing to a visitor. `classLabel` still drives the
+  // feature page's breadcrumb chip, so this pins the removal from the TABLE only.
+  it('publishes no class taxonomy in the table', () => {
     render(<EvidenceManifest features={features} />)
-    // 3 CORE + 5 FIELD + 1 TRUST + 1 MARQUEE per the catalog
-    expect(screen.getAllByText('CORE')).toHaveLength(3)
-    expect(screen.getAllByText('FIELD')).toHaveLength(5)
-    expect(screen.getAllByText('TRUST')).toHaveLength(1)
-    expect(screen.getAllByText('MARQUEE')).toHaveLength(1)
+    expect(screen.queryByText('CLASS')).not.toBeInTheDocument()
+    for (const label of ['CORE', 'FIELD', 'TRUST', 'MARQUEE']) {
+      expect(screen.queryByText(label), `${label} chip should be gone`).not.toBeInTheDocument()
+    }
   })
 
   it('flags the marquee row with the actual gold treatment (edge, tint, gold number)', () => {
     render(<EvidenceManifest features={features} />)
     const marqueeRow = screen.getByRole('link', { name: /The timestamp you can defend/ })
     expect(marqueeRow).toHaveAttribute('data-marquee', 'true')
-    // Assert the design invariant, not just the marker attribute.
     expect(marqueeRow).toHaveClass('shadow-[inset_3px_0_0_#ffd93d]')
     expect(marqueeRow).toHaveClass('bg-gold/[0.04]')
     expect(within(marqueeRow).getByText('06')).toHaveClass('text-gold')
-    // …and a non-marquee row has none of it.
+    // …and a non-marquee row has none of the gold treatment.
     const normalRow = screen.getByRole('link', { name: /The case fills itself in/ })
     expect(normalRow).not.toHaveClass('bg-gold/[0.04]')
     expect(within(normalRow).getByText('02')).toHaveClass('text-cyan')
   })
 
-  it('shows a DRAFT chip on the Notes row only', () => {
+  it('marks the draft row by its italic pain line, not a floating pill', () => {
     render(<EvidenceManifest features={features} />)
-    expect(screen.getAllByText('DRAFT')).toHaveLength(1)
-    expect(screen.getByRole('link', { name: /wizard that walks the scene/ })).toHaveTextContent(
-      'DRAFT',
-    )
+    expect(screen.queryByText('DRAFT')).not.toBeInTheDocument()
+    const draftRow = screen.getByRole('link', { name: /wizard that walks the scene/ })
+    expect(within(draftRow).getByText(/Copy pending/)).toHaveClass('italic')
   })
 })

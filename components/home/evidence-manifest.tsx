@@ -1,46 +1,23 @@
 import Link from 'next/link'
 
-import type { Feature, FeatureClass } from '@/lib/content/types'
+import type { Feature } from '@/lib/content/types'
 import { cn } from '@/lib/cn'
 
-// Class-chip palette per the canvas: CORE gold · FIELD blue · TRUST cyan ·
-// MARQUEE bright gold with a blinking dot.
-const CHIP: Record<FeatureClass, { box: string; dot: string; blink?: true }> = {
-  CORE: { box: 'border-gold/35 bg-gold/[0.08] text-[#e7cf6a]', dot: 'bg-gold' },
-  FIELD: { box: 'border-blue/35 bg-blue/10 text-[#6fb1d8]', dot: 'bg-blue' },
-  TRUST: { box: 'border-cyan/35 bg-cyan/[0.08] text-cyan', dot: 'bg-cyan' },
-  MARQUEE: { box: 'border-gold/50 bg-gold/[0.12] text-gold', dot: 'bg-gold', blink: true },
-}
-
-const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_120px_46px] items-center gap-4 px-[26px]'
-
-function ClassChip({ classLabel }: { classLabel: FeatureClass }) {
-  const chip = CHIP[classLabel]
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl border px-[10px] py-1 font-stmono text-[9.5px] tracking-[1px]',
-        chip.box,
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'h-[6px] w-[6px] rounded-full',
-          chip.dot,
-          chip.blink && 'animate-[blinkDot_2.4s_ease-in-out_infinite]',
-        )}
-      />
-      {classLabel}
-    </span>
-  )
-}
+const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26px]'
 
 /**
  * The evidence manifest: the feature catalog as a Case-File table
- * (NO. / ITEM / WHAT IT KILLS / CLASS), one linked row per feature. Numbering
- * derives from array order. The marquee item gets the gold edge + tinted row;
- * the draft item gets a DRAFT chip + italic muted pain line.
+ * (NO. / ITEM / WHAT IT KILLS), one linked row per feature. Numbering derives
+ * from array order.
+ *
+ * REMOVED (owner decision): the CLASS column and its CORE/FIELD/TRUST/MARQUEE
+ * chips — the taxonomy was never legible to a visitor and cost a fifth of the
+ * table's width to explain nothing. `classLabel` still drives the feature page's
+ * breadcrumb chip, so the field stays in the catalog.
+ *
+ * The marquee item gets the gold edge + tinted row. The draft item is marked by its
+ * italic muted pain line alone; the DRAFT pill that used to float beside the title
+ * was removed with the same pass.
  */
 export function EvidenceManifest({ features }: { features: readonly Feature[] }) {
   return (
@@ -70,7 +47,6 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
           <div>NO.</div>
           <div>ITEM</div>
           <div>WHAT IT KILLS</div>
-          <div>CLASS</div>
           <div />
         </div>
 
@@ -95,11 +71,6 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
               </div>
               <div className="flex items-center gap-2 font-nacelle text-base font-semibold text-heading">
                 {feature.title}
-                {feature.draft ? (
-                  <span className="rounded-lg border border-gold/40 bg-gold/[0.08] px-[7px] py-0.5 font-stmono text-[8.5px] tracking-[1.4px] text-gold">
-                    DRAFT
-                  </span>
-                ) : null}
               </div>
               <div
                 className={cn(
@@ -108,9 +79,6 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
                 )}
               >
                 {feature.painLine}
-              </div>
-              <div>
-                <ClassChip classLabel={feature.classLabel} />
               </div>
               <div
                 aria-hidden="true"
