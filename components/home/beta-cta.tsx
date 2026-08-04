@@ -20,7 +20,7 @@ export function BetaCta() {
             Be first to run it in the field
           </h2>
           <p className="max-w-[520px] text-[15.5px] leading-relaxed text-body">
-            iOS beta via TestFlight. Leave your email — you&apos;ll get the invite the moment a
+            iOS beta via TestFlight. Leave your email and you&apos;ll get the invite the moment a
             build clears review. No case data ever touches our servers; we only ever hold your
             address.
           </p>

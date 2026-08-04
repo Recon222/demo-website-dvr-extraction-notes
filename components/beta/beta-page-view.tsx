@@ -62,8 +62,8 @@ export function BetaPageView({ testflightUrl }: { testflightUrl: string | null }
           Be first in the field.
         </h1>
         <p className="mx-auto max-w-[600px] text-[17px] leading-[1.65] text-body">
-          The beta is the full analyst app, on your phone, via TestFlight. Leave your email now —
-          the invite ships the moment a build clears Apple&apos;s beta review.
+          The beta is the full analyst app, on your phone, via TestFlight. Leave your email now.
+          The invite ships the moment a build clears Apple&apos;s beta review.
         </p>
       </div>
 
@@ -129,7 +129,7 @@ export function BetaPageView({ testflightUrl }: { testflightUrl: string | null }
               </h2>
               <p className="mb-[18px] max-w-[520px] text-[15px] leading-[1.65] text-body">
                 One field. No account, no vendor onboarding call. When the build is approved you
-                get a TestFlight link — until then, silence.
+                get a TestFlight link. Until then, silence.
               </p>
               <div className="flex items-center gap-[10px] font-stmono text-[10px] tracking-[1.4px] text-faint">
                 {checkIcon}

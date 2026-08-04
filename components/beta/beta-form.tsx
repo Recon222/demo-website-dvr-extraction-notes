@@ -27,7 +27,7 @@ export function BetaForm({
           aria-hidden="true"
           className="h-[7px] w-[7px] flex-none rounded-full bg-cyan shadow-[0_0_9px_rgba(78,205,196,0.9)]"
         />
-        You&apos;re on the list — the invite ships the moment a build clears review.
+        You&apos;re on the list. The invite ships the moment a build clears review.
       </div>
     )
   }
@@ -82,7 +82,7 @@ export function BetaForm({
         <p aria-live="polite" className="text-xs text-[#e7a1a1]">
           {result.error === 'invalid'
             ? 'Enter a valid email and tick the consent box.'
-            : 'Something went wrong on our side — try again.'}
+            : 'Something went wrong on our side. Try again.'}
         </p>
       ) : null}
     </form>

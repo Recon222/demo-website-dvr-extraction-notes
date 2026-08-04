@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     title: 'Capture by location',
-    body: 'Photos, video, audio, GPS-marked cameras — filed under the right address automatically.',
+    body: 'Photos, video, audio, GPS-marked cameras, all filed under the right address automatically.',
     chips: ['PHOTO', 'VIDEO', 'AUDIO', 'GPS'],
     accent: '#2b8cc1',
     accentBg: 'rgba(43,140,193,0.15)',

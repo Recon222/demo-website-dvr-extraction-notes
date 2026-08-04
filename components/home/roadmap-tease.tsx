@@ -3,15 +3,15 @@
 const CARDS = [
   {
     title: 'Investigator mode',
-    body: 'The door-knock canvass, documented the same way — for the investigators who work the file after you.',
+    body: 'The door-knock canvass, documented the same way. For the investigators who work the file after you.',
   },
   {
     title: 'Live desk view',
-    body: 'Field work, mirrored to a desktop at the office as it happens — for the day a scene needs a second set of eyes.',
+    body: 'Field work, mirrored to a desktop at the office as it happens. For the day a scene needs a second set of eyes.',
   },
   {
     title: 'Will-say statements',
-    body: 'The statement drafted from the case record the same way the notes already are — verified by you, typed by the app.',
+    body: 'The statement drafted from the case record the same way the notes already are. Verified by you, typed by the app.',
   },
 ] as const
 
@@ -31,7 +31,7 @@ export function RoadmapTease() {
         <div className="hidden font-jbmono text-xs text-faint md:block">NO DATES · NO PROMISES</div>
       </div>
       <p className="mb-9 max-w-[620px] text-[15.5px] leading-[1.65] text-body-2">
-        The beta is the analyst app, complete. These are the pieces being built around it — teased
+        The beta is the analyst app, complete. These are the pieces being built around it: teased
         here because people ask, sealed because they&apos;re not done.
       </p>
 

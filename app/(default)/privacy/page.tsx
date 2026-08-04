@@ -42,12 +42,12 @@ const SECTIONS = [
   {
     id: 'what-stays',
     title: 'What stays on the phone',
-    body: 'Everything you create — cases, locations, photos, video, audio, documents, notes, and reports — is stored in an encrypted database on your device, behind your device passcode and Face ID. We operate no server that receives, stores, or can access your case data.',
+    body: 'Everything you create (cases, locations, photos, video, audio, documents, notes, and reports) is stored in an encrypted database on your device, behind your device passcode and Face ID. We operate no server that receives, stores, or can access your case data.',
   },
   {
     id: 'on-device-ai',
     title: 'The on-device AI',
-    body: "Request import uses Apple's on-device intelligence (iOS 26+). The document is read on your phone's own hardware — its contents are not transmitted to Apple, to us, or to any third party. If your device doesn't support it, the feature is simply unavailable; nothing falls back to a cloud service.",
+    body: "Request import uses Apple's on-device intelligence (iOS 26+). The document is read on your phone's own hardware: its contents are not transmitted to Apple, to us, or to any third party. If your device doesn't support it, the feature is simply unavailable; nothing falls back to a cloud service.",
   },
   { id: 'permissions', title: 'Permissions we ask for', body: null }, // rendered specially
   {
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           On your device, under your control.
         </h1>
         <p className="max-w-[640px] text-[17px] leading-[1.65] text-body">
-          <BoldText text="This app documents evidence. That only works if the tool itself is beyond question — so the architecture is blunt: **your case data lives in an encrypted database on your phone and stays there.** Below is the complete list of what ever touches a network." />
+          <BoldText text="This app documents evidence. That only works if the tool itself is beyond question, so the architecture is blunt: **your case data lives in an encrypted database on your phone and stays there.** Below is the complete list of what ever touches a network." />
         </p>
       </div>
 
@@ -168,7 +168,7 @@ export default function PrivacyPage() {
               {section.id === 'permissions' ? (
                 <>
                   <p className="mb-[14px] text-[15px] leading-[1.7] text-body">
-                    Each permission maps to one visible feature — nothing runs in the background:
+                    Each permission maps to one visible feature, and nothing runs in the background:
                   </p>
                   <dl className="flex flex-col gap-[9px]">
                     {PERMISSIONS.map((permission) => (

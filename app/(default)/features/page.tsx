@@ -6,7 +6,7 @@ import { siteConfig } from '@/lib/site-config'
 
 export const metadata: Metadata = {
   title: `Features — ${siteConfig.name}`,
-  description: 'From request to court-ready report — every step the app takes off your plate.',
+  description: 'From request to court-ready report: every step the app takes off your plate.',
 }
 
 /**

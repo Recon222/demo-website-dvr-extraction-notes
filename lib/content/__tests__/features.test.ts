@@ -193,7 +193,7 @@ describe('Case-File content fields', () => {
   it('derives the page H1 via featureHeadline (explicit headline, else title + period)', () => {
     // 04/07/09 carry explicit display headlines; everything else falls back.
     expect(featureHeadline(getFeatureBySlug('location')!)).toBe(
-      'Pin the site — and every camera on it.',
+      'Pin the site, and every camera on it.',
     )
     expect(featureHeadline(getFeatureBySlug('secure-export')!)).toBe(
       'The whole case, sealed for handoff.',

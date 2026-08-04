@@ -59,7 +59,7 @@ describe('FeaturePage (Case-File)', () => {
   it('renders alternating phone rows with kicker, heading, chips, and REC labels', () => {
     renderFeature('time-calibration')
     expect(screen.getByText('01 — READ')).toBeInTheDocument()
-    expect(screen.getByText("Read the DVR clock — don't retype it")).toBeInTheDocument()
+    expect(screen.getByText("Read the DVR clock, don't retype it")).toBeInTheDocument()
     expect(screen.getByText('REC 01 — OCR CAPTURE')).toBeInTheDocument()
     expect(screen.getByText('VISION OCR')).toBeInTheDocument()
     expect(screen.getByText('REC 02 — NTP SYNC')).toBeInTheDocument()
@@ -100,9 +100,9 @@ describe('FeaturePage (Case-File)', () => {
 
   it('renders the draft state for Notes: banner, hatched copy, and NO beta strip', () => {
     renderFeature('notes')
-    expect(screen.getByText(/Copy pending — the Notes screens hold/)).toBeInTheDocument()
+    expect(screen.getByText(/Copy pending\. The Notes screens hold/)).toBeInTheDocument()
     expect(screen.getAllByText('DRAFT').length).toBeGreaterThan(0)
-    expect(screen.getByText(/HEADING \+ STORY LAND HERE — what the wizard asks/)).toBeInTheDocument()
+    expect(screen.getByText(/HEADING \+ STORY LAND HERE: what the wizard asks/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Join the TestFlight beta/ })).not.toBeInTheDocument()
   })
 
