@@ -45,13 +45,15 @@ describe('EvidenceManifest (Case-File)', () => {
     }
   })
 
-  it('flags the marquee row with the actual gold treatment (edge, tint, gold number)', () => {
+  it('flags the marquee row by tint and gold number, with no side-tab edge', () => {
     render(<EvidenceManifest features={features} />)
     const marqueeRow = screen.getByRole('link', { name: /The timestamp you can defend/ })
     expect(marqueeRow).toHaveAttribute('data-marquee', 'true')
-    expect(marqueeRow).toHaveClass('shadow-[inset_3px_0_0_#ffd93d]')
     expect(marqueeRow).toHaveClass('bg-gold/[0.04]')
     expect(within(marqueeRow).getByText('06')).toHaveClass('text-gold')
+    // The 3px inset gold left edge was dropped — a coloured bar down one edge of a
+    // row is the side-tab cliché, and the tint already carries the signal.
+    expect(marqueeRow.className).not.toContain('inset_3px')
     // …and a non-marquee row has none of the gold treatment.
     const normalRow = screen.getByRole('link', { name: /The case fills itself in/ })
     expect(normalRow).not.toHaveClass('bg-gold/[0.04]')

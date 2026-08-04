@@ -113,12 +113,10 @@ export default function PrivacyPage() {
                 <div className="font-stmono text-[11px] tracking-[1.5px] text-cyan">NEVER</div>
               </div>
             ))}
-            {/* the gold stays-home row */}
-            <div className={`${LEDGER_GRID} relative bg-gold/[0.04] py-[19px]`}>
-              <div
-                aria-hidden="true"
-                className="absolute bottom-0 left-0 top-0 w-[3px] bg-[linear-gradient(180deg,#ffd93d,rgba(255,217,61,0.2))]"
-              />
+            {/* The gold stays-home row. Marked by tint + gold type only: its 3px gradient
+                left edge was removed with the manifest's matching one (owner decision) —
+                a coloured bar down one side of a row is the side-tab cliché. */}
+            <div className={`${LEDGER_GRID} bg-gold/[0.04] py-[19px]`}>
               <div className="flex items-center gap-[9px]">
                 <span aria-hidden="true" className="h-[7px] w-[7px] rounded-full bg-gold" />
                 <span className="font-nacelle text-[15px] font-semibold text-[#ffe786]">

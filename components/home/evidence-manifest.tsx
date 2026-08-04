@@ -15,9 +15,12 @@ const ROW_GRID = 'grid grid-cols-[70px_230px_1fr_46px] items-center gap-4 px-[26
  * table's width to explain nothing. `classLabel` still drives the feature page's
  * breadcrumb chip, so the field stays in the catalog.
  *
- * The marquee item gets the gold edge + tinted row. The draft item is marked by its
- * italic muted pain line alone; the DRAFT pill that used to float beside the title
- * was removed with the same pass.
+ * The marquee row keeps its gold tint, gold number, and gold arrow; its 3px inset
+ * gold left edge was dropped (a coloured bar down one edge of a row is the side-tab
+ * cliché — the tint carries the same signal without it).
+ *
+ * The draft item is marked by its italic muted pain line alone; the DRAFT pill that
+ * used to float beside the title was removed with the same pass.
  */
 export function EvidenceManifest({ features }: { features: readonly Feature[] }) {
   return (
@@ -62,7 +65,7 @@ export function EvidenceManifest({ features }: { features: readonly Feature[] })
                 ROW_GRID,
                 'py-[17px] transition-colors hover:bg-blue/[0.07]',
                 !isLast && 'border-b border-row-divider',
-                isMarquee && 'bg-gold/[0.04] shadow-[inset_3px_0_0_#ffd93d]',
+                isMarquee && 'bg-gold/[0.04]',
               )}
               style={{ contentVisibility: 'auto' }}
             >
