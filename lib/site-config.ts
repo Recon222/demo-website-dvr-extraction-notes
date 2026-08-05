@@ -9,8 +9,10 @@
  */
 export const siteConfig = {
   name: 'DVR Extraction Notes',
-  // The chosen one-liner (doc 07 Q6 — resolved by the Case-File design's hero H1).
-  tagline: 'The whole extraction, documented before you leave the scene.',
+  // The chosen one-liner (doc 07 Q6). Owner-written; supersedes the Case-File canvas
+  // H1. Feeds the hero H1 AND the page <title>, which is why it leads with the search
+  // term rather than the pitch.
+  tagline: 'CCTV recovery, streamlined from request to report.',
   description:
     'DVR Extraction Notes is a CCTV/DVR evidence recovery documentation app for iOS, built by a practitioner with 15 years and 1,500+ extractions to remove the busywork, from request to court-ready report.',
   url: 'https://example.com', // TODO(doc 07 Q3): real domain
