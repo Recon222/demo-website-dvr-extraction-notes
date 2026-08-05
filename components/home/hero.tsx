@@ -13,7 +13,7 @@ const SUB =
 const BULLETS = [
   'Create and retain unlimited cases and locations, all clearly labeled and organized by completion status.',
   'Import submission information from requests, emails, text messages, briefings and phone transcripts using on-device small language models (SLMs).',
-  'Use address autocomplete and geolocation to populate addresses and map incident and recovery locations. View an interactive on-device map of all queued, in-progress and completed locations that can be exported with current location details.',
+  'Autocomplete and geolocation map incident and recovery locations. An interactive on-device map of all case locations can be exported with current location details.',
 ] as const
 
 /**
