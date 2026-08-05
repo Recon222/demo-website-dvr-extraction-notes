@@ -58,12 +58,15 @@ export function Hero() {
         <h1 className="mb-[22px] font-nacelle text-5xl font-semibold leading-[1.02] tracking-[-1.5px] text-heading lg:text-[62px]">
           {siteConfig.tagline}
         </h1>
-        {/* 720px, not the 560px used on feature pages and not the H1's full width. The
-            headline is 62px, so its long line is still only ~40 characters; this copy at
-            17.5px runs ~82 there, which is at the upper edge of a comfortable measure but
-            fine for a hero intro nobody reads for minutes. Matching the H1 exactly would
-            put ~145 characters on a line. */}
-        <p className="mb-6 max-w-[720px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
+        {/* 840px, not the H1's full width. The headline is 62px, so its long line is
+            still only ~40 characters; this copy at 17.5px runs ~96 there, which is past a
+            comfortable measure for sustained reading but fine for a two-line hero intro.
+            Matching the H1 exactly would put ~145 characters on a line.
+
+            Sized to the copy: at 720px the last word orphaned onto a third line, because
+            line two needed to hold 93 characters and only fit ~82. Re-check this if the
+            sub-copy changes length — the number is tuned to this sentence. */}
+        <p className="mb-6 max-w-[840px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
 
         {/* CSS multi-column, not a 2-col grid: columns read DOWN then across, which is
             how a list is read, where a grid would zigzag 1-2 / 3-4. It also balances the
