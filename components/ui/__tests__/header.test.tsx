@@ -36,8 +36,8 @@ afterEach(() => {
   ;(globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = realObserver
 })
 
-/** The wordmark's fading wrapper (the element carrying `inert` when condensed). */
-const wordmarkGroup = () => screen.getByText(siteConfig.name).parentElement as HTMLElement
+/** The header element itself — it carries the fade and `inert` as a whole. */
+const header = () => document.querySelector('header') as HTMLElement
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -96,33 +96,31 @@ describe('Header', () => {
     expect(header.className).not.toMatch(/\bborder-b/)
   })
 
-  it('condenses to logo + CTA once the header band scrolls out of view', () => {
+  // The whole header fades, logo and CTA included. An earlier pass kept those two
+  // pinned so the beta ask stayed reachable; two elements floating over the content
+  // read worse than they were worth, and the page carries its own CTA at the foot.
+  it('fades the ENTIRE header out once the header band scrolls out of view', () => {
     render(<Header />)
-    expect(wordmarkGroup()).not.toHaveAttribute('inert')
+    expect(header()).not.toHaveAttribute('inert')
 
     setSentinelVisible(false)
 
-    // What survives: the logo mark and the beta CTA.
-    expect(screen.getByTestId('logo')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: siteConfig.cta.label })).toBeInTheDocument()
-
-    // What goes: the wordmark and every nav link — faded AND pulled out of the tab
-    // order, since opacity alone would leave invisible links focusable.
-    expect(wordmarkGroup()).toHaveClass('opacity-0')
-    expect(wordmarkGroup()).toHaveAttribute('inert')
-    const navLinkGroup = screen.getByRole('link', { name: siteConfig.nav[0].label })
-      .parentElement as HTMLElement
-    expect(navLinkGroup).toHaveClass('opacity-0')
-    expect(navLinkGroup).toHaveAttribute('inert')
+    expect(header()).toHaveClass('opacity-0')
+    // inert, not opacity alone: the logo, four nav links and the CTA would otherwise
+    // stay focusable and in the a11y tree while invisible over the content.
+    expect(header()).toHaveAttribute('inert')
+    // Nothing is exempted from the fade — both were, before.
+    expect(header()).toContainElement(screen.getByTestId('logo'))
+    expect(header()).toContainElement(screen.getByRole('link', { name: siteConfig.cta.label }))
   })
 
-  it('expands again when scrolled back to the top', () => {
+  it('fades back in when scrolled to the top', () => {
     render(<Header />)
     setSentinelVisible(false)
-    expect(wordmarkGroup()).toHaveAttribute('inert')
+    expect(header()).toHaveAttribute('inert')
 
     setSentinelVisible(true)
-    expect(wordmarkGroup()).not.toHaveAttribute('inert')
-    expect(wordmarkGroup()).not.toHaveClass('opacity-0')
+    expect(header()).not.toHaveAttribute('inert')
+    expect(header()).not.toHaveClass('opacity-0')
   })
 })
