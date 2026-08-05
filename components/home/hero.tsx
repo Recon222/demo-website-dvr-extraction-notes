@@ -4,20 +4,25 @@ import { AppDemo } from '@/components/app-demo'
 import { MarketingPhoneFrame } from '@/components/marketing/phone-frame'
 import { siteConfig } from '@/lib/site-config'
 
-// Hero copy transcribed from the design canvas (artboard 1a) — final intent.
 // The H1 is siteConfig.tagline (one source for hero + metadata; resolves doc 07 Q6).
+// SUB + BULLETS are the owner's draft, in progress — dropped in verbatim to see the
+// space it occupies. Not transcribed from the design canvas; that copy is superseded.
 const SUB =
-  'An iOS field tool built by a working CCTV analyst, not a vendor. The request imports itself, the DVR clock gets calibrated against atomic time, the media files itself by location, and the report writes itself. You verify. You leave.'
+  'A field tool built by a working Forensic Video Analyst that provides an organized, efficient, accurate, secure and private way to create and manage all CCTV extraction documentation and supporting media, from the initial request through the export of comprehensive, court-ready disclosure packages.'
+
+const BULLETS = [
+  'Create and retain unlimited cases and locations, all clearly labeled and organized by completion status.',
+  'Import submission information from requests, emails, text messages, briefings and phone transcripts using on-device small language models (SLMs).',
+  'Use address autocomplete and geolocation to populate addresses and map incident and recovery locations. View an interactive on-device map of all queued, in-progress and completed locations that can be exported with current location details.',
+] as const
 
 /**
- * Case-File split hero: credential chip, H1, sub, CTA row, narrative slot ⟷ bracketed phone.
+ * Case-File split hero: credential chip, H1, sub + bullets, CTA row ⟷ bracketed phone.
  *
- * The three-cell credential strip that used to close this column was removed (owner
- * decision): it restated the eyebrow chip's "15 YEARS · 1,500+ EXTRACTIONS" verbatim,
- * and its third cell published a per-scene time saving that is NOT confirmed for
- * publication (see PRODUCT.md §Evidence on Hand). Its footprint is held below so the
- * replacement narrative — a summary of the features that hands off into the manifest —
- * can drop straight in without the column resizing.
+ * The reserved narrative slot that used to close this column is gone: it was holding
+ * the footprint of the removed credential strip for exactly this copy, and the copy
+ * now sits above the CTA row where it belongs — a visitor should know what the product
+ * is before being asked to act on it.
  */
 export function Hero() {
   return (
@@ -48,7 +53,19 @@ export function Hero() {
         <h1 className="mb-[22px] font-nacelle text-5xl font-semibold leading-[1.02] tracking-[-1.5px] text-heading lg:text-[62px]">
           {siteConfig.tagline}
         </h1>
-        <p className="mb-[34px] max-w-[560px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
+        <p className="mb-6 max-w-[560px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
+
+        <ul className="mb-[34px] flex max-w-[560px] flex-col gap-[14px]">
+          {BULLETS.map((bullet) => (
+            <li key={bullet} className="flex gap-3 text-[15.5px] leading-[1.65] text-body-2">
+              <span
+                aria-hidden="true"
+                className="mt-[9px] h-[5px] w-[5px] flex-none rounded-full bg-cyan"
+              />
+              {bullet}
+            </li>
+          ))}
+        </ul>
 
         {/* CTA row */}
         <div className="mb-10 flex items-center gap-[14px]">
@@ -69,10 +86,6 @@ export function Hero() {
           </Link>
         </div>
 
-        {/* NARRATIVE SLOT — reserved footprint of the removed cred strip (see the
-            component doc above). Holds the column's height steady until the feature-
-            summary copy that hands off into the evidence manifest lands here. */}
-        <div aria-hidden="true" className="h-[71px] max-w-[620px]" />
       </div>
 
       {/* hero phone — the walkthrough loop (media file is local-pending the
