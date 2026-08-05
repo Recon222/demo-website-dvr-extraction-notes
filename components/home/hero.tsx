@@ -65,9 +65,18 @@ export function Hero() {
             put ~145 characters on a line. */}
         <p className="mb-6 max-w-[720px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
 
-        <ul className="mb-[34px] flex max-w-[720px] flex-col gap-[14px]">
+        {/* CSS multi-column, not a 2-col grid: columns read DOWN then across, which is
+            how a list is read, where a grid would zigzag 1-2 / 3-4. It also balances the
+            two columns by height on its own, and `break-inside-avoid` keeps a bullet
+            whole. Only at 2xl — below ~1536px the copy column is too narrow to split
+            without pushing every bullet to four or five lines, which costs more height
+            than the split saves. */}
+        <ul className="mb-[34px] max-w-[720px] 2xl:max-w-none 2xl:columns-2 2xl:gap-x-14">
           {BULLETS.map((bullet) => (
-            <li key={bullet} className="flex gap-3 text-[15.5px] leading-[1.65] text-body-2">
+            <li
+              key={bullet}
+              className="mb-[14px] flex break-inside-avoid gap-3 text-[15.5px] leading-[1.65] text-body-2 last:mb-0"
+            >
               <span
                 aria-hidden="true"
                 className="mt-[9px] h-[5px] w-[5px] flex-none rounded-full bg-cyan"
