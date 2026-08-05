@@ -58,6 +58,6 @@ describe('Hero (Case-File)', () => {
 
   it('renders the hero phone with the live-capture label', () => {
     render(<Hero />)
-    expect(screen.getByText('LIVE CAPTURE · 378×786')).toBeInTheDocument()
+    expect(screen.getByText('LIVE PHONE CAPTURE')).toBeInTheDocument()
   })
 })

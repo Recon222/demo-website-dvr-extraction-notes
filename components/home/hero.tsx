@@ -116,7 +116,7 @@ export function Hero() {
 
       {/* hero phone — the walkthrough loop (media file is local-pending the
           pre-launch media strategy: committed assets vs LFS vs blob storage) */}
-      <MarketingPhoneFrame scale={0.68} label="LIVE CAPTURE · 378×786">
+      <MarketingPhoneFrame scale={0.68} label="LIVE PHONE CAPTURE">
         <AppDemo
           src="demos/home/walkthrough.mp4"
           poster="demos/home/walkthrough.webp"

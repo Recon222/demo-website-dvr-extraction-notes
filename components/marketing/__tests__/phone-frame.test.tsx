@@ -16,7 +16,7 @@ describe('MarketingPhoneFrame', () => {
 
   it('renders children in the screen slot', () => {
     render(
-      <MarketingPhoneFrame scale={0.62} label="LIVE CAPTURE · 378×786">
+      <MarketingPhoneFrame scale={0.62} label="LIVE PHONE CAPTURE">
         <div data-testid="loop">video goes here</div>
       </MarketingPhoneFrame>,
     )

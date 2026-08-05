@@ -61,7 +61,7 @@ const gridStyle: CSSProperties = {
 export interface MarketingPhoneFrameProps {
   /** Fixed display scale: 0.68 for the hero, 0.62 for feature rows. */
   scale: number;
-  /** Corner-bracket label chip, e.g. `REC 01 — CASES` or `LIVE CAPTURE · 378×786`. */
+  /** Corner-bracket label chip, e.g. `REC 01 — CASES` or `LIVE PHONE CAPTURE`. */
   label: string;
   /** Screen content — typically an <AppDemo/> loop filling the slot. */
   children: ReactNode;
