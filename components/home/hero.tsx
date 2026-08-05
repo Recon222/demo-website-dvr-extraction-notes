@@ -8,7 +8,7 @@ import { siteConfig } from '@/lib/site-config'
 // SUB + BULLETS are the owner's draft, in progress — dropped in verbatim to see the
 // space it occupies. Not transcribed from the design canvas; that copy is superseded.
 const SUB =
-  'A tool for organized, efficient, accurate, secure and private creation and management of all CCTV extraction documentation and supporting media, from initial request to court-ready disclosure.'
+  'Organized, efficient, accurate, secure and private creation and management of CCTV extraction documentation and supporting media, from initial request to court-ready disclosure.'
 
 const BULLETS = [
   'Create and retain unlimited cases and locations.',
