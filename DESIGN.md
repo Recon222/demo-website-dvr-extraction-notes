@@ -229,8 +229,8 @@ that weight. At most one gold call-to-action is visible in a viewport. Its rarit
 entirely cold palette is the whole mechanism; spend it twice on a button and it stops
 meaning anything.
 
-The one sanctioned exception is the manifest's FEATURE column, where gold runs down all ten
-rows. It survives the rule on **weight, not colour**: those labels are 12.5px letterspaced
+The one sanctioned exception is the manifest's FEATURE column, where gold runs down every
+row. It survives the rule on **weight, not colour**: those labels are 12.5px letterspaced
 Share Tech Mono, so their ink coverage is a fraction of a button's or a heading's. Gold at
 label weight is an accent; gold at heading weight is a claim. If a future use cannot say
 which of the two it is, it is the wrong use.

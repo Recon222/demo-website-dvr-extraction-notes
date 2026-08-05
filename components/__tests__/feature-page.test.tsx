@@ -31,7 +31,7 @@ describe('FeaturePage (Case-File)', () => {
   // The breadcrumb is now the item line alone: no MANIFEST crumb, no `/`, no CLASS chip.
   it('renders the breadcrumb as the gold item line only', () => {
     renderFeature('time-calibration')
-    expect(screen.getByText('06 — TIME OFFSET')).toBeInTheDocument()
+    expect(screen.getByText('05 — TIME OFFSET')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'MANIFEST' })).not.toBeInTheDocument()
     expect(screen.queryByText(/^ITEM /)).not.toBeInTheDocument()
     // The class taxonomy no longer renders anywhere in the UI.
@@ -90,7 +90,7 @@ describe('FeaturePage (Case-File)', () => {
 
   it('renders the under-the-hood section with FIG label and caption, omitted for map', () => {
     renderFeature('time-calibration')
-    expect(screen.getByText('FIG. 06-A')).toBeInTheDocument()
+    expect(screen.getByText('FIG. 05-A')).toBeInTheDocument()
     expect(screen.getByText('The traceability chain, in plain language')).toBeInTheDocument()
     expect(
       screen.getByText(/The chain printed into every Time Offset Report/),
@@ -115,14 +115,14 @@ describe('FeaturePage (Case-File)', () => {
     expect(body.className).not.toContain('border-dashed')
   })
 
-  it('renders prev/next cards with the dashed edges at 01 and 10', () => {
+  it('renders prev/next cards with the dashed edges at the first and last items', () => {
     renderFeature('cases-locations')
     expect(screen.getByText('START OF MANIFEST')).toBeInTheDocument()
     expect(screen.getByText(/NEXT · 02 IMPORT REQUEST/)).toBeInTheDocument()
 
     renderFeature('on-device')
     expect(screen.getByText('END OF MANIFEST')).toBeInTheDocument()
-    expect(screen.getByText(/PREV · 09 ENCRYPTED EXPORT/)).toBeInTheDocument()
+    expect(screen.getByText(/PREV · 10 SETTINGS/)).toBeInTheDocument()
   })
 
   it('gives the Notes neighbour a plain prev/next card, with no DRAFT chip', () => {

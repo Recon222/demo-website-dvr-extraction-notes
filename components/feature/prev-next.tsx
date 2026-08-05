@@ -43,7 +43,11 @@ export function PrevNext({
       ) : (
         <div className={`${EDGE} md:text-right`}>
           <span className="font-stmono text-[10px] tracking-[2px] text-ghost">END OF MANIFEST</span>
-          <span className="font-nacelle text-lg font-semibold text-faint">That&apos;s all ten</span>
+          {/* Count-free on purpose: this said "That's all ten" and went stale the day an
+              eleventh feature landed. */}
+          <span className="font-nacelle text-lg font-semibold text-faint">
+            That&apos;s the whole manifest
+          </span>
         </div>
       )}
     </nav>

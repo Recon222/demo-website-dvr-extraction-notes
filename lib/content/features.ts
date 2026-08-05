@@ -193,41 +193,6 @@ export const features: readonly Feature[] = [
     priority: 'p1',
   },
   {
-    slug: 'map',
-    navLabel: 'Map',
-    eyebrow: 'Case map',
-    title: 'Your whole case on a map',
-    painLine:
-      'The whole case on one map. Tap a pin to call or email the investigator or site contact.',
-    intro:
-      'Multi-location cases are hard to hold in your head, and reaching a contact means digging for a number. On the map, **the shape of the job is obvious, and every contact is one tap away.**',
-    tip: {
-      variant: 'cyan',
-      body: 'The pins carry people, not just places: the requesting investigator and the on-site contact ride with each location.',
-    },
-    rows: [
-      {
-        kicker: '01 — THE SHAPE OF THE JOB',
-        heading: 'Every location, one view',
-        body: 'See all the locations in a case on a live map: which sites are done, which are pending, and how the job lays out across town before you commit to a driving order.',
-        chips: ['LIVE MAP', 'STATUS PINS', 'PER-CASE VIEW'],
-        recLabel: 'REC 01 — CASE MAP',
-        media: 'demos/map/map.mp4',
-      },
-      {
-        kicker: '02 — THE PEOPLE',
-        heading: 'Contacts one tap away',
-        body: "Tap a pin to call or email the requesting investigator or the on-site contact, right from the map. No digging through the case for a phone number while you're double-parked.",
-        chips: ['TAP TO CALL', 'TAP TO EMAIL', 'OIC + SITE CONTACT'],
-        recLabel: 'REC 02 — PIN CONTACTS',
-        media: 'demos/map/contacts.mp4',
-      },
-    ],
-    // No "under the hood" section for the map (none in the catalog / canvas).
-    betaStripLine: 'Hold the whole job in one view.',
-    priority: 'p1',
-  },
-  {
     slug: 'time-calibration',
     navLabel: 'Time Offset',
     eyebrow: 'Time calibration',
@@ -350,6 +315,41 @@ export const features: readonly Feature[] = [
     priority: 'p0',
   },
   {
+    slug: 'map',
+    navLabel: 'Map',
+    eyebrow: 'Case map',
+    title: 'Your whole case on a map',
+    painLine:
+      'The whole case on one map. Tap a pin to call or email the investigator or site contact.',
+    intro:
+      'Multi-location cases are hard to hold in your head, and reaching a contact means digging for a number. On the map, **the shape of the job is obvious, and every contact is one tap away.**',
+    tip: {
+      variant: 'cyan',
+      body: 'The pins carry people, not just places: the requesting investigator and the on-site contact ride with each location.',
+    },
+    rows: [
+      {
+        kicker: '01 — THE SHAPE OF THE JOB',
+        heading: 'Every location, one view',
+        body: 'See all the locations in a case on a live map: which sites are done, which are pending, and how the job lays out across town before you commit to a driving order.',
+        chips: ['LIVE MAP', 'STATUS PINS', 'PER-CASE VIEW'],
+        recLabel: 'REC 01 — CASE MAP',
+        media: 'demos/map/map.mp4',
+      },
+      {
+        kicker: '02 — THE PEOPLE',
+        heading: 'Contacts one tap away',
+        body: "Tap a pin to call or email the requesting investigator or the on-site contact, right from the map. No digging through the case for a phone number while you're double-parked.",
+        chips: ['TAP TO CALL', 'TAP TO EMAIL', 'OIC + SITE CONTACT'],
+        recLabel: 'REC 02 — PIN CONTACTS',
+        media: 'demos/map/contacts.mp4',
+      },
+    ],
+    // No "under the hood" section for the map (none in the catalog / canvas).
+    betaStripLine: 'Hold the whole job in one view.',
+    priority: 'p1',
+  },
+  {
     slug: 'secure-export',
     navLabel: 'Encrypted Export',
     eyebrow: 'Secure handoff',
@@ -390,8 +390,48 @@ export const features: readonly Feature[] = [
     priority: 'p1',
   },
   {
+    // NEW (owner request, 2026-08-05). Every string below is SCAFFOLDING pending the
+    // owner's copy — grounded in the demo's actual settings panes (Appearance, Cloud
+    // Sync, Export Security, Location, Media Capture, Security, Time Sync, About, and
+    // the two on the second row) rather than invented, but not written to voice.
+    // The two-row split is the owner's: app settings on the first phone, user profile
+    // and form fields on the second.
+    slug: 'settings',
+    navLabel: 'Settings',
+    eyebrow: 'Settings',
+    title: 'Set it up the way your unit works',
+    painLine:
+      'Copy pending. Every unit works differently, so the defaults bend to yours.',
+    intro:
+      'COPY PENDING — one paragraph on why an evidence tool has to fit the unit it is deployed into, rather than the other way round.',
+    tip: {
+      variant: 'cyan',
+      body: 'A deployment profile sets defaults, never locks: everything stays togglable afterwards, and the mandatory fields stay visible no matter what any profile says.',
+    },
+    rows: [
+      {
+        kicker: '01 — THE APP',
+        heading: 'Section pending — app settings',
+        body: 'HEADING + STORY LAND HERE. Covers everything except the profile and the form: appearance, cloud sync, export security, location, media capture, security, time sync, and about.',
+        chips: ['APPEARANCE', 'CLOUD SYNC', 'EXPORT SECURITY', 'TIME SYNC'],
+        recLabel: 'REC 01 — SETTINGS',
+        media: 'demos/settings/settings.mp4',
+      },
+      {
+        kicker: '02 — YOU AND YOUR FORMS',
+        heading: 'Section pending — profile and form fields',
+        body: 'HEADING + STORY LAND HERE. The user profile that signs the reports, and the form-field customisation that decides which steps and fields the wizard asks for.',
+        chips: ['USER PROFILE', 'FORM FIELDS', 'DEPLOYMENT PROFILES'],
+        recLabel: 'REC 02 — PROFILE & FORM FIELDS',
+        media: 'demos/settings/profile.mp4',
+      },
+    ],
+    betaStripLine: 'Make it work the way your unit does.',
+    priority: 'p2',
+  },
+  {
     slug: 'on-device',
-    navLabel: 'Security and Privacy',
+    navLabel: 'Security & Privacy',
     eyebrow: 'Privacy by design',
     title: 'On your device, under your control',
     painLine:

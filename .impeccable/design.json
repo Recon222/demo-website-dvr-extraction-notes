@@ -300,7 +300,7 @@
     "rules": [
       {
         "name": "The Gold Scarcity Rule",
-        "body": "Gold marks the one thing to do, and nothing else competes at that weight. At most one gold call-to-action is visible in a viewport. Its rarity against an entirely cold palette is the whole mechanism; spend it twice on a button and it stops meaning anything. The one sanctioned exception is the manifest's FEATURE column, where gold runs down all ten rows — it survives the rule on weight, not colour: those labels are 12.5px letterspaced Share Tech Mono, so their ink coverage is a fraction of a button's or a heading's. Gold at label weight is an accent; gold at heading weight is a claim.",
+        "body": "Gold marks the one thing to do, and nothing else competes at that weight. At most one gold call-to-action is visible in a viewport. Its rarity against an entirely cold palette is the whole mechanism; spend it twice on a button and it stops meaning anything. The one sanctioned exception is the manifest's FEATURE column, where gold runs down every row — it survives the rule on weight, not colour: those labels are 12.5px letterspaced Share Tech Mono, so their ink coverage is a fraction of a button's or a heading's. Gold at label weight is an accent; gold at heading weight is a claim.",
         "section": "colors"
       },
       {

@@ -210,10 +210,14 @@ describe('Case-File content fields', () => {
     )
   })
 
-  it('gives map no diagram and every other feature a headed diagram', () => {
+  // Two features have no under-the-hood diagram: map (never had one) and settings
+  // (new, and its copy is still scaffolding). Listing them explicitly means adding a
+  // third has to be a decision rather than an omission that slips through.
+  it('gives every feature a headed diagram except map and settings', () => {
+    const NO_DIAGRAM = ['map', 'settings']
     for (const f of features) {
-      if (f.slug === 'map') {
-        expect(f.diagram).toBeUndefined()
+      if (NO_DIAGRAM.includes(f.slug)) {
+        expect(f.diagram, `"${f.slug}" should have no diagram`).toBeUndefined()
       } else {
         expect(f.diagram, `"${f.slug}" diagram`).toBeDefined()
         expect(f.diagram!.heading?.length, `"${f.slug}" diagram heading`).toBeGreaterThan(0)

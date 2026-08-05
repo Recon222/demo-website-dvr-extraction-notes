@@ -76,7 +76,7 @@ describe('EvidenceManifest (Case-File)', () => {
     expect(exMarquee).not.toHaveAttribute('data-marquee')
     expect(exMarquee.className).not.toContain('gold')
     expect(exMarquee.className).not.toContain('inset_3px')
-    expect(within(exMarquee).getByText('06')).toHaveClass('text-cyan')
+    expect(within(exMarquee).getByText('05')).toHaveClass('text-cyan')
     expect(within(ordinary).getByText('02')).toHaveClass('text-cyan')
   })
 
