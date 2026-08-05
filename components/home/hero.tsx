@@ -53,9 +53,14 @@ export function Hero() {
         <h1 className="mb-[22px] font-nacelle text-5xl font-semibold leading-[1.02] tracking-[-1.5px] text-heading lg:text-[62px]">
           {siteConfig.tagline}
         </h1>
-        <p className="mb-6 max-w-[560px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
+        {/* 720px, not the 560px used on feature pages and not the H1's full width. The
+            headline is 62px, so its long line is still only ~40 characters; this copy at
+            17.5px runs ~82 there, which is at the upper edge of a comfortable measure but
+            fine for a hero intro nobody reads for minutes. Matching the H1 exactly would
+            put ~145 characters on a line. */}
+        <p className="mb-6 max-w-[720px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
 
-        <ul className="mb-[34px] flex max-w-[560px] flex-col gap-[14px]">
+        <ul className="mb-[34px] flex max-w-[720px] flex-col gap-[14px]">
           {BULLETS.map((bullet) => (
             <li key={bullet} className="flex gap-3 text-[15.5px] leading-[1.65] text-body-2">
               <span
