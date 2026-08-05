@@ -14,11 +14,11 @@ const BULLETS = [
   'Create and retain unlimited cases and locations.',
   'Import submission information from requests, emails, text messages, briefings and phone transcripts using on-device small language models (SLMs).',
   'Autocomplete and geolocation map incident, recovery and camera locations. An interactive on-device map of all case locations can be exported with current location details.',
-  'Use manual "Get Current Time" or capture live DVR timestamp for OCR time offset calibration applied to all submitted scopes. All time offset calibration is NTP synced when device time is captured. A comprehensive time offset report with OCR image and NTP details is exported for every location.',
+  'Capture live DVR timestamp for OCR time offset calibration applied to all submitted scopes. All time offset calibration is NTP synced when device time is captured.',
   'Extraction notes are built as you work through the wizard. The bullet points are written for you and are independently editable. Or delete them and write your own.',
   'Capture images, video and audio for each location. Name the file, and add a note. Media is exported as original files as well as a media embedded PDF.',
-  'SHA-256 encryption of all data at rest on the device.',
-  'Export complete cases, individual locations or individual reports with optional SHA-256 encryption for each. Each location is organized into an organized directory structure with a case export wrapping all location with a case root directory.',
+  'AES-256 encryption of all data at rest on the device.',
+  'Export complete cases, individual locations or individual reports with optional AES-256 encryption for each. Each location is organized into a directory structure, with a case export wrapping all locations under a case root directory.',
 ] as const
 
 /**
