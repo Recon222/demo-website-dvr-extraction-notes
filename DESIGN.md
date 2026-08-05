@@ -25,7 +25,7 @@ colors:
 typography:
   display:
     fontFamily: "Nacelle, sans-serif"
-    fontSize: "62px"
+    fontSize: "56px"
     fontWeight: 600
     lineHeight: 1.02
     letterSpacing: "-1.5px"
@@ -257,8 +257,8 @@ page read as instrumentation rather than as a developer landing page.
 
 ### Hierarchy
 
-- **Display** (Nacelle 600, 56–62px, line-height 1.02, tracking −1.5px): Page H1 only — the
-  hero and feature-page headlines. Always ends in a period on feature pages; the period drops
+- **Display** (Nacelle 600, 52–56px, line-height 1.02, tracking −1.5px): Page H1 only — the
+  hero (56px) and feature-page headlines (52px). Always ends in a period on feature pages; the period drops
   in card and nav contexts.
 - **Headline** (Nacelle 600, 38px, tracking −0.8px): Section H2 — "From request to
   court-ready report", "Every feature kills a pain point".

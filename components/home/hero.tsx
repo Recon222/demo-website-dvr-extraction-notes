@@ -55,7 +55,11 @@ export function Hero() {
           </span>
         </div>
 
-        <h1 className="mb-[22px] font-nacelle text-5xl font-semibold leading-[1.02] tracking-[-1.5px] text-heading lg:text-[62px]">
+        {/* One size, 56px (text-5xl). The lg:62px step was dropped to pull the bullets'
+            last line above the fold — at two lines it was costing ~12px for no gain the
+            eye registers. Still two lines: the tagline needs ~1,600px for one, and the
+            column is ~1,380px at a maximised window. */}
+        <h1 className="mb-[22px] font-nacelle text-5xl font-semibold leading-[1.02] tracking-[-1.5px] text-heading">
           {siteConfig.tagline}
         </h1>
         {/* 840px, not the H1's full width. The headline is 62px, so its long line is
