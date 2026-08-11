@@ -11,14 +11,14 @@ const SUB =
   'Organized, efficient, accurate, secure and private creation and management of CCTV extraction documentation and supporting media, from initial request to court-ready disclosure.'
 
 const BULLETS = [
-  'Create and retain unlimited cases and locations.',
-  'Import submission information from requests, emails, text messages, briefings and phone transcripts using on-device small language models (SLMs).',
-  'Autocomplete and geolocation map incident, recovery and camera locations. An interactive on-device map of all case locations can be exported with current location details.',
-  'Capture live DVR timestamp for OCR time offset calibration applied to all submitted scopes. All time offset calibration is NTP synced when device time is captured.',
-  'Extraction notes are built as you work through the wizard. The bullet points are written for you and are independently editable. Or delete them and write your own.',
-  'Capture images, video and audio for each location. Name the file, and add a note. Media is exported as original files as well as a media embedded PDF.',
-  'AES-256 encryption of all data at rest on the device.',
-  'Export complete cases, individual locations or individual reports with optional AES-256 encryption for each. Each location is organized into a directory structure, with a case export wrapping all locations under a case root directory.',
+  'Unlimited cases and locations, transaction-safe',
+  'Import requests, emails and transcriptions. On-device SLM parses and creates the location. No network call.',
+  'Incident, locations and cameras geocoded and mapped',
+  'OCR time offset calculation with NTP sync',
+  'Notes assemble as you work. Every bullet editable.',
+  'Capture images, video and audio per location',
+  'Export a case, a location, or one report, disclosure ready',
+  'AES-256 encrypted on-device and on export',
 ] as const
 
 /**
@@ -72,17 +72,21 @@ export function Hero() {
             sub-copy changes length — the number is tuned to this sentence. */}
         <p className="mb-6 max-w-[840px] text-[17.5px] leading-[1.65] text-body">{SUB}</p>
 
-        {/* CSS multi-column, not a 2-col grid: columns read DOWN then across, which is
-            how a list is read, where a grid would zigzag 1-2 / 3-4. It also balances the
-            two columns by height on its own, and `break-inside-avoid` keeps a bullet
-            whole. Only at 2xl — below ~1536px the copy column is too narrow to split
-            without pushing every bullet to four or five lines, which costs more height
-            than the split saves. */}
+        {/* CSS multi-column, not a 2-col grid: columns read DOWN then across, and — the
+            reason a `grid-rows-4` version was reverted — multi-column rows are NOT coupled
+            across columns, so every gap is a flat 14px. In the grid, a two-line bullet on
+            one side stretched the row and opened a ~40px hole beside it. The forced break
+            after item 4 is what a plain `columns-2` can't do on its own: it balances by
+            height, which put the split at 3/5. Only at 2xl — below ~1536px the copy column
+            is too narrow to split without pushing every bullet to four or five lines,
+            which costs more height than the split saves. */}
         <ul className="mb-[34px] max-w-[720px] 2xl:max-w-none 2xl:columns-2 2xl:gap-x-14">
-          {BULLETS.map((bullet) => (
+          {BULLETS.map((bullet, i) => (
             <li
               key={bullet}
-              className="mb-[14px] flex break-inside-avoid gap-3 text-[15.5px] leading-[1.65] text-body-2 last:mb-0"
+              className={`mb-[14px] flex break-inside-avoid gap-3 text-[15.5px] leading-[1.65] text-body-2 last:mb-0 ${
+                i === 3 ? '2xl:break-after-column' : ''
+              }`}
             >
               <span
                 aria-hidden="true"
