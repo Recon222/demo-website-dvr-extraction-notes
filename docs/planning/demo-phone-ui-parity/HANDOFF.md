@@ -2,7 +2,7 @@
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-26 — milestone: EFFORT OPENED. Recon fleet launched (phone UI-delta inventory ∥ demo UI inventory). Nothing merged yet.
+**Last updated:** 2026-08-26 — milestone: BOTH RECON INVENTORIES LANDED + committed (`de50e9d` on `docs/ui-parity-planning`). Matrix + master-plan writer IN FLIGHT. Nothing merged to master yet.
 
 ## 1. Mission & role
 
@@ -45,13 +45,14 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 **Branch:** `docs/ui-parity-planning` (worktree `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\demo-ui-parity-planning`) off `master` @ `5cf88fe`. Owner's main checkout is on `feat/splash-a-three` (splash WIP — unrelated; leave it alone).
 **Phone HEAD:** `main` @ `dd5551ec` (2026-08-25). **Demo-parity baseline on the phone:** `d9606460` (2026-07-30) — everything after it is the delta.
 **Known:** `.design-sync/check-rn-parity.mjs` (v1's 9-anchor RN↔web token drift guard) is RED on master — `Button PRIMARY_GRADIENT.dark not found` (phone P9 moved it).
-**Landed:** `demo-ui-inventory.md` (2,480 lines, §0–§8 + census script `census.mjs`; §5 shows the drift guard masks FOUR real token drifts — bg `#0d1b2a→#002853`, border `#1e3a5f→#1c4e84`, the primary gradient renamed `PRIMARY_GRADIENT→PrimaryButtonGradient` and inverted in character). **In flight:** `recon-phone-delta` (→ `phone-ui-delta-inventory.md`). Next: matrix+plan writer consumes both.
+**Landed:** `demo-ui-inventory.md` (2,480 lines, §0–§8 + census script `census.mjs`; §5 shows the drift guard masks FOUR real token drifts — bg `#0d1b2a→#002853`, border `#1e3a5f→#1c4e84`, the primary gradient renamed `PRIMARY_GRADIENT→PrimaryButtonGradient` and inverted in character). **Landed:** `phone-ui-delta-inventory.md` (18,613 lines; §0 High confidence; §0.6 flags: rulings D3(a)/D1(a) superseded by #127 code — follow the code; `.design-sync/tokens.css` + `constants/README.md` on the phone are STALE, never mine them; contrast ratios mostly COMPUTED not observed — only PR #125's DEVICE-PASS observed hardware). **In flight:** `matrix-plan-writer` → `00-ui-parity-matrix.md` + `01-master-ui-parity-plan.md`. Then: plan-review lanes (Opus) on the two docs → writer fix round → owner ratification.
 
 ## 6. Agent roster & continuity handles
 
 | Role | Handle | Model | Status |
 |---|---|---|---|
-| Phone UI-delta inventory | `recon-phone-delta` | Opus | in flight |
+| Phone UI-delta inventory | `recon-phone-delta` | Opus | done (resumable to settle inventory contradictions) |
+| Matrix + master plan writer | `matrix-plan-writer` | Opus | in flight |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
