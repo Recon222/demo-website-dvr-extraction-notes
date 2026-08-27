@@ -6,6 +6,7 @@ import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomple
 import { IncidentLocationFields } from '@/features/demo/ui/inputs/IncidentLocationFields'
 import type { IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
 import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
+import { SubmissionScreen } from '@/features/demo/ui/screens/SubmissionScreen'
 import { Field } from '@/features/demo/ui/screens/_shared'
 import { palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
@@ -223,5 +224,46 @@ describe('NewCaseModal — screens/NewCaseModal.tsx (U2.1 / A72)', () => {
     fireEvent.blur(lat)
     expect(lat.style.borderWidth).toBe('2px')
     expect(normColor(lat.style.borderColor)).toBe(ERROR)
+  })
+})
+
+describe('SubmissionScreen — screens/SubmissionScreen.tsx (U2.1 / A72, D10)', () => {
+  const fields = {
+    requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '',
+    businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '',
+  }
+
+  /** The read-only case number is a DIV, not an input — `getByText` is the only handle. */
+  const renderScreen = () =>
+    render(
+      <SubmissionScreen
+        occNumber="2025-004821"
+        fields={fields}
+        isFieldVisible={() => true}
+        onChange={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onMenu={vi.fn()}
+        onCoordinates={vi.fn()}
+      />,
+    )
+
+  it('takes the recipe GEOMETRY and keeps opacity 0.6 + aria-disabled (D10 amended)', () => {
+    renderScreen()
+    const box = screen.getByText('2025-004821')
+    expectSharedGeometry(box)
+    // D10 governs here and the geometry half is all that ports: `disabledText` would measure
+    // 2.54/3.57 against this opacity's 4.60/5.22 on a field carrying the occurrence number,
+    // which is the "label that carries data" D10 forbids fading. So the DEFAULT branch, not
+    // the disabled one — colours unchanged from what this div shipped.
+    expect(normColor(box.style.borderColor)).toBe(BORDER)
+    expect(normColor(box.style.color)).toBe(TEXT)
+    expect(box.style.opacity).toBe('0.6')
+    expect(box).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('does not fade the label that sits beside it', () => {
+    renderScreen()
+    expect(screen.getByText('Case Number').style.opacity).toBe('')
   })
 })

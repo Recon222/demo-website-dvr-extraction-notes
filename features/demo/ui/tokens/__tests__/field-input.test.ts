@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 
 import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 import { palette, scheme } from '@/features/demo/ui/tokens/palette'
@@ -63,5 +65,55 @@ describe('fieldInputStyle (U2.1 / A72)', () => {
       expect(fieldInputStyle(state).background).toBe(c.background)
       expect(fieldInputStyle(state).background).not.toBe(c.backgroundSecondary)
     }
+  })
+})
+
+const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
+
+/** §4.7: case-insensitive, whitespace-stripped — the same `norm` the two other source scans use. */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
+function sourceFiles(dir: string): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== '__tests__') out.push(...sourceFiles(full))
+    } else if (/\.tsx?$/.test(entry.name)) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+/**
+ * The retired recipe, as it was spelled in all five places (`_shared.tsx:188`,
+ * `AddressAutocomplete.tsx:36`, `IncidentLocationFields.tsx:88`, `NewCaseModal.tsx:53`,
+ * `SubmissionScreen.tsx:148`): `fontSize: 15` immediately beside `padding: '11px 12px'`.
+ * Both key orders, because a re-paste can arrive either way.
+ *
+ * KNOWN LIMIT, stated rather than papered over: this catches the OLD recipe pasted back, not
+ * a fresh copy typed in the NEW values. The durable half of that invariant is behavioural and
+ * lives in `ui/__tests__/field-input-recipe.test.tsx`, which drives every consumer's DOM.
+ * `padding: '11px 12px'` alone is NOT bannable — `Dropdown.tsx:73` (a picker option row, U2.4)
+ * and `DvrInfoScreen.tsx:142` (a checkbox chip, U2.4) both spell it and neither is an input.
+ */
+const RETIRED_RECIPE: ReadonlyArray<[order: string, needle: string]> = [
+  ['fontSize before padding', "fontsize:15,padding:'11px12px'"],
+  ['padding before fontSize', "padding:'11px12px',fontsize:15"],
+]
+
+describe('the field-input recipe exists exactly once', () => {
+  it('finds no re-declaration of the retired 15/11px-12px input recipe under ui/', () => {
+    const offenders: string[] = []
+    for (const file of sourceFiles(UI_ROOT)) {
+      const text = norm(readFileSync(file, 'utf8'))
+      for (const [order, needle] of RETIRED_RECIPE) {
+        if (text.includes(needle)) {
+          offenders.push(`${relative(UI_ROOT, file).split(sep).join('/')} re-declares the field-input recipe (${order}) — call fieldInputStyle() instead`)
+        }
+      }
+    }
+    expect(offenders, offenders.join('\n')).toEqual([])
   })
 })
