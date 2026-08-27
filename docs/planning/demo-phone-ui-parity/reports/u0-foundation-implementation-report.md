@@ -883,3 +883,36 @@ as thoroughly as painting none of them, and which R1–R4 by construction cannot
 Same single line, but `/^(#|[a-z-]+\()/i` needs no maintenance the first time a caller passes
 `oklch()` or `light-dark()`, whereas an allow-list of safe words silently re-opens the hole for every
 CSS colour function added to the platform after it was written.
+
+---
+
+# W1-F24 prep — RULED NOT-MERGED (stand-down, 2026-08-27)
+
+**Branch:** `uiparity/u1-fix3-palette` @ `3ce2998`, off `origin/feat/uiparity-w1` (`d91ab76`).
+**Disposition: do not merge.** The coordinator stood this down after the aggregator reached the
+same conclusion my P2 probe did. Recorded here because the branch is where the executed evidence
+lives, and it dies with the branch otherwise.
+
+**The prescribed one-token fix does not work, and both seats proved it independently.**
+`expect(colors).toBe(palette[scheme])` passes on the regressed line: while `scheme === 'dark'`,
+`palette[scheme]` and `palette.dark` are the same object, so the assertion holds identically
+before and after. A value comparison cannot observe a DERIVATION while the derived value is
+unchanged.
+
+Three probes on `palette.ts:189 -> palette.dark`, throwaway worktree, tree clean after each:
+
+| Probe | Pin shape | Verdict |
+|---|---|---|
+| P1 | source + value (what I pushed) | **KILLED** (exit 1) |
+| P2 | value only — **as prescribed** | **SURVIVED** (exit 0, 6 passed) |
+| P3 | source only | **KILLED** (exit 1) |
+
+P3 is the honest half: the source assertion alone is what guards this, so the value token is not
+an independent guard. I could not construct a mutation it kills that the source pin misses.
+
+**The ruled remedy is elsewhere and is better:** delete the `SCHEME_DECLARERS` exemption in
+`glass-tokens.test.ts` (headers seat). That removes the *reason* `palette.ts` was unscannable
+rather than adding a second pin beside a tautological one — one guard where all callers route
+through, instead of a per-file assertion. My branch is superseded, not wrong; if the exemption
+deletion ever turns out not to cover the declaration site itself, `3ce2998` is the one-line
+source pin that does, and P1/P3 above are its falsifiability evidence.
