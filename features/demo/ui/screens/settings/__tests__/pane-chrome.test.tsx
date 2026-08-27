@@ -155,7 +155,11 @@ describe('PaneNote IS Banner’s recipe — the drift guard for a ruled duplicat
     for (const severity of ['info', 'warning', 'success'] as const) {
       const { container: bannerHost, unmount: a } = render(<Banner severity={severity} message="Body" />)
       const { container: noteHost, unmount: b } = render(<PaneNote tone={severity}>Body</PaneNote>)
-      expect(noteHost.querySelector('svg')?.innerHTML).toBe(bannerHost.querySelector('svg')?.innerHTML)
+      // F71: `!`, not `?.`. Optional-chaining BOTH sides makes `undefined === undefined`
+      // pass, so the assertion survived the case where BOTH glyphs vanish - which is the
+      // shared-`BannerIcon` break this case exists for. The `!` idiom is the one the two
+      // blocks above already use.
+      expect(noteHost.querySelector('svg')!.innerHTML).toBe(bannerHost.querySelector('svg')!.innerHTML)
       a()
       b()
     }
