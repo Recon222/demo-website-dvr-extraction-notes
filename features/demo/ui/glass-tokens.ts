@@ -22,9 +22,26 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  * - `GLASS.*` string tokens are full CSS values (border shorthands include `1px solid`).
  * - `glassCard` / `glassCardNested` / `glassBtnPrimary` / `glassBtnSecondary` are spreadable
  *   style fragments; call sites override/extend around them. The two card fragments carry a
- *   `borderTopColor` LONGHAND after a `border` SHORTHAND, so an override of `border` or of
- *   `borderColor` after the spread erases the lit top edge silently (§4.3). Override
- *   `borderColor` AND re-set `borderTopColor`, or do not override at all.
+ *   `borderTopColor` LONGHAND after a `border` SHORTHAND, so writing ANY border shorthand
+ *   after the spread erases the lit top edge silently (§4.3) — `border` and `borderColor`
+ *   alike, because `border-color` is itself a four-side shorthand.
+ *
+ *   TO RE-TINT A CARD'S SIDES, write the three side LONGHANDS and no shorthand:
+ *
+ *       { ...glassCard, borderRightColor: X, borderBottomColor: X, borderLeftColor: X }
+ *
+ *   Nothing there can erase the edge, on any render, because nothing writes it. The two
+ *   forms that LOOK right and are not, both measured in
+ *   `ui/__tests__/glass-card-recipe.test.tsx` and kept there as negative controls:
+ *     - `{ ...glassCard, borderColor: X, borderTopColor: h }` — spread keeps a duplicate key
+ *       at the FIRST occurrence's position with the last value, so the "re-set" edge collapses
+ *       back into the spread's slot and `borderColor` lands after it. Wrong on first paint.
+ *     - lifting the edge out first (`const { borderTopColor, ...base } = glassCard`) — right
+ *       on first paint, wrong on the next render: React writes only the keys that CHANGED, so
+ *       an unchanged `borderTopColor` is skipped while the changed shorthand is written.
+ *   `boxShadow` is the same class: `glassCard`'s fuses the tier inset (A32) with
+ *   `GLASS.shadowCard` (A44), so overriding it after the spread drops the inset. Compose —
+ *   `` boxShadow: `${glassCard.boxShadow}, <yours>` `` — or do not override.
  * - Sibling token modules stay scoped: `inputs/input-theme.ts` (`T`, the picker theme — its
  *   accent stops are sourced from here) and `screens/map/mapTokens.ts` (map sheet colours).
  * - MIRROR (review R-25): `app/css/style.css` `@theme` re-declares `accentFrom`/`accentTo`
@@ -126,9 +143,13 @@ export const GLASS = {
  * an inline style object in insertion order, and a shorthand written after a longhand erases
  * it. The same rule binds every CONSUMER — `{ ...glassCard, border: '1px solid X' }` and
  * `{ ...glassCard, borderColor: 'X' }` BOTH wipe the lit edge, because `border-color` is
- * itself a four-side shorthand. A consumer that must re-tint the sides sets `borderColor`
- * and then re-sets `borderTopColor`. Pinned across all nine consumers in
- * `ui/__tests__/glass-card-recipe.test.tsx`, which is where that failure is observable.
+ * itself a four-side shorthand. **Re-tint with the three side LONGHANDS**
+ * (`borderRightColor` / `borderBottomColor` / `borderLeftColor`) and no shorthand at all; the
+ * module header lists the two forms that look right and are not, and
+ * `ui/__tests__/glass-card-recipe.test.tsx` pins all of it — the working form on first paint
+ * AND across an update, the two broken ones as negative controls, and the `boxShadow` clause.
+ * A NEW CONSUMER MUST BE ADDED TO `CONSUMERS` IN THAT FILE: the per-consumer loop is what
+ * observes an erased edge, and a consumer outside the list is unobserved.
  *
  * `padding` is deliberately NOT here even though `conventions.md` lists it: the demo's ten
  * card sites carry six different paddings lifted from the prototype, and demo §0.4 forbids
