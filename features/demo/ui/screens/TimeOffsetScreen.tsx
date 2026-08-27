@@ -7,6 +7,7 @@ import type { SyncResult } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CorrectedScope {
   id: string
@@ -100,10 +101,18 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
 
             {p.correctedScopes.length > 0 && (
               <>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#f0f4f8', marginBottom: 12 }}>Adjusted Time Ranges</div>
+                {/* DEF-UI-012's middle rung — `sectionHeader`, base/semibold. Already correct;
+                    the ladder is pinned whole in `__tests__/heading-hierarchy.test.tsx`. */}
+                <div style={{ fontSize: 16, fontWeight: 600, color: colors.text, marginBottom: 12 }}>Adjusted Time Ranges</div>
                 {p.correctedScopes.map((sc, i) => (
                   <div key={sc.id} style={{ ...glassCard, padding: 14, marginBottom: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Scope {i + 1}</div>
+                    {/* DEF-UI-012's bottom rung — `scopeTitle`, sm/SEMIBOLD. Was 700, which made
+                        the deepest level the heaviest one on the screen: heavier than the
+                        `sectionHeader` above it (600) and than `SectionCard`'s own title (600).
+                        The phone settled all three together as one monotone ladder
+                        (`4f69eb73`, PR #124); this is its bottom rung, and the only value on
+                        this side that was off it. */}
+                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 10 }}>Scope {i + 1}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#7a9fc4', marginBottom: 5 }}>Requested ({sc.reqLabel})</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span style={cell('#7a9fc4')}>Start</span><span style={cell('#f0f4f8')}>{sc.reqStart}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={cell('#7a9fc4')}>End</span><span style={cell('#f0f4f8')}>{sc.reqEnd}</span></div>
