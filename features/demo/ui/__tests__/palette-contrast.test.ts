@@ -861,8 +861,6 @@ describe('map chrome contrast floors', () => {
     // at `textTertiary` — which carries a documented 3.79 CEILING two cases up and would fail this
     // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
     expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
-    expect(round(worst(MAP_FILTER_SECTION_LABEL.color as string, SHEET_GROUNDS))).toBeGreaterThanOrEqual(
-      AA_TEXT,
-    )
+    expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
   })
 })

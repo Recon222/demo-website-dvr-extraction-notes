@@ -98,7 +98,7 @@ export interface MapFiltersSheetProps {
  * edit it exists to catch (re-pointing this label at `textTertiary`, which measures below AA on
  * the sheet tier).
  */
-export const MAP_FILTER_SECTION_LABEL: CSSProperties = {
+export const MAP_FILTER_SECTION_LABEL: CSSProperties & { color: string } = {
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: 0.5,
