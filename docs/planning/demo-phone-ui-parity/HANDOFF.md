@@ -12,7 +12,11 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 
 ## 2. Owner directives (binding)
 
-- **All agents run on Opus** (owner, 2026-08-26: "force opus on any agents") — implementers, review lanes, AND the aggregator.
+- **Model & spawn policy (owner, 2026-08-26, supersedes the earlier "force opus on any agents"):**
+  - **Implementers:** spawn as `subagent_type: "opus-implementer"` (xhigh effort; `opus-implementer-high`/`-max` only where the plan's package tier says so).
+  - **Review lanes:** spawn with an EXPLICIT `model: "opus"` on every call — most `.claude/agents/*-reviewer.md` definitions carry no model frontmatter and would silently inherit something else.
+  - **Aggregator (review + plan-review): FABLE** (`model: "fable"`), as in v1 — the one seat that settles disputes.
+  - **NO NAMED AGENTS from the build phase on** — `name:` forces the teams machinery, which is flaky. Spawn unnamed, record the raw `agentId` from each spawn result in §6, and resume via that id. (Planning-phase agents already named may finish; nothing new gets a name.)
 - Phone repo `D:\Work Coding Projects\CCTV Recovery Notes App\extraction_case_notes_react_native_expo` is **STRICTLY READ-ONLY**.
 - Same quality bar as v1: matrix → plan → owner ratification → phased execution → per-phase multi-lane review + aggregator → fix rounds by warm authors → fix-delta → merge commits. "We keep going until UI parity is reached."
 - Reuse v1's machinery: `.claude/agents/opus-implementer*.md`, the five review lanes, `docs/code-reviews/deferred.md` ledger, the v1 HANDOFF §4 standing rules (all still binding — copied to §4 below).
