@@ -36,6 +36,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 - Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.
 - Quote gates only from a cold cache on the merged head (`pnpm exec tsc --noEmit --incremental false`).
 - Mutation-probing lanes get their own worktree or serialise full-suite runs.
+- **Aggregators write to disk as they go** (learned r1: an aggregator that narrates its whole analysis before writing loses everything to one API cutoff — twice). Brief every aggregator to write the findings table first, then append per step.
 - Agent context rotation: retire an implementer approaching ~700k cumulative tokens; brief a fresh one from its final report + commit list.
 - Windows specifics (from the phone repo's incidents): never `rm -rf` anything that might be a junction; worktree node_modules — `pnpm install --prefer-offline` in the demo repo is fine (pnpm shared store), but never delete a junction blindly.
 - Platform: this effort runs on **Windows 11** — no iOS simulator, no Android SDK on this box. The v1 verification harness's phone side (Maestro/simctl/Vision OCR) does not run here; the Playwright demo side does. Phone-side verification strategy is an open decision for the plan (see `verification/README.md` for what v1 had).
@@ -54,7 +55,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Phone UI-delta inventory | `recon-phone-delta` | Opus | done (resumable to settle inventory contradictions) |
 | Matrix + master plan writer | `matrix-plan-writer` | Opus | done; WARM — fix rounds go to it by path |
 | Plan-review r1 lanes architect / quality / reality | `planrev-architect` / `planrev-quality` / `planrev-reality` | Opus | done; WARM — fix-delta resumes THESE |
-| Plan-review r1 aggregator | `planrev-aggregator` | Opus | in flight; WARM for fix-delta aggregation |
+| Plan-review r1 aggregator v1 | `planrev-aggregator` | Opus | DEAD — API error mid-response twice, wrote nothing; do not resume |
+| Plan-review r1 aggregator **v2** | `planrev-aggregator-v2` | Opus | in flight (write-as-you-go brief); WARM for fix-delta aggregation |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
