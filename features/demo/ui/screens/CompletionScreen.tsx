@@ -2,6 +2,7 @@
 
 import type { FormFieldId } from '@/features/demo/engine/types'
 import { DateTimeField, Field, SectionCard, WizardHeader } from '@/features/demo/ui/screens/_shared'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface CompletionSummary {
@@ -125,8 +126,11 @@ export function CompletionScreen(p: CompletionScreenProps) {
           )}
         </SectionCard>
         )}
-        <button type="button" onClick={p.onPreviewPdf} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 13, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10, width: '100%' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
+        {/* Phone `app/(form)/completion.tsx:561-569`: `variant="outline"`, `fullWidth`, default
+            size. A66/DEF-UI-018 — border AND label leave `#2B8CC1`/`#4BA3D4` for `link`
+            (2.81 -> 6.86). The glyph takes `currentColor` so it cannot drift from the label. */}
+        <button type="button" onClick={p.onPreviewPdf} style={{ gap: 9, marginBottom: 10, width: '100%', ...buttonStyle({ variant: 'outline' }) }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
           Preview / Export PDF
         </button>
         {p.summary.offset && (
