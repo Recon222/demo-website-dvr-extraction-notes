@@ -414,7 +414,8 @@ describe('AudioRecorderScreen — the D19 Banner hand-back (A71)', () => {
     expect(dismiss.parentElement).toBe(banner.parentElement)
     expect(banner.parentElement).toHaveStyle({ gap: `${spacing.md}px`, alignItems: 'center' })
     expect(banner.style.flex).toBe('1 1 0%')
-    expect(dismiss).toHaveStyle(buttonStyle({ variant: 'secondary', size: 'small' }))
+    // `toHaveStyle` takes a plain record; `CSSProperties` has no index signature, hence the cast.
+    expect(dismiss).toHaveStyle(buttonStyle({ variant: 'secondary', size: 'small' }) as Record<string, unknown>)
 
     fireEvent.click(dismiss)
     expect(p.onDismissFailure).toHaveBeenCalledTimes(1)
