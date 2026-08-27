@@ -52,25 +52,14 @@ const TOKEN_MODULES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * The two modules allowed to NAME a scheme half, because they declare both of them.
- *
- * Deliberately NOT `TOKEN_MODULES`, and the difference is the whole finding (review r1 F18):
- * that set exempts `glass-tokens.ts`, which is one of the exactly two production consumers
- * this scan exists to watch. Scanning with the wrong exemption list would have left
- * `glass-tokens.ts:62` — half the live exposure — uncovered while reporting green.
- */
-const SCHEME_DECLARERS: ReadonlySet<string> = new Set([
-  'tokens/palette.ts', // declares `palette.light`/`palette.dark` and owns the ONE `scheme` site
-  'tokens/glass-tiers.ts', // declares `GLASS_TIER.light`/`GLASS_TIER.dark`
-])
-
 /**
  * Every .ts/.tsx source file under ui/, minus __tests__ dirs and `skip`.
  *
  * `skip` defaults to `TOKEN_MODULES` (the banned-literal scan's exemption: a banned literal has
- * to live exactly once, and that once is a token module). The scheme-half scan passes a
- * DIFFERENT set, because "may hold a raw literal" and "may name a scheme half" are different
- * permissions over different files.
+ * to live exactly once, and that once is a token module). The scheme-half scan passes an EMPTY
+ * set — it exempts nothing at all. "May hold a raw literal" and "may name a scheme half" are
+ * different permissions over different files, and the second turns out to be a permission no
+ * file needs.
  */
 function sourceFiles(dir: string, skip: ReadonlySet<string> = TOKEN_MODULES): string[] {
   const out: string[] = []
@@ -115,11 +104,21 @@ const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\
  * or derived from a `satisfies Record<ColorScheme, …>` grep — would be the fourth, and it fails
  * the same way, because the record that forgets to enrol is exactly the one that drifts.
  *
- * So the identifier is a WILDCARD and the only exemption is the FILE (`SCHEME_DECLARERS`).
- * There is no list to keep honest. A two-half record added next wave is covered on the day it
- * is written, by an author who never heard of this test. Measured on this tree: zero offenders
- * across every non-test file under `ui/` — the widening costs no false red, which is what makes
- * the lazy shape also the correct one.
+ * So the identifier is a WILDCARD — and since review r2 F24, so is the file: the scan exempts
+ * NOTHING. There is no list of records to keep honest and no list of files either. A two-half
+ * record added next wave is covered on the day it is written, by an author who never heard of
+ * this test.
+ *
+ * F24 is why the file exemption went too. It had two entries, and one of them was
+ * `tokens/palette.ts` — the home of `export const scheme`, the SINGLE SITE plan §9 clause 12
+ * rests on. Exempting the declaring file to let it declare meant the one line whose regression
+ * breaks the clause outright (`export const colors = palette[scheme]` -> `palette.dark`) was the
+ * one line nothing watched. Measured, and the reason the deletion is free: NEITHER declaring
+ * file names a half in a VALUE position — they declare halves as object KEYS (`light: {`,
+ * `dark: {`) and as shorthand in an object literal (`{ light, dark }`), and the brace form the
+ * destructure pattern matches requires `{ … } = ident`, which is the other way round. Zero
+ * offenders across every non-test file under `ui/`, exemptions included: the widening costs no
+ * false red, which is what makes the lazy shape also the correct one.
  *
  * Three forms, because the MANDATED idiom is `GLASS_TIER[scheme]` and a developer hard-coding a
  * half by copying that shape reaches for `['dark']` sooner than `.dark`:
@@ -271,7 +270,9 @@ describe('glass tokens (P0.5 / G6)', () => {
   // no behaviour to observe — the source text is the whole invariant, exactly as the
   // anti-re-drift scan above it.
   it('no production module hard-codes a scheme half (plan §9 clause 12)', () => {
-    const offenders = sourceFiles(UI_ROOT, SCHEME_DECLARERS)
+    // An EMPTY skip set: nothing is exempt, including the two files that declare the halves
+    // (review r2 F24 — `tokens/palette.ts` holds the one-site switch itself).
+    const offenders = sourceFiles(UI_ROOT, new Set())
       .filter((full) => {
         const src = stripComments(readFileSync(full, 'utf8'))
         return SCHEME_HALF.some((form) => form.test(src))
