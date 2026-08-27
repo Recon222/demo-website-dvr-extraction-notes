@@ -9,6 +9,20 @@ const rgb = (hex: string): string => {
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
 
+/**
+ * The four `border*Color` longhands. Banner writes the accent as longhands, never the
+ * `borderColor` shorthand (`reports/partner-lit-edge-ruling.md` §1) — and **jsdom does not
+ * synthesize the shorthand back from them**: `el.style.borderColor` reads `''` under the ruled
+ * form, measured. So every border-colour pin in this repo has to read the four longhands, which
+ * is the stronger assertion anyway: it catches a partial re-tint the shorthand read cannot see.
+ */
+const sides = (el: HTMLElement): string[] => [
+  el.style.borderTopColor,
+  el.style.borderRightColor,
+  el.style.borderBottomColor,
+  el.style.borderLeftColor,
+]
+
 const pdf = (name = 'request.pdf', type = 'application/pdf') => new File(['%PDF'], name, { type })
 const txt = (name = 'notes.txt') => new File(['hello'], name, { type: 'text/plain' })
 
@@ -95,7 +109,7 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     fireEvent.change(fileInput(), { target: { files: [txt()] } })
     const alert = screen.getByTestId('import-picker-error') // phone's own testID, lifted
     expect(alert.style.backgroundColor).toBe(rgb(colors.errorLight))
-    expect(alert.style.borderColor).toBe(rgb(colors.error))
+    expect(sides(alert)).toEqual(Array(4).fill(rgb(colors.error)))
     expect(alert.style.borderRadius).toBe('8px') // radius.md, not the old local 10
     expect((alert.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
     expect(alert).toHaveAttribute('aria-live', 'assertive')

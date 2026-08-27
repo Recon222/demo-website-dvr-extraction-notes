@@ -120,9 +120,10 @@ const banner: CSSProperties = {
   // phone `:90` — `Layout.borderRadius.md`. D13's NESTED tier, and the comment at `:89` says
   // why: "banners sit inside cards and form sections". A card is `lg` (12); this is not a card.
   borderRadius: radius.md,
-  // phone `:91` — `borderWidth: 1`. Three longhands, never the `border` shorthand: W1 review
-  // F14 measured that a shorthand written after a composed border silently erases the sides it
-  // does not name. Nothing is spread into this object, but the form is the house rule now.
+  // phone `:91` — `borderWidth: 1`. LONGHANDS ONLY, and no colour: this fragment must survive
+  // being spread. `reports/partner-lit-edge-ruling.md` §1 rules that a fragment carries no
+  // border shorthand of any kind, and the colour arrives as the four `border*Color` longhands
+  // in the composition below.
   borderWidth: 1,
   borderStyle: 'solid',
   // phone `:92` — `Layout.spacing.base`.
@@ -156,7 +157,23 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
       aria-label={`${severity}: ${message}`}
       // Phone `:66-68`. Explicit because `role="alert"` implies assertive; see the docblock.
       aria-live={severity === 'error' || severity === 'warning' ? 'assertive' : 'polite'}
-      style={{ ...banner, backgroundColor: background, borderColor: colors[severity], ...style }}
+      // The accent goes on the FOUR COLOUR LONGHANDS, never the `borderColor` shorthand —
+      // `reports/partner-lit-edge-ruling.md` §1, measured in jsdom 29.1.1 and Chromium 148 with
+      // react-dom 19.2.3 across three paints. `banner` carries no per-side colour today, so a
+      // shorthand here would in fact survive; the ruled form is written anyway because (a) the
+      // rule is "no shorthand after a spread", full stop, and the guard landing in W1 fails any
+      // test that produces React's `conflicting property` warning, and (b) `...style` spreads
+      // AFTER this, so the day a caller or this recipe grows a lit top edge, the shorthand form
+      // is the one that is right on paint 1 and wrong on paint 2 — the trap with no test.
+      style={{
+        ...banner,
+        backgroundColor: background,
+        borderTopColor: colors[severity],
+        borderRightColor: colors[severity],
+        borderBottomColor: colors[severity],
+        borderLeftColor: colors[severity],
+        ...style,
+      }}
     >
       <svg
         // Phone `:76-77` — `accessibilityElementsHidden` + `importantForAccessibility="no"`:

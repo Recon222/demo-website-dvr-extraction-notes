@@ -37,6 +37,20 @@ const rgb = (hex: string): string => {
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
 
+/**
+ * The four `border*Color` longhands. Banner writes the accent as longhands, never the
+ * `borderColor` shorthand (`reports/partner-lit-edge-ruling.md` §1) — and **jsdom does not
+ * synthesize the shorthand back from them**: `el.style.borderColor` reads `''` under the ruled
+ * form, measured. So every border-colour pin in this repo has to read the four longhands, which
+ * is the stronger assertion anyway: it catches a partial re-tint the shorthand read cannot see.
+ */
+const sides = (el: HTMLElement): string[] => [
+  el.style.borderTopColor,
+  el.style.borderRightColor,
+  el.style.borderBottomColor,
+  el.style.borderLeftColor,
+]
+
 /** WCAG 2.1 relative luminance — phone `Banner.test.tsx:16-28`, verbatim in behaviour. */
 function luminance(hex: string): number {
   const linear = [1, 3, 5]
@@ -93,7 +107,7 @@ describe('Banner — what it renders (phone Banner.tsx:45-99)', () => {
     // `*OnLight` collapse to `#f0f4f8`, so the foreground carries no severity there and the
     // fill+border pair has to (phone CaseStatusBadge's `getStatusConfig` says the same).
     expect(box.style.backgroundColor).toBe(rgb(colors[`${severity}Light`]))
-    expect(box.style.borderColor).toBe(rgb(colors[severity]))
+    expect(sides(box)).toEqual(Array(4).fill(rgb(colors[severity])))
 
     // phone `:79` — the half that has to be READ, asserted off the rendered node rather than
     // trusting the token pair alone. Rewiring Banner to the saturated accent — the exact defect
@@ -126,6 +140,12 @@ describe('Banner — what it renders (phone Banner.tsx:45-99)', () => {
     expect(box.style.borderRadius).toBe('8px') // `:90` borderRadius.md — the NESTED tier (D13)
     expect(box.style.borderWidth).toBe('1px') // `:91`
     expect(box.style.borderStyle).toBe('solid')
+    // The lit-edge ruling's signature, and the reason it is asserted as an ABSENCE: a shorthand
+    // is what breaks paint 2 once anything in the composition carries a side longhand, and
+    // `...style` spreads after the border here. Collapsing the four longhands back to
+    // `borderColor` reds this line — the shorthand is the only thing that fills it in.
+    expect(box.style.borderColor, 'no border shorthand — partner-lit-edge-ruling.md §1').toBe('')
+    expect(box.style.border).toBe('')
     expect(box.style.padding).toBe('12px') // `:92` spacing.base
     // `:95` — jsdom expands the `flex: 1` shorthand to its three longhands, so the pin reads
     // the expansion. `flexGrow` alone would pass over `flex: '1 1 auto'`, which is a different

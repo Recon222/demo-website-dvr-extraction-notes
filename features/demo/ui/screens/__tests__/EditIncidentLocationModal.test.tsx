@@ -18,6 +18,20 @@ const rgb = (hex: string): string => {
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
 
+/**
+ * The four `border*Color` longhands. Banner writes the accent as longhands, never the
+ * `borderColor` shorthand (`reports/partner-lit-edge-ruling.md` §1) — and **jsdom does not
+ * synthesize the shorthand back from them**: `el.style.borderColor` reads `''` under the ruled
+ * form, measured. So every border-colour pin in this repo has to read the four longhands, which
+ * is the stronger assertion anyway: it catches a partial re-tint the shorthand read cannot see.
+ */
+const sides = (el: HTMLElement): string[] => [
+  el.style.borderTopColor,
+  el.style.borderRightColor,
+  el.style.borderBottomColor,
+  el.style.borderLeftColor,
+]
+
 type Reverse = (lat: number, lng: number) => Promise<{ streetAddress: string; city: string } | null>
 
 const seededCase: DemoCase = demoCase({
@@ -144,7 +158,7 @@ describe('EditIncidentLocationModal — reverse-geocode banner', () => {
     blurCoordinates('43.5', '-79.5')
     const banner = await screen.findByTestId('edit-incident-error')
     expect(banner.style.backgroundColor).toBe(rgb(colors.errorLight))
-    expect(banner.style.borderColor).toBe(rgb(colors.error))
+    expect(sides(banner)).toEqual(Array(4).fill(rgb(colors.error)))
     expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
     // phone `errorBanner` (`:185-187`) is `marginBottom: Layout.spacing.md` — 16, not the 14
     // the deleted local recipe carried.

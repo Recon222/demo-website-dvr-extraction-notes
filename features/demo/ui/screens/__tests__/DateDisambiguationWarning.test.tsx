@@ -22,6 +22,20 @@ const rgb = (hex: string): string => {
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
 
+/**
+ * The four `border*Color` longhands. Banner writes the accent as longhands, never the
+ * `borderColor` shorthand (`reports/partner-lit-edge-ruling.md` §1) — and **jsdom does not
+ * synthesize the shorthand back from them**: `el.style.borderColor` reads `''` under the ruled
+ * form, measured. So every border-colour pin in this repo has to read the four longhands, which
+ * is the stronger assertion anyway: it catches a partial re-tint the shorthand read cannot see.
+ */
+const sides = (el: HTMLElement): string[] => [
+  el.style.borderTopColor,
+  el.style.borderRightColor,
+  el.style.borderBottomColor,
+  el.style.borderLeftColor,
+]
+
 /** A low-confidence MM/DD-vs-DD/MM ambiguity — the only state this component renders at all. */
 const ambiguous: DateDisambiguationResult = {
   chosenDate: '2025-03-04',
@@ -49,7 +63,7 @@ describe('DateDisambiguationWarning — the Banner adoption (A71)', () => {
     render(<DateDisambiguationWarning result={ambiguous} />)
     const banner = screen.getByRole('alert')
     expect(banner.style.backgroundColor).toBe(rgb(colors.warningLight))
-    expect(banner.style.borderColor).toBe(rgb(colors.warning))
+    expect(sides(banner)).toEqual(Array(4).fill(rgb(colors.warning)))
     expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.warningOnLight))
     // §C.3 rule 1, and the phone's measured 2.15:1: `colors.warning` may not carry text here.
     expect((banner.lastElementChild as HTMLElement).style.color).not.toBe(rgb(colors.warning))
