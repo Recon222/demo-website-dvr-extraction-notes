@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The phone's `DeleteConfirmationModal` (ui-mapping 11 § DeleteConfirmationModal;
@@ -149,7 +150,7 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
                       case can't push the buttons out of the dialog. */}
                   <div
                     data-testid="location-list-scroll"
-                    style={{ maxHeight: 150, overflowY: 'auto', overscrollBehavior: 'contain', background: '#132236', borderRadius: 10, padding: 12, marginBottom: 12 }}
+                    style={{ maxHeight: 150, overflowY: 'auto', overscrollBehavior: 'contain', background: colors.backgroundSecondary, borderRadius: 10, padding: 12, marginBottom: 12 }}
                   >
                     {target.locationNames.map((name, i) => (
                       <div key={`${i}-${name}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0' }}>

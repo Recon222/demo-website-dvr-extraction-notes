@@ -15,22 +15,57 @@ import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features
 
 const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
 
-/** Every .ts/.tsx source file under ui/, minus __tests__ dirs and the token module itself. */
+/**
+ * The files allowed to hold the raw literals: the token modules themselves, which is where a
+ * banned literal has to exist exactly once.
+ *
+ * ADDING A PATH HERE IS A REVIEWABLE ACT — every entry carries a line saying why that file is
+ * a token module, and a later package appends its own as the closing act of creating it
+ * (`tokens/glass-tiers.ts` U1.1, `tokens/status.ts` U3.2, `controls/sheet-chrome.ts` U4.1,
+ * `screens/import/terminal-palette.ts` U7.1). Do NOT relax this into a predicate over the
+ * `tokens/` directory or a "contains the word token" test: that quietly removes the
+ * anti-re-drift teeth A97 exists for, and the U0.5 row forbids it by name.
+ *
+ * Paths are `/`-joined relative to UI_ROOT — the same idiom the offender message uses. That
+ * also closes a latent hole in what this replaced: the old check skipped by BASENAME, so ANY
+ * file called `glass-tokens.ts` at any depth under `ui/` was exempt.
+ */
+const TOKEN_MODULES: ReadonlySet<string> = new Set([
+  'glass-tokens.ts', // P0.5 extraction — the original owner of the gradients and borders
+  'tokens/palette.ts', // U0.1 (SEAM) — the two-scheme phone palette; every bare hex below lives here
+  'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
+])
+
+/** Every .ts/.tsx source file under ui/, minus __tests__ dirs and the token modules. */
 function sourceFiles(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) {
       if (entry.name !== '__tests__') out.push(...sourceFiles(full))
-    } else if (/\.tsx?$/.test(entry.name) && entry.name !== 'glass-tokens.ts') {
+    } else if (
+      /\.tsx?$/.test(entry.name) &&
+      !TOKEN_MODULES.has(relative(UI_ROOT, full).split(sep).join('/'))
+    ) {
       out.push(full)
     }
   }
   return out
 }
 
-/** The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.). */
+/**
+ * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
+ *
+ * EVERY ENTRY IS A CURRENT LIVE VALUE, never a retired one. The ban means "use the token",
+ * not "this value is gone" — so when a token's value changes, the matching entry is REWRITTEN
+ * IN PLACE in the same commit, never deleted. A list of values that no longer exist anywhere
+ * is green and dead, which is worse than red. (The complementary "this value is gone"
+ * invariant lives in `ui/tokens/__tests__/palette.test.ts`'s `RETIRED` — different list,
+ * different name, different scope, on purpose: a reviewer reading a red must be able to tell
+ * which of the two fired.)
+ */
 const BANNED: ReadonlyArray<[name: string, literal: string]> = [
+  // --- glass composites: reach for GLASS / the spreadable fragments -------------------
   ['card gradient', 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
   ['diagonal card gradient', 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
   ['panel gradient', 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))'],
@@ -41,6 +76,29 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['button border', '1px solid #2e5f97'],
   ['accent border', '1px solid rgba(43,140,193,0.3)'],
   ['error border', '1px solid rgba(255,71,87,0.3)'],
+  // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
+  // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
+  // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
+  // The unchanged tokens (`#2B8CC1` 26 files, `#f0f4f8` 50, `#7a9fc4` 44, `#99badd` 25,
+  // `#ff4757` 16, `#10d177` 15, `#ffd93d` 15, `#4BA3D4` 20) are deliberately NOT here: banning
+  // them is the full 1,144-literal sweep D3 ruled against, and they carry no re-drift risk
+  // because their value did not move. Each later package that CREATES a token appends it here
+  // as its closing act — U1.1's tier stops, U3.1's status family, U4.4's scrim.
+  ['background', '#002853'],
+  ['backgroundSecondary / card', '#0e3965'],
+  ['backgroundTertiary / modal', '#17416e'],
+  ['border', '#1c4e84'],
+  ['borderLight / disabled', '#2e5f97'],
+  ['borderDark', '#063d72'],
+  ['errorLight', '#b72136'],
+  ['errorDark', '#ee2f44'],
+  ['successDark', '#0faa5e'],
+  ['warningDark', '#ffc62b'],
+  ['link', '#b8d4f0'],
+  ['linkHover', '#d0e4f7'],
+  ['disabledText', '#6b7f95'],
+  ['primaryDark / accent top stop', '#1F6B99'],
+  ['accent bottom stop', '#17527A'],
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
@@ -64,17 +122,24 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(GLASS.borderError).toContain('rgba(255,71,87')
   })
 
-  it('keeps the raw glass literals out of UI source (use GLASS / the fragments instead)', () => {
+  it('keeps the raw tokenized literals out of UI source (import the token instead)', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
-      const text = readFileSync(file, 'utf8')
+      // Case-INSENSITIVE on both sides (§4.7): the demo mixes spellings for the same colour,
+      // and a case-sensitive `includes` let `linear-gradient(180deg,#1f6b99,#17527a)` through
+      // an entry written `#1F6B99`. Lowering the needle too is what keeps the mixed-case
+      // entries above matching at all.
+      const text = readFileSync(file, 'utf8').toLowerCase()
       for (const [name, literal] of BANNED) {
-        if (text.includes(literal)) {
+        if (text.includes(literal.toLowerCase())) {
           offenders.push(`${relative(UI_ROOT, file).split(sep).join('/')} re-inlines the ${name} (${literal})`)
         }
       }
     }
-    expect(offenders, `import from ui/glass-tokens.ts instead:\n${offenders.join('\n')}`).toEqual([])
+    expect(
+      offenders,
+      `import the token instead — GLASS / the fragments from ui/glass-tokens.ts, colours from ui/tokens/palette.ts:\n${offenders.join('\n')}`,
+    ).toEqual([])
   })
 
   it('pins the GLASS token values (an edit here restyles ~60 call sites)', () => {
