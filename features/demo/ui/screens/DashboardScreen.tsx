@@ -210,7 +210,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
                 type="button"
                 onClick={() => onOpenLocation(loc.id)}
                 aria-label={`Location: ${loc.locationName}`}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', marginBottom: 8, borderRadius: radius.md, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}
               >
                 <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#f0f4f8' }}>
                   {loc.locationName}

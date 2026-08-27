@@ -255,7 +255,8 @@ function LocationRow({
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div style={{ marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
+    // A57: a nested ROW is `radius.md` (8) — a nested CARD would be `radius.lg` (12).
+    <div style={{ marginBottom: 8, borderRadius: radius.md, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
       {/* Same as the case header above: the hook rides the row BUTTON (R-1). */}
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <button type="button" onClick={() => onOpenLocation(loc.id)} {...longPress} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', ...LONG_PRESS_SURFACE_STYLE }}>

@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
 import { MAP_PIN_COLORS, SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { radius } from '@/features/demo/ui/tokens/scale'
 
 export interface LocationRowProps {
   item: SheetItem
@@ -18,7 +19,11 @@ const rowBtn = (selected: boolean, color: string): CSSProperties => ({
   textAlign: 'left',
   padding: '13px 14px',
   margin: '0 0 8px',
-  borderRadius: 12,
+  // A57 asked whether this 12 is drift from the nested-ROW rule (8). It is NOT: the phone's
+  // own `location/map-view/components/LocationRow.tsx:287` is `Layout.borderRadius.lg` = 12
+  // at `dd5551ec`. A map sheet row is a nested CARD in D13(a)'s depth tier, not a nested row.
+  // Left at 12, now via the token.
+  borderRadius: radius.lg,
   border: `1px solid ${selected ? `${color}50` : SHEET_COLORS.rowBorder}`,
   background: selected ? `${color}14` : SHEET_COLORS.rowBg,
   cursor: 'pointer',
