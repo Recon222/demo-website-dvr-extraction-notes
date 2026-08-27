@@ -41,10 +41,13 @@ and it is why probing lives in the review lanes and the standalone mutation-test
 You are already holding the code in your head; a dedicated seat dispatched afterwards is not.
 
 `.claude/skills/mutation-testing/SKILL.md` is the operating manual — the probe cycle, the mutation
-catalog ordered by yield, isolation rules, and this repo's project hazards (Rust probes need four
-junctions before they build; mirror-homed pins are structurally unkillable if you mutate canonical;
-removing a junctioned worktree in the wrong order destroys the main checkout). Read it before your
-first probe. The rules below are contract — they govern what a probe entitles you to CLAIM.
+catalog ordered by yield, isolation rules, and this repo's project hazards under
+**Project hazards — THIS REPO (Next.js demo, Vitest + jsdom)** (probe worktrees and why they carry no
+junctions; the `sessionStorage` coupling between `DemoExperience` mounts; style pins as the weakest
+pins here, since `css: false` hides stylesheets and jsdom rewrites the inline values it accepts; the
+deliberately-undefined `navigator.mediaDevices`; a skipped `skipIf` guard being no kill; and stating
+the motion mode a probe ran under). Read it before your first probe. The rules below are contract —
+they govern what a probe entitles you to CLAIM.
 
 **Probe in your own worktree, never a shared tree.** Concurrent probes in one tree corrupt each
 other's runs and leave live mutations across round boundaries. The one honest exception is a

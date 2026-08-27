@@ -106,91 +106,128 @@ Zero survivors is a valid and valuable result. Say so plainly.
 
 ---
 
-# Project hazards — THIS REPO
+
+# Project hazards — THIS REPO (Next.js demo, Vitest + jsdom)
 
 Everything above is architecture-agnostic. Everything below is specific to this codebase and was
-learned by breaking things. It moved here when the standalone `dt-mutation-tester` seat was retired
-and probing became the job of whoever is already reading the code — which means **you**, if you hold
-Bash and are about to run a probe.
+verified against it. It lives here because the standalone `dt-mutation-tester` seat was retired and
+probing became the job of whoever is already reading the code — which means **you**, if you hold Bash
+and are about to run a probe.
 
-## Rust probes need four junctions before they can build
+## Probe worktrees are cheap here — cut one, never probe in place
 
-**⚠ THIS REPO: a fresh worktree cannot build Rust until you junction four gitignored paths in.**
-`git worktree add` checks out tracked files only, and the Rust build requires
-`src-tauri/binaries/` and `src-tauri/resources/`, neither of which is tracked. Symptom: a probe
-against any Rust pin fails to build and looks like a mutation result. **It is not a result — it is a
-broken harness, and reporting SURVIVED or "cannot verify" off it is the exact
-opposite-of-the-truth failure this file warns about twice below.** Before the first Rust probe, from
-your worktree root, junction all four (Windows, no elevation needed):
+There are no junctions in this repo and there never should be. `pnpm` uses a content-addressed shared
+store, so a probe worktree installs in seconds rather than minutes:
 
 ```bash
-cmd //c mklink //J "src-tauri\\binaries"           "<MAIN_CHECKOUT>\\src-tauri\\binaries"
-cmd //c mklink //J "src-tauri\\resources"          "<MAIN_CHECKOUT>\\src-tauri\\resources"
-cmd //c mklink //J "node_modules"                  "<MAIN_CHECKOUT>\\node_modules"
-cmd //c mklink //J "src-tauri\\sidecar\\node_modules" "<MAIN_CHECKOUT>\\src-tauri\\sidecar\\node_modules"
+git worktree add <scratch>/probe-<topic> -b probe/<topic> <head>
+cd <scratch>/probe-<topic>
+pnpm install --prefer-offline
 ```
 
-Then prove the baseline builds before mutating anything — `cd src-tauri && cargo check --tests`,
-exit code 0. **Junctions are shared, not copies:** never run `npm install`, `npm ci`, or anything
-that writes into `binaries/` from a probe worktree — you would be mutating the main checkout through
-the link. Read and build only. Background: `docs/tasks-todo/task-x-worktree-cannot-build-rust.md`.
-Rust probes also cannot use bare `cargo test` here (`STATUS_ENTRYPOINT_NOT_FOUND`) — drive
-`cargo test --test <binary>` against the integration binaries under `src-tauri/tests/`.
+Scratch base: your session scratchpad, or `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\`
+(where this campaign's worktrees already live). Teardown is a plain `git worktree remove <path>` —
+nothing is linked, so nothing outside the worktree can be destroyed by it. **Do not create junctions
+to share `node_modules`.** A junctioned `node_modules` makes `git worktree remove` follow the link and
+delete the main checkout's dependencies, which is the failure mode this rule exists to prevent.
 
-## Mirror-homed pins: mutating canonical is structurally unkillable
+`pnpm install` in a worktree is safe (shared store, per-worktree symlink farm) but **never** run it in
+a tree another agent is live in — a concurrent install broke typecheck under a running agent twice on
+the previous campaign.
 
-**⚠ MIRROR-HOMED PINS: mutating canonical is STRUCTURALLY UNKILLABLE — do not do it.**
-This repo mirrors pure functions into `src-tauri/tests/*.rs` as duplicated copies, because the
-agent-shell lib cannot be unit-tested on Windows (WebView2, `STATUS_ENTRYPOINT_NOT_FOUND`). A mirror
-test exercises **its own duplicate**, never the canonical source. So mutating canonical
-(`agentshell.rs`, `services/mod.rs`, the serde enum) and running `cargo test --test <mirror>` yields
-a green suite and a **SURVIVED verdict every single time, for every mirror pin** — and nothing else
-reds either, because `AGENTS.md` states the canonical↔mirror sync contract is comment convention with
-**no automated enforcement**. That SURVIVED is narrowly true (the pin really does not guard the
-canonical file) and completely misleading: it is a property of the pattern, not a defect in the test.
-An implementer handed it will chase a non-bug or "fix" it by weakening something.
+## jsdom shares ONE window per test file — `sessionStorage` couples mounts
 
-**Protocol for a mirror-homed pin — both halves, same pass:**
+`DemoExperience` persists to `sessionStorage`, and every test file gets one jsdom window for all of
+its cases. A non-injected `DemoExperience` mount therefore reads whatever a previous case in the same
+file wrote. The v1 rule is `docs/planning/demo-phone-parity/HANDOFF.md:128` (store territory, item 3):
+*"jsdom shares one window per test file — non-injected `DemoExperience` mounts need
+`sessionStorage.clear()` hygiene or tests couple through the snapshot."*
 
-1. **Mutate the mirror's own duplicated copy** inside the test file. That is the only mutation the
-   suite can observe, and killing it proves what a probe can honestly prove here: the assertion
-   discriminates.
-2. **Prove the canonical linkage separately** with a byte-compare of the duplicated functions against
-   canonical (one `diff`/`git diff --no-index` on the extracted bodies). The link is convention-only
-   and otherwise unverified, so a probe that skips this reports on a copy that may already have
-   drifted from the code that ships.
-3. **Report a canonical-mutation SURVIVED as `mirror-pattern scope, not a finding`** — never as a
-   surviving mutant. If your brief names a canonical file as the mutation target for a mirror-homed
-   pin, that brief is wrong; say so and probe per (1)+(2).
+The hygiene it names, verbatim, is
+`features/demo/ui/__tests__/DemoExperience.persistence.test.tsx:15-16` —
+`beforeEach(() => window.sessionStorage.clear())` **and** the matching `afterEach`. Both halves: the
+`beforeEach` protects this file from itself, the `afterEach` protects the next mount in the same file
+from the snapshot this one left behind.
 
-Known mirror-homed pins in the current plan: **#27** (serde `Result` variant — the mirror duplicates
-the whole tagged enum), **#34** (agentshell ensure), **#41** (binary resolver), **#44** (twin
-staging guard).
+**Why a probe cares:** a mutation to persistence code can be "killed" by state a *sibling* case wrote,
+or "survive" because the assertion read a stale snapshot instead of the mutated write path. If your
+probe target touches persistence, confirm the pin's file clears `sessionStorage` on BOTH hooks before
+you trust either verdict.
 
-## Teardown order — getting this wrong destroys the main checkout
+## Style pins are the weakest pins in this repo — probe every one
 
-**☠ REMOVING A JUNCTIONED WORKTREE DESTROYS THE MAIN CHECKOUT'S BUILD ARTIFACTS. Delete the junctions
-FIRST.** `git worktree remove --force` (and `rm -rf`, and `Remove-Item -Recurse`) **follow junctions
-and delete the TARGET contents** — so pruning a worktree that still has the four junctions in wipes
-`src-tauri/binaries/` and `src-tauri/resources/` **in the main checkout**, for every other agent and
-for the operator. This is not hypothetical: the orchestrator did exactly this on 2026-08-14 and
-destroyed the bundled Node binary, the staged voice-engine, the SDK runtime and the entire vendored
-drawio webapp. Everything was gitignored build output and recoverable, but recovery cost a `npm ci`,
-a `sidecar:prepare`, a voice-engine restage and a 49 MB drawio re-download.
+Two independent traps, both measured:
 
-**Correct teardown, in this order:**
+1. **Stylesheets are not processed at all.** `vitest.config.mts:31` sets `css: false`. Class names
+   resolve to nothing; only *inline* styles are readable. A pin asserting a computed colour on a
+   Tailwind- or token-classed element is asserting over an empty declaration, and it will keep passing
+   after the token it claims to guard is deleted.
+2. **jsdom REWRITES the inline values it does accept.** Measured on this repo's jsdom (29.1.1) —
+   `el.style.backgroundColor = '#002853'` reads back as `rgb(0, 40, 83)`; a gradient's hex stops are
+   rewritten the same way; and `color-mix(in srgb, red 50%, blue)` reads back as
+   `color-mix(in srgb, red, blue)` — **the 50% is silently dropped**. So a string-equality pin can
+   compare against jsdom's normalisation rather than the value the component wrote, and a pin over a
+   `color-mix()` percentage cannot observe that percentage at all.
+
+**Protocol for any style pin: mutate the value to a literal `rgba()` that differs, run the pin, and
+confirm it reds.** If it stays green, the pin is reading a normalised string, an empty declaration, or
+a dropped component of the value — that is a SURVIVED finding, not a formatting quibble. This matters
+more in this campaign than any previous one, because a token/recipe port is almost entirely style
+pins.
+
+## `navigator.mediaDevices` is deliberately undefined — defining it mutates the harness
+
+`vitest.setup.ts:74-75`: *"navigator.mediaDevices is intentionally left undefined so camera/mic
+screens take the sample-fallback path; individual tests opt into a getUserMedia mock for the live
+path."*
+
+**The sample-fallback path is the contract**, not a gap. A probe that defines `navigator.mediaDevices`
+globally has mutated the *harness*, not the production code — every verdict from that run is invalid,
+in both directions. If you need the live path, mock `getUserMedia` inside the single test, as the
+setup comment prescribes.
+
+## A skipped test is not a killed mutant — check the RN guard resolved
+
+`features/demo/ui/inputs/__tests__/rn-token-parity.test.ts:10` runs under
+`it.skipIf(!rnAvailable())(...)`, and `rnAvailable()`
+(`.design-sync/check-rn-parity.mjs:31`) returns false unless the sibling phone repo is checked out at
+`.design-sync/check-rn-parity.mjs:28` —
+`D:\Work Coding Projects\CCTV Recovery Notes App\extraction_case_notes_react_native_expo`.
+
+Vitest reports a skipped test inside a green run with exit code 0. **A drift-guard verdict quoted off
+a run where the guard skipped is the opposite-of-the-truth failure this file warns about twice above.**
+Before quoting anything from this test, print `rnAvailable()` or the reporter's skip count and confirm
+the guard actually executed. Same rule for any future `skipIf` guard.
+
+## State the motion mode every probe ran under
+
+All demo motion gates on `useReducedMotion` (`lib/hooks/use-reduced-motion.ts`), which returns `false`
+during SSR and whenever `matchMedia` is unavailable. `vitest.setup.ts:47-60` installs a `matchMedia`
+stub whose `matches` is hard-coded `false`, so **the default test mode is motion-ON**. v1 lost a full
+campaign's worth of gate coverage to the mirror of this: its Playwright driver defaulted to
+reduced-motion since P0, so every earlier verification run silently skipped the gate
+(`docs/planning/demo-phone-parity/HANDOFF.md:5`).
+
+A probe against animated or transition-gated code reports the motion mode it ran under, or the verdict
+is unusable. Probe BOTH modes when the mutation lives on either side of the gate.
+
+## Re-run unexplained failures solo
+
+Parallel agents saturate this box, and this suite is already tuned around that: `asyncUtilTimeout` is
+raised to 5000ms (`vitest.setup.ts:24`) and `testTimeout` to 20000ms (`vitest.config.mts:28`), both
+with comments recording measured contention flakes (one wait sampled 35ms idle and up to 1770ms
+loaded; five concurrent lanes produced 29–40 spurious timeouts each). **A timeout-class failure during
+a fleet run is not a mutation result.** Re-run the single file solo before recording any verdict, and
+never widen a tolerance to make a probe look clean.
+
+## Commands
 
 ```bash
-cmd //c rmdir "<worktree>\src-tauri\binaries"                  # rmdir removes the LINK, not the target
-cmd //c rmdir "<worktree>\src-tauri\resources"
-cmd //c rmdir "<worktree>\node_modules"
-cmd //c rmdir "<worktree>\src-tauri\sidecar\node_modules"
-git worktree remove <worktree>                                 # only now, and prefer without --force
+pnpm exec vitest run <path>            # scoped — what a probe runs
+pnpm test --silent                     # full suite
+rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false
+pnpm build                             # the artifact gate
 ```
 
-**Verify before and after:** `ls src-tauri/binaries/` in the MAIN checkout should list the node and
-voice-engine executables plus `sidecar-resources/` both times. If it is empty afterwards you have
-destroyed them — say so immediately and loudly; they are all regenerable
-(`npm ci` in `src-tauri/sidecar`, `npm run sidecar:prepare`, `npm run sidecar:build-voice`,
-`npm run drawio:prepare`) but silence turns a 20-minute recovery into someone else's baffling
-build failure.
+Delete `tsconfig.tsbuildinfo` **before** the typecheck — an incremental cache can return exit 0 over a
+broken tree. Run the full three at phase boundaries only; probes use the scoped form.
