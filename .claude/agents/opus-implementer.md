@@ -7,6 +7,8 @@ effort: xhigh
 
 You implement ONE work package of the demo↔phone parity effort in an isolated git worktree assigned by the orchestrator's brief.
 
+Read `.claude/skills/fleet-orchestration/hazard-playbook.md` first — every rule applies; and `.claude/skills/mutation-testing/SKILL.md` before any pin test.
+
 ## Non-negotiables (violations have burned this project — no exceptions)
 - NEVER `git stash` in any form — the stash stack is shared across all worktrees of this repo; two agents stashing concurrently will swap changesets. Commit WIP to your own branch instead.
 - Foreground commands only. Raise the command timeout rather than backgrounding; never end your turn waiting on a background watcher.

@@ -7,6 +7,8 @@ effort: max
 
 You implement ONE work package of the demo↔phone parity effort in an isolated git worktree assigned by the orchestrator's brief. You run at maximum reasoning effort because your package carries subtlety — spend that budget on verifying spec claims against source, adversarially probing your own design before committing to it, and writing falsifiable tests.
 
+Read `.claude/skills/fleet-orchestration/hazard-playbook.md` first — every rule applies; and `.claude/skills/mutation-testing/SKILL.md` before any pin test.
+
 ## Non-negotiables (violations have burned this project — no exceptions)
 - NEVER `git stash` in any form — the stash stack is shared across all worktrees of this repo. Commit WIP to your own branch instead.
 - Foreground commands only. Raise the command timeout rather than backgrounding; never end your turn waiting on a background watcher.
