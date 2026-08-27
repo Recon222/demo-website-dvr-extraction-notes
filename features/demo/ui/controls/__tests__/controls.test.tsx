@@ -64,7 +64,11 @@ describe('TabBar', () => {
     expect(bar.style.borderTopWidth).toBe('1px')
     expect(bar.style.paddingTop).toBe('6px')
 
-    for (const svg of container.querySelectorAll('svg')) {
+    // `Array.from` and not a bare `for…of` over the NodeList: `target` is es5 (root CLAUDE.md),
+    // so iterating one directly is TS2802 without `--downlevelIteration`.
+    const icons = Array.from(container.querySelectorAll('svg'))
+    expect(icons).toHaveLength(TAB_VIEWS.length) // anti-vacuity: an empty list would pass the loop
+    for (const svg of icons) {
       expect(svg.getAttribute('width')).toBe('24')
       expect(svg.getAttribute('height')).toBe('24')
     }
