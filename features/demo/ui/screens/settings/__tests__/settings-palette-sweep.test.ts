@@ -30,10 +30,12 @@ const SETTINGS_ROOT = join(process.cwd(), 'features', 'demo', 'ui', 'screens', '
  * Hex literals that survive on purpose. Each needs a reason a reader can check, not a shrug.
  */
 const ALLOWED: Readonly<Record<string, string>> = {
-  '#cdd9e6':
-    '`T.textDim` (`inputs/input-theme.ts:27`) — the demo-wide form-label tone at ~20 sites and ' +
-    'NOT a palette token. U2.4 deferral proposal D-3 owns the family; its trigger is U6.4a. ' +
-    'Moving one site leaves that surface disagreeing with its neighbours.',
+  // `#cdd9e6` was here, exempted as `T.textDim` with U6.4a named as its trigger. U6.4a fired:
+  // the key is deleted from `inputs/input-theme.ts`, the eight hand-rolled copies of the label
+  // it carried read `fieldLabelStyle`, and this subtree's three sites — `_pane-chrome`'s stub
+  // note, `FormFieldsPane`'s field rows and `UserProfileModal`'s label — take `colors.text`.
+  // The row goes with the literal: a reason kept for a literal that no longer exists is
+  // exactly the stale exemption the third case below tests for.
   '#5d7a9a':
     'FormFieldsPane’s footnote tone. No palette sibling, no matrix row names it, and it is not ' +
     'the `#5a7a9a` U7.2’s D-1 rules on (different hex). D3: an unchanged unique literal is left ' +

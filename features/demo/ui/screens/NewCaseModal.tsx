@@ -9,7 +9,7 @@ import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-numb
 import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 
 // The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
 // re-exported here so the modal stays the import site its consumers already use.
@@ -64,7 +64,7 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
   }
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <div style={fieldLabelStyle}>{label}</div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

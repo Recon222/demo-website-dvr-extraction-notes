@@ -5,7 +5,7 @@ import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inp
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -143,7 +143,10 @@ export function SubmissionScreen({
       <WizardHeader title="Submission Details" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
+          {/* A72's label half, from the seam — this line is a `Field` label in everything but
+              the input under it, and it sat a step smaller and darker than the five real
+              `Field`s in the card below. */}
+          <div style={fieldLabelStyle}>{COPY.caseNumber}</div>
           {/* The GEOMETRY half of A72 only, per D10 as amended. The phone's PR #115 replaced
               a `containerStyle={{opacity:0.6}}` that faded its own LABEL; this is two SIBLING
               divs, so the label above is already at full contrast and there is nothing to fix.

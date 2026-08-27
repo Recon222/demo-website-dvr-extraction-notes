@@ -242,10 +242,9 @@ export function PaneNote({
  * to port one from, and D3 leaves an unchanged unique literal alone rather than snapping it to
  * a step. So `14 / 18 / 10 / 7` and the two off-ladder type sizes (§4.9's rule) stay spelled.
  *
- * `#cdd9e6` on the body also stays, and it is the one literal here with a reason rather than a
- * shrug: it is `T.textDim`, the demo-wide form-label tone at ~20 sites, and moving one of them
- * leaves that surface disagreeing with its neighbours. U2.4's deferral proposal D-3 owns the
- * family and names U6.4a as its trigger.
+ * The body's colour is `colors.text` since U6.4a. It used to be the demo-wide form-label tone,
+ * a bare dark value with no palette sibling that eight surfaces spelled by hand; U2.4's
+ * deferral D-3 held it here until one package could move the whole family, and U6.4a did.
  */
 export function PaneStubNote({ children }: { children: ReactNode }) {
   return (
@@ -274,8 +273,10 @@ export function PaneStubNote({ children }: { children: ReactNode }) {
       >
         In the demo
       </div>
-      {/* `T.textDim` — see the docblock. Not a palette token, and not this package's to move. */}
-      <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#cdd9e6' }}>{children}</div>
+      {/* U6.4a moved it, as U6.2's docblock said it would. `colors.text` is `PaneNote`'s
+          message tone (a severity `*OnLight` resolves there in dark) — this body reads as the
+          same kind of line, and it is the sentence the visitor is here to read. */}
+      <div style={{ fontSize: 12.5, lineHeight: 1.55, color: colors.text }}>{children}</div>
     </div>
   )
 }

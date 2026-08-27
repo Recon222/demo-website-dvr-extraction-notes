@@ -4,6 +4,7 @@ import type { FormFieldId, ScopeEntry } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
+import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface RequestedScopeScreenProps {
@@ -52,7 +53,10 @@ export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFiel
             <DateTimeField label="End Date / Time" value={sc.endDateTime} onChange={(v) => onChange(i, { endDateTime: v })} />
             {showTimeType && (
               <>
-                <div id={`scope-${sc.id}-time-type`} style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Time Entry Type</div>
+                {/* A72's label half, from the seam: this labels the radio group exactly as a
+                    `Field` label labels its input, and the `Field` two rows down had already
+                    moved without it. */}
+                <div id={`scope-${sc.id}-time-type`} style={fieldLabelStyle}>Time Entry Type</div>
                 <div role="radiogroup" aria-labelledby={`scope-${sc.id}-time-type`} style={{ display: 'flex', gap: spacing.sm, marginBottom: 14 }}>
                   <RadioOption label="Real Time" selected={sc.isActualTime} onSelect={() => onChange(i, { isActualTime: true })} />
                   <RadioOption label="DVR Time" selected={!sc.isActualTime} onSelect={() => onChange(i, { isActualTime: false })} />
