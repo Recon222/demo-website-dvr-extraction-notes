@@ -57,7 +57,7 @@ describe('the sheet header (P4.2’s title, kept)', () => {
     const onClose = vi.fn()
     render(<MediaLibrarySheet {...props({ onClose })} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close media library' }))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

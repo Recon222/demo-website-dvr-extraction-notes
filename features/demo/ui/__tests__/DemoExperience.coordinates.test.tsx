@@ -174,7 +174,7 @@ describe('DemoExperience — New Location GPS capture (P3.4, deferred §24)', { 
       openNewLocationModal('PR25-ABANDON')
       fireEvent.click(screen.getByRole('button', { name: 'Use Current Location' }))
       // The visitor gives up on the capture and closes the sheet, then starts a new one.
-      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Close new location' }))
       openNewLocationModal('PR25-ABANDON')
       fireEvent.change(screen.getByLabelText('Location Name'), { target: { value: 'Untouched' } })
 

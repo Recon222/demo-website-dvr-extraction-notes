@@ -142,7 +142,7 @@ export function DuplicateLocationModal({
   }
 
   return (
-    <ModalShell title="Duplicate Location" onClose={onClose}>
+    <ModalShell title="Duplicate Location" closeAccessibilityLabel="Close duplicate location" onClose={onClose}>
       <div style={{ fontSize: 13, color: '#99badd', marginTop: -4, marginBottom: 16 }}>
         Enter a name for the duplicate location.
       </div>

@@ -67,7 +67,7 @@ export function EditIncidentLocationModal({ values, onChange, onSubmit, onCancel
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   return (
-    <ModalShell title={EDIT_INCIDENT_COPY.title} onClose={onCancel}>
+    <ModalShell title={EDIT_INCIDENT_COPY.title} closeAccessibilityLabel="Close incident location" onClose={onCancel}>
       {submitError && (
         <div role="alert" data-testid="edit-incident-error" style={banner}>
           {submitError}

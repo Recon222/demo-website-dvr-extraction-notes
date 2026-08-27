@@ -178,7 +178,7 @@ describe('DemoExperience — import log run lifecycle (P1.3)', { timeout: 20000 
     expect(importLogBus.getLines().length).toBeGreaterThan(0) // INIT + FILE landed
     const epochDuringRun = importLogBus.getEpoch()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel while extraction is in flight
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // cancel while extraction is in flight
     expect(importLogBus.getEpoch()).toBe(epochDuringRun + 1) // reset broadcast for the UI
     await act(async () => {
       resolveExtract(DOC_TEXT) // the stale run keeps going…
