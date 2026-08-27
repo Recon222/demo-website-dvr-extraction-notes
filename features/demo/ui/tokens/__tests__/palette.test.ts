@@ -42,6 +42,13 @@ const RETIRED: ReadonlyArray<[name: string, hex: string, replacement: string]> =
   ['background', '#0d1b2a', 'colors.background (#002853)'],
   ['border', '#1e3a5f', 'colors.border (#1c4e84)'],
   ['borderLight', '#2a4a6f', 'colors.borderLight (#2e5f97)'],
+  // Added by U0.5, closing the rest of the set U0.1/U0.3 replaced (A2, A50). `#132236` and
+  // `#0f2035` were the demo's two spellings of the raised navy that became `#0e3965`;
+  // `#35A0D6`/`#2580AD` were the accent stops that became `#1F6B99`/`#17527A`.
+  ['backgroundSecondary', '#132236', 'colors.backgroundSecondary (#0e3965)'],
+  ['backgroundSecondary (T.raised)', '#0f2035', 'colors.backgroundSecondary (#0e3965)'],
+  ['accent top stop', '#35a0d6', 'GLASS.accentFrom (#1F6B99)'],
+  ['accent bottom stop', '#2580ad', 'GLASS.accentTo (#17527A)'],
 ]
 
 describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
