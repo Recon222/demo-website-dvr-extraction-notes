@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import { formatCoordinate } from '@/features/demo/engine/logic/coordinates'
 import { formatAccuracy, getAccuracyRating, gpsSourceLabel, type AccuracyTone } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
 
 /**
@@ -19,12 +20,38 @@ import type { GpsCoordinates, GpsSource } from '@/features/demo/engine/types'
  * `navigator.clipboard` through an injectable seam and never touches the store.
  */
 
-/** The demo's semantic triple — the same values `screenData.caseStatusTheme` uses. */
-const TONE_COLOR: Record<AccuracyTone, string> = {
-  success: '#10d177',
-  warning: '#ffd93d',
-  error: '#ff4757',
+/**
+ * `AccuracyTone` -> the foreground the rating LABEL is painted in — phone
+ * `CoordinateDisplay.tsx:55-72` plus `location/lib/accuracy-rating.ts:13-31`'s
+ * `AccuracyForegrounds` type.
+ *
+ * **This is a THIRD recipe, and deliberately neither of U3.2's two.** A69 counts `TONE_COLOR`
+ * among the eight status-colour owners, but the phone forks it per scheme rather than folding
+ * it into `CaseStatusBadge`'s trio, and its own comment says why:
+ *
+ *   - It is a bare LABEL on a surface — no fill, no border — so it needs AA's 4.5:1 and the
+ *     3:1 bare-mark accents (`STATUS_ACCENT`) do not cover it.
+ *   - **Dark cannot take the `*OnLight` foregrounds** the badge uses: all four resolve to
+ *     `#f0f4f8`, which painted Excellent, Fair and Poor at *CIE76 dE 0.0 from each other* and
+ *     from the body copy. Unlike `CaseStatusBadge` this row has no fill or border to carry the
+ *     severity instead — the label IS the only carrier. Dark therefore keeps the saturated
+ *     accents, which clear AA on this ground (success 5.20, warning 7.62).
+ *   - Light takes the measured `*OnLight` set; the raw accents measured 2.03 / 1.72 / 3.01.
+ *
+ * `error` is the one cell that cannot be fixed either way: **no red in the dark palette clears
+ * 4.5 here** (`error` 3.15, `errorDark` 2.56, `errorLight` 1.64). Poor takes the neutral
+ * foreground rather than shipping a sub-AA label, and the word "Poor" plus the metre reading
+ * carry it. That is the one VALUE this package moves here: `#ff4757` -> `errorOnLight`, which is
+ * also §C.3 rule 1 ("stop using red as text") applied at the site the phone applied it.
+ */
+function accuracyForegrounds(s: ColorScheme = scheme): Record<AccuracyTone, string> {
+  const c = palette[s]
+  return s === 'dark'
+    ? { success: c.success, warning: c.warning, error: c.errorOnLight }
+    : { success: c.successOnLight, warning: c.warningOnLight, error: c.errorOnLight }
 }
+
+const TONE_COLOR = accuracyForegrounds()
 
 /** How long the copy confirmation stays up, matching NotesScreen's "Copy all" (R-31). The
  *  phone's equivalent is an auto-dismissing toast; a confirmation that never clears would still

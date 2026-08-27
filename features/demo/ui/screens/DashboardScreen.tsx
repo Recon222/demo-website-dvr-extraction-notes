@@ -9,6 +9,7 @@ import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 /**
  * The phone's `DASHBOARD_CASE_LIMIT` (`app/(tabs)/home.tsx:37`), which it applies as
@@ -114,8 +115,13 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
     >
       <div style={{ width: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', paddingTop: 24 }}>
         <div style={{ position: 'relative', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: 8, background: card.status.color, opacity: 0.4, filter: 'blur(3px)' }} />
-          <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${card.status.color}`, background: card.status.bg, zIndex: 1 }} />
+          {/* The timeline bead is a BARE MARK — no fill behind text, no label of its own — so
+              it takes `.accent` (WCAG 1.4.11's 3:1 on the mark) and never the `*OnLight`
+              foreground, which is `#f0f4f8` for all four severities in dark and would paint
+              every case's bead the same near-white. Demo-originated rail: the phone's dashboard
+              has no timeline, so the ACCENT is the phone's, the geometry is the demo's. */}
+          <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: 8, background: card.status.accent, opacity: 0.4, filter: 'blur(3px)' }} />
+          <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${card.status.accent}`, background: card.status.background, zIndex: 1 }} />
         </div>
         {!isLast && <div style={{ width: 2, flex: 1, background: colors.border, marginTop: 6, minHeight: 30 }} />}
       </div>
@@ -138,9 +144,10 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <div style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, color: '#f0f4f8' }}>{card.caseNumber}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ padding: '4px 10px', borderRadius: 20, border: `1px solid ${card.status.border}`, background: card.status.bg }}>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: card.status.color }}>{card.status.label}</div>
-            </div>
+            {/* `small`, matching phone `DashboardCaseCard.tsx:164`. The `textTransform:
+                'uppercase'` and `letterSpacing: 0.5` this replaces are both absent from the
+                phone's badge at `main` — it stopped SHOUTING, and so does this. */}
+            <span style={statusBadgeStyle(card.status, 'small')}>{card.status.label}</span>
             {/* The keyboard/AT path to the same menu the hold opens. The phone's card carries
                 `accessibilityLabel="Case {n}. Long press for actions."`; naming a gesture a
                 click cannot perform would be the wrong instruction here, so the label states
@@ -175,7 +182,11 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             {visible.map((loc) => (
               <button key={loc.id} type="button" onClick={() => onOpenLocation(loc.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 20, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.10)', cursor: 'pointer' }}>
-                <div style={{ width: 7, height: 7, borderRadius: 4, background: loc.status.color }} />
+                {/* Phone `LocationPill.tsx:40-49` (`getLocationDotColor`): the pill's dot is the
+                    only visual carrier of status for a sighted user, so it takes the accent —
+                    the same tokens `STATUS_ACCENT` resolves for the identical mark on the map
+                    sheet's row. The saturated fills it used to take measured 1.76-2.81. */}
+                <div style={{ width: 7, height: 7, borderRadius: 4, background: loc.status.accent }} />
                 <span style={{ fontSize: 12, color: '#f0f4f8' }}>{loc.locationName}</span>
               </button>
             ))}
@@ -216,7 +227,8 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
                   {loc.locationName}
                   {loc.address && <span style={{ color: '#7a9fc4' }}> — {loc.address}</span>}
                 </span>
-                <span style={{ padding: '3px 8px', borderRadius: 12, background: loc.status.bg, fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
+                {/* `small`, matching phone `CompactLocationItem.tsx:83`. */}
+                <span style={statusBadgeStyle(loc.status, 'small')}>{loc.status.label}</span>
               </button>
             ))}
           </div>

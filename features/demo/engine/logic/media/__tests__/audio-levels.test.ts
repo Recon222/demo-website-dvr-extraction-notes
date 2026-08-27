@@ -8,8 +8,8 @@ import {
   codecLabel,
   formatSampleRate,
   levelDbLabel,
-  levelFillColor,
-  recorderStatusColor,
+  levelFillBand,
+  recorderStatusTone,
   recorderStatusLabel,
   spectrumBars,
   timeOfDay,
@@ -102,12 +102,15 @@ describe('levelDbLabel (phone LevelMeter.tsx:148-153)', () => {
   })
 })
 
-describe('levelFillColor (phone colorForLevelPct)', () => {
+describe('levelFillBand (phone colorForLevelPct)', () => {
   it('lands the band edges exactly where the phone does', () => {
-    expect(levelFillColor(0.7)).toBe('#2B8CC1')
-    expect(levelFillColor(0.701)).toBe('#ffd93d')
-    expect(levelFillColor(0.85)).toBe('#ffd93d')
-    expect(levelFillColor(0.851)).toBe('#ff4757')
+    // The BAND, not a colour: `engine/` decides which band applies, `AudioRecorderScreen`
+    // paints it (phone `LevelMeter.tsx:47-51` + `:86`, the same split). The thresholds are the
+    // half worth testing without an `AudioContext`, and they are unchanged.
+    expect(levelFillBand(0.7)).toBe('normal')
+    expect(levelFillBand(0.701)).toBe('warm')
+    expect(levelFillBand(0.85)).toBe('warm')
+    expect(levelFillBand(0.851)).toBe('hot')
   })
 })
 
@@ -116,9 +119,10 @@ describe('recorder status vocabulary (phone TimerCard.tsx:123-137)', () => {
     expect(recorderStatusLabel('idle')).toBe('READY')
     expect(recorderStatusLabel('recording')).toBe('REC')
     expect(recorderStatusLabel('paused')).toBe('PAUSED')
-    expect(recorderStatusColor('recording')).toBe('#ff4757')
-    expect(recorderStatusColor('paused')).toBe('#ffd93d')
-    expect(recorderStatusColor('idle')).toBe('#5a7a9a')
+    // Phone `TimerCard.tsx:130-139`, minus the colour: error / warning / neutral.
+    expect(recorderStatusTone('recording')).toBe('error')
+    expect(recorderStatusTone('paused')).toBe('warning')
+    expect(recorderStatusTone('idle')).toBe('neutral')
   })
 
   it('throws rather than defaulting to READY for a phase outside the union (R-27)', () => {
@@ -126,14 +130,14 @@ describe('recorder status vocabulary (phone TimerCard.tsx:123-137)', () => {
     // a live microphone for whatever a future phase describes — the label is a claim about what
     // the hardware is doing, so silently absorbing an unknown one is the wrong failure mode.
     expect(() => recorderStatusLabel('finalising' as RecordingPhase)).toThrow(/Unhandled case/)
-    expect(() => recorderStatusColor('finalising' as RecordingPhase)).toThrow(/Unhandled case/)
+    expect(() => recorderStatusTone('finalising' as RecordingPhase)).toThrow(/Unhandled case/)
   })
 
   it('reads the terminal phase as READY, never as a live state', () => {
     // `stopped` never renders (the flow is on the review screen by then) — but if it ever did,
     // showing REC over a finished take would be a lie about what the microphone is doing.
     expect(recorderStatusLabel('stopped')).toBe('READY')
-    expect(recorderStatusColor('stopped')).toBe('#5a7a9a')
+    expect(recorderStatusTone('stopped')).toBe('neutral')
   })
 })
 

@@ -3,6 +3,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -416,6 +417,56 @@ describe('palette contrast contract', () => {
         .map(([name, fg, bg]) => ({ name, ratio: round(contrast(fg, [bg])) }))
         .filter(({ ratio }) => ratio < AA_TEXT),
     ).toEqual([])
+  })
+
+  /**
+   * A19's binding rider, in THE BADGE's own terms (matrix A19, §C.3 rule 2, D5's amendment).
+   *
+   * Rows 16/18 above pin `onPrimary` / `onError` AT THE CONSTANTS. This row pins the pairing
+   * the status recipe actually MANUFACTURES: `severityTone()` is what every badge, chip and
+   * note in the demo spends, so a re-point of any `*Light` / `*OnLight` token — or a wiring
+   * swap inside the recipe, fill against foreground — reds here rather than in a screen test
+   * that reads the value back out of the same object it just put in.
+   *
+   * It is also the plan's U3.1 "ADD: the four `*OnLight`-on-`*Light` pairs at >= 4.5", which
+   * U3.1 did not land (its report §2.2 lists rows 22-25 and 30 only). Measured: dark
+   * info 5.94 / warning 5.40 / success 5.93 / error 5.79.
+   *
+   * **4.5 and not 3.0**, because a badge renders a WORD: §C.3 rule 2's carve-out is "non-text
+   * marks", and that same reading is why D5's amendment refuses `primary #2B8CC1` (3.73) under
+   * the map's filter-count NUMERAL and takes `primaryDark #1F6B99` (5.80) instead.
+   *
+   * The four severity fills are OPAQUE, so they are measured flat — one ground, no stack; a
+   * ground stack under an opaque fill would be measuring layers that cannot show through. The
+   * neutral is the exception, and that is why it is a second arm: its fill is a 15% tint, so it
+   * is composited over every ground a badge can land on and taken at the worst.
+   */
+  it('clears AA for every text-on-fill pairing the status recipe can produce (A19s rider)', () => {
+    for (const s of SCHEMES) {
+      expect(
+        offenders(
+          SEVERITIES.map((severity) => {
+            const tone = severityTone(severity, s)
+            return [`${s} ${severity} badge`, tone.color, [[tone.background]]] as [string, string, string[][]]
+          }),
+          AA_TEXT,
+        ),
+      ).toEqual([])
+
+      const neutral = neutralTone(s)
+      expect(
+        offenders(
+          [
+            [
+              `${s} neutral badge`,
+              neutral.color,
+              (s === 'dark' ? DARK_GROUNDS : LIGHT_GROUNDS).map((ground) => [neutral.background, ...ground]),
+            ],
+          ],
+          AA_TEXT,
+        ),
+      ).toEqual([])
+    }
   })
 
   // Row 21, phone `:265-274`. The ratios above are only true of the SHIPPED UI if the shared

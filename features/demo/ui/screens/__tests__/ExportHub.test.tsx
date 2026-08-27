@@ -13,6 +13,8 @@ vi.mock('motion/react', async (orig) => ({
 import { resolveExportPlan, type ExportSelection } from '@/features/demo/engine/logic/export'
 import { ExportHub, type ExportHubProps } from '@/features/demo/ui/screens/export/ExportHub'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /**
  * P5.2 — the Export tab's hub (matrix rows 7/24, ui-mapping 04). Behavioural coverage of the
@@ -75,6 +77,32 @@ const caseHeader = (caseNumber: string) => screen.getByRole('button', { name: `C
 const caseCheckbox = (caseNumber: string) => screen.getByRole('checkbox', { name: `Select all locations in ${caseNumber}` })
 /** The card element itself — the header button's grandparent (button → header row → card). */
 const cardEl = (caseNumber: string) => caseHeader(caseNumber).parentElement!.parentElement as HTMLElement
+
+/**
+ * A69's `medium` half. The demo's six pill sites split 2 medium / 4 small, mirroring the phone's
+ * own call sites, and this is one of the two mediums (phone
+ * `export-hub/ExportCaseCard.tsx:182` renders `<CaseStatusBadge status={...} />` at its default
+ * size, alongside the location count). Dashboard's test covers `small`; `CasesScreen`'s two
+ * sites take the same two shapes through the same recipe.
+ */
+describe('the ONE status pill (A69)', () => {
+  it('renders the export card`s badge at `medium` — 4/8 @14, from THE recipe', () => {
+    renderHub()
+    const pill = screen.getAllByText('Active')[0]
+    expect(pill).toHaveStyle({ padding: '4px 8px', fontSize: '14px', borderRadius: '12px', borderWidth: '1px' })
+    const tone = severityTone('warning')
+    expect(pill).toHaveStyle({ background: tone.background, color: tone.color, borderColor: tone.borderColor })
+  })
+
+  it('renders a location row`s badge at `small` inside the same card', () => {
+    renderHub()
+    fireEvent.click(caseHeader('PR25-A'))
+    const pill = screen.getAllByText('Started')[0]
+    expect(pill).toHaveStyle({ padding: '2px 6px', fontSize: '12px' })
+    // The row badge kept its own layout key; the recipe must not have been erased by it.
+    expect(pill).toHaveStyle({ flex: '0 0 auto', borderWidth: '1px' })
+  })
+})
 
 describe('ExportHub — empty state', () => {
   it('says "No cases to export" and renders no footer', () => {
@@ -218,10 +246,16 @@ describe('ExportHub — pre-flight footer', () => {
   it('colours the artifact line by the plan kind, not by a second branch', () => {
     const full = selectionOf('c1', ['l1', 'l2'], true)
     const { rerender } = renderHub({ selection: full, footer: footerFor(cardA, full) })
-    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toHaveStyle({ color: '#10d177' })
+    // Read off the tokens (phone `export-hub/ExportHub.tsx:329-337`: `colors.success` /
+    // `colors.textSecondary` / `colors.warning`). The literals these replace would have stayed
+    // green through a re-point of any of the three.
+    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toHaveStyle({ color: colors.success })
     const one = selectionOf('c1', ['l1'])
     rerender({ selection: one, footer: footerFor(cardA, one) })
-    expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toHaveStyle({ color: '#99badd' })
+    expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toHaveStyle({ color: colors.textSecondary })
+    const subset = selectionOf('c1', ['l1', 'l2'])
+    rerender({ cases: [{ ...cardA, locationCountLabel: '3 locations' }], selection: subset, footer: footerFor({ ...cardA, locations: [...cardA.locations, { id: 'l3', locationName: 'Side', address: '', status: locationStatusTheme('started') }] }, subset) })
+    expect(screen.getByText(/^SUBSET ZIP/)).toHaveStyle({ color: colors.warning })
   })
 
   it('drops the rise animation under prefers-reduced-motion, keeping the footer itself (R-23)', () => {

@@ -9,6 +9,7 @@ import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -165,9 +166,9 @@ function CaseRow({
               {c.displayName && <div style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>{c.displayName}</div>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, marginLeft: 10 }}>
-              <div style={{ padding: '3px 9px', borderRadius: 20, border: `1px solid ${c.status.border}`, background: c.status.bg }}>
-                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: c.status.color }}>{c.status.label}</span>
-              </div>
+              {/* A69's ONE pill. `medium`, matching phone `CaseCard.tsx:85`, which renders
+                  `<CaseStatusBadge status={caseData.status} />` at its default size. */}
+              <span style={statusBadgeStyle(c.status)}>{c.status.label}</span>
               <div style={{ fontSize: 11, color: '#7a9fc4' }}>{c.locationCountLabel}</div>
             </div>
           </div>
@@ -264,9 +265,10 @@ function LocationRow({
             <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f4f8' }}>{loc.locationName}</div>
             {loc.address && <div style={{ fontSize: 12, color: '#99badd', marginTop: 2 }}>{loc.address}</div>}
           </div>
-          <div style={{ padding: '3px 8px', borderRadius: 12, background: loc.status.bg }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: loc.status.color }}>{loc.status.label}</span>
-          </div>
+          {/* `small`, matching phone `LocationItem.tsx:66` — a location row inside an expanded
+              case card. The border is NOT optional: in dark all four `*OnLight` foregrounds are
+              `#f0f4f8`, so fill+border are the only carriers of the severity. */}
+          <span style={statusBadgeStyle(loc.status, 'small')}>{loc.status.label}</span>
         </button>
         <RowActionsTrigger label={`Actions for location ${loc.locationName}`} open={actionsOpen} onToggle={() => onToggleActions(key)} triggerRef={triggerRef} />
       </div>
