@@ -1,11 +1,11 @@
 # HANDOFF — Demo↔Phone UI Parity (v2) Orchestration Runbook
 
-state-as-of: 152487a
+state-as-of: 79bd6f1
 last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***W0: fix-delta r2 lanes all APPROVE (F11–F13 FIXED; `e216630`) → AGGREGATOR closing pass IN FLIGHT → then `gh pr merge 39 --merge` + `gh pr edit 40 --base master`. W1: five lanes DONE (`fcc1e95`; raw 0C/4H/8M/3L — `scheme='light'` compile break via F7's `satisfies`; lit-edge escape hatch broken under spread (W2 seats warned); standalone guard can compare light-to-itself; hand-typed tier totals ×4 lanes; `shadowCard` hard-codes dark; `GLASS_TIER.dark` trigger-lapsed) → AGGREGATOR W1 r1 IN FLIGHT (after the W0 close) → fix round by U1.1/U1.2-3/U1.4 seats. W1 verification DONE: inversion gone, no regressions, OWNER CHECKPOINT LIST at `worktrees/_captures/w1/DIFF.md` §5 (8 surfaces). W2: U2.1 ∥ U2.2 ∥ U2.3 ∥ U3.1→U3.4 ∥ U4.1 IN FLIGHT off 28e7993.***
+**Last updated:** 2026-08-27 — milestone: ***W0 MERGED TO MASTER — PR #39 @ `79bd6f1` (F1–F13 all fixed; closing APPROVE; `u0-phase` worktree torn down, branch deleted).*** W1: vetted r1 REVISE (0C/1H/5M/3L, F14–F22, ledger §94–§98, `fc75577`) → **FIX ROUND 1 IN FLIGHT** on `uiparity/u1-fix-{cards,tiers,headers}` (F14/F15/F19 · F16/F17/F21 · F18/F20/F22) → merge → **then merge `master` (79bd6f1: W0's fix-2 test-only commits) into `feat/uiparity-w1` --no-ff, re-gate (expect `rn-token-parity.test.ts` conflict F11 vs F17 → integrator)** → fix-mapping comment → fix-delta (five warm lanes + aggregator) → APPROVE → merge W1 PR. W1 PR: #40 was AUTO-CLOSED by GitHub when #39's branch was deleted (base vanished) — re-created against master (see git/PR list; same body). OWNER CHECKPOINT 1 (after W1): `worktrees/_captures/w1/DIFF.md` §5. W2: five seats in flight off 28e7993.
 
 ## 1. Mission & role
 
@@ -51,6 +51,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 - Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.
 - Quote gates only from a cold cache on the merged head (`pnpm exec tsc --noEmit --incremental false`).
 - **PLAN CORRECTIONS OWED (apply at the W1 merge, orchestrator):** plan §4.3 "override `borderColor`, never `border`" is WRONG — `border-color` is a four-side shorthand and erases `border-top-color` identically (U1.2 measured, probes killed) — the lit top edge needs `borderTopColor` set AFTER any `borderColor`; matrix row 82 / A37: `SettingsNavBar` reads the ELEVATED tier, not header (phone `SettingsNavBar.tsx:43`); U0.4 = 32 keys / 67 rows, U3.1 adds 2 keys not 4, port ends 59 keys / 123 rows (+ U1.1's 24 tier keys: 115 rows at W1); U0.5 P-2 (header/elevated grounds) closed NO by U1.4's arithmetic; the eight/seven/eight per-report correction lists in `reports/u1.*-implementation-report.md` §9.
+- **Wave PR bases: open every wave PR against `master` from the start** (the earlier-wave PR shows in the diff until it merges — acceptable). Basing a PR on the previous wave's branch gets it AUTO-CLOSED when that branch is deleted at merge (#40 incident).
 - **Session link is `https://claude.ai/code/session_01UtQCSnhF3oHi92Lu3mBSv4`** (`…Lu3mBSv4`, with the `m`) — two briefs carried a one-char typo; the integrator caught it. Copy from here.
 - **Hex sweeps: never `grep -F '#rrggbb'` in Git Bash** — it matches nothing and exits quietly (U1.4's first sweep was a false clean). Sweep the hex BODY without `#`, case-insensitive, with a positive control that must hit.
 - Mutation-probing lanes get their own worktree or serialise full-suite runs. **Probe worktrees are named `probe-<pkg>-<topic>` — never a generic name** (W0 fix round: two seats both cut `probe-u0-fix`; one's chained `pnpm install` ran in the other's live tree). Per-lane scratchpad subdirs likewise (W0 web lane's scratchpad was cross-contaminated).
