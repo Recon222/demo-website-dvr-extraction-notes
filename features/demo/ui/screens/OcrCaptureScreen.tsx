@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
@@ -122,15 +123,20 @@ const viewfinderPanel: CSSProperties = {
   textAlign: 'center',
 }
 
+/**
+ * A DEMO-ONLY recipe, not one of A66's outline sites — matrix A66 counted it as one and it is
+ * not: `#4BA3D4` border + a 14% `primary` wash + a `#9fd4ee` label. Neither that wash nor
+ * `#9fd4ee` returns a single hit anywhere in the phone's `src/` at `dd5551ec` (measured), and
+ * the phone's `Button` has exactly five variants, none of them tinted-fill.
+ *
+ * So: `outline` plus ONE background override, per D12's "follow, inside the frame". The wash
+ * survives as the mark of a sample/fallback affordance; the border and label join `link` with
+ * everything else. `palette-contrast.test.ts` measures `link` UNDER this wash, on every dark
+ * ground, because the wash is a ground the phone's contract has never seen.
+ */
 const panelButton: CSSProperties = {
-  padding: '10px 18px',
-  borderRadius: 10,
-  border: '1px solid #4BA3D4',
-  background: 'rgba(43,140,193,0.14)',
-  color: '#9fd4ee',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
+  ...buttonStyle({ variant: 'outline', size: 'small' }),
+  background: SAMPLE_TINT,
 }
 
 /**
@@ -438,13 +444,13 @@ export function OcrCaptureScreen({
                 {dateNeedsConfirming && <div id={blockedId} style={{ marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" onClick={onRetake} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Retake</button>
+                <button type="button" onClick={onRetake} style={{ ...buttonStyle({ variant: 'secondary' }) }}>Retake</button>
                 <button
                   type="button"
                   onClick={onCommitClick}
                   aria-disabled={!canCommit}
                   aria-describedby={canCommit ? undefined : blockedId}
-                  style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: canCommit ? 'pointer' : 'not-allowed', opacity: canCommit ? 1 : 0.45 }}
+                  style={{ flex: 1, ...buttonStyle({ disabled: !canCommit }) }}
                 >
                   Use this &amp; calculate
                 </button>
@@ -478,7 +484,7 @@ export function OcrCaptureScreen({
               <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>Couldn&apos;t read a timestamp</div>
               <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5 }}>OCR text: <span style={{ fontFamily: mono, color: '#cdd9e6' }}>{result.rawText}</span></div>
             </div>
-            <button type="button" onClick={onRetake} style={{ textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 'auto' }}>Try again</button>
+            <button type="button" onClick={onRetake} style={{ marginTop: 'auto', ...buttonStyle() }}>Try again</button>
           </>
         )}
       </div>
@@ -595,7 +601,9 @@ export function OcrCaptureScreen({
       <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: 'linear-gradient(0deg,rgba(0,0,0,0.88),transparent)', zIndex: 3 }}>
         {/* Belt for the R-4 race: while a live read is in flight the sample paths are held —
             a sample landing mid-recognition is the very supersession the token exists for. */}
-        <button type="button" disabled={reading} onClick={() => pickSample('clean')} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px solid #4BA3D4', background: 'rgba(43,140,193,0.14)', color: '#9fd4ee', fontSize: 14, fontWeight: 600, cursor: reading ? 'default' : 'pointer', opacity: reading ? 0.5 : 1, marginBottom: 14 }}>Use sample DVR clock</button>
+        {/* The THIRD site of the tinted-fill recipe above, inline — the partner's W2 census
+            found two. Same treatment. */}
+        <button type="button" disabled={reading} onClick={() => pickSample('clean')} style={{ width: '100%', marginBottom: 14, ...buttonStyle({ variant: 'outline', disabled: reading }), ...(reading ? {} : { background: SAMPLE_TINT }) }}>Use sample DVR clock</button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 }}>
           <span style={{ fontSize: 11, color: '#7a9fc4' }}>Awkward frames:</span>
           <button type="button" disabled={reading} onClick={() => pickSample('ambiguous')} style={{ ...sampleLink, opacity: reading ? 0.5 : 1, cursor: reading ? 'default' : 'pointer' }}>Ambiguous date</button>

@@ -116,9 +116,18 @@ function warnUnparseable(fn: string, color: string, detail: string): void {
   }
 }
 
-/** Colour-SHAPED but unparseable. `transparent` / `currentColor` are documented safe inputs
- *  to `withAlpha`, so warning on them would be the noise that gets the warning muted. */
-const looksLikeColour = (color: string) => /^(#|rgba?\()/i.test(color)
+/**
+ * Colour-SHAPED but unparseable. Bare keywords — `transparent`, `currentColor`, `inherit`,
+ * `none` — are documented safe inputs to `withAlpha`, so warning on them is the noise that
+ * gets a warning muted before the real one arrives.
+ *
+ * ANY function notation warns, not just `rgb()`/`rgba()`: `color-mix()`, `hsl()`,
+ * `linear-gradient()` all return unchanged with the requested alpha silently dropped, and
+ * `color-mix()` is the one value form this module's docblock BANS inside `features/demo/**`
+ * — so the narrower `/^(#|rgba?\()/` breadcrumbed the malformed-hex case and stayed silent
+ * on the case that motivated the ban.
+ */
+const looksLikeColour = (color: string) => /^(#|[a-z-]+\()/i.test(color)
 
 /**
  * Re-alpha a colour token — the demo's ONE way to derive a tinted variant.

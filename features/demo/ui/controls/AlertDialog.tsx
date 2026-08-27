@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useId, useRef } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /** One alert button. Mirrors React Native's `Alert.alert` button shape, styles included. */
 export interface AlertAction {
@@ -94,6 +95,32 @@ trackAlertActivationOrigin()
  *   The opener comes from the gesture tracker above, NOT from `document.activeElement` at
  *   mount — see its note for why a control that disables itself broke the old read.
  */
+/**
+ * The destructive arm's red re-tint, UNCHANGED in value and now expressed as four side
+ * longhands instead of spreading the old secondary fragment and then setting `border` — the second
+ * of the two live instances §4.3 names of a `border` SHORTHAND written after a spread. Nothing
+ * carried a `borderTopColor` here yet, so it was latent rather than broken; W1's web lane proved
+ * the documented "re-set the longhand after" escape hatch does not survive a spread at all, so
+ * the shape goes rather than the comment.
+ *
+ * NOT converted to `variant: 'danger'`. There is no phone recipe to port: RN renders this
+ * confirm through the OS `Alert.alert` with `style: 'destructive'`, so the demo's dialog is a
+ * demo-only surface (D12: follow, inside the frame) and A67 names exactly two danger sites,
+ * neither of them this one. `AlertDialog.test.tsx:168` pins destructive != cancel RELATIONALLY,
+ * which §4.4 trap 2 says to leave alone — and it still holds.
+ *
+ * RESIDUAL FOR U4.3, which opens this file whole: `#ff6b7a` is red AS TEXT, which is what C.3
+ * rule 1 forbids ("severity on the icon, text in `colors.text`"). Out of U2.2's rows; flagged.
+ */
+const DESTRUCTIVE_EDGE = 'rgba(255,71,87,0.3)' // the colour half of `GLASS.borderError`
+const destructiveTint = {
+  borderTopColor: DESTRUCTIVE_EDGE,
+  borderRightColor: DESTRUCTIVE_EDGE,
+  borderBottomColor: DESTRUCTIVE_EDGE,
+  borderLeftColor: DESTRUCTIVE_EDGE,
+  color: '#ff6b7a',
+} as const
+
 export function AlertDialog({ title, message, actions, onDismiss }: AlertDialogProps) {
   const uid = useId()
   const titleId = `${uid}-title`
@@ -174,15 +201,8 @@ export function AlertDialog({ title, message, actions, onDismiss }: AlertDialogP
               onClick={a.onPress}
               style={{
                 flex: 1,
-                padding: 12,
-                fontSize: 14.5,
-                fontWeight: 600,
-                cursor: 'pointer',
-                ...(a.style === 'destructive'
-                  ? { ...glassBtnSecondary, border: GLASS.borderError, color: '#ff6b7a' }
-                  : a.style === 'cancel'
-                    ? glassBtnSecondary
-                    : glassBtnPrimary),
+                ...buttonStyle({ variant: a.style === 'default' || a.style === undefined ? 'primary' : 'secondary' }),
+                ...(a.style === 'destructive' ? destructiveTint : {}),
               }}
             >
               {a.label}

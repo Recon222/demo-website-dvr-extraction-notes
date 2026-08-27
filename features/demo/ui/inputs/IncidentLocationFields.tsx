@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, useId } from 'react'
-import type { CSSProperties } from 'react'
 
 import { parseCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
 import type { IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
@@ -14,8 +13,7 @@ import {
 } from '@/features/demo/ui/inputs/LocationFields'
 import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { Field } from '@/features/demo/ui/screens/_shared'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /**
  * The demo's port of the phone's `IncidentLocationForm`
@@ -85,17 +83,6 @@ export const INCIDENT_FIELD_LABELS = {
   longitudePlaceholder: 'e.g., -79.38',
 } as const
 
-const coordInput: CSSProperties = {
-  width: '100%',
-  borderRadius: 8,
-  border: GLASS.border,
-  background: colors.background,
-  color: '#f0f4f8',
-  fontSize: 15,
-  padding: '11px 12px',
-  outline: 'none',
-}
-
 /** A single manual coordinate input. Validation is the caller's (it needs BOTH axes to decide
  *  whether to look the address up), so this is presentation plus the raw blur signal. */
 function CoordinateField({
@@ -114,13 +101,18 @@ function CoordinateField({
   onBlur(): void
 }) {
   const errorId = `${useId()}-error`
+  const [focused, setFocused] = useState(false)
   return (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false)
+          onBlur()
+        }}
         placeholder={kind === 'lat' ? INCIDENT_FIELD_LABELS.latitudePlaceholder : INCIDENT_FIELD_LABELS.longitudePlaceholder}
         aria-label={label}
         aria-invalid={error !== undefined}
@@ -131,7 +123,7 @@ function CoordinateField({
         aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
-        style={error ? { ...coordInput, borderColor: '#ff4757' } : coordInput}
+        style={fieldInputStyle({ error: Boolean(error), focused })}
       />
       {error && (
         <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>

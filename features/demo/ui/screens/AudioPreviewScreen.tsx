@@ -9,7 +9,8 @@ import {
   mediaFilename,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media'
-import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCard } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 
 /**
@@ -225,7 +226,7 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
       />
 
       <div style={{ display: 'flex', gap: 12, marginTop: 'auto' }}>
-        <button type="button" onClick={onRecordAgain} style={{ flex: 1, padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+        <button type="button" onClick={onRecordAgain} style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}>
           Record Again
         </button>
         {/* The phone's gate (`AudioPreview.tsx:294` — `disabled={!isFormValid || isSaving}`),
@@ -241,12 +242,7 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
           }}
           style={{
             flex: 1,
-            padding: 14,
-            ...glassBtnPrimary,
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: canSave ? 'pointer' : 'default',
-            opacity: canSave ? 1 : 0.5,
+            ...buttonStyle({ disabled: !canSave }),
           }}
         >
           Save Audio

@@ -1,7 +1,8 @@
 'use client'
 
 import { Component, type CSSProperties, type ReactNode } from 'react'
-import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { AppView } from '@/features/demo/engine/store/create-store'
 
 /**
@@ -124,7 +125,7 @@ export class DemoErrorBoundary extends Component<DemoErrorBoundaryProps, DemoErr
             // on the only recovery control (in-repo idiom: ExitDialog's autoFocus). R-8.
             autoFocus
             onClick={this.handleReturn}
-            style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+            style={{ width: '100%', ...buttonStyle() }}
           >
             Return to Cases
           </button>

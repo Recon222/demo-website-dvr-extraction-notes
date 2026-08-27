@@ -47,7 +47,12 @@ async function main() {
     await dlg.getByLabel('Business / Scene Name').fill('Kingsway Plaza');
     await dlg.getByLabel('City').fill('Mississauga');
     await shot(page, 'new-case-modal-filled');
-    await dlg.getByRole('button', { name: 'Create Case' }).click();
+    await dlg.getByRole('button', { name: 'Create Case' }).first().click();
+    // Post-P4 confirm step: renders in an ALERT OVERLAY outside the dialog (see flows.js).
+    await page.waitForTimeout(400);
+    if (await p.getByText('Confirm Case Number', { exact: true }).count()) {
+      await p.getByRole('button', { name: 'Create Case' }).last().click();
+    }
     await p.getByText(CASE_NUMBER).first().waitFor();
     await shot(page, 'cases-with-case');
   });
@@ -67,11 +72,11 @@ async function main() {
     const dlg = p.getByRole('dialog', { name: 'New Location' });
     await dlg.waitFor();
     await shot(page, 'new-location-modal');
-    await dlg.getByLabel('Location Name').fill(LOCATION_NAME);
-    await dlg.getByLabel('Business Name').fill('Kingsway Plaza Management');
+    await dlg.getByLabel('Location Name', { exact: true }).fill(LOCATION_NAME);
+    await dlg.getByLabel('Business/Location Name').fill('Kingsway Plaza Management');
     await dlg.getByLabel('City').fill('Mississauga');
-    await dlg.getByLabel('Contact Person').fill('S. Okafor');
-    await dlg.getByLabel('Contact Phone').fill('905-555-0142');
+    // 'Contact Person' / 'Contact Phone' are NOT on this modal (they live on the
+    // Submission wizard screen, SubmissionScreen.tsx:86-87) — fills here time out.
     await shot(page, 'new-location-modal-filled');
     await dlg.getByRole('button', { name: 'Create Location' }).click();
     await p.getByText(LOCATION_NAME).first().waitFor();
@@ -114,9 +119,12 @@ async function main() {
       await btn.click();
       await page.waitForTimeout(1200);
       await shot(page, 'completion-pdf-preview');
-      const close = p.getByRole('button', { name: 'Close preview' });
-      if (await close.count()) await close.click();
-      else await p.getByRole('button', { name: 'Close', exact: true }).first().click();
+      // Without an extraction scope the preview is GATED by a 'Missing Required Fields'
+      // alert whose only control is OK — so try that before the real preview's close.
+      for (const name of ['Close preview', 'OK', 'Close']) {
+        const b = p.getByRole('button', { name, exact: true });
+        if (await b.count()) { await b.first().click(); break; }
+      }
       await page.waitForTimeout(400);
     }
   });

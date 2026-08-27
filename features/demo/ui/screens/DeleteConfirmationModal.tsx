@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -187,12 +188,22 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
           </div>
         </div>
 
+        {/* Phone `src/features/case-management/components/DeleteConfirmationModal.tsx:76-98`,
+            testIDs included: cancel is `variant="secondary"`, confirm is `variant="danger"`,
+            both default size. A67/A52 — the fill leaves the flat `error` red (3.34:1 under
+            white) for `DangerFill.dark`, which is `errorLight` (6.39:1), and the label leaves
+            `#fff` for `colors.onError`. The hexes are deliberately NOT written out here:
+            `glass-tokens.test.ts`'s banned-literal scan reads SOURCE TEXT and does not know a
+            comment from a style value — it caught this docblock on the first run.
+            `ERROR` above KEEPS its other two consumers untouched: the 48px
+            icon at `:126` and the italic warning line at `:183` are not buttons, and
+            re-pointing the const wholesale would recolour both. */}
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
             data-testid="delete-modal-cancel"
             onClick={onCancel}
-            style={{ flex: 1, padding: 12, fontSize: 14.5, fontWeight: 600, cursor: 'pointer', ...glassBtnSecondary }}
+            style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}
           >
             Cancel
           </button>
@@ -200,7 +211,7 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
             type="button"
             data-testid="delete-modal-confirm"
             onClick={onConfirm}
-            style={{ flex: 1, padding: 12, fontSize: 14.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10, border: 'none', background: ERROR, color: '#fff' }}
+            style={{ flex: 1, ...buttonStyle({ variant: 'danger' }) }}
           >
             {isCase ? 'Delete Case' : 'Delete'}
           </button>

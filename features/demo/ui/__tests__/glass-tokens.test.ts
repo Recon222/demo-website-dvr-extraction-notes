@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { GLASS, glassCard, glassCardNested, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the P0.5 glass-token extraction (matrix G6).
 //
@@ -51,22 +51,90 @@ const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
 ])
 
-/** Every .ts/.tsx source file under ui/, minus __tests__ dirs and the token modules. */
-function sourceFiles(dir: string): string[] {
+/**
+/**
+ * Every .ts/.tsx source file under ui/, minus __tests__ dirs and `skip`.
+ *
+ * `skip` defaults to `TOKEN_MODULES` (the banned-literal scan's exemption: a banned literal has
+ * to live exactly once, and that once is a token module). The scheme-half scan passes an EMPTY
+ * set — it exempts nothing at all. "May hold a raw literal" and "may name a scheme half" are
+ * different permissions over different files, and the second turns out to be a permission no
+ * file needs.
+ */
+function sourceFiles(dir: string, skip: ReadonlySet<string> = TOKEN_MODULES): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name !== '__tests__') out.push(...sourceFiles(full))
+      if (entry.name !== '__tests__') out.push(...sourceFiles(full, skip))
     } else if (
       /\.tsx?$/.test(entry.name) &&
-      !TOKEN_MODULES.has(relative(UI_ROOT, full).split(sep).join('/'))
+      !skip.has(relative(UI_ROOT, full).split(sep).join('/'))
     ) {
       out.push(full)
     }
   }
   return out
 }
+
+/**
+ * Comments are not code, and here that is load-bearing rather than tidy: `glass-tokens.ts:59`
+ * and `tokens/palette.ts:11,177,181` spell `GLASS_TIER.dark` / `palette.dark` in prose
+ * precisely in order to FORBID them. A raw-text scan reds on its own documentation.
+ *
+ * `//` inside a string literal would truncate that line early. Accepted: the cost is coverage
+ * of one line, never a false red, and no scheme half is spelled inside a string anywhere.
+ */
+const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+
+/**
+ * A scheme half reached for by name in a VALUE position. Plan §9 clause 12: flipping the demo
+ * to light is a ONE-SITE change, and the one site is `tokens/palette.ts`'s `export const
+ * scheme`. Consumers resolve `GLASS_TIER[scheme]` / `SHADOW_CARD[scheme]` / `colors`;
+ * `GLASS_TIER.dark` is the same object today, so no behavioural pin can ever see it (review r1
+ * F18, two SURVIVED probes) and a source scan is the only mechanism that can.
+ *
+ * ## NO LIST OF RECORD NAMES, deliberately — that is the whole of review r1 F23
+ *
+ * The first shape of this scan named `GLASS_TIER` and `palette` and matched the dot form only,
+ * so `SHADOW_CARD.dark` (a two-half record created in the SAME round), `GLASS_TIER['dark']` and
+ * `const { dark } = GLASS_TIER` all walked past it — four lanes, four SURVIVED probes. A
+ * hand-typed roster of record names is the third recurrence of one class in this campaign
+ * (W0 F2 `PALETTE_KEYS`, W1 F16 `TIER_KEYS`, F23 here); enrolling records BY NAME — typed out,
+ * or derived from a `satisfies Record<ColorScheme, …>` grep — would be the fourth, and it fails
+ * the same way, because the record that forgets to enrol is exactly the one that drifts.
+ *
+ * So the identifier is a WILDCARD — and since review r2 F24, so is the file: the scan exempts
+ * NOTHING. There is no list of records to keep honest and no list of files either. A two-half
+ * record added next wave is covered on the day it is written, by an author who never heard of
+ * this test.
+ *
+ * F24 is why the file exemption went too. It had two entries, and one of them was
+ * `tokens/palette.ts` — the home of `export const scheme`, the SINGLE SITE plan §9 clause 12
+ * rests on. Exempting the declaring file to let it declare meant the one line whose regression
+ * breaks the clause outright (`export const colors = palette[scheme]` -> `palette.dark`) was the
+ * one line nothing watched. Measured, and the reason the deletion is free: NEITHER declaring
+ * file names a half in a VALUE position — they declare halves as object KEYS (`light: {`,
+ * `dark: {`) and as shorthand in an object literal (`{ light, dark }`), and the brace form the
+ * destructure pattern matches requires `{ … } = ident`, which is the other way round. Zero
+ * offenders across every non-test file under `ui/`, exemptions included: the widening costs no
+ * false red, which is what makes the lazy shape also the correct one.
+ *
+ * Three forms, because the MANDATED idiom is `GLASS_TIER[scheme]` and a developer hard-coding a
+ * half by copying that shape reaches for `['dark']` sooner than `.dark`:
+ *   `X.dark`  ·  `X['dark']` / `X["light"]`  ·  `const { dark } = X`
+ *
+ * `typeof` is excluded because a TYPE position is the opposite of a violation: review r1 F15
+ * requires `satisfies typeof palette.dark.primaryDark` in `glass-tokens.ts`, a deliberately
+ * scheme-INDEPENDENT reference that must keep compiling after the flip. A regex cannot parse a
+ * type position; `typeof` is the one marker that reliably identifies it here.
+ */
+const SCHEME_HALF: readonly RegExp[] = [
+  // member access, dot or bracket
+  /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
+  // destructure: `const { dark } = X`, `const { dark: tier } = X`
+  /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
+]
 
 /**
  * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
@@ -108,12 +176,10 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // straight over every one of them because the alphas differ. Banning the stop itself is what
   // stops U1.3/U1.4/U2.4/U4.1 pasting the NEW values back in the same way.
   // Measured before landing: all twelve have ZERO occurrences under `ui/`, so this costs no sweep.
-  // KNOWN LIMIT, not this package's to fix: the scan below is WHITESPACE-sensitive, so these
-  // twelve catch `rgba(23,65,110,0.7)` and miss `rgba(23, 65, 110, 0.7)` — which is the spelling
-  // `Colors.ts` uses and therefore the one a paste out of the phone arrives in. W0's review
-  // raised it as a HIGH against `:132-134` with a SURVIVED probe; the fix is one `replace(/\s+/g,'')`
-  // on both sides of the comparison and it belongs to that round, not here. Until it lands these
-  // entries bite only on the unspaced form.
+  // The whitespace limit this block used to record is CLOSED, and the note is corrected here
+  // rather than left to mislead a later package (U2.4): `norm()` above strips whitespace on
+  // BOTH sides of the comparison since review r1 F3, so these twelve catch the spaced
+  // `rgba(23, 65, 110, 0.7)` a paste out of `Colors.ts` arrives in as well as the unspaced form.
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
@@ -160,6 +226,21 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // landing or drag a sweep into another package's file. U8.1 can add it for free.
   ['nestedCard highlight edge', 'rgba(184,212,240,0.2)'],
   ['nestedCard inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.15)'],
+  // --- the recessed tier's other two parts (U2.4): reach for `glassWell` ------------------
+  // The condition the U1.1 block above names, met: A39/A59 wire `recessed.border`,
+  // `recessed.highlightTop` and `recessed.innerShadow` into `glassWell`, which is what makes
+  // them re-inlinable CSS for the first time. All three measured ZERO live occurrences under
+  // `ui/` before landing, in BOTH spacings.
+  //
+  // `border` and `highlightTop` are banned BARE, unlike the card tier's, because neither is a
+  // generic value a future site could reach for innocently: `rgba(0,14,30,0.75)` and
+  // `rgba(0,12,26,0.55)` are near-black navies that exist nowhere else in the palette. The
+  // inner shadow follows the card/nested precedent and is banned COMPOSED — bare
+  // `rgba(0,0,0,0.45)` is an ordinary 45% drop shadow and banning it would misfile the next
+  // one as tier re-drift.
+  ['recessed well border', 'rgba(0,14,30,0.75)'],
+  ['recessed well lip', 'rgba(0,12,26,0.55)'],
+  ['recessed well inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.45)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
@@ -183,9 +264,50 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['disabledText', '#6b7f95'],
   ['primaryDark / accent top stop', '#1F6B99'],
   ['accent bottom stop', '#17527A'],
+  // --- U1.4's header tier, banned on the day it entered a recipe (review r1 F22) ----------
+  // The list's own rule: the package that first writes a tier value into a recipe bans it.
+  // U1.4 wrote both into `controls/header-chrome.ts` and deferred the entries only because
+  // `glass-tokens.test.ts` belonged to the U1.2 seat in that window; the window is closed.
+  // NOTE the first is ONE literal serving TWO tiers — `header.border` and `sheet.border` are
+  // both `rgba(28,78,132,0.6)` (`Colors.ts:393` / `:402`), so U4.1 inherits this entry rather
+  // than adding a second. Reach for `GLASS_TIER[scheme].<tier>`, or the header recipe.
+  ['header/sheet border', 'rgba(28,78,132,0.6)'],
+  ['header highlightTop', 'rgba(153,186,221,0.1)'],
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
+  // Review r1 F18. The trigger U1.4's D-2 named ("the next commit that touches this scan
+  // block") fired inside the same PR, so the deferral became a finding and this is the gate it
+  // asked for. It is not a string-presence pin standing in for a behaviour: while the demo
+  // renders dark, `GLASS_TIER.dark` and `GLASS_TIER[scheme]` ARE the same object, so there is
+  // no behaviour to observe — the source text is the whole invariant, exactly as the
+  // anti-re-drift scan above it.
+  it('no production module hard-codes a scheme half (plan §9 clause 12)', () => {
+    // An EMPTY skip set: nothing is exempt, including the two files that declare the halves
+    // (review r2 F24 — `tokens/palette.ts` holds the one-site switch itself).
+    const offenders = sourceFiles(UI_ROOT, new Set())
+      .filter((full) => {
+        // A `light:` / `dark:` RECORD ARM is skipped, for the SAME reason `typeof` is excluded
+        // above: it is the opposite of a violation. `{ light: …, dark: … } as const` indexed by
+        // `[scheme]` is the shape clause 12 WANTS, and naming both halves is the only way to
+        // write one. `DangerFill` (`controls/button-recipe.ts:99`) must, because the
+        // `*Light`/`*Dark` names invert between schemes; `PrimaryButtonGradient` and
+        // `ElevatedEdges` beside it escape only by holding literals, which is luck, not rigour.
+        //
+        // The ARM is skipped, never the file. A record built this way is inert until something
+        // READS a half, and `X.dark` is a member access on its own line — still an offender.
+        // Found at merge (W1 -> U2): review r2 F24 emptied the skip set on a tree where no
+        // production module declared both halves; U2.2 then added the first one that does.
+        const src = stripComments(readFileSync(full, 'utf8'))
+          .split(/\r?\n/)
+          .filter((line) => !/^\s*(?:light|dark)\s*:/.test(line))
+          .join('\n')
+        return SCHEME_HALF.some((form) => form.test(src))
+      })
+      .map((full) => relative(UI_ROOT, full).split(sep).join('/'))
+    expect(offenders).toEqual([])
+  })
+
   // R-34: the /demo error page's colours live as @theme MIRRORS in app/css/style.css —
   // outside this suite's scan root and in Tailwind arbitrary-value syntax the error-page
   // guard can't value-check. Pin the mirror VALUES here, against the tokens that will
@@ -244,35 +366,39 @@ describe('glass tokens (P0.5 / G6)', () => {
   it('pins the spreadable fragments to the exact clusters they replaced', () => {
     // `glassCard` is no longer "the cluster it replaced" — U1.2 gave it the two parts A31/A32
     // say the demo never rendered, plus A44's elevation, and U1.3 added `glassCardNested`
-    // beside it. The ORDER of the keys is a separate contract
-    // (`__tests__/glass-card-recipe.test.tsx`): `toEqual` is order-blind, so a re-sort that
-    // erases the lit edge would pass this line unchanged.
+    // beside it. Both carry ONLY LONGHANDS since the lit-edge ruling: a `border` or
+    // `borderColor` key in a fragment is the trap, not the ordering
+    // (`partner-lit-edge-ruling.md` §3-§4). The absence of those keys is pinned in
+    // `__tests__/glass-card-recipe.test.tsx`, because `toEqual` reads as a value list and a
+    // reviewer will not notice a key that is not there.
     expect(glassCard).toEqual({
       borderRadius: 12,
-      border: '1px solid rgba(28,78,132,0.5)',
+      borderStyle: 'solid',
+      borderWidth: 1,
+      borderRightColor: 'rgba(28,78,132,0.5)',
+      borderBottomColor: 'rgba(28,78,132,0.5)',
+      borderLeftColor: 'rgba(28,78,132,0.5)',
       borderTopColor: 'rgba(184,212,240,0.08)',
       background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.15)',
     })
     expect(glassCardNested).toEqual({
       borderRadius: 12,
-      border: '1px solid rgba(43,140,193,0.45)',
+      borderStyle: 'solid',
+      borderWidth: 1,
+      borderRightColor: 'rgba(43,140,193,0.45)',
+      borderBottomColor: 'rgba(43,140,193,0.45)',
+      borderLeftColor: 'rgba(43,140,193,0.45)',
       borderTopColor: 'rgba(184,212,240,0.2)',
       background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
     })
-    expect(glassBtnPrimary).toEqual({
-      borderRadius: 10,
-      border: 'none',
-      background: 'linear-gradient(180deg,#1F6B99,#17527A)',
-      color: '#fff',
-    })
-    expect(glassBtnSecondary).toEqual({
-      borderRadius: 10,
-      border: '1px solid #2e5f97',
-      background: '#0e3965',
-      color: '#99badd',
-    })
+    // `glassBtnPrimary` / `glassBtnSecondary` were pinned here until U2.2 deleted them
+    // (A64/A65/A68). Their replacement is pinned as a whole recipe in
+    // `ui/controls/__tests__/button-recipe.test.tsx`, which asserts far more than these four
+    // keys ever could — the two that mattered here were both WRONG against the phone anyway:
+    // the secondary border read `borderLight` where `Button.tsx:144` reads `colors.border`, and
+    // its label read `textSecondary` where `:216` reads `colors.text`.
   })
 
   it('keeps the four legacy composites DERIVED from GLASS_TIER (U1.1)', async () => {
@@ -312,7 +438,9 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(glassCardNested.background, 'the nested fragment paints the nestedCard tier').toBe(
       `linear-gradient(180deg,${t.nestedCard.gradient[0]},${t.nestedCard.gradient[1]})`,
     )
-    expect(glassCardNested.border).toBe(`1px solid ${t.nestedCard.border}`)
+    for (const side of ['borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
+      expect(glassCardNested[side], `${side} is the nestedCard tier's border`).toBe(t.nestedCard.border)
+    }
     expect(glassCardNested.borderTopColor).toBe(t.nestedCard.highlightTop)
     expect(glassCardNested.boxShadow).toBe(`inset 0 1px 0 ${t.nestedCard.innerShadow}`)
     // A33's whole point: the nested stops are the SWAP of the card's, so a "fix" that made

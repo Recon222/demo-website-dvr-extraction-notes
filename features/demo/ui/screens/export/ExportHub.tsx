@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { caseCheckboxState, type ExportSelection, type ExportSelectionPlan } from '@/features/demo/engine/logic/export'
-import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportCaseCard } from '@/features/demo/ui/screens/export/ExportCaseCard'
@@ -233,13 +234,8 @@ export function ExportHub({
             onClick={onExportPress}
             disabled={isExporting}
             style={{
-              ...glassBtnPrimary,
               width: '100%',
-              padding: 12,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: isExporting ? 'default' : 'pointer',
-              opacity: isExporting ? 0.6 : 1,
+              ...buttonStyle({ disabled: isExporting }),
             }}
           >
             {footer.plan.ctaLabel}

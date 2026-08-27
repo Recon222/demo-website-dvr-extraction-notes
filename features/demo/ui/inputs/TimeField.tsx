@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { formatTime, mergeTime, nowParts, parsePartsLoose } from '@/features/demo/engine/logic/datetime-parts'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { T } from '@/features/demo/ui/inputs/input-theme'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { TimeWheel } from '@/features/demo/ui/inputs/TimeWheel'
-import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface TimeFieldProps {
   value: string
@@ -36,8 +37,8 @@ export function TimeField({ value, onChange }: TimeFieldProps) {
     setOpen(false)
   }
 
-  const ghostBtn = { flex: 1, padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' } as const
-  const primaryBtn = { flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' } as const
+  const ghostBtn = { flex: 1, ...buttonStyle({ variant: 'secondary' }) } as const
+  const primaryBtn = { flex: 1, ...buttonStyle() } as const
 
   return (
     <>
@@ -48,16 +49,22 @@ export function TimeField({ value, onChange }: TimeFieldProps) {
         style={{
           width: '100%',
           textAlign: 'left',
-          borderRadius: 8,
+          // `datetimeButton`, phone `DateTimePicker.tsx:490-498`: `borderRadius.md`,
+          // `spacing.md` horizontal / `spacing.sm` vertical, and `touchTarget.min` — NOT the
+          // demo's own 48. These two sit in a row beside a `fieldInputStyle()` field, which
+          // U2.1 put at 44.
+          borderRadius: radius.md,
           border: `1px solid ${T.border}`,
           background: T.bg,
-          padding: '8px 12px',
-          minHeight: 48,
+          padding: `${spacing.sm}px ${spacing.md}px`,
+          minHeight: touchTarget.min,
           cursor: 'pointer',
         }}
       >
-        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: T.textFaint, marginBottom: 2 }}>Time</div>
-        <div style={{ fontSize: 15, fontWeight: 500, color: parts ? T.text : T.textFaint }}>{formatTime(parts)}</div>
+        {/* `buttonLabel` / `buttonValue`, phone `:499-508` — `fontSize.xs` over
+            `fontSize.base`. */}
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: T.textFaint, marginBottom: 2 }}>Time</div>
+        <div style={{ fontSize: 16, fontWeight: 500, color: parts ? T.text : T.textFaint }}>{formatTime(parts)}</div>
       </button>
 
       {open && (

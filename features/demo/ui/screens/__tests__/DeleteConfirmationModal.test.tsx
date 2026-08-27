@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { DangerFill } from '@/features/demo/ui/controls/button-recipe'
+import { palette } from '@/features/demo/ui/tokens/palette'
 
 /** P3.1 / matrix row 15 — the phone's 2-arm delete confirmation (ui-mapping 11). */
 
@@ -75,6 +77,20 @@ describe('DeleteConfirmationModal — case variant (phone "Variation A")', () =>
     expect(list).toHaveStyle({ maxHeight: '150px', overflowY: 'auto' })
   })
 
+  it('fills the confirm button with the DEEP danger red, not the flat error mid-tone (A52/A67)', () => {
+    // The third ADOPTION pin, and the one with a named history: the phone's `SwipeDeleteAction`
+    // suite compared its rendered fill against `DangerFill` ITSELF, so it moved WITH the constant
+    // and stayed 32/32 green through a mutation back to the failing flat pair. This asserts the
+    // rendered value against the DEEP red by name AND asserts it is not `error`, which is the
+    // mutation that pin could not see. Phone `Button.tsx:159-160` + `:234`.
+    renderModal(locationTarget())
+    const confirm = screen.getByTestId('delete-modal-confirm')
+    expect(confirm).toHaveStyle({ background: DangerFill.dark, color: palette.dark.onError })
+    expect(confirm.style.backgroundColor).not.toBe(hexToJsdomRgb(palette.dark.error))
+    // ...and the border matches the fill, so the control reads as one solid block.
+    expect(confirm).toHaveStyle({ borderTopColor: DangerFill.dark, borderBottomColor: DangerFill.dark })
+  })
+
   it('skips the warning lead-in and the list for a case with no locations', () => {
     renderModal(caseTarget([]))
     expect(screen.queryByText('WARNING: This will also delete these locations:')).not.toBeInTheDocument()
@@ -113,3 +129,9 @@ describe('DeleteConfirmationModal — dismissal', () => {
     expect(onConfirm).not.toHaveBeenCalled()
   })
 })
+
+/** jsdom normalizes hex inline colours to rgb(r, g, b). Same helper as `TerminalLine.test.tsx:116`. */
+function hexToJsdomRgb(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}

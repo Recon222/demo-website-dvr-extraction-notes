@@ -20,11 +20,33 @@ import { scheme } from '@/features/demo/ui/tokens/palette'
  * from a retyped literal. That is the same device U1.1's derivation pin uses and it is here for
  * the same reason: a pin that restates the production string is green through exactly the edit
  * it exists to catch. What these assert is the RELATIONSHIP — that these three fragments read
- * the `header` tier, of the consumed scheme, in the right places — so sourcing a bar from
- * `card` or reading `GLASS_TIER.dark` directly reddens the file.
+ * the `header` tier, in the right places — so sourcing a bar from `card` reddens the file.
+ *
+ * What these do NOT catch, corrected after review r1 F18 measured it: `GLASS_TIER.dark` in
+ * place of `GLASS_TIER[scheme]`. While the demo renders dark the two are the SAME OBJECT, so
+ * no behavioural pin here or anywhere can tell them apart — the earlier claim in this docblock
+ * was half true and the half that was false is the half that mattered. Plan §9 clause 12 is
+ * held by a source scan instead: `ui/__tests__/glass-tokens.test.ts`'s "no production module
+ * hard-codes a scheme half".
  */
 
 const header = GLASS_TIER[scheme].header
+
+/**
+ * Review r1 F20, held at COMPILE time because that is where the finding lives.
+ *
+ * `as const satisfies CSSProperties` keeps every fragment's literal types. Reverting any of the
+ * three to a `: CSSProperties` annotation widens `background` to
+ * `Background<string | number> | undefined`, which is not assignable to `string`, and this line
+ * stops compiling — so a cold `tsc` catches the revert that no runtime assertion can see.
+ * Deliberately types against `string` and not against the value: a re-tint of the header tier
+ * must NOT red this, only a loss of the literal types.
+ */
+const _f20: [string, string, string] = [
+  glassHeaderBar.background,
+  glassWizardHeaderBar.boxShadow,
+  glassHeaderFooterBar.borderTop,
+]
 
 /**
  * `jest-dom`'s `toHaveStyle` is typed for `Record<string, unknown>`, which `CSSProperties` is
@@ -54,9 +76,11 @@ describe('the header tier recipe (A37 / U1.4)', () => {
   it('puts the tier border on the bottom edge alone, as a longhand', () => {
     expect(glassHeaderBar.borderBottom).toBe(`1px solid ${header.border}`)
     // A shorthand `border` after this would erase the single-edge hairline (§4.3), and a
-    // `borderTop` would draw an edge the phone's bars do not have.
-    expect(glassHeaderBar.border).toBeUndefined()
-    expect(glassHeaderBar.borderTop).toBeUndefined()
+    // `borderTop` would draw an edge the phone's bars do not have. Read through `decl` because
+    // F20's `as const satisfies` narrowed the fragments to their own keys — absence is now a
+    // COMPILE error at every reader, and these lines keep saying so at runtime too.
+    expect(decl(glassHeaderBar).border).toBeUndefined()
+    expect(decl(glassHeaderBar).borderTop).toBeUndefined()
   })
 
   it("carries the wizard header's lit top edge as an inset shadow, not a border-top-color", () => {
@@ -64,7 +88,7 @@ describe('the header tier recipe (A37 / U1.4)', () => {
     // override. On a one-edge bar it paints nothing — the phone builds a real 1px strip over
     // the gradient instead (`Header.tsx:113-117,168-175`), and `inset 0 1px 0` is that.
     expect(glassWizardHeaderBar.boxShadow).toBe(`inset 0 1px 0 ${header.highlightTop}`)
-    expect(glassWizardHeaderBar.borderTopColor).toBeUndefined()
+    expect(decl(glassWizardHeaderBar).borderTopColor).toBeUndefined()
   })
 
   it('builds the wizard header FROM the shared bar, so a tier re-tint reaches both', () => {
@@ -76,8 +100,8 @@ describe('the header tier recipe (A37 / U1.4)', () => {
     // Not an omission: zero of the six phone components that read `GlassColors[…].header` touch
     // `innerShadow`. Painting one here would be invention. If the phone ever does, this line is
     // the one that has to change, deliberately.
-    expect(glassHeaderBar.boxShadow).toBeUndefined()
-    expect(glassHeaderFooterBar.boxShadow).toBeUndefined()
+    expect(decl(glassHeaderBar).boxShadow).toBeUndefined()
+    expect(decl(glassHeaderFooterBar).boxShadow).toBeUndefined()
     expect(glassWizardHeaderBar.boxShadow).not.toContain(header.innerShadow)
   })
 
@@ -89,7 +113,7 @@ describe('the header tier recipe (A37 / U1.4)', () => {
     expect(footer.stops).toEqual(bar.stops)
     expect([bar.angle, footer.angle]).toEqual(['180deg', '0deg'])
     expect(glassHeaderFooterBar.borderTop).toBe(`1px solid ${header.border}`)
-    expect(glassHeaderFooterBar.borderBottom).toBeUndefined()
+    expect(decl(glassHeaderFooterBar).borderBottom).toBeUndefined()
   })
 })
 
@@ -166,7 +190,7 @@ describe('the header tier reaches the screen (A37 / U1.4)', () => {
     // (`Header.tsx:113-117`); the drawer's header and the picker's paint no strip, and a
     // "helpful" move of the shadow into the shared fragment would light three bars the phone
     // leaves flat. Asserting only that WizardHeader HAS it would not see that.
-    const edge = { boxShadow: glassWizardHeaderBar.boxShadow as string }
+    const edge = { boxShadow: glassWizardHeaderBar.boxShadow }
     const [wizard, drawer, picker] = BARS.map(([, mount]) => {
       cleanup()
       const el = mount()

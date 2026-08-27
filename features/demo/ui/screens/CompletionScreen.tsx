@@ -2,7 +2,8 @@
 
 import type { FormFieldId } from '@/features/demo/engine/types'
 import { DateTimeField, Field, SectionCard, WizardHeader } from '@/features/demo/ui/screens/_shared'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface CompletionSummary {
   occNumber: string
@@ -63,15 +64,21 @@ export function CompletionScreen(p: CompletionScreenProps) {
     return (
       <div style={{ minHeight: 786, paddingBottom: 40 }}>
         <WizardHeader title="Completion & Review" onBack={p.onBack} onMenu={p.onMenu} />
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 60 }}>
+        {/* One `padding` SHORTHAND, not `padding: 16` + a `paddingTop: 60` longhand. React
+            reuses this node for the review form's `{ padding: 16 }` div at :82, so on the
+            "Review / Export again" transition it removed `paddingTop` while `padding` stayed
+            unchanged and never reasserted — the form rendered with NO top padding, and said so
+            only in a console error nobody read (lit-edge ruling §4.3; caught by the repo-wide
+            guard in `vitest.setup.ts`). Same 60/16/16 box. */}
+        <div style={{ padding: '60px 16px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ width: 84, height: 84, borderRadius: 42, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }}>
             <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </div>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Location Complete</div>
           <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5, maxWidth: 280, marginBottom: 30 }}>Saved and marked complete. This location is locked, with its PDFs and media archived.</div>
-          <button type="button" onClick={p.onBackToDashboard} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Back to Dashboard</button>
-          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Return to Cases</button>
-          <button type="button" onClick={p.onReviewAgain} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Review / Export again</button>
+          <button type="button" onClick={p.onBackToDashboard} style={{ width: '100%', marginBottom: 10, ...buttonStyle() }}>Back to Dashboard</button>
+          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary' }) }}>Return to Cases</button>
+          <button type="button" onClick={p.onReviewAgain} style={{ width: '100%', ...buttonStyle({ variant: 'secondary' }) }}>Review / Export again</button>
         </div>
       </div>
     )
@@ -125,12 +132,15 @@ export function CompletionScreen(p: CompletionScreenProps) {
           )}
         </SectionCard>
         )}
-        <button type="button" onClick={p.onPreviewPdf} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 13, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10, width: '100%' }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
+        {/* Phone `app/(form)/completion.tsx:561-569`: `variant="outline"`, `fullWidth`, default
+            size. A66/DEF-UI-018 — border AND label leave `#2B8CC1`/`#4BA3D4` for `link`
+            (2.81 -> 6.86). The glyph takes `currentColor` so it cannot drift from the label. */}
+        <button type="button" onClick={p.onPreviewPdf} style={{ gap: 9, marginBottom: 10, width: '100%', ...buttonStyle({ variant: 'outline' }) }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>
           Preview / Export PDF
         </button>
         {p.summary.offset && (
-          <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Preview Time-Offset Calibration</button>
+          <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary' }) }}>Preview Time-Offset Calibration</button>
         )}
         {/* Phone order (FormActions, completion.tsx:504-572): Preview/Export PDF → the
             conditional Time-Offset preview → Export Zip → Complete & Save. */}
@@ -140,7 +150,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
           disabled={!p.canExport}
           aria-label="Export options"
           title={p.canExport ? 'Choose between exporting this location or the full case' : 'Open a location first'}
-          style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: p.canExport ? 'pointer' : 'not-allowed', opacity: p.canExport ? 1 : 0.45, marginBottom: 10 }}
+          style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary', disabled: !p.canExport }) }}
         >
           {p.isExporting ? 'Exporting...' : 'Export Zip'}
         </button>
@@ -149,7 +159,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
           onClick={p.onComplete}
           disabled={!p.canComplete}
           title={p.canComplete ? undefined : 'Open a location first'}
-          style={{ width: '100%', textAlign: 'center', padding: 15, ...glassBtnPrimary, fontSize: 15, fontWeight: 700, cursor: p.canComplete ? 'pointer' : 'not-allowed', opacity: p.canComplete ? 1 : 0.45, boxShadow: p.canComplete ? '0 6px 18px rgba(37,128,173,0.35)' : 'none' }}
+          style={{ width: '100%', ...buttonStyle({ disabled: !p.canComplete }) }}
         >
           Complete &amp; Save
         </button>

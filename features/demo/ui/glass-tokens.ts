@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -21,10 +21,44 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  * Conventions:
  * - `GLASS.*` string tokens are full CSS values (border shorthands include `1px solid`).
  * - `glassCard` / `glassCardNested` / `glassBtnPrimary` / `glassBtnSecondary` are spreadable
- *   style fragments; call sites override/extend around them. The two card fragments carry a
- *   `borderTopColor` LONGHAND after a `border` SHORTHAND, so an override of `border` or of
- *   `borderColor` after the spread erases the lit top edge silently (§4.3). Override
- *   `borderColor` AND re-set `borderTopColor`, or do not override at all.
+ *   style fragments; call sites override/extend around them.
+ *
+ *   THE LIT-EDGE RULE, both halves. Ruled by measurement — 40 cells x 3 paints, jsdom AND
+ *   real Chromium, react-dom 19.2.3, zero disagreement:
+ *   `docs/planning/demo-phone-ui-parity/reports/partner-lit-edge-ruling.md` §3-§4.
+ *
+ *     FRAGMENTS carry ONLY longhands. `glassCard` and `glassCardNested` spell
+ *     `borderStyle` / `borderWidth` / the three side colour longhands / `borderTopColor`,
+ *     and NO `border`, `borderColor` or `borderTop` key. Pinned in
+ *     `ui/__tests__/glass-card-recipe.test.tsx`.
+ *
+ *     CONSUMERS re-tint with colour LONGHANDS only:
+ *
+ *         { ...glassCard, borderRightColor: X, borderBottomColor: X, borderLeftColor: X }
+ *
+ *   Nothing there can erase the lit edge, on any paint, because nothing writes it — and when
+ *   the tint is CONDITIONAL (`...(lit && sides)`) the sides self-heal to the fragment's own
+ *   colour on collapse instead of falling to `currentColor`. Both are pinned.
+ *
+ *   Any border SHORTHAND after the spread is wrong, and it is wrong on FIRST paint now that
+ *   the fragment holds no shorthand to agree with — `{ ...glassCard, border: X }` and
+ *   `{ ...glassCard, borderColor: X }` alike, because `border-color` is itself a four-side
+ *   shorthand. Two forms that look like fixes and are not, both kept as negative controls in
+ *   the pin file: re-setting `borderTopColor` after the shorthand (spread keeps a duplicate
+ *   key at the FIRST occurrence's position, so the "re-set" collapses back in front of it),
+ *   and lifting the edge out of the fragment first (right on first paint, wrong on the next —
+ *   React writes only the keys that CHANGED, so an unchanged longhand is skipped while the
+ *   changed shorthand is written). The second class also has a runtime tripwire: React's own
+ *   "conflicting property" warning is a test failure repo-wide (`vitest.setup.ts`).
+ *
+ *   `boxShadow` is the same class: `glassCard`'s fuses the tier inset (A32) with
+ *   `GLASS.shadowCard` (A44), so overriding it after the spread drops the inset. Compose —
+ *   `` boxShadow: `${glassCard.boxShadow}, <yours>` `` — or do not override.
+ *
+ *   `glassBtnPrimary` / `glassBtnSecondary` are NOT longhands-only and do not need to be:
+ *   neither carries a per-side longhand, so `{ ...glassBtnSecondary, border: X }` — which
+ *   `RowActions.tsx` and `controls/AlertDialog.tsx` both ship — replaces the whole border and
+ *   has nothing to clobber. The rule follows the lit edge, not the word "fragment".
  * - Sibling token modules stay scoped: `inputs/input-theme.ts` (`T`, the picker theme — its
  *   accent stops are sourced from here) and `screens/map/mapTokens.ts` (map sheet colours).
  * - MIRROR (review R-25): `app/css/style.css` `@theme` re-declares `accentFrom`/`accentTo`
@@ -37,10 +71,18 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 // '#17527A']`. Kept as module CONSTS spelled as literals — the drift guard's anchors 7/8
 // read them with `readConst`, which matches literals, not identifier references.
 //
-// So the top stop is the SAME hex as `colors.primaryDark`, held twice. `= colors.primaryDark`
-// would blind the guard; `satisfies typeof colors.primaryDark` keeps the literal readable AND
-// makes the duplication a type-level identity, so re-basing the palette without re-basing the
-// stop stops compiling. Without it that mutation is green on any run where the phone repo is
+// So the top stop is the SAME hex as `palette.dark.primaryDark`, held twice.
+// `= palette.dark.primaryDark` would blind the guard; `satisfies` keeps the literal readable
+// AND makes the duplication a type-level identity, so re-basing the palette without re-basing
+// the stop stops compiling.
+//
+// `palette.dark.primaryDark`, NOT `colors.primaryDark` (W1/F15). `colors` is `palette[scheme]`,
+// so binding to it would bind a DARK-ONLY constant to the CONSUMED scheme and `scheme = 'light'`
+// — the one-site flip plan §9 clause 12 promises and this module's own docblock asserts —
+// became a hard TS1360 here. `ACCENT_FROM` is `PrimaryButtonGradient.dark`'s top stop by
+// definition and has no light sibling (ledger §90), so it is scheme-INDEPENDENT and must say
+// so. Verified both ways: the flip now compiles, and a one-sided `primaryDark` re-base still
+// fails to compile. Without it that mutation is green on any run where the phone repo is
 // absent (ledger §91) — and the AA claim at `palette-contrast.test.ts:307-317` measures
 // against `GLASS.accentFrom`, so it would move WITH the stale value. `ACCENT_TO` has no
 // palette sibling and stays plain.
@@ -49,8 +91,41 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 // character INVERTS from the demo's old pair — light->mid becomes mid->dark. Do NOT lighten
 // either stop and do NOT re-tokenise the light pair to [primaryLight, primaryDark]: the old
 // dark recipe measured 2.94:1, and that light swap takes a passing 5.17 down to 3.68.
-const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark
+const ACCENT_FROM = '#1F6B99' satisfies typeof palette.dark.primaryDark
 const ACCENT_TO = '#17527A'
+
+/**
+ * `Layout.shadow.card` (matrix A44), BOTH halves — phone `Layout.ts:115-137`.
+ *
+ * Light is not dark at another alpha: it is TINTED (`rgba(30,58,138,0.18)`, not black) and
+ * cast a pixel shorter, because — the phone's own comment — "a neutral black shadow disappears
+ * against white". `shadowOpacity` is 1 there, so the colour's alpha is final; in dark the
+ * `0.15` opacity multiplies `#000`. RN spends five props on what CSS spends one on.
+ *
+ * A record rather than a bare dark string because D2 as amended is absolute: "Nothing
+ * hard-codes a dark value that has a light sibling." `shadow.card` appears once in the whole
+ * plan (U1.2's row), so no later package owns the light half — on the flip day this would
+ * otherwise have left a black drop under a white surface, and (see below) nothing would have
+ * noticed.
+ *
+ * NOTHING ANCHORS THIS. `Layout.shadow` is one of the three things the phone's design-sync
+ * generator deliberately does not emit (phone §1.Y.3), and the guard cannot read five native
+ * shadow props as one flat CSS value — so these two literals are the only gate, pinned in
+ * `ui/__tests__/glass-card-recipe.test.tsx`. Ledger §95.
+ *
+ * A44/A54 port the phone's INTENDED card shadow. Its iOS rendering is currently dead (the note
+ * in the phone's `Card.tsx`); the matrix rows are owner-ratified regardless, and the web has no
+ * equivalent defect.
+ *
+ * Consume it as `SHADOW_CARD[scheme]`, never `SHADOW_CARD.dark` — plan §9 clause 12, enforced
+ * by `ui/__tests__/glass-tokens.test.ts`'s "no production module hard-codes a scheme half"
+ * scan, which is identifier-agnostic and so covers this record without being told about it
+ * (review r1 F23: it did NOT, when that scan named its records by hand).
+ */
+export const SHADOW_CARD = {
+  light: '0 3px 8px rgba(30,58,138,0.18)', // Layout.ts:123-128
+  dark: '0 4px 8px rgba(0,0,0,0.15)', // Layout.ts:130-136
+} as const satisfies Record<ColorScheme, string>
 
 /**
  * The glass tiers for the scheme the demo renders (`SEAM(U1.1)`).
@@ -92,16 +167,14 @@ export const GLASS = {
   // `borderAccent` - the two halves of one tier under two names - can no longer drift apart.
   borderAccent: `1px solid ${tier.elevated.border}`,
   borderError: '1px solid rgba(255,71,87,0.3)',
-  // A44 (U1.2) - `Layout.shadow.card.dark`, phone `Layout.ts:130-136`: `shadowColor '#000'`,
-  // `shadowOffset {0,4}`, `shadowOpacity 0.15`, `shadowRadius 8`. RN spends five props on
-  // what CSS spends one on. The MISSING-SEAM the row names is the demo's 22 distinct
-  // box-shadows across 26 occurrences (demo inventory §2.5), almost every one a one-off;
-  // this is the raised-surface recipe they were all approximating.
+  // A44 (U1.2) - `Layout.shadow.card`, resolved for the consumed scheme. Both halves and the
+  // sourcing live on `SHADOW_CARD` above (W1/F19). The MISSING-SEAM the row names is the
+  // demo's 22 distinct box-shadows across 26 occurrences (demo inventory §2.5), almost every
+  // one a one-off; this is the raised-surface recipe they were all approximating.
   //
   // NOT derivable from `GLASS_TIER`: `innerShadow` is the tier's INSET, a different value on
-  // a different axis. `Layout.shadow` is one of the three things the phone's design-sync
-  // generator deliberately does not emit (phone §1.Y.3), so it is a hand-port either way.
-  shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
+  // a different axis.
+  shadowCard: SHADOW_CARD[scheme],
 } as const
 
 /**
@@ -122,13 +195,17 @@ export const GLASS = {
  * (`Card.tsx:170-174,229-236`) because RN has no per-side border colour. On the web the
  * published recipe is the longhand, and it is what `conventions.md` itself prescribes.
  *
- * KEY ORDER IS LOAD-BEARING (§4.3). `borderTopColor` must come AFTER `border`: React replays
- * an inline style object in insertion order, and a shorthand written after a longhand erases
- * it. The same rule binds every CONSUMER — `{ ...glassCard, border: '1px solid X' }` and
- * `{ ...glassCard, borderColor: 'X' }` BOTH wipe the lit edge, because `border-color` is
- * itself a four-side shorthand. A consumer that must re-tint the sides sets `borderColor`
- * and then re-sets `borderTopColor`. Pinned across all nine consumers in
- * `ui/__tests__/glass-card-recipe.test.tsx`, which is where that failure is observable.
+ * NO SHORTHAND KEY EXISTS IN THIS FRAGMENT, and that is the contract — not an ordering.
+ * Ordering only mattered while there was a shorthand to order against, and it could not be
+ * made safe: with `border` at slot 2 and the edge after it, `{ ...glassCard, border: X }` was
+ * right on the first paint and wrong on the next, which is a trap that ships green through a
+ * render-once test. The measured ruling (module header; `partner-lit-edge-ruling.md` §3-§4)
+ * is to take the shorthand out of the FRAGMENT rather than ask 22 consumers to dodge it.
+ * Re-tint with the three side colour longhands. `ui/__tests__/glass-card-recipe.test.tsx`
+ * pins all of it — first paint, the update path, the conditional self-heal, both negative
+ * controls, and the `boxShadow` clause.
+ * A NEW CONSUMER MUST BE ADDED TO `CONSUMERS` IN THAT FILE: the per-consumer loop is what
+ * observes an erased edge, and a consumer outside the list is unobserved.
  *
  * `padding` is deliberately NOT here even though `conventions.md` lists it: the demo's ten
  * card sites carry six different paddings lifted from the prototype, and demo §0.4 forbids
@@ -136,7 +213,11 @@ export const GLASS = {
  */
 export const glassCard = {
   borderRadius: radius.lg,
-  border: GLASS.borderSoft,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.card.border,
+  borderBottomColor: tier.card.border,
+  borderLeftColor: tier.card.border,
   borderTopColor: tier.card.highlightTop,
   background: GLASS.gradientCard,
   boxShadow: `inset 0 1px 0 ${tier.card.innerShadow}, ${GLASS.shadowCard}`,
@@ -157,10 +238,14 @@ export const glassCard = {
  *   and `ui/__tests__/palette-contrast.test.ts` pins it >= 1.25 against both stops.
  * - **The lit edge went 0.06 -> 0.2** (A35). At 0.06 the phone's was not rendering at all.
  *
- * NO ELEVATION SHADOW, deliberately. The matrix assigns shadows per row and A55 names none:
- * A54 (card) takes `Layout.shadow.card` and A56 (elevated/modal) takes `shadow.dialog`, which
- * is U4's. A nested surface casting a drop shadow inside its own parent is the phone's own
- * "sheet on a dialog" mistake in miniature (phone §1.5).
+ * NO ELEVATION SHADOW, and it is the PHONE'S reason, not an inference from the matrix's
+ * silence. `Colors.ts:376-378`, verbatim: "A defined border plus a genuinely lit top edge is
+ * how a raised panel is drawn without a shadow, which matters here because the iOS shadow on
+ * this component is dead (see the note in Card.tsx) and repairing it is held." The border at
+ * dE 14.7 and the edge at 0.2 alpha ARE the elevation. The matrix agrees by omission — it
+ * assigns shadows per row and A55 names none, while A54 takes `Layout.shadow.card` and A56
+ * takes `shadow.dialog` (U4's) — and a nested surface casting a drop shadow inside its own
+ * parent would be the phone's "sheet on a dialog" mistake in miniature (phone §1.5).
  *
  * RADIUS is `lg` (12), the same as `glassCard`: a nested CARD stays at `lg` and only a nested
  * ROW takes `md` — adjudicated-closed on the phone, guarded in both `Card.tsx` and
@@ -168,28 +253,99 @@ export const glassCard = {
  * the corner. Two of the five adopters override it back to their lifted `10`; that is demo
  * §0.4 (do not tidy lifted pixel values), and A43's sweep is the radius-16 CARD sites.
  *
- * The `border` / `borderTopColor` ordering rule on `glassCard` binds here identically.
+ * Longhands only, exactly as `glassCard` — the lit-edge rule in the module header binds
+ * here identically, and this fragment is pinned by the same no-shorthand-key assertion.
  */
 export const glassCardNested = {
   borderRadius: radius.lg,
-  border: `1px solid ${tier.nestedCard.border}`,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.nestedCard.border,
+  borderBottomColor: tier.nestedCard.border,
+  borderLeftColor: tier.nestedCard.border,
   borderTopColor: tier.nestedCard.highlightTop,
   background: `linear-gradient(180deg,${tier.nestedCard.gradient[0]},${tier.nestedCard.gradient[1]})`,
   boxShadow: `inset 0 1px 0 ${tier.nestedCard.innerShadow}`,
 } as const satisfies CSSProperties
 
-/** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
-export const glassBtnPrimary = {
-  borderRadius: radius.control,
-  border: 'none',
-  background: GLASS.gradientAccent,
-  color: '#fff',
+/**
+ * The RECESSED WELL — `GLASS_TIER[scheme].recessed`, the sixth tier and its first consumer
+ * (matrix A39, A59; phone `Colors.ts:433-438`).
+ *
+ * A hole punched into the surface that hosts it, not a raised surface. Three phone components
+ * paint it and all three spell the same four parts, so this is a transcription of their
+ * agreement rather than a reading of one of them:
+ *
+ * ```
+ * Picker.tsx:183-186          the dropdown's option list  (drumPanel)
+ * TimePicker.styles.ts:240-242 the time drum              (pickerContainer)
+ * DateTimePicker.tsx:293-296   the calendar's well        (calendarWell)
+ * ```
+ *
+ * ## BOTH lips are dark, and that is the tier, not a typo
+ *
+ * All three set `borderTopColor` AND `borderBottomColor` to `recessed.highlightTop`
+ * (`rgba(0,12,26,0.55)`) — a DARK value on a key named "highlight". The well's light model is
+ * INVERTED (`Colors.ts:406-409`): a lip that is cut INTO a surface casts a shadow at the top
+ * and at the bottom instead of catching light at the top. That is the whole difference between
+ * this fragment and `glassCard`, and it is why the plan's U2.4 row naming only `borderTopColor`
+ * is incomplete — see the implementation report's refutations.
+ *
+ * ## The shape: LONGHANDS ONLY (the lit-edge ruling)
+ *
+ * No `border`, no `borderColor`, no `borderTop` key — four colour longhands plus
+ * `borderStyle`/`borderWidth`. `partner-lit-edge-ruling.md` §1 measured all five candidate
+ * shapes in jsdom AND Chromium across three paints: this is the only one where a consumer that
+ * breaks the rule fails on the FIRST paint (where the demo's ~95 style pins read) rather than
+ * on an update, and the only one where the conditional-longhand pattern a consumer actually
+ * writes self-heals instead of wiping the sides to `currentColor`.
+ *
+ * **Consumers may write colour LONGHANDS after the spread and nothing else.**
+ * `{ ...glassWell, border: 'X' }` and `{ ...glassWell, borderColor: 'X' }` both erase both lips
+ * silently; `ui/__tests__/glass-well-recipe.test.tsx` renders both as negative controls.
+ *
+ * `glassCard` / `glassCardNested` above still carry a `border` SHORTHAND — that is W1's shape
+ * and the ruling's §4 item 1 assigns changing it to that seat, not to this one. The two shapes
+ * live side by side here on purpose; do not "harmonise" this one downward.
+ *
+ * ## What is deliberately NOT here
+ *
+ * - **`overflow: 'hidden'`**, which all three phone sites set. It is layout, not paint: the
+ *   four-part composition A40 publishes is gradient + border + lip + inset, and neither card
+ *   fragment carries a layout key either. `TimeWheel`'s drum keeps its own (it has columns to
+ *   clip); the other two have nothing to clip.
+ * - **The drum's drop shadow** (`TimePicker.styles.ts:243-250`, dark `rgba(0,0,0,0.5)` at
+ *   offset 8 / radius 32). It belongs to ONE of the three sites, and RN's five shadow props do
+ *   not carry to CSS at a fixed ratio — porting it would be an invention, not a transcription.
+ * - **`padding`**. 5 on the option list (`Picker.tsx:363`), `10` horizontal on the drum
+ *   (`TimePicker.styles.ts:233`), `8/4` on the calendar (`DateTimePicker.tsx:521-522`). Three
+ *   different values; each consumer spells its own before the spread.
+ */
+export const glassWell = {
+  borderRadius: radius.lg,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.recessed.border,
+  borderLeftColor: tier.recessed.border,
+  borderTopColor: tier.recessed.highlightTop,
+  borderBottomColor: tier.recessed.highlightTop,
+  background: `linear-gradient(180deg,${tier.recessed.gradient[0]},${tier.recessed.gradient[1]})`,
+  boxShadow: `inset 0 1px 0 ${tier.recessed.innerShadow}`,
 } as const satisfies CSSProperties
 
-/** Secondary button base: radius `control` · button border · raised fill · muted text. */
-export const glassBtnSecondary = {
-  borderRadius: radius.control,
-  border: GLASS.borderBtn,
-  background: colors.backgroundSecondary,
-  color: colors.textSecondary,
-} as const satisfies CSSProperties
+/*
+ * `glassBtnPrimary` / `glassBtnSecondary` LIVED HERE until U2.2 (A64/A65/A68). They were a
+ * four-key colour fragment each — radius, border, background, label — and every one of their
+ * ~45 call sites then re-derived padding, label size, min-height and a disabled treatment by
+ * hand. `ui/controls/button-recipe.ts`'s `buttonStyle()` is the whole recipe instead: five
+ * variants x three sizes x enabled/disabled, in both scheme halves.
+ *
+ * They are DELETED rather than kept as thin aliases. An alias would have carried the recipe's
+ * padding and min-height into every un-migrated site (the spread wins over a `padding:` written
+ * before it) while leaving that site's `fontSize:` — written AFTER the spread — at the demo's
+ * old 13/14/15. Half-ported is worse than either end, and §9 clause 7's census wants ONE button
+ * recipe, not two spellings of one.
+ *
+ * `GLASS.gradientAccent` stays: it is `ACCENT_FROM`/`ACCENT_TO` under a name the drift guard and
+ * `input-theme.ts` both read, and `PrimaryButtonGradient.dark` points at those same two consts.
+ */
