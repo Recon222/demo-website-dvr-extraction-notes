@@ -33,6 +33,7 @@ const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
 const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'glass-tokens.ts', // P0.5 extraction — the original owner of the gradients and borders
   'tokens/palette.ts', // U0.1 (SEAM) — the two-scheme phone palette; every bare hex below lives here
+  'tokens/glass-tiers.ts', // U1.1 (SEAM) — the six glass tiers; the twelve tier stops banned below live here, once
   'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
 ])
 
@@ -66,9 +67,9 @@ function sourceFiles(dir: string): string[] {
  */
 const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // --- glass composites: reach for GLASS / the spreadable fragments -------------------
-  ['card gradient', 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
-  ['diagonal card gradient', 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
-  ['panel gradient', 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))'],
+  ['card gradient', 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))'],
+  ['diagonal card gradient', 'linear-gradient(135deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))'],
+  ['panel gradient', 'linear-gradient(180deg,rgba(23,65,110,0.88),rgba(14,57,101,0.95))'],
   ['accent gradient', 'linear-gradient(180deg,#1F6B99,#17527A)'],
   ['grid overlay', 'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)'],
   ['hard border', '1px solid #1c4e84'],
@@ -76,6 +77,30 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['button border', '1px solid #2e5f97'],
   ['accent border', '1px solid rgba(43,140,193,0.3)'],
   ['error border', '1px solid rgba(255,71,87,0.3)'],
+  // --- glass TIER stops (U1.1): reach for `GLASS_TIER[scheme].<tier>.gradient` ----------
+  // The twelve dark stops `tokens/glass-tiers.ts` now owns, banned BARE rather than only as the
+  // composed `linear-gradient(...)` above. That distinction is not theoretical: the demo today
+  // re-derives near-miss gradients from the OLD card stops at five call sites (A33 — the
+  // `rgba(19,34,54,*)` / `rgba(26,45,68,*)` family in `ImportResultBody`, `ImportModal`,
+  // `CaseActionsSheet`, `DvrInfoScreen`, `ExportModal`), and the composed-string bans sailed
+  // straight over every one of them because the alphas differ. Banning the stop itself is what
+  // stops U1.3/U1.4/U2.4/U4.1 pasting the NEW values back in the same way.
+  // Measured before landing: all twelve have ZERO occurrences under `ui/`, so this costs no sweep.
+  // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
+  // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
+  // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
+  ['card gradient top stop', 'rgba(14,57,101,0.85)'],
+  ['card gradient bottom stop', 'rgba(23,65,110,0.92)'],
+  ['nestedCard gradient top stop', 'rgba(23,65,110,0.7)'],
+  ['nestedCard gradient bottom stop', 'rgba(14,57,101,0.6)'],
+  ['elevated gradient top stop', 'rgba(23,65,110,0.88)'],
+  ['elevated gradient bottom stop', 'rgba(14,57,101,0.95)'],
+  ['header gradient top stop', 'rgba(0,38,80,0.95)'],
+  ['header gradient bottom stop', 'rgba(2,46,89,0.98)'],
+  ['sheet gradient top stop', 'rgba(0,40,83,0.98)'],
+  ['sheet gradient bottom stop', 'rgba(14,57,101,1)'],
+  ['recessed gradient top stop', 'rgba(0,24,50,0.6)'],
+  ['recessed gradient bottom stop', 'rgba(0,32,64,0.5)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
@@ -146,9 +171,9 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(GLASS).toEqual({
       accentFrom: '#1F6B99',
       accentTo: '#17527A',
-      gradientCard: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
-      gradientCardDiag: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
-      gradientPanel: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))',
+      gradientCard: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
+      gradientCardDiag: 'linear-gradient(135deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
+      gradientPanel: 'linear-gradient(180deg,rgba(23,65,110,0.88),rgba(14,57,101,0.95))',
       gradientAccent: 'linear-gradient(180deg,#1F6B99,#17527A)',
       gridOverlay:
         'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
@@ -164,7 +189,7 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(glassCard).toEqual({
       borderRadius: 12,
       border: '1px solid rgba(28,78,132,0.5)',
-      background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
+      background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
     })
     expect(glassBtnPrimary).toEqual({
       borderRadius: 10,

@@ -175,5 +175,15 @@ export type ColorScheme = keyof typeof palette
  * THIS LINE IS THE SWITCH. Every consumer reads `colors.<phoneName>`, so flipping the demo
  * to light is a one-site change here — that is the contract D2 bought, and the reason no
  * consumer may reach for `palette.dark` directly.
+ *
+ * U1.1 gave the switch a NAME rather than leaving it a bare `.dark`, because a SECOND
+ * two-scheme record arrived that same package (`tokens/glass-tiers.ts`'s `GLASS_TIER`) and
+ * `glass-tokens.ts` has to resolve it. Spelling `GLASS_TIER.dark` over there would have made
+ * the flip a two-site change and broken §9 clause 12 on the day it was written; every later
+ * seam that ships both halves reads `scheme` for the same reason.
+ *
+ * `satisfies` and not an annotation: the literal type survives, so `palette[scheme]` is still
+ * exactly `typeof dark` and no consumer's inferred type moved by a character.
  */
-export const colors = palette.dark
+export const scheme = 'dark' satisfies ColorScheme
+export const colors = palette[scheme]

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -10,6 +11,12 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  * same gradient/border/radius literals were copy-pasted across ~25 files; they are extracted
  * here so a future restyle is a one-file change. This is DEDUPLICATION, not restyling — every
  * value below is byte-identical to the literals it replaced.
+ *
+ * SINCE U1.1 THIS MODULE IS A PROJECTION, NOT A SOURCE. The card/diagonal/panel gradients
+ * and the soft border are DERIVED from `tokens/glass-tiers.ts` (`SEAM(U1.1)`) at module init,
+ * so the phone's six-tier system is the single source and these four keys cannot drift from it
+ * by hand. The ~54 files that import `GLASS` keep working unchanged. New code should reach for
+ * `GLASS_TIER[scheme].<tier>` directly; these four survive for the call sites that predate it.
  *
  * Conventions:
  * - `GLASS.*` string tokens are full CSS values (border shorthands include `1px solid`).
@@ -34,23 +41,44 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 const ACCENT_FROM = '#1F6B99'
 const ACCENT_TO = '#17527A'
 
+/**
+ * The glass tiers for the scheme the demo renders (`SEAM(U1.1)`).
+ *
+ * `scheme` comes from `tokens/palette.ts`, which owns the ONE consumed-scheme site (§9
+ * clause 12). Resolving it here rather than writing `GLASS_TIER.dark` is what keeps flipping
+ * the demo to light a one-line change.
+ */
+const tier = GLASS_TIER[scheme]
+
 export const GLASS = {
   // accent gradient stops (single source — input-theme's T re-exports these)
   accentFrom: ACCENT_FROM,
   accentTo: ACCENT_TO,
   // gradients
-  gradientCard: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
-  gradientCardDiag: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
-  gradientPanel: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))',
+  // A29 - the `card` tier, vertical. Derived, so a phone-side re-base moves both of these.
+  gradientCard: `linear-gradient(180deg,${tier.card.gradient[0]},${tier.card.gradient[1]})`,
+  // D11 - a 135° variant of the SAME stops. The phone has no diagonal gradient anywhere; the
+  // owner ratified keeping it, re-based, so it re-bases with `card` by construction.
+  gradientCardDiag: `linear-gradient(135deg,${tier.card.gradient[0]},${tier.card.gradient[1]})`,
+  // A36 - `gradientPanel` IS the `elevated` tier's gradient; the two were the same recipe under
+  // two names. `GLASS.borderAccent` below is the other half of that tier and is NOT derived yet
+  // - see its comment.
+  gradientPanel: `linear-gradient(180deg,${tier.elevated.gradient[0]},${tier.elevated.gradient[1]})`,
   gradientAccent: `linear-gradient(180deg,${ACCENT_FROM},${ACCENT_TO})`,
   /** Faint blueprint grid backgroundImage (phone screen + modal sheets). */
   gridOverlay:
     'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
   // border shorthands
   border: `1px solid ${colors.border}`,
-  // `colors.border` at 50% (A7/A30) — kept as a literal because CSS has no alpha-on-hex.
-  borderSoft: '1px solid rgba(28,78,132,0.5)',
+  // A30 - `card.border`. U0.1 already landed the VALUE (`colors.border` at 50%, which CSS
+  // cannot express as alpha-on-hex); U1.1 only re-points it at the tier that owns it, so this
+  // line is a refactor with a byte-identical result and no pin moved.
+  borderSoft: `1px solid ${tier.card.border}`,
   borderBtn: `1px solid ${colors.borderLight}`,
+  // A36/U1.3 - NOT derived, deliberately. `tier.elevated.border` is `rgba(43,140,193,0.25)`
+  // and this is still the demo's near-miss `0.3`; deriving it now would silently ship U1.3's
+  // value change inside U1.1 and redden two pins that package owns (the shape pin and the
+  // `accent border` ban). U1.3 changes the value and re-points this line in the same commit.
   borderAccent: '1px solid rgba(43,140,193,0.3)',
   borderError: '1px solid rgba(255,71,87,0.3)',
 } as const
