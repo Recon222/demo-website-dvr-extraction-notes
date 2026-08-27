@@ -2183,7 +2183,7 @@ silently — which is worse than a red test.
 | `ui/controls/__tests__/controls.test.tsx` | `#4BA3D4` / `#5d7a9a` (TabBar active vs inactive) |
 | `ui/controls/__tests__/AlertDialog.test.tsx:168` | destructive action colour **≠** cancel action colour (a relational pin, not a value pin — survives a restyle) |
 | `ui/__tests__/DemoExperience.sandbox.test.tsx:762-763` | terminal CTA border contains `rgba(255, 217, 61, 0.36)` and **must not** contain `rgba(16, 209, 119` |
-| `ui/screens/__tests__/ExportModal.reduced-motion.test.tsx:45,52` | `#35A0D6` (spinner `borderTopColor`) |
+| `ui/screens/__tests__/ExportModal.reduced-motion.test.tsx:52-53` | `#35A0D6` (spinner `borderTopColor`). **CORRECTED (plan-review r1, V-41):** this row previously read `:45,52`. `:45` is `expect(spinner!.style.animation).toBe('')` — a reduced-motion assertion carrying **no colour**, already listed correctly in §6.5 of this document; the `#35A0D6` pin is at `:53`, inside the `toHaveStyle({` block opened at `:52`. A colour change reddens `:52-53` only. |
 
 ### §6.3 Geometry / dimension assertions
 

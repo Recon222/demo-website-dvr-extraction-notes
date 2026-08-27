@@ -389,7 +389,7 @@ Three options:
 - **(b) Computed-ratio-only**: port `palette-contrast.test.ts` as a demo test, treat it as the gate, and never look at the phone at runtime. Cheap, mechanical, and **already how ~95% of the phone's own numbers were produced** — phone §7's provenance rule says plainly *"All ratios are computed-not-observed"* and the consolidated device pass **never ran**.
 - **(c) Expo web**: try to run the phone in a browser for side-by-side. Phone `NOTES.md` **explicitly considered and rejected** a `react-native-web` port: it needs hand-written shims for expo-linear-gradient, expo-haptics, @gorhom/bottom-sheet, reanimated and skia, and *"the shimmed gradients still would not match the device render."*
 
-**Recommendation: (b) as the standing gate, (a) at three checkpoints.** Make the ported contrast test + the 22-anchor drift guard the mechanical gate every phase must pass, because that is the same bar the phone holds itself to. Then ask the owner for a device pass at exactly three boundaries where the phone's own device pass found things a computation could not: **after U1** (glass tiers — PR #125's whole finding was that "cards on cards read flat" at ΔE 0.6, which measured a perfectly healthy contrast ratio), **after U4** (sheets — the `recessed` tier's black-slab defect was ΔE 16.65 at a ratio of 1.24), and **after U5** (map chrome, the one area with a shipped accepted contrast failure). **Do not attempt (c).**
+**Recommendation: (b) as the standing gate, (a) at three checkpoints.** Make the ported contrast test + the drift guard (at its current anchor set) the mechanical gate every phase must pass, because that is the same bar the phone holds itself to. Then ask the owner for a device pass at exactly three boundaries where the phone's own device pass found things a computation could not: **after U1** (glass tiers — PR #125's whole finding was that "cards on cards read flat" at ΔE 0.6, which measured a perfectly healthy contrast ratio), **after U4** (sheets — the `recessed` tier's black-slab defect was ΔE 16.65 at a ratio of 1.24), and **after U5** (map chrome, the one area with a shipped accepted contrast failure). **Do not attempt (c).**
 **Consequence of (a)-only:** slow, blocks phases on owner availability. **Of (b)-only:** we will ship the two defect classes contrast ratio is blind to. **Of (c):** weeks of shim work for a render that still would not match.
 
 ### D2 — Does the demo stay dark-only?
@@ -407,7 +407,7 @@ The census is **1,144 colour occurrences across 136 files**, ~350 of which dupli
 1. **Build/adopt the shared seams** demo §4.7 names, in consumer-count order: `fieldInput` (#1), `ModalShell` (#2), the centred dialog (#3), `Toggle`'s track (#4), `_pane-chrome` (#5), plus the four Tier-A recipes with no seam at all (`Banner`, nested card, sheet, status severity).
 2. **Sweep literals only where the VALUE changed** — i.e. every bare `#0d1b2a` (14), `#1e3a5f` (17), `#2a4a6f`, `#132236`, `#1a2d44`, and every `#2B8CC1`/`#4BA3D4` used **as text** (A66/A27). That is roughly 120 occurrences, not 1,144.
 3. **Leave unique, unchanged literals alone.** A one-off `#9fc0db` body-copy blue that the phone never had an opinion about is not drift.
-4. **Extend the drift guard to 22 anchors and add the banned-literal guard (A97)** so the line holds.
+4. **Extend the drift guard to the anchors each package tokenises (U0.4 ~15 → U1.1 +12 → U3.1 +4 → U8.2 +1) and add the banned-literal guard (A97)** so the line holds.
 **Consequence of a full sweep:** ~1,000 mechanical edits across 136 files, five review lanes reading them, and a real risk of reddening the ~95 style-pinning assertions in ways nobody can attribute. **Of seams-only without (4):** demo §8.6 already measured what happens — `NOTES.md` flagged this exact sprawl a year ago at 39×/22×/19× and it is now 100×/58×/47×.
 
 ### D4 — The two superseded rulings: D3(a) and D1(a)
@@ -652,7 +652,7 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 - **Pin the ratio at the constant, not at a consumer** (`:265-274`) — or a mutation back to a failing value stays green.
 - **Bound `recessed` two-sided and per-stop** (`:343-374`) — "too flat" and "too deep" are both bugs.
 
-**This test plus the 22-anchor drift guard is the port's mechanical gate.** The drift guard catches *value drift against the phone*; the contrast test catches *legibility drift within the demo*. Neither catches the other's failure mode, and neither catches the two ΔE-shaped defects PR #125 found on a device — which is what D1 is about.
+**This test plus the drift guard (at its current anchor set) is the port's mechanical gate.** The drift guard catches *value drift against the phone*; the contrast test catches *legibility drift within the demo*. Neither catches the other's failure mode, and neither catches the two ΔE-shaped defects PR #125 found on a device — which is what D1 is about.
 
 ---
 
