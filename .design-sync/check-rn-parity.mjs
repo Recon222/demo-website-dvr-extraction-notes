@@ -439,8 +439,9 @@ export const MAP_GLASS_DERIVED_KEYS = [
   'textSecondary',
   'textTertiary',
   'primary',
+  // U5.2 deleted `clearActiveBg` with the Clear pill that read it. `primaryLight` stays: its
+  // named next reader is U5.4's `CaseMapPicker` accent (matrix row 18).
   'primaryLight',
-  'clearActiveBg',
 ]
 export const MAP_SURFACE_KEYS = ['controlsBg', 'overlayMedium', 'borderStrong']
 

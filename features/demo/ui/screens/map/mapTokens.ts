@@ -121,18 +121,24 @@ export const MAP_GLASS_COLORS = {
   textTertiary: colors.textTertiary,
   primary: colors.primary,
   /**
-   * U5.2's filters glyph (`MapControls.tsx:234`) is this key's ONLY reader. It survives the
-   * chrome rewrite as an ALIAS rather than being orphaned or inlined, which is what gives
-   * `primaryLight` a single owner (`tokens/palette.ts`) and leaves U0.4's `primaryLight` anchor
-   * with ONE web-side read instead of two files to keep in step.
+   * SEAM(U5.4). **No reader between U5.2 and U5.4** — and that is a corrected expectation, not
+   * an oversight.
+   *
+   * U5.1's consume-me and plan §5's U5.2 row both said the collapsed chrome's filters glyph
+   * reads this key "when the badge count is >0, else `textSecondary`". It does not: the phone's
+   * glyph is `color={textPrimary}` unconditionally (`MapControls.tsx:177`). That two-state rule
+   * belonged to the demo's **Clear pill** — `MapControls.tsx:234` before U5.2 — which is the
+   * exact line both the plan row and U0.1's row cite, and which #127 deleted.
+   *
+   * Kept rather than deleted because it has a NAMED incoming reader one package away: matrix
+   * row 18 records that `CaseMapPicker.tsx:29`'s `accent = '#4ba3d4'` *"is
+   * `MAP_GLASS_COLORS.primaryLight` un-imported"*, and U5.4 owns that file. It is in
+   * `MAP_GLASS_DERIVED_KEYS`, i.e. deliberately NOT drift-anchored, so §6.6 gate 1 (which bans
+   * ANCHORING a token with no web-side consumer) does not bite. If U5.4 reads
+   * `colors.primaryLight` from the palette directly instead — equally good, and the same single
+   * owner — delete this key and its `MAP_GLASS_DERIVED_KEYS` entry with the same edit.
    */
   primaryLight: colors.primaryLight,
-  /**
-   * Active-filter wash. Derived rather than hand-written for the reason the phone's own
-   * `PROXIMITY_COLORS` docblock gives (`constants/index.ts:72-76`): a literal rgba drifts the
-   * moment its base token moves. U5.2 deletes this key's one reader with the Clear pill.
-   */
-  clearActiveBg: withAlpha(colors.primary, 0.2),
 } as const
 
 /**

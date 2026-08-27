@@ -15,12 +15,10 @@ import {
   EMPTY_MAP_FILTERS,
   applyMapFilters,
   countActiveFilters,
-  toggleStatus,
   type MapFilterState,
 } from '@/features/demo/ui/screens/map/mapFilters'
 import { DEFAULT_MAP_CENTER, DEFAULT_PROXIMITY_RADIUS, type RadiusPreset } from '@/features/demo/ui/screens/map/mapTokens'
 import type { ProximityResult } from '@/features/demo/ui/screens/map/mapProximity'
-import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
 
 const FLY_ZOOM = 16
 const CALL_UNAVAILABLE = "Calling isn't available in the demo."
@@ -87,20 +85,19 @@ export interface MapScreenProps {
   exportMapBlocked?: boolean
 }
 
-const changeCasePill: CSSProperties = {
-  position: 'absolute',
-  top: 58,
-  right: 12,
-  zIndex: 16,
-  padding: '7px 12px',
-  borderRadius: 999,
-  border: '1px solid rgba(40,69,107,0.9)',
-  background: 'rgba(13,27,42,0.82)',
-  color: '#cdd9e6',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
+/**
+ * The absolutely-positioned "Change Case" pill is GONE (U5.2, matrix row 17 / A81).
+ *
+ * PR #127 retired it into the search bar's `[← close]` button — the phone's own words
+ * (`MapControls.tsx:10-13`): *"The close button replaces MapHost's absolutely-positioned
+ * 'Change Case' pill (which used a different colour system and could overlap the count
+ * badge). Rendered only when `onClose` is provided — the same gating the pill had."* The demo's
+ * copy carried both faults: a bare `rgba(13,27,42,0.82)` off the retired navy ramp, and a
+ * `zIndex: 16` that sat above the floating chrome purely to avoid it.
+ *
+ * The 378px stacking adaptation the old chrome documented goes with it: #127 deleted the pills
+ * that collided, so the premise is gone. Recorded here, not deleted in passing.
+ */
 
 const emptyStyle: CSSProperties = {
   position: 'absolute',
@@ -234,6 +231,20 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
    * that never existed. Same honesty class R-6 just closed, one stage further out.
    */
   const activeFilterCount = countActiveFilters(filters)
+  /**
+   * The filters button's badge — phone `MapHost.tsx:268`, verbatim:
+   * `(filters.statuses?.length ?? 0) + (proximityIsActive ? 1 : 0)`.
+   *
+   * **Per active STATUS, and NOT `activeFilterCount`.** The two diverge, and the phone's own test
+   * builds a three-status fixture specifically to separate them (`MapHost.test.tsx:490-521`:
+   * *"correct statuses.length (3) + proximity (1) = 4; regressed activeFilterCount (2) +
+   * proximity (1) = 3. With two statuses both arms land on 3 and the test pins nothing."*).
+   * Search text is excluded from both: it is visible in the field itself.
+   *
+   * `activeFilterCount` keeps its own job below — deciding whether a filter is what emptied the
+   * sheet (MR-3). One number cannot serve both questions.
+   */
+  const filterBadgeCount = filters.statuses.length + (proximityActive ? 1 : 0)
   const emptyReason: SheetEmptyReason =
     display.items.length > 0
       ? 'no-data'
@@ -272,10 +283,6 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     setSheetMode('list')
     setSelectedId(null)
     setSnapIndex(1)
-  }, [])
-
-  const handleToggleStatus = useCallback((status: LocationMapStatus) => {
-    setFilters((prev) => ({ ...prev, statuses: toggleStatus(prev.statuses, status) }))
   }, [])
 
   const handleSearchChange = useCallback((searchText: string) => {
@@ -363,24 +370,36 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onMarkerPress={selectItem}
             onLongPress={handleLongPress}
           />
-          {onChangeCase && (
-            <button type="button" onClick={onChangeCase} style={changeCasePill}>
-              Change Case
-            </button>
-          )}
           <MapControls
             filters={filters}
-            onToggleStatus={handleToggleStatus}
             onSearchChange={handleSearchChange}
-            onClearFilters={handleClearFilters}
-            activeFilterCount={activeFilterCount}
+            filterBadgeCount={filterBadgeCount}
+            /* The search chrome's back button IS the change-case affordance now, with the same
+               gating the deleted pill had (phone `MapHost.tsx:511-514`). */
+            onClose={onChangeCase}
             proximityActive={proximityActive}
             proximityRadius={proximityRadius}
-            onProximityToggle={handleProximityToggle}
-            onRadiusChange={setProximityRadius}
+            /**
+             * The chip ✕. `handleProximityToggle` is passed whole rather than split, and the
+             * chip can only ever reach its OFF branch: the chip renders under
+             * `proximityActive &&`, so by the time this fires `proximityActive` is true and the
+             * function's first arm returns after `setProximityActive(false)`. Splitting it would
+             * leave the anchor chain (and its R-18a notice) with no caller for one package and
+             * then re-add it — churn over a function nothing is asking to change.
+             *
+             * SEAM(U5.3): the filters sheet's "Filter by radius" Toggle takes this SAME function
+             * as `onProximityToggle`, which is where the ON branch comes back into reach.
+             */
+            onProximityDeactivate={handleProximityToggle}
             locationCount={locationCount}
             filteredCount={filteredCount}
-            totalCount={totalCount}
+            /* SEAM(U5.3): `onOpenFilters` attaches here — `() => setFiltersVisible(true)` beside a
+               `<MapFiltersSheet>` mounted next to `<MapBottomSheet>` below. Until that package
+               lands the prop is omitted on purpose, so the chrome renders no filters button at
+               all rather than one that swallows every press (§49a, the rule `onChangeCase` /
+               `onGoToLocation` / `onExportMap` above already follow). Status filters, the radius
+               presets and Clear-all are unreachable for exactly one package; search, proximity
+               long-press, the chip exit and the sheet's own Clear route all stay live. */
           />
           <MapBottomSheet
             items={display.items}
