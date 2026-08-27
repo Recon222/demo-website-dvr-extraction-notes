@@ -325,3 +325,131 @@ Three distinct alphas confirmed live: `0.55` (7 sites incl. `T.scrim`), `0.66` (
 6. **U4.3's row wording** — three focus-*restore* blocks, and `AlertDialog`'s must be the survivor (C6).
 7. **Add `DeleteConfirmationModal.tsx` to §6.1's hotspot table** (C9): U2.2 → U4.3 → U4.4, crossing a phase.
 8. `CasesScreen`/`DashboardScreen` nested rows and the 92→64 header block were **not** re-verified here — ask if U3.4's brief needs them.
+
+---
+
+# § re-verified on `28e7993` (W1 assembled)
+
+**Base moved:** `feat/uiparity-u0` `7099e54` → **`feat/uiparity-w1` `28e7993`** ("Merge uiparity/u1.cards
+into feat/uiparity-w1 — U1.2 card recipe + U1.3 nested/elevated tier"). Re-read by
+`git archive 28e7993 features/demo` into session scratch; `worktrees/w1-wave` not touched.
+Everything below is **verified** at `28e7993` unless marked.
+
+## R1. New seam surface W2 inherits
+
+| Module | Lines | Exports W2 can use |
+|---|---|---|
+| `ui/tokens/glass-tiers.ts` **(new)** | 186 | `GlassVariant` `:54`, `GlassTier` `:57`, **`GLASS_TIER` `:64`** — the six tiers |
+| `ui/controls/header-chrome.ts` **(new)** | 103 | `glassHeaderBar` `:72`, `glassWizardHeaderBar` `:84`, `glassHeaderFooterBar` `:100` |
+| `ui/glass-tokens.ts` | 195 | `GLASS` `:64` (+ **new key `shadowCard`**), `glassCard` `:137`, **`glassCardNested` `:173` (NEW)**, `glassBtnPrimary` `:182`, `glassBtnSecondary` `:190` |
+| `ui/tokens/scale.ts` | 209 | `spacing` `:20`, `radius` `:48`, `touchTarget` `:67`, `iconSize` `:75`, `withAlpha` `:142`, **`flattenOver(top, ground, ...rest)` `:180`** (n-deep, as U0.2 promised) |
+| `ui/tokens/palette.ts` | 189 | `PaletteToken` `:113`, `palette` `:168`, `ColorScheme` `:170`, **`scheme` `:188`**, **`colors` `:189`** (was `:179` — moved) |
+
+`GLASS` keys at `28e7993`: `accentFrom accentTo gradientCard gradientCardDiag gradientPanel
+gradientAccent gridOverlay border borderSoft borderBtn borderAccent borderError` **`shadowCard`**.
+
+## R2. First-package seam state (the dispatch's three)
+
+**U2.1 — `fieldInput` seam.** Unchanged in substance: still module-local at **`_shared.tsx:188`**
+(was `:187`), still un-exported, and all four copies are intact and untouched by U1 —
+`AddressAutocomplete.tsx:36`, `IncidentLocationFields.tsx:88`, `NewCaseModal.tsx:53`,
+`SubmissionScreen.tsx:148`. The error re-derive is at **`_shared.tsx:264`**. **New for U2.1:**
+`radius` and `touchTarget` now exist (`scale.ts:48`, `:67`), so the recipe's `borderRadius: 8` and
+`minHeight: 44` should read `radius.md` / `touchTarget.min` rather than literals — U1.2 set that
+precedent (`CasesScreen.tsx:141`, `DashboardScreen.tsx:118`, `ExportCaseCard.tsx:51` all took `radius.lg`).
+
+**U3.1 — status tokens.** **Nothing changed; §2.1's finding stands in full.** `palette.ts` still
+carries none of `successLight`, `warningLight`, `infoLight`, `warningAccent` or the four `*OnLight`
+(its docblock `:33-35` still says they arrive with U3.1). U1 added only 1 net line to the dark half.
+`PaletteToken = keyof typeof dark` (`:113`) is unchanged, so **both halves must gain each key or it
+is a compile error**.
+
+**U4.1 — sheet chrome.** **`inputs/PickerSheet.tsx` is byte-unchanged by U1**: `PICKER_SHEET_Z = 31`
+`:25`, `export function PickerSheet` `:35`, scrim `:49`. §3.2's recommendation (generalise it in
+place rather than build a fourth sheet) is unaffected. The other two grounds are also unchanged:
+`ExportActionSheet.tsx:172` (`0 -10px 40px`), `MapBottomSheet.tsx:124` (`borderTopLeftRadius: 20`).
+**New for U4.1:** `GLASS_TIER.sheet` already exists (`glass-tiers.ts:64`) — A38's values are landed,
+so U4.1 consumes the tier rather than transcribing it.
+
+## R3. Blocks U1 REWROTE that a W2 package owns — what each now inherits
+
+| File | Line at `28e7993` | What U1 did | W2 package affected |
+|---|---|---|---|
+| `screens/_shared.tsx` | `:392-411` | `WizardHeader`'s bar is now `...glassWizardHeaderBar` — the hand-rolled `linear-gradient(180deg,#1b2e48,#15273b)` is **gone**. The `56px` top padding is kept and documented as demo-owned geometry. | **U4.2** (`ModalShell` shares the file) — no conflict, different export |
+| `screens/CaseActionsSheet.tsx` | `:176-190` | Report panel → **`...glassCardNested` spread FIRST**, with a rule-4.3 comment warning that anything overriding `border`/`borderColor` after it erases the lit top edge | **U4.2** (its A58/A60 half) — inherits a nested-tier body; do not re-spread over the border |
+| `screens/DvrInfoScreen.tsx` | `:190-193` | Retention row → `...glassCardNested`; lifted `borderRadius: 10` deliberately kept | **U3.2** — its local `STATUS` map at `:22` is untouched and still U3.2's to delete |
+| `screens/ExportModal.tsx` | `:296-306` | Validation list → `...glassCardNested`. **And `:155-159`: the progress ring's `borderTopColor` moved `GLASS.accentFrom` → `colors.link`** (1.81 → 6.86 as a 1.4.11 mark) | **U4.3** (dialog shell) and **U4.4** (scrim `:84`) — the ring is already done, do not re-flag it |
+| `screens/CompletionScreen.tsx` | `:91-96` | Summary card gradient → `GLASS.gradientPanel`. **The `techGlow` boxShadow on the same line was deliberately left**, with an explicit SEAM(U6.4b) comment: *"one line, two packages. U1.3 lands first; do not revert the gradient when the glow goes."* | **U6.4b** (not W2) — closes §5 item 4 of `partner-legwork-u1.md` |
+| `screens/ImportResultBody.tsx` | `:6-10` | Card const → `...glassCardNested` (deferral §31's named near-miss, closed) | **U7.3** — already done |
+| `screens/ImportModal.tsx` | `:181-184` | "Data Found" panel → `...glassCardNested` (was a flat `rgba(26,45,68,0.45)`) | **U3.3** — a *different* block from its error banner; see R4 for the shift |
+| `screens/ExtractedScopeScreen.tsx` | `:23` | The info notice's raw `1px solid rgba(43,140,193,...)` → **`GLASS.borderAccent`** | **U3.3** — replaces the block wholesale anyway; net simpler |
+| `screens/export/ExportCaseCard.tsx` | `:51`, `:129-141` | Card radius → `radius.lg`; lit border → **`colors.link`**; new `const LIT_GLOW` `:50`; idle shadow → **`GLASS.shadowCard`** | **U2.4** (`boxBase` `:75`) and **U3.4** (empty state `:223`) — both untouched by U1 |
+| `screens/MediaLibrarySheet.tsx` | `:219-249`, `:574` | `MediaTabs` active tint and the row's selected rail → **`colors.link`** three times (accentFrom measured 2.05–2.54) | **U7.2** — partially pre-empted; **U4.4**'s `MEDIA_CLOSE_CHIP` half is untouched |
+| `controls/WizardDrawer.tsx` | `:339`, `:389-392` | Header → `...glassHeaderBar`; footer → **`...glassHeaderFooterBar`** (the tier *reversed*, mirroring the phone's `[...gradient].reverse()`) | **U3.2** (`DOT`/`SAVE_STATUS_COLOR`) and **U4.4** (scrim `:309`) — both untouched |
+| `screens/CasesScreen.tsx` | `:141-148` | Card `borderRadius: 16` → **`radius.lg`** | **U3.4** — its two italic sites moved (R4) |
+| `screens/DashboardScreen.tsx` | `:118-119` | Card `borderRadius: 16` → **`radius.lg`** | **U3.4** — same |
+| `screens/map/CaseMapPicker.tsx` | `:29-40` | Header → `...glassHeaderBar` | U5 (not W2) |
+
+**A43 landed as §5.3 recommended:** U1.2 moved `CasesScreen`, `DashboardScreen` and `ExportCaseCard`
+to `radius.lg` and **left `AlertDialog.tsx:147` at 16**. Correction C5 of this report is closed.
+
+## R4. Every W2 `file:line` re-shifted (`7099e54` → `28e7993`)
+
+**Unchanged (no U1 edit):** `AddressAutocomplete.tsx:36` · `IncidentLocationFields.tsx:88` ·
+`NewCaseModal.tsx:53` · `SubmissionScreen.tsx:148` · `RowActions.tsx:40,:107` ·
+`DeleteConfirmationModal.tsx:66,:97,:116,:183,:203` · `AlertDialog.tsx:131,:150` ·
+`OcrCaptureScreen.tsx:125,:427` · `AudioRecorderScreen.tsx:508` · `UserProfilePane.tsx:74` ·
+`TimeOffsetScreen.tsx:75,:78,:106,:122,:133` · `FormFieldsPane.tsx:152,:184` ·
+`GpsCaptureControl.tsx:180` · `TimeWheel.tsx:112` · `Dropdown.tsx:68` · `Calendar.tsx:89` ·
+`_pane-chrome.tsx:69,:164` · `RequestedScopeScreen.tsx:19` · `ExportLocationRow.tsx:31` ·
+`screenData.ts:17,:34` · `DvrInfoScreen.tsx:22` · `ExportHub.tsx:98` · `CoordinateDisplay.tsx:23` ·
+`PickerStage.tsx:317` · `EditIncidentLocationModal.tsx:55,:72` · `DateDisambiguationWarning.tsx:37,:71` ·
+`DemoErrorBoundary.tsx:110` · `PickerSheet.tsx:25,:35,:49` · `ExportActionSheet.tsx:92,:172` ·
+`MapBottomSheet.tsx:124` · `SettingsModal.tsx:69,:80` · `BootSequence.tsx:37` ·
+`CallConfirmSheet.tsx:15` · `ExitDialog.tsx:47` · `ArrivalDepartureScreen.tsx:33` ·
+`CamerasScreen.tsx:83` · `ExtractedScopeScreen.tsx:23,:27` · `map/LocationRow.tsx:28` ·
+`SyncStatusCard.tsx:81` · `ExportSecurityPane.tsx:131-158`.
+
+**Shifted:**
+
+| Anchor | `7099e54` | **`28e7993`** | Δ | Package |
+|---|---|---|---|---|
+| `_shared.tsx` `fieldInput` | `:187` | **`:188`** | +1 | U2.1 |
+| `_shared.tsx` error re-derive | `:263` | **`:264`** | +1 | U2.1 |
+| `_shared.tsx` `MODAL_SCRIM_Z` / `MODAL_SHEET_Z` | `:46` / `:47` | **`:47` / `:48`** | +1 | U4.2 |
+| `_shared.tsx` `ModalShell` | `:65` | **`:66`** | +1 | U4.2 |
+| `_shared.tsx` modal scrim | `:111` | **`:112`** | +1 | U4.4 |
+| `_shared.tsx` `Toggle` | `:480` | **`:490`** | **+10** | U2.3 |
+| `_shared.tsx` `Toggle` track | `:553` | **`:563`** | **+10** | U2.3 |
+| `glass-tokens.ts` `glassCard` | `:59` | **`:137`** | +78 | U2.2 |
+| `glass-tokens.ts` `glassBtnPrimary` | `:66` | **`:182`** | +116 | U2.2 |
+| `glass-tokens.ts` `glassBtnSecondary` | `:74` | **`:190`** | +116 | U2.2 |
+| `CompletionScreen.tsx` outline button | `:123` | **`:128`** | +5 | U2.2 |
+| `ExportCaseCard.tsx` `boxBase` | `:70` | **`:75`** | +5 | U2.4 |
+| `ExportCaseCard.tsx` empty state | `:218` | **`:223`** | +5 | U3.4 |
+| `WizardDrawer.tsx` `dotBase` / `DOT` | `:77` / `:78` | **`:78` / `:79`** | +1 | U3.2 |
+| `WizardDrawer.tsx` `SAVE_STATUS_COLOR` | `:89` | **`:90`** | +1 | U3.2 |
+| `WizardDrawer.tsx` backdrop scrim | `:308` | **`:309`** | +1 | U4.4 |
+| `ImportModal.tsx` error banner | `:191` | **`:194`** | +3 | U3.3 |
+| `ImportModal.tsx` the three `role="status"` | `:248` `:258` `:275` | **`:251` `:261` `:278`** | +3 | U3.3 (still ambiguous — §5 item 2) |
+| `input-theme.ts` `T.scrim` | `:39` | **`:38`** | **−1** | U4.4 |
+| `ExportModal.tsx` scrim | `:83` | **`:84`** | +1 | U4.4 |
+| `ExportModal.tsx` dialog `boxShadow` | `:263` | **`:268`** | +5 | U4.3 |
+| `CasesScreen.tsx` italic | `:85` / `:205` | **`:86` / `:210`** | +1 / +5 | U3.4 |
+| `DashboardScreen.tsx` italic | `:61` / `:187` | **`:62` / `:189`** | +1 / +2 | U3.4 |
+| `DvrInfoScreen.tsx` italic | `:212` | **`:214`** | +2 | U3.4 |
+| `ExportModal.tsx` italic | `:175` / `:322` | **`:180` / `:326`** | +5 / +4 | U3.4 |
+| `MediaLibrarySheet.tsx` italic | `:484` / `:605` | **`:490` / `:611`** | +6 | U3.4 |
+
+The italic census is still **20 sites in 17 files** — U1 added and removed none, so C7's finding
+(A80 is roughly twice its row, and several sites carry live data) stands unchanged.
+
+## R5. What changed in the corrections
+
+- **C5 is CLOSED.** U1.2 moved exactly three card sites to `radius.lg` and left `AlertDialog.tsx:147`
+  at 16, as recommended.
+- **C1–C4 and C6–C10 all stand** — U1 touched none of the blocks they concern.
+- **New, and useful to U2.2:** `colors.link` now has four in-tree precedents for "the accent as a MARK,
+  not a fill", each carrying its measured ratio in a comment — `ExportCaseCard.tsx:135`,
+  `MediaLibrarySheet.tsx:224`, `:246`, `:574`, and `ExportModal.tsx:159`. **A66's brief should cite
+  those rather than re-deriving DEF-UI-018 from the phone.**
