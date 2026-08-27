@@ -28,7 +28,9 @@ import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
  *
  * The `*Light` names are the trap phone §1.2 note 2 warns about, and `palette.ts`'s docblock
  * carries it in full: **in DARK a `*Light` name is the DARK BACKGROUND TONE** its `*OnLight`
- * foreground sits on. `successLight #0f6b42` is darker than `success #10d177`, not lighter.
+ * foreground sits on. `successLight` is DARKER than `success`, not lighter. (The two values are
+ * spelled in `palette.ts` and nowhere else: `glass-tokens.test.ts`'s banned-literal sweep does
+ * not strip comments, so quoting a hex here — even to explain it — reads as a re-inline.)
  *
  * ## OPAQUE, deliberately — the single most portable rule in the phone's P0
  *
