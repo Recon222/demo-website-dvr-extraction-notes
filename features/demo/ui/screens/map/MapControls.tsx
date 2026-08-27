@@ -412,6 +412,9 @@ export function MapControls({
           </div>
         </div>
 
+        {/* F73: always mounted, so proximity turning ON is a CHANGE this region can announce. */}
+        <ProximityAnnouncement active={proximityActive} summary={summary} />
+
         {/* ---- Proximity summary chip — the only filter state that stays on the map
              (activated by long-press, so it needs a visible exit) ---- */}
         {proximityActive && (
@@ -459,12 +462,12 @@ export function MapControls({
 }
 
 /**
- * The chip's mark + count.
+ * The chip's mark + count. Plain text: the live region is `ProximityAnnouncement` below.
  *
- * `role="status"` is the demo's own (review R-7a), carried across from the count pill this
- * redesign deletes: that pill was *"the ONLY feedback the filter, search and proximity controls
- * give"*, and the chip is the surface that inherited its "N of M". The phone has no live region
- * here; the demo keeps one because it kept the promise.
+ * F73 — this span USED to carry `role="status"` itself, and that announced nothing. A live
+ * region only speaks what changes AFTER it mounts, and this span mounts with the chip, already
+ * holding its final text; the one event worth announcing — proximity turning on — was the one
+ * event it could never report.
  */
 function ProximitySummary({ text }: { text: string }) {
   return (
@@ -472,9 +475,50 @@ function ProximitySummary({ text }: { text: string }) {
       <span style={{ display: 'flex', color: MAP_GLASS_COLORS.primary }}>
         <Locate />
       </span>
-      <span data-testid="proximity-chip-summary" role="status" style={chipText}>
+      <span data-testid="proximity-chip-summary" style={chipText}>
         {text}
       </span>
     </>
+  )
+}
+
+/**
+ * Off-screen but readable by assistive tech. A third copy of `ExportModal.tsx:70-80`'s constant,
+ * knowingly and for the same reason `MapFiltersSheet.tsx:200-204` gave for the second: hoisting
+ * it would mean editing a screen that belongs to no U5 package. Proposed as a deferral rather
+ * than smuggled across a package boundary — and at three copies it is now worth doing.
+ */
+const srOnly = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+} as const satisfies CSSProperties
+
+/**
+ * The spoken half of the chip (review R-7a, U5.2's D-5, review F73).
+ *
+ * `MapFiltersSheet` owns the announcement while the filters sheet is OPEN (its subtitle mirrors
+ * every change reachable behind the scrim). This region owns the other side: proximity is
+ * activated and re-centred by LONG-PRESSING the map, with no sheet in sight, and that is the
+ * change nothing else can speak.
+ *
+ * **Rendered outside the `proximityActive` gate on purpose.** The sibling idiom
+ * (`MapFiltersSheet.tsx:264-267`, `ExportModal.tsx:124-139`) reaches an empty first paint with
+ * `useState('')` + an effect, because those regions unmount with their surface. This one simply
+ * never unmounts: it is empty whenever proximity is off, so activation IS a content change and
+ * is announced, and deactivation empties it again. Same contract, no state and no effect —
+ * which is also why there is no tick of delay to get wrong.
+ */
+function ProximityAnnouncement({ active, summary }: { active: boolean; summary: string }) {
+  return (
+    <span data-testid="proximity-chip-announcement" role="status" aria-live="polite" style={srOnly}>
+      {active ? `Proximity filter on, ${summary.replace('·', 'showing')}` : ''}
+    </span>
   )
 }
