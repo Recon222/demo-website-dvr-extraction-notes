@@ -97,8 +97,14 @@ function luminance([r, g, b]: Rgba): number {
  */
 function flatten(stack: string[]): Rgba {
   stack.forEach(parse)
-  const [top, ...grounds] = stack
-  return parse(flattenOver(top, ...grounds))
+  // W0-F6 clause (2) — the assertion that the BOTTOM layer is opaque — belongs to the U0.5
+  // seat and lands on `uiparity/u0-fix-contrast`; it goes here, next to `forEach(parse)`.
+  // The destructure below is the other half of F6: `flattenOver` now requires a ground by
+  // signature, so `flattenOver(top, ...grounds)` no longer type-checks.
+  const [top, ground, ...rest] = stack
+  // A one-entry stack is already flat. `flattenOver` requires a ground by signature now,
+  // precisely so the "nothing to composite" case cannot be mistaken for a composite.
+  return ground === undefined ? parse(top) : parse(flattenOver(top, ground, ...rest))
 }
 
 /**
