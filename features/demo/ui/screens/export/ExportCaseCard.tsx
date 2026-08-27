@@ -6,6 +6,7 @@ import type { CaseCheckboxState } from '@/features/demo/engine/logic/export'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -195,7 +196,7 @@ export function ExportCaseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 12px' }}>
-          <div style={{ height: 1, background: '#1e3a5f', marginBottom: 4 }} />
+          <div style={{ height: 1, background: colors.border, marginBottom: 4 }} />
           {hasLocations ? (
             card.locations.map((loc) => (
               <ExportLocationRow

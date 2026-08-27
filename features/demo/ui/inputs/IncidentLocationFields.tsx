@@ -15,6 +15,7 @@ import {
 import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { Field } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The demo's port of the phone's `IncidentLocationForm`
@@ -88,7 +89,7 @@ const coordInput: CSSProperties = {
   width: '100%',
   borderRadius: 8,
   border: GLASS.border,
-  background: '#0d1b2a',
+  background: colors.background,
   color: '#f0f4f8',
   fontSize: 15,
   padding: '11px 12px',

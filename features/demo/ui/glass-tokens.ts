@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
 
+import { colors } from '@/features/demo/ui/tokens/palette'
+
 /**
  * Shared glass-aesthetic tokens for the demo UI (parity P0.5 / matrix G6).
  *
@@ -36,9 +38,10 @@ export const GLASS = {
   gridOverlay:
     'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
   // border shorthands
-  border: '1px solid #1e3a5f',
-  borderSoft: '1px solid rgba(30,58,95,0.5)',
-  borderBtn: '1px solid #2a4a6f',
+  border: `1px solid ${colors.border}`,
+  // `colors.border` at 50% (A7/A30) — kept as a literal because CSS has no alpha-on-hex.
+  borderSoft: '1px solid rgba(28,78,132,0.5)',
+  borderBtn: `1px solid ${colors.borderLight}`,
   borderAccent: '1px solid rgba(43,140,193,0.3)',
   borderError: '1px solid rgba(255,71,87,0.3)',
 } as const
@@ -62,6 +65,6 @@ export const glassBtnPrimary = {
 export const glassBtnSecondary = {
   borderRadius: 10,
   border: GLASS.borderBtn,
-  background: '#132236',
-  color: '#99badd',
+  background: colors.backgroundSecondary,
+  color: colors.textSecondary,
 } as const satisfies CSSProperties

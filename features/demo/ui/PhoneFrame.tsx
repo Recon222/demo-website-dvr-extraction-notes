@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 const grid: CSSProperties = {
   position: 'absolute',
@@ -56,7 +57,7 @@ export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
             height: 786,
             borderRadius: 46,
             overflow: 'hidden',
-            background: '#0d1b2a',
+            background: colors.background,
             boxShadow: '0 0 0 2px #05080d inset',
           }}
         >

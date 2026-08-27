@@ -9,6 +9,7 @@ import { SettingsNavBar } from '@/features/demo/ui/screens/settings/SettingsNavB
 import { SettingsCategoryList } from '@/features/demo/ui/screens/settings/SettingsCategoryList'
 import { findSettingsRow, type SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
 import { MODAL_SCRIM_Z, MODAL_SHEET_Z } from '@/features/demo/ui/screens/_shared'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The Settings sheet — the demo's port of the phone's `SettingsModal` (P7.1, matrix row 81,
@@ -78,7 +79,7 @@ const sheet: CSSProperties = {
   zIndex: SETTINGS_SHEET_Z,
   borderTopLeftRadius: 24,
   borderTopRightRadius: 24,
-  background: '#0d1b2a',
+  background: colors.background,
   overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',

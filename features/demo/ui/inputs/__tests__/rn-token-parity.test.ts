@@ -12,8 +12,15 @@ import { checkParity, rnAvailable, RN_ROOT } from '../../../../../.design-sync/c
 // PARSE-FAILED row. Until the U0 token port lands, the drift set is NON-EMPTY BY DESIGN, so
 // this test pins the KNOWN set rather than asserting empty — an unexpected label appearing
 // or disappearing is the signal. U0.4 tightens both lists to empty.
-const KNOWN_DRIFT = ['background', 'border', 'gradientTop', 'gradientBot']
-const KNOWN_PARSE_FAILED = ['gradientTop', 'gradientBot']
+// U0.1: `T`'s colour keys became ALIASES of `tokens/palette.ts`, and `readField` matches
+// LITERALS, not identifier references (check-rn-parity.mjs:54-56) — so six web-side reads now
+// report PARSE-FAILED. That is the designed trajectory: U0.4 repoints the readers at the
+// palette module and teaches `readField` to follow a one-level re-export, and only then does
+// this list collapse to empty. The values themselves are already correct — `background` and
+// `border` are no longer DRIFT, they are unreadable, which the guard treats as drift because
+// an anchor it cannot read has not been proven equal.
+const KNOWN_DRIFT = ['primary', 'background', 'border', 'text', 'textMute', 'error', 'gradientTop', 'gradientBot']
+const KNOWN_PARSE_FAILED = KNOWN_DRIFT
 
 const labels = (rows: ReadonlyArray<{ label: string }>) => rows.map((r) => r.label)
 const report = (rows: ReadonlyArray<{ label: string; rn: string; web: string }>) =>

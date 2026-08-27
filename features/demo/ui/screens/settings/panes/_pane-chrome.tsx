@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { TypedOption } from '@/features/demo/engine/content/settings-values'
 import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Shared chrome for the Settings detail panes — the demo's equivalent of the styles every
@@ -168,7 +169,7 @@ const radioOption = (selected: boolean): CSSProperties => ({
   padding: '12px 14px',
   marginBottom: 8,
   borderRadius: 10,
-  border: `1px solid ${selected ? '#2B8CC1' : '#1e3a5f'}`,
+  border: `1px solid ${selected ? '#2B8CC1' : colors.border}`,
   background: selected ? 'rgba(43,140,193,0.08)' : 'transparent',
   cursor: 'pointer',
   textAlign: 'left',

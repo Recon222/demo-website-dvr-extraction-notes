@@ -36,9 +36,9 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['panel gradient', 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))'],
   ['accent gradient', 'linear-gradient(180deg,#35A0D6,#2580AD)'],
   ['grid overlay', 'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)'],
-  ['hard border', '1px solid #1e3a5f'],
-  ['soft border', '1px solid rgba(30,58,95,0.5)'],
-  ['button border', '1px solid #2a4a6f'],
+  ['hard border', '1px solid #1c4e84'],
+  ['soft border', '1px solid rgba(28,78,132,0.5)'],
+  ['button border', '1px solid #2e5f97'],
   ['accent border', '1px solid rgba(43,140,193,0.3)'],
   ['error border', '1px solid rgba(255,71,87,0.3)'],
 ]
@@ -87,9 +87,9 @@ describe('glass tokens (P0.5 / G6)', () => {
       gradientAccent: 'linear-gradient(180deg,#35A0D6,#2580AD)',
       gridOverlay:
         'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
-      border: '1px solid #1e3a5f',
-      borderSoft: '1px solid rgba(30,58,95,0.5)',
-      borderBtn: '1px solid #2a4a6f',
+      border: '1px solid #1c4e84',
+      borderSoft: '1px solid rgba(28,78,132,0.5)',
+      borderBtn: '1px solid #2e5f97',
       borderAccent: '1px solid rgba(43,140,193,0.3)',
       borderError: '1px solid rgba(255,71,87,0.3)',
     })
@@ -98,7 +98,7 @@ describe('glass tokens (P0.5 / G6)', () => {
   it('pins the spreadable fragments to the exact clusters they replaced', () => {
     expect(glassCard).toEqual({
       borderRadius: 12,
-      border: '1px solid rgba(30,58,95,0.5)',
+      border: '1px solid rgba(28,78,132,0.5)',
       background: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
     })
     expect(glassBtnPrimary).toEqual({
@@ -109,8 +109,8 @@ describe('glass tokens (P0.5 / G6)', () => {
     })
     expect(glassBtnSecondary).toEqual({
       borderRadius: 10,
-      border: '1px solid #2a4a6f',
-      background: '#132236',
+      border: '1px solid #2e5f97',
+      background: '#0e3965',
       color: '#99badd',
     })
   })

@@ -16,6 +16,7 @@ import {
 } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
 const STATUS: Record<RetentionStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -140,8 +141,8 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                       gap: 8,
                       padding: '11px 12px',
                       borderRadius: 8,
-                      border: `1px solid ${on ? '#2B8CC1' : '#1e3a5f'}`,
-                      background: on ? 'rgba(43,140,193,0.14)' : '#0d1b2a',
+                      border: `1px solid ${on ? '#2B8CC1' : colors.border}`,
+                      background: on ? 'rgba(43,140,193,0.14)' : colors.background,
                       color: on ? '#f0f4f8' : '#cdd9e6',
                       fontSize: 14,
                       fontWeight: 500,

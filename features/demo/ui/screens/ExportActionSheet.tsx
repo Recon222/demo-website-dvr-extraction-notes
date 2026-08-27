@@ -5,6 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * ExportActionSheet — the ZIP scope chooser (parity P5.3, matrix row 27). Web port of the
@@ -235,7 +236,7 @@ export function ExportActionSheet({
                 {!isLast && options[index + 1].id !== 'cancel' && (
                   <div
                     data-export-sheet-separator
-                    style={{ height: 1, background: '#1e3a5f', opacity: 0.6, marginLeft: 52 }}
+                    style={{ height: 1, background: colors.border, opacity: 0.6, marginLeft: 52 }}
                   />
                 )}
               </Fragment>
