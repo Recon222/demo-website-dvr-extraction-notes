@@ -99,6 +99,11 @@ const ACCENT_TO = '#17527A'
  * A44/A54 port the phone's INTENDED card shadow. Its iOS rendering is currently dead (the note
  * in the phone's `Card.tsx`); the matrix rows are owner-ratified regardless, and the web has no
  * equivalent defect.
+ *
+ * Consume it as `SHADOW_CARD[scheme]`, never `SHADOW_CARD.dark` — plan §9 clause 12, enforced
+ * by `ui/__tests__/glass-tokens.test.ts`'s "no production module hard-codes a scheme half"
+ * scan, which is identifier-agnostic and so covers this record without being told about it
+ * (review r1 F23: it did NOT, when that scan named its records by hand).
  */
 export const SHADOW_CARD = {
   light: '0 3px 8px rgba(30,58,138,0.18)', // Layout.ts:123-128
