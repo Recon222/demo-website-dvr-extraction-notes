@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { SHEET_SHADOW } from '@/features/demo/ui/controls/sheet-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
@@ -112,22 +113,21 @@ export function ExportActionSheet({
   }, [disabled, onCancel])
 
   /**
-   * Focus in on mount, back to the opener on unmount (review R-7) — the two-effect idiom shared
-   * with `AlertDialog`, `ExportModal`'s own `ValidationContent` and `MediaLibrarySheet`.
+   * Focus in on mount, back to the opener on unmount (review R-7).
    *
    * Without it the Completion "Export Zip" button kept focus BEHIND the scrim, so Tab walked the
    * whole obscured form and the tab bar before reaching the sheet, and a screen reader was never
    * told a chooser had opened. It also makes the container's arrow-key handler reachable: keydown
    * dispatches at `document.activeElement`, which was outside the portal entirely — the promise
    * `role="menu"` makes was unkeepable on the only path that opens this sheet.
+   *
+   * W3 r1 F64 / ledger §103: this was a hand-rolled mount-time `document.activeElement` read, and
+   * this sheet is one of the two sites §103 names as "the likeliest reproducers" — the Export Zip
+   * button DISABLES itself as it opens the sheet, so it has already lost focus to `<body>` by the
+   * time a passive effect runs, and the hand-back went nowhere. `useOpenerFocusReturn` captures
+   * the opener at GESTURE time instead.
    */
-  useEffect(() => {
-    const opener = document.activeElement
-    listRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
+  useOpenerFocusReturn(listRef)
 
   // `role="menu"` promises arrow-key traversal, so it is implemented rather than claimed.
   const onListKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
@@ -29,6 +29,7 @@ import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { GlassBottomSheet } from '@/features/demo/ui/controls/GlassBottomSheet'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { iconSize, radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
@@ -433,14 +434,17 @@ function canFullscreen(item: MediaItem): item is AvailableMedia {
  * It portals into the phone overlay root like every other overlay in this feature, so it pins to
  * the visible screen instead of scrolling with the sheet's list.
  *
- * FOCUS (R-8). `aria-modal="true"` prunes everything outside this container from the
- * accessibility tree, so leaving focus on the "View fullscreen" button that opened it stranded a
- * keyboard or screen-reader visitor OUTSIDE the only thing they could still perceive — Tab then
- * walked every hidden control behind the layer before reaching Close. The two effects below are
- * `AlertDialog`'s, verbatim in shape (`AlertDialog.tsx:55-61`): focus the container on mount
- * (`tabIndex={-1}`, so the label is announced rather than just the first button), hand focus back
- * to the opener on unmount, guarded by `isConnected` because the row that opened it may have been
- * deleted meanwhile.
+ * FOCUS (R-8, repaired by W3 r1 F64). `aria-modal="true"` prunes everything outside this
+ * container from the accessibility tree, so leaving focus on the "View fullscreen" button that
+ * opened it stranded a keyboard or screen-reader visitor OUTSIDE the only thing they could still
+ * perceive — Tab then walked every hidden control behind the layer before reaching Close.
+ *
+ * The mechanism is `useOpenerFocusReturn` (`ui/primitives/useOpenerFocusReturn.ts`), the demo's
+ * one implementation. The hand-rolled block it replaces read `document.activeElement` AT MOUNT —
+ * the shape U4.3 removed from the dialogs, because a control disabled by the action that raises
+ * an overlay has already lost focus to `<body>` before React runs passive effects. The old
+ * citation here named `AlertDialog.tsx:55-61`, lines that stopped holding the mechanism two waves
+ * ago; ledger §103 lists that stale cite as part of this finding.
  *
  * The video branch's `autoFocus` is gone with it: it solved half the problem (entry, not exit) for
  * one of the two media kinds, and two entry paths in one component is how the photo branch got
@@ -468,14 +472,7 @@ export const MEDIA_CLOSE_CHIP = 'rgba(0, 40, 83, 0.9)'
 function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
   const layerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const opener = document.activeElement
-    layerRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
+  useOpenerFocusReturn(layerRef)
 
   return (
     <PhoneOverlayPortal>

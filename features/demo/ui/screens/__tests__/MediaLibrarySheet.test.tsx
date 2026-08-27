@@ -574,6 +574,40 @@ describe('the fullscreen preview (row 65)', () => {
     expect(document.activeElement).toBe(opener)
   })
 
+  /**
+   * W3 r1 F64 / ledger §103 — the regression class the shared hook exists for.
+   *
+   * The block this replaces read `document.activeElement` AT MOUNT. When the opener is disabled
+   * (or otherwise blurred) by the very action that raises the overlay, focus has already fallen
+   * to `<body>` before React runs passive effects, so the "opener" captured was `<body>` and the
+   * hand-back went nowhere — the keyboard user is dropped at the top of the document.
+   *
+   * `useOpenerFocusReturn` captures the origin at GESTURE time (a capture-phase `pointerdown`),
+   * so the real button survives the blur. The blur below is what a self-disabling opener does.
+   *
+   * MUTATION: restore the old five-line block (`const opener = document.activeElement` at mount).
+   * The pin reds — focus lands on `<body>`, not on the button.
+   */
+  it('returns focus to an opener that lost it before the layer mounted (F64)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    // The gesture arms the tracker; the blur is the self-disabling opener's own doing.
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    fireEvent.click(opener)
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(document.activeElement).toBe(layer)
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(document.activeElement).toBe(opener)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
   it('takes the same focus path for a video — no autoFocus branch (R-8)', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
     fireEvent.click(tab('Video tab, 1 items'))
