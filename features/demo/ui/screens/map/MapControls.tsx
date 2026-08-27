@@ -413,7 +413,7 @@ export function MapControls({
         </div>
 
         {/* F73: always mounted, so proximity turning ON is a CHANGE this region can announce. */}
-        <ProximityAnnouncement active={proximityActive} summary={summary} />
+        <ProximityAnnouncement active={proximityActive} radiusKm={proximityRadius} />
 
         {/* ---- Proximity summary chip — the only filter state that stays on the map
              (activated by long-press, so it needs a visible exit) ---- */}
@@ -514,11 +514,20 @@ const srOnly = {
  * never unmounts: it is empty whenever proximity is off, so activation IS a content change and
  * is announced, and deactivation empties it again. Same contract, no state and no effect —
  * which is also why there is no tick of delay to get wrong.
+ *
+ * **F77 — THE COUNTS ARE DELIBERATELY NOT HERE.** This region shares a component with the search
+ * input, so a string carrying `${filteredCount} of ${locationCount}` re-announces on every
+ * keystroke that changes the match count: chatter on the one field a screen-reader user needs
+ * quiet. The sibling sheet CAN carry its counts because its scrim covers the search field
+ * (`MapFiltersSheet.tsx:249-262` argues exactly that) — the argument does not transfer to a
+ * region living beside a live input. What is announced is the state CHANGE, which is what a
+ * polite region is for; the counts stay where they are read rather than heard, in the visible
+ * chip and in the sheet's subtitle.
  */
-function ProximityAnnouncement({ active, summary }: { active: boolean; summary: string }) {
+function ProximityAnnouncement({ active, radiusKm }: { active: boolean; radiusKm: RadiusPreset }) {
   return (
     <span data-testid="proximity-chip-announcement" role="status" aria-live="polite" style={srOnly}>
-      {active ? `Proximity filter on, ${summary.replace('·', 'showing')}` : ''}
+      {active ? `Proximity filter on, ${radiusKm} km` : ''}
     </span>
   )
 }
