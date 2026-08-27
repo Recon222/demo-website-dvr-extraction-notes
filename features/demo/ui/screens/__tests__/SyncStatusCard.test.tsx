@@ -66,7 +66,7 @@ describe('SyncStatusCard', () => {
     // Anchored to its own label, not to `svg[aria-hidden]` — the card's FIRST such svg is the
     // header's clock glyph, and a selector that picks that one reads '' in both states and
     // passes over a live animation. (Measured: it did, on the first run of this case.)
-    const spinner = () => screen.getByText(/Synchronizing/).querySelector('svg') as HTMLElement
+    const spinner = () => screen.getByText(/Synchronizing/).querySelector('svg') as SVGSVGElement
     const { rerender } = render(<SyncStatusCard sync={null} syncing />)
     expect(spinner().style.animation).toContain('spin')
 
