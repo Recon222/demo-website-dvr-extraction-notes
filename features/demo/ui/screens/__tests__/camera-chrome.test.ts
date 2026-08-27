@@ -89,12 +89,16 @@ describe('camera chrome (A91 / D17)', () => {
   })
 
   /**
-   * POSITIVE CONTROL for the scan above. A source-text assertion that can only ever pass is the
-   * anti-pattern the mutation-testing skill calls "the string-presence trap"; this proves the
-   * matcher fires on the exact shape it claims to catch, in both `rgba()` spacings and both hex
-   * cases, without needing a probe worktree to demonstrate it.
+   * W3 r1 F67 — this used to be labelled "POSITIVE CONTROL for the scan" and it was not one: it
+   * built its own haystack, so it exercised `norm()` and never touched the real files. A control
+   * that does not exercise the CLAIM is the review's own lesson from this round, and the claim
+   * is restated honestly in two halves.
+   *
+   * HALF ONE — `norm()` matches every spelling a re-inline actually arrives in: both `rgba()`
+   * spacings (the demo writes unspaced, `Colors.ts` spaced) and both hex cases (§4.7). That is
+   * what the loop below tests, and it is all it ever tested.
    */
-  it('the scan actually fires — every frozen value, in every spelling a re-inline arrives in', () => {
+  it('norm() folds every spelling a re-inline arrives in', () => {
     for (const key of SWEPT) {
       const literal = CAMERA_CHROME[key]
       const spaced = literal.replace(/,/g, ', ')
@@ -102,6 +106,23 @@ describe('camera chrome (A91 / D17)', () => {
         expect(norm(`background: '${spelling}'`)).toContain(norm(literal))
       }
     }
+  })
+
+  /**
+   * HALF TWO — the actual control, over the REAL haystack. The sweep above asserts an EMPTY
+   * offender list, and an empty list is also what an unreadable file, an empty file or a typo'd
+   * path produces. This proves the scan is reading the screens it names: each file is non-trivial
+   * AND each already reaches for the module it is supposed to reach for, so a scan finding zero
+   * offenders is finding zero because there are none.
+   *
+   * MUTATION: point `SCREENS_DIR` at a directory with no camera screens in it. The sweep above
+   * stays green (nothing to find); this reds.
+   */
+  it.each(SCREENS)('%s is really being read, and really imports the module', (file) => {
+    const text = read(file)
+    expect(text.length).toBeGreaterThan(10_000)
+    expect(text).toContain("from '@/features/demo/ui/screens/camera-chrome'")
+    expect(text).toContain('CAMERA_CHROME.')
   })
 
   /**
