@@ -11,6 +11,8 @@ import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
 import { MAP_FILTER_SECTION_LABEL } from '@/features/demo/ui/screens/map/MapFiltersSheet'
+import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
+import { MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
@@ -892,6 +894,44 @@ describe('map chrome contrast floors', () => {
     // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
     expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
     expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  /**
+   * The map BOTTOM sheet's own ground, which is not any glass tier (U5.1's R1): the phone paints
+   * it as three OPAQUE stops of `background` / `backgroundSecondary` / `background`
+   * (`map-view/constants/index.ts:339-343`, a compositor ruling — a translucent sheet forces the
+   * GPU to keep blending the live map behind it on every drag frame). So the two distinct grounds
+   * a sheet surface can sit on are those two palette values, with nothing showing through.
+   */
+  const MAP_SHEET_STOPS = [palette[scheme].background, palette[scheme].backgroundSecondary]
+  /** …and a nested info card on top of either of them. */
+  const SHEET_NESTED_GROUNDS: string[][] = MAP_SHEET_STOPS.flatMap((stop) =>
+    stops(GLASS_TIER[scheme].nestedCard, [stop]),
+  )
+
+  // Rows 46 + 47 (W3/F52) — the two map-sheet surfaces U5.4 moved onto `colors.primary` as TEXT.
+  //
+  // Both are new rows rather than an amendment to 41-44: those measure the floating chrome over a
+  // satellite tile, and these two sit inside the sheet, where the ground is opaque and known.
+  it('rows 46 + 47: the contact rows and the picker’s selected title clear AA (W3/F52)', () => {
+    // Row 46 — the ONLY affordance for reaching a requester or a site contact. A phone number is
+    // read and dialled, so §C.3 rule 2's "non-text marks" carve-out does not reach it.
+    expect(round(worst(MAP_CONTACT_ROW.color, SHEET_NESTED_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+    // Row 47 — the picker row's selected case number, on the same nested tier over the app ground.
+    expect(
+      round(worst(MAP_PICKER_SELECTED_TITLE, stops(GLASS_TIER[scheme].nestedCard, [palette[scheme].background]))),
+    ).toBeGreaterThanOrEqual(AA_TEXT)
+
+    // AT THE CONSTANT, and the NEGATIVE half with it (W2/F27): a bound alone would stay green if
+    // someone re-pointed either site back at the phone's own token, because `>= 4.5` says nothing
+    // about which value is present. These two lines are what actually red on that edit.
+    expect(MAP_CONTACT_ROW.color).toBe(palette[scheme].link)
+    expect(MAP_PICKER_SELECTED_TITLE).toBe(palette[scheme].link)
+
+    // The phone's pairing IS the failure this diverges from, recorded as an exact figure the way
+    // row 41 records the badge's 3.73. Not a rounding artefact of the bound above — a different,
+    // worse colour, and one that was WORSE THAN THE #00BFFF it replaced (5.07 on this ground).
+    expect(round(worst(palette[scheme].primary, SHEET_NESTED_GROUNDS))).toBeLessThan(AA_TEXT)
   })
 })
 

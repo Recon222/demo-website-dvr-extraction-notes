@@ -88,6 +88,22 @@ const footer: CSSProperties = { padding: spacing.md, borderTop: GLASS.border }
  */
 const cancelBtn: CSSProperties = { ...buttonStyle({ variant: 'secondary' }), width: '100%' }
 
+/**
+ * The selected case number's tint (review W3/F52).
+ *
+ * The phone paints it `colors.primary` (`MapPicker.tsx:163`) and U5.4 ported that verbatim, which
+ * took this label from `#4ba3d4`'s 4.12:1 to **3.09:1** on the nested-glass row — a text
+ * ratio moving DOWN through WCAG 1.4.3's 4.5 floor. `colors.link` clears it on the same ground.
+ *
+ * ONLY THE LABEL MOVES. The selected row's 2px border stays `colors.primary`: a border is a
+ * non-text mark, so §C.3 rule 2's carve-out and 1.4.11's 3:1 govern it, and D4's "selection is
+ * the border's weight and colour, evenly" is a geometry ruling this must not disturb.
+ *
+ * EXPORTED so §C.1 pins the ratio at the constant this component paints, not at `palette.link`
+ * (W2/F27; the `MAP_FILTER_SECTION_LABEL` precedent). Phone-side follow-up to plan §8.
+ */
+export const MAP_PICKER_SELECTED_TITLE = colors.link
+
 /** Dot for cases that are done (complete/archived); draft cases stay quiet - mirrors the phone.
  *  Palette-sourced: the two literals were a hand-typed `#10d177` and `#7a9fc4`. */
 function statusColor(status: CaseMapPickerCase['status']): string | null {
@@ -172,10 +188,11 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
               >
                 {dot && <span style={{ width: 10, height: 10, borderRadius: 5, background: dot, flex: '0 0 auto' }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* phone `:163` - `colors.primary`, not the light shade. Matrix row 18 names
-                      the demo's `accent = '#4ba3d4'` as "`MAP_GLASS_COLORS.primaryLight`
-                      un-imported"; the phone's own token is the fix, not the import. */}
-                  <div style={{ ...rowTitle, color: selected ? colors.primary : colors.text }}>{c.caseNumber}</div>
+                  {/* Matrix row 18 names the demo's `accent = '#4ba3d4'` as
+                      "`MAP_GLASS_COLORS.primaryLight` un-imported", so the literal had to go.
+                      The phone's own token here is `colors.primary` (`:163`) and W3/F52
+                      measured it at 3.09:1 on this row — see `MAP_PICKER_SELECTED_TITLE`. */}
+                  <div style={{ ...rowTitle, color: selected ? MAP_PICKER_SELECTED_TITLE : colors.text }}>{c.caseNumber}</div>
                   {c.displayName && <div style={rowSub}>{c.displayName}</div>}
                   <div style={rowMeta}>{c.locationCountLabel}</div>
                 </div>

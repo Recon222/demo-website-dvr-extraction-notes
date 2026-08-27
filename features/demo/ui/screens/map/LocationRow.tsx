@@ -41,7 +41,7 @@ export interface LocationRowProps {
  * THE LIT-EDGE RULE: this object spreads the fragment and writes no `border` / `borderColor` /
  * `borderTop` key afterwards, so the highlight edge cannot be erased.
  */
-const rowBtn: CSSProperties = {
+const rowBtn = {
   ...glassCard,
   display: 'flex',
   alignItems: 'center',
@@ -56,7 +56,7 @@ const rowBtn: CSSProperties = {
   // 16pt horizontal inset moved to `LocationList`'s padding, where `width: 100%` cannot overflow it.
   margin: `0 0 ${spacing.sm}px`,
   cursor: 'pointer',
-}
+} as const satisfies CSSProperties
 
 /**
  * `STATUS_ACCENT`, not `MAP_PIN_COLORS`. The phone's reason, verbatim (`LocationRow.tsx:116-121`):
@@ -77,21 +77,21 @@ const statusDot = (color: string): CSSProperties => ({
   boxShadow: `0 0 4px ${withAlpha(color, 0.6)}`,
 })
 
-const name: CSSProperties = { fontSize: 14, fontWeight: 700, letterSpacing: -0.1, color: colors.text }
+const name = { fontSize: 14, fontWeight: 700, letterSpacing: -0.1, color: colors.text } as const satisfies CSSProperties
 // `textSecondary`, not `textTertiary`: phone `:155` and `:163` paint both sublines from the same
 // token, and the tertiary one is a documented sub-AA ceiling (M2b).
-const biz: CSSProperties = { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', marginTop: 1 }
-const addr: CSSProperties = { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xxs }
+const biz = { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', marginTop: 1 } as const satisfies CSSProperties
+const addr = { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xxs } as const satisfies CSSProperties
 // phone `styles.chevron` `:354-359` — `fontSize.xl`, `fontWeight.normal` (400; the demo's 300 was
 // the codebase's only 300, A47), `lineHeight: 22` "geometric: centres the glyph in its row".
-const chevron: CSSProperties = {
+const chevron = {
   fontSize: 20,
   color: colors.textSecondary,
   fontWeight: 400,
   lineHeight: '22px',
   marginLeft: 'auto',
   flex: '0 0 auto',
-}
+} as const satisfies CSSProperties
 
 /**
  * The incident type chip — phone `styles.typeChip` `:338-349` painted from the D8(a) pair at
@@ -100,7 +100,7 @@ const chevron: CSSProperties = {
  * `alignSelf: 'flex-start'` buys inside its flex column.
  */
 const incidentTone = severityTone(STATUS_SEVERITY.incident)
-const chip: CSSProperties = {
+const chip = {
   display: 'inline-block',
   fontSize: 12,
   fontWeight: 700,
@@ -111,7 +111,7 @@ const chip: CSSProperties = {
   marginTop: spacing.xxs,
   padding: `1px ${spacing.xs}px`,
   borderRadius: radius.sm,
-}
+} as const satisfies CSSProperties
 
 /** A glass row in the location list — location variant (status dot + name + business + address) or
  *  incident variant (red dot + headline + "Incident" chip). Pressable. */

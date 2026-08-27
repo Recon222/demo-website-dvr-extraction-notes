@@ -24,30 +24,30 @@ const STATUSES: LocationMapStatus[] = ['started', 'working', 'complete']
  * which is a FIVE-stop ramp peaking at 0.5 with 0.4 shoulders. Same idea, different component,
  * different numbers — sharing it would ship a value the phone's map sheet does not.
  */
-const accentStrip: CSSProperties = {
+const accentStrip = {
   height: 2,
   flexShrink: 0,
   background: `linear-gradient(90deg,${withAlpha(colors.primary, 0)},${withAlpha(colors.primary, 0.45)},${withAlpha(colors.primary, 0)})`,
-}
+} as const satisfies CSSProperties
 // phone `styles.pillRow` `:140-144` — `paddingTop: sm`, `paddingBottom: xs`. Was `pt 8 / pb 10`.
-const pillRow: CSSProperties = { display: 'flex', justifyContent: 'center', paddingTop: spacing.sm, paddingBottom: spacing.xs }
+const pillRow = { display: 'flex', justifyContent: 'center', paddingTop: spacing.sm, paddingBottom: spacing.xs } as const satisfies CSSProperties
 // phone `styles.pill` `:145-149` — 40x4 at `radius.full`. Was 38x4 at radius 2; the phone's own
 // docblock at `:15-17` records that pairing as the drift it repaired against `GlassBottomSheet`.
-const pill: CSSProperties = { width: 40, height: 4, borderRadius: radius.full, background: SHEET_COLORS.handle }
+const pill = { width: 40, height: 4, borderRadius: radius.full, background: SHEET_COLORS.handle } as const satisfies CSSProperties
 // phone `styles.summarySection` / `styles.detailSection` `:150-154`, `:182-185` — `paddingHorizontal: lg`,
 // `paddingBottom: sm`, and a `gap: xs` that replaces the badge row's old `marginTop: 5`.
-const summary: CSSProperties = {
+const summary = {
   display: 'flex',
   flexDirection: 'column',
   gap: spacing.xs,
   padding: `0 ${spacing.lg}px ${spacing.sm}px`,
-}
+} as const satisfies CSSProperties
 // phone `styles.countText` / `styles.detailTitle` — `Typography.fontSize.lg` (18). Was 16.
-const countText: CSSProperties = { fontSize: 18, fontWeight: 700, color: colors.text }
+const countText = { fontSize: 18, fontWeight: 700, color: colors.text } as const satisfies CSSProperties
 // `flexWrap` is the demo's, kept: the phone lays three badges across a 390-430pt screen and the
 // demo's slot is 378px (demo inventory §0.3), where 12px labels can overflow. Wrapping is the
 // smallest honest adaptation; every value below is the phone's.
-const badgeRow: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm }
+const badgeRow = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm } as const satisfies CSSProperties
 
 /**
  * A status count badge — phone `SheetHandle.tsx:99-114` + `styles.badge` `:164-181`, painted from
