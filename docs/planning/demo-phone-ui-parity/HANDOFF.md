@@ -1,7 +1,7 @@
 # HANDOFF — Demo↔Phone UI Parity (v2) Orchestration Runbook
 
-state-as-of: PENDING-MERGE
-last-full-plan-read: PENDING-MERGE
+state-as-of: 152487a
+last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
