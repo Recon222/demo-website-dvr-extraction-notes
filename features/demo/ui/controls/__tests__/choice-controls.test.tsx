@@ -312,10 +312,13 @@ describe('RadioOption at 3-up (W2 F29)', () => {
     )
     const labels = Array.from(container.querySelectorAll('[data-radio-label]')) as HTMLElement[]
     expect(labels).toHaveLength(3)
-    for (const [i, el] of labels.entries()) {
+    // A plain index loop, not `labels.entries()`: tsconfig targets es5 and iterating an array
+    // iterator there needs `--downlevelIteration` (`tokens/scale.ts:97-99`'s trap). Vitest
+    // transpiles it happily; the cold `tsc` gate does not.
+    labels.forEach((el, i) => {
       expect(el.style.flexShrink, LABELS[i]).toBe('1')
       expect(el.style.minWidth, LABELS[i]).toBe('0px')
-    }
+    })
   })
 
   it('does not truncate — the phone wraps to two lines rather than ellipsing', () => {
