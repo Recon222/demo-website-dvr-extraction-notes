@@ -195,9 +195,11 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // its own anchor ROW — the unit of PARSE-FAILED isolation — where the module has one
     // `gradient` tuple. So the stops fold back to their field name before comparing.
     const UNANCHORED = ['innerShadow']
-    const anchoredFields = [
-      ...new Set(TIER_PARTS.map((p: string) => (p.startsWith('gradient') ? 'gradient' : p))),
-    ]
+    // `indexOf` dedupe, not `[...new Set()]`: tsconfig targets es5, where spreading a Set is
+    // TS2802. Four elements — a Set would buy nothing but the flag.
+    const anchoredFields = TIER_PARTS.map((p: string) =>
+      p.startsWith('gradient') ? 'gradient' : p,
+    ).filter((f: string, i: number, all: string[]) => all.indexOf(f) === i)
     expect(
       [...anchoredFields, ...UNANCHORED].sort(),
       'every part of a tier is either anchored or named unanchored',
