@@ -1,12 +1,13 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
+// A33/A34/A35/A55 (U1.3) - was a hand-rolled near-miss of the nested tier: the old card
+// stops at 0.6/0.7 and a `rgba(43,140,193,0.18)` hairline. Deferral §31 named this one.
 const card: CSSProperties = {
-  borderRadius: 12,
-  border: '1px solid rgba(43,140,193,0.18)',
-  background: 'linear-gradient(180deg,rgba(26,45,68,0.6),rgba(19,34,54,0.7))',
+  ...glassCardNested,
   padding: '12px 14px',
   marginBottom: 10,
   textAlign: 'left',

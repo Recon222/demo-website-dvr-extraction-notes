@@ -2,7 +2,7 @@
 
 import type { ScopeEntry } from '@/features/demo/engine/types'
 import { DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { glassCard, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ExtractedScopeScreenProps {
   scopes: ScopeEntry[]
@@ -20,7 +20,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Extracted Scope" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.5, marginBottom: 14, padding: 12, borderRadius: 10, border: '1px solid rgba(43,140,193,0.25)', background: 'rgba(43,140,193,0.07)' }}>
+        <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.5, marginBottom: 14, padding: 12, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.07)' }}>
           Auto-generated from the time-offset calculation — these are the windows pulled off the DVR, in <strong style={{ color: '#cfe6f5' }}>DVR-clock time</strong>. Edit if you rounded the boundaries.
         </div>
         {scopes.length === 0 && (

@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { actionsForStatus } from '@/features/demo/engine/logic/case-actions'
 import type { CaseSheetData } from '@/features/demo/ui/screens/screenData'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -176,12 +176,13 @@ export function CaseActionsSheet({
         <div
           data-case-report
           style={{
+            // A33/A55 (U1.3) - the nested tier. Was `rgba(13,27,42,0.6)` on the hard border.
+            // Spread FIRST so the geometry below wins and nothing overrides `border` or
+            // `borderColor` after it (either erases the lit top edge - §4.3).
+            ...glassCardNested,
             maxHeight,
             overflowY: scrollable ? 'auto' : 'hidden',
             overscrollBehavior: 'contain',
-            borderRadius: 12,
-            border: GLASS.border,
-            background: 'rgba(13,27,42,0.6)',
             // No padding here — it belongs to the content wrapper (the phone's
             // `contentContainerStyle`), so the panel's inset scrolls with the report
             // instead of clipping its last row, and the wrapper measures a true height.

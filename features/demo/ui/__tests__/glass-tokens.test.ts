@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassCardNested, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the P0.5 glass-token extraction (matrix G6).
 //
@@ -89,7 +89,15 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['hard border', '1px solid #1c4e84'],
   ['soft border', '1px solid rgba(28,78,132,0.5)'],
   ['button border', '1px solid #2e5f97'],
-  ['accent border', '1px solid rgba(43,140,193,0.3)'],
+  // REWRITTEN IN PLACE by U1.3 (A36): `borderAccent` is now the `elevated` tier's border,
+  // `rgba(43,140,193,0.25)`. The old `0.3` was the demo's near-miss and is gone, so the entry
+  // moves with the token rather than being deleted — the list's own rule.
+  //
+  // This is §4.4 trap 1 live ("glass-tokens.test.ts fails TWICE on a token change"): the new
+  // value was ALREADY spelled at `screens/ExtractedScopeScreen.tsx:23`, which the rewrite
+  // turned into an offender. That site is re-pointed at `GLASS.borderAccent` in the same
+  // commit — value unchanged, owner corrected.
+  ['accent border', '1px solid rgba(43,140,193,0.25)'],
   ['error border', '1px solid rgba(255,71,87,0.3)'],
   // --- glass TIER stops (U1.1): reach for `GLASS_TIER[scheme].<tier>.gradient` ----------
   // The twelve dark stops `tokens/glass-tiers.ts` now owns, banned BARE rather than only as the
@@ -109,6 +117,7 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
+  // U1.2 is the first of those, and appends the `card` tier's other two parts below.
   ['card gradient top stop', 'rgba(14,57,101,0.85)'],
   ['card gradient bottom stop', 'rgba(23,65,110,0.92)'],
   ['nestedCard gradient top stop', 'rgba(23,65,110,0.7)'],
@@ -121,6 +130,36 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['sheet gradient bottom stop', 'rgba(14,57,101,1)'],
   ['recessed gradient top stop', 'rgba(0,24,50,0.6)'],
   ['recessed gradient bottom stop', 'rgba(0,32,64,0.5)'],
+  // --- the card recipe's other two parts (U1.2): reach for `glassCard` -----------------
+  // A31/A32/A44 wire `card.highlightTop`, `card.innerShadow` and `Layout.shadow.card.dark`
+  // into `glassCard`, which is what makes them re-inlinable CSS for the first time — the
+  // condition the block above names for adding an entry. All three measured ZERO live
+  // occurrences under `ui/` once `export/ExportCaseCard.tsx:133`'s hand-rolled copy of the
+  // card shadow was re-pointed at `GLASS.shadowCard` in the same commit.
+  //
+  // The inner shadow is banned as the COMPOSED declaration, not as the bare
+  // `rgba(0,0,0,0.2)`. U1.1 measured the reason and it still holds: the five `innerShadow`
+  // blacks are indistinguishable from ordinary drop shadows, so a bare ban would misfile the
+  // next generic 20%-black shadow as tier re-drift. `inset 0 1px 0 rgba(0,0,0,0.2)` can only
+  // be the card tier's inset.
+  //
+  // `0 4px 8px rgba(0,0,0,0.15)` is banned WHOLE for the same reason in the other direction:
+  // `SettingsCategoryList.tsx:30` carries `padding: '0 4px 8px'`, which a fragment-level ban
+  // on the offsets would have flagged as a colour re-inline.
+  ['card highlight edge', 'rgba(184,212,240,0.08)'],
+  ['card inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.2)'],
+  ['card shadow', '0 4px 8px rgba(0,0,0,0.15)'],
+  // --- the nested tier's other two parts (U1.3): reach for `glassCardNested` -------------
+  // Same rule, same package-appends-its-own discipline. Both measured ZERO live occurrences.
+  //
+  // `nestedCard.border` (`rgba(43,140,193,0.45)`) is deliberately ABSENT in BOTH forms, and
+  // the measurement is why: bare, it is live at three sites that are not tier re-inlines
+  // (`AudioRecorderScreen.tsx:127`, `BootSequence.tsx:36`, and `input-theme.ts` at the
+  // neighbouring 0.25); composed as `1px solid rgba(43,140,193,0.45)` it is live at
+  // `BootSequence.tsx:36`, which belongs to U8.1. Banning it here would either redden on
+  // landing or drag a sweep into another package's file. U8.1 can add it for free.
+  ['nestedCard highlight edge', 'rgba(184,212,240,0.2)'],
+  ['nestedCard inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.15)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
@@ -196,16 +235,31 @@ describe('glass tokens (P0.5 / G6)', () => {
       border: '1px solid #1c4e84',
       borderSoft: '1px solid rgba(28,78,132,0.5)',
       borderBtn: '1px solid #2e5f97',
-      borderAccent: '1px solid rgba(43,140,193,0.3)',
+      borderAccent: '1px solid rgba(43,140,193,0.25)',
       borderError: '1px solid rgba(255,71,87,0.3)',
+      shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
     })
   })
 
   it('pins the spreadable fragments to the exact clusters they replaced', () => {
+    // `glassCard` is no longer "the cluster it replaced" — U1.2 gave it the two parts A31/A32
+    // say the demo never rendered, plus A44's elevation, and U1.3 added `glassCardNested`
+    // beside it. The ORDER of the keys is a separate contract
+    // (`__tests__/glass-card-recipe.test.tsx`): `toEqual` is order-blind, so a re-sort that
+    // erases the lit edge would pass this line unchanged.
     expect(glassCard).toEqual({
       borderRadius: 12,
       border: '1px solid rgba(28,78,132,0.5)',
+      borderTopColor: 'rgba(184,212,240,0.08)',
       background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
+      boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.15)',
+    })
+    expect(glassCardNested).toEqual({
+      borderRadius: 12,
+      border: '1px solid rgba(43,140,193,0.45)',
+      borderTopColor: 'rgba(184,212,240,0.2)',
+      background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
+      boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
     })
     expect(glassBtnPrimary).toEqual({
       borderRadius: 10,
@@ -241,9 +295,32 @@ describe('glass tokens (P0.5 / G6)', () => {
     )
     expect(GLASS.borderSoft).toBe(`1px solid ${t.card.border}`)
     expect(glassCard.background, 'the card fragment paints the card tier').toBe(GLASS.gradientCard)
-    // NOT `borderAccent`: it is still the demo's near-miss `rgba(43,140,193,0.3)` and
-    // `elevated.border` is `0.25`. U1.3 owns that value change and adds the fifth line here.
-    expect(GLASS.borderAccent).not.toBe(`1px solid ${t.elevated.border}`)
+    // U1.2's two new parts, read back off the tier for the same reason as the four above: a
+    // spelled literal here plus a later phone-side re-tint leaves the drift guard green
+    // (it reads `tokens/glass-tiers.ts`) while `/demo` renders the old edge.
+    expect(glassCard.borderTopColor, 'the lit edge is the card tier’s highlightTop').toBe(
+      t.card.highlightTop,
+    )
+    expect(glassCard.boxShadow, 'the inset is the card tier’s innerShadow').toBe(
+      `inset 0 1px 0 ${t.card.innerShadow}, ${GLASS.shadowCard}`,
+    )
+    // U1.3 turned U1.1's NEGATIVE into this line: `borderAccent` was the demo's near-miss
+    // `rgba(43,140,193,0.3)` while `elevated.border` was `0.25`, and U1.1 pinned the gap so
+    // this package could not land `gradientPanel`'s tier without landing its border too.
+    expect(GLASS.borderAccent).toBe(`1px solid ${t.elevated.border}`)
+    // The nested fragment, same contract as `glassCard` above (A33/A34/A35).
+    expect(glassCardNested.background, 'the nested fragment paints the nestedCard tier').toBe(
+      `linear-gradient(180deg,${t.nestedCard.gradient[0]},${t.nestedCard.gradient[1]})`,
+    )
+    expect(glassCardNested.border).toBe(`1px solid ${t.nestedCard.border}`)
+    expect(glassCardNested.borderTopColor).toBe(t.nestedCard.highlightTop)
+    expect(glassCardNested.boxShadow).toBe(`inset 0 1px 0 ${t.nestedCard.innerShadow}`)
+    // A33's whole point: the nested stops are the SWAP of the card's, so a "fix" that made
+    // them a fresh darker pair would pass every value pin above and lose the tier's meaning.
+    expect([t.nestedCard.gradient[0], t.nestedCard.gradient[1]]).not.toEqual([
+      t.card.gradient[0],
+      t.card.gradient[1],
+    ])
   })
 
   it("keeps input-theme's accent stops aliased to GLASS (single-source restyle)", async () => {

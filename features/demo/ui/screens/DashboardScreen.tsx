@@ -7,6 +7,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The phone's `DASHBOARD_CASE_LIMIT` (`app/(tabs)/home.tsx:37`), which it applies as
@@ -117,7 +118,8 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
         style={{
           flex: 1,
           marginLeft: 8,
-          borderRadius: 16,
+          // A43 (U1.2) - a top-level card is `lg` (12), not `xl`. See CasesScreen's note.
+          borderRadius: radius.lg,
           border: GLASS.borderSoft,
           background: GLASS.gradientCardDiag,
           padding: 16,
