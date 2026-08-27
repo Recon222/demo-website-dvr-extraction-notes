@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
+
+import { palette } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
   norm,
@@ -64,6 +66,29 @@ describe('norm — the compare-time normalisation both sides go through', () => 
   })
 })
 
+// Review W0/F4. Both cases are pure string work — no sibling repo, so they run everywhere,
+// which matters for a guard whose every other case is `skipIf`.
+describe('region() — what the slice actually contains', () => {
+  const DARK = { after: 'const dark = {', before: '} as const' }
+
+  it('does not read a value out of a // comment', () => {
+    // The shape that survived at review time: a refactor leaves the OLD value commented above
+    // the new one, `readField` takes the first match in the slice, and the guard reports the
+    // retired colour as current. Zero drift, fully green, completely wrong.
+    const src = ["const dark = {", "  // was text: '#f0f4f8',", "  text: '#e7eef6',", "} as const"].join('\n')
+    expect(readField(src, 'text', DARK)).toBe('#e7eef6')
+  })
+
+  it('throws when the `before` marker is missing instead of widening to EOF', () => {
+    // `after` always threw (-> PARSE-FAILED). `before` silently fell through, so a key absent
+    // from its intended block and present in a later one was read from the wrong literal.
+    // Reachable at U1.1, where `rnTierScope`'s `before: '}'` is what separates six tiers that
+    // all declare the same four part names.
+    const src = ["const dark = {", "  text: '#f0f4f8',"].join('\n')
+    expect(() => readField(src, 'text', DARK)).toThrow(/region end marker not found: \} as const/)
+  })
+})
+
 describe('RN <-> Web token parity (design-system drift guard)', () => {
   it.skipIf(!rnAvailable())(`no anchor has drifted from the RN app (${RN_ROOT})`, () => {
     const { drift } = checkParity()
@@ -92,12 +117,20 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         .sort()
       expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
     }
-    // The stage's SIZE, stated so that shrinking the table to reach green is a red instead.
-    // Gate 1 in the plan is a claim about a set, not about an exit code. Growing these two
-    // numbers is the closing act of U1.1 (+24 keys), U3.1 (+4) and U8.2 (+1) — see
-    // PALETTE_KEYS in the guard for the rule and the schedule.
-    expect(PALETTE_KEYS.length, 'U0.4 anchors 15 palette keys').toBe(15)
-    expect(anchors.length, '15 keys x 2 halves + 2 dark gradient stops + the touch floor').toBe(33)
+    // MEMBERSHIP, not cardinality. Review W0/F2: the guard's key list is hand-maintained (it is
+    // .mjs and cannot import this TS module), and the old `PALETTE_KEYS.length === 15` pin
+    // SURVIVED swapping `'link'` for `'card'` — every count and every loop above stayed green
+    // because they all iterate the list itself. This is the only assertion in the file that
+    // compares the list to something outside it, so it is the one that makes the other three
+    // non-tautological. A palette token added without an anchor reds HERE.
+    expect([...PALETTE_KEYS].sort(), 'the guard must anchor exactly the palette tokens').toEqual(
+      Object.keys(palette.dark).sort(),
+    )
+    // Cardinality is now derived from that, and only covers what membership cannot: deletion of
+    // the three anchors that are NOT palette keys (both CTA gradient stops + the touch floor).
+    expect(anchors.length, 'every palette key in both halves, + 2 gradient stops + touchFloor').toBe(
+      PALETTE_KEYS.length * 2 + 3,
+    )
   })
 
   it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
@@ -113,11 +146,13 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // DARK block still reports zero drift, because both sides then compare the same block to
     // itself. Every assertion above stays green through it.
     //
-    // Every one of these 15 keys genuinely differs between the phone's two halves, so a stuck
-    // reader collapses one of these pairs. If a future token is deliberately scheme-invariant
-    // (`onPrimary` is `#ffffff` in both, which is why it is not anchored here), EXCLUDE IT BY
-    // NAME rather than deleting the check.
-    for (const key of PALETTE_KEYS) {
+    // Almost every palette key genuinely differs between the phone's two halves, so a stuck
+    // reader collapses one of those pairs. The exceptions are excluded BY NAME rather than by
+    // deleting the check: these two are `#ffffff` in both halves by design (`Colors.ts:95-96`,
+    // `:201-202`) — a foreground for filled surfaces does not change with the scheme. Any key
+    // added here needs the same justification, in one line, or it is hiding a stuck reader.
+    const SCHEME_INVARIANT = new Set(['onPrimary', 'onError'])
+    for (const key of PALETTE_KEYS.filter((k: string) => !SCHEME_INVARIANT.has(k))) {
       expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
         at(key, 'dark').rn,
       )
