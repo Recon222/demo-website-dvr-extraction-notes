@@ -346,6 +346,14 @@ describe('GlassBottomSheet — the drag', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not start a drag at all when swipe-to-dismiss is off', () => {
+    // `MediaLibrarySheet.tsx:230` and `ExportActionSheet.tsx:112` are the two named consumers.
+    const { onClose } = mount({ visible: true, enableSwipeToDismiss: false })
+    swipe(100, 400, 30)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(panel().style.transform).toBe('')
+  })
+
   it('never dismisses on an upward swipe, and never translates upward', () => {
     const { onClose } = mount({ visible: true })
     const zone = grab()

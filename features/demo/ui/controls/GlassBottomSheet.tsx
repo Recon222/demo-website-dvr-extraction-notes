@@ -157,6 +157,14 @@ export interface GlassBottomSheetProps {
   /** Show the drag-handle pill. Phone default true (`:156`). */
   showHandle?: boolean
   /**
+   * Allow the handle + header to be dragged down to dismiss. Phone default true (`:158`).
+   *
+   * Two named consumers turn it off: the media library, whose lists own the vertical axis and
+   * whose close button is right there (`MediaLibrarySheet.tsx:230`), and the export action
+   * sheet while an export is running (`ExportActionSheet.tsx:112`, `!disabled`).
+   */
+  enableSwipeToDismiss?: boolean
+  /**
    * Show the tapering accent strip under the header. Phone default true (`:157`). Reads well
    * over a flat surface (calendar) but is noise over a recessed drum or list, so those callers
    * turn it off.
@@ -211,6 +219,7 @@ export function GlassBottomSheet({
   maxHeightRatio = 0.9,
   fillHeight = false,
   showHandle = true,
+  enableSwipeToDismiss = true,
   showAccentStrip = true,
 }: GlassBottomSheetProps) {
   const reducedMotion = useReducedMotion()
@@ -275,6 +284,7 @@ export function GlassBottomSheet({
   )
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!enableSwipeToDismiss) return
     drag.current = { startY: e.clientY, lastY: e.clientY, lastT: e.timeStamp, velocity: 0, active: false }
   }
 
