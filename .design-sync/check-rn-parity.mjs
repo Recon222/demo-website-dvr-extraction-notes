@@ -7,12 +7,18 @@
 // `Colors.dark.primary` in the RN repo fails until `palette.dark.primary` follows here
 // (and vice-versa).
 //
-// Sides read, as of U0.4:
-//   RN   src/constants/Colors.ts        `Colors.light` / `Colors.dark`, `PrimaryButtonGradient`
+// Sides read, as of U1.1:
+//   RN   src/constants/Colors.ts        `Colors.light` / `Colors.dark`, `PrimaryButtonGradient`,
+//                                       `GlassColors.light` / `.dark` (the six glass tiers)
 //        src/constants/Layout.ts        `touchTarget.min`
-//   web  features/demo/ui/tokens/palette.ts   the definition, NOT `T`'s re-export
-//        features/demo/ui/tokens/scale.ts     `touchTarget.min`
-//        features/demo/ui/glass-tokens.ts     `ACCENT_FROM` / `ACCENT_TO`
+//   web  features/demo/ui/tokens/palette.ts      the definition, NOT `T`'s re-export
+//        features/demo/ui/tokens/scale.ts        `touchTarget.min`
+//        features/demo/ui/tokens/glass-tiers.ts  `GLASS_TIER` (the six tiers, both halves)
+//        features/demo/ui/glass-tokens.ts        `ACCENT_FROM` / `ACCENT_TO`
+//
+// The tier rows close a hole the guard could not see before U1.1: `glass-tokens.test.ts` pins
+// the demo's glass values TO THEMSELVES, so it is structurally incapable of noticing a
+// phone-side re-tint. Plan §2's Tier-A caveat said so in as many words. It no longer applies.
 //
 // BOTH scheme halves are pinned (decision D2 as amended by the owner, 2026-08-27). The
 // demo renders only `dark`; a light half that quietly diverges is drift the moment
@@ -214,6 +220,21 @@ export const rnTierScope = (scheme, tier) => ({
 })
 
 /**
+ * The web twin of `rnTierScope`. `tokens/glass-tiers.ts` (U1.1) deliberately mirrors
+ * `GlassColors`' own nesting — one `{ light: { <tier>: { … } }, dark: { … } }` literal rather
+ * than the two module-level consts `tokens/palette.ts` uses — so ONE scope shape addresses both
+ * sides and there is no second, differently-shaped reader to keep in step.
+ *
+ * `'export const GLASS_TIER'` and not `'GLASS_TIER'`: the shorter marker would match the first
+ * mention of the name anywhere, and on the RN side the identical mistake lands on a COMMENT
+ * (`Colors.ts:25`) that reads the LIGHT tier for both schemes — zero drift, proving nothing.
+ */
+export const webTierScope = (scheme, tier) => ({
+  after: ['export const GLASS_TIER', `${scheme}: {`, `${tier}: {`],
+  before: '}',
+})
+
+/**
  * The palette keys anchored at THIS stage of the port.
  *
  * The rule, from the master plan (§6.6 gate 1): the anchor set is what the port has TOKENISED
@@ -221,8 +242,8 @@ export const rnTierScope = (scheme, tier) => ({
  * token.** A phase is never gated on an anchor whose web token does not exist yet. So the set
  * grows with the phases and only with them:
  *
- *   U0.4 (this list)  the 15 palette keys U0.1 created and the plan's U0.4 row names
- *   U1.1              +24 glass-tier keys (both gradient stops + border + highlightTop, x6)
+ *   U0.4              the 15 palette keys U0.1 created and the plan's U0.4 row names
+ *   U1.1  (LANDED)    +24 glass-tier keys — see TIER_KEYS/TIER_PARTS below
  *   U3.1              +4 status keys (success, successLight, warning, warningLight)
  *   U8.2              +gridSubtle
  *   -> ~44 keys at the end, each pinned in both halves
@@ -253,6 +274,25 @@ export const PALETTE_KEYS = [
   'link',
 ]
 
+/**
+ * The six glass tiers x the four parts of each that the guard can read as a flat value.
+ * 6 x 4 = 24 keys, each pinned in BOTH halves = 48 anchor rows. U1.1's closing act.
+ *
+ * `innerShadow` is the fifth part and is deliberately ABSENT. It is not a CSS value on either
+ * side — the phone hands it to a native shadow prop and the web composes it into
+ * `box-shadow: inset 0 1px 0 <innerShadow>` — so an anchor on it would compare two things that
+ * are equal by transcription rather than by contract. Its twelve values are pinned instead by
+ * `features/demo/ui/tokens/__tests__/glass-tiers.test.ts`, which is the ONLY gate on them; if
+ * that file is ever thinned, they lose their last guard. (Plan §5, U1.1 row, states the
+ * exclusion; this says what covers the gap.)
+ *
+ * The two gradient stops are separate KEYS, not one, for the reason `readStop` takes an index:
+ * an anchor row is the unit of PARSE-FAILED isolation, so a gradient whose second stop moves
+ * must be able to fail without taking the first one's verdict with it.
+ */
+export const TIER_KEYS = ['card', 'nestedCard', 'elevated', 'header', 'sheet', 'recessed']
+export const TIER_PARTS = ['gradientTop', 'gradientBot', 'border', 'highlightTop']
+
 /** Both scheme halves, in report order. */
 export const SCHEMES = ['light', 'dark']
 
@@ -269,6 +309,11 @@ export function checkParity() {
   const scaleSrc = source('web tokens/scale.ts', join(WEB, 'features/demo/ui/tokens/scale.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
+  // U1.1's tier seam. The four `GLASS.*` composites derived from it are NOT read here: they are
+  // template literals, so their text holds `${tier.card.gradient[0]}` and not a colour. Reading
+  // the definition is also the right side to read — a derived key that stopped deriving would
+  // be caught by `glass-tokens.test.ts`'s byte-exact shape pin, not by this guard.
+  const tiers = source('web tokens/glass-tiers.ts', join(WEB, 'features/demo/ui/tokens/glass-tiers.ts'))
 
   // Region slices, per scheme, per side. All four are plain string-index cuts, not parsers.
   //
@@ -305,6 +350,35 @@ export function checkParity() {
         rn: attempt(colors, (t) => readField(t, key, { ...rnRegion[scheme], resolve: rnRef(scheme) })),
         web: attempt(paletteSrc, (t) => readField(t, key, { ...webRegion[scheme], resolve: webRef(scheme) })),
       })
+    }
+  }
+
+  // U1.1's 48 tier rows. `readStop` for the two gradient stops (after `gradient:` comes `[`,
+  // which matches none of `readField`'s value alternatives — all twelve would be permanent
+  // PARSE-FAILED rows without it) and `readField` for the two flat parts. No `resolve` on either
+  // side: every tier value is a spelled literal in both repos, and an identifier appearing here
+  // should become a PARSE-FAILED row to be looked at, not be quietly followed.
+  //
+  // This is where U0.4's `norm()` whitespace fix earns its keep — the phone spells
+  // `rgba(28, 78, 132, 0.5)` and the demo spells `rgba(28,78,132,0.5)`. Without it all 48 rows
+  // compare unequal forever.
+  for (const scheme of SCHEMES) {
+    for (const tier of TIER_KEYS) {
+      const rnOpts = rnTierScope(scheme, tier)
+      const webOpts = webTierScope(scheme, tier)
+      const row = (part, rnRead, webRead) => ({
+        key: `${tier}.${part}`,
+        scheme,
+        label: `${tier}.${part}.${scheme}`,
+        rn: attempt(colors, rnRead),
+        web: attempt(tiers, webRead),
+      })
+      anchors.push(
+        row('gradientTop', (t) => readStop(t, 'gradient', 1, rnOpts), (t) => readStop(t, 'gradient', 1, webOpts)),
+        row('gradientBot', (t) => readStop(t, 'gradient', 2, rnOpts), (t) => readStop(t, 'gradient', 2, webOpts)),
+        row('border', (t) => readField(t, 'border', rnOpts), (t) => readField(t, 'border', webOpts)),
+        row('highlightTop', (t) => readField(t, 'highlightTop', rnOpts), (t) => readField(t, 'highlightTop', webOpts)),
+      )
     }
   }
 
@@ -347,7 +421,8 @@ if (invokedDirectly) {
     process.exit(0)
   }
   const { anchors, drift, parseFailed } = checkParity()
-  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(26)} RN=${a.rn}  web=${a.web}`)
+  // 30 fits `nestedCard.highlightTop.light`, the longest label in the set.
+  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(30)} RN=${a.rn}  web=${a.web}`)
   if (parseFailed.length) {
     console.error(`\n✗ ${parseFailed.length} anchor row(s) could not be parsed on one side — the guard is BLIND there:`)
     for (const p of parseFailed) console.error(`  ${p.label}: RN=${p.rn}  web=${p.web}`)

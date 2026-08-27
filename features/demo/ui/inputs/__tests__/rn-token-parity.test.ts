@@ -11,7 +11,15 @@ import {
   rnAvailable,
   rnTierScope,
   RN_ROOT,
+  TIER_KEYS,
+  TIER_PARTS,
+  webTierScope,
 } from '../../../../../.design-sync/check-rn-parity.mjs'
+
+/** The 24 tier anchor keys, spelled the way the guard spells them: `<tier>.<part>`. */
+const TIER_ANCHOR_KEYS: string[] = TIER_KEYS.flatMap((t: string) =>
+  TIER_PARTS.map((p: string) => `${t}.${p}`),
+)
 
 /** One row of the guard's table. `scheme` is `'any'` for scheme-invariant anchors. */
 type Anchor = { key: string; scheme: string; label: string; rn: string; web: string }
@@ -38,6 +46,10 @@ type Anchor = { key: string; scheme: string; label: string; rn: string; web: str
 //   U0.4  the readers are repointed at the definitions (`tokens/palette.ts`,
 //         `tokens/scale.ts`, `Colors.ts`'s `PrimaryButtonGradient`), and BOTH lists tighten
 //         to empty. They stay empty: from here on, a non-empty list is a finding.
+//   U1.1  +48 rows: the six glass tiers x four readable parts x both halves. Before them the
+//         guard read no tier at all, and `ui/__tests__/glass-tokens.test.ts` pins the demo's
+//         glass values TO THEMSELVES — so a phone-side re-tint of any tier was invisible to
+//         every gate in this repo. That is the hole these rows close.
 const labels = (rows: ReadonlyArray<{ label: string }>) => rows.map((r) => r.label)
 const report = (rows: ReadonlyArray<{ label: string; rn: string; web: string }>) =>
   rows.map((r) => `${r.label}: RN=${r.rn} web=${r.web}`).join('; ')
@@ -97,7 +109,55 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // numbers is the closing act of U1.1 (+24 keys), U3.1 (+4) and U8.2 (+1) — see
     // PALETTE_KEYS in the guard for the rule and the schedule.
     expect(PALETTE_KEYS.length, 'U0.4 anchors 15 palette keys').toBe(15)
-    expect(anchors.length, '15 keys x 2 halves + 2 dark gradient stops + the touch floor').toBe(33)
+    expect(
+      anchors.length,
+      '(15 palette + 24 tier) keys x 2 halves + 2 dark CTA gradient stops + the touch floor',
+    ).toBe(81)
+  })
+
+  it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
+    const { anchors } = checkParity()
+    expect(TIER_KEYS.length, 'six tiers').toBe(6)
+    // FOUR parts, not five. `innerShadow` is deliberately unanchored — it is not a CSS value on
+    // either side, so an anchor on it would compare two transcriptions rather than a contract.
+    // Its twelve values are pinned by `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE
+    // else; thinning that file silently removes their last guard.
+    expect(TIER_PARTS.length, 'gradient[0], gradient[1], border, highlightTop').toBe(4)
+    expect(TIER_ANCHOR_KEYS.length, '6 tiers x 4 readable parts').toBe(24)
+
+    for (const key of TIER_ANCHOR_KEYS) {
+      const schemes = anchors
+        .filter((a: Anchor) => a.key === key)
+        .map((a: Anchor) => a.scheme)
+        .sort()
+      expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
+    }
+
+    // Every tier row must have READ something on both sides. Stated separately from the
+    // file-wide PARSE-FAILED case above because these 48 are the rows most likely to go blind:
+    // they depend on three-level scoping AND on `readStop`, and a phone-side reformat of
+    // `GlassColors` breaks them without touching a single colour.
+    for (const a of anchors.filter((x: Anchor) => TIER_ANCHOR_KEYS.includes(x.key))) {
+      expect(a.rn, `${a.label} RN side`).toMatch(/^rgba\(/)
+      expect(a.web, `${a.label} web side`).toMatch(/^rgba\(/)
+    }
+  })
+
+  it.skipIf(!rnAvailable())('addresses the web tiers with the same three-level scope as the phone', () => {
+    // The web twin of the capability case at the bottom of this file. `tokens/glass-tiers.ts`
+    // mirrors `GlassColors`' nesting on purpose, so the SAME scope shape works on both sides —
+    // and the same two-level trap exists on both sides. If this reddens, someone flattened the
+    // demo's tier module (or reordered its halves) and `webTierScope` needs re-reading.
+    const tiers = readFileSync(
+      join(process.cwd(), 'features', 'demo', 'ui', 'tokens', 'glass-tiers.ts'),
+      'utf8',
+    )
+    const light = readField(tiers, 'border', webTierScope('light', 'card'))
+    const dark = readField(tiers, 'border', webTierScope('dark', 'card'))
+    expect(light, 'the two halves of GLASS_TIER.card.border must not read as one').not.toBe(dark)
+    const twoLevel = readField(tiers, 'border', { after: 'card: {', before: '}' })
+    expect(twoLevel, 'a tier-only scope lands on the LIGHT tier').toBe(light)
+    expect(twoLevel).not.toBe(dark)
   })
 
   it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
@@ -113,11 +173,17 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // DARK block still reports zero drift, because both sides then compare the same block to
     // itself. Every assertion above stays green through it.
     //
-    // Every one of these 15 keys genuinely differs between the phone's two halves, so a stuck
+    // Every one of these 39 keys genuinely differs between the phone's two halves, so a stuck
     // reader collapses one of these pairs. If a future token is deliberately scheme-invariant
     // (`onPrimary` is `#ffffff` in both, which is why it is not anchored here), EXCLUDE IT BY
     // NAME rather than deleting the check.
-    for (const key of PALETTE_KEYS) {
+    //
+    // The 24 tier keys are in scope for a reason: their scopes are THREE levels deep and the
+    // two-level form lands on the light tier for BOTH schemes (measured at `dd5551ec`), which
+    // is precisely the reader that reports zero drift while proving nothing. The capability
+    // case at the bottom of this file pins that for one key; this pins it for all 24, on both
+    // sides, against the live anchor table rather than against a hand-built scope.
+    for (const key of [...PALETTE_KEYS, ...TIER_ANCHOR_KEYS]) {
       expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
         at(key, 'dark').rn,
       )
