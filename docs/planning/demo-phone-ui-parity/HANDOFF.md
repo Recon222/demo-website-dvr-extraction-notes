@@ -65,6 +65,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 
 ## 7. Next-step queue
 
+**OWNER GATE (2026-08-26): PAUSE at the end of the planning phase.** Finish writer fix round → fix-delta (three warm lanes) → fresh FABLE aggregator → commit bundle → ratification brief for D1–D20. Then STOP. No implementer is briefed until the owner returns and rules.
+
 1. When both inventories land: launch the matrix+plan writer (Opus) → `00-ui-parity-matrix.md` + `01-master-ui-parity-plan.md` (v1 format: status legend, effort, phase, decisions-needed section for owner ratification).
 2. Owner ratifies decisions → commit the planning bundle → phased execution per the plan.
 3. Verification lane: extend `check-rn-parity.mjs` to the new anchor set (mechanical guard) + Playwright demo captures; phone-side runtime TBD (owner).
