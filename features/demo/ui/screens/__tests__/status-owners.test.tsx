@@ -89,8 +89,13 @@ describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => 
 
   it('never paints the label with the saturated accent (C.3 rule 1)', () => {
     const { pill } = retentionBadgeFor(0)
+    // NEGATIVE stays in palette terms — it names the token that must NOT appear, and a seam
+    // re-point must not silently redefine what "wrong" means (integrator's ruling).
     expect(pill.style.color).not.toBe(rgb(colors.error))
-    expect(pill.style.color).toBe(rgb(colors.errorOnLight))
+    // POSITIVE reads the SEAM (W3 F55). Spelled `colors.errorOnLight`, a legitimate re-point of
+    // `severityTone` would red this line naming a palette token, and the cheapest repair is to
+    // retype the new token — ratifying the change with no oracle. That is the W2/F26 pin class.
+    expect(pill.style.color).toBe(rgb(severityTone('error').color))
   })
 })
 
@@ -243,10 +248,12 @@ describe('PaneNote (A69 owner 5 — the settings note boxes)', () => {
     render(<PaneNote tone="warning">Body</PaneNote>)
     // What it used to render: `#ffd93d` text on `rgba(255,217,61,0.09)`.
     expect(message().style.color).not.toBe(rgb(colors.warning))
-    expect(message().style.color).toBe(rgb(colors.warningOnLight))
+    expect(message().style.color).toBe(rgb(severityTone('warning').color))
     // The fill is OPAQUE now — a translucent one composites over an unknown parent and the
-    // ratio stops being measurable.
-    expect(box().style.backgroundColor).toBe(rgb(colors.warningLight))
+    // ratio stops being measurable. The OPACITY half is asserted below in palette-independent
+    // terms; this line asserts WHICH fill, so it reads the seam (F55).
+    expect(box().style.backgroundColor).toBe(rgb(severityTone('warning').background))
+    expect(box().getAttribute('style')).not.toContain('rgba')
   })
 
   it('writes border LONGHANDS only, so nothing downstream can erase a side', () => {
