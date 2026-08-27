@@ -104,9 +104,9 @@ describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
       textSecondary: 'textSecondary',
       textTertiary: 'textTertiary',
       primary: 'primary',
-      // U5.2's filters glyph is this key's ONLY reader, and the plan keeps the key alive as an
-      // alias so `primaryLight` has ONE owner (`tokens/palette.ts`) and U0.4's `primaryLight`
-      // anchor has ONE web-side read.
+      // NOT the filters glyph — that is `textPrimary` on the phone (`MapControls.tsx:177`), and
+      // the two-state rule the plan attributed to it was the deleted Clear pill's. Kept as an
+      // alias for U5.4's `CaseMapPicker` accent (matrix row 18); see the key's docblock.
       primaryLight: 'primaryLight',
     } as const
     for (const [key, token] of Object.entries(ALIASES)) {
@@ -150,8 +150,13 @@ describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
     expect(MAP_GLASS_COLORS).not.toHaveProperty('inputBg')
   })
 
-  it('derives the active-filter wash from `primary` instead of hand-writing its rgba', () => {
-    expect(MAP_GLASS_COLORS.clearActiveBg).toBe(withAlpha(colors.primary, 0.2))
+  it('DELETED clearActiveBg with the Clear pill that read it', () => {
+    // U5.1 shipped it derived and said so: *"U5.2 deletes this key's one reader with the Clear
+    // pill"* — and the phone's collapsed chrome has no active-filter wash at all, because the
+    // active state is now the badge on the filters button. An unread token in a module whose
+    // own docblock refuses to carry the phone's five unread `MAP_SURFACE_COLORS` keys would be
+    // the same defect on the other side of the file.
+    expect(MAP_GLASS_COLORS).not.toHaveProperty('clearActiveBg')
   })
 
   it('keeps the shadow at the phone value, in both modes', () => {
