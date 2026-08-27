@@ -18,14 +18,40 @@
  * So the three values below are frozen literals, and `ui/__tests__/palette-contrast.test.ts`
  * measures the separation rather than asserting it — see the `describe` that imports this.
  *
- * ## Why it is a MODULE and not two copies
+ * ## Why it is a MODULE — and the census, corrected (review W3/F51)
  *
- * Two surfaces paint it: `ImportResultAccordion`'s per-location badge and `OcrCaptureScreen`'s
- * confidence badge. They held byte-identical literals, so a "re-derive it" ruling would have had
- * to find both, and the defence test would have had to re-type the values it guards — the
- * second-copy trap U7.1's probe P5 demonstrated. One owner, one pin.
+ * This docblock previously said *"Two surfaces paint it… One owner, one pin."* **That was false
+ * when it was written.** The trio below is spelled byte-identically at FIVE sites, and this
+ * module owns two of them:
  *
- * Values unchanged from the two sites this replaces: zero rendered bytes moved.
+ * | site | owner |
+ * |---|---|
+ * | `ImportResultAccordion`'s per-location badge | this module |
+ * | `OcrCaptureScreen`'s confidence badge | this module |
+ * | `MediaLibrarySheet.tsx`'s `sampleBadge` | ORPHAN (U7.2's import) |
+ * | `MediaCaptureScreen.tsx`'s inline "Sample data" chip | ORPHAN (U7.2's import) |
+ * | `AudioPreviewScreen.tsx`'s sample chip | ORPHAN (U7.2's import) |
+ *
+ * `MediaLibrarySheet`'s own comment — *"shared in appearance with the two capture screens'"* —
+ * describes the duplication accurately and then re-types it, which is the shape that makes a
+ * "re-derive it" ruling ship two different sample ambers in one session. The correct pattern is
+ * one file away: `screens/import/terminal-palette.ts` migrated ALL of its copies.
+ *
+ * Values unchanged from the sites this replaces: zero rendered bytes moved.
+ *
+ * ## What actually defends the badge, stated honestly (review W3/F51)
+ *
+ * D12 predicts the sample amber and `warningLight` "will not collide" because "they are a fill
+ * and a foreground of different families". Measured, the first half of that is not the reason:
+ * at MATCHED alpha over the same card the badge's fill is only **ΔE 3.6–6.2** from `warning`,
+ * `warningDark` and `warningLight`. They ARE one hue family.
+ *
+ * What separates them is ROLE, and it is large: this badge is a translucent 12% tint under an
+ * AMBER label, while a ported `Banner severity="warning"` is the OPAQUE `warningLight` ground
+ * under a near-white `warningOnLight` label. As rendered, that is ΔE 65 on the fill and a
+ * different colour entirely on the text. The pins in `palette-contrast.test.ts` measure that
+ * pair — plus a presence floor, because the first version of the guard was monotone in "how
+ * little the badge paints" and scored a DELETED fill (77.62) higher than the shipped one (65.31).
  */
 export const SAMPLE_BADGE = {
   /** The label. */

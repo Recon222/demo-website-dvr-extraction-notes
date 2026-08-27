@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { OcrCaptureScreen, type OcrCaptureScreenProps, type OcrResult } from '@/features/demo/ui/screens/OcrCaptureScreen'
 import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { getConfidenceLevel } from '@/features/demo/engine/logic/ocr'
 
 /** jsdom re-spaces the values it accepts, so every expectation goes through its own writer. */
 const cssColor = (value: string): string => {
@@ -32,7 +33,7 @@ const cssGradient = (value: string): string => {
 const parsed: OcrResult = {
   ok: true,
   dvrTime: '2025-03-08 12:05:30',
-  confidence: { label: 'High', color: '#10d177', measured: true },
+  confidence: { label: 'High', level: 'high' as const, measured: true },
   actual: '2025-03-08 12:00:00',
   resolution: { kind: 'exact' },
 }
@@ -105,6 +106,49 @@ describe('OcrCaptureScreen — the mono policy, rendered (A94 / D13)', () => {
  * value as a bare line inside it, so there is no flat wash here to replace — the row's
  * "do not ship one" is satisfied by not building one. What DID have to move is the tier.
  */
+/**
+ * F65 / ledger §112 — the confidence band's colour moved OUT of `engine/logic/ocr.ts` and into
+ * this screen. The engine returns a `ConfidenceLevel` and nothing else, which is what the phone
+ * has always returned (`timestamp-parser.ts:339-342`).
+ *
+ * Driven off the ENGINE's own band vocabulary, not a hand-typed list: a fifth band added to
+ * `getConfidenceLevel` without a colour is a compile error in the screen and a red here.
+ */
+describe('OcrCaptureScreen — the confidence band renders a colour per band (F65)', () => {
+  const BANDS = [
+    [0.9, 'high', colors.success],
+    [0.7, 'medium', colors.warning],
+    [0.5, 'low', colors.warningDark],
+    [0.2, 'fail', colors.error],
+  ] as const
+
+  it.each(BANDS)('score %s paints the %s band', (score, level, expected) => {
+    const tier = getConfidenceLevel(score)
+    expect(tier.level, 'the engine no longer agrees with this table').toBe(level)
+    render(
+      <OcrCaptureScreen
+        {...props({
+          result: { ...parsed, confidence: { label: tier.message, level: tier.level, measured: true } },
+          dvrDraft: parsed.dvrTime,
+        })}
+      />,
+    )
+    expect(screen.getByText(tier.message).style.color).toBe(cssColor(expected))
+  })
+
+  it('carries NO colour out of the engine, and no em dash in the copy it does carry', () => {
+    // The engine is presentation-free (F65) ...
+    for (const score of [0.9, 0.7, 0.5, 0.2]) {
+      expect(Object.keys(getConfidenceLevel(score)).sort()).toEqual(['level', 'message'])
+      // ... and `:276`'s message is RENDERED, so the standing copy rule reaches it. The
+      // replacement is the PHONE's own punctuation (`timestamp-parser.ts:346` uses a hyphen),
+      // so this is a copy port under plan §4.1 rule 7, not a house-style edit.
+      expect(getConfidenceLevel(score).message).not.toContain('—')
+    }
+    expect(getConfidenceLevel(0.9).message).toBe('High confidence - result looks good')
+  })
+})
+
 describe('OcrCaptureScreen — the confirm stage (B.6 row 37)', () => {
   it('puts the evidence card on the NESTED tier, not a hand-rolled near-black slab', () => {
     // Was `background:'#0a1320'` + `border:'1px solid rgba(30,58,95,0.6)'`. That border is the

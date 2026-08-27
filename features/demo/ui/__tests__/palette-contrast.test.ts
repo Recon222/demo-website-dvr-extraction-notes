@@ -6,7 +6,7 @@ import {
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette, scheme } from '@/features/demo/ui/tokens/palette'
-import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { flattenOver, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
@@ -971,23 +971,73 @@ describe('terminal console contrast (U7.1 / A85, §C "Terminal title bar / priva
  * (`recessed` two-sided, `nestedCard` >= 1.25) is that a separation claim a ratio is blind to
  * gets a dE bound.
  *
- * The threshold is 10, comfortably above the 2.3 "just noticeable" line and below every measured
- * value here, so it fails on a real convergence rather than on rounding. The badge is measured
- * as it RENDERS — its 12% fill composited over the nested card it sits on — because that is the
- * colour the operator distinguishes, and an uncomposited comparison of two `rgba()` strings
- * would pass over a fill that vanishes into its parent.
+ * ## REVIEW W3/F51 — the first version of this guard was VACUOUS, and the numbers say how
+ *
+ * It compared the badge's 12%-alpha fill composited over the card against the RAW OPAQUE
+ * `warningLight`. That measures the ALPHA, not the hue, and it is monotone in "how little the
+ * badge paints": shipped scored **65.31**, `warningLight` at the badge's own alpha scored
+ * **68.94**, and **deleting the fill entirely scored 77.62** — all "passing" a `> 10` bound. A
+ * guard that rewards the thing it exists to prevent is worse than no guard.
+ *
+ * Two things were wrong and both are fixed below.
+ *
+ * **1. The claim was mis-stated.** Measured at MATCHED alpha over the same card, the badge is
+ * ΔE **3.56–6.16** from `warning` / `warningDark` / `warningLight`. The sample amber and the
+ * ported warning ambers ARE one hue family; D12's "different families" is about ROLE, not hue.
+ * What actually separates them is that this badge is a translucent tint under an AMBER label
+ * while a warning Banner is an OPAQUE ground under a near-white `warningOnLight` label. So the
+ * fill pin measures the two AS RENDERED (which is where 65.31 is the honest number), the
+ * foreground pin carries the load, and a new IDENTITY pin bans the badge's hue from being a
+ * warning token's at any alpha — the form the reviewer's probe B used to walk past it.
+ *
+ * **2. The bound was one-sided.** It is now two-sided, which is plan §9 clause 2's own precedent
+ * for a separation claim (`recessed` ΔE 3–12 **per stop, two-sided**): the badge must be far
+ * from the warning surface AND near enough to nothing — i.e. it must actually PAINT on its card.
+ * The tautology control is explicit: a fully transparent fill must FAIL.
+ *
+ * The 10 threshold is comfortably above the 2.3 "just noticeable" line. The presence floor is 5,
+ * measured 14.90 as shipped and 0 for a deleted fill.
  */
 describe('D12: the sample-data badge stays distinct from the ported warning family', () => {
-  // The nested card is what both badge sites sit on: `ImportResultAccordion`'s per-location
-  // chip and `OcrCaptureScreen`'s confidence chip.
+  // The nested card is what both seam-owned badge sites sit on: `ImportResultAccordion`'s
+  // per-location chip and `OcrCaptureScreen`'s confidence chip.
   const CARD = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
   const badgeFill = flatten([SAMPLE_BADGE.background, ...CARD])
-  const warningFill = flatten([palette.dark.warningLight, ...CARD])
+  /** The card with NO badge fill on it — what "the badge vanished" looks like. */
+  const bareCard = flatten([...CARD])
+  /** A ported `Banner severity="warning"` as it renders: the OPAQUE `*Light` ground (its own
+   *  docblock forbids any alpha), i.e. `severityTone('warning').background`. */
+  const warningFill = flatten([severityTone('warning').background, ...CARD])
 
-  it('separates the badge FILL from `warningLight`, the ported warning ground', () => {
-    // This is the collision D12 names by hand. If a future re-tint of `warningLight` walks it
+  it('separates the badge FILL from a ported warning surface, as both actually render', () => {
+    // This is the collision D12 names by hand. If a future re-tint walks the warning ground
     // toward this amber, a sample value and a real warning stop being tellable apart.
     expect(round(deltaE(badgeFill, warningFill))).toBeGreaterThan(10)
+  })
+
+  it('PAINTS: the fill is visibly present on its card — the tautology control (F51)', () => {
+    // The half that was missing. Without it the metric is monotone in the badge disappearing:
+    // no fill at all scored 77.62 against the old one-sided bound and "passed".
+    expect(round(deltaE(badgeFill, bareCard))).toBeGreaterThan(5)
+    // ...and the control states the inversion outright, so nobody re-derives the old shape.
+    const transparent = flatten([withAlpha(SAMPLE_BADGE.foreground, 0), ...CARD])
+    expect(round(deltaE(transparent, bareCard)), 'a fill that paints nothing must FAIL').toBe(0)
+    expect(round(deltaE(transparent, warningFill))).toBeGreaterThan(round(deltaE(badgeFill, warningFill)))
+  })
+
+  it('is not a warning token wearing an alpha — the HUE identity (F51, the probe-B form)', () => {
+    // `withAlpha(warningLight, 0.12)` passes every perceptual bound above (it is a translucent
+    // amber tint on the same card) while BEING the ported warning ground. Only an identity check
+    // on the hue underneath the alpha can see it, and the structural pin below only sees the
+    // token spelled bare.
+    const [r, g, b] = parse(SAMPLE_BADGE.background)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight'] as const) {
+      const [tr, tg, tb] = parse(palette.dark[token])
+      expect(
+        [r, g, b],
+        `SAMPLE_BADGE.background is \`${token}\` under an alpha — D12 freezes it as its own value`,
+      ).not.toEqual([tr, tg, tb])
+    }
   })
 
   it('separates the badge FOREGROUND from every ported warning foreground', () => {

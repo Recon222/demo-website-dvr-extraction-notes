@@ -24,7 +24,7 @@ import { domError, fakeCanvas, fakeStream, type FakeTrack } from '@/features/dem
 const parsedResult: OcrResult = {
   ok: true,
   dvrTime: '2025-03-08 12:05:30',
-  confidence: { label: 'High', color: '#10d177', measured: true },
+  confidence: { label: 'High', level: 'high' as const, measured: true },
   actual: '2025-03-08 12:00:00',
   resolution: { kind: 'exact' },
 }

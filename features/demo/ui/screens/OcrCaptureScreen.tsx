@@ -10,7 +10,7 @@ import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
-import { isDvrDraftCommittable, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
+import { isDvrDraftCommittable, type ConfidenceLevel, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
 import { OCR_BOX_HEIGHT_FRACTION, OCR_BOX_WIDTH_FRACTION, ocrCropRegion } from '@/features/demo/engine/logic/ocr-crop'
 import { CAPTURE_PERMISSION_COPY, selectCaptureDevice } from '@/features/demo/engine/logic/media'
 import type { OcrSampleFrame } from '@/features/demo/engine/content/seed'
@@ -27,7 +27,7 @@ export type OcrResult =
       dvrTime: string
       /** `measured: false` = the fixed sample score (R-16's badge applies); `true` = the
        *  in-browser recogniser's own score for a live frame — a real number, no badge. */
-      confidence: { label: string; color: string; measured: boolean }
+      confidence: { label: string; level: ConfidenceLevel; measured: boolean }
       actual: string
       /** What the reader had to assume — drives the warning/blocker, exactly one at a time. */
       resolution: DvrDateResolution
@@ -112,7 +112,31 @@ const STRIP_SIDE = `${(((1 - OCR_BOX_WIDTH_FRACTION) / 2) * 100).toFixed(1)}%`
 
 const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', width: 14, height: 14, ...pos })
 
-const label12: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
+// F61 — `as const satisfies CSSProperties`, not a `: CSSProperties` annotation, on every
+// module-level style table in this file. An annotated object is MUTABLE: any consumer can
+// write `label12.color = x` and every later render of every other consumer moves with it,
+// with no compile error. `satisfies` keeps the same type-checking and makes the write a
+// TS2540 (verified). Third recurrence of the class (F20, F38, now F61), so it is spelled out.
+/**
+ * F65 / ledger §112 — the OCR confidence band's colour, which now lives HERE rather than in
+ * `engine/logic/ocr.ts`. The engine returns a `ConfidenceLevel` and nothing else, which is what
+ * the phone's `getConfidenceLevel` has always returned (`timestamp-parser.ts:339-342`).
+ *
+ * A `Record` keyed by the union, so a fifth band is a compile error here rather than an
+ * `undefined` that paints `currentColor`. Three of the four are the status tokens the rest of
+ * the demo already uses. The fourth, `low`, was the orphan `#ff7a45` that §112 asked to be named
+ * or collapsed: there is no token and no phone value to name it after, so it takes `warningDark`
+ * — the ramp's own deeper amber, one step from `medium`'s `warning`, which is exactly the
+ * "worse than medium, not yet failed" step the band means.
+ */
+const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
+  high: colors.success,
+  medium: colors.warning,
+  low: colors.warningDark,
+  fail: colors.error,
+}
+
+const label12 = { fontSize: 12, color: '#7a9fc4' } as const satisfies CSSProperties
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 /**
@@ -129,14 +153,14 @@ const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
  * the tier they both take. Longhands only after the spread (the lit-edge rule): the fragment
  * carries `borderTopColor` and no shorthand may follow it.
  */
-const evidenceCard: CSSProperties = { ...glassCardNested, padding: 16, marginBottom: 16 }
+const evidenceCard = { ...glassCardNested, padding: 16, marginBottom: 16 } as const satisfies CSSProperties
 // SEAM(U7.2): the mask outside the guide box. The ALPHA is the phone's
 // (`ocr-time-capture/constants/index.ts:53`, `darkOverlayOpacity: 0.6`); the COLOUR is the
 // demo's own black where the phone washes its app background (`BoundingBoxOverlay.tsx:87`).
 // D17 freezes the camera palette, so the value moved nowhere — see `camera-chrome.ts`.
-const scrim: CSSProperties = { position: 'absolute', background: CAMERA_CHROME.guideMask }
+const scrim = { position: 'absolute', background: CAMERA_CHROME.guideMask } as const satisfies CSSProperties
 
-const viewfinderPanel: CSSProperties = {
+const viewfinderPanel = {
   position: 'absolute',
   inset: 0,
   display: 'flex',
@@ -146,7 +170,7 @@ const viewfinderPanel: CSSProperties = {
   gap: 14,
   padding: '0 18px',
   textAlign: 'center',
-}
+} as const satisfies CSSProperties
 
 /**
  * A DEMO-ONLY recipe, not one of A66's outline sites — matrix A66 counted it as one and it is
@@ -159,10 +183,10 @@ const viewfinderPanel: CSSProperties = {
  * everything else. `palette-contrast.test.ts` measures `link` UNDER this wash, on every dark
  * ground, because the wash is a ground the phone's contract has never seen.
  */
-const panelButton: CSSProperties = {
+const panelButton = {
   ...buttonStyle({ variant: 'outline', size: 'small' }),
   background: SAMPLE_TINT,
-}
+} as const satisfies CSSProperties
 
 /**
  * Full-screen OCR capture (launch-only). The aim stage is a real landscape webcam viewfinder
@@ -413,7 +437,7 @@ export function OcrCaptureScreen({
                     </span>
                   )}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence.color }}>{result.confidence.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: CONFIDENCE_COLOR[result.confidence.level] }}>{result.confidence.label}</span>
               </div>
               {!result.confidence.measured && (
                 <div style={{ fontSize: 11, color: '#7a9fc4', lineHeight: 1.45, marginBottom: 10 }}>
@@ -693,7 +717,7 @@ export function OcrCaptureScreen({
   )
 }
 
-const sampleLink: CSSProperties = {
+const sampleLink = {
   fontSize: 12,
   fontWeight: 600,
   color: '#9fd4ee',
@@ -702,4 +726,4 @@ const sampleLink: CSSProperties = {
   padding: 4,
   cursor: 'pointer',
   textDecoration: 'underline',
-}
+} as const satisfies CSSProperties

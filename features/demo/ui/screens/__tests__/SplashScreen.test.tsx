@@ -26,6 +26,27 @@ describe('SplashScreen', () => {
     expect(screen.getByText('ACCESS GRANTED')).toBeInTheDocument()
   })
 
+
+/**
+ * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+ *
+ * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+ * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+ * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+ * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable there is, so the
+ * scan and a render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT.
+ *
+ * Shape is `OcrCaptureScreen.test.tsx`'s: assert the scanner var IS there and the evidentiary
+ * one is NOT. The negative half is what catches a swap, which is the drift D13 actually names.
+ */
+  it('paints the biometric HUD in the scanner face (A94 / D13)', () => {
+    render(<SplashScreen authState="authorized" onScan={vi.fn()} />)
+    for (const node of [screen.getByText('AUTHORIZED'), screen.getByText('ACCESS GRANTED')]) {
+      expect(node.style.fontFamily).toContain('--font-stmono')
+      expect(node.style.fontFamily).not.toContain('--font-jbmono')
+    }
+  })
+
   describe('honesty (the demo cannot do biometrics)', () => {
     // Derived, not hand-listed — the same R-11b treatment as the phase list one file over: the
     // union is DEFINED by this tuple, so a fourth HUD state joins this sweep automatically.

@@ -71,10 +71,15 @@ export const TERMINAL_PALETTE = {
    * dark. `NotesScreen`'s inset lifts a few points on a light app so it does not read as a
    * hole punched in a white page; the import terminal always uses the dark arm. Phone `:57`.
    */
+  // F45's shape, in a module written after F45 closed: a two-key record whose keys HAPPEN to
+  // read `light`/`dark` names no `ColorScheme`, so a renamed or added scheme half is a silent
+  // `undefined` at every `screen[scheme]` read rather than a compile error. `mapTokens.ts:96`
+  // is the correct sibling. `satisfies` inside the `as const` keeps the literal types the
+  // consumers rely on AND makes the key set a type-level obligation.
   screen: {
     light: '#0b1420',
     dark: '#060a12',
-  },
+  } as const satisfies Record<ColorScheme, string>,
   /** Title bar / chrome strip above the log. Phone `:59`. */
   bar: '#0a0f18',
   /** Panel outline, and the divider under the title bar. Phone `:61`. */

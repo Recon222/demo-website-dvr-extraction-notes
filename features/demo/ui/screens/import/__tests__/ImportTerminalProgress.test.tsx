@@ -22,7 +22,7 @@ import {
   type ImportTerminalProgressProps,
   type TerminalOutcome,
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
-import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { createImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
 import {
   TERMINAL_PALETTE,
@@ -31,6 +31,7 @@ import {
 } from '@/features/demo/ui/screens/import/terminal-palette'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /** jsdom normalizes an inline hex colour to `rgb(r, g, b)`. */
 const jsdomRgb = (hex: string): string => {
@@ -468,6 +469,25 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(within(screen.getByTestId('terminal-line-1')).getByRole('button')).toHaveAttribute('aria-expanded', 'false')
   })
 
+  /**
+   * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+   *
+   * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+   * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+   * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+   * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable, so the scan and a
+   * render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT. Shape is
+   * `OcrCaptureScreen.test.tsx`'s — the scanner var IS there, the evidentiary one is NOT, and
+   * the negative half is what catches the swap D13 actually names.
+   */
+  it('paints the console title bar and the trust line in the scanner face (A94 / D13)', () => {
+    setup({ batch: { current: 1, total: 1 } })
+    for (const node of [screen.getByText(TERMINAL_TITLE), screen.getByTestId('terminal-trust-line')]) {
+      expect(node.style.fontFamily).toContain('--font-stmono')
+      expect(node.style.fontFamily).not.toContain('--font-jbmono')
+    }
+  })
+
   // ---- badge slot + outcomes ----
 
   it('the badge slot is a fixed 60px in BOTH states — the morph causes zero reflow', () => {
@@ -551,7 +571,10 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     // title `colors.successOnLight` under D8a, and its :253-256 measures why: '#7fe6b6' on
     // the 10% success wash is 1.37:1 in light. The saturated accent stays on the ICON, which
     // is redundant with a title that states the outcome in words.
-    expect(screen.getByText('Import ready for review', { selector: 'span' }).style.color).toBe(jsdomRgb(colors.successOnLight))
+    // F63: asserted THROUGH the seam. A palette read here would be the same STRING whether the
+    // component resolves via `severityTone` or by hand, so it could not tell the two apart --
+    // deriving from the seam means a seam whose foreground moves drags this pin with it.
+    expect(screen.getByText('Import ready for review', { selector: 'span' }).style.color).toBe(jsdomRgb(severityTone('success').color))
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('100%')
     fireEvent.click(cta)
     expect(onReview).toHaveBeenCalledTimes(1)
@@ -579,7 +602,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain(withAlpha(colors.warning, 0.36)) // amber, not green
     expect(cta.style.background).toContain(withAlpha(colors.warning, 0.1))
-    expect(screen.getByText(/^Batch partially failed:/).style.color).toBe(jsdomRgb(colors.warningOnLight))
+    expect(screen.getByText(/^Batch partially failed:/).style.color).toBe(jsdomRgb(severityTone('warning').color))
   })
 
   it('partial: pluralizes the needs-attention count (phone template parity)', () => {

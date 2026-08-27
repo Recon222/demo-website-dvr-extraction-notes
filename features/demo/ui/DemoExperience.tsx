@@ -2014,7 +2014,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
         ? {
             ok: true,
             dvrTime: reading.dvrTime,
-            confidence: { label: conf.message, color: conf.color, measured: read.measured },
+            confidence: { label: conf.message, level: conf.level, measured: read.measured },
             actual,
             resolution: reading.resolution,
           }

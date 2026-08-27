@@ -26,6 +26,25 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     expect(screen.getByText('extract text ✓')).toBeInTheDocument()
   })
 
+  /**
+   * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+   *
+   * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+   * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+   * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+   * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable, so the scan and a
+   * render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT. Shape is
+   * `OcrCaptureScreen.test.tsx`'s — the scanner var IS there, the evidentiary one is NOT, and
+   * the negative half is what catches the swap D13 actually names.
+   */
+  it('paints the gutter, the tag and the message in the scanner face (A94 / D13)', () => {
+    renderLine(mkLine({ elapsedMs: 1230 }))
+    for (const node of [screen.getByText('T+1.23'), screen.getByText('OK'), screen.getByText('extract text ✓')]) {
+      expect(node.style.fontFamily).toContain('--font-stmono')
+      expect(node.style.fontFamily).not.toContain('--font-jbmono')
+    }
+  })
+
   it('pins the full 10-level accent map to the phone palette (terminal-palette.ts:88-101)', () => {
     // U7.1: the map moved into the owned module (A85) and VERB left the pre-recolor teal for
     // `textTertiary` (A89's purge — phone `terminal-palette.ts:93-95`). The values live in
