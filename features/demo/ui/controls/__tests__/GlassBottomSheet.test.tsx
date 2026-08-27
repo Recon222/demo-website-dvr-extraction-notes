@@ -553,8 +553,24 @@ describe('GlassBottomSheet — chrome', () => {
     const { rerender } = mount({ visible: true })
     expect(scrim().getAttribute('role')).toBeNull()
     expect(scrim().getAttribute('aria-label')).toBeNull()
+    expect(scrim().getAttribute('tabindex')).toBeNull()
     rerender({ closeLabel: 'Close map filters' })
     expect(screen.getByRole('button', { name: 'Close map filters' })).toBe(scrim())
+  })
+
+  it('makes the announced scrim keyboard-OPERABLE, not just labelled (W2/F46)', () => {
+    // A `role="button"` that cannot be reached or activated from a keyboard fails WCAG 2.1.1.
+    // The role, the tab stop and the key handler are one decision.
+    const { onClose } = mount({ visible: true, closeLabel: 'Close map filters' })
+    expect(scrim().getAttribute('tabindex')).toBe('0')
+    fireEvent.keyDown(scrim(), { key: 'Enter' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(scrim(), { key: ' ' })
+    expect(onClose).toHaveBeenCalledTimes(2)
+    // …and nothing else on the scrim activates it — Escape is the sheet's own route, handled
+    // on `document`, and must not double-fire through here.
+    fireEvent.keyDown(scrim(), { key: 'a' })
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('caps at maxHeightRatio and hugs its content by default', () => {
