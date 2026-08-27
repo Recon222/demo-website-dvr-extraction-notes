@@ -94,8 +94,28 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
         // Named colours are a DOCUMENTED safe input — warning on them is the noise that
         // gets a warning muted, and then the real one is missed.
         warn.mockClear()
-        withAlpha('transparent', 0.5)
+        for (const safe of ['transparent', 'currentColor', 'inherit', 'none']) {
+          withAlpha(safe, 0.5)
+        }
         expect(warn).not.toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('dev-warns for EVERY function notation, color-mix() above all (W0-F13)', () => {
+      // None of these is a documented-safe input: each returns unchanged with the requested
+      // alpha silently dropped. `color-mix()` is the one form this module's docblock BANS
+      // inside features/demo/** — warning on the malformed hex while staying quiet on the
+      // banned value is exactly backwards.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        for (const css of ['color-mix(in srgb, red 50%, blue)', 'hsl(210, 50%, 40%)', 'hsla(210, 50%, 40%, 0.5)', 'linear-gradient(180deg,#1F6B99,#17527A)']) {
+          warn.mockClear()
+          expect(withAlpha(css, 0.5), `${css} must come back unchanged`).toBe(css)
+          expect(warn, `${css} must dev-warn`).toHaveBeenCalledTimes(1)
+          expect(String(warn.mock.calls[0][0])).toContain('withAlpha')
+        }
       } finally {
         warn.mockRestore()
       }
