@@ -228,8 +228,8 @@ describe('Banner — the caller seams', () => {
  * hand-backs, and it is a tripwire rather than a note.
  *
  * D19 re-cut A71: U3.3 builds `Banner` and adopts it ONLY where no other lane touches the file;
- * the six cross-lane adoptions move to the phases that already open those files. The brief asked
- * for a `SEAM(U3.3)` comment inside each of those six. **That was not done, deliberately** —
+ * the cross-lane adoptions move to the phases that already open those files. The brief asked
+ * for a `SEAM(U3.3)` comment inside each of those files. **That was not done, deliberately** —
  * plan §6.1's "U2 ∥ U3 shared set" row is exactly those seven files, and D19's whole purpose is
  * that U3.3 does not open them. Writing a comment into all seven re-creates, for an inert
  * marker, the contention the re-cut removed (`_pane-chrome.tsx` is the sharpest: U2.4 holds
@@ -249,7 +249,9 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   ]
 
   /**
-   * The six D19 hand-backs, with the package that owes each one. When you adopt, DELETE your row
+   * The D19 hand-backs: SIX entries over SEVEN files — the plan pairs `AudioRecorderScreen`
+   * and `AudioPreviewScreen` as one entry, and the loop below checks all seven. Each row names
+   * the package that owes it. When you adopt, DELETE your row
    * here and add the file to `ADOPTED` above — do not edit a count, there isn't one.
    * `ImportModal.tsx` is deliberately absent from BOTH lists: see the refutation in
    * `docs/planning/demo-phone-ui-parity/reports/u3.3-implementation-report.md` (D12 defends the
@@ -297,7 +299,7 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     expect(found, 'a Banner adoption landed or vanished — update ADOPTED and say why').toEqual(ADOPTED)
   })
 
-  it('leaves all six hand-back sites unadopted, each still owned by its own package', () => {
+  it('leaves every D19 hand-back file unadopted, each still owned by its own package', () => {
     for (const [file, owner] of Object.entries(HANDED_BACK)) {
       const full = join(UI_ROOT, ...file.split('/'))
       // The file must still EXIST: a rename would silently empty this guard, which is the
