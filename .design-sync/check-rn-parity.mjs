@@ -376,6 +376,41 @@ export const PALETTE_KEYS = [
  * that file is ever thinned, they lose their last guard. (Plan §5, U1.1 row, states the
  * exclusion; this says what covers the gap.)
  *
+ * ## THE SHADOW EXCLUSION IS NOW ALL THREE TIERS — ledger §95, discharged by W2/F42
+ *
+ * `innerShadow` was the first case of a general shape, and U2/U4 landed the other two:
+ *
+ *   Layout.shadow.card    -> `GLASS.shadowCard`                (U1.2)
+ *   Layout.shadow.sheet   -> `sheet-chrome.ts`'s `SHEET_SHADOWS`   (U4.1)
+ *   Layout.shadow.dialog  -> `CentredDialog.tsx`'s `DIALOG_SHADOW` (U4.3)
+ *
+ * §95's trigger was "U4 landing `shadow.dialog`/`shadow.sheet` — that package adds the
+ * composing reader to the guard or records the gap once for all three". This is the second
+ * option, taken deliberately, and here is the reasoning so the next reader does not have to
+ * re-derive it.
+ *
+ * RN spends FIVE props on what CSS spends one: `shadowColor`, `shadowOffset {width,height}`,
+ * `shadowOpacity`, `shadowRadius` (plus Android's `elevation`, which has no CSS counterpart at
+ * all). A composing reader would have to fold `shadowColor`'s own alpha into `shadowOpacity`
+ * (`rgba(30,58,138,0.15)` x 1 -> 0.15, the mapping `button-recipe.ts:167-174` documents),
+ * carry the sign of a negative `height` for the upward sheet cast, and drop `elevation` — i.e.
+ * re-implement, in this file, the same hand-derivation the web recipes already perform. Two
+ * hand-derivations agreeing is not a contract; it is the "equal by transcription" failure the
+ * `innerShadow` paragraph above rejects, one layer further out.
+ *
+ * WHAT COVERS THE GAP INSTEAD, per tier — each is a literal shape pin over the composed CSS
+ * string, in the recipe's own suite, and each is the ONLY gate on its values:
+ *
+ *   card    `ui/__tests__/glass-tokens.test.ts`      (`GLASS.shadowCard`)
+ *   sheet   `ui/controls/__tests__/sheet-chrome.test.tsx` (`SHEET_SHADOWS`, both halves)
+ *   dialog  `ui/controls/__tests__/CentredDialog.test.tsx` (`DIALOG_SHADOW`)
+ *
+ * WHAT WOULD REOPEN IT: a phone-side change to any `Layout.shadow.*` value. Nothing here will
+ * see it — the three pins above compare the web string to itself, so they catch a demo-side
+ * regression and not drift. That is the accepted cost, and it is accepted because the
+ * alternative catches drift only if the reader's arithmetic is itself correct and maintained.
+ * Revisit if a shadow value ever moves on the phone, or if a fourth tier lands.
+ *
  * The two gradient stops are separate KEYS, not one, for the reason `readStop` takes an index:
  * an anchor row is the unit of PARSE-FAILED isolation, so a gradient whose second stop moves
  * must be able to fail without taking the first one's verdict with it.
