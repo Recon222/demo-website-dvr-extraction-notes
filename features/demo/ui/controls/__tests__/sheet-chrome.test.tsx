@@ -52,6 +52,24 @@ function decl(fragment: CSSProperties): Record<string, unknown> {
   return { ...fragment }
 }
 
+/**
+ * The four border colours as the DOM resolved them.
+ *
+ * Per-side on purpose: jsdom does NOT synthesize the `border-color` shorthand back from four
+ * longhands, so `el.style.borderColor` reads `''` over this fragment — a pin written against the
+ * shorthand would assert over an empty declaration and stay green after the tint is deleted
+ * (plan §4.2's trap). Verified by the negative assertion in the first-paint cell below.
+ * U4.2/U4.3 should read their adopted surfaces the same way.
+ */
+function sides(el: HTMLElement) {
+  return {
+    top: el.style.borderTopColor,
+    right: el.style.borderRightColor,
+    bottom: el.style.borderBottomColor,
+    left: el.style.borderLeftColor,
+  }
+}
+
 /** Render a fragment onto a div and read back what the DOM actually resolved. */
 function paint(style: CSSProperties): HTMLElement {
   const { container } = render(<div data-paint style={style} />)
@@ -109,12 +127,15 @@ describe('sheetSurface — the A38 ground', () => {
     expect(paint(sheetSurface).style.paddingBottom).toBe('')
   })
 
-  it('renders the lit edge on FIRST PAINT, not the side tint', () => {
+  it('renders the lit edge on FIRST PAINT, not the side tint — on all four sides', () => {
     const el = paint(sheetSurface)
-    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
-    expect(el.style.borderRightColor).toBe('rgba(28, 78, 132, 0.6)')
+    const TINT = 'rgba(28, 78, 132, 0.6)'
+    expect(sides(el)).toEqual({ top: LIT, right: TINT, bottom: TINT, left: TINT })
     expect(el.style.borderTopWidth).toBe('2px')
     expect(el.style.borderRightWidth).toBe('1px')
+    // …and the shorthand is NOT synthesized back from them. This is why every cell in this file
+    // reads per-side: `expect(el.style.borderColor).toBe(TINT)` would assert over nothing.
+    expect(el.style.borderColor).toBe('')
   })
 
   /**
