@@ -19,7 +19,11 @@ import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
  *     reports a skip inside a GREEN run — so on a checkout without the phone beside it, this
  *     file is the only thing holding all 48 values.
  *  3. **The tier SHAPE.** The guard reads named fields; it cannot see a tier that grew a key,
- *     lost one, or appeared in one half only.
+ *     lost one, or appeared in one half only. `toEqual` is exact in both directions, so the
+ *     48-value pin below carries this — measured, probe P2b: deleting a tier part kills it.
+ *     A separate runtime shape case was written and then DELETED for exactly that reason; the
+ *     extra-key direction is a compile error anyway, from the module's
+ *     `satisfies Record<ColorScheme, Record<GlassVariant, GlassTier>>`.
  *
  * ## Why the values are UNSPACED here and spaced on the phone
  *
@@ -109,24 +113,6 @@ describe('GLASS_TIER (SEAM(U1.1)) — the six glass tiers, both halves', () => {
         },
       },
     })
-  })
-
-  it('carries ONE key set across both halves — six tiers, four parts each', () => {
-    // The runtime half of what `satisfies Record<GlassVariant, GlassTier>` gives at compile
-    // time in the module. A tier present in one scheme and absent in the other is the failure
-    // `tokens/palette.ts:113` makes a type error for the palette; the tiers get the same rule
-    // because D2-amended binds `GLASS_TIER` to the `{ light, dark }` shape, not only `palette`.
-    expect(Object.keys(GLASS_TIER)).toEqual(['light', 'dark'])
-    const TIERS = ['card', 'nestedCard', 'elevated', 'header', 'sheet', 'recessed']
-    const PARTS = ['gradient', 'border', 'highlightTop', 'innerShadow']
-    for (const scheme of ['light', 'dark'] as const) {
-      expect(Object.keys(GLASS_TIER[scheme]), `${scheme} tier set`).toEqual(TIERS)
-      for (const tier of TIERS) {
-        const t = GLASS_TIER[scheme][tier as keyof (typeof GLASS_TIER)['light']]
-        expect(Object.keys(t), `${scheme}.${tier} parts`).toEqual(PARTS)
-        expect(t.gradient, `${scheme}.${tier} is a two-stop gradient`).toHaveLength(2)
-      }
-    }
   })
 
   it("makes dark `nestedCard` the SWAP of `card`'s stops, not a new pair (A33)", () => {

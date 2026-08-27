@@ -205,6 +205,31 @@ describe('glass tokens (P0.5 / G6)', () => {
     })
   })
 
+  it('keeps the four legacy composites DERIVED from GLASS_TIER (U1.1)', async () => {
+    const { GLASS_TIER } = await import('@/features/demo/ui/tokens/glass-tiers')
+    const { scheme } = await import('@/features/demo/ui/tokens/palette')
+    const t = GLASS_TIER[scheme]
+    // The same device as the `gradientAccent` line below, for the same reason: a RELATIONAL pin
+    // survives a legitimate re-tint and fails on a broken relationship.
+    //
+    // What it is really for, stated plainly because a probe cannot show it in one mutation:
+    // severing a derivation back to its own literal is INVISIBLE to the byte-exact shape pin
+    // above (measured — probe P4b, SURVIVED, exit 0), and the drift guard reads
+    // `tokens/glass-tiers.ts`, not this file. So a severed key plus a later phone-side re-tint
+    // would leave BOTH of those gates green while `/demo` renders the old gradient. This line
+    // is what fails in that second step.
+    expect(GLASS.gradientCard).toBe(`linear-gradient(180deg,${t.card.gradient[0]},${t.card.gradient[1]})`)
+    expect(GLASS.gradientCardDiag).toBe(`linear-gradient(135deg,${t.card.gradient[0]},${t.card.gradient[1]})`)
+    expect(GLASS.gradientPanel).toBe(
+      `linear-gradient(180deg,${t.elevated.gradient[0]},${t.elevated.gradient[1]})`,
+    )
+    expect(GLASS.borderSoft).toBe(`1px solid ${t.card.border}`)
+    expect(glassCard.background, 'the card fragment paints the card tier').toBe(GLASS.gradientCard)
+    // NOT `borderAccent`: it is still the demo's near-miss `rgba(43,140,193,0.3)` and
+    // `elevated.border` is `0.25`. U1.3 owns that value change and adds the fifth line here.
+    expect(GLASS.borderAccent).not.toBe(`1px solid ${t.elevated.border}`)
+  })
+
   it("keeps input-theme's accent stops aliased to GLASS (single-source restyle)", async () => {
     const { T } = await import('@/features/demo/ui/inputs/input-theme')
     expect(T.accentFrom).toBe(GLASS.accentFrom)
