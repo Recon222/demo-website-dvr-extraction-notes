@@ -24,6 +24,10 @@ import { useEffect, type RefObject } from 'react'
  * `document.activeElement` survives only as the fallback for an overlay nobody clicked open — a
  * finished pipeline, a store change.
  *
+ * The capture is SINGLE-USE (W3 rider F80): the mount effect consumes it, so one gesture supplies
+ * exactly one overlay's opener and anything mounting after it reads the live focus instead of a
+ * stale button.
+ *
  * ## What is deliberately NOT here
  *
  * `CentredDialog`'s `openDialogs` stack (its Escape-goes-to-the-topmost rule) stays in that file.
@@ -91,9 +95,22 @@ export function useOpenerFocusReturn(
   useEffect(() => {
     if (!enabled) return
     // The gesture's own origin wins; `document.activeElement` is the fallback for an overlay
-    // nobody clicked open. The captured value is connectivity-checked HERE as well as at restore
-    // time, so a stale origin left by an earlier interaction can never become this one's opener.
+    // nobody clicked open.
+    //
+    // W3 rider F80: the origin is SINGLE-USE. `isConnected` proves the element still EXISTS, not
+    // that the gesture which set it raised THIS overlay — a button clicked minutes ago is still
+    // connected, so an overlay opened by a store change with no gesture at all inherited it.
+    // Consuming the capture is what makes the guard match the claim, and the fallback on the next
+    // line is already the right answer for the second reader.
+    //
+    // It also fixes the STACKED case, which is the one that reaches a visitor. `DemoExperience`
+    // renders `AlertDialog` after every other overlay (`CentredDialog.tsx:170-176`) so an alert can
+    // be raised over an open confirmation. Both used to capture the same button; dismissing the
+    // alert then yanked focus out of the still-open confirmation to a control behind its scrim.
+    // Now the alert falls back to `document.activeElement` — the confirmation's own panel — and
+    // hands focus back there, which is where the visitor still is.
     const captured = activationOrigin?.isConnected ? activationOrigin : null
+    activationOrigin = null
     const active = document.activeElement
     const opener = captured ?? (active instanceof HTMLElement && active !== document.body ? active : null)
     focusRef?.current?.focus()
