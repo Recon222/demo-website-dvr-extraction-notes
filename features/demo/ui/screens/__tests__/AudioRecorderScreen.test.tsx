@@ -12,6 +12,7 @@ import {
   type AudioRecorderScreenProps,
 } from '@/features/demo/ui/screens/AudioRecorderScreen'
 import { RESTING_METER } from '@/features/demo/ui/inputs/useAudioAnalyser'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The recorder screen (matrix rows 67-68), rendered from props alone — which is why every
@@ -44,6 +45,46 @@ function props(over: Partial<AudioRecorderScreenProps> = {}): AudioRecorderScree
     ...over,
   }
 }
+
+/**
+ * F31. `STATUS_TONE_COLOR` (`AudioRecorderScreen.tsx:119-123`) is A69's engine owner after U3.2
+ * moved the paint out of `engine/logic/media`. `audio-levels.test.ts` covers the tone VOCABULARY
+ * — it renders nothing and sees no colour — so between the refactor and this block the three
+ * status colours had no observer at all: collapsing REC's red and PAUSED's gold onto
+ * `textSecondary` left the full suite green. Net protection LOSS through a correct refactor; the
+ * engine hexes had been pinned under the 80% gate before it.
+ */
+/** jsdom rewrites an inline hex to `rgb(r, g, b)` on read-back. */
+const rgb = (hex: string) =>
+  `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
+
+describe('AudioRecorderScreen — status tone paint (F31)', () => {
+  it('paints the dot and the label per phase, and never collapses REC onto PAUSED', () => {
+    const paintFor = (phase: AudioRecorderScreenProps['phase'], label: string) => {
+      const { unmount } = render(<AudioRecorderScreen {...props({ phase, canStop: phase !== 'idle' })} />)
+      const paint = {
+        dot: screen.getByTestId('recording-status-dot').style.background,
+        label: screen.getByText(label).style.color,
+      }
+      unmount()
+      return paint
+    }
+
+    // Phone `TimerCard.tsx:130-139`: error recording, warning paused, textSecondary otherwise.
+    // Read off the tokens — a literal would stay green through a re-point of any of the three.
+    const rec = paintFor('recording', 'REC')
+    const paused = paintFor('paused', 'PAUSED')
+    const ready = paintFor('idle', 'READY')
+    expect(rec).toEqual({ dot: rgb(colors.error), label: rgb(colors.error) })
+    expect(paused).toEqual({ dot: rgb(colors.warning), label: rgb(colors.warning) })
+    expect(ready).toEqual({ dot: rgb(colors.textSecondary), label: rgb(colors.textSecondary) })
+
+    // The mutation the review found surviving: two arms collapsed onto the neutral. Every
+    // equality above still holds one-by-one under a partial collapse, so the distinctness is
+    // asserted separately — a live microphone and a paused one must not read the same.
+    expect(new Set([rec.dot, paused.dot, ready.dot]).size).toBe(3)
+  })
+})
 
 const liveMeter = (level: number) => ({
   bars: new Array<number>(SPECTRUM_BAR_COUNT).fill(level),
