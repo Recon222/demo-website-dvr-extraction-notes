@@ -1,0 +1,5 @@
+# core.autocrlf=true is set on this box. Shell scripts checked out with CRLF break under Git
+# Bash — every line ends in a stray carriage return and the shell reports "command not found"
+# on the first one. .claude/hooks/*.sh run on every session start and every Bash call, and a
+# silently broken hook is worse than no hook, so pin them to LF regardless of autocrlf.
+*.sh text eol=lf
