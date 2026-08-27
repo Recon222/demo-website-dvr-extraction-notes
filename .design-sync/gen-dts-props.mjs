@@ -212,9 +212,23 @@ for (const [name, srcPath] of pinned.sort(([a], [b]) => a.localeCompare(b))) {
   }
 }
 
-// Preserve any hand-written entries already in the config — per the skill, dtsPropsFor
-// accumulates fixes from prior verify-loop iterations and must never be blown away.
-cfg.dtsPropsFor = { ...dtsPropsFor, ...(cfg.dtsPropsFor ?? {}) }
+// GENERATED WINS; hand-written entries survive only where nothing was generated.
+//
+// This spread used to be the other way round (`{ ...dtsPropsFor, ...cfg.dtsPropsFor }`) to
+// "preserve hand-written entries". That was self-defeating the moment this script first ran:
+// its OWN output lands in config.json and is then indistinguishable from a hand-written entry,
+// so every later run was a COMPLETE NO-OP that still printed "wrote dtsPropsFor for 33/33".
+// Measured on `feat/uiparity-w4` @ 780399e: the run computed `ModalShell` with 10 props
+// (including the required `closeAccessibilityLabel`) and `TabBar` with the four-tab union, then
+// wrote a file `git diff --numstat` reported as ZERO lines changed, leaving the config on a
+// 3-prop ModalShell and a 3-tab TabBar. A regeneration step that reports success and changes
+// nothing is exactly the class of defect D7 exists to catch.
+//
+// The preserve intent still holds where it is meaningful: a component the generator SKIPPED
+// (no props, no export found, or a checker error — see `report`) contributes no key here, so
+// any entry a human wrote for it passes through untouched. What can no longer happen is a stale
+// generated entry outliving the source it was generated from.
+cfg.dtsPropsFor = { ...(cfg.dtsPropsFor ?? {}), ...dtsPropsFor }
 writeFileSync(CFG_PATH, JSON.stringify(cfg, null, 2) + '\n')
 
 for (const [n, c, s] of report) console.log(`  ${n.padEnd(24)} ${String(c).padEnd(5)} ${s}`)
