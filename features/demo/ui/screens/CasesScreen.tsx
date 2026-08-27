@@ -8,7 +8,7 @@ import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButto
 import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -69,7 +69,14 @@ export function CasesScreen({
 
   return (
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 18px' }}>
+      {/* D15's GEOMETRY HALF (owner-ratified; the scroll-materialising blur stays deferred).
+          Phone `components/layout/MainHeader.tsx:105-135` after PR #125 issue 10, verbatim:
+          `paddingHorizontal: spacing.md` (16), `paddingTop`/`paddingBottom: spacing.xs` (4),
+          `minHeight: touchTarget.min` (44), and NO bottom margin — the phone deleted its
+          `marginBottom: md` outright because "inside OverlayHeader a child margin inflates
+          the measured glass box". `min` and not `large` (56): the phone's own comment calls
+          56 "a floor ABOVE the row's natural height ... padding wearing a different name". */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: `${spacing.xs}px ${spacing.md}px`, minHeight: touchTarget.min }}>
         <div style={{ fontSize: 30, fontWeight: 700, color: '#f0f4f8' }}>Cases</div>
         {/* Phone `MainHeader.tsx:49-74`: New Case then the gear, in that order, and only this
             header carries both. */}
