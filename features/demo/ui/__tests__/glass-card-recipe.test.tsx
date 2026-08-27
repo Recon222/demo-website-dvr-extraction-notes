@@ -74,8 +74,19 @@ function normGradient(value: string): string {
   return probe.style.backgroundImage
 }
 
-const CARD_GRADIENT = normGradient(GLASS.gradientCard)
-const DIAG_GRADIENT = normGradient(GLASS.gradientCardDiag)
+/**
+ * Every expectation below is composed from `tokens/glass-tiers.ts`, NEVER from the fragment
+ * under test. That is not style — it is what makes these assertions falsifiable. MEASURED:
+ * with `CARD_GRADIENT` read off `glassCard.background`, a mutation re-pointing the fragment at
+ * a different tier moved the expectation with it and the whole file stayed green (probes P11
+ * and P13, both SURVIVED). Reading the tier makes the same mutations fail, because the two
+ * sides of the comparison now come from two modules.
+ */
+const composed = (t: { gradient: readonly [string, string] }) =>
+  `linear-gradient(180deg,${t.gradient[0]},${t.gradient[1]})`
+
+const CARD_GRADIENT = normGradient(composed(tier.card))
+const DIAG_GRADIENT = normGradient(`linear-gradient(135deg,${tier.card.gradient[0]},${tier.card.gradient[1]})`)
 const HIGHLIGHT = normColor(tier.card.highlightTop)
 const SIDE_BORDER = normColor(tier.card.border)
 
@@ -224,7 +235,12 @@ describe('the card recipe reaches every glassCard consumer (U1.2 / A31, A32, A44
       expect(card.style.borderBottomColor).toBe(SIDE_BORDER)
       expect(card.style.borderLeftColor).toBe(SIDE_BORDER)
       expect(card.style.borderTopColor).not.toBe(card.style.borderRightColor)
-      // A32 + A44 on one declaration: the tier's inset, then the card elevation.
+      // A32 + A44 on one declaration: the tier's inset, then the card elevation. This line
+      // pins the COMPOSITION — that both halves reach the DOM, in that order (probe P6:
+      // dropping the elevation half KILLS it). `GLASS.shadowCard`'s VALUE is pinned by the
+      // literal in `glass-tokens.test.ts`, not here: a `0 4px 8px -> 9px` drift survives this
+      // line (probe P7) and dies there, and duplicating A44's literal in two files would make
+      // a legitimate re-base a two-file edit for no extra falsifiability.
       expect(card.style.boxShadow).toBe(`inset 0 1px 0 ${tier.card.innerShadow}, ${GLASS.shadowCard}`)
     }
   })
@@ -323,10 +339,10 @@ describe('the depth rule holds — no card at radius 16 (U1.2 / A43)', () => {
  * `.toBe(NESTED_GRADIENT)` is what makes it a real pin — asserting merely "not the old
  * literal" would pass over any new private gradient.
  */
-const NESTED_GRADIENT = normGradient(glassCardNested.background)
+const NESTED_GRADIENT = normGradient(composed(tier.nestedCard))
 const NESTED_HIGHLIGHT = normColor(tier.nestedCard.highlightTop)
 const NESTED_BORDER = normColor(tier.nestedCard.border)
-const PANEL_GRADIENT = normGradient(GLASS.gradientPanel)
+const PANEL_GRADIENT = normGradient(composed(tier.elevated))
 
 function expectNestedTier(el: HTMLElement) {
   expect(el.style.backgroundImage).toBe(NESTED_GRADIENT)
