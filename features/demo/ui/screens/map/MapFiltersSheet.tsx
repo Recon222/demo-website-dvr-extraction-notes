@@ -417,7 +417,10 @@ export function MapFiltersSheet({
               same file and the same failure class. The phone's two-state name (`:175-177`,
               "Activate/Deactivate proximity mode") shares NO substring with the visible "Filter
               by radius", so speech input could not address the switch at all. Dropped rather than
-              appended, because `role="switch"` + `aria-checked` already announce the direction:
+              appended, because the switch ROLE plus `aria-checked` already announce the direction
+              (the role literal is deliberately not spelled here — `one-switch-renderer.test.ts`
+              is a raw source scan and a comment naming it is indistinguishable from a fourth
+              track; U5.1 and U5.2 tripped the sibling banned-literal scan the same way):
               "Activate proximity mode, switch, off" states "off" twice and the phone's RN
               `Switch` carries `accessibilityState` for the same reason. Named divergence. */}
           <Toggle
