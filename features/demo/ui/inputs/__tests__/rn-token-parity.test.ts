@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
@@ -13,6 +14,7 @@ import {
   rnAvailable,
   rnTierScope,
   RN_ROOT,
+  SCHEME_INVARIANT,
   TIER_KEYS,
   TIER_PARTS,
   webTierScope,
@@ -101,6 +103,27 @@ describe('region() — what the slice actually contains', () => {
   })
 })
 
+// F21. Runs WITHOUT the sibling repo — it pins the reader, not an anchor. `readStop` used to
+// match an unbounded tuple, so `['a','b','c']` read as `['a','b']` and the row reported OK
+// against a gradient the demo has no way to render. Truncation was the only malformed shape the
+// reader accepted silently; every other one already threw.
+describe('readStop — the tuple reader the 48 gradient rows go through', () => {
+  it('reads both stops of a two-element tuple', () => {
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 1)).toBe('rgba(1,2,3,0.5)')
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 2)).toBe('rgba(4,5,6,0.5)')
+  })
+
+  it('REFUSES a longer tuple instead of silently comparing its first two stops', () => {
+    // The whole point: a THREE-stop phone gradient must become a PARSE-FAILED row that someone
+    // repoints, never an OK row hiding a stop the web side cannot express.
+    expect(() => readStop("gradient: ['a', 'b', 'c']", 'gradient', 1)).toThrow(/tuple stops not found/)
+  })
+
+  it('still refuses a one-element tuple', () => {
+    expect(() => readStop("gradient: ['a']", 'gradient', 1)).toThrow(/tuple stops not found/)
+  })
+})
+
 describe('RN <-> Web token parity (design-system drift guard)', () => {
   it.skipIf(!rnAvailable())(`no anchor has drifted from the RN app (${RN_ROOT})`, () => {
     const { drift } = checkParity()
@@ -151,13 +174,36 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
 
   it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
     const { anchors } = checkParity()
-    expect(TIER_KEYS.length, 'six tiers').toBe(6)
-    // FOUR parts, not five. `innerShadow` is deliberately unanchored — it is not a CSS value on
-    // either side, so an anchor on it would compare two transcriptions rather than a contract.
-    // Its twelve values are pinned by `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE
-    // else; thinning that file silently removes their last guard.
-    expect(TIER_PARTS.length, 'gradient[0], gradient[1], border, highlightTop').toBe(4)
-    expect(TIER_ANCHOR_KEYS.length, '6 tiers x 4 readable parts').toBe(24)
+    // MEMBERSHIP, not cardinality — review F16, and the same reasoning W0/F2 applied to
+    // `PALETTE_KEYS` three cases above. The guard is `.mjs` and cannot import this TS module, so
+    // its two tier lists are hand-maintained; held to nothing but themselves, a SEVENTH tier
+    // lands with the guard unchanged and a SHRINK that drops `recessed` reaches green by editing
+    // one number here. Both shapes SURVIVED the lanes' probes against the old `.toBe(6/4/24)`.
+    // These two assertions are the only ones in this case that compare the lists to something
+    // outside them, which is what makes the loops below non-tautological.
+    expect([...TIER_KEYS].sort(), 'the guard must anchor exactly the six glass tiers').toEqual(
+      Object.keys(GLASS_TIER.dark).sort(),
+    )
+    // `innerShadow` is unanchored BY NAME rather than by being the difference between 4 and 5 —
+    // it is not a CSS value on either side, so an anchor on it would compare two transcriptions
+    // rather than a contract. Its twelve values are pinned by
+    // `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE else; thinning that file removes
+    // their last guard. A FIFTH tier part added to the module reds here until someone either
+    // anchors it or names it in `UNANCHORED` with a reason.
+    //
+    // `TIER_PARTS` spells the gradient as two stops (`gradientTop`/`gradientBot`) because each is
+    // its own anchor ROW — the unit of PARSE-FAILED isolation — where the module has one
+    // `gradient` tuple. So the stops fold back to their field name before comparing.
+    const UNANCHORED = ['innerShadow']
+    // `indexOf` dedupe, not `[...new Set()]`: tsconfig targets es5, where spreading a Set is
+    // TS2802. Four elements — a Set would buy nothing but the flag.
+    const anchoredFields = TIER_PARTS.map((p: string) =>
+      p.startsWith('gradient') ? 'gradient' : p,
+    ).filter((f: string, i: number, all: string[]) => all.indexOf(f) === i)
+    expect(
+      [...anchoredFields, ...UNANCHORED].sort(),
+      'every part of a tier is either anchored or named unanchored',
+    ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
 
     for (const key of TIER_ANCHOR_KEYS) {
       const schemes = anchors
@@ -195,14 +241,7 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
   })
 
   it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
-    const { anchors } = checkParity()
-    const at = (key: string, scheme: string): Anchor => {
-      const row = anchors.find((a: Anchor) => a.key === key && a.scheme === scheme)
-      // Say what is missing. Without this, dropping a scheme fails here as
-      // `TypeError: Cannot read properties of undefined (reading 'rn')` — measured.
-      if (!row) throw new Error(`no anchor row for ${key}.${scheme}: the ${scheme} half is missing`)
-      return row
-    }
+    const { stuck } = checkParity()
     // The failure this exists for: a "light" reader whose region markers actually slice the
     // DARK block still reports zero drift, because both sides then compare the same block to
     // itself. Every assertion above stays green through it.
@@ -219,15 +258,26 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // case at the bottom of this file pins that for one key; this pins it for all 24, on both
     // sides, against the live anchor table rather than against a hand-built scope. None of the
     // 24 is scheme-invariant, so none is excluded.
-    const SCHEME_INVARIANT = new Set(['onPrimary', 'onError'])
-    for (const key of [...PALETTE_KEYS, ...TIER_ANCHOR_KEYS].filter((k: string) => !SCHEME_INVARIANT.has(k))) {
-      expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
-        at(key, 'dark').rn,
-      )
-      expect(at(key, 'light').web, `web ${key}: the light and dark reads returned the same value`).not.toBe(
-        at(key, 'dark').web,
-      )
-    }
+    // ASSERTED OFF THE GUARD'S OWN RESULT, not re-derived here (review F17). This case used to
+    // rebuild the comparison from `anchors`, which left the standalone CLI — the entry point the
+    // module header calls authoritative — with no such check at all: it printed
+    // "all 115 anchor rows match" and exited 0 over a reader stuck on the light half. `stuck` now
+    // lives in `checkParity()` and BOTH entry points fail on it.
+    //
+    // What keeps an empty `stuck` from meaning "nothing was examined" is the pair of
+    // both-halves loops above: every palette key and every tier key is asserted to have exactly
+    // a light and a dark row, and `stuck` inspects precisely the keys that have both.
+    expect(
+      stuck.map((s: { key: string; side: string }) => `${s.key} (${s.side})`),
+      stuck
+        .map((s: { key: string; side: string; value: string }) => `${s.key} ${s.side}=${s.value}`)
+        .join('; '),
+    ).toEqual([])
+    // The exclusion list is the guard's, imported rather than restated — one place, one meaning.
+    expect([...SCHEME_INVARIANT].sort(), 'the only by-design scheme-invariant keys').toEqual([
+      'onError',
+      'onPrimary',
+    ])
   })
 })
 
