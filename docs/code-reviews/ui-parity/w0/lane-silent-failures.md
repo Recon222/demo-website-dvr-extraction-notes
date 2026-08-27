@@ -1,5 +1,45 @@
 # Lane: silent-failures — Wave 0 (U0), PR #39
 
+## Round 2 (fix delta)
+
+Head: `feat/uiparity-u0` @ `281a95a`. Authority: the PR #39 round-2 mapping comment, which carries
+my r1-delta finding as **F13 [LOW] → `2169c27`**. Read the delta only: that commit and the lines it
+touches. Read-only run in the shared worktree; no mutation, so no probe worktree this round.
+
+**F13 (`looksLikeColour` gate too narrow) — FIXED.**
+`scale.ts:117-128`: the predicate is now `/^(#|[a-z-]+\()/i` — **any** function notation warns, not
+just `rgb()`/`rgba()`. I verified both directions by evaluating the shipped predicate rather than
+reading it:
+
+- **Now warns (was silent):** `color-mix(in srgb, red 50%, blue)`, `hsl(...)`, `hsla(...)`,
+  `linear-gradient(...)` — and, correctly, `var(--...)` and `oklch(...)`, which the fix did not name
+  but which drop the requested alpha in exactly the same way. Every input the widened predicate now
+  catches is a genuine silent-degrade input, so there is no false positive in it.
+- **Still silent:** all four documented-safe keywords — `transparent`, `currentColor`, `inherit`,
+  `none` — plus `initial` and `unset`. `[a-z-]+\(` requires the paren, so a bare keyword cannot
+  match and the noise argument the gate exists for is preserved intact.
+
+**No double-warn on a plain hex,** and the mechanism is stronger than the predicate: the warn arm at
+`:142-145` is only reached when `parseColor` returns `null`, so a parseable `#1F6B99` never consults
+`looksLikeColour` at all — zero warns, not one. Only an UNPARSEABLE hex (`#zzz`) reaches it, and the
+new pin asserts `toHaveBeenCalledTimes(1)` per input, so a second warn on one call would red. The
+author's R6 noise probe is backed by shipped pins in both directions: the safe-keyword loop calls
+`withAlpha` on all four and asserts the spy was never called, and the new case asserts exactly one
+call carrying `withAlpha` for each of the four function forms.
+
+`pnpm exec vitest run features/demo/ui/tokens/__tests__/scale.test.ts` — **20 passed**, exit 0.
+
+No fix-introduced regression in `2169c27`'s blast radius: the commit touches only the predicate, its
+docblock and `scale.test.ts`. `withAlpha`'s return contract, `flattenOver`'s unconditional warn arm
+and `parseColor` are unchanged.
+
+### Round 2 Summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+F13: **FIXED**. No new findings. No foreign content in my lane file; I wrote no other path.
+Verdict: **APPROVE**
+
+---
+
 ## Round 1 (fix delta)
 
 Head reviewed: `feat/uiparity-u0` @ `15e5a6f`. Delta read: `git diff 10553c8..15e5a6f` — I read only

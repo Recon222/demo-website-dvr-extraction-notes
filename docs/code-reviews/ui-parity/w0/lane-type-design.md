@@ -1,5 +1,92 @@
 # Lane: type-design - Wave 0 (U0), PR #39
 
+## Round 2 (fix delta)
+
+Warm seat, targeted round. Phase branch `feat/uiparity-u0` @ `281a95a`. Authority: the round-2
+fix-mapping comment on PR #39. Probes ran in `probe/w0d2-types-f11` (own worktree off `281a95a`),
+torn down via `tools/worktree-remove.ps1` - "unlinked 549 junction(s) in 2 pass(es)", `.pnpm`
+240 -> 240, exit 0.
+
+Baseline at `281a95a` in the probe tree, BEFORE any mutation: `tsc --noEmit --incremental false`
+-> **EXIT 0**; `rn-token-parity.test.ts` -> **12 passed, exit 0** (11 in round 1; the membership
+assertion became its own case).
+
+### F11 [HIGH] - membership pin gated by `skipIf` -> **FIXED**
+
+`c93c05d` lifts the assertion out of the gated case into its own ungated `it` at
+`rn-token-parity.test.ts:87`, inside the block F4 had already established for local-only cases -
+renamed to `the guard's local invariants - nothing here reads the phone repo`, with a header
+comment stating the rule for the next person ("if it reads nothing outside this repo, it belongs
+here"). That is the fix I named, in the place I named.
+
+**Re-ran my Probe B at the merged head, unchanged.** Mutated copy: the canonical
+`.design-sync/check-rn-parity.mjs`. Mutation: `PALETTE_KEYS` `'link'` -> a duplicate `'card'`.
+Scenario: phone repo absent (RN path re-pointed at a non-existent sibling - declared, as in round
+one; the phone repo itself was never touched).
+
+```
+round 1, 15e5a6f  SURVIVED  exit 0   Tests  5 passed | 6 skipped (11)
+round 2, 281a95a  KILLED    exit 1   Tests  1 failed | 5 passed | 6 skipped (12)
+                  failing case: "the guard's local invariants - nothing here reads the
+                  phone repo > anchors exactly the palette tokens, no more and no fewer"
+```
+
+The round-1 survivor is closed on the condition that produced it.
+
+Two things I checked rather than took from the commit body:
+- **The right assertion stayed gated.** `anchors.length` (`:139-142`) still lives inside
+  `it.skipIf(!rnAvailable())`, correctly - it reads `checkParity()`, which reads the phone's
+  `Colors.ts`. The commit body's rejected alternative (un-gate the whole case) would have turned
+  an absent sibling repo from a skip into a hard failure for every contributor; moving the
+  assertion rather than the gate is the right call and I agree with the reasoning.
+- **The ungated block stays ungated-safe.** Its imports are `palette` (local TS) and
+  `PALETTE_KEYS` from the `.mjs`, whose module top level only resolves paths and reads no files.
+  Confirmed empirically - the probe above ran the block to completion with the phone absent.
+
+### F11 touch-point [LOW] - stringly `SCHEME_INVARIANT` -> **FIXED**
+
+`:167` is now
+`const SCHEME_INVARIANT: ReadonlySet<string> = new Set<PaletteToken>(['onPrimary', 'onError'])`.
+The `ReadonlySet<string>` annotation is the right complement: it keeps `.has(k)` accepting the
+untyped `.mjs` key without a cast, while the constructor's type argument constrains the contents.
+
+**Probed the claim rather than reading it.** Mutated copy: the canonical
+`rn-token-parity.test.ts`. Mutation: `'onError'` -> `'onErrror'` in the exclusion set.
+Result: **KILLED at compile time, EXIT 2** -
+`rn-token-parity.test.ts(167,55): error TS2769: No overload matches this call. ... Argument of
+type 'string[]' is not assignable to parameter of type 'Iterable<"link" | "error" | ... |
+"disabledText">'`. Exactly the misleading-runtime-red-to-compile-error conversion the finding
+asked for.
+
+### Blast radius of the describe move
+
+No regressions found. The rename touches one `describe` title and no assertion semantics; case
+count went 11 -> 12 (the membership assertion split out of a case that had four assertions into
+its own); `tsc` exit 0; the file is 12/12 green with the phone present and 5 passed / 6 skipped
+with it absent - and, per the probe above, now RED on a corrupted key list in both conditions.
+Restore proved: `git checkout --`, `git diff` **0 bytes**, file green again at 12/12.
+
+F12 and F13 belong to other lanes; I did not evaluate them.
+
+---
+
+## Type Design Summary (Round 2 fix delta)
+CRITICAL: 0 - HIGH: 0 - MEDIUM: 0 - LOW: 0
+Prior-round findings: F11 **FIXED** - F11 touch-point (`SCHEME_INVARIANT`) **FIXED** (0 PARTIAL, 0 UNFIXED)
+Verdict: **APPROVE**
+
+| Check | Result |
+|---|---|
+| Fix addresses the finding, not the symptom | **yes** - the assertion moved, the gate stayed where it is correct |
+| Fix-introduced regressions in blast radius | **none** |
+| Mutation probes this round | 2 - **2 KILLED, 0 SURVIVED** (round-1 Probe B re-run; the exclusion-set typo). Restore proved byte-identical; probe worktree torn down with the script's proof line |
+
+Out-of-lane observations: none.
+
+---
+
+# Lane: type-design - Wave 0 (U0), PR #39
+
 ## Round 1 (fix delta)
 
 Warm seat. Phase branch `feat/uiparity-u0` @ `15e5a6f`, delta `10553c8..15e5a6f`. Authority: the

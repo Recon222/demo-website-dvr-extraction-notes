@@ -1,5 +1,80 @@
 # Lane: tests — Wave 0 (phase U0), PR #39
 
+## Round 2 (fix delta)
+
+Head `281a95a` · authority: the **W0 fix round 2** mapping comment on PR #39 (read; it covers F11,
+F12, F13). Warm seat — I read only the two fix commits and the lines they touched.
+Probes in my own worktree `worktrees/probe-w0d2-tests` cut from `281a95a`, torn down with the
+script: *`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0*.
+**Provenance: the canonical source in that worktree at `281a95a`.** Motion mode: default,
+motion-ON, for the four render probes (nothing on these paths is motion-gated).
+
+### Per-finding status
+
+| F-ID | Finding | Status | Proof |
+|---|---|---|---|
+| F12 | MEDIUM — four `MediaLibrarySheet` F1 sites unpinned (**mine**, r1) | **FIXED** | probes R1-R4, all four KILLED singly |
+| F11 | HIGH — membership pin sat inside a `skipIf` case (not mine; asked to check) | **FIXED** | probe R5 KILLED with the phone repo ABSENT; `anchors.length` correctly still gated |
+
+Baseline in my worktree before any mutation: `MediaLibrarySheet.test.tsx` + `rn-token-parity.test.ts`
+= **56 passed**, exit 0; full suite **3522 passed | 15 todo**, exit 0 (up +2 from r1's 3520).
+
+```
+PROBE R1-R4 — F12: each of the four accent-as-mark sites reverted, ONE AT A TIME
+Target:      features/demo/ui/screens/MediaLibrarySheet.tsx:226, 227, 246, 577
+Claimed pin: MediaLibrarySheet.test.tsx — the four `LINK` assertions added by b4de0a1
+Mutation:    colors.link -> GLASS.accentFrom   (i.e. exactly the pre-F1 code, 2.54:1 as text)
+Result:      ALL FOUR KILLED, each exit 1, each `Tests 1 failed | 43 passed`
+  :226 -> "the tabs (row 58) > opens on Photos"
+  :227 -> "the tabs (row 58) > opens on Photos"
+  :246 -> "the tabs (row 58) > badges a populated tab and leaves an empty one unbadged"
+  :577 -> "selection (row 58 — auto-select-first) > marks the newest item of the opening tab as current"
+  The author's claim that each fails singly holds. `:226`/`:227` share a case because both
+  assertions live in it — each is still independently falsifiable, which is what the pin owes.
+  My r1 SURVIVED probe was `:226` (then numbered `:226` pre-shift); it now reds.
+  BETTER THAN I ASKED FOR: the fix added negative controls I did not request — the INACTIVE tab
+  must NOT be `link` (`:...not.toBe(LINK)`) and the unselected row must NOT carry the rail. Those
+  catch the opposite error (painting every tab the accent), which a presence-only pin would miss.
+Provenance:  canonical source, probe worktree at 281a95a.
+Restore:     verified byte-identical after each of the four (git status --porcelain empty)
+
+PROBE R5 — F11: does the membership pin actually run without the phone repo?
+Environment: the sibling phone checkout made unreachable in my probe copy alone
+             (`const RN = resolve(WEB,'..','..','NO_SUCH_PHONE_REPO')`), which is the documented
+             contributor/CI condition F11 is about. Declared as an ENVIRONMENT simulation, not a
+             code mutation — `rnAvailable()` printed `false` to confirm it took effect.
+  ARM 2 (control, environment only): Tests 6 passed | 6 skipped (12), exit 0.
+             Six local cases still RUN; the six phone-reading cases skip.
+  ARM 1 (one code mutation on top): PALETTE_KEYS 'link' -> 'card'
+Claimed pin: rn-token-parity.test.ts — "anchors exactly the palette tokens, no more and no fewer",
+             now in the ungated `the guard's local invariants` describe
+Result:      KILLED (exit 1) — 12 tests | 1 failed | 6 skipped
+  × anchors exactly the palette tokens, no more and no fewer
+  AssertionError: the guard must anchor exactly the palette tokens:
+    expected [ 'background', …(31) ] to deeply equal [ 'background', …(31) ]
+  This is the exact mutation that SURVIVED at r1 with the phone absent. It now reds on a box
+  that has never seen the phone repo.
+ANSWER TO THE QUESTION ASKED — `anchors.length` correctly STAYS GATED. It reads `checkParity()`,
+  whose two sides include the phone's `Colors.ts`, so it belongs behind `skipIf` and it is still
+  there: arm 2 shows it among the 6 SKIPPED, not among the 6 that ran, and not erroring. The split
+  is drawn on the right line — "what does this assertion read?" — and the new describe's docblock
+  states that rule for whoever adds the next case.
+Provenance:  canonical source.  Restore: verified byte-identical.
+```
+
+### Fix-introduced regressions
+
+**None.** Full suite exit 0 at `281a95a` (269 files / **3522 passed** | 15 todo, +2 from r1), tree
+clean, `git diff 281a95a` empty after all five probes. F13 (`looksLikeColour` widened) was outside
+the scope I was asked for and I did not probe it; the silent-failures lane owns that one.
+
+### Round 2 summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 — **no new findings.**
+F12 **FIXED** · F11 **FIXED**. Probes run: **5** · Killed: **5** · Survived: **0**.
+Verdict: **APPROVE**
+
+---
+
 ## Round 1 (fix delta)
 
 Head `15e5a6f` · fix diff `10553c8..15e5a6f` · authority: the fix-mapping comment on PR #39
