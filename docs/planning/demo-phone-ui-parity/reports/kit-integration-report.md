@@ -328,3 +328,81 @@ resolves the corrected one. Review workflow one-liner now names `dt-review-aggre
 7. **`dt-partner` is `model: fable` while `dt-partner-opus` is `model: opus`.** HANDOFF §2 names one
    warm `dt-partner` (Fable) for the orchestrator's legwork — consistent — but note the fleet now has
    two partner seats and only one is budgeted in the roster.
+
+---
+
+# Appendix — contradiction resolutions (`0a04995`)
+
+Rules applied, per the coordinator: **(1)** the newest kit rule wins over older restatements;
+**(2)** the git-guard wins over prose that contradicts it; **(3)** where a v1 HANDOFF §4 rule and the
+playbook say the same thing differently, the playbook is canonical and v1's file is archive — fix live
+files only.
+
+**0. I got the worktree hazard backwards on the first pass** — *no file change; process note.*
+Already fixed in `fb3b437`. Kept in the list because the lesson is the one the mutation-testing skill
+itself teaches: I wrote "no junctions ever" from a plausible mental model instead of probing, in the
+one document whose subject is not trusting unprobed claims.
+
+**1. The playbook's WIP remedy was blocked by the guard the playbook asks for** — *RESOLVED, rule (2).*
+`hazard-playbook.md` "Git — the two that destroy work" now reads
+`git add <named paths> && git commit -m "wip: <what>"`, with the reason inline: `-A` sweeps every dirty
+file including a sibling agent's in-flight edit, which is the incident recorded three paragraphs below
+it (`commit -a` on a doc change swept an implementer's edit into an unrelated commit and left a review
+finding with no traceable fix). Verified against the hook:
+
+```
+git add features/demo/foo.ts && git commit -m "wip: half a port"   -> rc=0
+git add -A && git commit -m "wip: x"                               -> rc=2
+```
+
+**2. Who writes the deferral ledger** — *RESOLVED, rule (1). `dt-review-aggregator` is sole writer,
+everywhere.* Five live passages changed:
+
+| File | Was | Now |
+|---|---|---|
+| `CLAUDE.md:95` ("Deferral ledger") | "Log every deferral there **before merging**" | aggregator is sole writer; everyone else *proposes* in their report; no reserved ranges, no "next free §" |
+| `.claude/skills/demo-code-review/SKILL.md:368` | "must be logged in deferred.md before merge… Number the new entry after the current last one" | propose in your report; the aggregator judges and writes the row; "do not edit the file yourself, and do not reserve or claim a § range" |
+| `.claude/agents/opus-implementer.md:33` | "go to deferred.md… check the current max § first" | PROPOSE in report; aggregator writes |
+| `.claude/agents/opus-implementer-high.md:26` | "Deferrals → deferred.md house format (check max § first)" | same |
+| `.claude/agents/opus-implementer-max.md:34` | same | same |
+
+Verified: `grep -rn "next free §\|max § first\|reserve.*§ range" .claude/ CLAUDE.md` now returns only
+the three passages that *retire* ranges (`dt-review-aggregator.md:171`,
+`fleet-orchestration/SKILL.md:92`, `CLAUDE.md:95`) plus the new demo-code-review sentence.
+The review-lane personas were **not** touched — they only ever say to *read* the ledger before filing,
+which is correct and is what `reviewer-contract.md` §4 relies on.
+
+**Still outstanding, and not mine to fix:** v2 `HANDOFF.md` §4 (planning branch, another agent's file)
+still carries v1's "Agents DO append to `docs/code-reviews/deferred.md` (next free §, check first)".
+It is the last live statement of the retired rule. Needs one line changed before U0 briefs go out.
+
+**3. Review artifact naming** — *RESOLVED, rule (1).* `CLAUDE.md`'s Review-workflow bullet said reviews
+live in `docs/code-reviews/` as `pr-<N>-review.md` / `pr-<N>-fixes-review.md`. It now states both
+forms and which applies: a one-off PR review keeps the flat filenames; a **campaign phase** gets its
+own directory holding lane files + the vetted doc — `docs/code-reviews/parity/p<N>/` (v1),
+`docs/code-reviews/ui-parity/u<N>/` (this effort). Phase reviews use the directory form, matching the
+mapping table in `fleet-orchestration/SKILL.md` and `GATES.md` gate 9.
+
+**4. Same-tree probes** — *RESOLVED as no-change, rule (3).* `reviewer-contract.md` §2's narrow
+carve-out (a same-tree probe *declared explicitly, with a verified revert, in the finding itself*) is
+the kit and therefore canonical; v1 HANDOFF §4's "own worktree or serialise full-suite runs" is
+archive and left untouched. No live file asserts the archive's version, so nothing needed editing. The
+practical bar is unchanged and is now higher than it looks: the playbook's *"commit the fix FIRST,
+then probe"* rule and the measured teardown cost (`tools/worktree-remove.ps1`) both apply, so the
+exception is for a probe you can revert and prove, not for convenience.
+
+**5. Device-pass checkpoints (U1/U5/U8 vs U1/U4/U5)** — *left flagged, per instruction.* `GATES.md`
+gate 13 still carries the in-situ ⚠ naming both sources and following `02-ratification-brief.md:19`.
+The plan writer is resolving it to wave boundaries this round; awaiting final wording to paste in.
+
+**6. `model:` frontmatter vs HANDOFF §2's explicit-spawn directive** — *RESOLVED as no-change.* All
+nine lanes now carry `model: opus` in their definitions (`337dc52`), so §2's "spawn with an EXPLICIT
+`model`" is belt-and-braces rather than load-bearing. The directive is still correct and still safe;
+only its stated *reason* ("most definitions carry no model frontmatter") is now out of date. No live
+file on `master` asserts it — it lives in the planning-branch HANDOFF §2 — so nothing to edit here.
+
+**7. Two partner seats (`dt-partner` = fable, `dt-partner-opus` = opus)** — *RESOLVED as no-change; a
+budget note, not a contradiction.* HANDOFF §2 budgets one warm `dt-partner` (Fable), which is
+consistent with the personas. `dt-partner-opus` exists as a second, context-heavy seat and is
+unbudgeted; the orchestrator should either budget it or leave it idle deliberately. Per
+`fleet-orchestration/SKILL.md` §2, an idle tier costs nothing, so leaving it unspawned is a valid call.
