@@ -186,7 +186,16 @@ describe('the well is a well on the ground the demo actually paints it on', () =
 
   function deltaE(a: string, b: string): number {
     const lab = (c: string): [number, number, number] => {
-      const [r, g, bl] = (c.match(/\d+/g) as string[]).map(Number)
+      const [r, g, bl] = (c.match(/\d+/g) ?? []).map(Number)
+      // THROW, never NaN (W2 review F40). `NaN < 3 || NaN > 12` is FALSE, so an unmeasurable
+      // colour used to fall straight through the offender filter and the row could not tell
+      // "in band" from "could not be measured" — which is how the hex-parsed-as-decimal defect
+      // survived its own probe. `palette-contrast.test.ts:71` throws for the same reason; that
+      // is the house shape. Guarding here rather than at the call site means a future caller
+      // cannot undo it.
+      if (![r, g, bl].every((v) => Number.isFinite(v))) {
+        throw new Error(`glass-well-recipe: cannot measure "${c}" — expected rgb(r, g, b)`)
+      }
       const lin = (v: number) => (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
       const [R, G, B] = [lin(r), lin(g), lin(bl)]
       const X = (0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047
@@ -201,9 +210,14 @@ describe('the well is a well on the ground the demo actually paints it on', () =
   }
 
   it('holds row 33s two-sided 3-12 dE per stop against PickerSheets panel', () => {
-    const offenders = tier.recessed.gradient
-      .map((stop, index) => ({ index, dE: deltaE(flattenOver(stop, PANEL), PANEL) }))
-      .filter(({ dE }) => dE < 3 || dE > 12)
-    expect(offenders).toEqual([])
+    const measured = tier.recessed.gradient.map((stop, index) => ({
+      index,
+      dE: deltaE(flattenOver(stop, PANEL), PANEL),
+    }))
+    // Asserted BEFORE the band filter: a filter over an unmeasurable value is vacuous, and
+    // `.toEqual([])` over an empty input is the shape a vacuous row hides behind (F40).
+    expect(measured.every(({ dE }) => Number.isFinite(dE))).toBe(true)
+    expect(measured).toHaveLength(2)
+    expect(measured.filter(({ dE }) => dE < 3 || dE > 12)).toEqual([])
   })
 })

@@ -131,7 +131,11 @@ async function main() {
       if (await cancel.count()) await cancel.click();
       await page.waitForTimeout(500);
     }
-    const close = p.getByRole('button', { name: /^(Close|Done)$/i }).first();
+    // W2 made `closeAccessibilityLabel` REQUIRED on ModalShell, so every sheet's close button
+    // now carries a specific name ("Close media library", "Close import picker", ...). The old
+    // `/^(Close|Done)$/i` matched none of them: the sheet stayed open, its scrim swallowed the
+    // drawer's Menu button, and S5 died on a 30 s click timeout. `\b` keeps Close/Done working.
+    const close = p.getByRole('button', { name: /^(Close|Done)\b/i }).first();
     if (await close.count()) { await close.click(); await page.waitForTimeout(800); }
   });
 

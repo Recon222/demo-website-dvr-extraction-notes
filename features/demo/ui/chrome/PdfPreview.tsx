@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 
 export interface PdfPreviewProps {
   title: string
@@ -25,6 +26,7 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const saveBtnRef = useRef<HTMLButtonElement | null>(null)
   const [printNotice, setPrintNotice] = useState<string | null>(null)
+  const reducedMotion = useReducedMotion()
   // R-47: teardown for the in-flight print attempt (armed beforeprint listener + pending
   // verdict timer). Torn down at the start of the next attempt and on unmount — never
   // mid-attempt, so a late success signal can still retract a wrong verdict.
@@ -133,7 +135,7 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
   }, [])
 
   const content = (
-    <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: 'screenIn 0.3s ease', pointerEvents: 'auto' }}>
+    <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: reducedMotion ? undefined : 'screenIn 0.3s ease', pointerEvents: 'auto' }}>
       <div style={{ padding: '50px 16px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3340' }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
         <button type="button" aria-label="Close preview" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none' }}>

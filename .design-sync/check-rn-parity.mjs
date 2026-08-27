@@ -280,13 +280,25 @@ export const webTierScope = (scheme, tier) => ({
  * SCHEDULE, corrected — this supersedes the plan's stage figures:
  *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
  *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
- *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows
- *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
- *                -> 115 rows / 56 keys HERE, which is what this table produces today
- *   U3.1 (LANDED) +8 keys x 2                                            = +16 rows
- *                -> 40 palette keys / 131 rows HERE, which is what this table produces today
+ *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows -> 69
+ *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows -> 117
+ *   U3.1 (LANDED) +8 palette keys x 2                                     = +16 rows -> 133
+ *   U4.4 (LANDED) +scrim x 2                                              =  +2 rows -> 135
+ *                -> 41 palette keys / 65 anchor keys / 135 rows, MEASURED, which is what this
+ *                   table produces today
  *   U8.2         +gridSubtle x 2                                         =  +4 rows
- *   -> 65 keys / 135 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *
+ * W2/F49 corrected three figures here, not one: the missing `scrim` line, and two intermediate
+ * totals that were already wrong before it (U1.1's said 115 for 117, U3.1's said 131 for 133 —
+ * both dropped the two LIGHT gradient stops U2.2 added on the line above them). The final total
+ * is deliberately no longer stated: it depends on what U8.2 actually lands, and a hand-typed
+ * end figure is exactly what drifted twice.
+ *
+ * DO NOT TREAT THESE NUMBERS AS A GATE. They are a reading aid. The gate is
+ * `rn-token-parity.test.ts:211-214`, whose expectation is DERIVED
+ * (`PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5`) precisely so no one can reach
+ * green by editing a literal here — W0/F2 removed the last hand-typed total for that reason.
+ * If this comment and that assertion ever disagree again, the assertion is right.
  *
  * U3.1's count corrects BOTH earlier figures. The plan's U3.1 row says "the four status
  * anchors (`success`, `successLight`, `warning`, `warningLight`)"; U0.4's schedule above said
@@ -375,6 +387,41 @@ export const PALETTE_KEYS = [
  * `features/demo/ui/tokens/__tests__/glass-tiers.test.ts`, which is the ONLY gate on them; if
  * that file is ever thinned, they lose their last guard. (Plan §5, U1.1 row, states the
  * exclusion; this says what covers the gap.)
+ *
+ * ## THE SHADOW EXCLUSION IS NOW ALL THREE TIERS — ledger §95, discharged by W2/F42
+ *
+ * `innerShadow` was the first case of a general shape, and U2/U4 landed the other two:
+ *
+ *   Layout.shadow.card    -> `GLASS.shadowCard`                (U1.2)
+ *   Layout.shadow.sheet   -> `sheet-chrome.ts`'s `SHEET_SHADOWS`   (U4.1)
+ *   Layout.shadow.dialog  -> `CentredDialog.tsx`'s `DIALOG_SHADOW` (U4.3)
+ *
+ * §95's trigger was "U4 landing `shadow.dialog`/`shadow.sheet` — that package adds the
+ * composing reader to the guard or records the gap once for all three". This is the second
+ * option, taken deliberately, and here is the reasoning so the next reader does not have to
+ * re-derive it.
+ *
+ * RN spends FIVE props on what CSS spends one: `shadowColor`, `shadowOffset {width,height}`,
+ * `shadowOpacity`, `shadowRadius` (plus Android's `elevation`, which has no CSS counterpart at
+ * all). A composing reader would have to fold `shadowColor`'s own alpha into `shadowOpacity`
+ * (`rgba(30,58,138,0.15)` x 1 -> 0.15, the mapping `button-recipe.ts:167-174` documents),
+ * carry the sign of a negative `height` for the upward sheet cast, and drop `elevation` — i.e.
+ * re-implement, in this file, the same hand-derivation the web recipes already perform. Two
+ * hand-derivations agreeing is not a contract; it is the "equal by transcription" failure the
+ * `innerShadow` paragraph above rejects, one layer further out.
+ *
+ * WHAT COVERS THE GAP INSTEAD, per tier — each is a literal shape pin over the composed CSS
+ * string, in the recipe's own suite, and each is the ONLY gate on its values:
+ *
+ *   card    `ui/__tests__/glass-tokens.test.ts`      (`GLASS.shadowCard`)
+ *   sheet   `ui/controls/__tests__/sheet-chrome.test.tsx` (`SHEET_SHADOWS`, both halves)
+ *   dialog  `ui/controls/__tests__/CentredDialog.test.tsx` (`DIALOG_SHADOW`)
+ *
+ * WHAT WOULD REOPEN IT: a phone-side change to any `Layout.shadow.*` value. Nothing here will
+ * see it — the three pins above compare the web string to itself, so they catch a demo-side
+ * regression and not drift. That is the accepted cost, and it is accepted because the
+ * alternative catches drift only if the reader's arithmetic is itself correct and maintained.
+ * Revisit if a shadow value ever moves on the phone, or if a fourth tier lands.
  *
  * The two gradient stops are separate KEYS, not one, for the reason `readStop` takes an index:
  * an anchor row is the unit of PARSE-FAILED isolation, so a gradient whose second stop moves

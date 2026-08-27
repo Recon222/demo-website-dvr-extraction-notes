@@ -6,6 +6,7 @@ import {
   SHEET_ENTER_MS,
   SHEET_EXIT_MS,
   SHEET_SHADOW,
+  SHEET_SHADOWS,
   SHEET_SLIDE_KEYFRAME,
   sheetAccentDot,
   sheetAccentStrip,
@@ -24,6 +25,7 @@ import {
 import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { ExportActionSheet } from '@/features/demo/ui/screens/ExportActionSheet'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
+import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
@@ -102,7 +104,13 @@ describe('sheetSurface — the A38 ground', () => {
     expect(sheetSurface.borderTopLeftRadius).toBe(radius.sheet)
     expect(sheetSurface.borderTopRightRadius).toBe(radius.sheet)
     expect(radius.sheet).toBe(22)
+    // A bottom sheet's lower corners are off-screen, so these must stay absent. Since W2/F38
+    // narrowed the fragment with `as const satisfies`, that is now a COMPILE-time contract as
+    // well as a runtime one: adding either key makes the `@ts-expect-error` unused and reds
+    // `tsc --noEmit`, which is in the gate set.
+    // @ts-expect-error borderBottomLeftRadius must not exist on sheetSurface
     expect(sheetSurface.borderBottomLeftRadius).toBeUndefined()
+    // @ts-expect-error borderBottomRightRadius must not exist on sheetSurface
     expect(sheetSurface.borderBottomRightRadius).toBeUndefined()
   })
 
@@ -113,6 +121,12 @@ describe('sheetSurface — the A38 ground', () => {
     expect(sheetSurface.boxShadow).toBe(SHEET_SHADOW)
     expect(SHEET_SHADOW).toBe('0 -8px 40px rgba(0,0,0,0.5)')
     expect(SHEET_SHADOW).not.toContain('inset')
+    // W2/F34 — BOTH halves ship, and the consumed one is the scheme's.
+    expect(SHEET_SHADOW).toBe(SHEET_SHADOWS[scheme])
+    expect(SHEET_SHADOWS.light).toBe('0 -8px 28px rgba(30, 58, 138, 0.15)')
+    expect(SHEET_SHADOWS.light).not.toBe(SHEET_SHADOWS.dark)
+    // …and neither half casts a pure black onto the other's ground.
+    expect(SHEET_SHADOWS.light).not.toContain('rgba(0,0,0')
     // Upward, not downward: the sheet rises from the bottom edge. This is the A45/A46 mistake
     // phone §1.5 records — Phase 5 put `sheet` on a dialog and inverted its cast.
     expect(SHEET_SHADOW).toContain('-8px')
@@ -237,6 +251,18 @@ describe('sheetHeaderBand — the A37 header tier, not the sheet tier', () => {
   })
 })
 
+describe('the dark-only treatments (W2/F34)', () => {
+  it('gates the accent-dot glow and the title text-shadow on the scheme', () => {
+    // The phone wraps both in `isDark && {...}` (`GlassBottomSheet.tsx:326-332`, `:339-343`).
+    // Shipping them unconditionally would glow a deep-navy `primary` against white and drop a
+    // black text shadow under near-black text.
+    const dark = scheme === 'dark'
+    expect(sheetAccentDot.boxShadow).toBe(dark ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined)
+    expect(sheetTitle.textShadow).toBe(dark ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined)
+  })
+
+})
+
 describe('the header glyphs', () => {
   it('draws a 6px accent dot on `primary` with the dark-only 4px glow', () => {
     expect(sheetAccentDot.width).toBe(6)
@@ -343,6 +369,18 @@ describe('A46 — one upward cast, three sheets', () => {
     // take it here; the fourth is `TabBar.tsx:80`, which is A63's flat bar and U8.3's row.
     // Relational on purpose: each assertion reads `SHEET_SHADOW`, so re-hardcoding any one of
     // them reds, and moving the recipe moves all three together.
+    //
+    // W2/F28: the title named the picker sheet and the body rendered only the other two. It is
+    // the sheet that reaches the recipe through `GlassBottomSheet`'s `...sheetSurface` rather
+    // than a `boxShadow` of its own, so it was the one worth rendering and the one missing.
+    render(
+      <PickerSheet title="Select Date" onClose={() => {}}>
+        <div />
+      </PickerSheet>,
+    )
+    expect(screen.getByRole('dialog').style.boxShadow).toBe(SHEET_SHADOW)
+    cleanup()
+
     render(
       <ExportActionSheet
         options={[{ id: 'case', label: 'Export Case' }]}

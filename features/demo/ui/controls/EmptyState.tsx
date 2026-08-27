@@ -53,16 +53,16 @@ export interface EmptyStateProps {
   action?: ReactNode
 }
 
-const container: CSSProperties = {
+const container = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   // phone `:41` — `paddingVertical: Layout.spacing.xxl`. Horizontal padding is the caller's.
   padding: `${spacing.xxl}px 0`,
-}
+} as const satisfies CSSProperties
 
-const message: CSSProperties = {
+const message = {
   // phone `:46` — `Typography.fontSize.lg`. On plan §4.9's ladder (12/14/16/18/20/24/30/36),
   // so it is a literal rather than an invented step; `scale.ts` carries no type scale.
   fontSize: 18,
@@ -71,10 +71,10 @@ const message: CSSProperties = {
   marginBottom: spacing.lg,
   // phone `:29` — `colors.textSecondary`, applied inline over the stylesheet.
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties
 
 /** phone `:51` — the action's own `minWidth`, not the container's. */
-const actionBox: CSSProperties = { minWidth: 200 }
+const actionBox = { minWidth: 200 } as const satisfies CSSProperties
 
 export function EmptyState({ message: text, action }: EmptyStateProps) {
   return (
@@ -84,3 +84,4 @@ export function EmptyState({ message: text, action }: EmptyStateProps) {
     </div>
   )
 }
+

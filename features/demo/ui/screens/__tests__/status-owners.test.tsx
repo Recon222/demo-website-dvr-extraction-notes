@@ -11,8 +11,12 @@ import { severityTone } from '@/features/demo/ui/tokens/status'
 /**
  * A69 retires EIGHT status-colour owners. Six are covered where they render — the two `screenData`
  * lookups and the pill in `DashboardScreen.test.tsx` / `ExportHub.test.tsx`, the artifact line in
- * `ExportHub.test.tsx`, the recorder's two in `audio-levels.test.ts`. The remaining two paint
- * recipes of their own and had no render test at all; this is theirs.
+ * `ExportHub.test.tsx`, and the recorder's two in `AudioRecorderScreen.test.tsx`. The remaining
+ * two paint recipes of their own and had no render test at all; this is theirs.
+ *
+ * F31: this used to name `audio-levels.test.ts` for the recorder. That file covers the TONE — the
+ * `'error' | 'warning' | 'neutral'` vocabulary the engine returns — and renders nothing, so it
+ * sees no colour. The paint is `STATUS_TONE_COLOR`'s, and it is pinned where it renders.
  *
  * Both assert AGAINST the tokens, never against a hex: a literal would stay green through exactly
  * the re-point these pins exist to catch.

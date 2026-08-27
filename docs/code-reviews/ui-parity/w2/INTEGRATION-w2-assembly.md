@@ -191,5 +191,155 @@ U6.4b removes it. **No unwired seam ships.**
 
 ---
 
+---
+
+# § fix round 1 — F36
+
+**Branch:** `uiparity/w2-fix-integration` off `feat/uiparity-w2` @ `addd03f` · **Commit:** `4391f77`
+
+**F36 [MEDIUM] — five merge-orphaned bindings surviving only inside comments.** Mine, and the
+finding is right about the shape of the miss. The wave-2 assembly resolved ten import hunks by
+asking *"does the merged body still reference this?"* — a body-only grep that excluded `^import`
+lines but **not comments**. At `_pane-chrome.tsx` the census counted `colors.` once and kept the
+binding; that single hit was inside a comment. §7.2 of this report had already recorded the class
+(*"an import kept for a reference that is itself dead code would not be caught"*) — recorded and
+then not applied, which is worse than not noticing.
+
+| File | Binding |
+|---|---|
+| `__tests__/palette-contrast.test.ts:7` | `GLASS` |
+| `controls/AlertDialog.tsx:6` | `GLASS` |
+| `screens/ExportModal.tsx:11` | `type ExportModalMode` |
+| `screens/ExportModal.tsx:18` | `GLASS` (narrowed to `glassCardNested`) |
+| `settings/panes/_pane-chrome.tsx:8` | `colors` |
+
+**RED**, observed on `addd03f`: `tsc --noEmit --incremental false --noUnusedLocals` EXIT **2**,
+naming exactly those five `TS6133`s — no more and no fewer. **GREEN**: the same command names none
+of them afterwards. The comments stay; they are the useful part.
+
+**Not taken, deliberately — the root-cause fix.** `noUnusedLocals` in `tsconfig.json` is one line
+and would kill the class permanently, but it reds **15 bindings across 13 files**, ten of them in
+files owned by other seats this round (`MediaCapturePane`, `LocationPane`, `TimeSyncPane`,
+`create-store.ts`, five test files). Flipping it would redden nine concurrent fix branches and
+break one-writer-per-file. **Proposed ledger row** below instead.
+
+### Proposed deferral-ledger row — for `dt-review-aggregator`
+
+**Proposed §N — enable `noUnusedLocals` once the last ten orphans clear (F36's root cause)**
+- **Source:** W2 review r1 F36; integration report §7.2 (I-5); measured at `addd03f` — 15 `TS6133`
+  across 13 files, 5 fixed here, 10 in other seats' files.
+- **What:** the repo has no gate for an unused binding at all. F36 is the second time the class has
+  cost a finding (the first was `§ U2 assembly` I-5), and a grep census cannot see it.
+- **Why deferred:** the flag is repo-wide and cannot land while nine fix branches hold the other
+  ten files; it is a one-line change whose blast radius is entirely other seats' territory.
+- **Trigger:** the W2 fix-merge, at which point the other ten are either fixed or known — run
+  `tsc --noUnusedLocals` at the merged head and flip the flag if it is clean.
+
+**Gates**, cold: `tsc` **0** · `pnpm test --silent` **0** (290 files, 3881 passed | 4 todo) ·
+`check-rn-parity.mjs` **0** (135/135).
+
+---
+
+# § W2 fix-merge r1
+
+**Head:** `250e12f` on `feat/uiparity-w2` · eleven `uiparity/w2-fix-*` branches, `--no-ff` each, in
+the suggested order (integration → scan → fields → toggle → buttons → severity → modal → banner →
+dialog → pickers → sheet).
+
+## x.1 One conflict in eleven merges
+
+An overlap map built **before** merging showed only **four files touched by more than one branch**,
+each by exactly two — far fewer than the predicted collision set. `vitest.setup.ts`,
+`choice-controls.test.tsx` and `glass-tokens.test.ts` each turned out to be single-branch and never
+collided. Of the four, three auto-merged:
+
+| File | Branches | Outcome |
+|---|---|---|
+| `settings/panes/FormFieldsPane.tsx` | pickers + toggle | auto |
+| `screens/ExportModal.tsx` | dialog + integration | auto |
+| `__tests__/palette-contrast.test.ts` | integration + pickers | auto |
+| `controls/AlertDialog.tsx` | dialog + integration | **conflict — union** |
+
+**`AlertDialog.tsx`, import block, UNION.** The dialog branch adds `import { spacing }` (its fix
+needs it) and keeps `import { GLASS }` — which F36 had just deleted as an orphan. The dialog seat
+branched before F36 landed, so its side re-introduces the exact binding this round removed.
+Resolved as: keep `spacing`, **F36's deletion stands**.
+
+The census that settled it is the one F36 exists to correct — comments stripped as well as
+imports, which is precisely what my wave-2 assembly failed to do: `GLASS` **0 live refs** (its only
+mention is the `// the colour half of GLASS.borderError` note), `spacing` **1**.
+
+## x.2 F36 regression check — and the ledger row's trigger firing
+
+Three of the four overlap files are ones F36 edited, and two of those auto-merged, so the deletions
+could have been silently undone. They were not: `tsc --noUnusedLocals` at the merged head names
+**none** of F36's five.
+
+F36's proposed ledger row set its trigger as *"the W2 fix-merge — run `tsc --noUnusedLocals` at the
+merged head and flip the flag if it is clean."* **It fires now, and the answer is not yet: 11
+`TS6133` remain**, every one in another seat's file:
+
+```
+controls/__tests__/banner.test.tsx(8,41)                          'StatusSeverity'
+controls/__tests__/banner.test.tsx(107,18)                        'icon'
+controls/__tests__/header-chrome.test.tsx(45,7)                   '_f20'
+screens/__tests__/CaseActionsSheet.test.tsx(5,1)                  'blankLocationForm'
+screens/import/__tests__/ImportTerminalProgress.test.tsx(25,35)   'ImportLogBus'
+settings/panes/LocationPane.tsx(7,8) (8,8)          'GpsAccuracyMode' 'GpsTimeoutOption'
+settings/panes/MediaCapturePane.tsx(10,8) (11,8) (12,8)           three Option types
+settings/panes/TimeSyncPane.tsx(3,35)                             'NtpRegion'
+```
+
+**One deserves a look rather than a sweep:** `banner.test.tsx:107` declares `icon` and never reads
+it. An unused binding inside a *test* is not untidiness — it is a plausible assertion that was
+never written. The other ten are unused type imports. Recommend the row stays open with its trigger
+re-pointed at the next fix round. I have touched none of these files; they belong to seats that
+were writing them this round.
+
+## x.3 Probes at the merged head — 9 run, 9 KILLED
+
+Probes in `worktrees/probe-w2fix` at `250e12f`, `node_modules` junctioned, junction removed with
+`cmd /c rmdir` **before** `git worktree remove` (33 entries before and after). All four mutated
+files restored **byte-identically**.
+
+| Probe | Finding | Mutation | Exit | Was |
+|---|---|---|---|---|
+| **F28-1** | F28 | `...sheetSurface` deleted from the panel | **1 · KILLED** | SURVIVED (all 3,881) |
+| **F28-2** | F28 | handle fragment deleted | **1 · KILLED** | SURVIVED |
+| **F28-3** | F28 | header-band fragment deleted | **1 · KILLED** | SURVIVED |
+| **F28-4** | F28 | accent-strip fragment deleted | **1 · KILLED** | SURVIVED |
+| **F28-5** | F28 | scrim fragment deleted | **1 · KILLED** | SURVIVED |
+| **F27** | F27 | unchecked mark edge reverted to the phone's failing `colors.border` | **1 · KILLED** | pin was hex-only |
+| **F26-B** | F26 | the `severityTone` seam re-tinted | **1 · KILLED** (4 failed) | SURVIVED — Banner kept its private trio |
+| **F33-E1b** | F33 | multi-line `const { dark } = GLASS_TIER` destructure | **1 · KILLED** | SURVIVED |
+| **F33-arm** | F33 | a wrong-half read inside a record arm | **1 · KILLED** | SURVIVED |
+
+**F29 is capture-gated and is recorded as such, not dressed up as a probe.** Layout is not
+observable in jsdom, so there is no falsifiable mutation. Source-verified instead: `minWidth: 0`
+present at `choice-controls.tsx:167`, and both docblocks (`:103`, `:108`) now describe the fix
+rather than asserting its opposite. The merge evidence the finding asks for is the verification
+re-cut of the four settings shots, which is not mine to produce.
+
+**F33 corrects this report.** §5 of the wave-2 assembly recorded I-8 as *"fixed as a class"*, and
+the review re-scored it: the record-arm skip I added at the U2 W1-carry **removed the arms from
+coverage rather than making them safe**, re-opening a wrong-half arm read and the multi-line
+destructure W1/F23 had specifically closed. That framing was wrong and the re-score is right. The
+U1.4 seat's fix gives the two forms **different inputs** — `destructure` runs against raw source,
+`memberAccess` against arm-masked source where an arm may name its own half only — which resolves
+the record-arm/destructure-rename ambiguity a single pre-processed input cannot. Both evasion forms
+now red.
+
+## x.4 Gates — cold cache at `250e12f`
+
+| Gate | Exit | Result |
+|---|---|---|
+| `pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `pnpm test --silent` | **0** | **290 files · 3899 passed \| 4 todo (3903)** |
+| `node .design-sync/check-rn-parity.mjs` | **0** | **135/135** |
+| `pnpm build` | **0** | **`/demo` First Load 107 kB** ✓ |
+
++18 assertions over the pre-fix head (3881 → 3899); the anchor table is unchanged, as expected — no
+fix round touched the token lists.
+
 *Integrator: `dt-integrator` (Opus 5, xhigh). Three merges: `ef7359c`, `1bd7906`, `7bcb553`. Gates
 quoted from a cold cache at the wave head.*
