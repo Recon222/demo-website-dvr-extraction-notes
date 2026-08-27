@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TimeField } from '@/features/demo/ui/inputs/TimeField'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 const ROW = 44
 
@@ -69,5 +70,19 @@ describe('TimeField interaction', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     await user.click(screen.getByRole('button', { name: 'Set time' }))
     expect(hCol().scrollTop).toBe(10 * ROW) // stored 10, not the discarded 23
+  })
+})
+
+/** The other half of the pair — same recipe, same phone lines as DateField's. */
+describe('TimeField trigger geometry (phone DateTimePicker.tsx:490-508)', () => {
+  it('takes the phone paddings, the 44 floor and the base value size', () => {
+    render(<TimeField value="" onChange={vi.fn()} />)
+    const trigger = screen.getByRole('button', { name: 'Set time' })
+    expect(trigger.style.padding).toBe(`${spacing.sm}px ${spacing.md}px`)
+    expect(trigger.style.minHeight).toBe(`${touchTarget.min}px`)
+    expect(trigger.style.borderRadius).toBe(`${radius.md}px`)
+    const [label, value] = Array.from(trigger.children) as HTMLElement[]
+    expect(label.style.fontSize).toBe('12px')
+    expect(value.style.fontSize).toBe('16px')
   })
 })
