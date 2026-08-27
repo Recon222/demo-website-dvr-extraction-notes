@@ -1,4 +1,189 @@
-# Lane: typescript — Wave 0 (phase U0), PR #39 @ `7099e54`
+# Lane: typescript — Wave 0 (phase U0), PR #39
+
+## Round 1 (fix delta)
+
+Head: `feat/uiparity-u0` @ `15e5a6f` (round 0 was `7099e54`). Authority: the fix-mapping comment on
+PR #39. Read the delta only — each fix commit and the lines it touched, plus `INTEGRATION-r1.md`'s
+`flatten()` reconciliation and plan U1.1's row (opened because F8's new comment cites it).
+Probes in my own worktree `worktrees/probe-w0d-typescript-guard` off `15e5a6f`; torn down with
+`tools/worktree-remove.ps1` — `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0.
+
+### Cold gates at the merged head (my own worktree, solo)
+
+| Gate | Round 0 | Round 1 |
+|---|---|---|
+| `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` | exit 0 | **exit 0** |
+| `pnpm test --silent` | 269 files / 3513 passed / 15 todo | **269 files / 3520 passed / 15 todo, exit 0** (+7 tests, 0 regressions) |
+| `node .design-sync/check-rn-parity.mjs` | exit 0, 33/33 | **exit 0, 67/67** ("32 palette keys x both halves, + the 2 dark CTA gradient stops and the touch floor") |
+
+### My findings
+
+**F2 (my r0 HIGH — "anchor SET unpinned, only cardinality") — FIXED.**
+Commit `4c2a4fa`. Two changes, both correct and both re-probed by me:
+- `PALETTE_KEYS` (`check-rn-parity.mjs:238-296`) now carries all 32 palette keys -> 67 rows, 0 drift,
+  0 PARSE-FAILED. This also closes my r0 MEDIUM, which the aggregator merged up into F2.
+- `rn-token-parity.test.ts:126-128` pins MEMBERSHIP against `Object.keys(palette.dark)` — the only
+  assertion in the file that compares the list to something outside it, which is exactly what makes
+  the other three loops non-tautological. `PALETTE_KEYS.length === 15` is retired and `anchors.length`
+  is now derived (`PALETTE_KEYS.length * 2 + 3`), so it still covers deletion of the three
+  non-palette rows without a hand-edit at every stage.
+
+```
+MUTATION PROBE 1: my r0 survivor, re-run
+Target: .design-sync/check-rn-parity.mjs:263 — PALETTE_KEYS
+Claimed pin: rn-token-parity.test.ts:126-128 — "the guard must anchor exactly the palette tokens"
+Mutation applied: 'link' replaced with 'gridSubtle' (a key the palette does not carry)
+Result: KILLED (from exit code 1) — was SURVIVED / exit 0 in round 0
+  4 failed: the membership pin fired BY NAME ("the guard must anchor exactly the palette tokens:
+  expected [ 'background', ...(31) ] to deeply equal [ 'background', ...(31) ]"), plus the drift and
+  PARSE-FAILED rows.
+Provenance: the canonical .design-sync/check-rn-parity.mjs (one copy; no mirror).
+Restore: verified — git checkout; git status --porcelain empty.
+
+MUTATION PROBE 2: isolate the membership pin (deletion, no replacement)
+Target: .design-sync/check-rn-parity.mjs — the 'borderLight' entry, deleted
+  (chosen because it RENDERS today via GLASS.borderBtn / SyncStatusCard.tsx:49 / _shared.tsx:563 —
+   the exact key my r0 MEDIUM named as the concrete failure)
+Result: KILLED (from exit code 1), and cleanly isolated — EXACTLY ONE assertion fired, the
+  membership pin: "expected [ 'background', ...(30) ] to deeply equal [ 'background', ...(31) ]".
+  The derived `anchors.length` correctly did NOT fire (it tracks the list, by design).
+  Note for the record: `node .design-sync/check-rn-parity.mjs` still printed
+  "all 65 anchor rows match" at exit 0 under this mutation — the standalone guard cannot import the
+  TS palette, which is precisely why the pin lives in the test. The commit message says so and the
+  split is right.
+Restore: verified — git status --porcelain empty.
+```
+Judged on the merits: the author rejected my suggested shape ("assert the sorted array against 15
+literal names") in favour of `Object.keys(palette.dark)`. **Theirs is strictly better** — a literal
+name list would itself have needed hand-maintenance at U1.1/U3.1/U8.2 and could drift from the
+palette; theirs cannot. The rejected alternative recorded in the commit (derive `PALETTE_KEYS` by
+parsing `palette.ts` inside the guard) is correctly rejected: it would be self-referential and a
+deleted token would silently delete its own anchor.
+
+**My r0 MEDIUM ("15 tokenised keys with no anchor and no owner") — FIXED**, merged up into F2 at
+HIGH. All 15 are anchored. The aggregator's in-memory probe (67 rows / 0 drift) removed the
+"or ledger it" branch of my fix, correctly: I had hedged at MEDIUM on a cost that turned out to be
+zero. The corrected schedule is now written into the guard's docblock (`:234-244`): 59 keys /
+123 rows at the end, superseding the plan's ~44 / ~88, with U3.1's row flagged as adding two keys
+rather than the four it claims.
+
+**My r0 MEDIUM ("`borderSoft` hand-derived in two copies, false justification") — FIXED as scoped
+(demoted to LOW as F8).** Commit `824df2a`:
+- The second copy, `T.borderSoft` (`input-theme.ts:24-25`), is **deleted** — it was dead.
+- The false reason ("CSS has no alpha-on-hex") is **replaced** with a true one naming a real owner:
+  plan U1.1 derives `GLASS.borderSoft` from `GLASS_TIER.dark.card`.
+- I opened that precedent rather than taking the comment on faith. Plan `01-master-ui-parity-plan.md`,
+  U1.1 row: *"`GLASS.gradientCard`/`gradientPanel`/`borderSoft`/`borderAccent` become derived from it
+  so the existing ~40 importers keep working."* **The comment is accurate.** A named next-wave owner
+  plus a true in-code reason clears the bar; the remaining single literal is not W0's to fix.
+
+**My r0 LOW (`#rrggbbaa` returned unchanged) — FIXED**, folded into F6 (`7c245fe`), and fixed more
+completely than I asked: `parseColor` (`scale.ts:84-105`) now accepts 3-, 4-, 6- and 8-digit hex and
+divides the alpha pair by 255; the `rgb()` regex gained the trailing `$` (the web lane's out-of-lane
+note); and both silent arms now dev-warn through `warnUnparseable`, with `transparent`/`currentColor`
+deliberately exempt via `looksLikeColour` so the breadcrumb does not become noise.
+
+**My r0 out-of-lane note (`before`-marker silent fallback vs a docblock claiming it throws) — FIXED**,
+folded into F4 (`4f834f9`): `region()` now throws `region end marker not found: …`, degrading to a
+PARSE-FAILED row exactly as a missed `after` does. Code and docblock now agree.
+
+**My r0 rulings — both upheld and unchanged.** `anchors.length` is kept and now derived (which is
+what I recommended, better executed); the two D17 camera ground sites stand. The mapping records both
+as answered identically by two lanes.
+
+### Fix-introduced regressions — hunted in each fix commit's blast radius
+
+**None found.** What I checked, and how:
+
+- **F6's arity change is the largest new type-level surface in the round** (`flattenOver(top, ...grounds)`
+  -> `flattenOver(top, ground, ...rest)`), and it broke every existing call shape. Both consumers were
+  reconciled correctly: `scale.test.ts`'s zero-ground case became the compile-error case, and
+  `palette-contrast.test.ts`'s `flatten()` (the one modify/modify conflict, per `INTEGRATION-r1.md`)
+  now destructures `const [top, ground, ...rest]` and short-circuits a one-entry stack to `parsed[0]`
+  instead of spreading. I verified the short-circuit is right for the live rows: `contrast(fg, [bg])`
+  calls `flatten([bg])`, which must return the opaque ground uncomposited — and does.
+
+```
+MUTATION PROBE 3: is F6 clause 1's "required ground" real, or prose?
+Target: features/demo/ui/tokens/scale.ts:181 — flattenOver's signature
+Mutation applied: added `expect(flattenOver('#002853')).toBe('#002853')` to scale.test.ts
+Result: KILLED at COMPILE time (from tsc exit code 2)
+  features/demo/ui/tokens/__tests__/scale.test.ts(110,32): error TS2555: Expected at least 2
+  arguments, but got 1.
+  The zero-ground arm is genuinely unreachable from TypeScript. (The contrast test's comment cites
+  TS2556 — that is the code for the SPREAD form it was describing; TS2555 is the missing-arg form.
+  Both are real; not a finding.)
+Restore: verified — git status --porcelain empty.
+```
+
+```
+MUTATION PROBE 4: is F7's `satisfies` a real type-level identity, or a decoration?
+Target: features/demo/ui/tokens/palette.ts:48 — colors.primaryDark
+Claimed pin: glass-tokens.ts:42 — `const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark`
+Mutation applied: primaryDark '#1F6B99' -> '#1E6A98' WITHOUT touching ACCENT_FROM
+Result: KILLED at COMPILE time (from tsc exit code 2)
+  features/demo/ui/glass-tokens.ts(42,31): error TS1360: Type '"#1F6B99"' does not satisfy the
+  expected type '"#1E6A98"'.
+  Exactly the claim in the commit message. This matters because ledger §91 records that the drift
+  gate skips when the phone repo is absent — F7 makes that one duplication a compile error, which no
+  `skipIf` can silence.
+Restore: verified — git status --porcelain empty.
+```
+
+- **F4's comment-stripping** (`region()` now runs `text.replace(/\/\/[^\n]*/g, '')` before slicing)
+  applies to all five sliced files. Its stated invariant is *"none of the five files sliced here
+  contains `//` inside a string (no URLs — checked)"*. I re-checked rather than trusting it:
+  `grep -cE "url\(|https?:|data:"` returns **0** for `tokens/palette.ts`, `tokens/scale.ts`,
+  `glass-tokens.ts`, the phone's `Colors.ts` and `Layout.ts`. Holds. The 67/67 green guard is the
+  empirical half of the same proof.
+- **F4's new throw on a missed `before`** produced no false PARSE-FAILED: 67/67 rows resolve, and
+  `readConst(t, 'ACCENT_FROM')` still reads correctly through the stripped source even after F7
+  appended a `satisfies` clause to that line.
+- **F2's newly-anchored non-hex rows.** `overlay` / `overlayLight` are the first anchors that are not
+  bare hexes (`'rgba(0, 40, 83, 0.9)'`), so they are the first rows to actually exercise `norm`'s
+  whitespace stripping in production rather than only in its unit test. Both read OK.
+- **F1's six re-points to `colors.link`.** All are string-typed inline `CSSProperties` values; no type
+  change, no new import cycle (`palette.ts` imports nothing). The new module-level
+  `const LIT_GLOW = \`0 4px 12px ${withAlpha(colors.link, 0.35)}\`` in `ExportCaseCard.tsx:49-51`
+  evaluates `withAlpha` at module scope — safe here: `withAlpha` is pure, touches no browser global,
+  and `colors.link` parses, so the new `warnUnparseable` path (which reads `process.env.NODE_ENV`) is
+  not reached at import time. The two pins that moved with it (`ExportHub.test.tsx:115-119`,
+  `ExportModal.reduced-motion.test.tsx:53`) were rewritten to the new value, not deleted.
+- **F8's deletions** (`T.borderSoft`, `T.radius`) — `grep` confirms zero readers of either under
+  `features/demo/`; `tsc` exit 0 confirms it.
+- **Architecture invariants re-swept at `15e5a6f`:** no `useStore` outside `DemoExperience.tsx`, no
+  `features/demo/engine/**` file in the fix range, no new deep `@/features/demo/{ui,engine}` import
+  from `app`/`components`/`lib`, no new `Date.now()`/`Math.random()`, no `any`, no `as any`.
+  `components/marketing/phone-frame.tsx` was touched by F10 (docblock only) and still imports nothing
+  from the demo.
+
+### New findings
+
+None.
+
+## Typescript Summary (Round 1 — fix delta)
+FIXED: 5 (r0 HIGH -> F2 · r0 MEDIUM/unanchored -> F2 · r0 MEDIUM/borderSoft -> F8 · r0 LOW -> F6 ·
+r0 out-of-lane `before` marker -> F4) · PARTIAL: 0 · UNFIXED: 0
+New findings this round: CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 0
+Verdict: APPROVE
+
+Store-bridge integrity: preserved
+Engine purity: preserved (no `features/demo/engine/**` file in the fix range)
+Barrel + marketing/demo isolation: preserved
+Determinism seam: preserved
+Mutation probes this round: 4 run, **4 KILLED, 0 SURVIVED** — including a re-run of round 0's only
+survivor, which is now dead. Two of the four kill at COMPILE time (TS2555, TS1360), which is the
+strongest form available here because ledger §91 records that the runtime drift gate skips whenever
+the sibling phone repo is absent.
+Out-of-lane observations: one — F4's comment-stripper is line-comment-only and correct today
+(verified: no `url(` / `http` / `data:` in any of the five sliced files), but the invariant is stated
+in prose and nothing enforces it; a future token holding a URL string would corrupt a slice silently.
+Belongs to whoever owns F4; not worth a row while all five files are colour-and-number constants.
+
+---
+
+# Round 0 (initial review) — retained below for provenance
+
 
 Mode: code review. Base: `master`. Shared worktree read at
 `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\u0-phase` (read-only).

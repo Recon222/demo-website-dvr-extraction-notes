@@ -788,3 +788,98 @@ pattern matched"* did not catch it, because the assertion covered the **search**
 built the pattern from `chr(92)` instead of escaped backslashes. **Rule to add: when a scripted edit
 writes a REGEX or any escape-bearing literal, assert the replacement landed byte-correct, not just
 that the search hit.**
+
+---
+
+# Fix round 2 — W0 VETTED-r1-delta (REVISE)
+
+**Branch:** `uiparity/u0-fix2-foundation` off `origin/feat/uiparity-u0` (`347d132`)
+**Head:** `2169c27` · 2 commits, one per finding
+**Owner seat:** `ae5f52b4da850cd08` (U0 implementer A) — F12, F13
+
+## Commit → finding
+
+| Commit | F-ID | Sev | What landed |
+|---|---|---|---|
+| `b4de0a1` | **F12** | MED | Four value assertions on `colors.link` added to three EXISTING `MediaLibrarySheet.test.tsx` cases; my PR-3 deferral withdrawn |
+| `2169c27` | **F13** | LOW | `looksLikeColour` widened to any function notation, so `color-mix()` / `hsl()` / `linear-gradient()` trip the `withAlpha` dev-warn |
+
+## Gates (exit codes, cold, from this worktree at `2169c27`)
+
+| Gate | Exit | Result |
+|---|---|---|
+| `pnpm test --silent` | **0** | **3,521 passed \| 15 todo** (3,536) — up 3 from the phase head's 3,518 |
+| `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `node .design-sync/check-rn-parity.mjs` | **0** | unchanged by this round |
+
+## Mutation probes — 6 applied, 6 KILLED
+
+Own worktree (`worktrees/probe-u0fix2`) cut at `2169c27`, restored byte-identically after every
+probe (`git status --porcelain` empty), torn down with the script: *unlinked 549 junction(s) in 2
+pass(es) · `.pnpm` 240 → 240 · exit 0*.
+
+**F12 — the aggregator's PRESCRIPTION-UNVERIFIED mark is discharged.** All four sites, each reverted
+to `GLASS.accentFrom` (the exact pre-F1 code), one at a time:
+
+```
+R1  MediaLibrarySheet.tsx:227  active tab LABEL   <- the tests lane's own R1, which SURVIVED
+    KILLED (exit 1)  expected 'rgb(31, 107, 153)' to be 'rgb(184, 212, 240)'
+R2  MediaLibrarySheet.tsx:226  active tab UNDERLINE
+    KILLED (exit 1)  expected '2px solid rgb(31, 107, 153)' to contain 'rgb(184, 212, 240)'
+R3  MediaLibrarySheet.tsx:246  badge NUMERAL
+    KILLED (exit 1)  expected 'rgb(31, 107, 153)' to be 'rgb(184, 212, 240)'
+R4  MediaLibrarySheet.tsx:577  selected-row RAIL
+    KILLED (exit 1)  expected '2px solid rgb(31, 107, 153)' to contain 'rgb(184, 212, 240)'
+```
+
+Each probe fails exactly one case and leaves the other 43 green — the pins are site-specific, not a
+blanket that would redden on any change to the file.
+
+**F13 — probed in both directions**, because a warn predicate can fail by being too narrow *or* too
+loud and only the first is the finding:
+
+```
+R5  narrow the predicate back to /^(#|rgba?\()/
+    KILLED (exit 1)  color-mix(in srgb, red 50%, blue) must dev-warn:
+                     expected "warn" to be called 1 times, but got 0 times
+R6  warn unconditionally (drop the predicate entirely — the noise regression)
+    KILLED (exit 1)  expected "warn" to not be called at all, but actually been called 4 times
+```
+
+R6 is the one that keeps the fix honest: the four documented-safe keywords are now asserted **by
+name** (`transparent`, `currentColor`, `inherit`, `none`), not by one example, so widening the
+predicate into a blanket cannot pass.
+
+## Refutations
+
+**None.** Both findings are accepted as written, and both of the delta round's refutations of *my*
+positions are conceded:
+
+- **PR-3 (defer the MediaLibrarySheet pins to U7.2) — WITHDRAWN.** My reason was "pinning them today
+  means inventing a fixture". The aggregator checked the file and it is false: `tab(name)` at `:45`,
+  an active-tab case at `:87-91`, a badge-numeral case at `:101` and a selected-row case at
+  `:218-222` were all already there. Every one of the four sites was reachable from a case that
+  exists. This is the second deferral I proposed that did not survive contact with its own file
+  (F9 was the first); the pattern is that I reached for the ledger before re-reading the fixture.
+- **PR-1 (fill-only source guard for `GLASS.accentFrom`) — dropped, and correctly.** With F12 landed
+  every one of F1's six sites carries a value pin, so a re-point back is caught behaviourally at all
+  six. A source scan would only have guarded against *new* code, which is reviewed code, and the
+  repo's guard philosophy is literal-level (BANNED/RETIRED), not usage-level.
+
+## Two notes on the fixes, for the resumed lanes
+
+**F12 uses one named constant, not four inline literals.** `const LINK = 'rgb(184, 212, 240)'` sits
+beside the `tab()` accessor with a comment carrying the AA arithmetic (2.54 as a fill shade vs 5.31
+for the *inactive* tabs vs 9.60 for `link`). The `ExportHub.test.tsx:115` idiom inlines its literal;
+here there are four call sites, so a future re-base moves one line instead of four, and the reason
+the value matters is written once where it is read.
+
+**Two assertions are not in the prescription**, one line each: the inactive tab's colour must NOT be
+`link` (`:91` case) and the non-current row's `borderLeft` must NOT contain it (`:218` case). They
+catch the opposite mutation — painting *every* tab `link` — which erases the selected state exactly
+as thoroughly as painting none of them, and which R1–R4 by construction cannot see.
+
+**F13 took the function-notation shape over the keyword allow-list.** The finding offered either.
+Same single line, but `/^(#|[a-z-]+\()/i` needs no maintenance the first time a caller passes
+`oklch()` or `light-dark()`, whereas an allow-list of safe words silently re-opens the hole for every
+CSS colour function added to the platform after it was written.

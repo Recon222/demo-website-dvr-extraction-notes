@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { palette, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
   norm,
@@ -80,10 +80,54 @@ describe('norm — the compare-time normalisation both sides go through', () => 
   })
 })
 
-// Review W0/F4. Both cases are pure string work — no sibling repo, so they run everywhere,
-// which matters for a guard whose every other case is `skipIf`.
-describe('region() — what the slice actually contains', () => {
+// EVERYTHING IN THIS BLOCK IS UNGATED, and that is the point of the block. Every case in the
+// `parity` describe below is `it.skipIf(!rnAvailable())`, so on a box without the sibling phone
+// checkout — the default contributor box, and any CI that has not been taught to clone it — all
+// of them report green by skipping. An assertion whose two sides are BOTH local has no business
+// living there. Before adding a case below, ask what it reads: if the answer is "nothing outside
+// this repo", it belongs here.
+describe("the guard's local invariants — nothing here reads the phone repo", () => {
   const DARK = { after: 'const dark = {', before: '} as const' }
+
+  // Review W0/F2, moved here by W0/F11. Both sides are local — a `.mjs` array and a TS module in
+  // this repo — yet this lived inside a `skipIf` case, where a probe swapping `'link'` for
+  // `'card'` SURVIVED with the phone repo absent (5 passed | 6 skipped, exit 0).
+  //
+  // It is the ONLY assertion in this file that compares the guard's hand-maintained key list to
+  // something outside itself; every other check iterates that list, so they are all tautological
+  // without it. The guard is `.mjs` and cannot import `palette.ts`, which is why the list is
+  // hand-maintained and why this pin has to exist at all. A palette token added without an
+  // anchor reds HERE, on every box.
+  it('anchors exactly the palette tokens, no more and no fewer', () => {
+    expect([...PALETTE_KEYS].sort(), 'the guard must anchor exactly the palette tokens').toEqual(
+      Object.keys(palette.dark).sort(),
+    )
+  })
+
+  it('anchors exactly the six glass tiers and every part of one', () => {
+    // MEMBERSHIP, not cardinality — review F16, and the same reasoning W0/F2 applied to
+    // `PALETTE_KEYS`. The guard is `.mjs` and cannot import this TS module, so its two tier
+    // lists are hand-maintained; held to nothing but themselves, a SEVENTH tier lands with the
+    // guard unchanged and a SHRINK that drops `recessed` reaches green by editing one number.
+    // Both shapes SURVIVED the lanes' probes against the old `.toBe(6/4/24)`.
+    //
+    // UNGATED, per W0/F11: both sides are local — a `.mjs` array and a TS module in this repo —
+    // so gating this on the sibling phone repo was the same defect F11 fixed for the palette
+    // list. These are what make the `skipIf` loops below non-tautological, on every box.
+    expect([...TIER_KEYS].sort(), 'the guard must anchor exactly the six glass tiers').toEqual(
+      Object.keys(GLASS_TIER.dark).sort(),
+    )
+    const UNANCHORED = ['innerShadow']
+    // `indexOf` dedupe, not `[...new Set()]`: tsconfig targets es5, where spreading a Set is
+    // TS2802. Four elements — a Set would buy nothing but the flag.
+    const anchoredFields = TIER_PARTS.map((p: string) =>
+      p.startsWith('gradient') ? 'gradient' : p,
+    ).filter((f: string, i: number, all: string[]) => all.indexOf(f) === i)
+    expect(
+      [...anchoredFields, ...UNANCHORED].sort(),
+      'every part of a tier is either anchored or named unanchored',
+    ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
+  })
 
   it('does not read a value out of a // comment', () => {
     // The shape that survived at review time: a refactor leaves the OLD value commented above
@@ -152,20 +196,11 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         .sort()
       expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
     }
-    // MEMBERSHIP, not cardinality. Review W0/F2: the guard's key list is hand-maintained (it is
-    // .mjs and cannot import this TS module), and the old `PALETTE_KEYS.length === 15` pin
-    // SURVIVED swapping `'link'` for `'card'` — every count and every loop above stayed green
-    // because they all iterate the list itself. This is the only assertion in the file that
-    // compares the list to something outside it, so it is the one that makes the other three
-    // non-tautological. A palette token added without an anchor reds HERE.
-    expect([...PALETTE_KEYS].sort(), 'the guard must anchor exactly the palette tokens').toEqual(
-      Object.keys(palette.dark).sort(),
-    )
-    // Cardinality is DERIVED from the two key lists, never typed. W0/F2 removed the hand-typed
-    // `.toBe(15)`; the same reasoning removes U1.1's hand-typed `.toBe(81)` — a literal total is
-    // exactly what lets someone shrink the table to reach green by editing one number here.
-    // What this still covers is what membership cannot: deletion of the three anchors that are
-    // NOT keys of either list (both CTA gradient stops + the touch floor).
+    // Cardinality is derived from the two MEMBERSHIP pins, which are UNGATED — see the
+    // `local invariants` describe (W0/F11 moved the palette one there; F16's tier ones went
+    // with it at the merge, for the same reason). This covers only what membership cannot:
+    // deletion of the three anchors that are NOT keys of either list (both CTA gradient stops
+    // + the touch floor).
     expect(
       anchors.length,
       'every palette key AND every tier key in both halves, + 2 gradient stops + touchFloor',
@@ -174,36 +209,6 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
 
   it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
     const { anchors } = checkParity()
-    // MEMBERSHIP, not cardinality — review F16, and the same reasoning W0/F2 applied to
-    // `PALETTE_KEYS` three cases above. The guard is `.mjs` and cannot import this TS module, so
-    // its two tier lists are hand-maintained; held to nothing but themselves, a SEVENTH tier
-    // lands with the guard unchanged and a SHRINK that drops `recessed` reaches green by editing
-    // one number here. Both shapes SURVIVED the lanes' probes against the old `.toBe(6/4/24)`.
-    // These two assertions are the only ones in this case that compare the lists to something
-    // outside them, which is what makes the loops below non-tautological.
-    expect([...TIER_KEYS].sort(), 'the guard must anchor exactly the six glass tiers').toEqual(
-      Object.keys(GLASS_TIER.dark).sort(),
-    )
-    // `innerShadow` is unanchored BY NAME rather than by being the difference between 4 and 5 —
-    // it is not a CSS value on either side, so an anchor on it would compare two transcriptions
-    // rather than a contract. Its twelve values are pinned by
-    // `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE else; thinning that file removes
-    // their last guard. A FIFTH tier part added to the module reds here until someone either
-    // anchors it or names it in `UNANCHORED` with a reason.
-    //
-    // `TIER_PARTS` spells the gradient as two stops (`gradientTop`/`gradientBot`) because each is
-    // its own anchor ROW — the unit of PARSE-FAILED isolation — where the module has one
-    // `gradient` tuple. So the stops fold back to their field name before comparing.
-    const UNANCHORED = ['innerShadow']
-    // `indexOf` dedupe, not `[...new Set()]`: tsconfig targets es5, where spreading a Set is
-    // TS2802. Four elements — a Set would buy nothing but the flag.
-    const anchoredFields = TIER_PARTS.map((p: string) =>
-      p.startsWith('gradient') ? 'gradient' : p,
-    ).filter((f: string, i: number, all: string[]) => all.indexOf(f) === i)
-    expect(
-      [...anchoredFields, ...UNANCHORED].sort(),
-      'every part of a tier is either anchored or named unanchored',
-    ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
 
     for (const key of TIER_ANCHOR_KEYS) {
       const schemes = anchors
@@ -274,9 +279,13 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         .join('; '),
     ).toEqual([])
     // The exclusion list is the guard's, imported rather than restated — one place, one meaning.
+    // Typed on THIS side (W0/F11): the guard is `.mjs`, so its export arrives untyped and a
+    // typo in the exclusion list would be a misleading runtime red. Naming the two keys at
+    // `PaletteToken` makes it a compile error instead, while the guard's array stays the ONE
+    // thing that actually excludes (F17) — this pins that it is those two and nothing else.
+    const INVARIANT: readonly PaletteToken[] = ['onError', 'onPrimary']
     expect([...SCHEME_INVARIANT].sort(), 'the only by-design scheme-invariant keys').toEqual([
-      'onError',
-      'onPrimary',
+      ...INVARIANT,
     ])
   })
 })
