@@ -1,4 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import {
+  DangerFill,
+  PrimaryButtonGradient,
+  SAMPLE_TINT,
+} from '@/features/demo/ui/controls/button-recipe'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
@@ -358,36 +363,63 @@ describe('palette contrast contract', () => {
     ).toEqual([])
   })
 
-  it('clears AA for the primary CTA label on BOTH stops of its gradient (rows 12-13, dark)', () => {
-    // Phone `:225-244`, dark half. On a blue gradient the two candidate label colours move in
-    // OPPOSITE directions, so there is no stop where both clear 4.5:1 and the pair cannot be
-    // tuned independently. The demo's old dark recipe `['#35A0D6','#2580AD']` measured 3.34
-    // with `textInverse` and 2.94 with `onPrimary`; U0.3 re-based it to 5.80 / 8.32.
-    //
-    // Read off GLASS, never retyped: these two stops ARE the demo's `PrimaryButtonGradient.dark`
-    // (`glass-tokens.ts:34-35`, kept as module consts because the drift guard's anchors 7/8
-    // read them by name). Measured on the FLAT stop, not on a ground stack — a CTA fill is
-    // opaque.
+  // DEMO-SIDE ADDITION (U2.2). Two grounds the port CREATES that no phone row covers, each a
+  // button label on a fill the contract's tier stacks do not contain.
+  //
+  // The plan's U2.2 Tests column also asks for an outline BORDER floor at >= 3.0 "against every
+  // dark tier". That is strictly implied by row 10 above — same token, same grounds, a 4.5 bound
+  // — so writing it out would assert nothing row 10 does not already. The genuinely unmeasured
+  // grounds are these.
+  it('clears AA for the two button labels the port puts on grounds the contract has never seen', () => {
     expect(
-      (
+      offenders(
         [
-          ['dark upper', palette.dark.onPrimary, GLASS.accentFrom],
-          ['dark lower', palette.dark.onPrimary, GLASS.accentTo],
-        ] as [string, string, string][]
-      )
-        .map(([name, fg, bg]) => ({ name, ratio: round(contrast(fg, [bg])) }))
-        .filter(({ ratio }) => ratio < AA_TEXT),
+          // (a) `secondary`: `colors.text` on the FLAT `backgroundSecondary` fill (phone `:143`,
+          //     `:216`). Row 4 measures `text` on the glass TIERS; an opaque flat fill is not one,
+          //     and this is the label the port lifts from `textSecondary`.
+          ['dark secondary label', palette.dark.text, [[palette.dark.backgroundSecondary]]],
+          ['light secondary label', palette.light.text, [[palette.light.backgroundSecondary]]],
+          // (b) `outline` under the demo-only 14% `primary` wash (D12) that the three
+          //     sample/fallback buttons paint over whatever tier hosts them. `link` clears 6.86 on
+          //     bare glass (row 10); what this answers is whether a wash the phone has never seen
+          //     eats that headroom. Dark only — the wash has no light surface in the demo.
+          [
+            'dark outline label under SAMPLE_TINT',
+            palette.dark.link,
+            DARK_GROUNDS.map((ground) => [SAMPLE_TINT, ...ground]),
+          ],
+        ],
+        AA_TEXT,
+      ),
     ).toEqual([])
   })
 
-  // Rows 12-13, light half. `PrimaryButtonGradient.light = ['#2563eb', '#1d3584']`
-  // (phone `Colors.ts:471-474`) has NO demo counterpart and NO owning package: U0.3 re-based
-  // the dark pair only, and the plan never assigns the light pair to anyone. Typing the two
-  // hexes in here instead would be the exact anti-pattern the deep-import rule forbids. See
-  // the U0.5 report's deferral proposal.
-  it.todo(
-    'rows 12-13 (UNOWNED, proposed U2.2): clears AA for the LIGHT primary CTA label on both stops — needs PrimaryButtonGradient.light',
-  )
+  it('clears AA for the primary CTA label on both stops of its gradient, both schemes (rows 12-13)', () => {
+    // Phone `:225-244`. On a blue gradient the two candidate label colours move in OPPOSITE
+    // directions, so there is no stop where both clear 4.5:1 and the pair cannot be tuned
+    // independently. The demo's old dark recipe `['#35A0D6','#2580AD']` measured 3.34 with
+    // `textInverse` and 2.94 with `onPrimary`; U0.3 re-based it to 5.80 / 8.32.
+    //
+    // Read off `PrimaryButtonGradient` (`SEAM(U2.2)`), never retyped — and off THAT record rather
+    // than off `GLASS.accentFrom`/`accentTo`, because the record is what `buttonStyle` actually
+    // paints and it is the only place the LIGHT pair exists at all. Its dark half still points at
+    // those two consts, which the drift guard reads by literal. Measured on the FLAT stop, not on
+    // a ground stack — a CTA fill is opaque.
+    //
+    // The light half was `it.todo` ("UNOWNED, proposed U2.2") until this package created
+    // `PrimaryButtonGradient.light` (phone `Colors.ts:472`). Typing its two hexes in here instead
+    // would have been the exact anti-pattern the deep-import rule forbids.
+    expect(
+      (['light', 'dark'] as const)
+        .flatMap((scheme) =>
+          PrimaryButtonGradient[scheme].map((stop, index) => ({
+            name: `${scheme} stop ${index}`,
+            ratio: round(contrast(palette[scheme].onPrimary, [stop])),
+          })),
+        )
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
 
   it('clears AA for `onPrimary` and `onError` on the deep fills (rows 16, 18, both schemes)', () => {
     // Phone `:245-276`, the ratio half. DEF-UI-001: NEITHER token clears on the flat mid-tone
@@ -418,9 +450,16 @@ describe('palette contrast contract', () => {
   // to the flat failing pair left that suite 32/32 green. PIN THE RATIO AT THE CONSTANT —
   // `expect(DangerFill.light).toBe(palette.light.errorDark)` and the dark mirror — or the
   // tautology just moves up one level.
-  it.todo(
-    'row 21 (U2.2): maps DangerFill to errorLight (dark) / errorDark (light), at the constant — needs DangerFill',
-  )
+  it('maps the danger fill to the deep red in both schemes, AT the constant (row 21)', () => {
+    // The link that makes row 18 a statement about the shipped UI rather than about two palette
+    // entries nothing paints together.
+    expect(DangerFill.dark).toBe(palette.dark.errorLight)
+    expect(DangerFill.light).toBe(palette.light.errorDark)
+    // ...and NOT the flat mid-tone a future "resync" would reach for, which is the mutation the
+    // phone's consumer-side pin could not see: `error` measures 3.34 dark / 3.76 light.
+    expect(DangerFill.dark).not.toBe(palette.dark.error)
+    expect(DangerFill.light).not.toBe(palette.light.error)
+  })
 
   // Rows 22-25. Phone `:277-304`, over a per-scheme `barGrounds(scheme)` = both `card` stops
   // plus both `sheet` stops. Needs `warningAccent` (`#ffc62b` dark / `#b45309` light, phone
