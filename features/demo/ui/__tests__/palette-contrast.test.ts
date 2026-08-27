@@ -522,14 +522,29 @@ describe('scrim opacity', () => {
   // behind an open sheet instead of dimming it; 0.32 matches the common dim across the
   // platforms surveyed. Light has always been 0.5 and reads correctly.
   //
-  // `colors.scrim` does not exist in the demo yet — matrix A22, U4.4's row ("the scrim
-  // family"). The demo currently carries THREE competing darknesses (`T.scrim`
-  // `rgba(4,8,14,0.55)` plus a 0.66 and a 0.72), which is what U4.4 collapses. When it lands,
-  // the pin is `alphaOf(palette.dark.scrim) === 0.32` and `alphaOf(palette.light.scrim) === 0.5`
-  // with `alphaOf = (rgba: string) => Number(rgba.match(/([\d.]+)\s*\)$/)![1])`.
-  it.todo(
-    'row 34 (U4.4): dims the app behind a sheet without blacking it out, in both themes — needs colors.scrim',
-  )
+  // U4.4 landed `colors.scrim`. The three competing darknesses it collapsed were
+  // `rgba(4,8,14,0.55)` (8 sites), `rgba(4,8,14,0.66)` (3) and `rgba(4,8,14,0.72)` (1, and
+  // FROZEN by D12 — `ExitDialog` sits outside the phone frame).
+  const alphaOf = (rgba: string) => Number(rgba.match(/([\d.]+)\s*\)$/)![1])
+
+  it('row 34: dims the app behind a sheet without blacking it out, in both themes', () => {
+    expect(alphaOf(palette.dark.scrim)).toBe(0.32)
+    expect(alphaOf(palette.light.scrim)).toBe(0.5)
+  })
+
+  it('row 34b: keeps scrim and overlay APART in dark, and together in light', () => {
+    // Phone `Colors.ts:222-226`: *"NOT the same value as `overlay` any more (light still is):
+    // 0.9 blacked the app out behind an open sheet instead of dimming it, so the dark half
+    // moved to 0.32 while `overlay` stayed put. Deliberate — do NOT 'resync' the two."*
+    // The dark half is the whole finding, so it is asserted as a DIFFERENCE rather than as two
+    // values: a re-sync to 0.9 is the exact edit this row exists to catch, and it would pass a
+    // pair of value pins written independently.
+    expect(palette.dark.scrim).not.toBe(palette.dark.overlay)
+    expect(alphaOf(palette.dark.overlay)).toBe(0.9)
+    // …and light genuinely IS the same value, so pinning "they differ" unconditionally would
+    // be wrong rather than merely stricter.
+    expect(palette.light.scrim).toBe(palette.light.overlay)
+  })
 
   // Rows 36-37, phone `:409-429`. The alpha pin above is necessary and NOT sufficient, and this
   // pair is why: the phone's 0.9 -> 0.32 move shipped green because nothing re-checked the
