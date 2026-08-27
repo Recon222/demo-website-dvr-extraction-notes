@@ -5,6 +5,7 @@ import {
   ModalShell,
   modalScrim,
   modalSheet,
+  modalSheetEnter,
   MODAL_SCRIM_Z,
   MODAL_SHEET_Z,
 } from '@/features/demo/ui/screens/_shared'
@@ -95,9 +96,13 @@ describe('SettingsModal — master/detail navigation', () => {
     // The master list is GONE while the detail is up (one pane at a time) — so nothing behind
     // the pushed pane stays in the tab order.
     expect(screen.queryByTestId('settings-row-about')).not.toBeInTheDocument()
-    // Exactly one pane is ever asked for.
-    expect(renderPane).toHaveBeenCalledTimes(1)
-    expect(renderPane).toHaveBeenCalledWith('time-sync')
+    // Exactly one pane is ever asked for — asserted on the SET of ids, not on the call count.
+    // U4.2 put `useReducedMotion` on this component, and `lib/hooks/use-reduced-motion.ts:13-23`
+    // returns `false` on the first render and re-renders from an effect, so a mounted component
+    // renders twice. The contract this line was written for is "no pane but the open one is ever
+    // asked for", and a call count could never say that: it would have been equally green if the
+    // one call had been for the wrong id.
+    expect(new Set(renderPane.mock.calls.map(([id]) => id))).toEqual(new Set(['time-sync']))
   })
 
   it('R-10: the detail pane is a NAMED group, so its label is not discarded by the a11y tree', () => {
@@ -231,7 +236,7 @@ describe('the modal chrome is ONE recipe (B.2 row 16)', () => {
     const { container: reference } = render(
       <>
         <div data-ref-scrim style={modalScrim} />
-        <div data-ref-sheet style={modalSheet} />
+        <div data-ref-sheet style={{ ...modalSheet, ...modalSheetEnter }} />
       </>,
     )
     const { container } = render(

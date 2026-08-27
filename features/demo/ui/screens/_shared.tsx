@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId } from 'react'
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
@@ -115,9 +116,23 @@ export const modalSheet: CSSProperties = {
   overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
-  animation: 'screenIn 0.3s ease',
   pointerEvents: 'auto',
 }
+
+/**
+ * The panel's entrance, SEPARATE from the panel, because it is conditional.
+ *
+ * Both consumers spread it only when the visitor has not asked for reduced motion. It used to
+ * live inside the fragment above, unconditionally, so nine surfaces (this shell's eight callers
+ * plus the Settings sheet) slid in for people who had asked them not to - while every other
+ * inline-styled motion in this feature gates (`features/demo/CLAUDE.md`; U4.1 fixed the same
+ * defect on the three picker sheets). Collapsing the two chrome copies is what made it one site.
+ *
+ * `@/lib/hooks/use-reduced-motion`, not `motion/react`'s: `import/PickerStage.tsx:94` records
+ * that the latter caches its `matchMedia` subscription module-globally, and U4.1's
+ * `GlassBottomSheet.tsx:5` chose the same way for the same reason.
+ */
+export const modalSheetEnter: CSSProperties = { animation: 'screenIn 0.3s ease' }
 
 /**
  * SEAM(U4.2): the page-sheet header bar - matrix A60, phone `ModalHeader.tsx:54-97`.
@@ -247,6 +262,7 @@ export function ModalShell({
   children: ReactNode
 }) {
   const subtitleId = `${useId()}-subtitle`
+  const reduceMotion = useReducedMotion()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -264,7 +280,7 @@ export function ModalShell({
         aria-describedby={subtitle ? subtitleId : undefined}
         // Re-assigning `zIndex` keeps the key in the slot the fragment gave it, so at
         // `MODAL_LAYER.base` the declaration string is byte-identical to the Settings sheet's.
-        style={{ ...modalSheet, zIndex: MODAL_SHEET_Z + elevation }}
+        style={{ ...modalSheet, zIndex: MODAL_SHEET_Z + elevation, ...(reduceMotion ? null : modalSheetEnter) }}
       >
         <div style={grid} />
         <div data-modal-header style={modalHeaderBar}>

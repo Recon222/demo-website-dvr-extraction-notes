@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useReducedMotion } from 'motion/react'
 import type { SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { SettingsNavBar } from '@/features/demo/ui/screens/settings/SettingsNavBar'
 import { SettingsCategoryList } from '@/features/demo/ui/screens/settings/SettingsCategoryList'
 import { findSettingsRow, type SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
-import { MODAL_SHEET_Z, modalScrim, modalSheet } from '@/features/demo/ui/screens/_shared'
+import { MODAL_SHEET_Z, modalScrim, modalSheet, modalSheetEnter } from '@/features/demo/ui/screens/_shared'
+// `@/lib/hooks`, not `motion/react`: that hook caches its `matchMedia` subscription
+// module-globally (`import/PickerStage.tsx:94`), so it never observed a preference set after
+// the module loaded - measured here, where the sheet kept animating under `reduce`.
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 
 /**
  * The Settings sheet — the demo's port of the phone's `SettingsModal` (P7.1, matrix row 81,
@@ -152,7 +155,7 @@ export function SettingsModal({ sections, renderPane, onClose }: SettingsModalPr
         aria-modal="true"
         aria-label="Settings"
         data-testid="settings-modal"
-        style={modalSheet}
+        style={{ ...modalSheet, ...(reduceMotion ? null : modalSheetEnter) }}
       >
         {/* `role="group"` on the detail pane is load-bearing (R-10), not decoration: a role-less
             div maps to ARIA `generic`, whose name-from is PROHIBITED, so the `aria-labelledby`
