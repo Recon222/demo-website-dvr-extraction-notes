@@ -51,22 +51,66 @@ const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
 ])
 
-/** Every .ts/.tsx source file under ui/, minus __tests__ dirs and the token modules. */
-function sourceFiles(dir: string): string[] {
+/**
+ * The two modules allowed to NAME a scheme half, because they declare both of them.
+ *
+ * Deliberately NOT `TOKEN_MODULES`, and the difference is the whole finding (review r1 F18):
+ * that set exempts `glass-tokens.ts`, which is one of the exactly two production consumers
+ * this scan exists to watch. Scanning with the wrong exemption list would have left
+ * `glass-tokens.ts:62` — half the live exposure — uncovered while reporting green.
+ */
+const SCHEME_DECLARERS: ReadonlySet<string> = new Set([
+  'tokens/palette.ts', // declares `palette.light`/`palette.dark` and owns the ONE `scheme` site
+  'tokens/glass-tiers.ts', // declares `GLASS_TIER.light`/`GLASS_TIER.dark`
+])
+
+/**
+ * Every .ts/.tsx source file under ui/, minus __tests__ dirs and `skip`.
+ *
+ * `skip` defaults to `TOKEN_MODULES` (the banned-literal scan's exemption: a banned literal has
+ * to live exactly once, and that once is a token module). The scheme-half scan passes a
+ * DIFFERENT set, because "may hold a raw literal" and "may name a scheme half" are different
+ * permissions over different files.
+ */
+function sourceFiles(dir: string, skip: ReadonlySet<string> = TOKEN_MODULES): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name !== '__tests__') out.push(...sourceFiles(full))
+      if (entry.name !== '__tests__') out.push(...sourceFiles(full, skip))
     } else if (
       /\.tsx?$/.test(entry.name) &&
-      !TOKEN_MODULES.has(relative(UI_ROOT, full).split(sep).join('/'))
+      !skip.has(relative(UI_ROOT, full).split(sep).join('/'))
     ) {
       out.push(full)
     }
   }
   return out
 }
+
+/**
+ * Comments are not code, and here that is load-bearing rather than tidy: `glass-tokens.ts:59`
+ * and `tokens/palette.ts:11,177,181` spell `GLASS_TIER.dark` / `palette.dark` in prose
+ * precisely in order to FORBID them. A raw-text scan reds on its own documentation.
+ *
+ * `//` inside a string literal would truncate that line early. Accepted: the cost is coverage
+ * of one line, never a false red, and no scheme half is spelled inside a string anywhere.
+ */
+const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+
+/**
+ * A scheme half reached for by name in a VALUE position. Plan §9 clause 12: flipping the demo
+ * to light is a ONE-SITE change, and the one site is `tokens/palette.ts`'s `export const
+ * scheme`. Consumers resolve `GLASS_TIER[scheme]` / `colors`; `GLASS_TIER.dark` is the same
+ * object today, so no behavioural pin can ever see it (review r1 F18, two SURVIVED probes) and
+ * a source scan is the only mechanism that can.
+ *
+ * `typeof` is excluded because a TYPE position is the opposite of a violation: review r1 F15
+ * requires `satisfies typeof palette.dark.primaryDark` in `glass-tokens.ts`, a deliberately
+ * scheme-INDEPENDENT reference that must keep compiling after the flip. A regex cannot parse a
+ * type position; `typeof` is the one marker that reliably identifies it here.
+ */
+const SCHEME_HALF = /(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/
 
 /**
  * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
@@ -186,6 +230,19 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
+  // Review r1 F18. The trigger U1.4's D-2 named ("the next commit that touches this scan
+  // block") fired inside the same PR, so the deferral became a finding and this is the gate it
+  // asked for. It is not a string-presence pin standing in for a behaviour: while the demo
+  // renders dark, `GLASS_TIER.dark` and `GLASS_TIER[scheme]` ARE the same object, so there is
+  // no behaviour to observe — the source text is the whole invariant, exactly as the
+  // anti-re-drift scan above it.
+  it('no production module hard-codes a scheme half (plan §9 clause 12)', () => {
+    const offenders = sourceFiles(UI_ROOT, SCHEME_DECLARERS)
+      .filter((full) => SCHEME_HALF.test(stripComments(readFileSync(full, 'utf8'))))
+      .map((full) => relative(UI_ROOT, full).split(sep).join('/'))
+    expect(offenders).toEqual([])
+  })
+
   // R-34: the /demo error page's colours live as @theme MIRRORS in app/css/style.css —
   // outside this suite's scan root and in Tailwind arbitrary-value syntax the error-page
   // guard can't value-check. Pin the mirror VALUES here, against the tokens that will

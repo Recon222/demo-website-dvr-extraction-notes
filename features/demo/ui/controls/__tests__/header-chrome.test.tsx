@@ -20,8 +20,14 @@ import { scheme } from '@/features/demo/ui/tokens/palette'
  * from a retyped literal. That is the same device U1.1's derivation pin uses and it is here for
  * the same reason: a pin that restates the production string is green through exactly the edit
  * it exists to catch. What these assert is the RELATIONSHIP — that these three fragments read
- * the `header` tier, of the consumed scheme, in the right places — so sourcing a bar from
- * `card` or reading `GLASS_TIER.dark` directly reddens the file.
+ * the `header` tier, in the right places — so sourcing a bar from `card` reddens the file.
+ *
+ * What these do NOT catch, corrected after review r1 F18 measured it: `GLASS_TIER.dark` in
+ * place of `GLASS_TIER[scheme]`. While the demo renders dark the two are the SAME OBJECT, so
+ * no behavioural pin here or anywhere can tell them apart — the earlier claim in this docblock
+ * was half true and the half that was false is the half that mattered. Plan §9 clause 12 is
+ * held by a source scan instead: `ui/__tests__/glass-tokens.test.ts`'s "no production module
+ * hard-codes a scheme half".
  */
 
 const header = GLASS_TIER[scheme].header
