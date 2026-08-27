@@ -110,3 +110,32 @@ No severity changed. Nothing refuted.
 ---
 
 **`a3a9001` effect on the lane findings:** resolves none, worsens none. It adds U0.0 to wave 0 and the tracker, the measured baseline, the harness recipe, and §9 clause 12's tripwire list; it does not touch the seam rows, the Scope cells, the anchor counters, §6.2's merge-order cells, or the brief. Its one side-effect is V-57.
+
+---
+
+## 5. Closing verdict (r3)
+
+**Verdict: APPROVE** (house rule: no BLOCKER, no MAJOR open). Docs at HEAD `99351e9` (fix round `81468a1` + arithmetic `99351e9`). Writer's `FIX-MAPPING-r3.md`: 12/12 FIXED (V-47..V-57 + REAL-R3-1). Delta lanes: architect 5/5, quality 4/4, reality 3/3 + REAL-R3-1 fixed — all three APPROVE; 0 new findings; nothing refuted.
+
+### Per-V verification
+
+| V | Sev | Lane verification (r3) | Aggregator spot-check at HEAD |
+|---|---|---|---|
+| V-47 | BLOCKER | ARCH-R2-1 → FIXED-VERIFIED; all 24 light tier values diffed byte-exact vs `Colors.ts:274-344` | **Confirmed.** U1.1 `:262` exported shape `GLASS_TIER = { light: { card: {…}, nestedCard: …, … }, dark: … } as const`, cites `Colors.ts:274-344`. Consumers: U2.1 `:275`, U3.2 `:291`, U4.1 `:303`, U4.4 `:306` each carry `GLASS_TIER[scheme]` / `palette[scheme]` / "scheme record"; U2.2 `:276` `borderTopColor: ElevatedEdges[scheme].top` / `.bottom`, `ElevatedEdges` as `{ light, dark }` per `Colors.ts:487-490`. D2 `:58` now binds `GLASS_TIER` and `ElevatedEdges`. U0.5 `:248`: *"The LIGHT tier-ground rows land `it.todo` the same way and un-todo in U1.1 too"*. |
+| V-48 | MAJOR | ARCH-R2-2 → FIXED-VERIFIED (`:214`, `:430`, `:431`, `:444`) | **Confirmed.** `:214` topology sentence (concurrent phases, own phase branch, own PR, PR order = merge order, no wave branch); wave-2/3 cells split into **Within phase** + **Phase-PR order to `master`** (U2 → U3 → U4; U5 → U6 → U7), *"resolved on the LATER phase's branch after the earlier PR lands"*, *"each merges `master` and re-gates after an earlier PR lands"*; `:444` *"gates on each phase branch, at that phase's assembly"*. |
+| V-49 | MAJOR | QUAL-R2-1 → FIXED-VERIFIED | Lane-verified at `:244`, `:248`; "dark half"/"dark token" strings gone. |
+| V-50 | MAJOR | QUAL-R2-2 → FIXED-VERIFIED (one anchor number set) | **Confirmed** — see arithmetic below. |
+| V-51 | MINOR | ARCH-R2-3 → FIXED-VERIFIED | Confirmed: U7.3 row carries "cross-cutting sweep"; §6.1 `:389` new row `ui/**` (user-facing strings) → U7.3, bounded. |
+| V-52 | MINOR | ARCH-R2-4 → FIXED-VERIFIED | Confirmed: `:216` *"U3.1 rides wave 1 on `feat/uiparity-u3` … U3's first phase PR at wave-1 end … merges `master` after U1's PR and continues into wave 2"*. (Writer chose the two-PR variant rather than R-2's single-PR one; both preserve D18 granularity — accepted.) |
+| V-53 | MINOR | ARCH-R2-5 → FIXED-VERIFIED | Confirmed: 9 `Fidelity:` occurrences, 9 are `**Fidelity:** §2…` references. |
+| V-54 | MINOR | QUAL-R2-3 → FIXED-VERIFIED | Confirmed: brief `:43` *"Cuts the `feat/uiparity-u0` phase branch off `master` (D18 as overridden — plan §4.8)"*. |
+| V-55 | MINOR | QUAL-R2-4 → FIXED-VERIFIED | Confirmed: "before U3.1 exists" gone from U0.1. |
+| V-56 | MINOR | REAL-R2-1 → FIXED-VERIFIED | Confirmed: U0.1 *"41 sites across 19 files"*. |
+| V-57 | MINOR | (aggregator-originated) FIXED per `FIX-MAPPING-r3`; architect lane covered U0.4 | Confirmed: U0.4 `:247` *"Fix the remaining defects (U0.0 already landed the `PARSE-FAILED` degrade — do not re-touch `check-rn-parity.mjs:74-75`)"*; matrix A96 `:188` names U0.0. |
+| REAL-R3-1 | MEDIUM (new in r3) | reality lane → fixed at `99351e9`; 28/28 values exact | **Confirmed propagated.** Stale `12 tier` / `+12` / `~32` / `~64` → 0 in the plan (the two matrix hits are Tier-B diffstats `+129/-49`, `+122/-227`, not anchor counts). Consistent set: U0.4 `:247` *"~15 keys are ~30 anchor rows … every stage figure is a key count"*; U1.1 `:262` *"24 tier KEYS — 4 per tier × 6 — each pinned in BOTH halves = 48 anchor rows"* (`innerShadow` deliberately unanchored); §6.6 `:516` *"U0.4 ~15 → U1.1 +24 tier keys → U3.1 +4 → U8.2 +gridSubtle; key counts"*; §9 `:627` *"~44 keys are ~88 anchor rows"*; D3 in plan and matrix `:414` *"U0.4 ~15 → U1.1 +24 → U3.1 +4 → U8.2 +1"*. 15 + 24 + 4 + 1 = 44 ✓. |
+
+**12/12 verified.** Nothing open.
+
+### State of the plan
+
+The plan is **ratified (D1–D20 ruled 2026-08-27) and executable from U0.0**. Across three review rounds — 46 + 11 + 12 findings, two BLOCKERs and one CRITICAL among them — every finding has been fixed and independently re-verified by the lane that raised it, with the aggregator re-opening every BLOCKER/MAJOR at the doc line and at source. What is now proven: every `file:line` in both docs resolves against the phone repo and the demo worktree (~300 citations re-opened over the three rounds); the matrix's 97 Tier-A rows and 215-row totals are script-derived; the D2-amended both-halves shape reaches every seam that consumes it (`palette`, `GLASS_TIER`, `ElevatedEdges` as `{ light, dark }` records, 24 light tier values byte-exact against `Colors.ts:274-344`, consumers resolving through `[scheme]`, one flip site at §9 cl. 12); the anchor set is one arithmetic (~15 → +24 → +4 → +1 keys, each pinned in both halves, ~88 rows at U8 exit); the wave topology is per-phase branches with PR-order merging and a `--no-ff` re-gate rule, so D18's `git revert -m 1` per phase still holds; and U0.0–U0.5 are buildable from their rows alone, with U0.0's `PARSE-FAILED` degrade as the port's first commit on `feat/uiparity-u0` off `master`. The only preconditions left are operational, not planning: merge the planning bundle to `master` (§5 prerequisite) and brief U0 per §6.4 under HANDOFF §2.
