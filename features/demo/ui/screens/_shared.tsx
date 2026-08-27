@@ -486,7 +486,20 @@ export type SelectFieldProps = SelectFieldName & {
   options: ReadonlyArray<string | PickerOption>
 }
 
-/** A labelled on/off switch (keyboard-operable). */
+/**
+ * SEAM(U2.3): THE on/off switch (keyboard-operable). The demo's only switch renderer.
+ *
+ * Three verbatim re-implementations of the track below used to exist — `FormFieldsPane`'s
+ * `RowSwitch`, `TimeOffsetScreen`'s DST row and `GpsCaptureControl`'s geocode toggle — and U2.3
+ * deleted all three onto this one (matrix A76; demo §4.7 leverage point 4). `hideLabel` is what
+ * made that possible: two of the three drew no inline label because their host already draws one.
+ * `screens/__tests__/one-switch-renderer.test.ts` fails if a fourth appears.
+ *
+ * The phone uses the PLATFORM switch (`common/Switch.tsx:51-56`), so the only portable spec is
+ * colour + row — off-track `colors.border`, on-track `colors.primary`, label 16/500 `colors.text`,
+ * row `space-between` with the label taking the slack (`Switch.tsx:74-81`). The track/thumb
+ * GEOMETRY is demo-owned by necessity (the web has no platform switch) and is kept.
+ */
 export function Toggle({
   label,
   on,
@@ -494,6 +507,8 @@ export function Toggle({
   disabled = false,
   describedBy,
   disclosure,
+  hideLabel = false,
+  testId,
 }: {
   label: string
   on: boolean
@@ -534,35 +549,84 @@ export function Toggle({
    * says so. Same move as R-7's required `valueText` and R-23/R-29's nameable modes.
    */
   disclosure?: { controls: string; expanded: boolean }
+  /**
+   * Paint the track ALONE — no row, no inline label — for a host that already draws the label
+   * itself. `label` stays required and stays the accessible name: printing it here as well would
+   * read twice to a sighted visitor and once too often to a screen reader, which is the whole
+   * reason `FormFieldsPane` re-implemented the track rather than reuse this component.
+   *
+   * A plain boolean, not a props union: unlike `SelectField`'s `a11yLabel` split, nothing about
+   * the CONTRACT changes between the two modes — the same name, the same states, the same
+   * handlers. Only the painting does.
+   */
+  hideLabel?: boolean
+  /** `data-testid` on the switch element itself (`RowSwitch`'s, which the pane tests address). */
+  testId?: string
 }) {
   const activate = () => {
     if (!disabled) onClick()
   }
+  /** Every state and handler the two modes share; only the node they land on differs. */
+  const switchProps = {
+    role: 'switch',
+    'aria-checked': on,
+    'aria-disabled': disabled || undefined,
+    'aria-describedby': disabled ? describedBy : undefined,
+    'aria-controls': disclosure?.controls,
+    'aria-expanded': disclosure?.expanded,
+    'aria-label': label,
+    'data-testid': testId,
+    tabIndex: 0,
+    onClick: activate,
+    onKeyDown: switchKeyDown(activate),
+  } as const
+  const track: CSSProperties = {
+    flex: '0 0 auto',
+    width: 46,
+    height: 28,
+    borderRadius: 14,
+    background: on ? colors.primary : colors.border,
+    position: 'relative',
+  }
+  // Recorded divergence (plan §5 U2.3): the phone's thumb is `colors.background` — the navy the
+  // app sits on. The demo keeps white-on / faint-off, a web-legibility choice, since there is no
+  // platform switch drawing the puck's own shadow and elevation. (Spelling the phone's hex out
+  // here trips `glass-tokens.test.ts`'s banned-literal scan, which reads source TEXT — U0's
+  // successor note 5 says the same about `palette.ts`'s own docblock.)
+  const thumb = (
+    <div
+      aria-hidden="true"
+      style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }}
+    />
+  )
+  const cursor = disabled ? 'not-allowed' : 'pointer'
+  const opacity = disabled ? 0.55 : 1
+
+  // With no row to fade, the D10 disabled treatment lands on the track itself.
+  if (hideLabel) {
+    return (
+      <div {...switchProps} style={{ ...track, cursor, opacity }}>
+        {thumb}
+      </div>
+    )
+  }
+
   return (
     <div
-      role="switch"
-      aria-checked={on}
-      aria-disabled={disabled || undefined}
-      aria-describedby={disabled ? describedBy : undefined}
-      aria-controls={disclosure?.controls}
-      aria-expanded={disclosure?.expanded}
-      aria-label={label}
-      tabIndex={0}
-      onClick={activate}
-      onKeyDown={switchKeyDown(activate)}
+      {...switchProps}
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        cursor,
         padding: '4px 0',
-        opacity: disabled ? 0.55 : 1,
+        opacity,
       }}
     >
-      <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
-      <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : colors.border, position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }} />
-      </div>
+      {/* `flex: 1` + a 16px gutter is the phone's own label style (`Switch.tsx:76-81`): the
+          label takes the slack so a long one wraps instead of squeezing the 46px track. */}
+      <span style={{ fontSize: 16, fontWeight: 500, flex: 1, marginRight: 16, color: colors.text }}>{label}</span>
+      <div style={track}>{thumb}</div>
     </div>
   )
 }
