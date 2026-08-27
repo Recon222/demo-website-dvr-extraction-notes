@@ -1,5 +1,8 @@
 # HANDOFF — Demo↔Phone UI Parity (v2) Orchestration Runbook
 
+state-as-of: PENDING-MERGE
+last-full-plan-read: PENDING-MERGE
+
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
 **Last updated:** 2026-08-27 — milestone: ***PLANNING PHASE COMPLETE — PAUSED AT THE OWNER GATE.*** Matrix (748L: 97 Tier-A rows — 41 DRIFTED / 24 MISSING / 21 MISSING-SEAM / 7 COMPLETE — + 72 Tier-B + 15 inert + 14 demo-only) and master plan (531L: U0–U8, 9 phases) passed plan-review r1: initial BLOCK 2B/16M/27m → fix round 1 (45/46 fixed, 1 refuted) → fix-delta REVISE 0B/4M/7m → fix round 2 (11/11) → fix-delta r2 all lanes APPROVE → Fable closing verdict **APPROVE**. Full trail in `plan-review/r1/` + `plan-review/r1-delta/`. **NOTHING IN FLIGHT.** Next: owner rules D1–D20 (`02-ratification-brief.md`), then merge the planning bundle to `master`, then brief U0.
@@ -17,6 +20,9 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
   - **Review lanes:** spawn with an EXPLICIT `model: "opus"` on every call — most `.claude/agents/*-reviewer.md` definitions carry no model frontmatter and would silently inherit something else.
   - **Aggregator (review + plan-review): FABLE** (`model: "fable"`), as in v1 — the one seat that settles disputes.
   - **NO NAMED AGENTS from the build phase on** — `name:` forces the teams machinery, which is flaky. Spawn unnamed, record the raw `agentId` from each spawn result in §6, and resume via that id. (Planning-phase agents already named may finish; nothing new gets a name.)
+- **D1–D20 RATIFIED 2026-08-27 (owner: "you are the expert — 100% best path, no shortcuts, no band-aids").** D1–D17, D19, D20 = the matrix recommendations. **D18 OVERRIDDEN: phases merge straight to `master`** (site not live; no integration branch). **D2 AMENDED: light mode stays open** — the token layer ships BOTH scheme halves from U0, the demo consumes dark, drift guard + contrast test pin both halves; nothing hard-codes a dark value that has a light sibling. Human-time estimates are struck from the plan; wall-clock is agent-time.
+- **Fidelity bar (owner, verbatim): "right now it looks bang on for what it used to look like; after this I want it bang on for what it looks like now."** DoD clause 11 (side-by-side reads as the same product) is the definition of done; the mechanical gates are the floor under it.
+- **Orchestration doctrine:** `.claude/skills/fleet-orchestration/SKILL.md` (+ `hazard-playbook.md` for every repo-writing agent, `reviewer-contract.md` for every lane, `mutation-testing/SKILL.md` for every pin). Seats: `opus-implementer` (impl) · five code lanes · `dt-review-aggregator` (Fable, warm all rounds, SOLE ledger writer) · `dt-integrator` (any merge not clean in one mechanical pass) · one warm `dt-partner` (Fable) for the orchestrator's legwork. Blocking conditions live in `GATES.md`.
 - Phone repo `D:\Work Coding Projects\CCTV Recovery Notes App\extraction_case_notes_react_native_expo` is **STRICTLY READ-ONLY**.
 - Same quality bar as v1: matrix → plan → owner ratification → phased execution → per-phase multi-lane review + aggregator → fix rounds by warm authors → fix-delta → merge commits. "We keep going until UI parity is reached."
 - Reuse v1's machinery: `.claude/agents/opus-implementer*.md`, the five review lanes, `docs/code-reviews/deferred.md` ledger, the v1 HANDOFF §4 standing rules (all still binding — copied to §4 below).
