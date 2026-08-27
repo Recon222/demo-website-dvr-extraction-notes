@@ -18,7 +18,7 @@ import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCa
 import { MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
-import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { SAMPLE_BADGE, SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
@@ -1137,5 +1137,61 @@ describe('D12: the sample-data badge stays distinct from the ported warning fami
       expect(SAMPLE_BADGE.foreground as string, `the badge was tokenised to \`${token}\` — D12 freezes it`).not.toBe(palette.dark[token])
       expect(SAMPLE_BADGE.background as string).not.toBe(palette.dark[token])
     }
+  })
+})
+
+/**
+ * D12's freeze-and-defend arm, applied to the OTHER provenance surface (review W3/F76).
+ *
+ * `SAMPLE_BADGE` marks a bundled sample ASSET; `SAMPLE_NOTICE` marks that the demo SUBSTITUTED
+ * sample data for the visitor's own import. That is the provenance claim D12 names first, and it
+ * shipped as two inline literals with zero pins on either value. Same three cases as the badge,
+ * run over BOTH members from one table so a third provenance surface joins by adding a row.
+ *
+ * The notice renders on `ModalShell`'s elevated tier, not the nested card the chips sit on, so
+ * each member is composited over its own real ground rather than a shared convenience constant.
+ */
+describe('D12: every provenance mark stays distinct from the ported warning family', () => {
+  const NESTED = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
+  const ELEVATED = [GLASS_TIER.dark.elevated.gradient[0], palette.dark.background]
+
+  const MARKS = [
+    ['SAMPLE_BADGE', SAMPLE_BADGE, NESTED],
+    ['SAMPLE_NOTICE', SAMPLE_NOTICE, ELEVATED],
+  ] as const
+
+  it.each(MARKS)('%s: its fill separates from a ported warning surface, as both render', (_n, mark, ground) => {
+    expect(round(deltaE(flatten([mark.background, ...ground]), flatten([severityTone('warning').background, ...ground])))).toBeGreaterThan(10)
+  })
+
+  it.each(MARKS)('%s: PAINTS — the fill is visibly present on its own ground', (_n, mark, ground) => {
+    const bare = flatten([...ground])
+    expect(round(deltaE(flatten([mark.background, ...ground]), bare))).toBeGreaterThan(3)
+    // The tautology control, stated so the one-sided shape is not re-derived: a fill that paints
+    // nothing scores 0 here AND scores HIGHER against the warning surface than the shipped mark.
+    const transparent = flatten([withAlpha(mark.foreground, 0), ...ground])
+    expect(round(deltaE(transparent, bare)), 'a fill that paints nothing must FAIL').toBe(0)
+    expect(round(deltaE(transparent, flatten([severityTone('warning').background, ...ground])))).toBeGreaterThan(
+      round(deltaE(flatten([mark.background, ...ground]), flatten([severityTone('warning').background, ...ground]))),
+    )
+  })
+
+  it.each(MARKS)('%s: is not a warning token wearing an alpha — the HUE identity', (_n, mark) => {
+    const [r, g, b] = parse(mark.background)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight'] as const) {
+      const [tr, tg, tb] = parse(palette.dark[token])
+      expect([r, g, b], `background is \`${token}\` under an alpha — D12 freezes it as its own value`).not.toEqual([tr, tg, tb])
+    }
+  })
+
+  it.each(MARKS)('%s: its foreground separates from every ported warning foreground', (_n, mark) => {
+    const fg = parse(mark.foreground)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningOnLight'] as const) {
+      expect(round(deltaE(fg, parse(palette.dark[token]))), `foreground has converged on \`${token}\``).toBeGreaterThan(10)
+    }
+  })
+
+  it.each(MARKS)('%s: is legible on the ground it renders on', (_n, mark, ground) => {
+    expect(round(contrast(mark.foreground, [mark.background, ...ground]))).toBeGreaterThan(AA_TEXT)
   })
 })

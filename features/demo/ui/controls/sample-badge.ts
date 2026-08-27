@@ -61,3 +61,36 @@ export const SAMPLE_BADGE = {
   /** The hairline. Slightly stronger than the fill so the chip has an edge on a busy card. */
   border: 'rgba(255,200,90,0.3)',
 } as const
+
+/**
+ * The FallbackMode NOTICE — the same D12 machinery as the badge above, one step louder, and
+ * review W3/F76 is right that it is the more important half.
+ *
+ * The badge marks a bundled SAMPLE asset; this marks that the demo **substituted sample data for
+ * the visitor's own import** ("Live model not configured. Imported the sample request instead."
+ * and its two siblings). That is the provenance claim D12 names FIRST, and it shipped as two
+ * byte-identical inline literals in `ImportModal.tsx` at an alpha (`0.1` / `0.28`) matching no
+ * other site in the demo, with **zero test hits on either value**. F51 built the mechanism and
+ * stopped at the badge; this is the same treatment applied where it matters more.
+ *
+ * A SEPARATE member rather than a reuse of `SAMPLE_BADGE`: the two really are different
+ * recipes — a 9px uppercase chip vs a 12.5px paragraph — so collapsing them would move rendered
+ * bytes at both sites for a tidiness that D12 never asked for. What they share is the HUE, and
+ * the `palette-contrast.test.ts` describe now measures both against the ported warning family
+ * with the same three cases (family separation, presence floor, hue identity).
+ *
+ * The three NON-provenance amber surfaces (`MediaCaptureScreen`'s notice lines,
+ * `MediaLibrarySheet`'s empty note, `PdfPreview`'s print notice) stay out of this module
+ * deliberately — they are ordinary cautions, not provenance marks, and D12's freeze-and-defend
+ * arm does not reach them.
+ *
+ * Values unchanged from the two sites this replaces: zero rendered bytes moved.
+ */
+export const SAMPLE_NOTICE = {
+  /** The paragraph. Same hue as the badge's label, and the pins hold them to it. */
+  foreground: '#ffd07a',
+  /** The fill. Lighter than the badge's — a paragraph covers more ground than a chip. */
+  background: 'rgba(255,200,90,0.1)',
+  /** The hairline. */
+  border: 'rgba(255,200,90,0.28)',
+} as const
