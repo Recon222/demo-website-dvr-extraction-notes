@@ -49,6 +49,19 @@ const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'tokens/palette.ts', // U0.1 (SEAM) — the two-scheme phone palette; every bare hex below lives here
   'tokens/glass-tiers.ts', // U1.1 (SEAM) — the six glass tiers; the twelve tier stops banned below live here, once
   'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
+  // U5.1 (SEAM) — the map chrome's own constants, the web twin of the phone's
+  // `src/features/location/map-view/constants/index.ts`. It is a token module in the sense
+  // this list means: the map-domain surfaces are declared there ONCE and every `screens/map/`
+  // consumer imports them. It holds `rgba(28,78,132,0.6)` (banned two blocks down as the
+  // header/sheet border) because the phone declares that value TWICE, independently —
+  // `Colors.ts:393`/`:402` for the glass tiers and `constants/index.ts:104` for the map
+  // callout chrome — and collapsing the two here would invent a contract the phone does not
+  // hold. Appended per this docblock's own rule, as U5.1's closing act.
+  //
+  // NOT added to the scheme-half scan's exemptions, and there are none to add to: that scan
+  // exempts nothing (review r2 F24). `mapTokens.ts` declares its two halves as record ARMS and
+  // resolves them with `[scheme]`, so it is clean under it — measured, not assumed.
+  'screens/map/mapTokens.ts',
 ])
 
 /**

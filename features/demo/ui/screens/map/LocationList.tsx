@@ -3,7 +3,9 @@
 import type { CSSProperties } from 'react'
 import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
 import { LocationRow } from '@/features/demo/ui/screens/map/LocationRow'
-import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Why the empty state is discriminated (review R-6): one sentence cannot be true of three
@@ -58,20 +60,16 @@ export interface LocationListProps {
   exportMapBlocked?: boolean
 }
 
-const list: CSSProperties = { padding: '4px 14px 18px' }
-const empty: CSSProperties = { padding: '24px 16px', textAlign: 'center', color: SHEET_COLORS.textFaint, fontSize: 13, lineHeight: 1.6 }
-const clearButton: CSSProperties = {
-  marginTop: 12,
-  padding: '7px 16px',
-  borderRadius: 16,
-  border: `1px solid ${SHEET_COLORS.rowBorder}`,
-  background: 'rgba(43,140,193,0.14)',
-  color: '#4ba3d4',
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-  cursor: 'pointer',
-}
+/**
+ * phone `styles.listContent` `:94-97` — `paddingTop: sm`, `paddingBottom: lg`, and no horizontal
+ * padding because each row carries `marginHorizontal: md` there. On the web the inset lives here
+ * instead, so a `width: 100%` row cannot overflow it; the rendered geometry is the phone's.
+ */
+const list: CSSProperties = { padding: `${spacing.sm}px ${spacing.md}px ${spacing.lg}px` }
+/** The horizontal inset only — `EmptyState` owns the block's own 48pt padding (A80). */
+const empty: CSSProperties = { padding: `0 ${spacing.md}px` }
+/** A80's action slot: "optional primary Button `minWidth 200`". `EmptyState` sets the min width. */
+const clearButton: CSSProperties = { ...buttonStyle({ variant: 'primary' }), width: '100%', fontFamily: 'inherit' }
 
 export const EMPTY_COPY: Record<SheetEmptyReason, string> = {
   'no-data': 'No located locations yet — add an address to a location to plot it here.',
@@ -79,26 +77,25 @@ export const EMPTY_COPY: Record<SheetEmptyReason, string> = {
   proximity: 'No locations inside the proximity radius — widen it or turn Proximity off.',
 }
 
-const footer: CSSProperties = { padding: '8px 14px 20px' }
-/** The phone's export CTA (`LocationList.tsx:114-132`): 50 high, radius 14, the same CTA
- *  gradient as the detail card's "Go to Location", icon + label centred with an 8px gap. */
-const exportButton: CSSProperties = {
+/** phone `styles.footer` `:101-104` — `paddingHorizontal: md`, `paddingTop: sm`. The bottom
+ *  24 is `listContent`'s `paddingBottom` on the phone, where the footer is INSIDE the list. */
+const footer: CSSProperties = { padding: `${spacing.sm}px ${spacing.md}px ${spacing.lg}px` }
+/**
+ * The export CTA — phone `LocationList.tsx:66-77`, a `<Button variant="primary" fullWidth>`.
+ *
+ * The demo's copy of `linear-gradient(135deg,#1a8fc2,#0f6f9e)` + `0 4px 16px rgba(26,143,194,0.35)`
+ * at height 50 / radius 14 is gone, and so is the `map-outline` icon (PR #118 D-4). The phone
+ * records why the local button went, at `styles.footer` `:98-100`: *"The CTA is the shared
+ * <Button variant=\"primary\">, so this only positions it. It used to be a locally-authored
+ * gradient button (one of six local button implementations on this screen, at a seventh height
+ * and radius)."*
+ *
+ * A68 + PR #127 `e882912f`: `medium`, the recipe's default — no `size=\"large\"` in the map view.
+ */
+const exportButton = (disabled: boolean): CSSProperties => ({
+  ...buttonStyle({ variant: 'primary', disabled }),
   width: '100%',
-  height: 50,
-  borderRadius: 14,
-  border: 'none',
-  background: 'linear-gradient(135deg,#1a8fc2,#0f6f9e)',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 700,
-  letterSpacing: -0.2,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  boxShadow: '0 4px 16px rgba(26,143,194,0.35)',
-}
+})
 
 /** Phone copy, verbatim (ui-mapping 03:182; `LocationList.tsx:71-83`). */
 export const EXPORT_MAP_LABEL = 'Export Map'
@@ -130,13 +127,13 @@ function ExportMapFooter({
         aria-label={pending ? `${EXPORT_MAP_A11Y_LABEL} (preparing)` : EXPORT_MAP_A11Y_LABEL}
         onClick={onExportMap}
         disabled={disabled}
-        style={disabled ? { ...exportButton, opacity: 0.55, cursor: pending ? 'progress' : 'default' } : exportButton}
+        // The disabled PAINT is the recipe's own arm (`colors.disabled` fill, `disabledText`
+        // label), not the demo's old `opacity: 0.55` over a live gradient — an idiom
+        // `button-recipe.ts:20-23` records as one the phone does not have. Only the cursor is
+        // overridden, because `progress` says "held briefly" where `not-allowed` says "no".
+        style={pending ? { ...exportButton(true), cursor: 'progress' } : exportButton(disabled)}
       >
-        {/* Ionicons `map-outline` — the phone's icon, the same path the Map tab draws. */}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V3l-6 2.5L9 4z" />
-          <path d="M9 4v13.5M15 6.5V20" />
-        </svg>
+        {/* PR #118 D-4 dropped the `map-outline` icon; the phone's CTA is label-only. */}
         {EXPORT_MAP_LABEL}
       </button>
     </div>
@@ -159,13 +156,20 @@ export function LocationList({ items, selectedId, onSelect, emptyReason = 'no-da
   if (items.length === 0) {
     return (
       <>
+        {/* A80's tenth site. The three-reason discrimination above is demo-only (the phone shows
+            a blank list) and is unchanged; only the chrome moves onto the shared recipe, whose
+            docblock names this file as an expected first caller. */}
         <div data-testid="map-sheet-empty" data-empty-reason={emptyReason} style={empty}>
-          <div>{EMPTY_COPY[emptyReason]}</div>
-          {emptyReason === 'filters' && onClearFilters && (
-            <button type="button" data-testid="map-sheet-clear-filters" onClick={onClearFilters} style={clearButton}>
-              Clear filters
-            </button>
-          )}
+          <EmptyState
+            message={EMPTY_COPY[emptyReason]}
+            action={
+              emptyReason === 'filters' && onClearFilters ? (
+                <button type="button" data-testid="map-sheet-clear-filters" onClick={onClearFilters} style={clearButton}>
+                  Clear filters
+                </button>
+              ) : undefined
+            }
+          />
         </div>
         {exportFooter}
       </>

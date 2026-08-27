@@ -1,89 +1,47 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { MapControls, locationCountLabel, type MapControlsProps } from '@/features/demo/ui/screens/map/MapControls'
+import { render, screen, fireEvent, within } from '@testing-library/react'
+import {
+  MapControls,
+  MAP_FILTER_BADGE_FILL,
+  type MapControlsProps,
+} from '@/features/demo/ui/screens/map/MapControls'
 import { EMPTY_MAP_FILTERS } from '@/features/demo/ui/screens/map/mapFilters'
+import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/**
+ * The collapsed map chrome (U5.2) — port of the phone's PR #127 `MapControls.tsx`
+ * (`src/features/location/map-view/components/MapControls.tsx` @ `dd5551ec`).
+ *
+ * Three wrapping rows of ~9 glass pills became ONE row plus a conditional chip:
+ *
+ *   [← close]  [🔍 search field ............ ✕  │ ⚙ filters ●]
+ *   [◎ 2 km · 5 of 9  ✕]        ← only while proximity is active
+ *
+ * The status pills, the Clear pill, the proximity toggle and the four radius presets moved
+ * into `MapFiltersSheet` (U5.3). Their ABSENCE is pinned here, exactly as the phone pins it
+ * (`__tests__/MapControls.test.tsx:186-198`) — a deletion nobody guards comes back.
+ */
 
 function renderControls(over: Partial<MapControlsProps> = {}) {
   const props: MapControlsProps = {
     filters: EMPTY_MAP_FILTERS,
-    onToggleStatus: vi.fn(),
     onSearchChange: vi.fn(),
-    onClearFilters: vi.fn(),
-    activeFilterCount: 0,
+    onOpenFilters: vi.fn(),
+    filterBadgeCount: 0,
     proximityActive: false,
     proximityRadius: 1,
-    onProximityToggle: vi.fn(),
-    onRadiusChange: vi.fn(),
-    locationCount: 3,
-    filteredCount: 3,
-    totalCount: 3,
+    onProximityDeactivate: vi.fn(),
+    locationCount: 9,
+    filteredCount: 9,
     ...over,
   }
-  render(<MapControls {...props} />)
-  return props
+  const view = render(<MapControls {...props} />)
+  return { ...props, ...view }
 }
 
-describe('MapControls — status filters', () => {
-  it('renders the three phone status pills in registry order', () => {
-    renderControls()
-    expect(screen.getByTestId('status-toggle-started')).toHaveTextContent('Started')
-    expect(screen.getByTestId('status-toggle-working')).toHaveTextContent('Working')
-    expect(screen.getByTestId('status-toggle-complete')).toHaveTextContent('Complete')
-  })
-
-  it('carries the phone accessibility label', () => {
-    renderControls()
-    expect(screen.getByLabelText('Filter by Started')).toBeInTheDocument()
-  })
-
-  it('swaps to the -active testid and marks itself pressed when selected', () => {
-    renderControls({ filters: { statuses: ['complete'], searchText: '' } })
-    expect(screen.getByTestId('status-toggle-complete-active')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByTestId('status-toggle-complete')).not.toBeInTheDocument()
-    expect(screen.getByTestId('status-toggle-started')).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  it('reports the tapped status up', () => {
-    const props = renderControls()
-    fireEvent.click(screen.getByTestId('status-toggle-working'))
-    expect(props.onToggleStatus).toHaveBeenCalledWith('working')
-  })
-})
-
-describe('MapControls — count badge', () => {
-  it('pluralises and hides the "of" half when nothing is narrowing', () => {
-    renderControls({ locationCount: 3, filteredCount: 3 })
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('3 locations')
-  })
-
-  it('shows "N of M" while a filter is narrowing', () => {
-    renderControls({ locationCount: 3, filteredCount: 1 })
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('1 of 3 locations')
-  })
-
-  it('is hidden entirely when the case has no plottable locations at all', () => {
-    renderControls({ locationCount: 0, filteredCount: 0, totalCount: 0 })
-    expect(screen.queryByTestId('map-location-count')).not.toBeInTheDocument()
-  })
-
-  it('SURVIVES a zero-match filter and says so — the one control that can contradict the sheet', () => {
-    renderControls({ locationCount: 0, filteredCount: 0, totalCount: 3 })
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('No locations match')
-  })
-
-  it('is a live region, so the only feedback the filters give is announced', () => {
-    renderControls()
-    expect(screen.getByTestId('map-location-count')).toHaveAttribute('role', 'status')
-  })
-
-  it('singularises a lone location', () => {
-    expect(locationCountLabel({ filteredCount: 1, locationCount: 1 })).toBe('1 location')
-    expect(locationCountLabel({ filteredCount: 0, locationCount: 1 })).toBe('0 of 1 location')
-  })
-})
-
-describe('MapControls — search + clear', () => {
-  it('renders the phone placeholder and label, bound to the filter text', () => {
+describe('MapControls — search field', () => {
+  it('carries the phone placeholder and label, bound to the filter text', () => {
     renderControls({ filters: { statuses: [], searchText: 'rear' } })
     const input = screen.getByTestId('map-search-input')
     expect(input).toHaveAttribute('placeholder', 'Search locations...')
@@ -93,57 +51,260 @@ describe('MapControls — search + clear', () => {
 
   it('reports typing up', () => {
     const props = renderControls()
-    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'dock' } })
-    expect(props.onSearchChange).toHaveBeenCalledWith('dock')
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'CN Tower' } })
+    expect(props.onSearchChange).toHaveBeenCalledWith('CN Tower')
   })
 
-  it('is rendered even with nothing to clear (never conditionally hidden)', () => {
-    renderControls({ activeFilterCount: 0 })
-    expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear')
-    expect(screen.getByLabelText('Clear all filters')).toBeInTheDocument()
+  it('shows the inline clear-✕ only while the field has text, and clears through the same callback', () => {
+    const { onSearchChange, rerender } = renderControls()
+    expect(screen.queryByTestId('map-search-clear')).not.toBeInTheDocument()
+
+    rerender(
+      <MapControls
+        filters={{ statuses: [], searchText: 'CN Tower' }}
+        onSearchChange={onSearchChange}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={0}
+        proximityActive={false}
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={9}
+      />,
+    )
+    fireEvent.click(screen.getByTestId('map-search-clear'))
+    expect(onSearchChange).toHaveBeenCalledWith('')
+    expect(screen.getByLabelText('Clear search')).toBeInTheDocument()
   })
 
-  it('counts active filters in its label', () => {
-    renderControls({ activeFilterCount: 2 })
-    expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear (2)')
-  })
-
-  it('fires the clear callback', () => {
-    const props = renderControls()
-    fireEvent.click(screen.getByTestId('clear-filters-button'))
-    expect(props.onClearFilters).toHaveBeenCalledTimes(1)
+  it('paints the field text with the map chrome token, not a literal (contrast row 42)', () => {
+    renderControls()
+    expect(screen.getByTestId('map-search-input')).toHaveStyle({ color: MAP_GLASS_COLORS.text })
   })
 })
 
-describe('MapControls — proximity', () => {
-  it('shows no radius presets while proximity is off', () => {
-    renderControls({ proximityActive: false })
-    expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity')
-    expect(screen.getByLabelText('Activate proximity mode')).toBeInTheDocument()
-    expect(screen.queryByTestId('radius-preset-1')).not.toBeInTheDocument()
+describe('MapControls — close button', () => {
+  it('renders ONLY when onClose is supplied — the phone gate, and the demo honesty rule', () => {
+    const { rerender } = renderControls()
+    expect(screen.queryByTestId('map-close-button')).not.toBeInTheDocument()
+
+    const onClose = vi.fn()
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={0}
+        onClose={onClose}
+        proximityActive={false}
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={9}
+      />,
+    )
+    expect(screen.getByTestId('map-close-button')).toBeInTheDocument()
   })
 
-  it('shows all four presets and the ON label when active', () => {
-    renderControls({ proximityActive: true })
-    expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity ON')
-    expect(screen.getByLabelText('Deactivate proximity mode')).toBeInTheDocument()
-    for (const preset of [0.5, 1, 2, 5]) {
-      expect(screen.getByTestId(`radius-preset-${preset}`)).toHaveTextContent(`${preset}km`)
-      expect(screen.getByLabelText(`${preset} km radius`)).toBeInTheDocument()
-    }
+  it('carries the phone label and hint verbatim, and fires', () => {
+    const props = renderControls({ onClose: vi.fn() })
+    const close = screen.getByTestId('map-close-button')
+    expect(close).toHaveAttribute('aria-label', 'Change case')
+    // RN `accessibilityHint` rides as the tooltip on the web — the repo's own convention
+    // (`WizardDrawer.tsx:262-264`).
+    expect(close).toHaveAttribute('title', 'Returns to the case picker')
+    fireEvent.click(close)
+    expect(props.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('marks the selected radius pressed and reports a change', () => {
-    const props = renderControls({ proximityActive: true, proximityRadius: 2 })
-    expect(screen.getByTestId('radius-preset-2')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('radius-preset-1')).toHaveAttribute('aria-pressed', 'false')
-    fireEvent.click(screen.getByTestId('radius-preset-5'))
-    expect(props.onRadiusChange).toHaveBeenCalledWith(5)
+  it('is a 44×44 circle — the phone touch-target floor, which has no hitSlop on the web', () => {
+    renderControls({ onClose: vi.fn() })
+    expect(screen.getByTestId('map-close-button')).toHaveStyle({ width: '44px', height: '44px' })
   })
+})
 
-  it('fires the toggle', () => {
+describe('MapControls — filters button + count badge', () => {
+  it('opens the filters sheet', () => {
     const props = renderControls()
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    expect(props.onProximityToggle).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByTestId('map-open-filters'))
+    expect(props.onOpenFilters).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the badge only above zero, and READS the numeral it paints', () => {
+    const { rerender } = renderControls({ filterBadgeCount: 0 })
+    expect(screen.queryByTestId('map-filter-badge')).not.toBeInTheDocument()
+
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={2}
+        proximityActive={false}
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={9}
+      />,
+    )
+    // Presence alone is not enough (the phone's own note): the badge is the only on-map sign
+    // that filters are active now that the pill rows are gone, so the number is read. Scoped
+    // with `within` so it cannot match the chip's "9 of 9" copy.
+    expect(within(screen.getByTestId('map-filter-badge')).getByText('2')).toBeInTheDocument()
+  })
+
+  it('announces the active count in the button label, as the phone does', () => {
+    const { rerender } = renderControls({ filterBadgeCount: 0 })
+    expect(screen.getByLabelText('Open map filters')).toBeInTheDocument()
+
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={3}
+        proximityActive={false}
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={9}
+      />,
+    )
+    expect(screen.getByLabelText('Open map filters, 3 active')).toBeInTheDocument()
+  })
+
+  it('fills the badge with primaryDark, NOT the phone`s flat primary — D5`s ruled divergence', () => {
+    // The phone paints `Colors.dark.onPrimary` on `Colors.dark.primary` (`MapControls.tsx:181`,
+    // `:328`) = #ffffff on #2B8CC1 = 3.73:1 under a NUMERAL, below the 4.5 text floor. D5's
+    // amendment and A19's rider take the deep shade instead (5.80:1). Pinned at the exported
+    // constant, not at `palette.primaryDark`, so a revert to the phone's literal REDS here
+    // (the `SwipeDeleteAction` lesson U0.5 records).
+    expect(MAP_FILTER_BADGE_FILL).toBe(colors.primaryDark)
+    expect(MAP_FILTER_BADGE_FILL).not.toBe(colors.primary)
+    renderControls({ filterBadgeCount: 1 })
+    expect(screen.getByTestId('map-filter-badge')).toHaveStyle({
+      background: MAP_FILTER_BADGE_FILL,
+      color: colors.onPrimary,
+    })
+  })
+
+  it('drops the filters button, its divider and its badge when no sheet is wired (SEAM(U5.3))', () => {
+    renderControls({ onOpenFilters: undefined, filterBadgeCount: 4 })
+    expect(screen.queryByTestId('map-open-filters')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('map-filter-badge')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('map-filter-divider')).not.toBeInTheDocument()
+    // …and the field is still whole: the bar degrades to a search-only pill, never to a
+    // button that swallows every press.
+    expect(screen.getByTestId('map-search-input')).toBeInTheDocument()
+  })
+})
+
+describe('MapControls — proximity summary chip', () => {
+  it('renders only while proximity is active, with the radius and the N-of-M count', () => {
+    const { rerender } = renderControls()
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
+
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={1}
+        proximityActive
+        proximityRadius={2}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={5}
+      />,
+    )
+    expect(screen.getByTestId('proximity-chip')).toHaveTextContent('2 km · 5 of 9')
+  })
+
+  it('is a live region — the R-7a announcement the deleted count pill used to carry', () => {
+    renderControls({ proximityActive: true, filteredCount: 5 })
+    expect(screen.getByTestId('proximity-chip-summary')).toHaveAttribute('role', 'status')
+  })
+
+  it('carries the phone accessibility label verbatim, count and all', () => {
+    renderControls({ proximityActive: true, proximityRadius: 0.5, locationCount: 9, filteredCount: 5 })
+    expect(
+      screen.getByLabelText(
+        'Proximity filter, 0.5 kilometre radius, showing 5 of 9 locations',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('opens the filters sheet from the chip body and deactivates from the ✕', () => {
+    const props = renderControls({ proximityActive: true })
+    fireEvent.click(screen.getByTestId('proximity-chip-body'))
+    expect(props.onOpenFilters).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTestId('proximity-chip-dismiss'))
+    expect(props.onProximityDeactivate).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('Deactivate proximity mode')).toBeInTheDocument()
+  })
+
+  it('keeps the summary readable but NOT pressable when no filters sheet is wired', () => {
+    renderControls({ proximityActive: true, onOpenFilters: undefined, filteredCount: 5 })
+    const body = screen.getByTestId('proximity-chip-body')
+    expect(body.tagName).toBe('DIV')
+    expect(body).toHaveTextContent('1 km · 5 of 9')
+    // The exit stays live — proximity is activated by long-press, so it must always be
+    // escapable from the map itself.
+    expect(screen.getByTestId('proximity-chip-dismiss')).toBeInTheDocument()
+  })
+})
+
+describe('MapControls — retired chrome (the pill-chrome deletion)', () => {
+  it('no longer renders the status pills, the Clear pill, the proximity toggle, the radius presets or the count pill', () => {
+    renderControls({ proximityActive: true, filterBadgeCount: 3 })
+    expect(screen.queryByTestId('status-toggle-started')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('status-toggle-working')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('status-toggle-complete')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('clear-filters-button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('proximity-toggle-button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('radius-preset-1')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('map-location-count')).not.toBeInTheDocument()
+  })
+})
+
+describe('MapControls — geometry', () => {
+  it('clears the demo frame`s status bar instead of the deleted Change Case pill', () => {
+    // Phone: outer `top: 0` + `paddingTop: safeAreaTop` then `paddingTop: spacing.sm`
+    // (`MapControls.tsx:107`, `:251`). The demo's `safeAreaTop` analog is PhoneFrame's fixed
+    // 50px status bar, so the chrome starts at 58 — where the pre-#127 demo used 92 to clear
+    // the "Change Case" pill that no longer exists.
+    renderControls()
+    const container = screen.getByTestId('map-controls-container')
+    expect(container).toHaveStyle({ top: '0px' })
+    expect(container.firstElementChild).toHaveStyle({ paddingTop: '58px', gap: '8px' })
+  })
+
+  it('keeps the demo`s own z-scheme — the phone`s 1000-series is out of scope (D14)', () => {
+    // MapBottomSheet 20 · MapCanvas error overlay 25 · CaseMapPicker 30 · CallConfirmSheet 48 ·
+    // DemoNotification 60. Importing the phone's 1020 would put the floating chrome above every
+    // one of them.
+    renderControls()
+    expect(screen.getByTestId('map-controls-container')).toHaveStyle({ zIndex: '15' })
+  })
+
+  it('lets map drags pass between the controls, and keeps every surface pressable', () => {
+    renderControls({ onClose: vi.fn(), proximityActive: true })
+    expect(screen.getByTestId('map-controls-container')).toHaveStyle({ pointerEvents: 'none' })
+    expect(screen.getByTestId('map-close-button')).toHaveStyle({ pointerEvents: 'auto' })
+    expect(screen.getByTestId('map-search-pill')).toHaveStyle({ pointerEvents: 'auto' })
+    expect(screen.getByTestId('proximity-chip')).toHaveStyle({ pointerEvents: 'auto' })
+  })
+
+  it('paints one surface — the search pill and the close circle share containerBg, no inputBg', () => {
+    renderControls({ onClose: vi.fn() })
+    expect(screen.getByTestId('map-search-pill')).toHaveStyle({
+      background: MAP_GLASS_COLORS.containerBg,
+      height: '44px',
+      borderRadius: '9999px',
+    })
+    expect(screen.getByTestId('map-close-button')).toHaveStyle({
+      background: MAP_GLASS_COLORS.containerBg,
+    })
   })
 })

@@ -3,10 +3,19 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import {
+  MAP_GLASS_COLORS,
+  MAP_GLASS_SCHEMES,
+  MAP_SURFACE_COLORS,
+} from '@/features/demo/ui/screens/map/mapTokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
+  MAP_GLASS_DERIVED_KEYS,
+  MAP_GLASS_FLAT_KEYS,
+  MAP_GLASS_KEYS,
+  MAP_SURFACE_KEYS,
   norm,
   PALETTE_KEYS,
   readField,
@@ -136,6 +145,37 @@ describe("the guard's local invariants — nothing here reads the phone repo", (
     ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
   })
 
+  // U5.1's closing act. Same shape, same reason as the two above: the guard is `.mjs` and
+  // cannot import `screens/map/mapTokens.ts`, so its three map key lists are hand-maintained
+  // and held to nothing but themselves. UNGATED — both sides are local (W0/F11).
+  //
+  // The demo's `MAP_GLASS_COLORS` is a MIXED record by design: two keys resolved per scheme
+  // from the phone's map constants (anchored here), one scheme-invariant (anchored here), and
+  // six that alias `tokens/palette.ts` — those are anchored THROUGH the palette rows and must
+  // not gain a second anchor, because an anchor comparing an alias to its own source is the
+  // tautology W0/F2 named. This case is what makes "every key is anchored, or named as
+  // anchored elsewhere" checkable instead of asserted.
+  it('anchors exactly the map-chrome tokens, or names them anchored elsewhere', () => {
+    expect(
+      [...MAP_GLASS_KEYS, ...MAP_GLASS_FLAT_KEYS, ...MAP_GLASS_DERIVED_KEYS].sort(),
+      'every MAP_GLASS_COLORS key is anchored here or aliased to an anchored palette token',
+    ).toEqual(Object.keys(MAP_GLASS_COLORS).sort())
+    expect(
+      [...MAP_GLASS_KEYS].sort(),
+      'the two-half keys are exactly the ones the demo ships in two halves',
+    ).toEqual(Object.keys(MAP_GLASS_SCHEMES.dark).sort())
+    expect(Object.keys(MAP_GLASS_SCHEMES.light).sort()).toEqual([...MAP_GLASS_KEYS].sort())
+    expect(
+      [...MAP_SURFACE_KEYS].sort(),
+      'the guard must anchor exactly the map-surface tokens',
+    ).toEqual(Object.keys(MAP_SURFACE_COLORS).sort())
+    // The three lists must not overlap: a key anchored twice reports one file twice, and a key
+    // that migrated from "derived" to "anchored" without leaving the derived list is a silent
+    // double-count that the cardinality pin below would then absorb.
+    const all = [...MAP_GLASS_KEYS, ...MAP_GLASS_FLAT_KEYS, ...MAP_GLASS_DERIVED_KEYS, ...MAP_SURFACE_KEYS]
+    expect(all.filter((k: string, i: number) => all.indexOf(k) !== i), 'no key in two lists').toEqual([])
+  })
+
   it('does not read a value out of a // comment', () => {
     // The shape that survived at review time: a refactor leaves the OLD value commented above
     // the new one, `readField` takes the first match in the slice, and the guard reports the
@@ -210,8 +250,36 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // CTA pair as its closing act, so all four gradient stops + the touch floor.
     expect(
       anchors.length,
-      'every palette key AND every tier key in both halves, + 4 gradient stops + touchFloor',
-    ).toBe(PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5)
+      'every palette key AND every tier key AND every two-half map key in both halves, + the map’s scheme-invariant rows + 4 gradient stops + touchFloor',
+    ).toBe(
+      PALETTE_KEYS.length * 2 +
+        TIER_ANCHOR_KEYS.length * 2 +
+        // U5.1: `containerBg` and `border` in both halves, then `shadow` +
+        // `MAP_SURFACE_COLORS`'s three, which the phone itself declares always-dark.
+        MAP_GLASS_KEYS.length * 2 +
+        MAP_GLASS_FLAT_KEYS.length +
+        MAP_SURFACE_KEYS.length +
+        5,
+    )
+  })
+
+  it.skipIf(!rnAvailable())('pins the two-half map-chrome keys in BOTH halves (U5.1 closing act)', () => {
+    const { anchors } = checkParity()
+    for (const key of MAP_GLASS_KEYS) {
+      const schemes = anchors
+        .filter((a: Anchor) => a.key === `mapGlass.${key}`)
+        .map((a: Anchor) => a.scheme)
+        .sort()
+      expect(schemes, `mapGlass.${key} must be pinned in both halves`).toEqual(['dark', 'light'])
+    }
+    // The map-domain rows are `scheme: 'any'` on purpose — the phone's `MAP_SURFACE_COLORS`
+    // docblock (`constants/index.ts:86-91`) rules them always-dark because the tile style is
+    // fixed, so there is no light half to diverge and the stuck-reader check must skip them
+    // rather than flag them. Pin that they are excluded for THAT reason and not by accident.
+    for (const key of [...MAP_GLASS_FLAT_KEYS, ...MAP_SURFACE_KEYS]) {
+      const rows = anchors.filter((a: Anchor) => a.key.endsWith(`.${key}`) && a.key.startsWith('map'))
+      expect(rows.map((a: Anchor) => a.scheme), `${key} is a single always-dark row`).toEqual(['any'])
+    }
   })
 
   it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {

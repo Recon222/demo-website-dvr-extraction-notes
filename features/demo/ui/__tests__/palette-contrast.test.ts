@@ -5,10 +5,13 @@ import {
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
+import { MAP_FILTER_SECTION_LABEL } from '@/features/demo/ui/screens/map/MapFiltersSheet'
+import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
@@ -772,30 +775,120 @@ describe('scrim opacity', () => {
 
 describe('map chrome contrast floors', () => {
   // Rows 41-45 are NEW in this port — the phone has none, and U5 is the only phase that would
-  // otherwise ship with no contrast target at all (matrix §C.1). Grounds: `surfaceBg`
-  // `rgba(0,40,83,0.82)` composited over a satellite tile, so every row measures against BOTH
-  // a bright and a dark tile. All five are U5.2's, whose row rewrites `MapControls.tsx` whole.
+  // otherwise ship with no contrast target at all (matrix §C.1). Landed by U5.2, which builds
+  // the collapsed search bar these rows measure.
   //
-  // Row 41 is the one with a ruling already attached: the filter-count badge renders a NUMERAL,
-  // so C.3 rule 2's "non-text marks" carve-out does not cover it and the 4.5 text floor
-  // applies. `#ffffff` on `primary #2B8CC1` is 3.73 and FAILS; on `primaryDark #1F6B99` it is
-  // 5.80 and passes. D5's amendment takes `primaryDark` as the badge fill (A19's rider) — this
-  // is explicitly NOT one of the inherited ceilings.
-  it.todo(
-    'row 41 (U5.2): clears AA for the filter-count badge numeral on primaryDark, over both tiles — needs the map badge fill',
-  )
+  // THE GROUND IS NOT A TOKEN. The floating chrome composites `MAP_GLASS_COLORS.containerBg`
+  // (`rgba(0,40,83,0.82)`) over whatever the satellite tile happens to be, so every row measures
+  // against BOTH extremes: `#ffffff` for exterior daylight (snow, sand, a white roof — the real
+  // worst case, not a pessimistic one) and `#000000` for night imagery and deep shadow. That is
+  // the two-frame method rows 36-37 already use for `MEDIA_CLOSE_CHIP`.
+  //
+  // DEF-062 is the reason this section exists rather than a reason to skip it: the CHROME's own
+  // 1.70/1.77:1 against a bright tile was closed as ACCEPTED on the phone, with no reopen
+  // trigger (measured here: 8.48 over white, 1.30 over black). D5 says inherit it. What is NOT
+  // inherited is illegible TEXT on top of that chrome, which is what rows 41-44 bound.
 
-  // Rows 42-44: search field text (`colors.text`, >= 4.5), its placeholder
-  // (`colors.textTertiary`, >= 3.79 — the M2b ceiling, NOT 4.5), and the proximity chip text
-  // (`colors.text`, >= 4.5). The placeholder's relief is a ceiling on `card`/`sheet`, not a
-  // licence over tiles: if it lands below 3.79 the placeholder takes `textSecondary` instead.
+  /** Topmost-first, per `contrast`'s contract: the glass, then the tile under it. */
+  const overTile = (tile: string) => [MAP_GLASS_COLORS.containerBg, tile]
+
+  /**
+   * Row 45's ground, and the ONE row here with no tile in it — `MapFiltersSheet` is app chrome on
+   * the `sheet` tier. Resolved through `scheme` rather than spelled `dark`, so the row measures
+   * whichever half the demo consumes (D2, §9 clause 12); the light stacks omit the background
+   * because light's tiers are opaque, exactly as `LIGHT_GROUNDS` does.
+   */
+  const SHEET_GROUNDS: string[][] =
+    scheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
+  const TILES: ReadonlyArray<readonly [string, string]> = [
+    ['a bright daylight tile', '#ffffff'],
+    ['a night tile', '#000000'],
+  ]
+
+  it('row 41: the filter-count badge numeral clears AA on the fill the component actually paints', () => {
+    // The badge renders a NUMERAL, so §C.3 rule 2's "non-text marks" carve-out does not cover it
+    // and the 4.5 text floor applies. The badge fill is opaque, so the tile underneath cannot
+    // reach it — this is the one map row with a single ground.
+    //
+    // Read off `MAP_FILTER_BADGE_FILL`, the constant `MapControls` paints with, NOT off
+    // `palette.primaryDark`: a pin against the palette stays green through exactly the edit it
+    // exists to catch (U0.5's `SwipeDeleteAction` lesson).
+    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBeGreaterThanOrEqual(AA_TEXT)
+    // …and the phone's own pairing is the failure this diverged from. 3.73 is not a rounding
+    // artefact of the line above; it is a different, worse colour.
+    expect(round(contrast(palette.dark.onPrimary, [palette.dark.primary]))).toBe(3.73)
+    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBe(5.8)
+  })
+
+  it('rows 42 + 44: the search text and the proximity chip clear AA over both tiles', () => {
+    // One assertion for two rows because they are one measurement: the chip and the field are
+    // the same `colors.text` on the same `surfaceBg`, which is the "one surface" rule the
+    // redesign introduced when it deleted `inputBg`.
+    expect(
+      TILES.map(([label, tile]) => [label, round(contrast(MAP_GLASS_COLORS.text, overTile(tile)))] as const)
+        .filter(([, ratio]) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('rows 42 + 44: and the chrome text is the palette`s, not a second white', () => {
+    // The map island carried its own `#e7eef6` "primary text" until U5.1 (demo §1.3's
+    // split-brain). Rows 42/44 measure `MAP_GLASS_COLORS.text`; this is what stops that
+    // reading from drifting off `colors.text` while the ratio stays plausible.
+    expect(MAP_GLASS_COLORS.text).toBe(palette.dark.text)
+  })
+
+  // ROW 43 — the search placeholder. STILL TODO after U5.2, on a refuted premise, and the
+  // measurement is recorded here so the next package does not have to re-derive it.
+  //
+  // 1. THE DEMO PAINTS NO PLACEHOLDER COLOUR. The phone passes
+  //    `placeholderTextColor={Colors.dark.textTertiary}` (`MapControls.tsx:143`); the web
+  //    spells that `::placeholder`, which needs a stylesheet rule, and `ui/demo.css` is U8.2's
+  //    alone (plan §6.1: "If a package thinks it needs to touch it, that is a scope error").
+  //    U2.1 hit this first and made the same call for `fieldInputStyle`
+  //    (`tokens/field-input.ts:44-47`). There is no inline route to a pseudo-element.
+  // 2. WHEN U8.2 DOES PAINT IT, `textTertiary` IS THE WRONG VALUE. Measured with the helpers
+  //    above: `colors.textTertiary #7a9fc4` on `surfaceBg` over a white tile is **3.06** —
+  //    below the row's own 3.79 M2b floor, never mind 4.5. Row 43's escape clause is written
+  //    for exactly this: *"If it lands below 3.79 the placeholder must take `textSecondary`"* —
+  //    `#99badd` measures **4.21**, which clears 3.79. The relief is a ceiling on `card`/`sheet`,
+  //    not a licence over satellite tiles.
+  //
+  // SEAM(U8.2): add `[data-demo-root] [data-testid='map-search-input']::placeholder { color:
+  // <textSecondary> }` (or the equivalent scoped rule), then un-todo this with the same
+  // two-tile shape as rows 42/44 at a >= 3.79 bound. Note that `vitest.config.mts` sets
+  // `css: false`, so the RULE is invisible to this suite — the pin has to sit on the exported
+  // constant the rule consumes, or it guards nothing.
   it.todo(
-    'rows 42-44 (U5.2): clears the search text, placeholder and proximity chip floors on surfaceBg over a bright tile — needs the U5.2 chrome',
+    'row 43 (U8.2, not U5.2): the search placeholder needs a ::placeholder rule in demo.css before it can be measured — and must take textSecondary (4.21), not textTertiary (3.06)',
   )
 
   // Row 45: `MapFiltersSheet` section labels, `12/700 textSecondary` on the `sheet` tier —
-  // inherits row 5's bound, on a surface U5.3 creates.
-  it.todo(
-    'row 45 (U5.2): clears AA for MapFiltersSheet section labels on the sheet tier — needs GLASS_TIER + MapFiltersSheet',
-  )
+  // inherits row 5's bound, on the surface U5.3 creates. Re-owned from U5.2 because pinning the
+  // ratio AT the section-label constant is what U0.5's structural rule requires, and that
+  // constant could not exist before the sheet did.
+  //
+  // Unlike rows 41-44 there is no tile in the stack: this sheet is APP chrome, not map chrome
+  // (the phone's own D3(a) call at `MapFiltersSheet.tsx:11-13`), so it grounds on the `sheet`
+  // tier over the app background exactly as every other sheet does.
+  it('row 45: MapFiltersSheet section labels clear AA on the sheet tier, both halves', () => {
+    // Both scheme halves, on the tier the sheet actually paints — the `sheet` rows of
+    // DARK_GROUNDS / LIGHT_GROUNDS, isolated so a failure names this surface rather than a
+    // neighbouring tier.
+    expect(
+      offenders(
+        [
+          ['dark section label', palette.dark.textSecondary, stops(GLASS_TIER.dark.sheet, DARK_BG)],
+          ['light section label', palette.light.textSecondary, stops(GLASS_TIER.light.sheet)],
+        ],
+        AA_TEXT,
+      ),
+    ).toEqual([])
+
+    // AT THE CONSTANT (U0.5's rule, the `DangerFill` / `MEDIA_CLOSE_CHIP` / `MAP_FILTER_BADGE_FILL`
+    // precedent): the label the sheet paints IS that ramp in the consumed scheme. Re-pointing it
+    // at `textTertiary` — which carries a documented 3.79 CEILING two cases up and would fail this
+    // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
+    expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
+    expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
 })
