@@ -416,10 +416,16 @@ export function Field({
       ? ({ autoCorrect: 'off', autoCapitalize: 'off', spellCheck: false } as const)
       : {}
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
+    // The block's own rhythm is the phone's `styles.container` (`TextInput.tsx:151-153`):
+    // `marginBottom: Layout.spacing.md` (was 14).
+    <div style={{ marginBottom: spacing.md }}>
+      {/* `styles.labelContainer:155-157` + `styles.label:158-161` — `spacing.xs` above the box,
+          `fontSize.sm` / `fontWeight.medium`, and `:105` paints it `colors.text`. The demo's
+          `#cdd9e6` was not a palette token at all. */}
+      <div style={{ fontSize: 14, fontWeight: 500, color: colors.text, marginBottom: spacing.xs }}>
         {label}
-        {required && <span style={{ color: '#ff4757' }}> *</span>}
+        {/* `:110` — `styles.required` in `colors.error`. Same hex, now the token. */}
+        {required && <span style={{ color: colors.error }}> *</span>}
       </div>
       {multiline ? (
         <textarea
@@ -434,7 +440,13 @@ export function Field({
           maxLength={maxLength}
           {...assist}
           {...focusProps}
-          style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          // `styles.multiline` (`TextInput.tsx:175-179`): `minHeight: 100` (was 76). Its
+          // `paddingTop: Layout.spacing.md` is NOT re-declared — `fieldInputStyle` already
+          // writes `padding: 16`, and a `paddingTop` after a `padding` is the exact clobber
+          // `vitest.setup.ts`'s tripwire exists to catch (it shipped once, in
+          // `CompletionScreen`). `textAlignVertical: 'top'` is RN-only; a `<textarea>` is
+          // top-aligned by construction. The other three keys are the demo's web affordances.
+          style={{ ...boxStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
         <input
@@ -452,11 +464,56 @@ export function Field({
         />
       )}
       {error ? (
-        <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+        /**
+         * `styles.errorContainer` + `styles.errorText` (`TextInput.tsx:181-186`): `spacing.xs`
+         * above, `fontSize.sm`. The COLOUR is a deliberate divergence from the phone's `:128`
+         * `color: colors.error`, and the divergence is the campaign's own ruling rather than a
+         * preference — matrix §C.3 rule 1, adjudicated-closed as `P8-DEF-A` and called "the
+         * single most portable recipe in the whole ledger":
+         *
+         *   "Stop using red as text. […] The answer is not a better red — it is severity on
+         *    the icon (3:1 non-text floor), text in `colors.text`."
+         *
+         * It names `#ff6b78` — the value this line used to carry — among the six error-text
+         * reds "doing exactly what this rule forbids". Measured on the dark glass grounds
+         * `ui/__tests__/palette-contrast.test.ts` composites (background + both `card` stops +
+         * both `nestedCard` stops): `#ff6b78` 3.84 worst / 5.34 best, `colors.error` 3.16 /
+         * 4.40 — so porting the phone's token verbatim would have LOWERED this line's
+         * contrast, and neither clears AA's 4.5. Severity moves to the glyph, which is a
+         * non-text mark and needs only 1.4.11's 3.0 (3.16 clears it); the message takes
+         * `colors.text` at 9.56 worst.
+         *
+         * The glyph is `Banner`'s `error` icon — the alert-circle the demo already reads as
+         * "error" at `PickerStage`, `ImportModal` and `DemoErrorBoundary` — so a field error
+         * and a callout error are the same mark. `aria-hidden` because the message inside the
+         * same `role="alert"` already says it.
+         */
+        <div
+          id={errorId}
+          role="alert"
+          style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.xs, fontSize: 14, color: colors.text, marginTop: spacing.xs }}
+        >
+          <svg
+            aria-hidden="true"
+            width={iconSize.xs}
+            height={iconSize.xs}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={colors.error}
+            strokeWidth="2"
+            strokeLinecap="round"
+            style={{ flexShrink: 0 }}
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v5M12 16h.01" />
+          </svg>
           {error}
         </div>
       ) : (
-        hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>
+        /* `styles.helperContainer` + `styles.helperText` (`:181-186`) — `spacing.xs`,
+           `fontSize.sm`; `:133` paints `colors.textSecondary`. The demo's `#7a9fc4` is
+           `textTertiary`, which D5's rider bars from NEW text (3.81 worst vs 5.24). */
+        hint && <div style={{ fontSize: 14, color: colors.textSecondary, marginTop: spacing.xs }}>{hint}</div>
       )}
     </div>
   )

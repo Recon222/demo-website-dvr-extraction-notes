@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { DateTimeField, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { ElevatedEdges, PrimaryButtonGradient } from '@/features/demo/ui/controls/button-recipe'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
+import { conflictingStyleWarnings } from '@/vitest.setup'
 
 // The old datetime-local DateTimeField was replaced by the custom Date/Time picker
 // (features/demo/ui/inputs/*). The canonical "seconds always present" guarantee now lives
@@ -133,6 +134,91 @@ describe('_shared.SectionCard — the phone `FormSection` glass recipe (A77 / U6
       </SectionCard>,
     )
     expect(screen.getByText('Requester Information')).toBeInTheDocument()
+  })
+})
+
+describe('_shared.Field — the phone `TextInput` label/help/error typography (A72 / U6.1)', () => {
+  /** Values from `src/components/common/TextInput.tsx:150-190` @ `dd5551ec`. */
+  it('sets the label 14/500 in `colors.text`, 4 above the box, 16 below the block', () => {
+    const { container } = render(<Field label="Case Number" value="" onChange={vi.fn()} />)
+    const block = container.firstElementChild as HTMLElement
+    // `container:151-153` — `marginBottom: Layout.spacing.md` (was 14).
+    expect(block.style.marginBottom).toBe('16px')
+
+    const label = screen.getByText('Case Number')
+    // `label:158-161` — `fontSize.sm` / `fontWeight.medium`; `:105` paints `colors.text`.
+    // The demo's `#cdd9e6` is not a palette token at all.
+    expect(label.style.fontSize).toBe('14px')
+    expect(label.style.fontWeight).toBe('500')
+    expect(label.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    // `labelContainer:155-157` — `marginBottom: Layout.spacing.xs` (was 6).
+    expect(label.style.marginBottom).toBe('4px')
+  })
+
+  it('paints the required asterisk from `colors.error` (`:110`)', () => {
+    render(<Field label="Unit" required value="" onChange={vi.fn()} />)
+    expect(screen.getByText('*').style.color).toBe(hexToJsdomRgb(palette.dark.error))
+  })
+
+  it('sets the helper line 14 in `textSecondary`, 4 below the box', () => {
+    // `helperContainer:181-183` + `helperText:184-186` — `spacing.xs` / `fontSize.sm`; `:133`
+    // paints `colors.textSecondary`. The demo's `#7a9fc4` is `textTertiary`, which D5's rider
+    // forbids taking on NEW text (3.81:1 worst dark glass vs `textSecondary`'s 5.24).
+    render(<Field label="Display Name" value="" onChange={vi.fn()} hint="Friendly name for case" />)
+    const hint = screen.getByText('Friendly name for case')
+    expect(hint.style.fontSize).toBe('14px')
+    expect(hint.style.color).toBe(hexToJsdomRgb(palette.dark.textSecondary))
+    expect(hint.style.marginTop).toBe('4px')
+  })
+
+  it('carries the error SEVERITY on the icon and the MESSAGE in `colors.text` (C.3 rule 1)', () => {
+    // The phone spells this line `color: colors.error` (`:128`, `errorText:185`). Matrix §C.3
+    // rule 1 — adjudicated-closed `P8-DEF-A`, "the single most portable recipe in the whole
+    // ledger" — forbids exactly that, and names `#ff6b78` (this site's colour) among the six
+    // the demo ships "doing exactly what this rule forbids". Measured on the dark glass
+    // grounds `palette-contrast.test.ts` composites: `#ff6b78` 3.84 worst, `colors.error`
+    // 3.16 worst — so porting the phone verbatim would LOWER it. Severity moves to the icon
+    // (a non-text mark: 3.16 clears 1.4.11's 3.0) and the message takes `colors.text` (9.56).
+    render(<Field label="Case Number" value="" onChange={vi.fn()} error="Case number is required" />)
+    const alert = screen.getByRole('alert')
+    expect(alert.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    expect(alert.style.fontSize).toBe('14px')
+    expect(alert.style.marginTop).toBe('4px')
+
+    const icon = alert.querySelector('svg')
+    expect(icon).not.toBeNull()
+    expect(icon).toHaveAttribute('aria-hidden', 'true')
+    expect(icon).toHaveAttribute('stroke', palette.dark.error)
+    // The colour is on the ICON, not on the text — the two must not be the same value, or the
+    // rule was not applied. This is the relational half the value pins cannot express.
+    expect(alert.style.color).not.toBe(hexToJsdomRgb(palette.dark.error))
+  })
+
+  it('gives the multiline box the phone `styles.multiline` height (`:176`)', () => {
+    render(<Field label="Notes" multiline value="" onChange={vi.fn()} />)
+    expect(screen.getByRole('textbox').style.minHeight).toBe('100px')
+  })
+
+  it('keeps ONE border declaration across an error toggle on a MOUNTED field (ledger I-7)', () => {
+    // The tripwire (`vitest.setup.ts:41-48`) declares itself the sole guard for W1's `Field`
+    // error-border fix, with "transitive" coverage from the consumer suites. W2's integration
+    // probe proved that false: reintroducing the split (error branch declares `borderColor`,
+    // the other declares `border`) left the screens and inputs suites entirely green, because
+    // NOTHING toggles `error` on a mounted `Field`. This drives that transition in both
+    // directions, which is the only way React's detector can fire.
+    const { rerender } = render(<Field label="Case Number" value="x" onChange={vi.fn()} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+
+    rerender(<Field label="Case Number" value="x" onChange={vi.fn()} error="Case number is required" />)
+    expect(input.style.border).toBe(`2px solid ${hexToJsdomRgb(palette.dark.error)}`)
+
+    rerender(<Field label="Case Number" value="x" onChange={vi.fn()} />)
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+
+    // Asserted HERE as well as in the setup's `afterEach`, so the failure names this
+    // transition rather than arriving detached at the end of the file.
+    expect(conflictingStyleWarnings).toEqual([])
   })
 })
 
