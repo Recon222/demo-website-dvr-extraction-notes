@@ -191,5 +191,52 @@ U6.4b removes it. **No unwired seam ships.**
 
 ---
 
+---
+
+# § fix round 1 — F36
+
+**Branch:** `uiparity/w2-fix-integration` off `feat/uiparity-w2` @ `addd03f` · **Commit:** `4391f77`
+
+**F36 [MEDIUM] — five merge-orphaned bindings surviving only inside comments.** Mine, and the
+finding is right about the shape of the miss. The wave-2 assembly resolved ten import hunks by
+asking *"does the merged body still reference this?"* — a body-only grep that excluded `^import`
+lines but **not comments**. At `_pane-chrome.tsx` the census counted `colors.` once and kept the
+binding; that single hit was inside a comment. §7.2 of this report had already recorded the class
+(*"an import kept for a reference that is itself dead code would not be caught"*) — recorded and
+then not applied, which is worse than not noticing.
+
+| File | Binding |
+|---|---|
+| `__tests__/palette-contrast.test.ts:7` | `GLASS` |
+| `controls/AlertDialog.tsx:6` | `GLASS` |
+| `screens/ExportModal.tsx:11` | `type ExportModalMode` |
+| `screens/ExportModal.tsx:18` | `GLASS` (narrowed to `glassCardNested`) |
+| `settings/panes/_pane-chrome.tsx:8` | `colors` |
+
+**RED**, observed on `addd03f`: `tsc --noEmit --incremental false --noUnusedLocals` EXIT **2**,
+naming exactly those five `TS6133`s — no more and no fewer. **GREEN**: the same command names none
+of them afterwards. The comments stay; they are the useful part.
+
+**Not taken, deliberately — the root-cause fix.** `noUnusedLocals` in `tsconfig.json` is one line
+and would kill the class permanently, but it reds **15 bindings across 13 files**, ten of them in
+files owned by other seats this round (`MediaCapturePane`, `LocationPane`, `TimeSyncPane`,
+`create-store.ts`, five test files). Flipping it would redden nine concurrent fix branches and
+break one-writer-per-file. **Proposed ledger row** below instead.
+
+### Proposed deferral-ledger row — for `dt-review-aggregator`
+
+**Proposed §N — enable `noUnusedLocals` once the last ten orphans clear (F36's root cause)**
+- **Source:** W2 review r1 F36; integration report §7.2 (I-5); measured at `addd03f` — 15 `TS6133`
+  across 13 files, 5 fixed here, 10 in other seats' files.
+- **What:** the repo has no gate for an unused binding at all. F36 is the second time the class has
+  cost a finding (the first was `§ U2 assembly` I-5), and a grep census cannot see it.
+- **Why deferred:** the flag is repo-wide and cannot land while nine fix branches hold the other
+  ten files; it is a one-line change whose blast radius is entirely other seats' territory.
+- **Trigger:** the W2 fix-merge, at which point the other ten are either fixed or known — run
+  `tsc --noUnusedLocals` at the merged head and flip the flag if it is clean.
+
+**Gates**, cold: `tsc` **0** · `pnpm test --silent` **0** (290 files, 3881 passed | 4 todo) ·
+`check-rn-parity.mjs` **0** (135/135).
+
 *Integrator: `dt-integrator` (Opus 5, xhigh). Three merges: `ef7359c`, `1bd7906`, `7bcb553`. Gates
 quoted from a cold cache at the wave head.*
