@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CaseMapPickerCase {
   id: string
@@ -129,7 +130,7 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
                 onClick={() => onPick(c.id)}
                 style={{
                   ...baseRow,
-                  borderColor: selected ? accent : '#1e3a5f',
+                  borderColor: selected ? accent : colors.border,
                   borderLeft: selected ? `4px solid ${accent}` : GLASS.border,
                 }}
               >

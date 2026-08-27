@@ -6,6 +6,7 @@ import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/gl
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -186,7 +187,7 @@ function CaseRow({
 
       {expanded && (
         <div style={{ padding: '0 16px 16px' }}>
-          <div style={{ height: 1, background: '#1e3a5f', marginBottom: 12 }} />
+          <div style={{ height: 1, background: colors.border, marginBottom: 12 }} />
           {c.locations.length > 0 ? (
             c.locations.map((loc) => (
               <LocationRow

@@ -6,6 +6,7 @@ import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { actionsForStatus } from '@/features/demo/engine/logic/case-actions'
 import type { CaseSheetData } from '@/features/demo/ui/screens/screenData'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * CaseActionsSheet — the dashboard's long-press action menu + read-only case report
@@ -190,7 +191,7 @@ export function CaseActionsSheet({
           <div ref={contentRef} data-case-report-content style={{ padding: 18 }}>
           {caseData.groups.map((group, i) => (
             <Fragment key={group.id}>
-              {i > 0 && <div style={{ height: 1, background: '#1e3a5f', opacity: 0.6, margin: '12px 0' }} />}
+              {i > 0 && <div style={{ height: 1, background: colors.border, opacity: 0.6, margin: '12px 0' }} />}
               <div data-report-group={group.id}>
                 <div
                   style={{

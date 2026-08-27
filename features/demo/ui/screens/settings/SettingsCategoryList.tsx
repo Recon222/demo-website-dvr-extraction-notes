@@ -6,6 +6,7 @@ import { DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { SettingsIcon } from '@/features/demo/ui/screens/settings/settings-icons'
 import type { SettingsRowView, SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The Settings master pane: grouped inset glass cards of tappable rows, iOS-Settings style
@@ -155,7 +156,7 @@ function CategoryRow({
       {!isLast && (
         <span
           aria-hidden="true"
-          style={{ position: 'absolute', left: SEPARATOR_INSET, right: 0, bottom: 0, height: 1, background: '#1e3a5f' }}
+          style={{ position: 'absolute', left: SEPARATOR_INSET, right: 0, bottom: 0, height: 1, background: colors.border }}
         />
       )}
     </button>

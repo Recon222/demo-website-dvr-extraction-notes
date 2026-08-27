@@ -43,8 +43,8 @@
      Keep both files in sync when restyling: the demo's own token guard test scans only
      features/demo/ui/** and cannot see these (review R-25). Note --color-blue above is a
      DIFFERENT blue — do not consolidate. */
-  --color-demo-accent-from: #35a0d6;
-  --color-demo-accent-to: #2580ad;
+  --color-demo-accent-from: #1f6b99;
+  --color-demo-accent-to: #17527a;
   --color-demo-error: #ff4757;
 
   --text-xs: 0.8125rem;

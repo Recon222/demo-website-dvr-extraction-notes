@@ -17,6 +17,7 @@ import { createCameraEl, createClusterEl, createMarkerEl } from '@/features/demo
 // `useLongPress.ts:74-78` was written about. Retiring the hand-rolled copy entirely is ledgered.
 import { LONG_PRESS_MOVE_TOLERANCE_PX, LONG_PRESS_MS } from '@/features/demo/ui/primitives/useLongPress'
 import { DEFAULT_MAP_CENTER, MAP_SURFACE_COLORS, PROXIMITY_COLORS, SHEET_COLORS, type LngLat } from '@/features/demo/ui/screens/map/mapTokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /** Imperative handle the orchestrator uses to drive the camera. */
 export interface MapCanvasHandle {
@@ -89,7 +90,7 @@ const fallbackStyle: CSSProperties = {
   padding: 24,
   color: '#cdd9e6',
   fontSize: 14,
-  background: 'linear-gradient(160deg,#0d1b2a,#0a1422)',
+  background: `linear-gradient(160deg,${colors.background},#0a1422)`,
 }
 
 const coverStyle = (revealed: boolean): CSSProperties => ({
@@ -97,7 +98,7 @@ const coverStyle = (revealed: boolean): CSSProperties => ({
   inset: 0,
   zIndex: 5,
   pointerEvents: 'none',
-  background: '#0d1b2a',
+  background: colors.background,
   opacity: revealed ? 0 : 1,
   transition: `opacity ${COVER_FADE_DURATION_MS}ms ease`,
 })

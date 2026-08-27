@@ -14,6 +14,7 @@ import { PROFILES, type FormFieldId, type FormStepDef, type FormStepId, type Pro
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
 import { PaneDescription } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Detail pane: **Form Fields** (matrix row A2, owner decision D9) — the phone's
@@ -183,7 +184,7 @@ function RowSwitch({
         width: 46,
         height: 28,
         borderRadius: 14,
-        background: on ? '#2B8CC1' : '#1e3a5f',
+        background: on ? '#2B8CC1' : colors.border,
         position: 'relative',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
@@ -222,7 +223,7 @@ function ProfilePicker({
                 flex: 1,
                 padding: '10px 12px',
                 borderRadius: 10,
-                border: `1px solid ${active ? '#2B8CC1' : '#1e3a5f'}`,
+                border: `1px solid ${active ? '#2B8CC1' : colors.border}`,
                 background: active ? 'rgba(43,140,193,0.14)' : 'transparent',
                 color: active ? '#2B8CC1' : '#cdd9e6',
                 fontSize: 13.5,

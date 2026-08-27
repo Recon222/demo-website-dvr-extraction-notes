@@ -6,6 +6,7 @@ import { buildGpsConfig, formatSampleProgress, type GpsConfig, type GpsFix } fro
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
 import { useGpsCapture, type UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * "Use Current Location" — the demo's port of the phone's `GpsCaptureControl`
@@ -176,7 +177,7 @@ export function GpsCaptureControl({
             tabIndex={0}
             onClick={() => onToggleGeocode(!geocodeEnabled)}
             onKeyDown={switchKeyDown(() => onToggleGeocode(!geocodeEnabled))}
-            style={{ width: 46, height: 28, borderRadius: 14, background: geocodeEnabled ? '#2B8CC1' : '#1e3a5f', position: 'relative', cursor: 'pointer' }}
+            style={{ width: 46, height: 28, borderRadius: 14, background: geocodeEnabled ? '#2B8CC1' : colors.border, position: 'relative', cursor: 'pointer' }}
           >
             <div style={{ position: 'absolute', top: 3, [geocodeEnabled ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: geocodeEnabled ? '#fff' : '#7a9fc4' }} />
           </div>

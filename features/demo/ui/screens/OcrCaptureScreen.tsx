@@ -12,6 +12,7 @@ import type { OcrSampleFrame } from '@/features/demo/engine/content/seed'
 import { grabVideoFrame, type FrameGrabOptions, type MediaDevicesLike } from '@/features/demo/ui/inputs/capture-media'
 import { useCaptureStream } from '@/features/demo/ui/inputs/useCaptureStream'
 import { disposeDvrRecognizer, recognizeDvrStrip, type OcrRecognizeFn } from '@/features/demo/ui/inputs/ocr-recognize'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export type OcrResult =
   | {
@@ -491,7 +492,7 @@ export function OcrCaptureScreen({
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center,#0d1b2a,#05080d)' }} />
+      <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at center,${colors.background},#05080d)` }} />
       <div style={{ marginTop: 54, textAlign: 'center', zIndex: 2 }}>
         <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 13, letterSpacing: 2, color: '#9fd4ee' }}>AIM AT THE DVR CLOCK</div>
       </div>

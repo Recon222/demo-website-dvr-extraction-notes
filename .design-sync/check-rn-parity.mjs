@@ -34,6 +34,40 @@ export const rnAvailable = () => existsSync(join(RN, 'src', 'constants', 'Colors
 // value readers return a normalized string (lowercased hex or bare number).
 const norm = (v) => v.trim().toLowerCase()
 
+/**
+ * The value an anchor takes when its source could not be parsed at all — a renamed
+ * constant, a moved file, a restructured object literal.
+ *
+ * U0.0: this used to be a THROW. One constant the phone renamed (PRIMARY_GRADIENT ->
+ * PrimaryButtonGradient) therefore disabled all nine anchors and hid FOUR real drifts for
+ * the whole life of the rename. A parse failure is now a per-anchor RESULT, so a broken
+ * anchor takes out itself and nothing else. It counts as drift — never as a pass.
+ */
+export const PARSE_FAILED = 'PARSE-FAILED'
+export const isParseFailed = (v) => typeof v === 'string' && v.startsWith(PARSE_FAILED)
+
+/** Read a source file. Unreadable is a per-anchor parse failure, not a crash. */
+function source(label, path) {
+  try {
+    return { label, text: readFileSync(path, 'utf8') }
+  } catch (e) {
+    return { label, text: '', error: `${label} unreadable: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+
+/**
+ * Resolve ONE side of ONE anchor. The reason is carried in the value so the report says
+ * what broke ("PARSE-FAILED (field not found: bg)"), not merely that something did.
+ */
+function attempt(src, read) {
+  try {
+    if (src.error) throw new Error(src.error)
+    return read(src.text)
+  } catch (e) {
+    return `${PARSE_FAILED} (${e instanceof Error ? e.message : String(e)})`
+  }
+}
+
 // Pull `key: '#hex'` (or a number) from a specific object-literal region of a source file.
 function readField(text, key, { after, before } = {}) {
   let region = text
@@ -61,34 +95,47 @@ function readConst(text, name) {
 }
 
 export function checkParity() {
-  const colors = readFileSync(join(RN, 'src/constants/Colors.ts'), 'utf8')
-  const layout = readFileSync(join(RN, 'src/constants/Layout.ts'), 'utf8')
-  const button = readFileSync(join(RN, 'src/components/common/Button.tsx'), 'utf8')
-  const theme = readFileSync(join(WEB, 'features/demo/ui/inputs/input-theme.ts'), 'utf8')
+  const colors = source('RN Colors.ts', join(RN, 'src/constants/Colors.ts'))
+  const layout = source('RN Layout.ts', join(RN, 'src/constants/Layout.ts'))
+  const button = source('RN Button.tsx', join(RN, 'src/components/common/Button.tsx'))
+  const theme = source('web input-theme.ts', join(WEB, 'features/demo/ui/inputs/input-theme.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
-  const glass = readFileSync(join(WEB, 'features/demo/ui/glass-tokens.ts'), 'utf8')
+  const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
 
   // RN dark palette only — slice from `dark: {` so we don't read the light `primary`.
   const darkOpts = { after: 'dark: {', before: '} as const' }
-  // Button PRIMARY_GRADIENT.dark colors: ['#35A0D6', '#2580AD']
-  const gradDark = button.match(/dark:\s*\{\s*colors:\s*\[\s*'([^']+)'\s*,\s*'([^']+)'/)
-  if (!gradDark) throw new Error('Button PRIMARY_GRADIENT.dark not found')
+  // Button PRIMARY_GRADIENT.dark colors: ['#35A0D6', '#2580AD'].
+  // Stale on the phone since its P9 (renamed to PrimaryButtonGradient and moved into
+  // Colors.ts) — U0.4 repoints it. Until then these two resolve to PARSE-FAILED, which is
+  // the whole point: eight other anchors keep reporting.
+  const gradStop = (i) => (text) => {
+    const m = text.match(/dark:\s*\{\s*colors:\s*\[\s*'([^']+)'\s*,\s*'([^']+)'/)
+    if (!m) throw new Error('Button PRIMARY_GRADIENT.dark not found')
+    return norm(m[i])
+  }
 
+  // Every read is wrapped: `readField` / `readConst` throw on a miss, and one miss must
+  // never disable the rest of the table.
   const anchors = [
-    { label: 'primary',    rn: readField(colors, 'primary', darkOpts),        web: readField(theme, 'primary') },
-    { label: 'background',  rn: readField(colors, 'background', darkOpts),     web: readField(theme, 'bg') },
-    { label: 'border',      rn: readField(colors, 'border', darkOpts),        web: readField(theme, 'border') },
-    { label: 'text',        rn: readField(colors, 'text', darkOpts),          web: readField(theme, 'text') },
-    { label: 'textMute',    rn: readField(colors, 'textSecondary', darkOpts), web: readField(theme, 'textMute') },
-    { label: 'error',       rn: readField(colors, 'error', darkOpts),         web: readField(theme, 'error') },
-    { label: 'gradientTop', rn: norm(gradDark[1]),                            web: readConst(glass, 'ACCENT_FROM') },
-    { label: 'gradientBot', rn: norm(gradDark[2]),                            web: readConst(glass, 'ACCENT_TO') },
-    { label: 'touchFloor',  rn: readField(layout, 'min', { after: 'touchTarget: {', before: '}' }), web: readField(theme, 'rowH') },
+    { label: 'primary',     rn: attempt(colors, (t) => readField(t, 'primary', darkOpts)),       web: attempt(theme, (t) => readField(t, 'primary')) },
+    { label: 'background',  rn: attempt(colors, (t) => readField(t, 'background', darkOpts)),    web: attempt(theme, (t) => readField(t, 'bg')) },
+    { label: 'border',      rn: attempt(colors, (t) => readField(t, 'border', darkOpts)),        web: attempt(theme, (t) => readField(t, 'border')) },
+    { label: 'text',        rn: attempt(colors, (t) => readField(t, 'text', darkOpts)),          web: attempt(theme, (t) => readField(t, 'text')) },
+    { label: 'textMute',    rn: attempt(colors, (t) => readField(t, 'textSecondary', darkOpts)), web: attempt(theme, (t) => readField(t, 'textMute')) },
+    { label: 'error',       rn: attempt(colors, (t) => readField(t, 'error', darkOpts)),         web: attempt(theme, (t) => readField(t, 'error')) },
+    { label: 'gradientTop', rn: attempt(button, gradStop(1)),                                    web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
+    { label: 'gradientBot', rn: attempt(button, gradStop(2)),                                    web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
+    { label: 'touchFloor',  rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(theme, (t) => readField(t, 'rowH')) },
   ]
 
-  const drift = anchors.filter((a) => a.rn !== a.web)
-  return { anchors, drift }
+  const parseFailed = anchors.filter((a) => isParseFailed(a.rn) || isParseFailed(a.web))
+  // A parse failure is drift even when both sides fail identically — an anchor that cannot
+  // be read has not been proven equal.
+  const drift = anchors.filter((a) => a.rn !== a.web || isParseFailed(a.rn))
+  return { anchors, drift, parseFailed }
 }
+
+const statusOf = (a) => (isParseFailed(a.rn) || isParseFailed(a.web) ? 'PARSE-FAILED' : a.rn === a.web ? 'OK' : 'DRIFT')
 
 // Run standalone (only when invoked directly, never on import — argv[1] may be undefined).
 const invokedDirectly = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
@@ -97,8 +144,13 @@ if (invokedDirectly) {
     console.log(`skip: RN repo not found at ${RN}`)
     process.exit(0)
   }
-  const { anchors, drift } = checkParity()
-  for (const a of anchors) console.log(`  ${a.rn === a.web ? 'OK ' : 'DRIFT'}  ${a.label.padEnd(12)} RN=${a.rn}  web=${a.web}`)
+  const { anchors, drift, parseFailed } = checkParity()
+  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(12)} RN=${a.rn}  web=${a.web}`)
+  if (parseFailed.length) {
+    console.error(`\n✗ ${parseFailed.length} anchor(s) could not be parsed on one side — the guard is BLIND there:`)
+    for (const p of parseFailed) console.error(`  ${p.label}: RN=${p.rn}  web=${p.web}`)
+    console.error('A moved or renamed constant. Repoint the reader in .design-sync/check-rn-parity.mjs.')
+  }
   if (drift.length) {
     console.error(`\n✗ ${drift.length} token(s) drifted between the RN app and the web demo:`)
     for (const d of drift) console.error(`  ${d.label}: RN Colors.dark = ${d.rn}, web T = ${d.web}`)

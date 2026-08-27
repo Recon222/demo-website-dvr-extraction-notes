@@ -11,6 +11,7 @@ import {
   type SearchBoxSuggestionResponse,
   type SearchBoxRetrieveResponse,
 } from '@mapbox/search-js-core'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 type AddressSession = SearchSession<SearchBoxOptions, SearchBoxSuggestion, SearchBoxSuggestionResponse, SearchBoxRetrieveResponse>
 
@@ -36,7 +37,7 @@ const inputStyle: CSSProperties = {
   width: '100%',
   borderRadius: 8,
   border: GLASS.border,
-  background: '#0d1b2a',
+  background: colors.background,
   color: '#f0f4f8',
   fontSize: 15,
   padding: '11px 12px',
