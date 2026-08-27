@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
 import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
 
@@ -640,6 +641,18 @@ describe('the item info panel (row 64)', () => {
   it('badges a bundled sample', () => {
     render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ sample: true })] }) })} />)
     expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
   })
 
   it('shows no Sample badge for a live capture', () => {

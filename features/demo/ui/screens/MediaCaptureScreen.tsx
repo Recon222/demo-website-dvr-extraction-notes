@@ -21,6 +21,7 @@ import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import type { FrameGrabOptions } from '@/features/demo/ui/inputs/capture-media'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui/inputs/useMediaCapture'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
@@ -899,9 +900,12 @@ function ReviewStage({
               fontWeight: 700,
               letterSpacing: 0.8,
               textTransform: 'uppercase',
-              color: '#ffd07a',
-              background: 'rgba(255,200,90,0.12)',
-              border: '1px solid rgba(255,200,90,0.3)',
+              // W3 r1 F51 — D12's defended amber comes from `SAMPLE_BADGE`, not from three
+              // re-typed literals. Zero rendered bytes move. The 8%-wash CARD this chip sits on
+              // (just above) is the looser amber family the finding explicitly excludes.
+              color: SAMPLE_BADGE.foreground,
+              background: SAMPLE_BADGE.background,
+              border: `1px solid ${SAMPLE_BADGE.border}`,
               borderRadius: 6,
               padding: '1px 6px',
               marginBottom: 6,

@@ -25,6 +25,7 @@ import {
 import type { MediaItem } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { GlassBottomSheet } from '@/features/demo/ui/controls/GlassBottomSheet'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
@@ -912,16 +913,28 @@ const previewActionFace: CSSProperties = {
   ...glassButtonFace,
 }
 
-/** The demo's sample badge, shared in appearance with the two capture screens' — a bundled
- *  asset is labelled everywhere it appears, never only where it was made. */
+/**
+ * The demo's sample badge — a bundled asset is labelled everywhere it appears, never only where
+ * it was made.
+ *
+ * W3 r1 F51: the three COLOURS were re-typed here rather than imported, so D12's freeze-and-
+ * defend arm rested on five hand-typed literals happening to agree while `SAMPLE_BADGE`'s
+ * docblock claimed sole ownership of all of them. They come from the seam now. Zero rendered
+ * bytes move — the three values are byte-identical to what this held.
+ *
+ * The chip GEOMETRY (9/700/0.8/uppercase, radius 6, `1px 6px`) stays local and is NOT part of
+ * F51: the seam owns the defended colours, and the finding's own scope note excludes the wider
+ * amber family. If a fourth surface ever needs the geometry too, that is the day to lift it —
+ * `sample-badge.ts` is U7.3's file, not this package's.
+ */
 const sampleBadge: CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: 0.8,
   textTransform: 'uppercase',
-  color: '#ffd07a',
-  background: 'rgba(255,200,90,0.12)',
-  border: '1px solid rgba(255,200,90,0.3)',
+  color: SAMPLE_BADGE.foreground,
+  background: SAMPLE_BADGE.background,
+  border: `1px solid ${SAMPLE_BADGE.border}`,
   borderRadius: 6,
   padding: '1px 6px',
 }

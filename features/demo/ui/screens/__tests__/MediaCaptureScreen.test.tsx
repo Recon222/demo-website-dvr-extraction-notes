@@ -9,6 +9,7 @@ import {
   captureFailureMessage,
 } from '@/features/demo/engine/logic/media'
 import { RECORDING_TICK_MS } from '@/features/demo/ui/inputs/useMediaCapture'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import {
   MediaCaptureScreen,
   type MediaCaptureScreenDeps,
@@ -192,6 +193,18 @@ describe('no capture capability — the honest sample path', () => {
       SAMPLE_MEDIA.photo.url,
     )
     expect(screen.getByText('Sample data')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(screen.getByText('Sample data')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
     // The notice states the mechanism — a badge alone leaves the visitor to guess.
     expect(screen.getByText(/bundled sample instead\. Nothing was recorded\./)).toBeInTheDocument()
   })
