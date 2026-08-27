@@ -158,10 +158,15 @@ you trust either verdict.
 
 Two independent traps, both measured:
 
-1. **Stylesheets are not processed at all.** `vitest.config.mts:31` sets `css: false`. Class names
-   resolve to nothing; only *inline* styles are readable. A pin asserting a computed colour on a
-   Tailwind- or token-classed element is asserting over an empty declaration, and it will keep passing
-   after the token it claims to guard is deleted.
+1. **Stylesheets are not processed at all.** `vitest.config.mts:31` sets `css: false`, so class names
+   resolve to nothing and only *inline* styles are readable. The demo mostly survives this — it styles
+   with `CSSProperties` objects rather than Tailwind by deliberate convention
+   (`features/demo/CLAUDE.md:105`) — but `ui/demo.css` globals and keyframes, every Tailwind-classed
+   element, and anything moved to a CSS custom property are all invisible to a test. A pin asserting a
+   computed value on one of those is asserting over an empty declaration, and it keeps passing after
+   the token it claims to guard is deleted. **This is the trap a token port walks into**: moving a
+   hard-coded inline hex to a class or a variable is exactly the refactor that silently un-pins its
+   own test while leaving it green.
 2. **jsdom REWRITES the inline values it does accept.** Measured on this repo's jsdom (29.1.1) —
    `el.style.backgroundColor = '#002853'` reads back as `rgb(0, 40, 83)`; a gradient's hex stops are
    rewritten the same way; and `color-mix(in srgb, red 50%, blue)` reads back as
