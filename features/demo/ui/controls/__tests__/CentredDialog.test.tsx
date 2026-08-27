@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import { CentredDialog, DIALOG_SHADOW, dialogScrim, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
@@ -558,5 +559,31 @@ describe('the dialog backdrop — F43, colors.overlay and not colors.scrim', () 
     render(<ExportModal mode="progress" stage="zipping" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />)
     const progressScrim = document.querySelector<HTMLElement>('[data-export-scrim]')!
     expect(norm(progressScrim.style.background)).toBe(norm(colors.overlay))
+  })
+})
+
+/**
+ * W2 F47. `AlertDialog`'s action buttons carried `padding` / `fontSize` / `fontWeight` /
+ * `cursor` BEFORE the `buttonStyle(…)` spread — four keys the recipe sets itself
+ * (`button-recipe.ts:137` `SIZES.medium`, `:251` weight, `:256` cursor), so the spread
+ * overrode all four and the locals were dead. Deleting them changes no pixel.
+ *
+ * "Dead" is only true while they stay ahead of the spread, and that is the falsifiable part:
+ * the same four keys written AFTER it would silently take the button off the recipe. This pins
+ * the recipe as the source, so the resurrection has somewhere to fail.
+ */
+describe('the alert action button — F47, the recipe is the only source', () => {
+  it('takes its geometry, weight and cursor from buttonStyle, not from local keys', () => {
+    const recipe = buttonStyle({ variant: 'primary' })
+    render(<AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />)
+    const ok = screen.getByRole('button', { name: 'OK' })
+    expect(ok.style.padding).toBe(recipe.padding)
+    expect(ok.style.fontSize).toBe(`${recipe.fontSize}px`)
+    expect(ok.style.fontWeight).toBe(String(recipe.fontWeight))
+    expect(ok.style.cursor).toBe(recipe.cursor)
+    // The four locals were 12 / 14.5 / 600 / pointer; the recipe is 16px 24px / 16 / 600 /
+    // pointer. Two of the four genuinely differ, so this is not a tautology.
+    expect(ok.style.fontSize).not.toBe('14.5px')
+    expect(ok.style.padding).not.toBe('12px')
   })
 })

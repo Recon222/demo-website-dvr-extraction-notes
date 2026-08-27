@@ -111,10 +111,6 @@ export function AlertDialog({ title, message, actions, onDismiss }: AlertDialogP
             onClick={a.onPress}
             style={{
               flex: 1,
-              padding: 12,
-              fontSize: 14.5,
-              fontWeight: 600,
-              cursor: 'pointer',
               // U2.2's recipe, kept THROUGH U4.3's CentredDialog adoption: `glassBtn*` no
               // longer exists, and `destructiveTint` is four border LONGHANDS because W1
               // proved the documented "re-set the longhand after" hatch does not survive
