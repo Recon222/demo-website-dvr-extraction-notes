@@ -2,6 +2,7 @@
 
 import type { SyncResult } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
@@ -45,7 +46,7 @@ export function SyncStatusCard({ sync, syncing }: SyncStatusCardProps) {
       style={{
         padding: 14,
         borderRadius: 10,
-        border: `1px solid ${ok ? 'rgba(16,209,119,0.3)' : '#2a4a6f'}`,
+        border: `1px solid ${ok ? 'rgba(16,209,119,0.3)' : colors.borderLight}`,
         background: ok ? 'rgba(16,209,119,0.06)' : '#0a1320',
         marginBottom: 18,
       }}

@@ -7,6 +7,7 @@ import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -122,7 +123,7 @@ export function ModalShell({
           zIndex: MODAL_SHEET_Z + elevation,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
-          background: '#0d1b2a',
+          background: colors.background,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -187,7 +188,7 @@ const fieldInput: CSSProperties = {
   width: '100%',
   borderRadius: 8,
   border: GLASS.border,
-  background: '#0d1b2a',
+  background: colors.background,
   color: '#f0f4f8',
   fontSize: 15,
   padding: '11px 12px',
@@ -549,7 +550,7 @@ export function Toggle({
       }}
     >
       <span style={{ fontSize: 14, color: '#f0f4f8' }}>{label}</span>
-      <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
+      <div style={{ width: 46, height: 28, borderRadius: 14, background: on ? '#2B8CC1' : colors.border, position: 'relative' }}>
         <div style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }} />
       </div>
     </div>
@@ -559,7 +560,7 @@ export function Toggle({
 /** "+ Add …" dashed button + "Remove" link used by the array wizard screens. */
 export function AddRowButton({ label, onClick }: { label: string; onClick(): void }) {
   return (
-    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: '1px dashed #2a4a6f', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: `1px dashed ${colors.borderLight}`, background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
       {label}
     </button>
   )

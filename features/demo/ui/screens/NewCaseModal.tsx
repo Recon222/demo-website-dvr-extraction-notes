@@ -9,6 +9,7 @@ import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-numb
 import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 // The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
 // re-exported here so the modal stays the import site its consumers already use.
@@ -53,7 +54,7 @@ const coordInput = {
   width: '100%',
   borderRadius: 8,
   border: GLASS.border,
-  background: '#0d1b2a',
+  background: colors.background,
   color: '#f0f4f8',
   fontSize: 15,
   padding: '11px 12px',

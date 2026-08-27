@@ -6,6 +6,7 @@ import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CorrectedScope {
   id: string
@@ -118,7 +119,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', cursor: 'pointer', marginTop: 6 }}
             >
               <span style={{ fontSize: 15, fontWeight: 500, color: '#f0f4f8' }}>DVR Applies DST</span>
-              <div style={{ width: 46, height: 28, borderRadius: 14, background: p.dvrAppliesDST ? '#2B8CC1' : '#1e3a5f', position: 'relative' }}>
+              <div style={{ width: 46, height: 28, borderRadius: 14, background: p.dvrAppliesDST ? '#2B8CC1' : colors.border, position: 'relative' }}>
                 <div style={{ position: 'absolute', top: 3, [p.dvrAppliesDST ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: p.dvrAppliesDST ? '#fff' : '#7a9fc4' }} />
               </div>
             </div>

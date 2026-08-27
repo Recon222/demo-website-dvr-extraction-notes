@@ -6,6 +6,8 @@ import type { CaseCheckboxState } from '@/features/demo/engine/logic/export'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -43,6 +45,10 @@ export interface ExportCaseCardProps {
   onToggleCase(caseId: string): void
   onToggleLocation(caseId: string, locationId: string): void
 }
+
+/** Lit-card halo. Prop-independent, so it is computed once (repo convention:
+ *  `components/marketing/phone-frame.tsx:30-31`) rather than per render. */
+const LIT_GLOW = `0 4px 12px ${withAlpha(colors.link, 0.35)}`
 
 const wrapper: CSSProperties = {
   marginBottom: 14,
@@ -122,8 +128,11 @@ export function ExportCaseCard({
         // Lit vs idle (phone :133-137 + :243-252). Opacity only for the dim — a dimmed card
         // still takes presses.
         background: expanded ? GLASS.gradientPanel : GLASS.gradientCardDiag,
-        border: expanded ? `1px solid ${GLASS.accentFrom}` : GLASS.borderSoft,
-        boxShadow: expanded ? '0 4px 12px rgba(53,160,214,0.35)' : '0 4px 8px rgba(0,0,0,0.15)',
+        // The lit outline is an accent MARK, so it takes `link`, not the CTA fill shade:
+        // `GLASS.accentFrom` measures 2.44 against this panel (WCAG 1.4.11 wants 3.0), `link`
+        // 9.23. The glow is derived from the same token so the two can never disagree.
+        border: expanded ? `1px solid ${colors.link}` : GLASS.borderSoft,
+        boxShadow: expanded ? LIT_GLOW : '0 4px 8px rgba(0,0,0,0.15)',
         opacity: dimmed ? 0.5 : 1,
       }}
     >
@@ -195,7 +204,7 @@ export function ExportCaseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 12px' }}>
-          <div style={{ height: 1, background: '#1e3a5f', marginBottom: 4 }} />
+          <div style={{ height: 1, background: colors.border, marginBottom: 4 }} />
           {hasLocations ? (
             card.locations.map((loc) => (
               <ExportLocationRow

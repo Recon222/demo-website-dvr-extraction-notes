@@ -15,6 +15,7 @@ import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId, type ImportRe
 // effect. Same source ScreenStage / WizardDrawer / ExploreChecklist use.
 import { useReducedMotion } from 'motion/react'
 import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * ImportTerminalProgress — the live import terminal (parity P1.4, matrix row 74).
@@ -192,7 +193,7 @@ const C = {
   primary: '#2B8CC1',
   text: '#f0f4f8',
   textSecondary: '#99badd',
-  border: '#1e3a5f',
+  border: colors.border,
   success: '#10d177',
   warning: '#ffd93d',
   error: '#ff4757',

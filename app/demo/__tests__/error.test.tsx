@@ -72,7 +72,9 @@ describe('app/demo/error (route-segment outer net)', () => {
   // (--color-demo-accent-from/-to, --color-demo-error), never re-hardcoded literals.
   it('uses the @theme demo-token mirrors, not re-hardcoded glass colour literals (R-25)', () => {
     const src = readFileSync(join(process.cwd(), 'app', 'demo', 'error.tsx'), 'utf8')
-    for (const banned of ['#35A0D6', '#35a0d6', '#2580AD', '#2580ad', 'rgba(255,71,87', 'rgba(255, 71, 87']) {
+    // The banned list carries the CURRENT accent stops, not retired ones: a re-based accent
+    // whose old hexes stay listed leaves this guard green and INERT. Rewrite it with the value.
+    for (const banned of ['#1F6B99', '#1f6b99', '#17527A', '#17527a', 'rgba(255,71,87', 'rgba(255, 71, 87']) {
       expect(src.includes(banned), `hardcoded glass literal "${banned}" — use the --color-demo-* @theme tokens`).toBe(false)
     }
     // Utility-CLASS strings, not bare token names (R-34): a whole-file includes() of

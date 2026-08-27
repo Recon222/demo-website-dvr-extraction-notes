@@ -1,4 +1,6 @@
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Shared inline-style tokens for the demo's custom pickers.
@@ -8,20 +10,25 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
  * TimeField. Values match the demo's existing screen styling and the phone app's glass
  * aesthetic (deep navy + primary cyan). Accent gradient stops are sourced from the
  * UI-wide `glass-tokens` module so a restyle stays a one-file change.
+ *
+ * U0.1: the colour keys are now ALIASES of `tokens/palette.ts` (the phone's `Colors`,
+ * ported name-for-name). `T` keeps its own short names because seven `inputs/` files spell
+ * them, but the values live in exactly one place. New code outside `inputs/` reads
+ * `colors.<phoneName>` directly — `T` is the picker library's local vocabulary, not the
+ * palette.
  */
 export const T = {
   // surfaces
-  bg: '#0d1b2a',
-  raised: '#0f2035',
-  border: '#1e3a5f',
-  borderSoft: 'rgba(30,58,95,0.5)',
+  bg: colors.background,
+  raised: colors.backgroundSecondary,
+  border: colors.border,
   // text
-  text: '#f0f4f8',
+  text: colors.text,
   textDim: '#cdd9e6',
-  textMute: '#99badd',
-  textFaint: '#7a9fc4',
+  textMute: colors.textSecondary,
+  textFaint: colors.textTertiary,
   // accents
-  primary: '#2B8CC1',
+  primary: colors.primary,
   accentFrom: GLASS.accentFrom,
   accentTo: GLASS.accentTo,
   primarySoft: 'rgba(43,140,193,0.08)',
@@ -30,8 +37,9 @@ export const T = {
   topHighlight: 'rgba(184,212,240,0.25)',
   scrim: 'rgba(4,8,14,0.55)',
   // status
-  error: '#ff4757',
+  error: colors.error,
   // dimensions
-  radius: 12,
-  rowH: 44,
+  // The phone's `Layout.touchTarget.min` (44). `as const` keeps the literal type, and the
+  // drift guard reads `scale.ts` directly, so this hop costs the guard nothing.
+  rowH: touchTarget.min,
 } as const

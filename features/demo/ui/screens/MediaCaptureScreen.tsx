@@ -19,6 +19,7 @@ import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tok
 import type { FrameGrabOptions } from '@/features/demo/ui/inputs/capture-media'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui/inputs/useMediaCapture'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Photo/video capture (parity P4.3, matrix rows 49–55; phone `MediaCaptureFlow` +
@@ -441,7 +442,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
             alignItems: 'center',
             justifyContent: 'center',
             padding: '0 24px',
-            background: 'radial-gradient(ellipse at center,#0d1b2a,#05080d)',
+            background: `radial-gradient(ellipse at center,${colors.background},#05080d)`,
           }}
         >
           {/* Phone verbatim (VisionCameraScreen.tsx:497), through the single copy site. */}

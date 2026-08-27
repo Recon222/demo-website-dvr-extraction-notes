@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react'
 
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius } from '@/features/demo/ui/tokens/scale'
+
 /**
  * Shared glass-aesthetic tokens for the demo UI (parity P0.5 / matrix G6).
  *
@@ -20,8 +23,24 @@ import type { CSSProperties } from 'react'
  *   sits outside this module's guard-test scan root. Restyle both together.
  */
 
-const ACCENT_FROM = '#35A0D6'
-const ACCENT_TO = '#2580AD'
+// The phone's `PrimaryButtonGradient.dark` (`Colors.ts:471-474`): `[Colors.dark.primaryDark,
+// '#17527A']`. Kept as module CONSTS spelled as literals — the drift guard's anchors 7/8
+// read them with `readConst`, which matches literals, not identifier references.
+//
+// So the top stop is the SAME hex as `colors.primaryDark`, held twice. `= colors.primaryDark`
+// would blind the guard; `satisfies typeof colors.primaryDark` keeps the literal readable AND
+// makes the duplication a type-level identity, so re-basing the palette without re-basing the
+// stop stops compiling. Without it that mutation is green on any run where the phone repo is
+// absent (ledger §91) — and the AA claim at `palette-contrast.test.ts:307-317` measures
+// against `GLASS.accentFrom`, so it would move WITH the stale value. `ACCENT_TO` has no
+// palette sibling and stays plain.
+//
+// Measured with `onPrimary` (#ffffff): 5.80:1 on the top stop, 8.32:1 on the bottom. The
+// character INVERTS from the demo's old pair — light->mid becomes mid->dark. Do NOT lighten
+// either stop and do NOT re-tokenise the light pair to [primaryLight, primaryDark]: the old
+// dark recipe measured 2.94:1, and that light swap takes a passing 5.17 down to 3.68.
+const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark
+const ACCENT_TO = '#17527A'
 
 export const GLASS = {
   // accent gradient stops (single source — input-theme's T re-exports these)
@@ -36,32 +55,36 @@ export const GLASS = {
   gridOverlay:
     'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
   // border shorthands
-  border: '1px solid #1e3a5f',
-  borderSoft: '1px solid rgba(30,58,95,0.5)',
-  borderBtn: '1px solid #2a4a6f',
+  border: `1px solid ${colors.border}`,
+  // `colors.border` at 50% (A7/A30), hand-written for one more wave: plan U1.1 DERIVES this
+  // token (with `gradientCard`, `gradientPanel` and `borderAccent`) from `GLASS_TIER.dark.card`
+  // so the ~40 existing importers keep working. Do not hand-derive it here in the meantime —
+  // `withAlpha` emits the SPACED `rgba()` form and this string is pinned byte-exactly.
+  borderSoft: '1px solid rgba(28,78,132,0.5)',
+  borderBtn: `1px solid ${colors.borderLight}`,
   borderAccent: '1px solid rgba(43,140,193,0.3)',
   borderError: '1px solid rgba(255,71,87,0.3)',
 } as const
 
-/** The G6 card-surface triple: radius 12 · soft hairline · vertical card gradient. */
+/** The G6 card-surface triple: radius `lg` · soft hairline · vertical card gradient. */
 export const glassCard = {
-  borderRadius: 12,
+  borderRadius: radius.lg,
   border: GLASS.borderSoft,
   background: GLASS.gradientCard,
 } as const satisfies CSSProperties
 
-/** Primary CTA base: radius 10 · borderless · accent gradient · white text. */
+/** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
 export const glassBtnPrimary = {
-  borderRadius: 10,
+  borderRadius: radius.control,
   border: 'none',
   background: GLASS.gradientAccent,
   color: '#fff',
 } as const satisfies CSSProperties
 
-/** Secondary button base: radius 10 · button border · raised navy fill · muted text. */
+/** Secondary button base: radius `control` · button border · raised fill · muted text. */
 export const glassBtnSecondary = {
-  borderRadius: 10,
+  borderRadius: radius.control,
   border: GLASS.borderBtn,
-  background: '#132236',
-  color: '#99badd',
+  background: colors.backgroundSecondary,
+  color: colors.textSecondary,
 } as const satisfies CSSProperties

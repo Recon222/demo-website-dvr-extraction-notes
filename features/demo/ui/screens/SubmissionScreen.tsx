@@ -6,6 +6,7 @@ import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCaptu
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -144,7 +145,7 @@ export function SubmissionScreen({
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
           <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
-          <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: '#0d1b2a', color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
+          <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: colors.background, color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
         {showRequester && (
         <SectionCard title="Requester Information">

@@ -6,6 +6,7 @@ import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The phone's `DASHBOARD_CASE_LIMIT` (`app/(tabs)/home.tsx:37`), which it applies as
@@ -107,7 +108,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
           <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: 8, background: card.status.color, opacity: 0.4, filter: 'blur(3px)' }} />
           <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${card.status.color}`, background: card.status.bg, zIndex: 1 }} />
         </div>
-        {!isLast && <div style={{ width: 2, flex: 1, background: '#1e3a5f', marginTop: 6, minHeight: 30 }} />}
+        {!isLast && <div style={{ width: 2, flex: 1, background: colors.border, marginTop: 6, minHeight: 30 }} />}
       </div>
 
       <div
