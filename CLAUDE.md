@@ -9,15 +9,23 @@ This repo is the marketing + beta-recruitment site for **DVR Extraction Notes** 
 - **Marketing pages** (`app/(default)/`, `components/`, `lib/content/`) — content-driven server components rendering the feature catalog in `lib/content/features.ts`. Being restyled to the **"Case File"** design system (see `docs/features/case-file-redesign/`).
 - **The interactive demo** (`app/demo/`, `features/demo/`) — a self-contained client-only product demo with its own conventions; read `features/demo/CLAUDE.md` before touching it. **Marketing code must never import from `@/features/demo`** (it would pull mapbox-gl/pdfjs/motion into marketing bundles).
 
-## ACTIVE INITIATIVE — Demo↔Phone Parity (2026-07-30, in progress)
+## ACTIVE INITIATIVE — Demo↔Phone UI Parity v2 (2026-08-26, in progress)
 
-The demo is being brought to full parity with the phone app by an orchestrated agent fleet. **If you are picking this effort up (fresh instance, post-compaction, new session), read these IN ORDER before doing anything:**
+The demo's **UI** is being brought to parity with the phone app's refactored UI (the phone's
+UI-consistency campaign + the map-chrome redesign) by an orchestrated agent fleet. Logic parity was
+finished by v1 and is not in scope again — this is a styling/recipe/token port. **If you are picking
+this effort up (fresh instance, post-compaction, new session), read these IN ORDER before doing
+anything:**
 
-1. `docs/planning/demo-phone-parity/HANDOFF.md` — the live handoff runbook: current state, agent roster + continuity handles, standing rules, next-step queue. Continuously updated; trust its newest snapshot.
-2. `docs/planning/demo-phone-parity/01-master-parity-plan.md` — the phased plan (P0–P8), owner-ratified decisions D1–D9 (§3), binding agent conventions (§4), execution model (§6), progress tracker (§7).
-3. `docs/planning/demo-phone-parity/00-surface-parity-matrix.md` — the 94-surface gap matrix + owner rulings (§7).
+1. `docs/planning/demo-phone-ui-parity/HANDOFF.md` — the live handoff runbook: current state, agent roster + continuity handles, standing rules, next-step queue. Continuously updated; trust its newest snapshot.
+2. `docs/planning/demo-phone-ui-parity/01-master-ui-parity-plan.md` — the phased plan (U0–U8), the ratified decisions, binding agent conventions, execution model, progress tracker.
+3. `docs/planning/demo-phone-ui-parity/00-ui-parity-matrix.md` — the per-surface/per-recipe gap matrix + owner rulings.
+4. `docs/planning/demo-phone-ui-parity/GATES.md` — the blocking conditions. They live in their own file precisely so a HANDOFF rewrite cannot delete them.
+5. `.claude/skills/fleet-orchestration/SKILL.md` — the operating doctrine (context economy, disk-first reviews, agent continuity, post-compaction recovery). Its "Mapping to THIS repo" table resolves the kit's generic names — `hazard-playbook.md` binds every repo-writing agent, `reviewer-contract.md` every review lane.
 
-The phone repo (`../DVR-Extraction-Notes-ReactNative`) is **strictly read-only** for this effort — spec source (`docs/ui-mapping/`) and simulator runtime only.
+v1 (`docs/planning/demo-phone-parity/`, P0–P8, complete 2026-08-01) is the archive: its runbook still documents the review mechanics and the standing rules this effort inherits.
+
+The phone repo (`D:\Work Coding Projects\CCTV Recovery Notes App\extraction_case_notes_react_native_expo`, sibling `../../extraction_case_notes_react_native_expo`) is **strictly read-only** for this effort — spec source only. It is also where `.design-sync/check-rn-parity.mjs` resolves its token anchors from.
 
 ## Commands
 
@@ -68,7 +76,7 @@ pnpm test:coverage  # coverage (80% thresholds on lib/** + features/demo/engine/
 
 ## Review workflow
 
-Implementation PRs are reviewed by a multi-agent pipeline: **`/demo-code-review`** (`.claude/skills/demo-code-review/SKILL.md`). It fans out five read-only lane specialists in parallel — `typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer` (`.claude/agents/`) — verifies each finding against the code, then issues a strict decision: any CRITICAL → BLOCK, any HIGH → REVISE, otherwise APPROVE.
+Implementation PRs are reviewed by a multi-agent pipeline: **`/demo-code-review`** (`.claude/skills/demo-code-review/SKILL.md`). It fans out five read-only lane specialists in parallel — `typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer` (`.claude/agents/`) — each writing full findings to disk under a shared base contract, `.claude/skills/fleet-orchestration/reviewer-contract.md` (pre-report gate, CRITICAL/HIGH/MEDIUM/LOW rubric, output contract, fix-delta rounds); their personas add only what is lane-specific. **`dt-review-aggregator` holds the aggregator seat** — it reads the lane files, dedupes, settles disputes empirically, spot-checks at source and emits ONE vetted doc, and it is the sole writer of the deferral ledger. The decision is strict: any CRITICAL → BLOCK, any HIGH → REVISE, otherwise APPROVE.
 
 ```bash
 /demo-code-review            # current branch's PR
