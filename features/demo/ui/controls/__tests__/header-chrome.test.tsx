@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import type { CSSProperties } from 'react'
 import { render, screen, cleanup } from '@testing-library/react'
 import {
   glassHeaderBar,
@@ -25,11 +26,19 @@ import { scheme } from '@/features/demo/ui/tokens/palette'
 
 const header = GLASS_TIER[scheme].header
 
+/**
+ * `jest-dom`'s `toHaveStyle` is typed for `Record<string, unknown>`, which `CSSProperties` is
+ * not (no index signature). One widening in one place, so no call site carries a cast.
+ */
+function decl(fragment: CSSProperties): Record<string, unknown> {
+  return { ...fragment }
+}
+
 /** `linear-gradient(<angle>,<stop>,<stop>)` → its parts. Throws rather than returning null: a
  *  fragment that stopped being a two-stop linear gradient must fail loudly, not compare against
  *  `undefined` and pass. */
-function gradient(value: string | undefined): { angle: string; stops: [string, string] } {
-  const m = /^linear-gradient\((\d+deg),(rgba?\([^)]*\)),(rgba?\([^)]*\))\)$/.exec(value ?? '')
+function gradient(value: CSSProperties['background']): { angle: string; stops: [string, string] } {
+  const m = /^linear-gradient\((\d+deg),(rgba?\([^)]*\)),(rgba?\([^)]*\))\)$/.exec(String(value ?? ''))
   if (!m) throw new Error(`not a two-stop linear gradient: ${value}`)
   return { angle: m[1], stops: [m[2], m[3]] }
 }
@@ -84,20 +93,6 @@ describe('the header tier recipe (A37 / U1.4)', () => {
   })
 })
 
-/**
- * The consumers. One recipe means every chrome bar in the demo reads it — so this asserts on
- * RENDERED elements, not on the fragments, and it loops rather than picking one component. The
- * phone's whole A37 finding was four bars that each looked *nearly* right on its own screen;
- * the only assertion that catches that class is one that compares them to each other and to
- * the tier.
- *
- * The plan's Tests column asks for "a pin that `WizardHeader` and `SettingsNavBar` render the
- * same background". `SettingsNavBar` is NOT in this set — the phone's own
- * `SettingsNavBar.tsx:43` reads `GlassColors[colorScheme ?? 'light'].elevated`, not `.header`,
- * and the demo's `GLASS.gradientPanel` is that same tier's gradient since U1.1 (its R-8). The
- * demo bar is already byte-exact; pinning it to the header tier would pin a divergence. See the
- * U1.4 report's refutation R-2.
- */
 const drawerProps = {
   open: true,
   items: [{ id: 'submission' as const, label: 'Submission', active: true }],
@@ -136,9 +131,23 @@ const BARS: [name: string, mount: () => HTMLElement][] = [
   ],
 ]
 
+/**
+ * The consumers. One recipe means every chrome bar in the demo reads it — so this asserts on
+ * RENDERED elements, not on the fragments, and it loops rather than picking one component. The
+ * phone's whole A37 finding was four bars that each looked *nearly* right on its own screen;
+ * the only assertion that catches that class is one that compares them to each other and to
+ * the tier.
+ *
+ * The plan's Tests column asks for "a pin that `WizardHeader` and `SettingsNavBar` render the
+ * same background". `SettingsNavBar` is NOT in this set — the phone's own
+ * `SettingsNavBar.tsx:43` reads `GlassColors[colorScheme ?? 'light'].elevated`, not `.header`,
+ * and the demo's `GLASS.gradientPanel` is that same tier's gradient since U1.1 (its R-8). The
+ * demo bar is already byte-exact; pinning it to the header tier would pin a divergence. See the
+ * U1.4 report's refutation R-2.
+ */
 describe('the header tier reaches the screen (A37 / U1.4)', () => {
   it.each(BARS)('%s paints the shared bar — gradient and hairline', (_name, mount) => {
-    expect(mount()).toHaveStyle(glassHeaderBar)
+    expect(mount()).toHaveStyle(decl(glassHeaderBar))
   })
 
   it('every bar paints the SAME ground — four hand-rolled navies become one', () => {
@@ -172,6 +181,6 @@ describe('the header tier reaches the screen (A37 / U1.4)', () => {
 
   it("the drawer's footer paints the same stops flipped, hairline on top", () => {
     render(<WizardDrawer {...drawerProps} />)
-    expect(screen.getByText(APP_NAME).parentElement).toHaveStyle(glassHeaderFooterBar)
+    expect(screen.getByText(APP_NAME).parentElement).toHaveStyle(decl(glassHeaderFooterBar))
   })
 })
