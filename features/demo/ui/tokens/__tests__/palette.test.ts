@@ -19,6 +19,35 @@ import { T } from '@/features/demo/ui/inputs/input-theme'
 
 const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
 
+/**
+ * The design-sync preview sources (D7 / U8.4).
+ *
+ * They live OUTSIDE `UI_ROOT`, so the sweep below has never seen them — and that is exactly the
+ * hazard D7 names: the previews are what the uploaded design bundle RENDERS, so a stale hex here
+ * ships the retired palette to the design agent and *nothing flags it*. `#0d1b2a` appeared in all
+ * 33 of them (each preview's `<div data-demo-root>` backdrop, which `demo.css` requires because
+ * every rule — `box-sizing` included — is scoped to that attribute), and `PickerSheet`/`ModalShell`
+ * additionally hand-rolled option-row and input chrome from `#1e3a5f` / `#35A0D6` / `#2580AD`.
+ *
+ * NO EXEMPTIONS, and the directory is swept whole rather than filtered to the demo's 33: it also
+ * holds `config.marketing.json`'s previews, and the Case-File palette contains no member of
+ * `RETIRED`, so a hit on that side is drift either way.
+ *
+ * Previews cannot import the token modules — they resolve `'open-pro-next'`, the bundle global,
+ * which exports only the components pinned in `componentSrcMap`. So their hexes are literals by
+ * construction and this sweep is the only thing standing behind them.
+ */
+const PREVIEWS_ROOT = join(process.cwd(), '.design-sync', 'previews')
+
+/** Non-null `componentSrcMap` keys — the components the design bundle actually ships. */
+const pinnedComponents = (): string[] =>
+  Object.entries(
+    JSON.parse(readFileSync(join(process.cwd(), '.design-sync', 'config.json'), 'utf8'))
+      .componentSrcMap as Record<string, string | null>,
+  )
+    .filter(([, src]) => src !== null)
+    .map(([name]) => name)
+
 function sourceFiles(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -179,6 +208,29 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       }
     }
     expect(offenders, `the phone retired these in its P0 re-base:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  describe('the design-sync previews (D7 / U8.4)', () => {
+    const scanPreviews = (needle: string): string[] =>
+      sourceFiles(PREVIEWS_ROOT)
+        .filter((file) => norm(readFileSync(file, 'utf8')).includes(norm(needle)))
+        .map((file) => relative(PREVIEWS_ROOT, file).split(sep).join('/'))
+
+    it('every pinned component has a preview painting the PORTED navy', () => {
+      // The anti-vacuity control, and a real guard in its own right. An empty offender list below
+      // is worth nothing until this walk is shown to bite: a moved root, a renamed directory or a
+      // `.jsx` extension would all leave the sweep silently green over 33 stale files. Asserting
+      // the exact SET rather than a count also catches the other half of D7 — a component added to
+      // `componentSrcMap` with no preview authored, which renders as a floor card in the bundle.
+      expect(scanPreviews('#002853').sort()).toEqual(pinnedComponents().map((n) => `${n}.tsx`).sort())
+    })
+
+    it('carries no retired hex — no file exempt', () => {
+      const offenders = RETIRED.flatMap(([name, hex, replacement]) =>
+        scanPreviews(hex).map((f) => `${f} still carries the retired ${name} ${hex} — use ${replacement}`),
+      )
+      expect(offenders, `the design bundle would ship the retired palette:\n${offenders.join('\n')}`).toEqual([])
+    })
   })
 
   describe('the boot-gate darknesses U8.1 retired (D8, deferred §111)', () => {

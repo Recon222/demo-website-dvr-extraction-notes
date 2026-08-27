@@ -7,7 +7,7 @@ function Phone({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', background: '#0d1b2a', width: 378, height: 720, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', background: '#002853', width: 378, height: 720, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       {children}
     </div>
@@ -18,8 +18,8 @@ const labelStyle = { fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBott
 const inputStyle = {
   width: '100%',
   borderRadius: 8,
-  border: '1px solid #1e3a5f',
-  background: '#0d1b2a',
+  border: '1px solid #1c4e84',
+  background: '#002853',
   color: '#f0f4f8',
   fontSize: 15,
   padding: '11px 12px',

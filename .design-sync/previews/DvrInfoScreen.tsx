@@ -2,8 +2,12 @@
 // Variant axis: retention computed (per-scope overwrite countdowns) vs. not-yet-dated.
 import { DvrInfoScreen } from 'open-pro-next'
 
+/* Form customisation (Settings > Form Fields) can hide any wizard field; a screen asks this
+   predicate per field id. Every preview shows the DEFAULT state — nothing hidden. */
+const allFieldsVisible = () => true
+
 function Phone({ children }: { children: React.ReactNode }) {
-  return <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>{children}</div>
+  return <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>{children}</div>
 }
 
 const DVR = {
@@ -25,6 +29,7 @@ export function Filled() {
   return (
     <Phone>
       <DvrInfoScreen
+        isFieldVisible={allFieldsVisible}
         dvr={DVR}
         retention={{
           totalRetention: 29,
@@ -47,6 +52,7 @@ export function Empty() {
   return (
     <Phone>
       <DvrInfoScreen
+        isFieldVisible={allFieldsVisible}
         dvr={{ ...DVR, firstRecordedDate: '', totalDvrRetention: '', recordingSchedule: '' }}
         retention={{ totalRetention: null, scopes: [] }}
         onChange={() => {}}
