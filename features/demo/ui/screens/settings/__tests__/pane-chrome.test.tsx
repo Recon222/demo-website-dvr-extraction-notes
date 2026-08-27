@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-import { PaneDescription, PaneGroup } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import { Banner } from '@/features/demo/ui/controls/Banner'
+import { PaneDescription, PaneGroup, PaneNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 
@@ -93,5 +94,78 @@ describe('PaneGroup (phone `settingGroup` / `settingHeader` / `settingLabel` / `
     const header = screen.getByText('Photo Quality').parentElement as HTMLElement
     expect(header).toHaveStyle({ justifyContent: 'space-between' })
     expect(header.style.gap).toBe('')
+  })
+})
+
+describe('PaneNote IS Banner’s recipe — the drift guard for a ruled duplication', () => {
+  /**
+   * `PaneNote` draws the phone's settings note itself instead of importing `<Banner>`, because
+   * `<Banner>` is hard-wired to `role="alert"` with no `id` and swapping the panes' live-region
+   * semantics is a BEHAVIOUR change plan §2's D20 carve-out does not grant U6.2 (the full
+   * ruling is in `_pane-chrome.tsx`'s `PaneNote` docblock and the U6.2 report).
+   *
+   * A duplication that nobody watches drifts, so this watches it. Every phone settings caller
+   * passes `<Banner style={styles.note}>` and `styles.note` is a lone
+   * `marginTop: Layout.spacing.xs` — so a Banner spelled that way and a PaneNote must be the
+   * SAME PICTURE, key for key. If this reds, the two have diverged and one of them is wrong;
+   * the cheapest repair may well be to delete `PaneNote` and take the deferral.
+   */
+  const declared = (el: Element): Record<string, string> => {
+    const style = (el as HTMLElement).style
+    const out: Record<string, string> = {}
+    for (let i = 0; i < style.length; i++) out[style[i]] = style.getPropertyValue(style[i])
+    return out
+  }
+
+  it('paints the box exactly as `<Banner style={styles.note}>` does', () => {
+    const { container: bannerHost } = render(
+      <Banner severity="warning" message="Body" style={{ marginTop: spacing.xs }} />,
+    )
+    const banner = bannerHost.firstElementChild as HTMLElement
+
+    const { container: noteHost } = render(<PaneNote tone="warning">Body</PaneNote>)
+    const note = noteHost.firstElementChild as HTMLElement
+
+    expect(declared(note)).toEqual(declared(banner))
+  })
+
+  it('sets the message on Banner’s own `messageStyle`', () => {
+    const { container: bannerHost } = render(<Banner severity="info" message="Body" />)
+    const { container: noteHost } = render(<PaneNote tone="info">Body</PaneNote>)
+    expect(declared(noteHost.firstElementChild!.lastElementChild!)).toEqual(
+      declared(bannerHost.firstElementChild!.lastElementChild!),
+    )
+  })
+
+  it('draws the SAME severity glyph, because it imports Banner’s', () => {
+    // Two hand-drawn icon tables for one severity set is the drift this import exists to stop.
+    for (const severity of ['info', 'warning', 'success'] as const) {
+      const { container: bannerHost, unmount: a } = render(<Banner severity={severity} message="Body" />)
+      const { container: noteHost, unmount: b } = render(<PaneNote tone={severity}>Body</PaneNote>)
+      expect(noteHost.querySelector('svg')?.innerHTML).toBe(bannerHost.querySelector('svg')?.innerHTML)
+      a()
+      b()
+    }
+  })
+
+  it('keeps the semantics Banner cannot give it — an id target and an optional polite role', () => {
+    // The two facts the ruling turns on. `<Banner>` renders neither: no `id` prop, and
+    // `role="alert"` is unconditional.
+    render(
+      <PaneNote tone="info" id="why" role="status">
+        Body
+      </PaneNote>,
+    )
+    const note = document.getElementById('why')
+    expect(note, 'the aria-describedby target R-6 added').not.toBeNull()
+    expect(note).toHaveAttribute('role', 'status')
+    expect(note).not.toHaveAttribute('aria-live')
+  })
+
+  it('stays out of the live-region business when no role is asked for (R-34)', () => {
+    render(<PaneNote tone="warning">Body</PaneNote>)
+    const note = screen.getByText('Body').parentElement as HTMLElement
+    expect(note).not.toHaveAttribute('role')
+    expect(note).not.toHaveAttribute('aria-live')
   })
 })

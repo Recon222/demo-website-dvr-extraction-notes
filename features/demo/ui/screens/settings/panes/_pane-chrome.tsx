@@ -3,11 +3,12 @@
 import type { ReactNode } from 'react'
 import type { TypedOption } from '@/features/demo/engine/content/settings-values'
 import { SelectField } from '@/features/demo/ui/screens/_shared'
+import { BannerIcon } from '@/features/demo/ui/controls/Banner'
 import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { severityTone } from '@/features/demo/ui/tokens/status'
-import { spacing } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Shared chrome for the Settings detail panes — the demo's equivalent of the styles every
@@ -129,16 +130,43 @@ export type PaneNoteTone = 'info' | 'warning' | 'success'
 /**
  * A69's eighth status-colour owner, retired. The three hand-mixed triples this replaces spent
  * the SATURATED accent as the note's text on a 9-10% tint of its own hue — the pairing the
- * phone's `Banner` docblock measures at **1.92-2.24:1** and §C.3 rule 1 bans outright.
+ * phone's `Banner` docblock measures at **1.92-2.24:1** and §C.3 rule 1 bans outright. U3.2
+ * landed the tone half (`severityTone`); U6.2 lands everything else.
+ *
+ * ## This IS the phone's `Banner`, drawn here rather than imported — and that is a RULING
  *
  * The phone's `infoBox` / `warningNote` / `successNote` are `<Banner severity>` at `main`
- * (e.g. `LocationSettingsSection.tsx:126`, `MediaCaptureSettingsSection.tsx:224`), so the tone
- * half is exactly `severityTone()`. **Only the tone half lands here.** Replacing `PaneNote`
- * with the `Banner` COMPONENT — which would also move padding 13 -> 12, radius 10 -> 8 and
- * fontSize 12.5 -> 14 — is U6.2's under D19's re-cut, and U6.2 already opens this file.
+ * (`LocationSettingsSection.tsx:126`, `MediaCaptureSettingsSection.tsx:224,247,271,278,285,308`,
+ * `SecuritySettingsSection.tsx:117,201`), each passed `style={styles.note}` = a lone
+ * `marginTop: Layout.spacing.xs`. So every VISIBLE part of the phone's settings note is ported
+ * here byte for byte — `Banner.tsx:84-99`'s row / flex-start / gap sm / radius md (8) /
+ * borderWidth 1 / padding base (12), its `messageStyle` (flex 1 / fontSize.sm 14 /
+ * lineHeight 21), and its 20px severity glyph, imported from `Banner` so the two cannot draw
+ * different icons. `pane-chrome.test.tsx`'s drift guard renders both and asserts the styles are
+ * EQUAL; if it ever reds, they have diverged and one of them is wrong.
+ *
+ * What is NOT taken is the component, and the reason is scope, not taste. `<Banner>` is
+ * hard-wired to `role="alert"` + an explicit `aria-live`, and it has no `id`. Adopting it here
+ * would:
+ *
+ *   1. break `aria-describedby` on the three inert controls that point at their note (R-6 —
+ *      `AppearancePane`'s Dark Mode, `CloudSyncPane`'s switch, `ExportSecurityPane`'s Set
+ *      Default Password), because there would be no `id` to point at;
+ *   2. turn the six STATIC pane notes into live regions that announce on mount (R-34's
+ *      explicit finding: "a static live region announces nothing and costs a needless AT
+ *      boundary");
+ *   3. turn the two REACTIVE notes from `role="status"` (polite) into `role="alert"`
+ *      (assertive), interrupting the picker the visitor is still operating.
+ *
+ * All three are BEHAVIOUR changes to the accessibility tree, not style changes — and plan §2's
+ * D20 carve-out names the six packages allowed one (U2.3, U4.2, U4.3, U5.2, U5.3, U6.3).
+ * **U6.2 is not among them**, so §2's instruction applies as written: raise it rather than take
+ * it. The `PaneNote`-as-`Banner`-wrapper shape U3.3's consume-me offers as the alternative is
+ * worse than either end — it nests a `role="alert"` inside a `role="status"`.
  *
  * `PaneNoteTone` needs no runtime guard: `severityTone(tone)` only compiles while every tone
  * IS a severity, so widening the union to something with no `*Light` pair is a type error here.
+ * It stays three-wide (no `error`) because no settings note on either side is an error.
  *
  * `id` (R-6) makes a note addressable as an `aria-describedby` target. Every inert control in
  * these panes points at the short note beside it, so the reason is announced AT the control
@@ -167,23 +195,32 @@ export function PaneNote({
       role={role}
       data-pane-note={tone}
       style={{
-        // Geometry unchanged and deliberately so — see the tone docblock above: the Banner
-        // adoption that moves 13/10/12.5 to the phone's 12/8/14 is U6.2's half of D19.
-        padding: 13,
-        marginTop: 10,
-        borderRadius: 10,
-        // Three longhands, never the `border` shorthand: a shorthand after a longhand erases
-        // it, and React writes only CHANGED keys on update.
+        // `Banner.tsx:114-131` (phone `Banner.tsx:85-93`), key for key and in its order.
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: spacing.sm,
+        borderRadius: radius.md,
         borderWidth: 1,
         borderStyle: 'solid',
-        borderColor: t.borderColor,
-        background: t.background,
-        fontSize: 12.5,
-        lineHeight: 1.5,
-        color: t.color,
+        padding: spacing.base,
+        // The four side longhands, never the `borderColor` shorthand — `border-color` is itself
+        // a four-side shorthand and erases a per-side longhand identically
+        // (`reports/partner-lit-edge-ruling.md` §1). `Banner` writes the accent the same way;
+        // the drift guard compares the two, so this cannot quietly become a shorthand.
+        borderTopColor: t.borderColor,
+        borderRightColor: t.borderColor,
+        borderBottomColor: t.borderColor,
+        borderLeftColor: t.borderColor,
+        // `backgroundColor`, not the `background` shorthand — `Banner.tsx:170`'s spelling, and
+        // the fill must stay a flat OPAQUE `*Light` tone or the `*OnLight` ratio it was
+        // measured against stops being measurable.
+        backgroundColor: t.background,
+        // Phone `styles.note` — the ONLY thing every settings caller passes to `<Banner>`.
+        marginTop: spacing.xs,
       }}
     >
-      {children}
+      <BannerIcon severity={tone} color={t.color} />
+      <div style={{ flex: 1, fontSize: 14, lineHeight: '21px', color: t.color }}>{children}</div>
     </div>
   )
 }
