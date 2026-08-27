@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { CSSProperties } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { ModalShell, modalHeaderBar } from '@/features/demo/ui/screens/_shared'
+import { ModalShell, modalHeaderBar, modalSheet } from '@/features/demo/ui/screens/_shared'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -191,6 +191,33 @@ describe('A60 — the modal header bar', () => {
  * phone components with two different phone prop names, labelling two different ELEMENTS — see
  * the U4.2 report, R-1.
  */
+describe('the page-sheet ground', () => {
+  it('is `background`, not `modal` — the token with no consumer in either repo', () => {
+    // Every page sheet on the phone paints `colors.background` behind `GridBackground`, ten for
+    // ten at `dd5551ec` (UserProfileModal.tsx:133, EnrollDeviceModal.tsx:281,
+    // EnrollmentQRModal.tsx:41, ProvisioningWizardModal.tsx:188, UserManagementModal.tsx:313,
+    // NewCaseModal.tsx:250, NewLocationModal.tsx:201, DuplicateLocationModal.tsx:104,
+    // EditIncidentLocationModal.tsx:104, CaseActionsSheet.tsx:257). `Colors.dark.modal`
+    // (`Colors.ts:213`) is consumed by NOTHING there.
+    //
+    // Both halves matter. Plan §5's U4.2 row asked for A38's tier here and matrix A5 reads as if
+    // `colors.modal` finds its adopter here; the second assertion is what stops either from being
+    // quietly applied later. A38's tier is the BOTTOM-sheet ground and belongs to
+    // `GlassBottomSheet` — putting it on a page sheet is A45's mistake-to-avoid in reverse.
+    expect(modalSheet.background).toBe(colors.background)
+    expect(modalSheet.background).not.toBe(colors.modal)
+  })
+
+  it('keeps the demo-owned page-sheet geometry the phone has no number for', () => {
+    // `presentationStyle="pageSheet"` is OS chrome: the inset and the corner radius are iOS's,
+    // not values in any phone file. Same finding D6 ratified for `TAB_BAR_HEIGHT` and U1.4 for
+    // `WizardHeader`'s 56px — pinned so a later package does not "correct" them to `radius.sheet`.
+    expect(modalSheet.top).toBe(34)
+    expect(modalSheet.borderTopLeftRadius).toBe(24)
+    expect(modalSheet.borderTopRightRadius).toBe(24)
+  })
+})
+
 describe('A60 — closeAccessibilityLabel', () => {
   it('announces the caller`s own name, not "Close"', () => {
     render(
