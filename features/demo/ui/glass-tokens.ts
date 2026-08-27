@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -78,6 +78,34 @@ const ACCENT_FROM = '#1F6B99' satisfies typeof palette.dark.primaryDark
 const ACCENT_TO = '#17527A'
 
 /**
+ * `Layout.shadow.card` (matrix A44), BOTH halves — phone `Layout.ts:115-137`.
+ *
+ * Light is not dark at another alpha: it is TINTED (`rgba(30,58,138,0.18)`, not black) and
+ * cast a pixel shorter, because — the phone's own comment — "a neutral black shadow disappears
+ * against white". `shadowOpacity` is 1 there, so the colour's alpha is final; in dark the
+ * `0.15` opacity multiplies `#000`. RN spends five props on what CSS spends one on.
+ *
+ * A record rather than a bare dark string because D2 as amended is absolute: "Nothing
+ * hard-codes a dark value that has a light sibling." `shadow.card` appears once in the whole
+ * plan (U1.2's row), so no later package owns the light half — on the flip day this would
+ * otherwise have left a black drop under a white surface, and (see below) nothing would have
+ * noticed.
+ *
+ * NOTHING ANCHORS THIS. `Layout.shadow` is one of the three things the phone's design-sync
+ * generator deliberately does not emit (phone §1.Y.3), and the guard cannot read five native
+ * shadow props as one flat CSS value — so these two literals are the only gate, pinned in
+ * `ui/__tests__/glass-card-recipe.test.tsx`. Ledger §95.
+ *
+ * A44/A54 port the phone's INTENDED card shadow. Its iOS rendering is currently dead (the note
+ * in the phone's `Card.tsx`); the matrix rows are owner-ratified regardless, and the web has no
+ * equivalent defect.
+ */
+export const SHADOW_CARD = {
+  light: '0 3px 8px rgba(30,58,138,0.18)', // Layout.ts:123-128
+  dark: '0 4px 8px rgba(0,0,0,0.15)', // Layout.ts:130-136
+} as const satisfies Record<ColorScheme, string>
+
+/**
  * The glass tiers for the scheme the demo renders (`SEAM(U1.1)`).
  *
  * `scheme` comes from `tokens/palette.ts`, which owns the ONE consumed-scheme site (§9
@@ -117,16 +145,14 @@ export const GLASS = {
   // `borderAccent` - the two halves of one tier under two names - can no longer drift apart.
   borderAccent: `1px solid ${tier.elevated.border}`,
   borderError: '1px solid rgba(255,71,87,0.3)',
-  // A44 (U1.2) - `Layout.shadow.card.dark`, phone `Layout.ts:130-136`: `shadowColor '#000'`,
-  // `shadowOffset {0,4}`, `shadowOpacity 0.15`, `shadowRadius 8`. RN spends five props on
-  // what CSS spends one on. The MISSING-SEAM the row names is the demo's 22 distinct
-  // box-shadows across 26 occurrences (demo inventory §2.5), almost every one a one-off;
-  // this is the raised-surface recipe they were all approximating.
+  // A44 (U1.2) - `Layout.shadow.card`, resolved for the consumed scheme. Both halves and the
+  // sourcing live on `SHADOW_CARD` above (W1/F19). The MISSING-SEAM the row names is the
+  // demo's 22 distinct box-shadows across 26 occurrences (demo inventory §2.5), almost every
+  // one a one-off; this is the raised-surface recipe they were all approximating.
   //
   // NOT derivable from `GLASS_TIER`: `innerShadow` is the tier's INSET, a different value on
-  // a different axis. `Layout.shadow` is one of the three things the phone's design-sync
-  // generator deliberately does not emit (phone §1.Y.3), so it is a hand-port either way.
-  shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
+  // a different axis.
+  shadowCard: SHADOW_CARD[scheme],
 } as const
 
 /**
@@ -186,10 +212,14 @@ export const glassCard = {
  *   and `ui/__tests__/palette-contrast.test.ts` pins it >= 1.25 against both stops.
  * - **The lit edge went 0.06 -> 0.2** (A35). At 0.06 the phone's was not rendering at all.
  *
- * NO ELEVATION SHADOW, deliberately. The matrix assigns shadows per row and A55 names none:
- * A54 (card) takes `Layout.shadow.card` and A56 (elevated/modal) takes `shadow.dialog`, which
- * is U4's. A nested surface casting a drop shadow inside its own parent is the phone's own
- * "sheet on a dialog" mistake in miniature (phone §1.5).
+ * NO ELEVATION SHADOW, and it is the PHONE'S reason, not an inference from the matrix's
+ * silence. `Colors.ts:376-378`, verbatim: "A defined border plus a genuinely lit top edge is
+ * how a raised panel is drawn without a shadow, which matters here because the iOS shadow on
+ * this component is dead (see the note in Card.tsx) and repairing it is held." The border at
+ * dE 14.7 and the edge at 0.2 alpha ARE the elevation. The matrix agrees by omission — it
+ * assigns shadows per row and A55 names none, while A54 takes `Layout.shadow.card` and A56
+ * takes `shadow.dialog` (U4's) — and a nested surface casting a drop shadow inside its own
+ * parent would be the phone's "sheet on a dialog" mistake in miniature (phone §1.5).
  *
  * RADIUS is `lg` (12), the same as `glassCard`: a nested CARD stays at `lg` and only a nested
  * ROW takes `md` — adjudicated-closed on the phone, guarded in both `Card.tsx` and

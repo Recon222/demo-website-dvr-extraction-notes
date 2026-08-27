@@ -597,3 +597,29 @@ describe('the documented escape hatch actually works (F14)', () => {
     expect(container).toBeTruthy()
   })
 })
+
+/**
+ * F19 — `GLASS.shadowCard` carries BOTH scheme halves, like every other value in the wave.
+ *
+ * D2 as amended, verbatim: "Nothing hard-codes a dark value that has a light sibling." The
+ * phone's light card shadow is not the dark one at a different alpha — it is TINTED
+ * (`rgba(30,58,138,0.18)`, not black) and cast one pixel shorter, because a neutral black
+ * shadow disappears against white (`Layout.ts:115-137`).
+ *
+ * Nothing anchors this: `Layout.shadow` is one of the three things the phone's design-sync
+ * generator deliberately does not emit, and RN spells it as five props no CSS-shaped anchor
+ * can read (ledger §95). These two literals ARE the gate.
+ */
+describe('the card elevation shadow ships both halves (F19 / A44, D2)', () => {
+  it('transcribes Layout.shadow.card, both schemes, and consumes the rendered one', async () => {
+    const { SHADOW_CARD } = await import('@/features/demo/ui/glass-tokens')
+    expect(SHADOW_CARD).toEqual({
+      // `Layout.ts:123-128` — shadowColor `rgba(30, 58, 138, 0.18)`, offset {0,3},
+      // shadowOpacity 1 (so the colour's own alpha is final), radius 8.
+      light: '0 3px 8px rgba(30,58,138,0.18)',
+      // `Layout.ts:130-136` — `#000`, offset {0,4}, shadowOpacity 0.15, radius 8.
+      dark: '0 4px 8px rgba(0,0,0,0.15)',
+    })
+    expect(GLASS.shadowCard).toBe(SHADOW_CARD[scheme])
+  })
+})
