@@ -100,9 +100,17 @@ export interface RadioOptionProps {
  * (`rgba(75,163,212,0.08)`). `withAlpha` and not a `token + '15'` concat, for the reason the
  * phone's own comment gives at `:69-74`.
  *
- * `flexShrink: 1` on the label (`:175-191`) is load-bearing at three-up: with the ring, its
- * margin and the 16px side paddings, a 3-up group leaves ~39px of text budget at 360dp, and
- * without the shrink the label overflows under the neighbouring option's border.
+ * `flexShrink: 1` + `minWidth: 0` on the label (`:175-191`) are load-bearing at three-up, and
+ * BOTH are required (W2 review F29). The phone's comment names only the shrink because RN's
+ * flex defaults differ; on the web a flex item's default `min-width: auto` resolves to the
+ * min-content width of an unbreakable word (`Forensic` / `Limited` / `Canvas`), so shrink can
+ * never engage and the group overflowed the settings pane by ~42px with the SELECTED chip
+ * clipped at the frame edge. `minWidth: 0` is what releases that floor.
+ *
+ * NO truncation, deliberately. The phone's own note (`RadioGroup.tsx:184-187`) says the
+ * overflow becomes "a controlled two-line wrap", and `optionsContainer` sets no `alignItems`
+ * so the default `stretch` keeps the cells the same height — the demo's row does the same.
+ * `whiteSpace: 'nowrap'` + `textOverflow` would ellipse a profile name instead.
  */
 export function RadioOption({ label, selected, onSelect, direction = 'row', testId }: RadioOptionProps) {
   const edge = selected ? colors.link : UNCHECKED_MARK_EDGE
@@ -155,6 +163,8 @@ export function RadioOption({ label, selected, onSelect, direction = 'row', test
           fontWeight: 500,
           color: selected ? colors.link : colors.text,
           flexShrink: 1,
+          // Without this, `flexShrink` is inert — see the docblock. F29.
+          minWidth: 0,
         }}
       >
         {label}

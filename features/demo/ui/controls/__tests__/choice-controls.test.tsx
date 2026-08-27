@@ -260,3 +260,48 @@ describe('no hand-rolled copy of either control survives', () => {
     expect(dead, 'this file no longer declares the role — drop its exemption').toEqual([])
   })
 })
+
+/**
+ * W2 F29 — the 3-up profile group overflowed its pane by ~42px, with the SELECTED `Canvas`
+ * chip clipped at the frame edge (verification captures `10-settings/12-15`).
+ *
+ * `flexShrink: 1` alone is a no-op on a flex item whose content is one unbreakable word: the
+ * default `min-width: auto` resolves to that word's min-content width, and shrink can never go
+ * below it. `minWidth: 0` is what releases the floor. Two docblocks asserted the opposite and
+ * are corrected in the same commit.
+ *
+ * WHAT THIS PIN CAN AND CANNOT DO, stated plainly: **jsdom performs no layout**, so the
+ * overflow itself is not observable here and the honest evidence is the verification re-cut of
+ * the four settings shots. What IS observable, and what a revert would break, is that both keys
+ * are present on every label at 3-up — `flexShrink` without `minWidth` is precisely the shipped
+ * defect, so the pair is the falsifiable part.
+ */
+describe('RadioOption at 3-up (W2 F29)', () => {
+  const LABELS = ['Forensic', 'Limited', 'Canvas']
+
+  it('gives every label BOTH shrink keys — `flexShrink` alone is the shipped defect', () => {
+    const { container } = render(
+      // The pane's own container: `FormFieldsPane`'s row, at the 378px phone-frame width.
+      <div role="radiogroup" style={{ display: 'flex', gap: 8, width: 378 - 32 }}>
+        {LABELS.map((l) => (
+          <RadioOption key={l} label={l} selected={l === 'Canvas'} onSelect={vi.fn()} />
+        ))}
+      </div>,
+    )
+    const labels = Array.from(container.querySelectorAll('[data-radio-label]')) as HTMLElement[]
+    expect(labels).toHaveLength(3)
+    for (const [i, el] of labels.entries()) {
+      expect(el.style.flexShrink, LABELS[i]).toBe('1')
+      expect(el.style.minWidth, LABELS[i]).toBe('0px')
+    }
+  })
+
+  it('does not truncate — the phone wraps to two lines rather than ellipsing', () => {
+    const { container } = render(
+      <RadioOption label="Forensic" selected={false} onSelect={vi.fn()} />,
+    )
+    const label = container.querySelector('[data-radio-label]') as HTMLElement
+    expect(label.style.whiteSpace).toBe('')
+    expect(label.style.textOverflow).toBe('')
+  })
+})
