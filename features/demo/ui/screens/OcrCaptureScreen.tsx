@@ -129,12 +129,12 @@ const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', w
  * — the ramp's own deeper amber, one step from `medium`'s `warning`, which is exactly the
  * "worse than medium, not yet failed" step the band means.
  */
-const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
+const CONFIDENCE_COLOR = {
   high: colors.success,
   medium: colors.warning,
   low: colors.warningDark,
   fail: colors.error,
-}
+} as const satisfies Record<ConfidenceLevel, string>
 
 const label12 = { fontSize: 12, color: '#7a9fc4' } as const satisfies CSSProperties
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"

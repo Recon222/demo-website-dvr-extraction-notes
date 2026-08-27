@@ -20,6 +20,7 @@ import type {
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
 
 export interface ImportFailure {
   filename: string
@@ -275,7 +276,7 @@ export function ImportModal(props: ImportModalProps) {
               </div>
               <ImportResultBody view={result.locations[0]} />
               {result.notice && (
-                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
+                <div style={{ fontSize: 12.5, color: SAMPLE_NOTICE.foreground, background: SAMPLE_NOTICE.background, border: `1px solid ${SAMPLE_NOTICE.border}`, borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={props.onCancel} style={{ ...secondaryBtn, padding: '13px 18px' }}>Done</button>
@@ -291,7 +292,7 @@ export function ImportModal(props: ImportModalProps) {
                 </div>
               </div>
               {result.notice && (
-                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
+                <div style={{ fontSize: 12.5, color: SAMPLE_NOTICE.foreground, background: SAMPLE_NOTICE.background, border: `1px solid ${SAMPLE_NOTICE.border}`, borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
               )}
               {result.locations.map((v, i) => (
                 <ImportResultAccordion key={v.locId ?? `loc-${i}`} view={v} open={openIndex === i} onToggle={() => setOpenIndex(openIndex === i ? -1 : i)} onOpenLocation={props.onOpenLocation} />
