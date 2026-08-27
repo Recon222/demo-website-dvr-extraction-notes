@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
@@ -109,7 +111,11 @@ const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', w
 
 const label12: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
-const scrim: CSSProperties = { position: 'absolute', background: 'rgba(0,0,0,0.6)' } // phone darkOverlayOpacity
+// SEAM(U7.2): the mask outside the guide box. The ALPHA is the phone's
+// (`ocr-time-capture/constants/index.ts:53`, `darkOverlayOpacity: 0.6`); the COLOUR is the
+// demo's own black where the phone washes its app background (`BoundingBoxOverlay.tsx:87`).
+// D17 freezes the camera palette, so the value moved nowhere — see `camera-chrome.ts`.
+const scrim: CSSProperties = { position: 'absolute', background: CAMERA_CHROME.guideMask }
 
 const viewfinderPanel: CSSProperties = {
   position: 'absolute',
@@ -355,7 +361,14 @@ export function OcrCaptureScreen({
 
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8', marginBottom: 16 }}>Captured timestamp</div>
+        {/* SEAM(U7.2): `OverlayHeader`'s fourth adopter (A61) — the one site that had no header
+            CONTROL at all, only a bare title div. It stays control-less (this stage's exits are
+            its own Cancel / Try again CTAs) and takes the seam's 18/600 title so the four
+            surfaces stop disagreeing about what a screen title is. The shell already insets
+            22px, so the header supplies only its bottom gap.
+            SEAM(U7.3): the confirm stage's CARDS below, its assumed-date warning, the mono
+            policy and A93's copy sweep are U7.3's — untouched here. */}
+        <OverlayHeader variant="glass" title="Captured timestamp" style={{ marginBottom: 16 }} />
         {result.ok ? (
           <>
             <div style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.6)', background: '#0a1320', padding: 16, marginBottom: 16 }}>
@@ -540,7 +553,7 @@ export function OcrCaptureScreen({
               <div style={corner({ bottom: -2, right: -2, borderBottom: '3px solid #4BA3D4', borderRight: '3px solid #4BA3D4' })} />
             </div>
             {/* Phone CameraInstructions.tsx:20, verbatim. */}
-            <div style={{ position: 'absolute', top: 6, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+            <div style={{ position: 'absolute', top: 6, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#fff', textShadow: `0 1px 3px ${CAMERA_CHROME.instructionShadow}` }}>
               Align DVR timestamp to fill the bounding box
             </div>
           </>
@@ -598,7 +611,7 @@ export function OcrCaptureScreen({
         {deviceFailure && live && <div style={{ fontSize: 12, lineHeight: 1.45, color: '#ffd07a', marginBottom: 8 }}>{deviceFailure.message}</div>}
       </div>
 
-      <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: 'linear-gradient(0deg,rgba(0,0,0,0.88),transparent)', zIndex: 3 }}>
+      <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: `linear-gradient(0deg,${CAMERA_CHROME.controlBarFade},transparent)`, zIndex: 3 }}>
         {/* Belt for the R-4 race: while a live read is in flight the sample paths are held —
             a sample landing mid-recognition is the very supersession the token exists for. */}
         {/* The THIRD site of the tinted-fill recipe above, inline — the partner's W2 census
