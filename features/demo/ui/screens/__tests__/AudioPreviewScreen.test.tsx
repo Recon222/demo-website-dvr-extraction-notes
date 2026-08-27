@@ -5,6 +5,7 @@ import type { CapturedMedia } from '@/features/demo/engine/logic/media'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
  *  hazards) — compare through the same normalisation rather than by hex. */
@@ -268,7 +269,10 @@ describe('AudioPreviewScreen — U7.2 chrome (A61, A71)', () => {
     expect(banner.getAttribute('aria-label')).toMatch(/^info: /)
     // Informational, never assertive: it must not interrupt whatever is being read.
     expect(banner).toHaveAttribute('aria-live', 'polite')
-    expect(banner.style.backgroundColor).toBe(hexToRgb(colors.infoLight))
+    // Read off `severityTone` — the SEAM — never re-derived from `palette` here (W2 F26); the
+    // sibling pin in `AudioRecorderScreen.test.tsx` carries the full reasoning. Same package,
+    // same shape: the F26 carry fixed the recorder and left this one behind.
+    expect(banner.style.backgroundColor).toBe(hexToRgb(severityTone('info').background))
     expect(banner.style.backgroundColor).not.toContain('rgba')
   })
 
@@ -286,7 +290,7 @@ describe('AudioPreviewScreen — U7.2 chrome (A61, A71)', () => {
     expect(banner.getAttribute('aria-label')).toMatch(/^error: /)
     // Errors DO interrupt — `role="alert"` implies it, and Banner writes it back explicitly.
     expect(banner).toHaveAttribute('aria-live', 'assertive')
-    expect(banner.style.backgroundColor).toBe(hexToRgb(colors.errorLight))
+    expect(banner.style.backgroundColor).toBe(hexToRgb(severityTone('error').background))
     expect(banner.style.backgroundColor).not.toContain('rgba')
   })
 

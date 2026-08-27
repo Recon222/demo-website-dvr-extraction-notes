@@ -100,7 +100,11 @@ describe('TimeOffsetScreen — DST advisory surface', () => {
       expect(message.closest('[style*="dashed"]')).toBeNull()
       // OPAQUE. A translucent fill composites over an unknown parent and the measured
       // `*OnLight` ratio stops being a ratio at all (phone `Banner.tsx:11-16`).
-      expect((message.parentElement as HTMLElement).style.backgroundColor).toBe(jsdomColor(colors.warningLight))
+      // Through the SEAM, like the pin above it (W2 F26). Spelling the fill as `colors.warningLight`
+      // here would red on a re-point of `severityTone('warning')` that the sibling pin accepts.
+      expect((message.parentElement as HTMLElement).style.backgroundColor).toBe(
+        jsdomColor(severityTone('warning').background),
+      )
     })
   })
 })
