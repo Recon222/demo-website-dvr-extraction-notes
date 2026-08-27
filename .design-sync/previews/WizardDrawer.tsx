@@ -20,7 +20,22 @@ export function Open() {
       data-demo-root
       style={{ position: 'relative', background: '#002853', width: 378, height: 720, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
-      <WizardDrawer open items={ITEMS} onClose={() => {}} onNavigate={() => {}} onBackToCases={() => {}} />
+      <WizardDrawer
+        open
+        items={ITEMS}
+        onClose={() => {}}
+        onNavigate={() => {}}
+        onBackToCases={() => {}}
+        /* The media launchers the drawer lists. Both on = the drawer's full footer; a tool
+           switched off in Settings > Media Capture drops its row. */
+        mediaTools={{ mediaCapture: true, audioRecording: true }}
+        onCaptureMedia={() => {}}
+        onOpenMediaLibrary={() => {}}
+        onRecordAudio={() => {}}
+        /* The save indicator. `null` is "nothing to report"; the four `kind`s are
+           unavailable / pending / saved / failed. */
+        saveStatus={{ kind: 'saved' as const, text: 'Saved to this browser' }}
+      />
     </div>
   )
 }
