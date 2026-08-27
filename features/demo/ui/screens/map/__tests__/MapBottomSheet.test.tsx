@@ -5,7 +5,7 @@ import type { SheetItem } from '@/features/demo/ui/screens/map/mapData'
 import { sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import { SHEET_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 const items: SheetItem[] = [
   sheetIncident({ displayName: 'Kim B&E', businessName: 'Kim', streetAddress: '1450 Eglinton', city: 'Mississauga', address: '1450 Eglinton, Mississauga', coord: [-79.6, 43.6] }),
@@ -100,5 +100,20 @@ describe('MapBottomSheet', () => {
     expect(sheet.style.borderTopLeftRadius).toBe(`${radius.sheet}px`)
     expect(sheet.style.borderTopRightRadius).toBe(`${radius.sheet}px`)
     expect(radius.sheet, 'the phone sheet radius, not the demo’s old hand-set 20').toBe(22)
+  })
+
+  // U5.4. Phone `MapBottomSheet.tsx:212-216` + `styles.divider` `:258-261` — a 1px rule inset by
+  // `spacing.lg`, separating the handle from the content. The demo had `SHEET_COLORS.divider`
+  // and no divider: the key's only reader was `LocationDetailCard`'s info-card BORDER, which is
+  // the nested tier's job. Ordered between the drag zone and the body, which is where it is on
+  // the phone and the only place it separates anything.
+  it('rules the handle off from the content (MapBottomSheet.tsx:212-216)', () => {
+    renderSheet()
+    const divider = screen.getByTestId('sheet-divider')
+    expect(divider.style.height).toBe('1px')
+    expect(divider.style.background).toBe(SHEET_COLORS.divider)
+    expect(divider.style.margin).toBe(`0px ${spacing.lg}px`)
+    const handle = screen.getByTestId('sheet-handle')
+    expect(handle.compareDocumentPosition(divider)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 })
