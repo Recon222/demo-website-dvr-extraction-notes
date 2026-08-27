@@ -6713,6 +6713,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Trigger (re-cut by the aggregator):** each W3+ package clears the `TS6133`s in files it opens (its report says so); **the flag flips at the first wave boundary where `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false --noUnusedLocals` exits 0** — hard stop **U8.4** (the design-sync closing census runs the command and flips it or records why not).
 
+**Annotation (W3 fix-delta):** 11 → **4 TS6133 (+2 TS6196)** at `eb98295`. The per-package arm fired unhonoured once (`banner.test.tsx`, opened twice by W3, still carries two — assigned to the integrator's W3 rider). Flip-day caveat: `noUnusedLocals` ignores the `_`-prefix convention for locals (`header-chrome.test.tsx`'s `_f20` needs `void _f20` or a rename at the flip).
+
 ---
 
 ## 120. W3 (`feat/uiparity-w3`) — the RETIRED sweep matches hex SPELLINGS only; a retired colour re-spelled as `rgb()`/`rgba()` passes it
@@ -6736,3 +6738,5 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** one string; editing `engine/logic/media` copy from a styling wave is a §2 scope question, and the guard's scope extension is a design choice (engine strings include non-rendered log text the rule does not govern).
 
 **Trigger:** **the next package that opens `engine/logic/media`'s strings, or U8's exit copy pass** — fix the string and either extend the walker to the engine's rendered-string modules or record here why not.
+
+**Annotation (W3 fix-delta):** the F65 rider cleaned `ocr.ts`'s sibling strings. A fuller census: **83 em-dash string literals under `engine/`**, dominated by `engine/content/narration.ts` (the rail's demo-originated marketing-voice copy). Whether §4.3's rule governs demo-originated narration is an OWNER question for U8's exit copy pass; this row now carries that census so the pass starts from facts.
