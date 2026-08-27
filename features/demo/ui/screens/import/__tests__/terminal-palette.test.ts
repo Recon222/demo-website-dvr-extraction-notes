@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { ImportLogLevel } from '@/features/demo/engine/logic/import-log'
 import {
   TERMINAL_PALETTE,
@@ -69,14 +69,47 @@ describe('TERMINAL_PALETTE (U7.1 / A85, A91)', () => {
     expect(TERMINAL_PALETTE.accent.ERR).toBe(forced.error)
   })
 
-  it('the console subtree is forced dark, and stays dark when the app scheme flips (plan §9 clause 12)', () => {
+  it('declares its own forced scheme, distinct from the app scheme it must not follow', () => {
     // The demo's expression of the phone's `<ForceColorScheme scheme="dark">`
-    // (`ImportTerminalProgress.tsx:343`). It is a SEPARATE constant from `tokens/palette.ts`'s
-    // `scheme` precisely so flipping the app to light does NOT drag light tokens onto a
-    // near-black console ground — which is what a plain `colors.*` read would have done.
+    // (`ImportTerminalProgress.tsx:343`).
     expect(TERMINAL_SCHEME).toBe('dark')
     expect(TERMINAL_PALETTE.accent.INIT).toBe(palette.dark.textSecondary)
     expect(TERMINAL_PALETTE.accent.INIT).not.toBe(palette.light.textSecondary)
+  })
+
+  it('does NOT follow the app scheme: flipping it to light leaves the console dark (plan §9 clause 12)', async () => {
+    // THE pin for this module's one non-obvious design decision, and it exists because a
+    // mutation probe proved the assertion above cannot carry it. Swapping
+    // `palette[TERMINAL_SCHEME]` for `palette[scheme]` in the module SURVIVED every
+    // behavioural pin in this package — of course it did: both resolve to 'dark' while the
+    // demo renders dark. That is the F18 class `glass-tokens.test.ts` documents ("no
+    // behavioural pin can ever see it"), and F18 settled for a source scan.
+    //
+    // A source scan is not needed here. The distinction IS observable — just not at the
+    // demo's current scheme. Mock the app scheme to 'light' and re-import: a module reading
+    // the FORCED scheme is unmoved, a module reading the APP scheme goes light-grey on a
+    // near-black ground. That is precisely the regression clause 12 defers to a U8-exit
+    // scratch-worktree flip; for this module it is checked every run instead.
+    vi.resetModules()
+    try {
+      vi.doMock('@/features/demo/ui/tokens/palette', async () => {
+        const actual = await vi.importActual<typeof import('@/features/demo/ui/tokens/palette')>(
+          '@/features/demo/ui/tokens/palette',
+        )
+        // A coherent light app: both the scheme switch and the record derived from it.
+        return { ...actual, scheme: 'light', colors: actual.palette.light }
+      })
+      const flipped = await import('@/features/demo/ui/screens/import/terminal-palette')
+      expect(flipped.TERMINAL_PALETTE.accent.INIT).toBe(palette.dark.textSecondary)
+      expect(flipped.TERMINAL_PALETTE.cursor).toBe(palette.dark.primaryLight)
+      expect(flipped.TERMINAL_PALETTE.error).toBe(palette.dark.error)
+      // The one key that SHOULD have a light arm still has both, untouched — `screen` is
+      // keyed by the APP scheme by the phone's own design, and its consumer indexes it.
+      expect(flipped.TERMINAL_PALETTE.screen.light).toBe('#0b1420')
+    } finally {
+      vi.doUnmock('@/features/demo/ui/tokens/palette')
+      vi.resetModules()
+    }
   })
 
   it('names the sub-xs type ramp instead of four loose literals (A86)', () => {
