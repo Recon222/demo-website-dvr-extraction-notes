@@ -10,6 +10,7 @@ import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
@@ -833,5 +834,63 @@ describe('terminal console contrast (U7.1 / A85, §C "Terminal title bar / priva
     expect(round(contrast('#ffffff', [SCREEN]))).toBeGreaterThan(
       round(contrast('#ffffff', [palette.dark.background])),
     )
+  })
+})
+
+/**
+ * D12's THIRD arm — **freeze AND DEFEND** the "Sample data" amber.
+ *
+ * D12, verbatim: *"It must stay **visually distinct from real data** — that is a correctness
+ * constraint. Re-derive it only if A15's `warningLight #7d5f10` would collide with it (it will
+ * not; they are a fill and a foreground of different families)."*
+ *
+ * "Will not collide" is a PREDICTION, and D12 is the one decision in the set whose failure mode
+ * is the demo lying about its own provenance rather than looking dated. So it is measured here,
+ * not asserted: `deltaE` is the same CIE76 the tier rows use, and the plan §9 clause 2 precedent
+ * (`recessed` two-sided, `nestedCard` >= 1.25) is that a separation claim a ratio is blind to
+ * gets a dE bound.
+ *
+ * The threshold is 10, comfortably above the 2.3 "just noticeable" line and below every measured
+ * value here, so it fails on a real convergence rather than on rounding. The badge is measured
+ * as it RENDERS — its 12% fill composited over the nested card it sits on — because that is the
+ * colour the operator distinguishes, and an uncomposited comparison of two `rgba()` strings
+ * would pass over a fill that vanishes into its parent.
+ */
+describe('D12: the sample-data badge stays distinct from the ported warning family', () => {
+  // The nested card is what both badge sites sit on: `ImportResultAccordion`'s per-location
+  // chip and `OcrCaptureScreen`'s confidence chip.
+  const CARD = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
+  const badgeFill = flatten([SAMPLE_BADGE.background, ...CARD])
+  const warningFill = flatten([palette.dark.warningLight, ...CARD])
+
+  it('separates the badge FILL from `warningLight`, the ported warning ground', () => {
+    // This is the collision D12 names by hand. If a future re-tint of `warningLight` walks it
+    // toward this amber, a sample value and a real warning stop being tellable apart.
+    expect(round(deltaE(badgeFill, warningFill))).toBeGreaterThan(10)
+  })
+
+  it('separates the badge FOREGROUND from every ported warning foreground', () => {
+    const fg = parse(SAMPLE_BADGE.foreground)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningOnLight'] as const) {
+      expect(
+        round(deltaE(fg, parse(palette.dark[token]))),
+        `SAMPLE_BADGE.foreground has converged on \`${token}\``,
+      ).toBeGreaterThan(10)
+    }
+  })
+
+  it('is legible on the card it renders on, which is what makes it a MARK and not decoration', () => {
+    // A badge that clears the family separation and then cannot be read is not a defence.
+    expect(round(contrast(SAMPLE_BADGE.foreground, [SAMPLE_BADGE.background, ...CARD]))).toBeGreaterThan(AA_TEXT)
+  })
+
+  it('is a FROZEN constant block, never a status token (A91)', () => {
+    // The structural half of the defence: if a later "tidy" points the badge at the status
+    // family, every dE above collapses to 0 and the three tests become tautologies. Pin the
+    // NON-identity so the tidy reds here first, with a message that says why.
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight', 'warningOnLight'] as const) {
+      expect(SAMPLE_BADGE.foreground as string, `the badge was tokenised to \`${token}\` — D12 freezes it`).not.toBe(palette.dark[token])
+      expect(SAMPLE_BADGE.background as string).not.toBe(palette.dark[token])
+    }
   })
 })

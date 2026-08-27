@@ -143,7 +143,7 @@ describe('OcrCaptureScreen — the confirm stage (B.6 row 37)', () => {
     render(
       <OcrCaptureScreen
         {...props({
-          result: { ...parsed, resolution: { kind: 'assumed-date' } },
+          result: { ...parsed, resolution: { kind: 'assumed-date', assumedDate: '2025-03-08' } },
           dvrDraft: parsed.dvrTime,
         })}
       />,

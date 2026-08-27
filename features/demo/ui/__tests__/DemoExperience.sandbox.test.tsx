@@ -757,7 +757,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'scan.pdf', { type: 'application/pdf' })] } })
 
     // The dwell CTA is the amber partial — counts in the VISIBLE accname (R-3), never green.
-    const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+    const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 2, 1 needs attention/ })
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not success green
     expect(cta.style.border).not.toContain('rgba(16, 209, 119')
@@ -784,7 +784,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'bad.pdf', { type: 'application/pdf' })] } })
 
       // The catch reports through the tally: amber partial, never 'The import failed unexpectedly' alone.
-      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+      const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 2, 1 needs attention/ })
       fireEvent.click(cta)
       expect(await screen.findByText(/Imported 1 of 2 requests/)).toBeInTheDocument() // landed file reported
       expect(screen.getByText(/The import failed unexpectedly/)).toBeInTheDocument() // synthetic failure row
@@ -817,7 +817,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       ] } })
 
       // The visitor selected THREE — the denominator must say three, at the CTA moment…
-      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 3, 2 need attention/ })
+      const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 3, 2 need attention/ })
       fireEvent.click(cta)
       expect(await screen.findByText(/Imported 1 of 3 requests/)).toBeInTheDocument() // …and in the result view
       // …and both casualties are named, instead of one row spelled 'import'.
@@ -926,7 +926,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       // Run A's rejection lands AFTER run B took the token. Since ca0df27 the catch no longer
       // publishes a self-contained failure object but run A's whole TALLY through finishImport
       // (stage + result + lastLocId) — so dropping the token check would paint an amber
-      // "Batch partially failed — 1 of 2" CTA and a result card over a live, unfinished run.
+      // "Batch partially failed: 1 of 2" CTA and a result card over a live, unfinished run.
       await act(async () => { rejectA(new Error('boom from the superseded run')) })
 
       expect(screen.queryByRole('button', { name: /Batch partially failed/ })).not.toBeInTheDocument()

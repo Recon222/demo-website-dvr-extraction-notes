@@ -5,6 +5,7 @@ import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
 import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { Banner } from '@/features/demo/ui/controls/Banner'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
@@ -117,9 +118,11 @@ const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 /**
  * The confirm stage's evidence surfaces — matrix A33/A34/A35/A55, B.6 row 37.
  *
- * Was a hand-rolled slab: `background:'#0a1320'` behind `border:'1px solid rgba(30,58,95,0.6)'`.
- * That border is the phone's RETIRED `#1e3a5f` spelled as an rgba, which is exactly why
- * `tokens/__tests__/palette.test.ts`'s retired-hex sweep — a HEX scan — never saw it.
+ * Was a hand-rolled slab: a near-black fill behind a 60%-alpha hairline. That hairline was the
+ * phone's RETIRED pre-P0 `border` spelled as an `rgba()`, which is exactly why
+ * `tokens/__tests__/palette.test.ts`'s retired-hex sweep — a HEX scan — never saw it. (The hex
+ * is deliberately not written here: that scan reads RAW text, so to it a docblock is source.
+ * `palette.test.ts`'s RETIRED list is its one home.)
  *
  * The phone paints THREE `<Card glass glassVariant="nestedCard">` on this screen
  * (`ConfirmationScreen.tsx:248`, `:301`, `:327`); the demo merges the first two and this is
@@ -405,7 +408,7 @@ export function OcrCaptureScreen({
                 <span style={{ ...label12, display: 'flex', alignItems: 'center', gap: 6 }}>
                   OCR confidence
                   {!result.confidence.measured && (
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '1px 6px' }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: SAMPLE_BADGE.foreground, background: SAMPLE_BADGE.background, border: `1px solid ${SAMPLE_BADGE.border}`, borderRadius: 6, padding: '1px 6px' }}>
                       Sample
                     </span>
                   )}

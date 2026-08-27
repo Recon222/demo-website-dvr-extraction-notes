@@ -2,6 +2,8 @@
 
 import type { CSSProperties } from 'react'
 import { glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
 // A33/A34/A35/A55 (U1.3) - was a hand-rolled near-miss of the nested tier: the old card
@@ -52,7 +54,10 @@ export function ImportResultBody({ view }: { view: ImportedLocationView }) {
       {view.scopes.length > 0 && (
         <div style={card}>
           <div style={heading}>Extraction scopes</div>
-          {view.scopes.map((sc, i) => (
+          {view.scopes.map((sc, i) => {
+            // Phone `:120` -- `const tone = actual ? colors.success : colors.warning`.
+            const tone = sc.isActualTime ? colors.success : colors.warning
+            return (
             <div key={sc.label} style={{ padding: '7px 0', borderTop: i === 0 ? 'none' : hairline }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#cfe6f5' }}>{sc.label}</span>
@@ -63,8 +68,25 @@ export function ImportResultBody({ view }: { view: ImportedLocationView }) {
                     letterSpacing: 0.4,
                     padding: '1px 6px',
                     borderRadius: 4,
-                    color: sc.isActualTime ? '#7fe3b4' : '#ffd07a',
-                    background: sc.isActualTime ? 'rgba(16,209,119,0.12)' : 'rgba(255,200,90,0.12)',
+                    // Matrix row 79's "two chip labels neutralised". The phone's `ScopeRow`
+                    // (`ImportResultBody.tsx:145-159`) states the reason in full: "These five
+                    // words are the ONLY thing in the row that says whether a requested video
+                    // window is on the DVR's clock or on real time - the times below render in
+                    // `colors.text` with no other marker. Painted with `tone` they measured
+                    // 1.81-1.88:1 (DVR) and 2.09-2.17:1 (ACTUAL) in light, and 4.02-4.48:1 for
+                    // ACTUAL in dark. The tint and border keep the colour coding; the label
+                    // carries the words."
+                    // `#7fe3b4` was matrix row 79's "fourth green" and dies with it. The
+                    // GEOMETRY is the demo's lifted 10/700/0.4/r4 (demo §0.4; §4.9 gives no
+                    // package here a font-size move) -- only the colour treatment moves.
+                    color: colors.text,
+                    background: withAlpha(tone, 0.16),
+                    borderStyle: 'solid',
+                    borderWidth: 1,
+                    borderTopColor: withAlpha(tone, 0.4),
+                    borderRightColor: withAlpha(tone, 0.4),
+                    borderBottomColor: withAlpha(tone, 0.4),
+                    borderLeftColor: withAlpha(tone, 0.4),
                   }}
                 >
                   {sc.isActualTime ? 'ACTUAL TIME' : 'DVR TIME'}
@@ -73,7 +95,8 @@ export function ImportResultBody({ view }: { view: ImportedLocationView }) {
               <div style={{ fontSize: 12.5, color: '#e6eef6', fontFamily: mono }}>{sc.range}</div>
               {sc.cameras && <div style={{ fontSize: 12, color: '#9fc0db', marginTop: 2 }}>{sc.cameras}</div>}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
