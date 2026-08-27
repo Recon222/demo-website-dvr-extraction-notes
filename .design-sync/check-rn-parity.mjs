@@ -280,13 +280,25 @@ export const webTierScope = (scheme, tier) => ({
  * SCHEDULE, corrected — this supersedes the plan's stage figures:
  *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
  *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
- *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows
- *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
- *                -> 115 rows / 56 keys HERE, which is what this table produces today
- *   U3.1 (LANDED) +8 keys x 2                                            = +16 rows
- *                -> 40 palette keys / 131 rows HERE, which is what this table produces today
+ *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows -> 69
+ *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows -> 117
+ *   U3.1 (LANDED) +8 palette keys x 2                                     = +16 rows -> 133
+ *   U4.4 (LANDED) +scrim x 2                                              =  +2 rows -> 135
+ *                -> 41 palette keys / 65 anchor keys / 135 rows, MEASURED, which is what this
+ *                   table produces today
  *   U8.2         +gridSubtle x 2                                         =  +4 rows
- *   -> 65 keys / 135 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *
+ * W2/F49 corrected three figures here, not one: the missing `scrim` line, and two intermediate
+ * totals that were already wrong before it (U1.1's said 115 for 117, U3.1's said 131 for 133 —
+ * both dropped the two LIGHT gradient stops U2.2 added on the line above them). The final total
+ * is deliberately no longer stated: it depends on what U8.2 actually lands, and a hand-typed
+ * end figure is exactly what drifted twice.
+ *
+ * DO NOT TREAT THESE NUMBERS AS A GATE. They are a reading aid. The gate is
+ * `rn-token-parity.test.ts:211-214`, whose expectation is DERIVED
+ * (`PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5`) precisely so no one can reach
+ * green by editing a literal here — W0/F2 removed the last hand-typed total for that reason.
+ * If this comment and that assertion ever disagree again, the assertion is right.
  *
  * U3.1's count corrects BOTH earlier figures. The plan's U3.1 row says "the four status
  * anchors (`success`, `successLight`, `warning`, `warningLight`)"; U0.4's schedule above said
