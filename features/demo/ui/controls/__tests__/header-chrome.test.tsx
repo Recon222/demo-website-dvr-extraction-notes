@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import {
   glassHeaderBar,
   glassWizardHeaderBar,
   glassHeaderFooterBar,
 } from '@/features/demo/ui/controls/header-chrome'
 import { WizardHeader } from '@/features/demo/ui/screens/_shared'
+import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
+import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { APP_NAME } from '@/features/demo/engine/content/app-info'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { scheme } from '@/features/demo/ui/tokens/palette'
 
@@ -95,9 +98,80 @@ describe('the header tier recipe (A37 / U1.4)', () => {
  * demo bar is already byte-exact; pinning it to the header tier would pin a divergence. See the
  * U1.4 report's refutation R-2.
  */
+const drawerProps = {
+  open: true,
+  items: [{ id: 'submission' as const, label: 'Submission', active: true }],
+  onClose: vi.fn(),
+  onNavigate: vi.fn(),
+  onBackToCases: vi.fn(),
+  onCaptureMedia: vi.fn(),
+  onRecordAudio: vi.fn(),
+  onOpenMediaLibrary: vi.fn(),
+  saveStatus: null,
+  mediaTools: { mediaCapture: true, audioRecording: true },
+}
+
+/** Each demo bar that reads the tier, and the element that must carry the recipe. */
+const BARS: [name: string, mount: () => HTMLElement][] = [
+  [
+    'WizardHeader',
+    () => render(<WizardHeader title="Case Details" onBack={vi.fn()} onMenu={vi.fn()} />).container
+      .firstElementChild as HTMLElement,
+  ],
+  [
+    'WizardDrawer header',
+    () => {
+      render(<WizardDrawer {...drawerProps} />)
+      return screen.getByText('Navigation').parentElement as HTMLElement
+    },
+  ],
+  [
+    'CaseMapPicker header',
+    () => {
+      render(
+        <CaseMapPicker cases={[]} dismissible preselectedId={null} onPick={vi.fn()} onClose={vi.fn()} />,
+      )
+      return screen.getByTestId('case-map-picker').firstElementChild as HTMLElement
+    },
+  ],
+]
+
 describe('the header tier reaches the screen (A37 / U1.4)', () => {
-  it('WizardHeader paints the recipe, lit edge and all', () => {
-    const { container } = render(<WizardHeader title="Case Details" onBack={vi.fn()} onMenu={vi.fn()} />)
-    expect(container.firstElementChild).toHaveStyle(glassWizardHeaderBar)
+  it.each(BARS)('%s paints the shared bar — gradient and hairline', (_name, mount) => {
+    expect(mount()).toHaveStyle(glassHeaderBar)
+  })
+
+  it('every bar paints the SAME ground — four hand-rolled navies become one', () => {
+    // The A37 failure mode is not "a bar is wrong", it is "four bars are each nearly right".
+    // Only comparing them to each other catches the next one that drifts alone.
+    const backgrounds = BARS.map(([, mount]) => {
+      cleanup()
+      return getComputedStyle(mount()).background
+    })
+    expect(new Set(backgrounds).size).toBe(1)
+    expect(backgrounds[0]).not.toBe('')
+  })
+
+  it('the lit top edge lands on WizardHeader and NOWHERE else', () => {
+    // Exclusivity, not just presence. `highlightTop` has exactly one consumer on the phone
+    // (`Header.tsx:113-117`); the drawer's header and the picker's paint no strip, and a
+    // "helpful" move of the shadow into the shared fragment would light three bars the phone
+    // leaves flat. Asserting only that WizardHeader HAS it would not see that.
+    const edge = { boxShadow: glassWizardHeaderBar.boxShadow as string }
+    const [wizard, drawer, picker] = BARS.map(([, mount]) => {
+      cleanup()
+      const el = mount()
+      return el.style.boxShadow
+    })
+    cleanup()
+    expect(render(<WizardHeader title="X" onBack={vi.fn()} onMenu={vi.fn()} />).container.firstElementChild)
+      .toHaveStyle(edge)
+    expect(wizard).toBe(edge.boxShadow)
+    expect([drawer, picker]).toEqual(['', ''])
+  })
+
+  it("the drawer's footer paints the same stops flipped, hairline on top", () => {
+    render(<WizardDrawer {...drawerProps} />)
+    expect(screen.getByText(APP_NAME).parentElement).toHaveStyle(glassHeaderFooterBar)
   })
 })

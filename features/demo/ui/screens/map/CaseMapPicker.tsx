@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
+import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
@@ -28,10 +29,13 @@ export interface CaseMapPickerProps {
 // mandatory picker (matching the phone's "leave via the tab bar" behaviour).
 const accent = '#4ba3d4'
 
+// A37: the same `header` glass tier every other bar in the demo paints. The phone's own
+// `MapPicker` has no local header left at all (`MapPicker.tsx:190-191` - "the tab route owns it
+// now"), so there is no counterpart recipe to lift; the demo keeps its bar and puts it on the
+// tier, which is what "one header recipe" has to mean for a demo-only surface.
 const header: CSSProperties = {
   padding: '54px 18px 14px',
-  borderBottom: GLASS.border,
-  background: 'linear-gradient(180deg,#13243a,#0e1d30)',
+  ...glassHeaderBar,
 }
 const title: CSSProperties = { fontSize: 22, fontWeight: 700, color: '#e7eef6' }
 const subtitle: CSSProperties = { fontSize: 13, color: '#9fb6d0', marginTop: 4 }
