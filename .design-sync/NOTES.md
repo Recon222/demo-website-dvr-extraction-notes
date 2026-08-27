@@ -292,3 +292,9 @@ checkout.
 **Don't build string regexes in `node -e '...'` in Git Bash** — the shell eats a
 backslash, so `"\\s"` reaches JS as a literal `s`. This bit U8.4 exactly as the older
 note two sections up warns. Put the script in a file.
+
+## Sync record — 2026-08-28 (W4, U8.4 remote half)
+
+- Pushed the full 244-file bundle (37 components) to **`bf8a6c3a-f176-4085-a77a-71c7ac0d06ee` “DVR Extraction Notes Demo — Web UI”** — the ORIGINAL project under the Kris login. The pinned `e89f59b7` (the KC re-creation) 404s from this account; per gotcha 0 the owner was checked via `list_projects` before re-pointing, and nothing was recreated. config.json now pins the reachable id.
+- **Reserved-path rename:** the Design API refuses any `CLAUDE.md` path, so `guidelines/features/demo/CLAUDE.md` uploads as `guidelines/features/demo/architecture.md` (content identical). `guidelines/index.md` references should use that name.
+- Upload batches must stay small: two HTTP 500s on PNG-heavy batches (~20 files); ≤5 screenshots per write_files call succeeded.
