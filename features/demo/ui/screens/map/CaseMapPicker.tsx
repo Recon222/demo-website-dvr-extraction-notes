@@ -104,6 +104,26 @@ const cancelBtn: CSSProperties = { ...buttonStyle({ variant: 'secondary' }), wid
  */
 export const MAP_PICKER_SELECTED_TITLE = colors.link
 
+/**
+ * The selected row's 2px border (review W3/F79).
+ *
+ * F52 kept this on `colors.primary` while moving the LABEL off it, and gave the right reason —
+ * a border is a non-text mark, so WCAG 1.4.11's 3:1 governs rather than 1.4.3's 4.5. What it did
+ * not do is MEASURE that claim. It rides at **3.09:1 dark / 8.29 light** on the nested-glass row:
+ * over the floor, by 0.09.
+ *
+ * That margin is the whole reason this is a constant with a row rather than an inline token. It
+ * survives no re-tint — a palette move of a couple of units in the wrong direction drops the only
+ * mark distinguishing a selected case from an unselected one below the floor, invisibly, with
+ * every other pin in the repo still green. Bounding it here is what makes that a red test instead
+ * of a device-pass discovery.
+ *
+ * Deliberately NOT re-pointed to `colors.link` with the label: D4's "selection is the border's
+ * weight and colour, evenly: 2px primary against 1px glass" is an owner-ratified geometry ruling,
+ * and 3.09 passes the floor that actually applies. This bounds it; it does not move it.
+ */
+export const MAP_PICKER_SELECTED_BORDER = colors.primary
+
 /** Dot for cases that are done (complete/archived); draft cases stay quiet - mirrors the phone.
  *  Palette-sourced: the two literals were a hand-typed `#10d177` and `#7a9fc4`. */
 function statusColor(status: CaseMapPickerCase['status']): string | null {
@@ -179,10 +199,10 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
                   ...baseRow,
                   ...(selected && {
                     borderWidth: 2,
-                    borderTopColor: colors.primary,
-                    borderRightColor: colors.primary,
-                    borderBottomColor: colors.primary,
-                    borderLeftColor: colors.primary,
+                    borderTopColor: MAP_PICKER_SELECTED_BORDER,
+                    borderRightColor: MAP_PICKER_SELECTED_BORDER,
+                    borderBottomColor: MAP_PICKER_SELECTED_BORDER,
+                    borderLeftColor: MAP_PICKER_SELECTED_BORDER,
                   }),
                 }}
               >

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { CaseMapPicker, MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { CaseMapPicker, MAP_PICKER_SELECTED_BORDER, MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -109,9 +109,14 @@ describe('CaseMapPicker (full-screen)', () => {
   it('leaves the selection BORDER on colors.primary — F52 moves the label only', () => {
     renderPicker({ preselectedId: 'c2' })
     const selected = screen.getByTestId('case-row-c2')
-    expect(selected.style.borderTopColor).toBe(hexToJsdomRgb(colors.primary))
-    expect(selected.style.borderLeftColor).toBe(hexToJsdomRgb(colors.primary))
+    // The RENDER half; `palette-contrast.test.ts`'s row 48 bounds the same constant at the
+    // non-text floor (W3/F79). All four sides, because D4's ruling is that they are even.
+    for (const side of ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
+      expect(selected.style[side], side).toBe(hexToJsdomRgb(MAP_PICKER_SELECTED_BORDER))
+    }
     expect(selected.style.borderWidth).toBe('2px')
+    // ...and it is NOT the label's token — the two moved apart in F52 and must stay apart.
+    expect(selected.style.borderTopColor).not.toBe(hexToJsdomRgb(MAP_PICKER_SELECTED_TITLE))
   })
 
   // Deferral D-2's trigger: the last retired-ramp `rgba()` inside `screens/map/`. A hex sweep
