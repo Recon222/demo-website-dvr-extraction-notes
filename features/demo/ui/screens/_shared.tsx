@@ -57,6 +57,69 @@ const grid: CSSProperties = {
 }
 
 /**
+ * SEAM(U4.2): the page-sheet chrome - scrim + panel - shared by `ModalShell` and the Settings
+ * sheet. Matrix B.2 row 16 / B.7 row 81, demo inventory §4 leverage point 2.
+ *
+ * `SettingsModal.tsx:64-96` used to be a BYTE-IDENTICAL second copy of these two objects, built
+ * from the same z-index constants but not from the same source. The inventory's warning was
+ * exact: *"Change `ModalShell`'s sheet look and Settings will silently diverge."*
+ *
+ * ## Why a seam and not one component
+ *
+ * Plan §5's U4.2 row offers both and asks which, with the reason: *"`SettingsModal` stops
+ * hand-rolling and consumes `ModalShell` (or, if the two header variants genuinely block that,
+ * it consumes the scrim + sheet seam and keeps only its own nav bar - record which, with the
+ * reason the demo's docblock gives)."* The header variants do block it, and the reason is the
+ * one `SettingsModal.tsx:18-25` already recorded: that sheet swaps between a master bar and a
+ * pushed detail bar with its own back affordance, so wrapping it in `ModalShell` means either
+ * two stacked headers or a "custom header" escape hatch on a component eight other modals
+ * depend on. The CHROME is what was duplicated; the chrome is what is now shared.
+ *
+ * ## The ground is `colors.background`, not `colors.modal`
+ *
+ * Every page sheet on the phone paints `colors.background` behind `GridBackground` - measured at
+ * `dd5551ec`, ten for ten: `UserProfileModal.tsx:133`, `EnrollDeviceModal.tsx:281`,
+ * `EnrollmentQRModal.tsx:41`, `ProvisioningWizardModal.tsx:188`, `UserManagementModal.tsx:313`,
+ * `NewCaseModal.tsx:250`, `NewLocationModal.tsx:201`, `DuplicateLocationModal.tsx:104`,
+ * `EditIncidentLocationModal.tsx:104`, `CaseActionsSheet.tsx:257`. `Colors.dark.modal`
+ * (`Colors.ts:213`) has ZERO consumers in the phone repo. See the U4.2 report, R-2.
+ *
+ * ## `top: 34` and `borderTopLeftRadius: 24` are the demo's own
+ *
+ * The phone's page sheet is OS chrome (`presentationStyle="pageSheet"`), so its inset and its
+ * corner radius are iOS's, not values in any file. These are the demo's web analog of them and
+ * have no phone number to match - the same finding D6 ratified for `TAB_BAR_HEIGHT` and U1.4 for
+ * `WizardHeader`'s 56px. Do not "correct" them toward `radius.sheet`.
+ */
+export const modalScrim: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  zIndex: MODAL_SCRIM_Z,
+  // SEAM(U4.4): one of the three scrim darknesses matrix A22 collapses into
+  // `palette[scheme].scrim`. Two sites became one here; this is the survivor.
+  background: 'rgba(4,8,14,0.55)',
+  pointerEvents: 'auto',
+}
+
+/** The panel the scrim sits under. See `modalScrim`'s docblock - one recipe, two surfaces. */
+export const modalSheet: CSSProperties = {
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  top: 34,
+  bottom: 0,
+  zIndex: MODAL_SHEET_Z,
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  background: colors.background,
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+  animation: 'screenIn 0.3s ease',
+  pointerEvents: 'auto',
+}
+
+/**
  * SEAM(U4.2): the page-sheet header bar - matrix A60, phone `ModalHeader.tsx:54-97`.
  *
  * The phone shipped this block byte-for-byte in five modals (`ModalHeader.tsx:4-11` names them)
@@ -193,28 +256,15 @@ export function ModalShell({
   }, [onClose])
   const content = (
     <>
-      <div data-modal-scrim onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: MODAL_SCRIM_Z + elevation, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }} />
+      <div data-modal-scrim onClick={onClose} style={{ ...modalScrim, zIndex: MODAL_SCRIM_Z + elevation }} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         aria-describedby={subtitle ? subtitleId : undefined}
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 34,
-          bottom: 0,
-          zIndex: MODAL_SHEET_Z + elevation,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          background: colors.background,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'screenIn 0.3s ease',
-          pointerEvents: 'auto',
-        }}
+        // Re-assigning `zIndex` keeps the key in the slot the fragment gave it, so at
+        // `MODAL_LAYER.base` the declaration string is byte-identical to the Settings sheet's.
+        style={{ ...modalSheet, zIndex: MODAL_SHEET_Z + elevation }}
       >
         <div style={grid} />
         <div data-modal-header style={modalHeaderBar}>

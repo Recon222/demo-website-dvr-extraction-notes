@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
-import { SettingsModal } from '@/features/demo/ui/screens/settings/SettingsModal'
+import { SettingsModal, SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
+import {
+  ModalShell,
+  modalScrim,
+  modalSheet,
+  MODAL_SCRIM_Z,
+  MODAL_SHEET_Z,
+} from '@/features/demo/ui/screens/_shared'
 import { toSettingsSections } from '@/features/demo/ui/screens/settings/settingsData'
 import { DEFAULT_SETTINGS } from '@/features/demo/engine/content/settings-values'
 import { SETTINGS_CATEGORY_IDS } from '@/features/demo/engine/content/settings-catalog'
@@ -178,5 +185,70 @@ describe('SettingsModal — dismissal', () => {
     renderShell()
     fireEvent.click(screen.getByTestId('settings-row-about'))
     expect(screen.queryByTestId('settings-close-button')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The chrome collapse — matrix B.2 row 16 / B.7 row 81, package U4.2.
+ *
+ * `SettingsModal.tsx:64-96` was a byte-identical second copy of `ModalShell`'s scrim + sheet,
+ * built from the same z-index constants but not from the component. The demo inventory's warning
+ * (§4, leverage point 2) was exact: *"Change `ModalShell`'s sheet look and Settings will silently
+ * diverge."*
+ *
+ * The two surfaces still do NOT share a component — `:17-25`'s reason survives contact with the
+ * port and is restated there — so what is shared is the scrim + sheet SEAM, which is the
+ * alternative plan §5's U4.2 row names in as many words. These pins are what makes "shared" mean
+ * something: the copy cannot regrow without one of them reddening.
+ */
+describe('the modal chrome is ONE recipe (B.2 row 16)', () => {
+  function chrome(root: ParentNode) {
+    return {
+      scrim: root.querySelector<HTMLElement>('[data-modal-scrim]')!,
+      sheet: root.querySelector<HTMLElement>('[role="dialog"]')!,
+    }
+  }
+
+  it('renders the same scrim and the same sheet as ModalShell, declaration for declaration', () => {
+    const { container: settings } = render(
+      <SettingsModal sections={sections} renderPane={() => null} onClose={vi.fn()} />,
+    )
+    const { container: shell } = render(
+      <ModalShell title="New Case" closeAccessibilityLabel="Close new case" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    const a = chrome(settings)
+    const b = chrome(shell)
+    expect(a.scrim.style.cssText).toBe(b.scrim.style.cssText)
+    expect(a.sheet.style.cssText).toBe(b.sheet.style.cssText)
+  })
+
+  it('and both carry the exported fragments, not two identical hand-rolls', () => {
+    // Compared against what REACT makes of the fragment (a bare div carrying it), not against a
+    // hand-listed set of declarations: `toHaveStyle` does not px-suffix a numeric `top`, so an
+    // object comparison silently passes over half the keys.
+    const { container: reference } = render(
+      <>
+        <div data-ref-scrim style={modalScrim} />
+        <div data-ref-sheet style={modalSheet} />
+      </>,
+    )
+    const { container } = render(
+      <SettingsModal sections={sections} renderPane={() => null} onClose={vi.fn()} />,
+    )
+    const { scrim, sheet } = chrome(container)
+    expect(scrim.style.cssText).toBe(reference.querySelector<HTMLElement>('[data-ref-scrim]')!.style.cssText)
+    expect(sheet.style.cssText).toBe(reference.querySelector<HTMLElement>('[data-ref-sheet]')!.style.cssText)
+  })
+
+  it('keeps the frozen layers exactly where D14 left them', () => {
+    const { container } = render(
+      <SettingsModal sections={sections} renderPane={() => null} onClose={vi.fn()} />,
+    )
+    const { scrim, sheet } = chrome(container)
+    expect(scrim.style.zIndex).toBe(String(MODAL_SCRIM_Z))
+    expect(sheet.style.zIndex).toBe(String(SETTINGS_SHEET_Z))
+    expect(SETTINGS_SHEET_Z).toBe(MODAL_SHEET_Z)
   })
 })
