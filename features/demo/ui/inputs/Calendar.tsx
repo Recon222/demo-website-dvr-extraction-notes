@@ -2,7 +2,9 @@
 
 import type { CSSProperties } from 'react'
 import { daysInMonth } from '@/features/demo/engine/logic/datetime-parts'
+import { glassWell } from '@/features/demo/ui/glass-tokens'
 import { T } from '@/features/demo/ui/inputs/input-theme'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface CalendarProps {
   viewYear: number
@@ -46,7 +48,13 @@ export function Calendar({ viewYear, viewMonth, selected, today, onPrevMonth, on
   const isToday = (d: number) => today.y === viewYear && today.mo === viewMonth && today.d === d
 
   return (
-    <div style={{ userSelect: 'none' }}>
+    /* A59 — the calendar GAINS a well it never had (PR #125 issue 8). Before this the grid
+       painted straight onto the sheet: the header is empty and the day cells are transparent,
+       so the visible ground WAS the sheet, 0.7 CIE76 dE from itself
+       (phone `DateTimePicker.tsx:282-287`). Padding is the phone's `calendarWell`
+       (`:521-522`, `paddingVertical: sm` / `paddingHorizontal: xs`); its `marginHorizontal: 16`
+       is absent because `PickerSheet`'s body already pads 16. */
+    <div style={{ userSelect: 'none', padding: `${spacing.sm}px ${spacing.xs}px`, ...glassWell }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <button type="button" aria-label="Previous month" onClick={onPrevMonth} style={arrowBtn}>

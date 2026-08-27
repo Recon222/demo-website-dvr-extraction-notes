@@ -3,6 +3,7 @@
 import { useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
+import { glassWell } from '@/features/demo/ui/glass-tokens'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 
@@ -126,7 +127,12 @@ export function Dropdown({
       {/* Bottom sheet (shared chrome with the date/time pickers) */}
       {open && (
         <PickerSheet title={sheetName} onClose={() => setOpen(false)}>
-          <div role="menu" aria-label={sheetName}>
+          {/* A39/A59/A73 — the option list is a `recessed` well punched into the sheet, the
+              same tier as the drum and the calendar next door, so all three pickers present
+              one surface rather than three (phone `Picker.tsx:179-188`, `drumPanel`). The
+              phone's `margin: 10` is absent because `PickerSheet`'s body already pads 16;
+              `padding: 5` is the phone's (`Picker.tsx:363`). */}
+          <div role="menu" aria-label={sheetName} style={{ padding: 5, ...glassWell }}>
             {opts.map((o) => {
               const selected = o.value === value
               return (
