@@ -101,16 +101,41 @@ const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\
 /**
  * A scheme half reached for by name in a VALUE position. Plan §9 clause 12: flipping the demo
  * to light is a ONE-SITE change, and the one site is `tokens/palette.ts`'s `export const
- * scheme`. Consumers resolve `GLASS_TIER[scheme]` / `colors`; `GLASS_TIER.dark` is the same
- * object today, so no behavioural pin can ever see it (review r1 F18, two SURVIVED probes) and
- * a source scan is the only mechanism that can.
+ * scheme`. Consumers resolve `GLASS_TIER[scheme]` / `SHADOW_CARD[scheme]` / `colors`;
+ * `GLASS_TIER.dark` is the same object today, so no behavioural pin can ever see it (review r1
+ * F18, two SURVIVED probes) and a source scan is the only mechanism that can.
+ *
+ * ## NO LIST OF RECORD NAMES, deliberately — that is the whole of review r1 F23
+ *
+ * The first shape of this scan named `GLASS_TIER` and `palette` and matched the dot form only,
+ * so `SHADOW_CARD.dark` (a two-half record created in the SAME round), `GLASS_TIER['dark']` and
+ * `const { dark } = GLASS_TIER` all walked past it — four lanes, four SURVIVED probes. A
+ * hand-typed roster of record names is the third recurrence of one class in this campaign
+ * (W0 F2 `PALETTE_KEYS`, W1 F16 `TIER_KEYS`, F23 here); enrolling records BY NAME — typed out,
+ * or derived from a `satisfies Record<ColorScheme, …>` grep — would be the fourth, and it fails
+ * the same way, because the record that forgets to enrol is exactly the one that drifts.
+ *
+ * So the identifier is a WILDCARD and the only exemption is the FILE (`SCHEME_DECLARERS`).
+ * There is no list to keep honest. A two-half record added next wave is covered on the day it
+ * is written, by an author who never heard of this test. Measured on this tree: zero offenders
+ * across every non-test file under `ui/` — the widening costs no false red, which is what makes
+ * the lazy shape also the correct one.
+ *
+ * Three forms, because the MANDATED idiom is `GLASS_TIER[scheme]` and a developer hard-coding a
+ * half by copying that shape reaches for `['dark']` sooner than `.dark`:
+ *   `X.dark`  ·  `X['dark']` / `X["light"]`  ·  `const { dark } = X`
  *
  * `typeof` is excluded because a TYPE position is the opposite of a violation: review r1 F15
  * requires `satisfies typeof palette.dark.primaryDark` in `glass-tokens.ts`, a deliberately
  * scheme-INDEPENDENT reference that must keep compiling after the flip. A regex cannot parse a
  * type position; `typeof` is the one marker that reliably identifies it here.
  */
-const SCHEME_HALF = /(?<!\btypeof\s+)\b(?:GLASS_TIER|palette)\s*\.\s*(?:dark|light)\b/
+const SCHEME_HALF: readonly RegExp[] = [
+  // member access, dot or bracket
+  /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
+  // destructure: `const { dark } = X`, `const { dark: tier } = X`
+  /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
+]
 
 /**
  * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
@@ -247,7 +272,10 @@ describe('glass tokens (P0.5 / G6)', () => {
   // anti-re-drift scan above it.
   it('no production module hard-codes a scheme half (plan §9 clause 12)', () => {
     const offenders = sourceFiles(UI_ROOT, SCHEME_DECLARERS)
-      .filter((full) => SCHEME_HALF.test(stripComments(readFileSync(full, 'utf8'))))
+      .filter((full) => {
+        const src = stripComments(readFileSync(full, 'utf8'))
+        return SCHEME_HALF.some((form) => form.test(src))
+      })
       .map((full) => relative(UI_ROOT, full).split(sep).join('/'))
     expect(offenders).toEqual([])
   })
