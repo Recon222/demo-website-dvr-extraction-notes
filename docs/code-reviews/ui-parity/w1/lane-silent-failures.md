@@ -1,5 +1,34 @@
 # Lane: silent-failures — Wave 1 (U1.1–U1.4), PR #40
 
+## Final verify
+
+**My r2 MEDIUM is FIXED, and by a better fix than the one I prescribed.** Re-run at the merged head
+`3c66f0a` (F24 `b181217` merged as `43cee06`, plus F25) in my own probe worktree
+`probe-w1f-sfh-switch`, baseline 74/74 green across the six token/tier/recipe/header suites: the
+regression that SURVIVED at `d91ab76` — `palette.ts:189` `export const colors = palette[scheme]` →
+`palette.dark` — is now **KILLED, exit 1**, "no production module hard-codes a scheme half (plan §9
+clause 12)", and so is the bracket spelling `palette['dark']` (exit 1). `SCHEME_DECLARERS` is gone
+entirely; `glass-tokens.test.ts:275` now calls `sourceFiles(UI_ROOT, new Set())`, so the scan
+exempts no identifier and no file. **I concede the overrule: my prescribed
+`expect(colors).toBe(palette[scheme])` was a tautology** — both sides evaluate `palette.dark`
+today, so it could never have failed on the regression it was meant to catch. Deleting the
+exemption is the real mechanism and it removes the third list this campaign has had to keep honest
+(W0/F2, W1/F16, F23/F24) rather than lengthening a fourth. **Fallout: none found.** The two
+formerly-exempt files stay clean with the exemption gone — 74/74 green, no false red — because
+neither names a half in a VALUE position (they declare halves as object KEYS, `light: {` / `dark: {`,
+which no pattern matches); F15's `typeof` carve-out still holds, implicitly controlled by the suite
+staying green over `glass-tokens.ts`'s live `satisfies typeof palette.dark.primaryDark`; and a real
+value-half access newly planted in the formerly-exempt `glass-tiers.ts`
+(`export const DEFAULT_TIER = GLASS_TIER.dark` appended at EOF) is now **KILLED, exit 1** — the
+coverage the deletion bought, confirmed rather than assumed. (One earlier attempt at that fallout
+probe placed the statement above an `import type` and broke the module transform — "no tests",
+an invalid probe, not a result; re-run cleanly at EOF for the verdict quoted here.) All restores
+verified byte-identical (`git status --porcelain` empty after each), teardown verified —
+`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0. **Verdict: FIXED. Lane clear
+for W1 — no open silent-failure findings.**
+
+---
+
 ## Round 2 (fix delta — targeted rider round)
 
 Head: `feat/uiparity-w1` @ `d91ab76`. Delta read: `git diff 044578a..d91ab76`, scoped to the four

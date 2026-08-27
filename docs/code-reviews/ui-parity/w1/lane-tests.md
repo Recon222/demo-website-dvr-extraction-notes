@@ -1,5 +1,81 @@
 # Lane: tests — Wave 1 (U1.1-U1.4), PR #41
 
+## Final verify
+
+Head `3c66f0a` (`feat/uiparity-w1`, carrying F24 `b181217` and F25 `3f2e5c6`). Warm, tiny scope:
+the two riders only. Own worktree `worktrees/probe-w1f-tests` cut from `3c66f0a`, torn down with
+the script: *`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0*.
+**Provenance: canonical source at `3c66f0a`.** Motion mode: default, motion-ON.
+
+| Rider | Status |
+|---|---|
+| **F24** — `SCHEME_DECLARERS` exemption deleted | **FIXED** — probes A, B, C |
+| **F25** — property-agnostic guard message, `%s` spliced | **FIXED** — probes D, E, F |
+
+```
+PROBE A — F24: zero false reds with NOTHING exempt
+Target:      glass-tokens.test.ts — the scan now calls sourceFiles(UI_ROOT, new Set())
+Result:      NO RED (exit 0) — Tests 7 passed
+  Both declaring files are now SCANNED rather than skipped, and neither trips. The reason is
+  structural and worth recording: a declaration spells its halves as object KEYS (`dark: {`) or
+  as bindings (`const dark = {`), and both SCHEME_HALF forms require a member ACCESS or a
+  destructure off an identifier. The exemption was never load-bearing — deleting it removed a
+  permanently-open hole in the two files that most needed watching, at no cost.
+
+PROBE B — F24: the one-site switch itself, hard-coded
+Target:      features/demo/ui/tokens/palette.ts:189
+Mutation:    export const colors = palette[scheme]  ->  palette.dark
+Result:      KILLED (exit 1) — AssertionError: expected [ 'tokens/palette.ts' ] to deeply equal []
+  This is the line plan §9 clause 12 is entirely about, and until F24 it was the one line in the
+  repo the scan could not see. Named by path in the failure.
+Restore:     verified byte-identical.
+
+PROBE C — F24: the OTHER declarer, so the fix is not single-file
+Target:      features/demo/ui/tokens/glass-tiers.ts — `export const consumed = GLASS_TIER.dark` appended
+Result:      KILLED (exit 1) — AssertionError: expected [ 'tokens/glass-tiers.ts' ] to deeply equal []
+Restore:     verified byte-identical.
+
+PROBE D — F25: trip it on a PADDING pair
+Target:      features/demo/ui/screens/CompletionScreen.tsx:72 — reverted to `padding: 16` + `paddingTop: 60`
+Result:      KILLED, and the message is correct:
+  "Removing a style property during rerender (paddingTop) when a conflicting property is set (padding)"
+  "…it is not always a border…"
+  The `%s` splice works: React hands a format string plus substitutions, and the two property
+  names now land INSIDE the sentence instead of dangling at the tail. The lead sentence no
+  longer says "border", which was the r2 LOW.
+Restore:     verified byte-identical.
+
+PROBE E — F25: trip it on a BORDER pair, same run shape
+Target:      features/demo/ui/screens/_shared.tsx:270 — Field's error border reverted to a longhand
+Result:      KILLED — "A style object wrote a SHORTHAND …" plus
+  "Removing a style property during rerender (borderColor) when a conflicting property is set (border)"
+  The border family still reads correctly under the generalised wording, and the docblock pointer
+  for that family is retained as a conditional clause rather than the headline.
+Restore:     verified byte-identical.
+
+PROBE F — F25: ordinary console.error untouched (scope control)
+Probe:       a scratch test emitting an act() warning and an `Error: … %s` with a substitution
+Result:      NO FAILURE (exit 0) — Tests 1 passed
+  The `%s`-splicing branch is inside the `/conflicting property/` test, so a format-string error
+  of any other kind is passed straight through to `realConsoleError` untouched. Widening the
+  message did not widen the trigger.
+Scratch test lived in the probe worktree only; deleted, tree verified clean.
+```
+
+**Fallout: none.** Full suite at `3c66f0a`: **272 files / 3576 passed | 10 todo (3586)**, exit 0 —
+identical to the r2 head, so neither rider moved a count. Cold `tsc --noEmit` exit 0; drift-guard
+CLI exit 0 (115/115). `git status --porcelain` = 0 and `git diff 3c66f0a` = **0 lines** after all
+six probes.
+
+My r2 LOW (the guard's border-specific message) is **closed by F25**, verified at probe D rather
+than read off the diff.
+
+Probes run: **6** · Killed: **4** · Non-firing-by-design: **2** (A and F, both controls) ·
+Survived: **0**.
+Verdict: **APPROVE** — 0 CRITICAL / 0 HIGH / 0 MEDIUM / 0 LOW, nothing open from this lane.
+
+---
+
 ## Round 2 (fix delta — rider round)
 
 Head `d91ab76` · diff `044578a..d91ab76` · authority: the **W1 rider round** mapping comment on
