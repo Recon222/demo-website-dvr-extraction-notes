@@ -158,8 +158,9 @@ describe('ExportLocationRow — the ledger row itself (A49 / A7)', () => {
     expect(el.style.borderBottomColor).toBe(jsdomColor(colors.border))
     expect(el.style.borderBottomWidth).toBe('1px')
     // `rgba(30,58,95,0.6)` was a near-miss on TWO axes at once — a pre-A7 navy at an alpha
-    // `borderSoft` does not spell (0.5) — which is why neither U0.1's `#1c4e84` re-base nor
-    // U1.1's tier derivation could reach it, and why it survived two sweep packages.
+    // `borderSoft` does not spell (0.5) — which is why neither A7's re-base (it sweeps by hex,
+    // and this form carries none) nor U1.1's tier derivation could reach it, and why it
+    // survived two sweep packages.
     expect(el.style.borderBottomColor).not.toBe(jsdomColor('rgba(30,58,95,0.6)'))
   })
 })

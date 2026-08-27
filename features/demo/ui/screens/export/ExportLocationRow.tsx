@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 import type { CaseLocationRow } from '@/features/demo/ui/screens/screenData'
@@ -54,10 +55,15 @@ const rowStyle: CSSProperties = {
   border: 'none',
   // The phone's hairline separator (`:109-110`): `borderBottomColor: colors.border`. The demo's
   // `rgba(30,58,95,0.6)` was a near-miss of the OLD border on TWO axes — a pre-A7 navy at an
-  // alpha `borderSoft` spells 0.5 — so neither U0.1's re-base to `#1c4e84` nor `borderSoft`
-  // itself reached it. A row is a ledger line, not a tile, so this is `colors.border` flat and
-  // not the card tier's washed edge.
-  borderBottom: `1px solid ${colors.border}`,
+  // alpha `borderSoft` spells 0.5 — so neither A7's re-base (which sweeps by hex, and this form
+  // carries none) nor `borderSoft` itself could reach it. A row is a ledger line, not a tile, so
+  // it takes the flat border and not the card tier's washed edge.
+  //
+  // `GLASS.border`, not a composed `1px solid ${colors.border}`: that composition IS this token,
+  // and `ui/__tests__/glass-tokens.test.ts`'s banned-literal scan exists to stop the second
+  // spelling of it. (Measured: it also reads raw text, so naming the hex in a COMMENT here trips
+  // it too — which is why the value above is described rather than spelled.)
+  borderBottom: GLASS.border,
   textAlign: 'left',
   color: 'inherit',
 }
