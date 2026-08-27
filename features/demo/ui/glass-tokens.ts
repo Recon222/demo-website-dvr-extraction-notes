@@ -23,8 +23,16 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  *   sits outside this module's guard-test scan root. Restyle both together.
  */
 
-const ACCENT_FROM = '#35A0D6'
-const ACCENT_TO = '#2580AD'
+// The phone's `PrimaryButtonGradient.dark` (`Colors.ts:471-474`): `[Colors.dark.primaryDark,
+// '#17527A']`. Kept as module CONSTS spelled as literals — the drift guard's anchors 7/8
+// read them with `readConst`, which matches literals, not identifier references.
+//
+// Measured with `onPrimary` (#ffffff): 5.80:1 on the top stop, 8.32:1 on the bottom. The
+// character INVERTS from the demo's old pair — light->mid becomes mid->dark. Do NOT lighten
+// either stop and do NOT re-tokenise the light pair to [primaryLight, primaryDark]: the old
+// dark recipe measured 2.94:1, and that light swap takes a passing 5.17 down to 3.68.
+const ACCENT_FROM = '#1F6B99'
+const ACCENT_TO = '#17527A'
 
 export const GLASS = {
   // accent gradient stops (single source — input-theme's T re-exports these)

@@ -7,6 +7,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -124,7 +125,12 @@ export function ExportCaseCard({
         // still takes presses.
         background: expanded ? GLASS.gradientPanel : GLASS.gradientCardDiag,
         border: expanded ? `1px solid ${GLASS.accentFrom}` : GLASS.borderSoft,
-        boxShadow: expanded ? '0 4px 12px rgba(53,160,214,0.35)' : '0 4px 8px rgba(0,0,0,0.15)',
+        // Derived, not transcribed: this glow was a hand-typed copy of the accent's rgb, so
+        // the U0.3 re-base would have left the border deep blue and the glow on the old light
+        // blue. `withAlpha` makes it follow the stop it is supposed to be a glow OF.
+        boxShadow: expanded
+          ? `0 4px 12px ${withAlpha(GLASS.accentFrom, 0.35)}`
+          : '0 4px 8px rgba(0,0,0,0.15)',
         opacity: dimmed ? 0.5 : 1,
       }}
     >

@@ -34,7 +34,7 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['card gradient', 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
   ['diagonal card gradient', 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))'],
   ['panel gradient', 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))'],
-  ['accent gradient', 'linear-gradient(180deg,#35A0D6,#2580AD)'],
+  ['accent gradient', 'linear-gradient(180deg,#1F6B99,#17527A)'],
   ['grid overlay', 'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)'],
   ['hard border', '1px solid #1c4e84'],
   ['soft border', '1px solid rgba(28,78,132,0.5)'],
@@ -79,12 +79,12 @@ describe('glass tokens (P0.5 / G6)', () => {
 
   it('pins the GLASS token values (an edit here restyles ~60 call sites)', () => {
     expect(GLASS).toEqual({
-      accentFrom: '#35A0D6',
-      accentTo: '#2580AD',
+      accentFrom: '#1F6B99',
+      accentTo: '#17527A',
       gradientCard: 'linear-gradient(180deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
       gradientCardDiag: 'linear-gradient(135deg,rgba(19,34,54,0.85),rgba(26,45,68,0.92))',
       gradientPanel: 'linear-gradient(180deg,rgba(26,45,68,0.88),rgba(19,34,54,0.95))',
-      gradientAccent: 'linear-gradient(180deg,#35A0D6,#2580AD)',
+      gradientAccent: 'linear-gradient(180deg,#1F6B99,#17527A)',
       gridOverlay:
         'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
       border: '1px solid #1c4e84',
@@ -104,7 +104,7 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(glassBtnPrimary).toEqual({
       borderRadius: 10,
       border: 'none',
-      background: 'linear-gradient(180deg,#35A0D6,#2580AD)',
+      background: 'linear-gradient(180deg,#1F6B99,#17527A)',
       color: '#fff',
     })
     expect(glassBtnSecondary).toEqual({

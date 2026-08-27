@@ -112,10 +112,10 @@ describe('ExportHub — single-open accordion', () => {
     expect(cardEl('PR25-A').style.opacity).toBe('1')
     expect(cardEl('PR25-B').style.opacity).toBe('0.5')
     // Lit = accent border + accent glow; the dimmed sibling keeps the idle treatment.
-    // (jsdom normalises colour literals, hence the rgb() forms — GLASS.accentFrom is #35A0D6.)
-    expect(cardEl('PR25-A').style.border).toContain('rgb(53, 160, 214)')
-    expect(cardEl('PR25-A').style.boxShadow).toContain('rgba(53,160,214,0.35)')
-    expect(cardEl('PR25-B').style.border).not.toContain('rgb(53, 160, 214)')
+    // (jsdom normalises colour literals, hence the rgb() forms — GLASS.accentFrom is #1F6B99.)
+    expect(cardEl('PR25-A').style.border).toContain('rgb(31, 107, 153)')
+    expect(cardEl('PR25-A').style.boxShadow).toContain('rgba(31, 107, 153, 0.35)')
+    expect(cardEl('PR25-B').style.border).not.toContain('rgb(31, 107, 153)')
 
     // Opacity only — the dimmed card still takes presses.
     fireEvent.click(caseCheckbox('PR25-B'))
