@@ -2,8 +2,8 @@
 
 import type { CSSProperties, JSX } from 'react'
 
-import { colors } from '@/features/demo/ui/tokens/palette'
 import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
+import { severityTone, type StatusSeverity } from '@/features/demo/ui/tokens/status'
 
 /**
  * SEAM(U3.3): the ONE severity callout. Matrix A71.
@@ -18,19 +18,27 @@ import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
  *              lineHeight fontSize.sm * lineHeight.normal (14 x 1.5 = 21)
  *   icon       Layout.iconSize.sm (20)
  *
- * ## The three-token trio, and why the accent is NOT the foreground
+ * ## The trio comes from `SEAM(U3.2)` — this component builds nothing
  *
- * background = `colors[<severity>Light]` (`:48`) · borderColor = `colors[severity]` (`:69`) ·
- * foreground = `colors[<severity>OnLight]` (`:52`), spent on BOTH the icon (`:74`) and the text
- * (`:79`). The phone's comment at `:49-51` is the reason and it is measured, not stylistic:
- * *"the saturated accent is reserved for the border: as an icon it drops to 1.92-2.24:1 in three
- * of the eight severity/scheme combinations."* Matrix §C.3 rule 1 says the same for text.
+ * `severityTone(severity)` (`tokens/status.ts:118-127`) resolves the fill, the border and the
+ * foreground against the scheme the demo renders. Its docblock is explicit that this component is
+ * one of its consumers: *"Every badge, chip, pill, note **and banner** in the demo resolves
+ * here."* Banner spends `tone.background`, `tone.borderColor` and `tone.color`, and nothing else.
  *
- * The `*Light` names are the trap phone §1.2 note 2 warns about, and `palette.ts`'s docblock
- * carries it in full: **in DARK a `*Light` name is the DARK BACKGROUND TONE** its `*OnLight`
- * foreground sits on. `successLight` is DARKER than `success`, not lighter. (The two values are
- * spelled in `palette.ts` and nowhere else: `glass-tokens.test.ts`'s banned-literal sweep does
- * not strip comments, so quoting a hex here — even to explain it — reads as a re-inline.)
+ * **It used to build the trio privately** — three `palette` reads that happened to produce the
+ * same values. W2 review **F26**: re-tinting the seam moved the badge, the retention pill and
+ * `PaneNote` while all four Banner surfaces silently kept the old trio, and no scheduled check
+ * observed the divergence (the lane's probe SURVIVED). A merge-order artifact — U3 assembled
+ * U3.3 before U3.2, the inverse of plan §6.2 — not a decision. Do not re-derive it here.
+ *
+ * `tone.accent` is deliberately unspent: it is the BARE-MARK token (a dot, a 1px selection edge).
+ * The phone's comment at `:49-51` is why, and it is measured, not stylistic: *"the saturated
+ * accent is reserved for the border: as an icon it drops to 1.92-2.24:1 in three of the eight
+ * severity/scheme combinations."* Matrix §C.3 rule 1 says the same for text.
+ *
+ * The `*Light` names behind the seam are the trap phone §1.2 note 2 warns about, and
+ * `palette.ts`'s docblock carries it in full: **in DARK a `*Light` name is the DARK BACKGROUND
+ * TONE** its `*OnLight` foreground sits on. `successLight` is DARKER than `success`, not lighter.
  *
  * ## OPAQUE, deliberately — the single most portable rule in the phone's P0
  *
@@ -65,7 +73,10 @@ import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
  * `aria-live="assertive"`, so info/success would interrupt whatever is being read unless the
  * politeness is written back down. Same split as the phone: error/warning assertive, else polite.
  */
-export type BannerSeverity = 'info' | 'warning' | 'error' | 'success'
+// `BannerSeverity` is gone: it re-declared `StatusSeverity` (`tokens/status.ts:42`) key for key,
+// which is how the private trio survived review in the first place (W2 F26; the type-design lane
+// found the same defect from this end). One name, one seam — an alias would just be a second
+// thing to keep in sync.
 
 /**
  * Phone `:30-35`, glyph for glyph — Ionicons `information-circle` / `warning` / `alert-circle` /
@@ -73,7 +84,7 @@ export type BannerSeverity = 'info' | 'warning' | 'error' | 'success'
  * to the alert-circle already inlined at `PickerStage.tsx`, `ImportModal.tsx` and
  * `DemoErrorBoundary.tsx`, which is the shape those three surfaces already read as "error".
  */
-const SEVERITY_ICON: Record<BannerSeverity, JSX.Element> = {
+const SEVERITY_ICON: Record<StatusSeverity, JSX.Element> = {
   info: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -101,7 +112,7 @@ const SEVERITY_ICON: Record<BannerSeverity, JSX.Element> = {
 }
 
 export interface BannerProps {
-  severity: BannerSeverity
+  severity: StatusSeverity
   /** The callout copy. Single paragraph — a status line, not a layout slot (phone `:39`). */
   message: string
   /** Caller LAYOUT only (margins, alignment). Never a fill: the opacity rule above is the point. */
@@ -144,10 +155,8 @@ const messageStyle: CSSProperties = {
 }
 
 export function Banner({ severity, message, style, testId }: BannerProps) {
-  // `colors` is `palette[scheme]`; the three reads are template-indexed so a renamed token is a
-  // compile error rather than an `undefined` that paints transparent.
-  const background = colors[`${severity}Light`]
-  const foreground = colors[`${severity}OnLight`]
+  // SEAM(U3.2). One call, no private derivation — see the docblock and W2 F26.
+  const tone = severityTone(severity)
 
   return (
     <div
@@ -167,11 +176,11 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
       // is the one that is right on paint 1 and wrong on paint 2 — the trap with no test.
       style={{
         ...banner,
-        backgroundColor: background,
-        borderTopColor: colors[severity],
-        borderRightColor: colors[severity],
-        borderBottomColor: colors[severity],
-        borderLeftColor: colors[severity],
+        backgroundColor: tone.background,
+        borderTopColor: tone.borderColor,
+        borderRightColor: tone.borderColor,
+        borderBottomColor: tone.borderColor,
+        borderLeftColor: tone.borderColor,
         ...style,
       }}
     >
@@ -184,7 +193,7 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
         viewBox="0 0 24 24"
         fill="none"
         // Phone `:74` — the icon takes the FOREGROUND, never `colors[severity]`.
-        stroke={foreground}
+        stroke={tone.color}
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -192,7 +201,7 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
       >
         {SEVERITY_ICON[severity]}
       </svg>
-      <div style={{ ...messageStyle, color: foreground }}>{message}</div>
+      <div style={{ ...messageStyle, color: tone.color }}>{message}</div>
     </div>
   )
 }

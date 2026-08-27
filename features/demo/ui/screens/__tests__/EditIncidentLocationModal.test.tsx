@@ -10,7 +10,7 @@ import {
 import { caseToIncidentValues, type IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
 import type { DemoCase } from '@/features/demo/engine/types'
 import { demoCase } from '@/features/demo/engine/store/__tests__/test-utils'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /** jsdom rewrites inline hex to `rgb()`; pins compare against the token, never a retyped literal. */
 const rgb = (hex: string): string => {
@@ -157,9 +157,12 @@ describe('EditIncidentLocationModal — reverse-geocode banner', () => {
     render(<Host initial={blank} reverseGeocode={async () => null} />)
     blurCoordinates('43.5', '-79.5')
     const banner = await screen.findByTestId('edit-incident-error')
-    expect(banner.style.backgroundColor).toBe(rgb(colors.errorLight))
-    expect(sides(banner)).toEqual(Array(4).fill(rgb(colors.error)))
-    expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
+    // The SEAM, not a re-derivation from `palette` — W2 F26: a pin that computes the trio
+    // itself agrees with a component that computes it itself, straight through a re-tint.
+    const tone = severityTone('error')
+    expect(banner.style.backgroundColor).toBe(rgb(tone.background))
+    expect(sides(banner)).toEqual(Array(4).fill(rgb(tone.borderColor)))
+    expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(tone.color))
     // phone `errorBanner` (`:185-187`) is `marginBottom: Layout.spacing.md` — 16, not the 14
     // the deleted local recipe carried.
     expect(banner.style.marginBottom).toBe('16px')
