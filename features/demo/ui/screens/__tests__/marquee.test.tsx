@@ -286,7 +286,10 @@ describe('OcrCaptureScreen', () => {
     const { rerender } = render(
       <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
     )
-    expect(screen.getByText('No date on the DVR display')).toBeInTheDocument()
+    // U7.3: the blocker is a `<Banner severity="error">` now (A71/D19's hand-back), so its
+    // prose is a MESSAGE PROP folded into one string — a JSX-text selector cannot see it.
+    // The test id is the stronger anchor anyway: it also proves the alert role survived.
+    expect(screen.getByTestId('ocr-assumed-date')).toHaveTextContent('No date on the DVR display.')
     expect(screen.getByText('Use this & calculate')).toHaveAttribute('aria-disabled', 'true')
 
     fireEvent.click(screen.getByText('The date is correct'))
