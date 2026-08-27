@@ -20,6 +20,7 @@ import type { IncidentLocationValues } from '@/features/demo/engine/logic/incide
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -464,16 +465,25 @@ describe('A71 — the submit-failure callout is the shared Banner (D19 hand-back
 
     const banner = screen.getByTestId('new-case-submit-error')
     expect(banner.textContent).toContain('Case number already exists')
-    // A71's single most portable rule: the fill is OPAQUE `errorLight`, never a translucent
-    // wash — a wash composites over an unknown parent and the ratio becomes unmeasurable. The
-    // demo's retired recipe was `rgba(255,71,87,0.08)`, so this is the assertion that fails if
-    // anyone re-rolls it locally.
-    expect(banner.style.backgroundColor).toBe(probeColor(colors.errorLight))
+    // F55. The POSITIVE assertions read the SEAM production reads — `Banner.tsx:203` is
+    // `severityTone(severity)` — not the `*Light` / `*OnLight` tokens behind it. Spelled as
+    // palette tokens these two pins had no oracle: a legitimate re-point of the severity recipe
+    // reds them naming a token, and the cheapest repair is to retype the new value, which
+    // ratifies the change instead of judging it. Through the seam they follow a re-point and
+    // still kill a local re-roll. (The integrator's ruling, applied: POSITIVE assertions read
+    // the seam, NEGATIVE ones stay in palette terms — see the `rgba` line below.)
+    const tone = severityTone('error')
+    expect(banner.style.backgroundColor).toBe(probeColor(tone.background))
+    // THIS is A71's anti-wash guard, and it is the line the comment above used to credit to its
+    // neighbour: the fill is OPAQUE, never a translucent wash, because a wash composites over an
+    // unknown parent and the ratio becomes unmeasurable. The demo's retired recipe here was
+    // `rgba(255,71,87,0.08)`. It stays in palette terms — a seam that started returning an
+    // `rgba()` fill must red, so this one may NOT follow the seam.
     expect(banner.style.backgroundColor).not.toContain('rgba')
     // `Banner` paints the foreground on its MESSAGE node, not the container — the icon takes
     // the same value from the same source, which is A71's point.
     const message = banner.querySelector('div')
-    expect((message as HTMLElement).style.color).toBe(probeColor(colors.errorOnLight))
+    expect((message as HTMLElement).style.color).toBe(probeColor(tone.color))
     // ...and it is the component, not a copy of its values: `Banner` owns the glyph, and no
     // local recipe in this file ever had one.
     expect(banner.querySelector('svg')).not.toBeNull()
