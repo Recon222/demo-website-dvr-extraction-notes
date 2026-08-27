@@ -22,7 +22,7 @@ import {
   type ImportTerminalProgressProps,
   type TerminalOutcome,
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
-import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { createImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
 import {
   TERMINAL_PALETTE,
