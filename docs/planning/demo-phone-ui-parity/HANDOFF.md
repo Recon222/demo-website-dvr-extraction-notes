@@ -69,6 +69,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Plan-review r1 aggregator v1 | `planrev-aggregator` | Opus | RECOVERED after two API cutoffs and completed VETTED.md; warm but fix-delta aggregation goes to a fresh FABLE seat per §2 |
 | Plan-review r1 aggregator v2 | `planrev-aggregator-v2` | Opus | STOPPED (redundant) — never resume |
 | Fix-delta r1 aggregator (unnamed, per §2 policy) | agentId `a7557cc07fd72b866` | **Fable** | done — issued the closing APPROVE; retire-eligible |
+| Kit-integration (dt kit → this repo: personas, hooks, git-guard, GATES.md, CLAUDE.md pointer) — on `master` in the main checkout | agentId `aab4aa3d664ebec47` | Opus | in flight |
+| **PARTNER** (`dt-partner`, WARM for the whole build — legwork seat; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight: baseline gate measurements, Colors.ts scheme-key parity, verification-harness Windows check |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue

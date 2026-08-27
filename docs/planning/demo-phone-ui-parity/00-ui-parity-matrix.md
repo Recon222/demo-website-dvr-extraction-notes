@@ -50,7 +50,7 @@ Adapted for a style port. The v1 legend (COMPLETE/PARTIAL/STUB/MISSING) describe
 | **OPTIONAL** | Defensible either way; a flourish, not parity. |
 | **N/A** | Demo-only surface with no phone counterpart. Needs an independent ruling, not a port. |
 
-**Effort:** S ≤ half a day · M = 1–2 days · L = 3–5 days · XL > 1 week. (v1 convention, unchanged.)
+**Effort** is relative package size for sequencing and model-tier choice, **not calendar**: **S** one seam or one value · **M** a recipe plus its consumers · **L** a new component or a rewrite · **XL** none in this port. Wall-clock is agent time, and the parallelism tax here is ~2s (`pnpm install --prefer-offline`, shared pnpm store) — so the sequential-vs-parallel call per phase is about **file contention (§6.1)**, never about calendar.
 
 **Phases** are `U0`…`U8`, defined in `01-master-ui-parity-plan.md` §5.
 
@@ -519,17 +519,18 @@ PR #125 `16d8c67c` **deleted** the Export Hub's armed-case echo row (an owner ru
 
 ### D18 — **NEW.** Integration model and rollback: does every phase land on `master`?
 
-The plan merges every phase to `master`, so for **~5–7 weeks** the public `/demo` carries a demo whose flat surfaces are post-campaign (`T.bg` re-based in U0.1) and whose gradients, sheets, map, splash and tab bar are pre-campaign navy (`GLASS.gradientCard` moves only in U1.1, the three sheet grounds in U4.1, `mapTokens` in U5.1, the splash in U8.1, the tab bar in U8.3). **That is the "cards on cards read flat" defect D1 exists to catch, induced deliberately and held for two months.** It was chosen by omission, not decision, and nothing anywhere states what happens if a phase review returns BLOCK *after* merge.
+The plan merges every phase to `master`, so **between U0 and U8** the public `/demo` carries a demo whose flat surfaces are post-campaign (`T.bg` re-based in U0.1) and whose gradients, sheets, map, splash and tab bar are pre-campaign navy (`GLASS.gradientCard` moves only in U1.1, the three sheet grounds in U4.1, `mapTokens` in U5.1, the splash in U8.1, the tab bar in U8.3). **That is the "cards on cards read flat" defect D1 exists to catch, induced deliberately and held for two months.** It was chosen by omission, not decision, and nothing anywhere states what happens if a phase review returns BLOCK *after* merge.
 
-**Recommendation: a long-lived integration branch `feat/uiparity`.** Phase PRs merge into it with merge commits (§4.5); `master` takes **one** merge at U8 exit; the §6.6 mechanical gates run on the integration head. **Rollback:** a phase reverts with `git revert -m 1 <phase merge commit>`; a single package reverts by its own commits; no phase may depend on an unmerged later phase, so §5's dependency shape is also the revert-safety order.
-**Consequence of continuous `master` merges:** better review hygiene and a shorter-lived branch, at the cost of a visibly mixed-palette public demo for the duration — acceptable, but it must then be **written into §9's definition of done as an accepted state**, not left implicit.
+**Recommendation was: a long-lived integration branch `feat/uiparity`, `master` taking one merge at U8 exit.**
+
+**OWNER RULING 2026-08-27 — OVERRIDDEN. Phases merge straight to `master`.** The site is not live, so the recommendation solved a problem this port does not have. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → **`master`** with a merge commit. Rollback: `git revert -m 1 <phase merge>`. **The consequence is accepted in writing** (plan §9 clause 10): a visibly mixed-palette public `/demo` for the duration of the port.
 
 ### D19 — **NEW.** The U2 ∥ U3 lane structure: serialise, or re-cut?
 
 U2 and U3 are declared independent lanes but share **seven** files, and §6.1 positively (and falsely) asserted `_pane-chrome.tsx` was single-owner. The collisions are semantic, not just textual: U2.3 deletes `TimeOffsetScreen`'s hand-rolled switch while U3.3 rewrites its dashed-amber advisory six lines below; `_pane-chrome.tsx` is wanted by U2.4 (`radioOption`, `:163`), U3.2 (`NOTE_TONE`, `:68`) **and** U6.2 — three packages across three phases.
 
 **Recommendation: re-cut the boundary, do not serialise.** U3.3 **builds** `Banner` and adopts it only where no other lane touches the file; the six cross-lane adoptions (`TimeOffsetScreen`, `NewCaseModal`, `AudioRecorderScreen`, `CompletionScreen`, `OcrCaptureScreen`, `_pane-chrome`) move to **U6.2, U6.4, U7.2 and U7.3, which already open those files** — so it costs no new file-opens. Serialising U2 → U3 costs 4–5 days of the plan's own critical path for a smaller gain.
-**Consequence of serialising instead:** simpler to brief, ~1 week added, and the `_pane-chrome` three-way survives into U6 anyway. **Of leaving it as-is:** two agents editing one 326-line file in the same window.
+**Consequence of serialising instead:** simpler to brief, one more phase boundary on the critical path, and the `_pane-chrome` three-way survives into U6 anyway. **Of leaving it as-is:** two agents editing one 326-line file in the same window.
 
 ### D20 — **NEW.** The behaviour-change carve-out
 
@@ -696,7 +697,7 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 | **OUT** | A95 (1) | 4, 5, 26, 94 | — |
 | **no phase** (already COMPLETE) | A13, A24, A25, A26 (4) | — | — |
 
-**Rough wall-clock: ~7 weeks sequential; ~4–5 weeks with two lanes where the dependency graph allows** (see the plan §6).
+**Sequencing, not scheduling.** The dependency shape is `U0 → U1 → (U2 ∥ U3) → U4 → (U5 ∥ U6) → U7 → U8`. Running U2∥U3 and U5∥U6 as lanes costs ~2s of worktree setup each (shared pnpm store), so **the only real question per phase is file contention — see the plan §6.1**, not elapsed time.
 
 ---
 
@@ -720,29 +721,29 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 
 # § OWNER RATIFICATION
 
-*(Empty — to be filled by the owner. Ratify or override each row; add any decision the matrix missed. Once ratified, this section supersedes the recommendations in §DECISIONS and the affected Status/Phase values above, and `01-master-ui-parity-plan.md` §3 is updated to match. **Write "ratify" or "override → X" in the Ruling column** — the recommendation is inline so no paging back is needed.)*
+**RATIFIED — owner, 2026-08-27.** This section supersedes the recommendations in §DECISIONS wherever the two differ. `01-master-ui-parity-plan.md` §3 carries the same rulings.
 
-**D18, D19 and D20 are execution-shaped, not taste-shaped** — D18 decides what the public demo looks like for two months, D19 decides the lane structure, D20 decides whether six packages are buildable as written. **Rule them in the same pass as D1–D17, not after.**
+**All twenty were ruled by the owner on 2026-08-27** — D1–D17, D19 and D20 accept the recommendation as written; **D18 was overridden.**
 
-| # | Decision | Recommendation (one line) | Ruling | Notes |
+| # | Decision | Recommendation (one line) | **Ruling (owner, 2026-08-27)** | Notes |
 |---|---|---|---|---|
-| D1 | Phone-side verification on Windows | Computed contrast test + drift guard as the standing gate; owner device pass at 3 checkpoints (after U1, U4, U5). Do not attempt Expo web. | | |
-| D2 | Dark-only stays | Stay dark-only; port dark values only. | | |
-| D3 | Tokenization depth | Seams-only + a value-changed sweep (~120 literals, not 1,144) + the drift guard and banned-literal guard to hold the line. | | |
-| D4 | Superseded rulings D3(a) / D1(a) | Follow the code, not the rulings doc: no second map palette; delete the 4px accent, draw four-sided borders; keep "selection ADDS". | | |
-| D5 | Inherited contrast ceilings | Inherit all four explicitly and log them as §89. **Amendment: the map badge is NOT one of them — take `primaryDark` (5.80).** | | |
-| D6 | Tab-bar height mismatch | Keep `TAB_BAR_HEIGHT = 50` as a documented divergence; port the colours and `paddingTop: 6`. | | |
-| D7 | Design-sync regeneration timing | One closing package (U8.4), not per-phase. All 33 previews go stale with A1. | | |
-| D8 | Splash `#000314` → `#002853` | Port the value; **re-measure the disclosure** (the ratio falls) against the `≥0.65` floor; there is no `#000314` pin to update. | | |
-| D9 | `demo.css` lifted rules vs grid values | Freeze the page backdrop and all 17 keyframes; move `GLASS.gridOverlay` (TypeScript) to `0.11`. | | |
-| D10 | Disabled: opacity vs token | Keep opacity + `aria-disabled`; add the tokens; use them only where the phone paints a fill (Button). **Amendment: U2.1's contrary clause is deleted — D10 governs.** | | |
-| D11 | `gradientCardDiag` (135°) | Keep it, re-based. The phone has no diagonal gradient anywhere. | | |
-| D12 | Demo-only surfaces: follow / freeze / defend | Three-way split: follow inside the frame; freeze the rail/checklist/exit-dialog (teal stays); freeze **and defend** the sample-data amber. | | |
-| D13 | Two mono families | Keep both; codify the split (Share Tech Mono = scanner/terminal; JetBrains = evidentiary values) as a deliberate divergence. | | |
-| D14 | The five z-index schemes | OUT-OF-SCOPE; log as §89 with a real trigger. | | |
-| D15 | PR #125's floating header | Port the geometry (92→64pt); defer the scroll-materialising blur. **Amendment: the demo's `OverlayHeader` (A61) is a demo-originated consolidation and is NOT the component this defers.** | | |
-| D16 | Armed-case echo row deletion | Delete it; its phone citation is stale. | | |
-| D17 | Camera chrome palette | Freeze it; port only `#007AFF` → `primaryDark` and the `CameraControls` scrim → `overlay` (90%). | | |
-| **D18** | **NEW — Integration model and rollback** | **Long-lived `feat/uiparity` integration branch; `master` takes one merge at U8 exit; revert a phase with `git revert -m 1`.** If the owner prefers continuous `master` merges, §9 must accept a mixed-palette `/demo` for ~5–7 weeks in writing. | | |
-| **D19** | **NEW — The U2 ∥ U3 lane structure** | **Re-cut the boundary, do not serialise:** U3.3 builds `Banner` and adopts it only where no other lane touches the file; the six cross-lane adoptions move to U6.2/U6.4/U7.2/U7.3, which already open those files. | | |
-| **D20** | **NEW — The behaviour-change carve-out** | **In scope:** component-local UI state, prop signatures, presentational composition, where a named package specifies it. **Out:** the store bridge, engine functions, data flow, new store subscriptions. | | |
+| D1 | Phone-side verification on Windows | Computed contrast test + drift guard as the standing gate; owner device pass at 3 checkpoints (after U1, U4, U5). Do not attempt Expo web. |  **RATIFIED** as recommended | — |
+| D2 | Dark-only stays | Stay dark-only; port dark values only. |  **RATIFIED** as recommended | — |
+| D3 | Tokenization depth | Seams-only + a value-changed sweep (~120 literals, not 1,144) + the drift guard and banned-literal guard to hold the line. |  **RATIFIED** as recommended | — |
+| D4 | Superseded rulings D3(a) / D1(a) | Follow the code, not the rulings doc: no second map palette; delete the 4px accent, draw four-sided borders; keep "selection ADDS". |  **RATIFIED** as recommended | — |
+| D5 | Inherited contrast ceilings | Inherit all four explicitly and log them as §89. **Amendment: the map badge is NOT one of them — take `primaryDark` (5.80).** |  **RATIFIED** as recommended | — |
+| D6 | Tab-bar height mismatch | Keep `TAB_BAR_HEIGHT = 50` as a documented divergence; port the colours and `paddingTop: 6`. |  **RATIFIED** as recommended | — |
+| D7 | Design-sync regeneration timing | One closing package (U8.4), not per-phase. All 33 previews go stale with A1. |  **RATIFIED** as recommended | — |
+| D8 | Splash `#000314` → `#002853` | Port the value; **re-measure the disclosure** (the ratio falls) against the `≥0.65` floor; there is no `#000314` pin to update. |  **RATIFIED** as recommended | — |
+| D9 | `demo.css` lifted rules vs grid values | Freeze the page backdrop and all 17 keyframes; move `GLASS.gridOverlay` (TypeScript) to `0.11`. |  **RATIFIED** as recommended | — |
+| D10 | Disabled: opacity vs token | Keep opacity + `aria-disabled`; add the tokens; use them only where the phone paints a fill (Button). **Amendment: U2.1's contrary clause is deleted — D10 governs.** |  **RATIFIED** as recommended | — |
+| D11 | `gradientCardDiag` (135°) | Keep it, re-based. The phone has no diagonal gradient anywhere. |  **RATIFIED** as recommended | — |
+| D12 | Demo-only surfaces: follow / freeze / defend | Three-way split: follow inside the frame; freeze the rail/checklist/exit-dialog (teal stays); freeze **and defend** the sample-data amber. |  **RATIFIED** as recommended | — |
+| D13 | Two mono families | Keep both; codify the split (Share Tech Mono = scanner/terminal; JetBrains = evidentiary values) as a deliberate divergence. |  **RATIFIED** as recommended | — |
+| D14 | The five z-index schemes | OUT-OF-SCOPE; log as §89 with a real trigger. |  **RATIFIED** as recommended | — |
+| D15 | PR #125's floating header | Port the geometry (92→64pt); defer the scroll-materialising blur. **Amendment: the demo's `OverlayHeader` (A61) is a demo-originated consolidation and is NOT the component this defers.** |  **RATIFIED** as recommended | — |
+| D16 | Armed-case echo row deletion | Delete it; its phone citation is stale. |  **RATIFIED** as recommended | — |
+| D17 | Camera chrome palette | Freeze it; port only `#007AFF` → `primaryDark` and the `CameraControls` scrim → `overlay` (90%). |  **RATIFIED** as recommended | — |
+| **D18** | NEW — Integration model and rollback | ~~Long-lived `feat/uiparity` integration branch~~ | **OVERRIDE → merge straight to `master`.** | Site is not live. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → `master` with a merge commit; rollback `git revert -m 1 <phase merge>`. §9 clause 10 accepts a mixed-palette `/demo` for the duration. |
+| **D19** | **NEW — The U2 ∥ U3 lane structure** | **Re-cut the boundary, do not serialise:** U3.3 builds `Banner` and adopts it only where no other lane touches the file; the six cross-lane adoptions move to U6.2/U6.4/U7.2/U7.3, which already open those files. |  **RATIFIED** as recommended | — |
+| **D20** | **NEW — The behaviour-change carve-out** | **In scope:** component-local UI state, prop signatures, presentational composition, where a named package specifies it. **Out:** the store bridge, engine functions, data flow, new store subscriptions. |  **RATIFIED** as recommended | — |

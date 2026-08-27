@@ -1,7 +1,7 @@
 # Demo ↔ Phone **UI** Parity — Master Execution Plan (v2)
 
 **Date:** 2026-08-26
-**Status:** **PENDING RATIFICATION** — §3's decision gate is unruled. Execution does not start until the owner rules on **D1–D20**. Plan-review r1 (BLOCK: 2 BLOCKER / 16 MAJOR / 27 MINOR / 1 refuted) is folded in; **D18–D20 are execution-shaped, not taste-shaped, and are ruled in the same pass as D1–D17, not after.**
+**Status:** **RATIFIED — owner ruled all twenty decisions 2026-08-27.** D1–D17, D19 and D20 accept the recommendation as written; **D18 was OVERRIDDEN** (see §3). Plan-review r1 (BLOCK) and its fix-delta (REVISE) are folded in. Execution may start.
 **Goal:** bring `features/demo/` to **UI parity with the phone's refactored UI** — the UI-consistency campaign (PRs #110–#124), post-campaign triage (#125) and the map-chrome redesign (#127). **A token / recipe / style port. Logic parity was completed by v1 and is not in scope again.**
 **Executor model:** one Opus agent per work package, dispatched per phase, with the five-lane review pipeline as the safety net. This document is the contract each agent reads first.
 
@@ -45,9 +45,11 @@ Both repos must be available:
 
 **One more recorded divergence the port must not delete silently:** `MapControls.tsx:48-53` documents the demo's **378px adaptation** — *"On the phone the pill and row 1 sit at the same height because a 390-430 pt screen has room beside three status pills; the demo's screen slot is 378 px wide, where they collide. Stacking below is the smallest honest adaptation."* #127 removes its premise by deleting the pills that caused the collision, so U5.2 supersedes it — but **that supersession is stated in U5.2 and recorded in its PR body, not deleted in passing.**
 
-## 3. Decision gate — **PENDING RATIFICATION**
+## 3. Decision gate — **RATIFIED 2026-08-27**
 
-Mirrors `00-ui-parity-matrix.md` §DECISIONS. **No package that depends on an unruled decision starts.** The Blocks column says which — it is the mechanism §6.4 item 8 relies on, so it is complete and correct by construction.
+Mirrors `00-ui-parity-matrix.md` §DECISIONS. **All twenty are ruled: D1–D17, D19, D20 = ACCEPT as recommended; D18 = OVERRIDE.** The Blocks column stays because it is what §6.4 item 8 pastes into a brief, and it still tells an implementer which decision governs its package.
+
+> **D18 — OVERRIDDEN.** No integration branch. **Phases merge straight to `master`**, because the site is not live. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → **`master`** with a merge commit. Rollback: `git revert -m 1 <phase merge>`. The §9 clause-10 alternate wording is now the live text: **a mixed-palette public `/demo` is an accepted state for the duration of the port.**
 
 | ID | Question | Recommendation | Blocks |
 |---|---|---|---|
@@ -68,7 +70,7 @@ Mirrors `00-ui-parity-matrix.md` §DECISIONS. **No package that depends on an un
 | **D15** | PR #125's floating header | **Port the geometry (92→64pt, first card +108→+80); defer the scroll-materialising blur** (EXPERIMENTAL, carries the open U1 contrast item). **AMENDED (D15 stands; the rider splits ownership).** One phone component is referenced by two packages in two phases for two unrelated surfaces, so: **U3.4 owns the GEOMETRY half** (92pt → 64pt, first card +108 → +80 — device-approved, no open defect). **U7.2 owns the OVERLAY-CONSOLIDATION half** — the demo's `OverlayHeader` (matrix A61), a **demo-originated consolidation** of the demo's own four overlay headers with **no phone counterpart**. **Neither ports the phone's `OverlayHeader.tsx`; it stays deferred and belongs to neither package.** | U3.4 (geometry), U7.2 (consolidation) |
 | **D16** | The armed-case echo row (deleted by owner ruling on the phone) | **Delete it** from `ExportHub.tsx:153-164`; note its source citation is now stale. | U6.3 |
 | **D17** | The camera chrome's separate palette | **Freeze it.** Port only `#007AFF` → `primaryDark` and the `CameraControls` scrim → `overlay` (90%); tokenise the four black-scrim alphas into one named block. | U7.2 |
-| **D18** | **NEW — Integration model and rollback.** Every phase merges to `master`, so for ~5–7 weeks the public `/demo` has post-campaign flat surfaces and pre-campaign gradients, sheets, map, splash and tab bar — the exact defect D1 exists to catch, induced deliberately. Nothing states what happens if a phase review returns BLOCK **after** merge. | **A long-lived `feat/uiparity` integration branch.** Phase PRs merge into it; `master` takes **one** merge at U8 exit; the §6.6 gates run on the integration head. Revert a phase with `git revert -m 1 <phase merge commit>`, a package by its own commits. If the owner prefers continuous `master` merges, §9 must accept a mixed-palette `/demo` in writing. | §4.8, §4.5, §6.2, §9; where U0.1's branch is cut |
+| **D18** | **Integration model and rollback.** Recommended a `feat/uiparity` integration branch so the public `/demo` would not sit visibly half-re-based. | **OVERRIDDEN — merge straight to `master`.** The site is not live, so the recommendation was solving a problem that does not exist here. Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → **`master`** with a merge commit. Rollback: `git revert -m 1 <phase merge>`. §9 clause 10 now states the accepted state in writing. | §4.5, §4.8, §6.2, §6.3, §9 |
 | **D19** | **NEW — The U2 ∥ U3 lane structure.** The two lanes are declared independent but share **seven** files, one of them (`_pane-chrome.tsx`) three ways across three phases, with semantic collisions (U2.3 deletes `TimeOffsetScreen`'s switch while U3.3 rewrites its advisory six lines below). | **Re-cut the boundary, do not serialise.** U3.3 builds `Banner` and adopts it only where no other lane touches the file; the six cross-lane adoptions move to U6.2, U6.4, U7.2 and U7.3, **which already open those files** — no new file-opens. Serialising costs 4–5 days of critical path. | §5's U2/U3 package lists, §6.1 |
 | **D20** | **NEW — The behaviour-change carve-out.** §2 forbids behaviour change absolutely; six packages require it, and §6.5 primes reviewers to flag them. | **In scope:** component-local UI state, prop signatures, presentational composition, **where a named package specifies it**. **Out:** the store bridge, engine functions, data flow, new store subscriptions. Keeps `features/demo/CLAUDE.md`'s one architectural rule intact. | §2; U2.3, U4.2, U4.3, U5.2, U5.3, U6.3 |
 
@@ -143,7 +145,7 @@ GREEN after: 3,478 passed.
 
 ### 4.5 Git & review
 
-- Branch per package: `feat/uiparity-u<N>-<slug>`, **cut from the `feat/uiparity` integration branch (§4.8 / D18)** — except U0.1's, which is cut from `master` (§5 prerequisite). One PR per phase (or per package for L-sized packages — the orchestrator's call).
+- **Branch topology (D18):** phase branch **`feat/uiparity-u<N>` off `master`**; package branches **`uiparity/u<N>.<pkg>` off the phase branch**; the phase PR merges to **`master`** with a merge commit. One PR per phase (or per package for L-sized packages — the orchestrator's call).
 - **Granular commits, red + green together.** One commit per matrix row where the row is meaningful alone; otherwise one per package slice. **Each fix commit maps to a review finding**, and the commit→finding table is posted as a PR comment after each fix round.
 - Every commit body ends with `Co-Authored-By: <the agent's own model name> <noreply@anthropic.com>` and a `Claude-Session:` link.
 - **Merges are merge commits** (`gh pr merge N --merge --delete-branch`). **Never squash, never rebase.**
@@ -171,13 +173,13 @@ GREEN after: 3,478 passed.
 
 ### 4.8 Integration model and rollback (D18)
 
-**Phase PRs merge into a long-lived integration branch `feat/uiparity`** (merge commits, per §4.5), **not into `master`.** `master` takes **one** merge at U8 exit. The §6.6 mechanical gates run on the integration head, and every package branch is cut from it (except U0.1's, which is cut from `master` — see §5's prerequisite).
+**Phases merge straight to `master`** (merge commits, per §4.5). Phase branch `feat/uiparity-u<N>` off `master`; package branches `uiparity/u<N>.<pkg>` off the phase branch; phase PR → **`master`** with a merge commit. Rollback: `git revert -m 1 <phase merge>`. The §6.6 mechanical gates run on the **phase branch at assembly**, before the phase PR opens.
 
-**Why:** U0.1 re-bases the flat surfaces while the gradients (U1.1), sheets (U4.1), map (U5.1), splash (U8.1) and tab bar (U8.3) stay on the old navy for weeks. Landing that on `master` phase-by-phase ships the public `/demo` visibly half-re-based for ~5–7 weeks — the exact "cards on cards read flat" defect D1 exists to catch.
+**What this accepts, stated plainly:** U0.1 re-bases the flat surfaces while the gradients (U1.1), sheets (U4.1), map (U5.1), splash (U8.1) and tab bar (U8.3) stay on the old navy until their phase lands. So between U0 and U8 the public `/demo` renders a **visibly mixed palette** — the "cards on cards read flat" look D1 exists to catch. **The owner has accepted this: the site is not live.** Do not treat it as a defect during the port; do treat it as one at U8 exit.
 
 **Rollback.** A phase is reverted with `git revert -m 1 <phase merge commit>`; a single package by its own commits. **No phase may depend on an unmerged later phase**, so §5's dependency shape is also the revert-safety order.
 
-**If the owner overrides D18** in favour of continuous `master` merges, §9 must state explicitly that a mixed-palette `/demo` is accepted for the duration — it must be a decision, not an omission.
+*(The recommendation this section originally carried — a long-lived `feat/uiparity` integration branch with one `master` merge at U8 exit — was overridden by the owner on 2026-08-27.)*
 
 ### 4.9 Type scale (A47 / DEF-UI-027)
 
@@ -210,7 +212,7 @@ A consuming package's brief names the seam by id; a reviewer greps `SEAM(U1.1)` 
 
 ---
 
-### U0 — The token layer (~3–4 days) — the foundation; blocks everything
+### U0 — The token layer — the foundation; blocks every other phase
 
 Mirrors the phone's own P0. **Exit criterion is mechanical: `check-rn-parity.mjs` must FAIL before this phase and PASS at U0's own anchor set (~15, per U0.4) after it. That is U0's RED/GREEN — the set grows with the phases (§6.6 gate 1).**
 
@@ -228,7 +230,7 @@ Mirrors the phone's own P0. **Exit criterion is mechanical: `check-rn-parity.mjs
 
 ---
 
-### U1 — Glass tiers and the card family (~4–5 days)
+### U1 — Glass tiers and the card family — depends on U0
 
 Builds the surface system every later phase paints with. **This is the phase where the demo visibly stops looking a generation old.**
 
@@ -243,7 +245,7 @@ Builds the surface system every later phase paints with. **This is the phase whe
 
 ---
 
-### U2 — Control primitives (~1 week) — lane A, parallel with U3
+### U2 — Control primitives — lane A, parallel with U3
 
 | Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
 |---|---|---|---|---|---|---|
@@ -256,7 +258,7 @@ Builds the surface system every later phase paints with. **This is the phase whe
 
 ---
 
-### U3 — Status, notices, badges (~4–5 days) — lane B, parallel with U2
+### U3 — Status, notices, badges — lane B, parallel with U2
 
 The phase that collapses **eight** independent status-colour owners into two lookups and one badge.
 
@@ -271,7 +273,7 @@ The phase that collapses **eight** independent status-colour owners into two loo
 
 ---
 
-### U4 — Sheets and dialogs (~1 week)
+### U4 — Sheets and dialogs — depends on U1's `sheet` tier
 
 | Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
 |---|---|---|---|---|---|---|
@@ -284,7 +286,7 @@ The phase that collapses **eight** independent status-colour owners into two loo
 
 ---
 
-### U5 — Map chrome (~1 week) — the redesign; independent of U6
+### U5 — Map chrome — the redesign; independent of U6
 
 The only phase with two genuinely **MISSING** surfaces. **`mapTokens.ts` is currently the demo's cleanest, most disciplined module** (every value carries a phone citation) — that is an asset here, not an obstacle.
 
@@ -299,7 +301,7 @@ The only phase with two genuinely **MISSING** surfaces. **`mapTokens.ts` is curr
 
 ---
 
-### U6 — Wizard, settings and export surfaces (~1 week) — independent of U5
+### U6 — Wizard, settings and export surfaces — independent of U5
 
 The widest phase by row count, but almost all of it is *adoption* — the recipes already exist by now.
 
@@ -315,7 +317,7 @@ The widest phase by row count, but almost all of it is *adoption* — the recipe
 
 ---
 
-### U7 — Import, OCR, audio, media (~1 week)
+### U7 — Import, OCR, audio, media — depends on U1–U4
 
 The always-dark subtrees and the copy rules. **A91 is the governing constraint: these palettes are named constant blocks, NOT theme tokens — do not tokenise them to the app ground.**
 
@@ -329,7 +331,7 @@ The always-dark subtrees and the copy rules. **A91 is the governing constraint: 
 
 ---
 
-### U8 — Splash, boot, shell, and design-sync (~3–4 days) — the closing phase
+### U8 — Splash, boot, shell, and design-sync — the closing phase
 
 | Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
 |---|---|---|---|---|---|---|
@@ -371,7 +373,7 @@ Within a phase, the orchestrator merges package branches into the phase branch i
 
 ### 6.3 Worktree model
 
-Parallel agents each get their own `git worktree` (created by the orchestrator) on their own `feat/uiparity-*` branch. They `pnpm install --prefer-offline` there (shared pnpm store, ~2s), copy `.env.local` from the main checkout if one exists (**there is none — map/AI degrade by design**), push their branch, and **never touch `master`**. **Never `rm -rf` a worktree's `node_modules` on Windows without checking it is not a junction.**
+Parallel agents each get their own `git worktree` (created by the orchestrator) on their own **`uiparity/u<N>.<pkg>`** branch off the phase branch. They `pnpm install --prefer-offline` there (shared pnpm store, ~2s), copy `.env.local` from the main checkout if one exists (**there is none — map/AI degrade by design**), push their branch, and **never touch `master`**. **Never `rm -rf` a worktree's `node_modules` on Windows without checking it is not a junction.**
 
 ### 6.4 Agent briefing template
 
@@ -527,5 +529,5 @@ The port is complete when **all** of the following hold on `master`:
 7. **`census.mjs` shows the intended shape**, not merely a smaller number: two greens (not six), two ambers (not four, and the second is the deliberately-defended sample amber), one scrim (plus two named exceptions), one sheet ground (not three), one header gradient (not five), one input recipe (not four), one switch renderer (not four), one danger button (not two), one centred dialog (not three), zero bare `#0d1b2a`/`#1e3a5f`/`#2a4a6f` outside the token modules.
 8. **The design-sync bundle is regenerated** (U8.4) and the two stale `NOTES.md` lines are corrected.
 9. **`docs/code-reviews/deferred.md` reflects every deliberate deferral**, each with a real reason to wait **and a concrete un-defer trigger** — including the four inherited contrast ceilings (D5), the z-index schemes (D14), the PR #125 floating header (D15), and any package residual. **Deferral §31 is struck through and marked `✅ RESOLVED — PR #<N>`**, because this port was its trigger.
-10. **Every phase merged via a merge commit** with its review artifacts committed under `docs/code-reviews/ui-parity/`, **into the `feat/uiparity` integration branch per D18**, with `master` taking a single merge at U8 exit. (If D18 is overridden toward continuous `master` merges, this clause instead reads: *a visibly mixed-palette public `/demo` is an accepted state for the duration of the port* — the point is that it is written down either way.)
+10. **Every phase merged to `master` via a merge commit** (D18), with its review artifacts committed under `docs/code-reviews/ui-parity/u<N>/`. **A visibly mixed-palette public `/demo` is an accepted state for the duration of the port** — the site is not live, and this is the owner's ruling, not an omission.
 11. **The demo and the phone, side by side at the owner's three checkpoints (D1), read as the same product** — which is the only test that actually matters and the only one no script can run.
