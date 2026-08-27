@@ -78,6 +78,9 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       border: '#1c4e84',
       borderLight: '#2e5f97',
       borderDark: '#063d72',
+      // U8.2 (A10). The ONE grid token the demo has a consumer for; `grid`/`gridLight`
+      // (A11/A12) are deliberately not ported — see `palette.ts`'s note.
+      gridSubtle: 'rgba(153, 186, 221, 0.11)',
       success: '#10d177',
       successLight: '#0f6b42',
       successDark: '#0faa5e',
@@ -124,6 +127,7 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       border: '#e5e7eb',
       borderLight: '#f3f4f6',
       borderDark: '#d1d5db',
+      gridSubtle: 'rgba(30, 58, 138, 0.06)', // U8.2 (A10) — the light half, per D2
       success: '#10b981',
       successLight: '#d1fae5',
       successDark: '#059669',

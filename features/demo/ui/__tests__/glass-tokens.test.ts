@@ -216,7 +216,13 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['diagonal card gradient', 'linear-gradient(135deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))'],
   ['panel gradient', 'linear-gradient(180deg,rgba(23,65,110,0.88),rgba(14,57,101,0.95))'],
   ['accent gradient', 'linear-gradient(180deg,#1F6B99,#17527A)'],
-  ['grid overlay', 'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)'],
+  // REWRITTEN IN PLACE by U8.2 (A10/D9): `gridOverlay` is composed from `colors.gridSubtle`
+  // now, so its alpha is the phone's `0.11` and not the demo's old `0.05`. The list's own rule
+  // — entries are CURRENT LIVE VALUES — is why this moves rather than gaining a second row.
+  // Still only the `0deg` half, as it has been since U0.5: `norm()`+`includes` makes it a
+  // substring ban and the `90deg` half differs by four characters, so banning both would report
+  // the same file twice for one re-inline.
+  ['grid overlay', 'repeating-linear-gradient(0deg,rgba(153,186,221,0.11) 0 1px,transparent 1px 40px)'],
   ['hard border', '1px solid #1c4e84'],
   ['soft border', '1px solid rgba(28,78,132,0.5)'],
   ['button border', '1px solid #2e5f97'],
@@ -385,6 +391,15 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['terminal blockBorder', '#1c2733'],
   ['terminal blockText', '#6f8296'],
   ['terminal accent.FILE', '#e0a878'],
+  // --- U8.2's closing act: the grid token, banned BARE as well as composed above -----------
+  // The rule the palette block states ("each later package that CREATES a token appends it
+  // here"), applied to `colors.gridSubtle`. Measured before landing: ZERO occurrences under
+  // `ui/` outside `tokens/palette.ts`, in BOTH spacings, so it costs no sweep.
+  //
+  // It is safe beside `header highlightTop` (`rgba(153,186,221,0.1)`) three blocks up ONLY
+  // because these needles keep their closing paren: `...,0.11)` does not contain `...,0.1)`.
+  // That is this list's oldest invariant and the reason it must not be relaxed.
+  ['gridSubtle', 'rgba(153,186,221,0.11)'],
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
@@ -462,8 +477,12 @@ describe('glass tokens (P0.5 / G6)', () => {
       gradientCardDiag: 'linear-gradient(135deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
       gradientPanel: 'linear-gradient(180deg,rgba(23,65,110,0.88),rgba(14,57,101,0.95))',
       gradientAccent: 'linear-gradient(180deg,#1F6B99,#17527A)',
+      // U8.2 (A10/A88/D9): the alpha is the phone's `gridSubtle`, the 40px pitch is unchanged,
+      // and the stop is SPACED because it is `colors.gridSubtle` verbatim off `Colors.ts:158`
+      // rather than a literal typed here. `demo.css`'s own 46px/0.035 backdrop is FROZEN (D9)
+      // and is a different surface — do not "reconcile" the two.
       gridOverlay:
-        'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
+        'repeating-linear-gradient(0deg,rgba(153, 186, 221, 0.11) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153, 186, 221, 0.11) 0 1px,transparent 1px 40px)',
       border: '1px solid #1c4e84',
       borderSoft: '1px solid rgba(28,78,132,0.5)',
       borderBtn: '1px solid #2e5f97',
@@ -559,6 +578,22 @@ describe('glass tokens (P0.5 / G6)', () => {
       t.card.gradient[0],
       t.card.gradient[1],
     ])
+  })
+
+  // U8.2 (A10). The same RELATIONAL device the tier lines above use, for the same reason: the
+  // byte-exact shape pin cannot tell a derivation from a literal that happens to agree with it
+  // today, and the drift guard reads `tokens/palette.ts`, not this file. Sever the derivation
+  // and a later phone-side re-tint of `gridSubtle` leaves BOTH of those green while the phone
+  // frame and every modal sheet paint the old grid. This line is what fails in that second step.
+  it('keeps gridOverlay DERIVED from colors.gridSubtle (U8.2 / A10)', async () => {
+    const { colors } = await import('@/features/demo/ui/tokens/palette')
+    expect(GLASS.gridOverlay).toBe(
+      `repeating-linear-gradient(0deg,${colors.gridSubtle} 0 1px,transparent 1px 40px),` +
+        `repeating-linear-gradient(90deg,${colors.gridSubtle} 0 1px,transparent 1px 40px)`,
+    )
+    // The pitch is NOT the phone's to move (A88 ratifies 40px) and is the one part of this
+    // value no token owns, so it is pinned as a literal beside the derived part.
+    expect(GLASS.gridOverlay.match(/1px 40px/g), 'both axes keep the 40px pitch').toHaveLength(2)
   })
 
   it("keeps input-theme's accent stops aliased to GLASS (single-source restyle)", async () => {

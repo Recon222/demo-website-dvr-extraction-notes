@@ -6,6 +6,23 @@ import { usePhoneScale } from '@/features/demo/ui/usePhoneScale'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
+
+/**
+ * A88/A89 (U8.2) — the scan line, off the teal and onto the palette.
+ *
+ * The demo painted `rgba(78,205,196,0.35)` with a `0 0 12px rgba(78,205,196,0.6)` glow. That is
+ * the exact colour the phone purged wholesale in P6 (#115). The phone's own `GridBackground`
+ * (`GridBackground.tsx:75-119`) spells the line `backgroundColor: withAlpha(colors.primary, 0.3)`
+ * with `shadowColor: colors.primary`, so both are DERIVED here the same way rather than typed
+ * as the `rgba(43,140,193,0.3)` / `#2B8CC1` the matrix quotes — a phone-side re-tint of
+ * `primary` then moves the sweep with everything else it tints.
+ *
+ * NOT changed: the 7s duration (the phone's is 8000ms). The plan's U8.2 row moves the colour and
+ * the glow and says nothing about timing, and `scanSweep` itself is one of the 17 keyframes D9
+ * freezes. A duration is a separate row nobody has written.
+ */
+const SCAN_LINE = withAlpha(colors.primary, 0.3)
 
 const grid: CSSProperties = {
   position: 'absolute',
@@ -69,8 +86,8 @@ export function PhoneFrame({ children, tabBar, screenRef }: PhoneFrameProps) {
               right: 0,
               top: 0,
               height: 2,
-              background: 'linear-gradient(90deg,transparent,rgba(78,205,196,0.35),transparent)',
-              boxShadow: '0 0 12px rgba(78,205,196,0.6)',
+              background: `linear-gradient(90deg,transparent,${SCAN_LINE},transparent)`,
+              boxShadow: `0 0 12px ${colors.primary}`,
               animation: 'scanSweep 7s linear infinite',
               pointerEvents: 'none',
               zIndex: 1,

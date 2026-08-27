@@ -172,7 +172,15 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1a2d44', borderRadius: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#7a9fc4' }}>{p.role}</span>
                 <span style={{ fontSize: 11, color: '#f0f4f8' }}>{p.name}</span>
-                {p.badge && <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 10, color: '#4ecdc4' }}>#{p.badge}</span>}
+                {/* A89 (U8.2) — the last teal INSIDE the frame, so it follows the palette
+                    (D12's "follow" arm). `colors.text`, not `colors.primary`: the phone
+                    already ruled on this exact site and recorded why at
+                    `DashboardCaseCard.tsx:295-306` — "`colors.primary` is a mid-tone FILL
+                    token: as text on this glass it measures 2.87:1 in dark mode, and 10px gets
+                    no AA-large relief… The mono face and the `#` prefix carry the badge
+                    number's identity; the colour was decoration." Measured there at 9.50:1
+                    dark. Its own PR #115 F115-3 landed `colors.text` at both of its sites. */}
+                {p.badge && <span style={{ fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", fontSize: 10, color: colors.text }}>#{p.badge}</span>}
               </div>
             ))}
           </div>

@@ -287,7 +287,15 @@ export const webTierScope = (scheme, tier) => ({
  *   U5.1 (LANDED) +2 map-glass keys x 2, +4 always-dark map-chrome rows   =  +8 rows -> 143
  *                -> 41 palette keys / 67 anchor keys / 143 rows, MEASURED, which is what this
  *                   table produces today
- *   U8.2         +gridSubtle x 2                                         =  +4 rows
+ *   U8.2 (LANDED) +gridSubtle x 2 halves                                  =  +2 rows -> 145
+ *                -> 42 palette keys / 68 anchor keys / 145 rows, MEASURED. THE SET IS COMPLETE:
+ *                   `gridSubtle` was the last token any package was holding back, so no later
+ *                   line belongs under this one.
+ *
+ * The `+4 rows` this line replaced was arithmetic, not a plan change: ONE key pinned in TWO
+ * halves is TWO rows, and every other line in this ladder computes it that way. It is F49/F68's
+ * class a third time in the same block, caught before landing rather than a wave later — which
+ * is the argument for the DO-NOT-TREAT-AS-A-GATE paragraph below, not against it.
  *
  * W2/F49 corrected three figures here, not one: the missing `scrim` line, and two intermediate
  * totals that were already wrong before it (U1.1's said 115 for 117, U3.1's said 131 for 133 —
@@ -338,6 +346,15 @@ export const PALETTE_KEYS = [
   'border',
   'borderLight',
   'borderDark',
+  // THE LAST ANCHOR (U8.2's closing act). `gridSubtle` was the one key held back by §6.6 gate 1
+  // after U3.1 and U4.4 landed theirs: the demo had no grid token until U8.2 re-based
+  // `GLASS.gridOverlay` off it. With this row the anchor set is COMPLETE — plan §9 DoD 1's
+  // ~44-key figure is measured HERE, not at U0.
+  //
+  // Its two siblings on the phone, `grid` (:159/:53) and `gridLight` (:160/:54), are NOT
+  // anchored and must not be: neither has a web-side token, which is the one thing gate 1
+  // forbids. `tokens/palette.ts`'s docblock records why they stay unported.
+  'gridSubtle',
   // status. U3.1 added the eight the demo had no web-side token for; `warningAccent` is a
   // SEPARATE key from `warningDark` even though dark spells them the same hex (light does not),
   // so it gets its own row and a re-point of either side fails alone.
