@@ -145,7 +145,7 @@ export const CONTROL = {
 >
 
 // W3 r1 F61 — module-level style tables ship readonly. Third recurrence of the F20/F38 class.
-const row = {
+export const row = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -153,7 +153,7 @@ const row = {
 } as const satisfies CSSProperties
 
 /** Phone `Header.tsx:198-201` + `:88`. */
-const titleText = {
+export const titleText = {
   flex: 1,
   minWidth: 0,
   fontSize: 18,

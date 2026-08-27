@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
 import {
   MEDIA_CLOSE_CHIP,
+  listReset,
   MediaLibrarySheet,
   previewActionFace,
   sampleBadge,
@@ -723,9 +724,11 @@ describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
   it('ships its module-level style tables readonly (F61)', () => {
     const reject = () => {
       // @ts-expect-error previewActionFace is readonly
-      previewActionFace.width = 32
+      previewActionFace.display = 'block'
       // @ts-expect-error sampleBadge is readonly
-      sampleBadge.color = 'red'
+      sampleBadge.fontWeight = 400
+      // @ts-expect-error listReset is readonly
+      listReset.listStyle = 'disc'
     }
     expect(typeof reject).toBe('function')
     expect(previewActionFace.width).toBe(36)

@@ -853,7 +853,7 @@ function KindGlyph({ kind }: { kind: MediaItem['kind'] }) {
 // W3 r1 F61 — the module-level style tables ship readonly. `as const satisfies CSSProperties`
 // and never a bare annotation: `satisfies` keeps the literal types while `as const` makes the
 // object immutable, which an annotation alone does neither of.
-const listReset = { listStyle: 'none', margin: 0, padding: 0 } as const satisfies CSSProperties
+export const listReset = { listStyle: 'none', margin: 0, padding: 0 } as const satisfies CSSProperties
 
 const metaLine = {
   display: 'block',

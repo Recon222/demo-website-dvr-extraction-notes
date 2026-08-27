@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-import { CONTROL, OverlayHeader, type OverlayHeaderProps } from '@/features/demo/ui/chrome/OverlayHeader'
+import {
+  CONTROL,
+  OverlayHeader,
+  row,
+  titleText,
+  type OverlayHeaderProps,
+} from '@/features/demo/ui/chrome/OverlayHeader'
 import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -193,9 +199,11 @@ describe('OverlayHeader — W3 r1 fixes', () => {
     // them would really mutate a module singleton and leak into every later case in this file.
     const reject = () => {
       // @ts-expect-error CONTROL is readonly
-      CONTROL.glass.size = 40
-      // @ts-expect-error CONTROL's variant records are readonly
-      CONTROL.cameraScrim.stroke = 'red'
+      CONTROL.cameraScrim.borderColor = 'red'
+      // @ts-expect-error row is readonly
+      row.display = 'block'
+      // @ts-expect-error titleText is readonly
+      titleText.fontWeight = 400
     }
     expect(typeof reject).toBe('function')
     // ...and the tables still hold what the recipe wrote.
