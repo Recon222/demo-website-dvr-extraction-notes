@@ -5,9 +5,11 @@ import { DateTimeField, SectionCard, Toggle, WizardHeader, WizardNext } from '@/
 import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface CorrectedScope {
   id: string
@@ -45,9 +47,6 @@ export interface TimeOffsetScreenProps {
 }
 
 const cell = (color: string): React.CSSProperties => ({ fontSize: 12.5, color, fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" })
-
-/** The demo's warning amber — the same `colors.warning` stop the import terminal uses. */
-const WARNING = '#ffd93d'
 
 /** The marquee: capture the DVR clock vs real time and compute the defensible offset, then show
  *  the requested ranges corrected onto the DVR clock. Calls the real time-offset math. */
@@ -133,14 +132,20 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
               Enable if the DVR clock adjusts for Daylight Saving Time
             </div>
 
-            {p.dstAdvisory && (
-              <div
-                role="status"
-                style={{ marginTop: 4, padding: 12, borderRadius: 10, border: `1px dashed ${WARNING}`, background: 'rgba(255,217,61,0.07)', fontSize: 12.5, lineHeight: 1.5, fontStyle: 'italic', textAlign: 'center', color: WARNING }}
-              >
-                {p.dstAdvisory}
-              </div>
-            )}
+            {/* A71 / D19's hand-back. The phone's own move (`4853f9d9`): "route the DST callout
+                through Banner and stop signalling with colour alone". What went: a 1px DASHED
+                amber outline over a 7% wash of the same hue, with the message itself in
+                `#ffd93d` — the saturated accent as text, which §C.3 rule 1 bans and which
+                `PaneNote` and the retention pill were re-based off in U3.2. The dashed outline
+                had no phone counterpart in any revision; the phone's deleted
+                `dstNotificationCard` was a solid 1px `<Card>`.
+
+                `marginTop` is the phone's `dstNotification` (`Layout.spacing.md`), the ONE
+                style that survived its rewrite. `Banner` owns everything else — including the
+                italic/centred treatment, which is deliberately not re-applied through `style`:
+                a callout that centres and italicises one message and not the other three is
+                the private recipe this adoption exists to delete. */}
+            {p.dstAdvisory && <Banner severity="warning" message={p.dstAdvisory} style={{ marginTop: spacing.md }} />}
           </>
         )}
 
