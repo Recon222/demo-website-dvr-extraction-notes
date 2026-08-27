@@ -274,6 +274,7 @@ export const webTierScope = (scheme, tier) => ({
  * SCHEDULE, corrected — this supersedes the plan's stage figures:
  *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
  *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
+ *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows
  *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
  *                -> 115 rows / 56 keys HERE, which is what this table produces today
  *   U3.1         +successLight, +warningLight x 2                        =  +4 rows
@@ -367,6 +368,13 @@ export function checkParity() {
   const scaleSrc = source('web tokens/scale.ts', join(WEB, 'features/demo/ui/tokens/scale.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
+  // U2.2's button recipe. It is the only place the demo carries the LIGHT CTA pair, and it holds
+  // the dark pair as a REFERENCE to the two consts above rather than a copy, so the two rows
+  // below read light here and the two dark rows keep reading `glass`.
+  const buttonRecipe = source(
+    'web controls/button-recipe.ts',
+    join(WEB, 'features/demo/ui/controls/button-recipe.ts'),
+  )
   // U1.1's tier seam. The four `GLASS.*` composites derived from it are NOT read here: they are
   // template literals, so their text holds `${tier.card.gradient[0]}` and not a colour. Reading
   // the definition is also the right side to read — a derived key that stopped deriving would
@@ -445,19 +453,33 @@ export function checkParity() {
   // `[Colors.dark.primaryDark, '#17527A']` — one literal and one reference, which is why
   // reading it at all needs the resolver. `Button.tsx` is no longer read.
   //
-  // DARK ONLY, and that is not an oversight: the phone's light pair (`['#2563eb','#1d3584']`)
-  // has NO web-side token. U0.3 kept the demo's stops as the two module consts below, which
-  // are the dark pair only. Anchoring light here would gate the phase on a token that does
-  // not exist — the one thing §6.6 gate 1 forbids. Whichever package gives the demo a light
-  // accent pair adds these two rows as its closing act.
+  // BOTH HALVES since U2.2 — this was DARK ONLY, and the comment here used to say why: the
+  // phone's light pair (`['#2563eb','#1d3584']`) had no web-side token, U0.3 having re-based
+  // the dark stops alone, and anchoring a token that does not exist is the one thing §6.6
+  // gate 1 forbids. It said "whichever package gives the demo a light accent pair adds these
+  // two rows as its closing act". U2.2 is that package: `PrimaryButtonGradient` in
+  // `ui/controls/button-recipe.ts` carries both halves, so the light rows are here now and
+  // deferral §90's second clause is closed.
+  //
+  // The two sides are read from DIFFERENT web files on purpose. Dark lives in `glass-tokens.ts`
+  // as `ACCENT_FROM`/`ACCENT_TO`, spelled as literals because `readConst` matches literals and
+  // not identifier references; `PrimaryButtonGradient.dark` points AT those two consts, so
+  // reading it here instead would only prove the reference resolves. Light has no such const
+  // and is read from the record itself.
   const gradOpts = {
     after: 'export const PrimaryButtonGradient = {',
     before: '} as const',
     resolve: rnRef('dark'),
   }
+  const gradOptsLight = { ...gradOpts, resolve: rnRef('light') }
+  // The web-side record ends `} as const satisfies Record<...>`, which `'} as const'` still
+  // bounds — it is a substring cut, not a parse.
+  const webGradOpts = { after: 'export const PrimaryButtonGradient = {', before: '} as const' }
   anchors.push(
     { key: 'gradientTop', scheme: 'dark', label: 'gradientTop.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
     { key: 'gradientBot', scheme: 'dark', label: 'gradientBot.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
+    { key: 'gradientTop', scheme: 'light', label: 'gradientTop.light', rn: attempt(colors, (t) => readStop(t, 'light', 1, gradOptsLight)), web: attempt(buttonRecipe, (t) => readStop(t, 'light', 1, webGradOpts)) },
+    { key: 'gradientBot', scheme: 'light', label: 'gradientBot.light', rn: attempt(colors, (t) => readStop(t, 'light', 2, gradOptsLight)), web: attempt(buttonRecipe, (t) => readStop(t, 'light', 2, webGradOpts)) },
     // Scheme-invariant: a touch floor is a geometry constant, and neither repo branches it.
     { key: 'touchFloor', scheme: 'any', label: 'touchFloor', rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(scaleSrc, (t) => readField(t, 'min', { after: 'export const touchTarget = {', before: '}' })) },
   )
@@ -496,6 +518,6 @@ if (invokedDirectly) {
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
       `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +
-      `each x both halves, + the 2 dark CTA gradient stops and the touch floor)`,
+      `each x both halves, + the 4 CTA gradient stops (both halves too) and the touch floor)`,
   )
 }
