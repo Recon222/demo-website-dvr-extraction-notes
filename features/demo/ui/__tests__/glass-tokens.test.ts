@@ -178,6 +178,15 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['errorDark', '#ee2f44'],
   ['successDark', '#0faa5e'],
   ['warningDark', '#ffc62b'],
+  // U3.1's closing act (the docblock above names it). Only the two hexes the status family
+  // CREATED are added: `infoLight` is `#2e5f97`, already banned two lines up as
+  // `borderLight / disabled`, and `warningAccent` is `#ffc62b`, already banned as
+  // `warningDark` — a second entry for either would report one file twice. The four dark
+  // `*OnLight` are `#f0f4f8` (= `text`), which is live in 50 files and deliberately unbanned
+  // for the reason the docblock gives. Measured before landing: both have ZERO occurrences
+  // under `ui/` outside the token modules, so this costs no sweep.
+  ['successLight', '#0f6b42'],
+  ['warningLight', '#7d5f10'],
   ['link', '#b8d4f0'],
   ['linkHover', '#d0e4f7'],
   ['disabledText', '#6b7f95'],
