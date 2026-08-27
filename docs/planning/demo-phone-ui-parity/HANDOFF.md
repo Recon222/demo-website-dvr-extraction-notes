@@ -5,7 +5,7 @@ last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***PLANNING COMPLETE, RATIFIED, REVIEW-CLOSED (APPROVE). Bundle merged to `master`. NEXT: U0 (wave 0) — brief `opus-implementer` for U0.0→U0.5 in dependency order per plan §5/§6.2.*** Plan-review trail: r1 (BLOCK 2B/16M/27m → 3 fix rounds → APPROVE) + r2 post-ratification (BLOCK 1C/3M/7m → fix round → APPROVE); 57 vetted findings total, every one fixed or evidence-refuted; `plan-review/r1/`, `plan-review/r2/`. The dt kit is live on `master` (hooks fire at next session start). Owner asleep; standing directive: run start→finish, pause only at the D1 wave-boundary device checkpoints for the owner's look (do not block waiting — proceed to the next wave; the checkpoint is a report the owner reads on waking).
+**Last updated:** 2026-08-27 — milestone: ***BUILD STARTED — WAVE 0 / U0 IN FLIGHT.*** Phase branch `feat/uiparity-u0` cut off `master` @ `bf0020a` (pushed). Implementer A (`opus-implementer`, unnamed) on `uiparity/u0.foundation` in worktree `worktrees/u0-foundation`: **U0.0 → U0.1 → U0.2 → U0.3 sequentially** (S packages ride the warm tree per fleet §2). Next: when A reports, spawn TWO `opus-implementer-max` seats in their own worktrees off A's head — **U0.4** (guard repair + first anchor stage; deps U0.1+U0.3) ∥ **U0.5** (contrast test + banned-literal allow-list; deps U0.1+U0.2) — then assemble `feat/uiparity-u0`, cold gates, review cycle (`docs/code-reviews/ui-parity/u0/`), PR → master. Planning is CLOSED (bundle merged `152487a`; trail in `plan-review/`).
 
 ## 1. Mission & role
 
@@ -40,6 +40,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 
 ## 4. Standing rules (inherited from v1 §4 — all still binding)
 
+- **Briefs POINT, they do not transcribe** (fleet SKILL §0 is canonical over plan §6.4's "paste the text" items 1–7): every implementer brief names the exact plan §/rows, matrix rows, inventory sections and files, and the implementer reads them IN FULL from disk. Never relay a spec into a brief.
 - Every repo-writing agent reads `.claude/skills/fleet-orchestration/hazard-playbook.md` FIRST — those are the rules; the bullets below are demo-specific additions. NEVER `git stash`; never blanket-discard; `git add <named paths>` only (the `dt-git-guard` hook blocks `stash`, `checkout -- .`, `restore .`, `clean -f`, `add -A`, `commit -a`).
 - Foreground commands only; raise timeouts instead of background watchers.
 - Re-run flaky-looking failures before concluding (parallel-agent CPU contention).
@@ -74,7 +75,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Fix-delta r1 aggregator (unnamed, per §2 policy) | agentId `a7557cc07fd72b866` | **Fable** | done — issued the closing APPROVE; retire-eligible |
 | Kit-integration (dt kit → this repo: personas, hooks, git-guard, GATES.md, CLAUDE.md pointer) — on `master` in the main checkout | agentId `aab4aa3d664ebec47` | Opus | in flight |
 | **PARTNER — hard problems only** (`dt-partner`, WARM; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight on its one legwork task (baseline gates, Colors.ts scheme-key parity, harness check) — after that, hard questions only |
-| **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | orienting |
+| **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | warm; probed U0.1/U0.5 premises (one refuted, one confirmed) |
+| **U0 implementer A** (`opus-implementer`; U0.0→U0.3; worktree `worktrees/u0-foundation`, branch `uiparity/u0.foundation`) | agentId `ae5f52b4da850cd08` | Opus xhigh | in flight |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
