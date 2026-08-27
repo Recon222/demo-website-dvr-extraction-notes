@@ -46,6 +46,10 @@ export interface ExportCaseCardProps {
   onToggleLocation(caseId: string, locationId: string): void
 }
 
+/** Lit-card halo. Prop-independent, so it is computed once (repo convention:
+ *  `components/marketing/phone-frame.tsx:30-31`) rather than per render. */
+const LIT_GLOW = `0 4px 12px ${withAlpha(colors.link, 0.35)}`
+
 const wrapper: CSSProperties = {
   marginBottom: 14,
   borderRadius: 16,
@@ -124,13 +128,11 @@ export function ExportCaseCard({
         // Lit vs idle (phone :133-137 + :243-252). Opacity only for the dim — a dimmed card
         // still takes presses.
         background: expanded ? GLASS.gradientPanel : GLASS.gradientCardDiag,
-        border: expanded ? `1px solid ${GLASS.accentFrom}` : GLASS.borderSoft,
-        // Derived, not transcribed: this glow was a hand-typed copy of the accent's rgb, so
-        // the U0.3 re-base would have left the border deep blue and the glow on the old light
-        // blue. `withAlpha` makes it follow the stop it is supposed to be a glow OF.
-        boxShadow: expanded
-          ? `0 4px 12px ${withAlpha(GLASS.accentFrom, 0.35)}`
-          : '0 4px 8px rgba(0,0,0,0.15)',
+        // The lit outline is an accent MARK, so it takes `link`, not the CTA fill shade:
+        // `GLASS.accentFrom` measures 2.44 against this panel (WCAG 1.4.11 wants 3.0), `link`
+        // 9.23. The glow is derived from the same token so the two can never disagree.
+        border: expanded ? `1px solid ${colors.link}` : GLASS.borderSoft,
+        boxShadow: expanded ? LIT_GLOW : '0 4px 8px rgba(0,0,0,0.15)',
         opacity: dimmed ? 0.5 : 1,
       }}
     >

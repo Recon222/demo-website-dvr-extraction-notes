@@ -50,7 +50,8 @@ describe('ExportModal — progress spinner under reduced motion', () => {
     render(<ExportModal mode="progress" stage="zipping" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />)
 
     expect(document.querySelector('[data-export-spinner]')).toHaveStyle({
-      borderTopColor: '#1F6B99',
+      // W0-F1: the arc is a non-text mark against its own track, so it takes `colors.link`.
+      borderTopColor: '#b8d4f0',
     })
     // …and the overlay still says what it is doing, in both channels.
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Creating ZIP archive...')

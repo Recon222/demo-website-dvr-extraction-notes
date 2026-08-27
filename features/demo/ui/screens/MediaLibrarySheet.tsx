@@ -28,6 +28,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The Media Library sheet (phone `MediaLibrarySheet`, ui-mapping 09; matrix rows 57–66).
@@ -218,8 +219,12 @@ function MediaTabs({
               padding: '11px 6px',
               background: 'transparent',
               border: 'none',
-              borderBottom: `2px solid ${isActive ? GLASS.accentFrom : 'transparent'}`,
-              color: isActive ? GLASS.accentFrom : '#7a9fc4',
+              // `link`, not the CTA gradient's top stop: this is the accent AS A MARK and AS
+              // TEXT, and `GLASS.accentFrom` is a FILL shade (phone DEF-UI-018). Measured on
+              // `colors.background`: accentFrom 2.54 (AA text 4.5), inactive `#7a9fc4` 5.31,
+              // `link` 9.60 — the selected tab has to be the MOST legible thing in the control.
+              borderBottom: `2px solid ${isActive ? colors.link : 'transparent'}`,
+              color: isActive ? colors.link : '#7a9fc4',
               fontSize: 13,
               fontWeight: isActive ? 700 : 500,
               cursor: 'pointer',
@@ -237,7 +242,8 @@ function MediaTabs({
                   fontSize: 10,
                   fontWeight: 700,
                   background: isActive ? 'rgba(43,140,193,0.16)' : 'rgba(255,255,255,0.06)',
-                  color: isActive ? GLASS.accentFrom : '#7a9fc4',
+                  // On its own wash: accentFrom 2.05, `link` 7.78.
+                  color: isActive ? colors.link : '#7a9fc4',
                 }}
               >
                 {badge}
@@ -568,7 +574,7 @@ function MediaRow({
           textAlign: 'left',
           background: selected ? 'rgba(43,140,193,0.08)' : 'transparent',
           border: 'none',
-          borderLeft: `2px solid ${selected ? GLASS.accentFrom : 'transparent'}`,
+          borderLeft: `2px solid ${selected ? colors.link : 'transparent'}`,
           cursor: 'pointer',
           ...LONG_PRESS_SURFACE_STYLE,
         }}
