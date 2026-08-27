@@ -116,7 +116,7 @@ export const MAP_FILTER_BADGE_FILL: string = colors.primaryDark
  */
 const DEMO_STATUS_BAR = 50
 
-const outerContainer: CSSProperties = {
+const outerContainer = {
   position: 'absolute',
   top: 0,
   left: 0,
@@ -129,31 +129,31 @@ const outerContainer: CSSProperties = {
   // `box-none` on the phone: map drags must pass BETWEEN the controls. Each painted surface
   // restores `auto`.
   pointerEvents: 'none',
-}
+} as const satisfies CSSProperties
 
-const innerPadding: CSSProperties = {
+const innerPadding = {
   paddingLeft: 12,
   paddingRight: 12,
   paddingTop: DEMO_STATUS_BAR + spacing.sm,
   display: 'flex',
   flexDirection: 'column',
   gap: spacing.sm,
-}
+} as const satisfies CSSProperties
 
-const row: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm }
+const row = { display: 'flex', alignItems: 'center', gap: spacing.sm } as const satisfies CSSProperties
 
 /** `0 1px 4px` — the CSS spelling of the phone's iOS shadow (offset 0/1, opacity 1, radius 4). */
 const surfaceShadow = `0 1px 4px ${MAP_GLASS_COLORS.shadow}`
 
 /** One fill for every floating surface. `inputBg` was deleted with the redesign — do not add a second. */
-const surface: CSSProperties = {
+const surface = {
   background: MAP_GLASS_COLORS.containerBg,
   border: `1px solid ${MAP_GLASS_COLORS.border}`,
   boxShadow: surfaceShadow,
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
-const closeButton: CSSProperties = {
+const closeButton = {
   ...surface,
   width: touchTarget.min,
   height: touchTarget.min,
@@ -165,9 +165,9 @@ const closeButton: CSSProperties = {
   color: MAP_GLASS_COLORS.text,
   cursor: 'pointer',
   padding: 0,
-}
+} as const satisfies CSSProperties
 
-const searchPill: CSSProperties = {
+const searchPill = {
   ...surface,
   flex: 1,
   minWidth: 0,
@@ -176,9 +176,9 @@ const searchPill: CSSProperties = {
   paddingLeft: 12,
   borderRadius: radius.full,
   height: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
-const searchInput: CSSProperties = {
+const searchInput = {
   flex: 1,
   minWidth: 0,
   height: '100%',
@@ -188,14 +188,14 @@ const searchInput: CSSProperties = {
   color: MAP_GLASS_COLORS.text,
   fontSize: 14,
   fontFamily: 'inherit',
-}
+} as const satisfies CSSProperties
 
 /**
  * The inline icon buttons inside the pill. Full pill height and ≥44 wide — real touch targets,
  * for the phone's own stated reason: hitSlop outside a tightly-wrapped parent is not dispatched
  * on Android, and the web has no hitSlop at all (DEF-UI-019).
  */
-const inlineButton: CSSProperties = {
+const inlineButton = {
   position: 'relative',
   height: '100%',
   minWidth: touchTarget.min,
@@ -207,16 +207,16 @@ const inlineButton: CSSProperties = {
   padding: 0,
   cursor: 'pointer',
   color: MAP_GLASS_COLORS.text,
-}
+} as const satisfies CSSProperties
 
-const filterDivider: CSSProperties = {
+const filterDivider = {
   width: 1,
   height: 22,
   flex: '0 0 auto',
   background: MAP_GLASS_COLORS.border,
-}
+} as const satisfies CSSProperties
 
-const badge: CSSProperties = {
+const badge = {
   position: 'absolute',
   top: 6,
   right: 4,
@@ -233,30 +233,36 @@ const badge: CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   lineHeight: 1,
-}
+} as const satisfies CSSProperties
 
-const chip: CSSProperties = {
+const chip = {
   ...surface,
   display: 'inline-flex',
   alignItems: 'center',
   borderRadius: radius.full,
   height: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
-const chipBody: CSSProperties = {
+/**
+ * F72: the `padding` shorthand is the ONLY padding declaration here. A `paddingLeft: 12` used to
+ * sit above it — dead, because the shorthand that follows already spells it — and it was the
+ * §4.3 trap the repo-wide tripwire (`vitest.setup.ts:27-69`) exists for: React only warns on an
+ * UPDATE, so a static object hides the conflict until the day one branch makes this padding
+ * state-dependent, at which point the shorthand silently clobbers the longhand.
+ */
+const chipBody = {
   display: 'flex',
   alignItems: 'center',
   gap: spacing.xsm,
-  paddingLeft: 12,
   height: '100%',
   border: 'none',
   background: 'transparent',
   cursor: 'pointer',
   fontFamily: 'inherit',
   padding: '0 0 0 12px',
-}
+} as const satisfies CSSProperties
 
-const chipText: CSSProperties = { fontSize: 12, fontWeight: 600, color: MAP_GLASS_COLORS.text, whiteSpace: 'nowrap' }
+const chipText = { fontSize: 12, fontWeight: 600, color: MAP_GLASS_COLORS.text, whiteSpace: 'nowrap' } as const satisfies CSSProperties
 
 // --- icons: the demo's inline-SVG idiom (24 viewBox, currentColor, aria-hidden) ---------------
 
@@ -406,6 +412,9 @@ export function MapControls({
           </div>
         </div>
 
+        {/* F73: always mounted, so proximity turning ON is a CHANGE this region can announce. */}
+        <ProximityAnnouncement active={proximityActive} summary={summary} />
+
         {/* ---- Proximity summary chip — the only filter state that stays on the map
              (activated by long-press, so it needs a visible exit) ---- */}
         {proximityActive && (
@@ -416,7 +425,14 @@ export function MapControls({
                   type="button"
                   data-testid="proximity-chip-body"
                   onClick={onOpenFilters}
-                  aria-label={`Proximity filter, ${proximityRadius} kilometre radius, showing ${filteredCount} of ${locationCount} locations`}
+                  /* F59 — WCAG 2.5.3 Label in Name. The visible text is `2 km · 5 of 9`, so the
+                     accessible name has to CONTAIN "2 km" and "5 of 9" or a speech-input user
+                     cannot address the control by what they read. The phone's own wording spelt
+                     "kilometre", which breaks the `km` token the visitor can actually say. The
+                     repo states the rule in-tree this same wave
+                     (`ImportTerminalProgress.tsx:618-622`: *"an aria-label would replace them
+                     (accname override) and break Label-in-Name for voice control"*). */
+                  aria-label={`Proximity filter, ${proximityRadius} km, showing ${filteredCount} of ${locationCount} locations`}
                   title="Opens map filters"
                   style={chipBody}
                 >
@@ -446,12 +462,12 @@ export function MapControls({
 }
 
 /**
- * The chip's mark + count.
+ * The chip's mark + count. Plain text: the live region is `ProximityAnnouncement` below.
  *
- * `role="status"` is the demo's own (review R-7a), carried across from the count pill this
- * redesign deletes: that pill was *"the ONLY feedback the filter, search and proximity controls
- * give"*, and the chip is the surface that inherited its "N of M". The phone has no live region
- * here; the demo keeps one because it kept the promise.
+ * F73 — this span USED to carry `role="status"` itself, and that announced nothing. A live
+ * region only speaks what changes AFTER it mounts, and this span mounts with the chip, already
+ * holding its final text; the one event worth announcing — proximity turning on — was the one
+ * event it could never report.
  */
 function ProximitySummary({ text }: { text: string }) {
   return (
@@ -459,9 +475,50 @@ function ProximitySummary({ text }: { text: string }) {
       <span style={{ display: 'flex', color: MAP_GLASS_COLORS.primary }}>
         <Locate />
       </span>
-      <span data-testid="proximity-chip-summary" role="status" style={chipText}>
+      <span data-testid="proximity-chip-summary" style={chipText}>
         {text}
       </span>
     </>
+  )
+}
+
+/**
+ * Off-screen but readable by assistive tech. A third copy of `ExportModal.tsx:70-80`'s constant,
+ * knowingly and for the same reason `MapFiltersSheet.tsx:200-204` gave for the second: hoisting
+ * it would mean editing a screen that belongs to no U5 package. Proposed as a deferral rather
+ * than smuggled across a package boundary — and at three copies it is now worth doing.
+ */
+const srOnly = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+} as const satisfies CSSProperties
+
+/**
+ * The spoken half of the chip (review R-7a, U5.2's D-5, review F73).
+ *
+ * `MapFiltersSheet` owns the announcement while the filters sheet is OPEN (its subtitle mirrors
+ * every change reachable behind the scrim). This region owns the other side: proximity is
+ * activated and re-centred by LONG-PRESSING the map, with no sheet in sight, and that is the
+ * change nothing else can speak.
+ *
+ * **Rendered outside the `proximityActive` gate on purpose.** The sibling idiom
+ * (`MapFiltersSheet.tsx:264-267`, `ExportModal.tsx:124-139`) reaches an empty first paint with
+ * `useState('')` + an effect, because those regions unmount with their surface. This one simply
+ * never unmounts: it is empty whenever proximity is off, so activation IS a content change and
+ * is announced, and deactivation empties it again. Same contract, no state and no effect —
+ * which is also why there is no tick of delay to get wrong.
+ */
+function ProximityAnnouncement({ active, summary }: { active: boolean; summary: string }) {
+  return (
+    <span data-testid="proximity-chip-announcement" role="status" aria-live="polite" style={srOnly}>
+      {active ? `Proximity filter on, ${summary.replace('·', 'showing')}` : ''}
+    </span>
   )
 }

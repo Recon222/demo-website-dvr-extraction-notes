@@ -220,18 +220,76 @@ describe('MapControls — proximity summary chip', () => {
     expect(screen.getByTestId('proximity-chip')).toHaveTextContent('2 km · 5 of 9')
   })
 
-  it('is a live region — the R-7a announcement the deleted count pill used to carry', () => {
-    renderControls({ proximityActive: true, filteredCount: 5 })
-    expect(screen.getByTestId('proximity-chip-summary')).toHaveAttribute('role', 'status')
+  it('announces activation, because the region is EMPTY before it (R-7a, F73)', () => {
+    // A live region only speaks what changes AFTER it mounts. The region therefore lives OUTSIDE
+    // the `proximityActive` gate: empty while proximity is off, populated when it turns on, so
+    // the one event worth announcing — long-pressing the map into proximity mode — is a content
+    // change rather than an initial value nobody hears.
+    const { rerender } = renderControls({ proximityActive: false })
+    const region = screen.getByTestId('proximity-chip-announcement')
+    expect(region).toHaveAttribute('role', 'status')
+    expect(region).toHaveTextContent('')
+
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={1}
+        proximityActive
+        proximityRadius={2}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={5}
+      />,
+    )
+    expect(screen.getByTestId('proximity-chip-announcement')).toHaveTextContent(
+      'Proximity filter on, 2 km showing 5 of 9',
+    )
   })
 
-  it('carries the phone accessibility label verbatim, count and all', () => {
+  it('empties the region again on deactivation, so the next activation still announces', () => {
+    // Without this half the region stays populated after the chip goes, and the SECOND
+    // activation is an initial value again — the recurrence D-5 recorded against the old span.
+    const { rerender } = renderControls({ proximityActive: true, filteredCount: 5 })
+    expect(screen.getByTestId('proximity-chip-announcement')).not.toHaveTextContent('')
+
+    rerender(
+      <MapControls
+        filters={EMPTY_MAP_FILTERS}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={0}
+        proximityActive={false}
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={9}
+      />,
+    )
+    expect(screen.getByTestId('proximity-chip-announcement')).toHaveTextContent('')
+  })
+
+  it('leaves the VISIBLE summary a plain span — one region, not two competing ones', () => {
+    // It carried `role="status"` before F73. Two live regions holding the same count is how a
+    // screen reader ends up saying it twice, and the visible one could never announce anyway.
+    renderControls({ proximityActive: true, filteredCount: 5 })
+    expect(screen.getByTestId('proximity-chip-summary')).not.toHaveAttribute('role')
+  })
+
+  it('keeps its own visible text inside its accessible name (WCAG 2.5.3, F59)', () => {
+    // The phone spells "kilometre radius" (`MapControls.tsx:206`). The demo diverges to `km`
+    // because that is the token the visitor can SEE and therefore say: a speech-input user
+    // addresses this control as "2 km", and an accessible name that never contains those
+    // characters is unreachable by voice. Both visible fragments are asserted AGAINST THE
+    // RENDERED TEXT rather than retyped, so the two cannot drift apart.
     renderControls({ proximityActive: true, proximityRadius: 0.5, locationCount: 9, filteredCount: 5 })
-    expect(
-      screen.getByLabelText(
-        'Proximity filter, 0.5 kilometre radius, showing 5 of 9 locations',
-      ),
-    ).toBeInTheDocument()
+    const body = screen.getByTestId('proximity-chip-body')
+    const name = body.getAttribute('aria-label') ?? ''
+    expect(name).toBe('Proximity filter, 0.5 km, showing 5 of 9 locations')
+    for (const visible of (body.textContent ?? '').split('·').map((s) => s.trim())) {
+      expect(name, `visible "${visible}" must appear in the accessible name`).toContain(visible)
+    }
   })
 
   it('opens the filters sheet from the chip body and deactivates from the ✕', () => {
