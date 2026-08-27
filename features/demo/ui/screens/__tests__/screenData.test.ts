@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { toCaseCards, toCaseSheet, caseStatusTheme, locationStatusTheme } from '@/features/demo/ui/screens/screenData'
 import { MAP_PIN_COLORS, STATUS_LABEL } from '@/features/demo/ui/screens/map/mapTokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { STATUS_ACCENT, STATUS_SEVERITY, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import type { DemoCase, DemoLocation, LocationForm } from '@/features/demo/engine/types'
 import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
@@ -13,7 +15,9 @@ describe('toCaseCards', () => {
   it('maps personnel, status theme, and location rows', () => {
     const [card] = toCaseCards([aCase()], [aLoc()])
     expect(card.caseNumber).toBe('PR25-0001')
-    expect(card.status.label).toBe('Draft')
+    // Phone `CaseStatusBadge.tsx:142-144`: DRAFT DISPLAYS AS "Active"; the enum rename is
+    // deferred there, and the demo has no enum to rename.
+    expect(card.status.label).toBe('Active')
     expect(card.personnel[0]).toMatchObject({ role: 'OIC', name: 'L. McHugh', badge: '4471' })
     expect(card.locationCountLabel).toBe('1 location')
     expect(card.locations[0]).toMatchObject({ locationName: "Kim's Convenience", address: '1450 Eglinton Ave W, Mississauga' })
@@ -26,9 +30,16 @@ describe('toCaseCards', () => {
     expect(card.locationCountLabel).toBe('2 locations')
   })
 
-  it('themes a complete case green', () => {
-    expect(caseStatusTheme('complete').label).toBe('Complete')
-    expect(caseStatusTheme('complete').color).toBe('#10d177')
+  it('routes every case status through the ONE severity recipe, archived through the neutral', () => {
+    // Phone `getStatusConfig` (`CaseStatusBadge.tsx:140-167`). Read off the recipe, never
+    // re-typed: a literal `'#0f6b42'` here would stay green through a re-point of
+    // `successLight` and through a wiring swap of fill against foreground, which are the two
+    // edits this pin exists to catch.
+    expect(caseStatusTheme('complete')).toEqual({ label: 'Complete', ...severityTone('success') })
+    expect(caseStatusTheme('draft')).toEqual({ label: 'Active', ...severityTone('warning') })
+    // ARCHIVED is the ABSENCE of a severity, not a fifth one — the phone's `neutralConfig`.
+    expect(caseStatusTheme('archived')).toEqual({ label: 'Archived', ...neutralTone() })
+    expect(caseStatusTheme('archived').background).not.toBe(severityTone('info').background)
   })
 })
 
@@ -101,13 +112,13 @@ describe('truthful location-row status (G3)', () => {
   it('an untouched location reads Started — never a hardcoded Draft', () => {
     const [card] = toCaseCards([aCase()], [untouched()])
     expect(card.locations[0].status.label).toBe('Started')
-    expect(card.locations[0].status.color).toBe(MAP_PIN_COLORS.started)
+    expect(card.locations[0].status).toMatchObject(severityTone(STATUS_SEVERITY.started))
   })
 
   it('a partially-filled form reads Working', () => {
     const [card] = toCaseCards([aCase()], [aLoc({ requesterName: 'L. McHugh' })])
     expect(card.locations[0].status.label).toBe('Working')
-    expect(card.locations[0].status.color).toBe(MAP_PIN_COLORS.working)
+    expect(card.locations[0].status).toMatchObject(severityTone(STATUS_SEVERITY.working))
   })
 
   it('per-location: each row derives its own status independently', () => {
@@ -118,10 +129,36 @@ describe('truthful location-row status (G3)', () => {
     expect(cards[0].locations.map((l) => l.status.label)).toEqual(['Started', 'Working'])
   })
 
-  it('locationStatusTheme colors + labels match the map tokens (phone parity, one palette)', () => {
+  /**
+   * A70, and the pin that used to assert the OPPOSITE.
+   *
+   * It read `locationStatusTheme(status).color === MAP_PIN_COLORS[status]` — "don't retheme one
+   * without the other". That coupling is exactly what the phone broke and why: `PIN_COLORS`
+   * paints marks ONTO satellite tiles and is deliberately theme-invariant, while a badge inside
+   * a theme-aware surface is not on a tile. Routing the badge through the pin palette measured
+   * `started` at 1.26:1 (phone `status-severity.ts:37-52`).
+   *
+   * So the contract inverts: the pin colours must NOT move, the sheet colours must route through
+   * `STATUS_SEVERITY`, and the two must now be DIFFERENT. The labels stay shared — one status
+   * vocabulary, two palettes.
+   */
+  it('splits the badge palette from the map-pin palette, and keeps the pin values frozen', () => {
+    expect(MAP_PIN_COLORS).toEqual({
+      started: '#FF9500',
+      working: '#00BFFF',
+      complete: '#34C759',
+      incident: '#e53935',
+    })
+
     for (const status of ['started', 'working', 'complete'] as const) {
-      expect(locationStatusTheme(status).color).toBe(MAP_PIN_COLORS[status])
-      expect(locationStatusTheme(status).label).toBe(STATUS_LABEL[status])
+      const theme = locationStatusTheme(status)
+      expect(theme.label).toBe(STATUS_LABEL[status])
+      expect(theme).toMatchObject(severityTone(STATUS_SEVERITY[status]))
+      // The split itself: neither the badge's fill nor its bare-mark accent is the pin colour.
+      expect(theme.background).not.toBe(MAP_PIN_COLORS[status])
+      expect(theme.accent).not.toBe(MAP_PIN_COLORS[status])
+      // ...and the accent is the token `STATUS_ACCENT` names, not the severity's own hex.
+      expect(theme.accent).toBe(colors[STATUS_ACCENT[status]])
     }
   })
 
@@ -176,6 +213,6 @@ describe('truthful location-row status (G3)', () => {
     })
     const [card] = toCaseCards([aCase()], [loc])
     expect(card.locations[0].status.label).toBe('Complete')
-    expect(card.locations[0].status.color).toBe(MAP_PIN_COLORS.complete)
+    expect(card.locations[0].status).toMatchObject(severityTone(STATUS_SEVERITY.complete))
   })
 })

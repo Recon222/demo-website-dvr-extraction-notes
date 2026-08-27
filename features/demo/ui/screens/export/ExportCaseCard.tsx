@@ -8,6 +8,7 @@ import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
+import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -193,9 +194,9 @@ export function ExportCaseCard({
             )}
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ padding: '3px 9px', borderRadius: 20, border: `1px solid ${card.status.border}`, background: card.status.bg }}>
-              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: card.status.color }}>{card.status.label}</span>
-            </span>
+            {/* `medium`, matching phone `export-hub/ExportCaseCard.tsx:182` — the one site that
+                renders the badge at its default size alongside a location count. */}
+            <span style={statusBadgeStyle(card.status)}>{card.status.label}</span>
             <span style={{ fontSize: 11, color: '#7a9fc4' }}>{card.locationCountLabel}</span>
           </span>
           {/* Plain glyphs, exactly as the phone renders them (:173) — not an icon component. */}
