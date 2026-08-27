@@ -40,10 +40,10 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 
 ## 4. Standing rules (inherited from v1 §4 — all still binding)
 
-- NEVER `git stash` (shared stash stack across worktrees). Commit WIP to the agent's own branch.
+- Every repo-writing agent reads `.claude/skills/fleet-orchestration/hazard-playbook.md` FIRST — those are the rules; the bullets below are demo-specific additions. NEVER `git stash`; never blanket-discard; `git add <named paths>` only (the `dt-git-guard` hook blocks `stash`, `checkout -- .`, `restore .`, `clean -f`, `add -A`, `commit -a`).
 - Foreground commands only; raise timeouts instead of background watchers.
 - Re-run flaky-looking failures before concluding (parallel-agent CPU contention).
-- Agents do NOT edit the plan/matrix/HANDOFF — the orchestrator does at merge time. Agents DO append to `docs/code-reviews/deferred.md` (next free §, check first).
+- Agents do NOT edit the plan/matrix/HANDOFF — the orchestrator does at merge time. **Nobody but `dt-review-aggregator` writes `docs/code-reviews/deferred.md`** — implementers PROPOSE deferrals in their disk reports (with a concrete un-defer trigger); the aggregator decides and writes the row. The v1 "next free §" protocol is retired.
 - Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.
 - Quote gates only from a cold cache on the merged head (`pnpm exec tsc --noEmit --incremental false`).
 - Mutation-probing lanes get their own worktree or serialise full-suite runs.
