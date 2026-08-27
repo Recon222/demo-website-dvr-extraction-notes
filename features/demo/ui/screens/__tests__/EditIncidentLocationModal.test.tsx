@@ -10,6 +10,13 @@ import {
 import { caseToIncidentValues, type IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
 import type { DemoCase } from '@/features/demo/engine/types'
 import { demoCase } from '@/features/demo/engine/store/__tests__/test-utils'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/** jsdom rewrites inline hex to `rgb()`; pins compare against the token, never a retyped literal. */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 type Reverse = (lat: number, lng: number) => Promise<{ streetAddress: string; city: string } | null>
 
@@ -126,6 +133,22 @@ describe('EditIncidentLocationModal — reverse-geocode banner', () => {
     await waitFor(() => expect(screen.getByTestId('edit-incident-error')).toHaveTextContent(REVERSE_GEOCODE_UNAVAILABLE))
     expect(screen.getByLabelText('Latitude')).toHaveValue('43.5')
     expect(screen.getByTestId('coordinate-display-coords')).toHaveTextContent('43.500000, -79.500000')
+  })
+
+  it('renders that banner through the SHARED Banner, not a private recipe (A71/U3.3)', async () => {
+    // The phone's own line is `EditIncidentLocationModal.tsx:125` —
+    // `<Banner severity="error" message={submitError} style={styles.errorBanner} />`. Every
+    // other case here reads testid and text only, so they pass over a re-inlined local recipe;
+    // this is the one that reds. The trio is read off the tokens, never retyped.
+    render(<Host initial={blank} reverseGeocode={async () => null} />)
+    blurCoordinates('43.5', '-79.5')
+    const banner = await screen.findByTestId('edit-incident-error')
+    expect(banner.style.backgroundColor).toBe(rgb(colors.errorLight))
+    expect(banner.style.borderColor).toBe(rgb(colors.error))
+    expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
+    // phone `errorBanner` (`:185-187`) is `marginBottom: Layout.spacing.md` — 16, not the 14
+    // the deleted local recipe carried.
+    expect(banner.style.marginBottom).toBe('16px')
   })
 
   it('raises the banner when the lookup throws (an injected seam that breaks its contract)', async () => {

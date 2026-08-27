@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { PickerStage, PICKER_COPY, BATCH_SIZE_WARNING_THRESHOLD } from '@/features/demo/ui/screens/import/PickerStage'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/** jsdom rewrites inline hex to `rgb()`; pins compare against the token, never a retyped literal. */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 const pdf = (name = 'request.pdf', type = 'application/pdf') => new File(['%PDF'], name, { type })
 const txt = (name = 'notes.txt') => new File(['hello'], name, { type: 'text/plain' })
@@ -77,6 +84,21 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     fireEvent.change(fileInput(), { target: { files: [txt()] } })
     expect(screen.getByRole('alert')).toHaveTextContent('Unsupported file type. Please select PDF files.')
     expect(props.onPdfFilesSelected).not.toHaveBeenCalled()
+  })
+
+  it('renders that error through the SHARED Banner, not a private recipe (A71/U3.3)', () => {
+    // The phone routes this banner through `<Banner severity="error">` at
+    // `ImportPickerModal.tsx:718`/`:790`. Every assertion above passes over a re-inlined local
+    // recipe — they read role and text only — so this is the one that reds if the shared
+    // component is unwired. Values are read off the tokens, never retyped.
+    const { fileInput } = renderStage()
+    fireEvent.change(fileInput(), { target: { files: [txt()] } })
+    const alert = screen.getByTestId('import-picker-error') // phone's own testID, lifted
+    expect(alert.style.backgroundColor).toBe(rgb(colors.errorLight))
+    expect(alert.style.borderColor).toBe(rgb(colors.error))
+    expect(alert.style.borderRadius).toBe('8px') // radius.md, not the old local 10
+    expect((alert.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
+    expect(alert).toHaveAttribute('aria-live', 'assertive')
   })
 
   it('a mixed PDF + non-PDF selection is also rejected as unsupported (D5: PDF is the only file path)', () => {

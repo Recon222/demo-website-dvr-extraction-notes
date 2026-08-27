@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import type { CSSProperties } from 'react'
 
 import type { IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
 import { IncidentLocationFields } from '@/features/demo/ui/inputs/IncidentLocationFields'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Edit Incident Location — the demo's port of the phone's `EditIncidentLocationModal`
@@ -52,26 +53,26 @@ export const EDIT_INCIDENT_COPY = {
   cancel: 'Cancel',
 } as const
 
-const banner: CSSProperties = {
-  padding: 12,
-  borderRadius: 10,
-  border: '1px solid #ff4757',
-  background: 'rgba(255,71,87,0.12)',
-  color: '#ff8a94',
-  fontSize: 13,
-  fontWeight: 500,
-  marginBottom: 14,
-}
-
 export function EditIncidentLocationModal({ values, onChange, onSubmit, onCancel, reverseGeocode }: EditIncidentLocationModalProps) {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   return (
     <ModalShell title={EDIT_INCIDENT_COPY.title} onClose={onCancel}>
+      {/* A71/U3.3. The phone's own line, `EditIncidentLocationModal.tsx:125`:
+          `<Banner severity="error" message={submitError} style={styles.errorBanner} />`.
+          `errorBanner` there is `{ marginBottom: Layout.spacing.md }` and its comment (`:182-184`)
+          says "Layout only. The callout itself is the shared Banner; this was one of
+          five byte-identical local recipes whose text was the saturated `colors.error` on a
+          `colors.error + '20'` fill." The demo's copy of that recipe was the same shape
+          (`rgba(255,71,87,0.12)` fill, `#ff8a94` text) and is gone with it. 14 -> 16 is the
+          phone's `spacing.md`, not a tidy. */}
       {submitError && (
-        <div role="alert" data-testid="edit-incident-error" style={banner}>
-          {submitError}
-        </div>
+        <Banner
+          severity="error"
+          message={submitError}
+          testId="edit-incident-error"
+          style={{ marginBottom: spacing.md }}
+        />
       )}
 
       <IncidentLocationFields
