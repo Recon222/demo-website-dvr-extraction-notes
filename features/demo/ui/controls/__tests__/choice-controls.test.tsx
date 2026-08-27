@@ -199,13 +199,30 @@ describe('no hand-rolled copy of either control survives', () => {
     return out
   }
 
+  /**
+   * The needle is the JSX OPEN TAG (`<RadioOption`), not the bare identifier.
+   *
+   * SURVIVED PROBE, and the reason this comment exists. Probe P7 replaced `<RadioOption` in
+   * `_pane-chrome.tsx` with a hand-rolled `<button role="radio" style={{ border: '1px solid
+   * #2B8CC1' }}` — the exact regression this scan exists for — and the first draft's
+   * `text.includes('RadioOption')` stayed GREEN, because the file still carried the now-unused
+   * `import { RadioOption }` line and two mentions in a docblock. That is the string-presence
+   * trap the mutation-testing skill names: the scan was asserting that a file MENTIONS the
+   * component, which a dead import satisfies forever. `tsc` would not have caught it either —
+   * this repo sets no `noUnusedLocals` (integration finding I-5).
+   *
+   * Requiring the role NOT to appear at all would be sharper still for the radio, but it is
+   * wrong for the checkbox: `ExportCaseCard`'s pressable legitimately owns `role="checkbox"`
+   * while `CheckboxBox` paints an `aria-hidden` box beneath it. "Declares the role, therefore
+   * renders the component" is the predicate that holds for both.
+   */
   function offenders(role: string, component: string): string[] {
     const found: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
       const rel = relative(UI_ROOT, file).split(sep).join('/')
       if (rel === 'controls/choice-controls.tsx' || EXEMPT.has(rel)) continue
       const text = readFileSync(file, 'utf8')
-      if (text.includes(`role="${role}"`) && !text.includes(component)) found.push(rel)
+      if (text.includes(`role="${role}"`) && !text.includes(`<${component}`)) found.push(rel)
     }
     return found
   }
