@@ -4,12 +4,12 @@ import {
   PrimaryButtonGradient,
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -356,6 +356,34 @@ describe('palette contrast contract', () => {
   })
 
   // Row 10, DEF-UI-018 — the port's single highest-value contrast row (A66/A27). Phone `:209-224`.
+  // W2 F27 — WCAG 1.4.11, the row this contract did not have.
+  //
+  // PINNED AT THE CONTROL'S OWN CONSTANT, not at a palette token, and that is the whole point:
+  // `UNCHECKED_MARK_EDGE` is the single value the checkbox's ring and the radio's ring + row
+  // border resolve through, so reverting the control to `colors.border` reds THIS line. Row 8
+  // below bounds `palette.dark.textTertiary` on the same grounds and would stay green through
+  // that revert, because its subject is the token and not the control.
+  //
+  // What it caught: the port shipped `colors.border` here, phone-verbatim
+  // (`Checkbox.tsx:61`, `RadioGroup.tsx:68`/`:97`), and it measures **1.33:1** against a 3.0
+  // floor — a PASS -> FAIL regression from master's `#7a9fc4`. An unchecked box has no fill, no
+  // glyph and (on the export card's "Select all") no label: the ring IS the control. Matrix
+  // C.3 rule 4 governs — "a sole-boundary input border at 1.26 is not [decorative]" — and D5's
+  // amendment is the house precedent for declining a phone value that fails the contract.
+  it('clears the 1.4.11 non-text floor for the unchecked selection mark (W2 F27)', () => {
+    expect(
+      offenders(
+        [
+          ['dark unchecked mark edge', UNCHECKED_MARK_EDGE, DARK_GROUNDS],
+          // The light half is the flip day's; the constant itself resolves through `scheme`
+          // (ledger §99's class), so the light value is named directly here.
+          ['light unchecked mark edge', palette.light.textTertiary, LIGHT_GROUNDS],
+        ],
+        AA_NON_TEXT,
+      ),
+    ).toEqual([])
+  })
+
   it('clears AA for `link`, the accent-as-text token, on every glass tier (row 10)', () => {
     // DEF-UI-018, the port's single highest-value contrast row (A66/A27). Phone `:209-224`:
     // outline and ghost buttons label and outline with this token across 39 call sites, and

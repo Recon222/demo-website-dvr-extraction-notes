@@ -38,14 +38,30 @@ configure({ asyncUtilTimeout: 5000 })
  * expected React errors on purpose (error boundaries, act warnings), and a blanket ban would
  * be a permanent source of unrelated red.
  *
- * IT IS THE SOLE GUARD FOR FOUR PRODUCTION FIXES. The root-cause repairs in `7fc126b` —
- * `screens/_shared.tsx`'s `Field` error border, its two hand-rolled copies in
- * `inputs/IncidentLocationFields.tsx` and `screens/NewCaseModal.tsx`, and
- * `screens/CompletionScreen.tsx`'s `padding`/`paddingTop` collision — got NO dedicated
- * regression pins. Their coverage is transitive: the existing consumer suites already drive
- * those transitions, and this hook is what turns the resulting React warning into a failure.
- * A deliberate trade, stated here rather than left to be discovered — weaken or narrow this
- * hook and all four regress silently, in exactly the way they shipped in the first place.
+ * WHAT IT IS AND IS NOT THE GUARD FOR — corrected on measurement (W2 F37 / ledger I-7).
+ *
+ * This block used to claim it was "the sole guard for four production fixes" from `7fc126b`,
+ * their coverage being transitive through the existing consumer suites. That was false twice
+ * over for the three BORDER fixes — `screens/_shared.tsx`'s `Field` error border and its two
+ * former copies in `inputs/IncidentLocationFields.tsx` and `screens/NewCaseModal.tsx`:
+ *
+ *  1. no suite toggled `error` on a MOUNTED `Field`, so the transition was never driven; and
+ *  2. even when it IS driven, React logs NOTHING for that defect shape. Measured twice
+ *     independently — W2 F37's probe and U6.1's probe M15 — by re-applying the split (the
+ *     error branch declaring `borderWidth`/`borderStyle`/`borderColor`, the other declaring
+ *     the `border` shorthand): `conflictingStyleWarnings` stayed EMPTY while the pin failed on
+ *     the VALUE, `style.border` reading `''` because jsdom does not synthesise the shorthand
+ *     from three longhands.
+ *
+ * So those three are guarded by BORDER-VALUE pins that drive the toggle, not by this hook:
+ * `features/demo/ui/__tests__/field-input-recipe.test.tsx` ("keeps ONE border declaration
+ * across an error toggle on a MOUNTED field") and `screens/__tests__/shared.test.tsx`'s
+ * counterpart. `screens/CompletionScreen.tsx`'s `padding`/`paddingTop` collision is a
+ * different shape and is NOT re-characterised here — it still has no dedicated pin.
+ *
+ * The hook remains worth having: it is the cheap net for update-clobbers React DOES report,
+ * across every suite at once, which no per-file value pin can be. Do not weaken or narrow it —
+ * but do not read it as coverage for a fix that has no pin of its own either.
  *
  * COMPLEMENT, not a replacement, for the value pins in
  * `features/demo/ui/__tests__/glass-card-recipe.test.tsx`: React is silent on the two cells

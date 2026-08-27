@@ -129,12 +129,54 @@ const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\
  * scheme-INDEPENDENT reference that must keep compiling after the flip. A regex cannot parse a
  * type position; `typeof` is the one marker that reliably identifies it here.
  */
-const SCHEME_HALF: readonly RegExp[] = [
-  // member access, dot or bracket
-  /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
-  // destructure: `const { dark } = X`, `const { dark: tier } = X`
-  /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
-]
+const SCHEME_HALF = {
+  /** `X.dark` / `X['dark']` — run against ARM-MASKED source (see `maskOwnHalfArms`). */
+  memberAccess: /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
+  /**
+   * `const { dark } = X` / `const { dark: tier } = X`, over one line or five.
+   *
+   * Runs against the RAW source — never a masked or filtered copy (review r2 F33). `[^}]`
+   * matches newlines, so this form is multi-line-capable BY CONSTRUCTION; what broke it was
+   * pre-processing that deleted a binding line before it ever ran. Giving the two forms
+   * DIFFERENT INPUTS is what resolves the record-arm / destructure-rename ambiguity td flagged:
+   * `dark: tier,` inside a destructure and `dark: palette.dark.x,` inside a record literal are
+   * textually identical, and no single pre-processed input can serve both readings.
+   */
+  destructure: /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
+} as const
+
+/**
+ * A record ARM may name its OWN half and nothing else.
+ *
+ * `{ light: palette.light.errorDark, dark: palette.dark.errorLight } as const` indexed by
+ * `[scheme]` is the shape clause 12 WANTS, and naming both halves is the only way to write one —
+ * `DangerFill` (`controls/button-recipe.ts:99-102`) must, because the `*Light`/`*Dark` names
+ * INVERT between schemes. So arms need an exemption.
+ *
+ * They got a whole-LINE drop, which exempted the one mistake a two-half record actually makes:
+ * `light: palette.dark.errorDark`, a cross-half read wearing an arm's clothes (review r2 F33,
+ * two lanes, both SURVIVED). This masks the arm's key and its OWN-half reads, and leaves the
+ * rest of the line standing — so the wrong half still reds while the right one stays silent.
+ *
+ * Line-anchored, and therefore blind to an arm whose value wraps onto the next line
+ * (`light:` then `  palette.light.x`). That spelling raises a FALSE RED, which is loud and
+ * fixable, never a silent miss; measured zero occurrences under `ui/`.
+ */
+const OWN_HALF_READ = {
+  // LITERAL regexes, not `new RegExp` built from a template. Measured while writing this: one
+  // lost backslash turns the pattern into `(.s*|[s*['"])light`, which masks nothing, and the
+  // only symptom is an exemption that silently stops exempting. A mask is the one place a
+  // regex failing OPEN is invisible, so it does not get to depend on escaping.
+  light: /(\.\s*|\[\s*['"])light\b/g,
+  dark: /(\.\s*|\[\s*['"])dark\b/g,
+} as const
+
+const maskOwnHalfArms = (src: string): string =>
+  src.replace(
+    /^([ \t]*)(light|dark)([ \t]*:.*)$/gm,
+    (_m, indent: string, half: 'light' | 'dark', rest: string) =>
+      indent + rest.replace(OWN_HALF_READ[half], '$1OWN_HALF'),
+  )
 
 /**
  * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
@@ -296,22 +338,20 @@ describe('glass tokens (P0.5 / G6)', () => {
     // (review r2 F24 — `tokens/palette.ts` holds the one-site switch itself).
     const offenders = sourceFiles(UI_ROOT, new Set())
       .filter((full) => {
-        // A `light:` / `dark:` RECORD ARM is skipped, for the SAME reason `typeof` is excluded
-        // above: it is the opposite of a violation. `{ light: …, dark: … } as const` indexed by
-        // `[scheme]` is the shape clause 12 WANTS, and naming both halves is the only way to
-        // write one. `DangerFill` (`controls/button-recipe.ts:99`) must, because the
-        // `*Light`/`*Dark` names invert between schemes; `PrimaryButtonGradient` and
-        // `ElevatedEdges` beside it escape only by holding literals, which is luck, not rigour.
+        // TWO FORMS, TWO INPUTS (review r2 F33). The arm exemption is a MASK applied to the
+        // member-access pass only; the destructure pass reads the source untouched. The previous
+        // shape ran both over one whole-line-filtered copy and re-opened two forms at once — a
+        // cross-half read inside an arm, and the multi-line destructure W1/F23 had closed.
         //
-        // The ARM is skipped, never the file. A record built this way is inert until something
-        // READS a half, and `X.dark` is a member access on its own line — still an offender.
-        // Found at merge (W1 -> U2): review r2 F24 emptied the skip set on a tree where no
-        // production module declared both halves; U2.2 then added the first one that does.
+        // A record built from arms is inert until something READS a half, so masking the arms
+        // costs no coverage: `X.dark` anywhere else is still a member access and still an
+        // offender. Found at merge (W1 -> U2): F24 emptied the skip set on a tree where no
+        // production module declared both halves; U2.2 added the first one that does.
         const src = stripComments(readFileSync(full, 'utf8'))
-          .split(/\r?\n/)
-          .filter((line) => !/^\s*(?:light|dark)\s*:/.test(line))
-          .join('\n')
-        return SCHEME_HALF.some((form) => form.test(src))
+        return (
+          SCHEME_HALF.destructure.test(src) ||
+          SCHEME_HALF.memberAccess.test(maskOwnHalfArms(src))
+        )
       })
       .map((full) => relative(UI_ROOT, full).split(sep).join('/'))
     expect(offenders).toEqual([])

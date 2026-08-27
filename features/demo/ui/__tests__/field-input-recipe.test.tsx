@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+
+import { conflictingStyleWarnings } from '@/vitest.setup'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useState } from 'react'
 
@@ -125,6 +127,35 @@ describe('Field — screens/_shared.tsx (U2.1 / A72)', () => {
     expect(input).not.toHaveAttribute('aria-invalid')
     expect(input.style.borderWidth).toBe('1px')
     expect(normColor(input.style.borderColor)).toBe(BORDER)
+  })
+
+  it('keeps ONE border declaration across an error toggle on a MOUNTED field (F37 / ledger I-7)', () => {
+    // The transition NOTHING else in the suite drives. W1's root-cause fix (`7fc126b`) made
+    // the recipe emit a single `border` shorthand in every state; the defect it repaired was a
+    // split — the error branch declaring `borderWidth`/`borderStyle`/`borderColor` while the
+    // other declared the shorthand — which React clobbers on UPDATE, not on first paint. Every
+    // other pin in this file mounts a field already in its final state, so W2's integration
+    // probe re-introduced the split and the whole suite stayed green.
+    //
+    // WHAT KILLS THE MUTANT is the BORDER VALUE, not the tripwire. Measured here and
+    // independently by U6.1 (its probe M15): with the split re-applied, `style.border` reads
+    // EMPTY in the error state because jsdom does not synthesise the shorthand from three
+    // longhands — while `conflictingStyleWarnings` stays empty and React logs nothing at all.
+    // So `vitest.setup.ts`'s "sole guard" claim was false for this defect shape in a stronger
+    // way than the finding assumed: the hook does not merely go undriven, it never fires.
+    // Same mechanism as `screens/__tests__/shared.test.tsx`'s pin, deliberately — the two
+    // branches assert the same contract from their own suites and merge without conflict.
+    const { rerender } = render(<Field {...base} />)
+    const input = screen.getByLabelText('Case Number')
+    expect(input.style.border).toBe(`1px solid ${BORDER}`)
+    rerender(<Field {...base} error="Case number is required" />)
+    expect(input.style.border).toBe(`2px solid ${ERROR}`)
+    rerender(<Field {...base} />)
+    expect(input.style.border).toBe(`1px solid ${BORDER}`)
+    // Kept, and asserted HERE rather than only in the setup's `afterEach`, so a FUTURE shape
+    // that does trip React names this transition instead of arriving detached. It is a true
+    // property of this transition; it is not what protects it.
+    expect(conflictingStyleWarnings).toEqual([])
   })
 
   it('applies the same recipe to the multiline textarea', () => {

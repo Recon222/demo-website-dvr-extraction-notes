@@ -6,6 +6,9 @@ import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { BannerIcon } from '@/features/demo/ui/controls/Banner'
 import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+// The non-severity tokens only (text / textSecondary / textTertiary / primary). The SEVERITY
+// trio comes from `severityTone` below and nowhere else — W2 F26. Master's F26 pass dropped
+// this import because its smaller `_pane-chrome` had no reads left; U6.2's does.
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'

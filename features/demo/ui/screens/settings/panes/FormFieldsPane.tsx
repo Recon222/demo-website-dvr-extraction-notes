@@ -157,7 +157,14 @@ function ProfilePicker({
           moved this very picker off its hand-rolled chips and onto `RadioGroup`
           (`ProfilePicker.tsx:75-81`), and `RadioGroup.tsx:151-156` records that the migration
           could not ship until the radio grew `minHeight: touchTarget.min`, because these chips
-          were 46px. This is the 3-up group `RadioOption`'s `flexShrink: 1` exists for. */}
+          were 46px. THIS ROW is the 3-up group `RadioOption`'s shrink machinery exists for, and
+          it took two rounds to get right: F29 released the LABEL's `min-width: auto`, which
+          left the `<button>`'s own floor binding and the row still 21px past the pane
+          (Chromium at `250e12f`: clientWidth 342 vs scrollWidth 363, `fc-profile-canvas` right
+          edge 433.8 vs 413; the same defect in re-cut pixels, `_captures/w2/DIFF.md` §f1-§f7:
+          rightmost pixel x781 vs pane inset x739, all four shots). F29' releases the button and
+          lets the word break. Nothing in jsdom can see any of that, and no capture of the FIX
+          exists yet — the next settings re-cut is what settles it. */}
       <div role="radiogroup" aria-label={COPY.profileLabel} style={{ display: 'flex', gap: spacing.sm }}>
         {PROFILES.map((p) => (
           <RadioOption
@@ -238,8 +245,7 @@ function ScreenRow({
           hideLabel
           label={step.label}
           on={locked ? true : visible}
-          disabled={locked}
-          describedBy={lockId(step.id)}
+          disabled={locked ? { reasonId: lockId(step.id) } : undefined}
           onClick={() => onToggleStep(step.id, !visible)}
           testId={`fc-screen-toggle-${step.id}`}
         />
@@ -265,8 +271,7 @@ function ScreenRow({
                     hideLabel
                     label={f.label}
                     on={fieldLocked ? true : on}
-                    disabled={fieldLocked}
-                    describedBy={lockId(f.id)}
+                    disabled={fieldLocked ? { reasonId: lockId(f.id) } : undefined}
                     onClick={() => onToggleField(f.id, !on)}
                     testId={`fc-toggle-${f.id}`}
                   />

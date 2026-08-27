@@ -39,6 +39,35 @@ import { radius, spacing, touchTarget, withAlpha } from '@/features/demo/ui/toke
  * wrong. `checked x error` does not exist for either control on either platform.
  */
 
+/**
+ * The edge of an UNCHECKED box / UNSELECTED radio — the one value both controls share, and a
+ * DELIBERATE DIVERGENCE FROM THE PHONE (W2 review F27).
+ *
+ * The phone spells `colors.border` here (`Checkbox.tsx:61`, `RadioGroup.tsx:68` and `:97`) and
+ * U2.4 transcribed it faithfully. On the demo's dark tiers that measures **1.33:1** against
+ * WCAG 1.4.11's 3.0 floor, and master shipped `#7a9fc4` at 3.87-4.41 — so the faithful port was
+ * a PASS -> FAIL regression on the one part of the control that carries it. An unchecked box has
+ * no fill, no glyph, and on the export hub's "Select all" no label either: the ring IS the
+ * control.
+ *
+ * Matrix C.3 rule 4 is the governing case law, owner-ratified: "The border is decorative only
+ * when the fill, the icon and the text each carry the severity independently ... a sole-boundary
+ * input border at 1.26 is not." D5's amendment is the house precedent for declining a phone
+ * value that fails the contract (the map filter badge took `primaryDark` over the phone's
+ * failing `primary`).
+ *
+ * `textTertiary` and not `textSecondary`: it is master's own value, it clears the 3.0 non-text
+ * floor with room (3.87 on the worst dark glass stop, row 8), and lifting further would make an
+ * UNSELECTED option louder than the `link` edge of the selected one.
+ *
+ * The RATIO is bounded at this constant in `ui/__tests__/palette-contrast.test.ts` — the hex
+ * equality that guarded it before stayed green through the whole 3.3x drop.
+ *
+ * Phone-side follow-up candidate (plan §8, NOT a fix from here): the phone's own unchecked
+ * `Checkbox` and `RadioGroup` measure 1.33:1 on its dark theme for the same reason.
+ */
+export const UNCHECKED_MARK_EDGE = colors.textTertiary
+
 /* -------------------------------------------------------------------------- radio ---- */
 
 export interface RadioOptionProps {
@@ -71,12 +100,53 @@ export interface RadioOptionProps {
  * (`rgba(75,163,212,0.08)`). `withAlpha` and not a `token + '15'` concat, for the reason the
  * phone's own comment gives at `:69-74`.
  *
- * `flexShrink: 1` on the label (`:175-191`) is load-bearing at three-up: with the ring, its
- * margin and the 16px side paddings, a 3-up group leaves ~39px of text budget at 360dp, and
- * without the shrink the label overflows under the neighbouring option's border.
+ * ## Shrinking at three-up — THREE properties, and the earlier notes here were wrong twice
+ *
+ * `flex: 1` alone does not shrink a flex item below its min-content width: `min-width: auto`
+ * is the CSS default and it is the binding floor. There are two nested flex items here, and
+ * releasing one does nothing while the other holds:
+ *
+ *   1. `minWidth: 0` on the **`<button>`** — the item the parent row shrinks. THIS is the floor
+ *      that was still binding (W2 rider F29'), and two lanes measured it independently at
+ *      `250e12f`, after the label had already been released:
+ *        - web, in Chromium: pane clientWidth **342**, row scrollWidth **363**,
+ *          `fc-profile-canvas` right edge **433.8** against the pane's 413.
+ *        - verification, from the re-cut pixels (`_captures/w2/DIFF.md` §f1-§f7): the group's
+ *          rightmost pixel at **x781** against the pane inset at **x739** — 42 shot-px = 21
+ *          CSS-px, byte-identical across all four settings shots and to the pre-fix set.
+ *      The arithmetic behind it: 60px of fixed chrome per option (16+16 padding, a 20px ring,
+ *      its 8px margin) x3, plus two 8px gaps, is 196px before a single glyph.
+ *   2. `minWidth: 0` on the **label span** — the inner item. Released in W2 F29; necessary, and
+ *      on its own it only moved the overflow from ~42px to ~21px.
+ *   3. `overflowWrap: 'break-word'` on the label — what makes 1+2 LEGIBLE rather than merely
+ *      unfloored. Below min-content the box is narrower than the word, and an unbreakable word
+ *      does not wrap: it paints outside its box, over the neighbouring chip's border. With
+ *      342px available each label box lands at ~48.7px against `Forensic` at ~62px, so all
+ *      three overflow without this.
+ *
+ * That is the phone's own outcome, not an invention: `RadioGroup.tsx:178-191` sizes the same
+ * 3-up group at "~39px of text budget at 360dp" and says the overflow "becomes a controlled
+ * two-line wrap" — RN's `Text` breaks the word rather than spilling. `optionsContainer` sets no
+ * `alignItems`, so the default `stretch` keeps the cells the same height under a two-line
+ * label; the demo's row does the same. The phone's comment names only `flexShrink` because RN's
+ * flex defaults differ from CSS's — transcribing its reasoning was the original mistake.
+ *
+ * STILL NO truncation. `whiteSpace: 'nowrap'` + `textOverflow` would ellipse a profile name;
+ * breaking wraps it, and every character stays on screen. Pinned as a negative control.
+ *
+ * WHAT IS AND IS NOT PROVEN HERE — CAPTURE-GATED, and said that way on purpose. jsdom performs
+ * no layout, so the tests below pin the three DECLARATIONS and nothing more: they catch a
+ * revert, they cannot catch a miscalculation, a changed padding or a longer label. Every
+ * rendered number above measures the DEFECT, at `250e12f`; **no capture of this fix exists
+ * yet.** The rendered proof will be the NEXT verification re-cut, and until it lands this note
+ * claims a mechanism, not an outcome.
+ *
+ * Two previous notes at this site asserted a fix that half-worked. That is why this one
+ * separates what was measured (the defect, by two lanes, with figures and a source) from what
+ * is still owed (a shot of the fix).
  */
 export function RadioOption({ label, selected, onSelect, direction = 'row', testId }: RadioOptionProps) {
-  const edge = selected ? colors.link : colors.border
+  const edge = selected ? colors.link : UNCHECKED_MARK_EDGE
   return (
     <button
       type="button"
@@ -85,7 +155,9 @@ export function RadioOption({ label, selected, onSelect, direction = 'row', test
       data-testid={testId}
       onClick={onSelect}
       style={{
-        ...(direction === 'row' ? { flex: 1 } : { width: '100%' }),
+        // `minWidth: 0` travels with `flex: 1`: a shrinking flex item that keeps its automatic
+        // minimum cannot shrink. See the docblock — this is the floor F29' measured.
+        ...(direction === 'row' ? { flex: 1, minWidth: 0 } : { width: '100%' }),
         display: 'flex',
         alignItems: 'center',
         padding: `${spacing.sm}px ${spacing.md}px`,
@@ -126,6 +198,11 @@ export function RadioOption({ label, selected, onSelect, direction = 'row', test
           fontWeight: 500,
           color: selected ? colors.link : colors.text,
           flexShrink: 1,
+          // Without this, `flexShrink` is inert — see the docblock. F29.
+          minWidth: 0,
+          // ...and without THIS, an unbreakable word paints outside the shrunken box instead of
+          // wrapping inside it. The phone's `Text` breaks it; `overflow-wrap` is how CSS does.
+          overflowWrap: 'break-word',
         }}
       >
         {label}
@@ -143,11 +220,16 @@ export type CheckboxChecked = boolean | 'mixed'
  * The glyphs are LITERAL CHARACTERS, not an SVG path — phone `Checkbox.tsx:75-85`.
  * `−` is U+2212 MINUS SIGN (not a hyphen) and `✓` is U+2713 CHECK MARK.
  */
-const GLYPH: Record<'true' | 'false' | 'mixed', ReactNode> = {
+const GLYPH = {
   true: '✓',
   mixed: '−',
   false: null,
-}
+  // The wave's own template-literal idiom (`tokens/status.ts:121-123`), and NOT a hand-written
+  // `'true' | 'false' | 'mixed'` union with an `as` cast at the lookup (W2 review F44): the cast
+  // made the table's keys independent of `CheckboxChecked`, so widening the union would compile
+  // and render a silent `undefined` glyph. `satisfies` ties them together — add a member and
+  // this line stops compiling.
+} as const satisfies Record<`${CheckboxChecked}`, ReactNode>
 
 /**
  * The 24x24 box — phone `Checkbox.tsx:57-86` + `:109-128`.
@@ -177,7 +259,7 @@ export function CheckboxBox({ checked }: { checked: CheckboxChecked }) {
     borderRadius: radius.sm,
     borderWidth: 2,
     borderStyle: 'solid',
-    borderColor: filled ? colors.primary : colors.border,
+    borderColor: filled ? colors.primary : UNCHECKED_MARK_EDGE,
     background: filled ? colors.primary : colors.background,
     display: 'flex',
     alignItems: 'center',
@@ -189,7 +271,7 @@ export function CheckboxBox({ checked }: { checked: CheckboxChecked }) {
   }
   return (
     <span aria-hidden data-checkbox-box style={style}>
-      {GLYPH[String(checked) as keyof typeof GLYPH]}
+      {GLYPH[`${checked}`]}
     </span>
   )
 }

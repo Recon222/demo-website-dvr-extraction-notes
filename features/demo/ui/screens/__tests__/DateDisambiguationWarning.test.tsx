@@ -3,7 +3,10 @@ import { render, screen } from '@testing-library/react'
 
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
 import { generateDisambiguationWarning, type DateDisambiguationResult } from '@/features/demo/engine/logic/date-disambiguation'
+// `colors` for the details row's `text` / `textSecondary` — those are NOT severity tokens and
+// do not come from the seam. The Banner's trio does.
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /**
  * A71 / U3.3. The plan calls this "the cleanest adoption" because the phone did not restyle its
@@ -62,11 +65,14 @@ describe('DateDisambiguationWarning — the Banner adoption (A71)', () => {
   it('paints that Banner from the warning trio, not the saturated accent', () => {
     render(<DateDisambiguationWarning result={ambiguous} />)
     const banner = screen.getByRole('alert')
-    expect(banner.style.backgroundColor).toBe(rgb(colors.warningLight))
-    expect(sides(banner)).toEqual(Array(4).fill(rgb(colors.warning)))
-    expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.warningOnLight))
+    // The SEAM, not a re-derivation from `palette` — W2 F26: a pin that computes the trio
+    // itself agrees with a component that computes it itself, straight through a re-tint.
+    const tone = severityTone('warning')
+    expect(banner.style.backgroundColor).toBe(rgb(tone.background))
+    expect(sides(banner)).toEqual(Array(4).fill(rgb(tone.borderColor)))
+    expect((banner.lastElementChild as HTMLElement).style.color).toBe(rgb(tone.color))
     // §C.3 rule 1, and the phone's measured 2.15:1: `colors.warning` may not carry text here.
-    expect((banner.lastElementChild as HTMLElement).style.color).not.toBe(rgb(colors.warning))
+    expect((banner.lastElementChild as HTMLElement).style.color).not.toBe(rgb(tone.borderColor))
   })
 
   it('carries none of the five defects the deleted callout had', () => {

@@ -40,8 +40,7 @@ export function AppearancePane({ settings, onChange }: SettingsPaneProps) {
         <Toggle
           label="Dark Mode"
           on={settings.darkMode}
-          disabled
-          describedBy={darkReasonId}
+          disabled={{ reasonId: darkReasonId }}
           onClick={() => {
             /* inert — see the note directly below */
           }}
