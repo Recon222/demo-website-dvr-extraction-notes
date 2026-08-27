@@ -171,7 +171,18 @@ describe('the shapes a consumer must never write', () => {
  * before U4.1 re-tiers that panel — and reds the day the panel moves without the well.
  */
 describe('the well is a well on the ground the demo actually paints it on', () => {
-  const PANEL = colors.backgroundSecondary
+  /**
+   * NORMALISED TO `rgb()` FIRST, and this is not tidiness — it is a SURVIVED probe.
+   *
+   * `deltaE` parses with `/\d+/g`, so handing it the raw `#0e3965` yielded `[0, 3965, NaN]`:
+   * `e` is not a digit, and `#0e3965` reads as the two numbers `0` and `3965`. The pin was
+   * measuring against a constant nonsense colour and passed at baseline by luck. Probe P11
+   * (retuning `recessed` back to the phone's shipped near-black `rgb(6,12,22)`, a real dE 31.56
+   * against this panel) SURVIVED it while killing `palette-contrast.test.ts` row 33 next door —
+   * which is how the defect surfaced. `normColor` runs it through jsdom, the same way every
+   * other expectation in this file is normalised.
+   */
+  const PANEL = normColor(colors.backgroundSecondary)
 
   function deltaE(a: string, b: string): number {
     const lab = (c: string): [number, number, number] => {
