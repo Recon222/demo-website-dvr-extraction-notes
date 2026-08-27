@@ -316,8 +316,8 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   /**
    * RENDERS `<Banner …>` — the COMPONENT adoption, which is the fact D19 actually tracks.
    * `<BannerIcon` does not match (the char after `<Banner` must be whitespace, `/` or `>`), and
-   * a broken regex cannot pass silently: the adoption test below compares against a FOUR-entry
-   * list, so a predicate that matches nothing reds.
+   * a broken regex cannot pass silently: the adoption test below compares against a fixed,
+   * non-empty list, so a predicate that matches nothing reds.
    */
   const rendersBanner = (file: string): boolean => /<Banner[\s/>]/.test(stripComments(file))
 
