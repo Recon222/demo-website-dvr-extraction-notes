@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import {
   SearchBoxCore,
@@ -11,7 +10,7 @@ import {
   type SearchBoxSuggestionResponse,
   type SearchBoxRetrieveResponse,
 } from '@mapbox/search-js-core'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 type AddressSession = SearchSession<SearchBoxOptions, SearchBoxSuggestion, SearchBoxSuggestionResponse, SearchBoxRetrieveResponse>
 
@@ -31,17 +30,6 @@ interface Suggestion {
   raw: SearchBoxSuggestion // passed back to retrieve()
   name: string
   detail: string
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  borderRadius: 8,
-  border: GLASS.border,
-  background: colors.background,
-  color: '#f0f4f8',
-  fontSize: 15,
-  padding: '11px 12px',
-  outline: 'none',
 }
 
 /** Extract street + city + [lng, lat] from a Mapbox Search Box retrieve feature (pure; unit-tested).
@@ -112,6 +100,7 @@ export function AddressAutocomplete({
   }
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
   const boxRef = useRef<HTMLDivElement | null>(null)
   const seq = useRef(0)
   const skipNext = useRef(false)
@@ -176,14 +165,18 @@ export function AddressAutocomplete({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        onFocus={() => {
+          setFocused(true)
+          if (suggestions.length > 0) setOpen(true)
+        }}
+        onBlur={() => setFocused(false)}
         placeholder={placeholder}
         aria-label={label}
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
-        style={inputStyle}
+        style={fieldInputStyle({ focused })}
       />
       {open && suggestions.length > 0 && (
         <ul

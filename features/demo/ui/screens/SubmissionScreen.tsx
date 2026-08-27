@@ -4,9 +4,8 @@ import { Field, SectionCard, WizardHeader, WizardNext } from '@/features/demo/ui
 import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inputs/LocationFields'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -145,7 +144,14 @@ export function SubmissionScreen({
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
           <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
-          <div style={{ width: '100%', borderRadius: 8, border: GLASS.border, background: colors.background, color: '#f0f4f8', fontSize: 15, padding: '11px 12px', opacity: 0.6 }}>{occNumber || '—'}</div>
+          {/* The GEOMETRY half of A72 only, per D10 as amended. The phone's PR #115 replaced
+              a `containerStyle={{opacity:0.6}}` that faded its own LABEL; this is two SIBLING
+              divs, so the label above is already at full contrast and there is nothing to fix.
+              `disabledText` would measure 2.54/3.57 against this opacity's 4.60/5.22 on a box
+              carrying the occurrence number — the "label that carries data" D10 forbids
+              fading. So: the default branch, `opacity: 0.6`, and the house `aria-disabled`
+              idiom (`map/CaseMapPicker.tsx:112` spells it on a plain div the same way). */}
+          <div aria-disabled="true" style={{ ...fieldInputStyle(), opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
         {showRequester && (
         <SectionCard title="Requester Information">
