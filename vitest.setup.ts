@@ -38,6 +38,15 @@ configure({ asyncUtilTimeout: 5000 })
  * expected React errors on purpose (error boundaries, act warnings), and a blanket ban would
  * be a permanent source of unrelated red.
  *
+ * IT IS THE SOLE GUARD FOR FOUR PRODUCTION FIXES. The root-cause repairs in `7fc126b` —
+ * `screens/_shared.tsx`'s `Field` error border, its two hand-rolled copies in
+ * `inputs/IncidentLocationFields.tsx` and `screens/NewCaseModal.tsx`, and
+ * `screens/CompletionScreen.tsx`'s `padding`/`paddingTop` collision — got NO dedicated
+ * regression pins. Their coverage is transitive: the existing consumer suites already drive
+ * those transitions, and this hook is what turns the resulting React warning into a failure.
+ * A deliberate trade, stated here rather than left to be discovered — weaken or narrow this
+ * hook and all four regress silently, in exactly the way they shipped in the first place.
+ *
  * COMPLEMENT, not a replacement, for the value pins in
  * `features/demo/ui/__tests__/glass-card-recipe.test.tsx`: React is silent on the two cells
  * that are wrong on FIRST paint, and those pins are silent on nothing. Each covers what the
@@ -52,7 +61,12 @@ export const conflictingStyleWarnings: string[] = []
 const realConsoleError = console.error
 console.error = (...args: Parameters<typeof console.error>) => {
   if (/conflicting property/.test(String(args[0] ?? ''))) {
-    conflictingStyleWarnings.push(args.map(String).join(' '))
+    // React passes a `%s` format string plus its substitutions, so a plain join reads
+    // "%s a style property during rerender (%s) … Removing paddingTop padding" — the two
+    // property names land at the tail, detached from the sentence that needs them. Splice
+    // them back in, which is the whole reason the raw text is carried through.
+    const rest = args.slice(1).map(String)
+    conflictingStyleWarnings.push(String(args[0]).replace(/%s/g, () => rest.shift() ?? '%s'))
   }
   realConsoleError(...args)
 }
@@ -67,10 +81,12 @@ afterEach(() => {
     const seen = conflictingStyleWarnings.join('\n')
     conflictingStyleWarnings.length = 0
     throw new Error(
-      'React reported a conflicting style shorthand/longhand update. A style object wrote a ' +
-        'border SHORTHAND over a longhand the fragment sets, so the painted result is wrong ' +
-        'from this render on. Re-tint with colour LONGHANDS only — see the fragment docblocks ' +
-        `in features/demo/ui/glass-tokens.ts.\n${seen}`,
+      'A style object wrote a SHORTHAND over a conflicting longhand on an update, so the ' +
+        'painted result is wrong from this render on. Re-declare the whole shorthand in BOTH ' +
+        'branches, or use longhands only — see docs/planning/demo-phone-ui-parity/reports/' +
+        'partner-lit-edge-ruling.md §4.3. The property is named in React\'s own message below ' +
+        '(it is not always a border — the padding/paddingTop pair trips this too); for the ' +
+        `border family the fragment docblocks in features/demo/ui/glass-tokens.ts carry the rule.\n${seen}`,
     )
   }
 })
