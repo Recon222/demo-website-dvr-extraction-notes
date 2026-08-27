@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import type { ComponentProps } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { colors } from '@/features/demo/ui/tokens/palette'
@@ -68,7 +69,7 @@ describe('Toggle — the one switch renderer (U2.3 / A76)', () => {
       render(
         <>
           <span id="why">Always on</span>
-          <Toggle hideLabel label={HIDDEN_NAME} on disabled describedBy="why" onClick={onClick} />
+          <Toggle hideLabel label={HIDDEN_NAME} on disabled={{ reasonId: 'why' }} onClick={onClick} />
         </>,
       )
       const sw = screen.getByRole('switch', { name: HIDDEN_NAME })
@@ -84,7 +85,7 @@ describe('Toggle — the one switch renderer (U2.3 / A76)', () => {
     it('fades the track itself, since there is no row to fade (RowSwitch.tsx’s opacity)', () => {
       const { rerender } = render(<Toggle hideLabel label={HIDDEN_NAME} on onClick={() => {}} />)
       expect(screen.getByRole('switch', { name: HIDDEN_NAME }).style.opacity).toBe('1')
-      rerender(<Toggle hideLabel label={HIDDEN_NAME} on disabled describedBy="why" onClick={() => {}} />)
+      rerender(<Toggle hideLabel label={HIDDEN_NAME} on disabled={{ reasonId: 'why' }} onClick={() => {}} />)
       expect(screen.getByRole('switch', { name: HIDDEN_NAME }).style.opacity).toBe('0.55')
     })
   })
@@ -146,5 +147,25 @@ describe('Toggle — the one switch renderer (U2.3 / A76)', () => {
         expect(offThumb.style.background).toBe('rgb(122, 159, 196)')
       })
     }
+  })
+  describe('the inert contract is in the TYPE, not in a docblock (F39 / FD-4)', () => {
+    it('cannot express a disabled switch with no reason, or a reason with nothing disabled', () => {
+      // A COMPILE-TIME pin (`tsc --noEmit` is the gate that reads it), the same idiom as
+      // `store/__tests__/crud-actions.test.ts:80-96`: each `@ts-expect-error` fails the
+      // typecheck the moment the props type stops rejecting that shape. Deliberately a type
+      // probe rather than a render — the runtime would happily accept either half and paint a
+      // switch announcing "dimmed" with no reason, which is exactly why the door is closed in
+      // the TYPE. `disclosure` two properties above made this move first (FD-4).
+      type ToggleProps = ComponentProps<typeof Toggle>
+      const probe = (p: ToggleProps) => p
+      const base: ToggleProps = { label: 'x', on: false, onClick: () => {} }
+      // @ts-expect-error a boolean `disabled` cannot carry the WHY — R-6 needs the reason id.
+      probe({ ...base, disabled: true })
+      // @ts-expect-error `describedBy` no longer exists as a free-standing prop: a reason with
+      // nothing inert is a dangling aria-describedby the component would never apply.
+      probe({ ...base, describedBy: 'why' })
+      // The one shape that IS expressible carries both facts together.
+      expect(probe({ ...base, disabled: { reasonId: 'why' } }).disabled?.reasonId).toBe('why')
+    })
   })
 })
