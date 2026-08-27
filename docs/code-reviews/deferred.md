@@ -6248,7 +6248,9 @@ file to tune it against: the numbers would be guesses twice over.
 
 ---
 
-## 89. W0 (PR #39) — `#2B8CC1` as TEXT on `colors.background` crossed the AA line when the ground lightened (4.66 → 3.94), 14 sites
+## 89. ~~W0 — `#2B8CC1` as TEXT crossed the AA line (4.66 → 3.94), 14 sites~~ — ✅ RESOLVED — W4 (closed in stages W2→W4)
+
+**RESOLVED:** the button half by U2.2 (PR #42); the three W3 sites by F52's fix round; **StoryRail:75 stands as the D12-frozen documented ceiling** (ruled W3 r1 — the freeze governs the surface); the final SplashScreen residue by U8.1's scanner rework — the file no longer spells the hex (twelve sites re-derived via `scanner-hud-colors.ts`, which cites this row at `:54` and pins "primary is a MARK, never text" as an assertion). Original entry and annotations below for history.
 
 **Source:** PR #39 review r1, web lane MEDIUM; aggregator ruling in `docs/code-reviews/ui-parity/w0/VETTED-r1.md`.
 
@@ -6727,6 +6729,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Trigger:** **the next commit that retires a palette value adds the rgb-form needle in the same commit** (the standing ban-lands-with-the-change rule), or **U8.2's sweep** adds the normalizer to the sweep itself — whichever first. The viewfinder instance closes with either.
 
+**Annotation (W4 r1):** U8.2 measured the widening cost — 15 live rgb-form sites across 11 files (ts lane spot-checked three) — and correctly declined it inside a closing S-package while honouring the four-spelling convention in its own scan (`teal-purge.test.ts`, probed). The trigger stands for post-campaign maintenance.
+
 ---
 
 ## 121. W3 (`feat/uiparity-w3`) — one em-dashed message lives in `engine/` copy, outside A93's `ui/` sweep scope
@@ -6752,3 +6756,27 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** a strictly-stricter bound with a wrong provenance comment is debt, not risk; the real fix (a per-row ground tied to the render, or each row documenting its measured ground) earns its shape when the mechanism grows.
 
 **Trigger:** **the third MARKS surface** (the next entry added to the table), or any change to `ModalShell`'s notice ground — whichever first. That commit ties each row's ground to its surface's real render (correcting the `:1176` comment), and records the presence floor's value with its reason.
+
+---
+
+## 123. W4 — the phone frame's ambient `scanSweep` is ungated under `prefers-reduced-motion`; whether the FRAME keeps ambient motion under reduce is an owner call
+
+**Source:** U8.2 report Proposal B (refused as proposed — its named trigger spent itself in-wave; W4 finding F86 is the §-hygiene); web lane W4 r1 (the three-site sweep).
+
+**What:** `PhoneFrame.tsx:91` (`scanSweep 7s linear infinite`) is inline-styled and gated by nothing; the marketing CSS reduced-motion block cannot reach an inline style. The two mechanical siblings (`SyncStatusCard` spin, `ExportActionSheet` sheetUp) are FIXED by F86; the frame's sweep is the residue because it is a visual-design question — the sweep is the device shell's ambient signature, not a content animation.
+
+**Why deferred:** gating it is two lines; whether the frame should go fully static under `reduce` (vs. keeping a slow ambient sweep as the shell's character) is a design ruling the demo's owner has not made, and `features/demo/CLAUDE.md`'s convention was written for content motion.
+
+**Trigger:** **the U8-exit owner device pass, or the first post-campaign accessibility pass** — whichever first rules keep-and-record (this row becomes the documented divergence) or gate-it (the two-line shape, five in-repo precedents).
+
+---
+
+## 124. W4 — the tab bar's upward `boxShadow` has no phone counterpart; deleting it is an owner-reserved judgement
+
+**Source:** u8.3 report Deferral 1; ts lane verified the premise (native elevation vs a web `div`; the only upward-offset entry in the BOXSHADOW census).
+
+**What:** `TabBar.tsx:96` keeps `0 -6px 18px rgba(0,0,0,0.28)`. The phone's `tabBarStyle` sets no shadow; `@react-navigation/bottom-tabs` supplies platform elevation a web div lacks. Removing it is a judgement about how the bar reads on a surface with no native elevation.
+
+**Why deferred:** neither A63 nor the plan row names it; GATES §13/§14 reserve exactly this class to the owner's device pass; an implementer deleting it unasked on the last package would be restyling past the spec.
+
+**Trigger:** **the U8-exit owner device pass (GATES §13, the final side-by-side).** Reads right → recorded divergence here; reads wrong → one-key delete plus a pin, same commit.
