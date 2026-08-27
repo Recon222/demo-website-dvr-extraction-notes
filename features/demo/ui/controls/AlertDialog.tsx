@@ -3,7 +3,6 @@
 import { useId } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /** One alert button. Mirrors React Native's `Alert.alert` button shape, styles included. */
 export interface AlertAction {
