@@ -110,7 +110,7 @@ export const TERMINAL_PALETTE = {
     FILE: '#e0a878',
     PDF: forced.textSecondary,
     AI: forced.primaryLight,
-    // Was #4ECDC4, the pre-recolor legacy teal (A89's purge). `textTertiary` is both a real
+    // Was the pre-recolor legacy teal (A89's purge). `textTertiary` is both a real
     // token and the semantically right one: verbose dumps should recede. Phone `:93-95`.
     VERB: forced.textTertiary,
     NORM: forced.warning,

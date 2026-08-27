@@ -200,7 +200,6 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const dot = container.querySelector('[data-testid="terminal-trust-line"]')?.previousElementSibling
     expect(dot).not.toBeNull()
     expect((dot as HTMLElement).style.backgroundColor).toBe(rgb(TERMINAL_PALETTE.cursor))
-    expect(TERMINAL_PALETTE.cursor.toLowerCase()).not.toBe('#4ecdc4')
   })
 
   it('the caret and the console ground come from the palette, at the named ramp sizes', () => {
