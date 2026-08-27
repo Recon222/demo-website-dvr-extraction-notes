@@ -20,6 +20,12 @@ import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SAMPLE_BADGE, SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
+import {
+  SCANNER_COLORS,
+  SCANNER_DISCLOSURE_TEXT,
+  SCANNER_GROUND,
+  SCANNER_SKIP_PILL,
+} from '@/features/demo/ui/screens/scanner-hud-colors'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
@@ -1218,5 +1224,95 @@ describe('D12: every provenance mark stays distinct from the ported warning fami
 
   it.each(MARKS)('%s: is legible on the ground it renders on', (_n, mark, ground) => {
     expect(round(contrast(mark.foreground, [mark.background, ...ground]))).toBeGreaterThan(AA_TEXT)
+  })
+})
+
+/**
+ * The boot gate — matrix A87 and §C.2's two scanner rows, added by U8.1.
+ *
+ * This is the surface v1 shipped with zero shared tokens, and the one place in the demo where
+ * a contrast pin written against a hard-coded ground has already failed silently once: the
+ * disclosure's `alpha >= 0.65` floor could not see decision **D8** lighten the ground under it
+ * (`parity/p8/lane-tests.md:408` predicted exactly that). Every row below measures against
+ * `SCANNER_GROUND` itself, imported from the module the gate paints from, so lightening the
+ * ground again reds these rather than the arithmetic in a comment going stale.
+ */
+describe('scanner HUD (A87 / U8.1)', () => {
+  const STATES = Object.keys(SCANNER_COLORS) as (keyof typeof SCANNER_COLORS)[]
+
+  // Anti-vacuity for every `it.each` below: an empty state list would make all of them pass.
+  it('sweeps all three HUD states', () => {
+    expect(STATES).toEqual(['idle', 'scanning', 'authorized'])
+  })
+
+  // §C.2: "Scanner ACCESS GRANTED 2.30 -> 7.29". The 7.29 reproduces exactly, on
+  // `authorized.text`. The `text` role is EVERY string on this surface in the demo, not just
+  // the sub-label — the phone spends `primary` on its 26px status line under the WCAG
+  // large-text allowance (3:1 at 3.94, `scanner-hud-constants.ts:40-41`) and the demo's line is
+  // 23px, where that allowance does not apply. deferred.md §89 / W3 F52 is the same finding
+  // reached from the other side.
+  it.each(STATES)('%s: its `text` clears the AA text floor on the gate ground', (state) => {
+    expect(round(contrast(SCANNER_COLORS[state].text, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  // The marks — brackets, sweep line, halo. 1.4.11's 3:1, which is the floor `primary` is
+  // ALLOWED to sit at and text is not. Pinning both floors is what makes the split a contract
+  // rather than a convention: collapsing every string onto `primary` reds the row above, and
+  // "fixing" the marks onto `text` is caught by SplashScreen's own render pins.
+  it.each(STATES)('%s: its `primary` clears the non-text floor on the gate ground', (state) => {
+    expect(round(contrast(SCANNER_COLORS[state].primary, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+  })
+
+  it('the accent is a MARK colour here, never a text colour (deferred §89)', () => {
+    // The measured half of §89, asserted rather than narrated: `primary` as a string on this
+    // ground is 3.94, and the row's own trigger is "any site still measuring < 4.5 reopens this
+    // at HIGH". If a future palette move makes the accent legible as text this reds, and the
+    // right response is to delete this pin — not to re-point the strings back.
+    expect(round(contrast(palette.dark.primary, [SCANNER_GROUND]))).toBeLessThan(AA_TEXT)
+    for (const state of STATES) {
+      if (SCANNER_COLORS[state].text === SCANNER_COLORS[state].primary) continue
+      expect(round(contrast(SCANNER_COLORS[state].text, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+
+  // D8's live consequence. The disclosure is the string carrying the surface's honesty claim,
+  // and P8 review R-6 is the record of it shipping as the LEAST readable text on a screen full
+  // of decoration. On the retired `#000314` its 0.70 alpha measured 5.27; on `SCANNER_GROUND`
+  // the same alpha measures 4.31 — under the floor — which is why U8.1 moved it to 0.80/5.19.
+  it('the simulation disclosure clears the AA text floor over the ported ground (D8, R-6)', () => {
+    expect(round(contrast(SCANNER_DISCLOSURE_TEXT, [SCANNER_GROUND]))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it('and stays subordinate to the HUD strings it captions', () => {
+    // The other half of R-6's reasoning, which the alpha floor also could not express: full
+    // opacity would make the caption exactly as loud as the status line, and the fix for an
+    // unreadable disclosure is not to promote it above the UI it is disclaiming.
+    expect(round(contrast(SCANNER_DISCLOSURE_TEXT, [SCANNER_GROUND]))).toBeLessThan(
+      round(contrast(SCANNER_COLORS.idle.text, [SCANNER_GROUND])),
+    )
+  })
+
+  // The SKIP pill floats at `zIndex: 2` over an intro video of unknown content (`BOOT_VIDEO`,
+  // the D7 drop-in), so it is rows 36-37's contract, not the sheet backdrop's — measured over a
+  // white AND a black frame for the same reason the media chip is.
+  it('keeps the SKIP label legible over the brightest intro frame', () => {
+    expect(
+      [
+        ['SKIP over a white frame', '#ffffff'],
+        ['SKIP over a black frame', '#000000'],
+        ['SKIP over the gate itself', SCANNER_GROUND],
+      ]
+        .map(([label, frame]) => [label, round(contrast(SCANNER_SKIP_PILL.label, [SCANNER_SKIP_PILL.fill, frame]))] as const)
+        .filter(([, ratio]) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('and the pill fill is NOT the backdrop token — plan §5 U8.1 said scrim; scrim measures 1.02', () => {
+    // The deviation, asserted so it cannot be quietly undone. `scrim` is a 0.32 dim tuned for a
+    // sheet over the app's own ground; under a white frame it leaves the label at 1.02, worse
+    // than the `rgba(4,8,14,0.55)` it would have replaced (2.07). This is the identical
+    // regression rows 36-37b pin for the media chip, on the identical token.
+    expect(SCANNER_SKIP_PILL.fill).not.toBe(palette.dark.scrim)
+    expect(round(contrast(SCANNER_SKIP_PILL.label, [palette.dark.scrim, '#ffffff']))).toBeLessThan(AA_TEXT)
   })
 })

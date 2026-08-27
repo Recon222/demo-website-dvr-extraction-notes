@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { BOOT_HUD_STATES } from '@/features/demo/engine/logic/boot'
 import { SplashScreen } from '@/features/demo/ui/screens/SplashScreen'
+import {
+  SCANNER_COLORS,
+  SCANNER_DISCLOSURE_TEXT,
+} from '@/features/demo/ui/screens/scanner-hud-colors'
+import { asJsdom } from '@/features/demo/ui/__tests__/jsdom-colour'
 
 const scanner = () => screen.getByRole('button', { name: 'Run the simulated biometric scan' })
 
@@ -47,6 +52,83 @@ describe('SplashScreen', () => {
     }
   })
 
+  /**
+   * A87 — the always-dark trio, and the half of deferred.md §89 (successor finding W3/F52)
+   * that was re-cut to this package.
+   *
+   * §89's three splash sites were `#2B8CC1` spent as TEXT on the app ground: 4.66:1 before
+   * U0.1 re-based `background`, **3.94 after**, against a 4.5 floor. The rule the campaign
+   * settled on is that a saturated accent is fine as a MARK and not as text (§C.3 rule 1), so
+   * every string takes the state's `text` and every mark takes its `primary`.
+   *
+   * Both sweeps are derived, never hand-listed — the F23 lesson, three recurrences deep in
+   * this campaign: *"the record that forgets to enrol is exactly the one that drifts."* A
+   * fourth string added to this surface joins the text sweep by existing, and each sweep
+   * carries its own anti-vacuity assertion so a selector that stops matching reds instead of
+   * passing over an empty set.
+   */
+  describe('the scanner palette (A87 / deferred §89)', () => {
+    /** Every element painting an inline colour, less the disclosure — which is subordinate on
+     *  purpose and owns its own pin above. The full-bleed button's `color: inherit` is not a
+     *  colour and is excluded by value, not by name. */
+    const hudText = (container: HTMLElement): HTMLElement[] =>
+      Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
+        (el) =>
+          el.style.color !== '' &&
+          el.style.color !== 'inherit' &&
+          el.dataset.testid !== 'boot-disclosure',
+      )
+
+    it.each(BOOT_HUD_STATES)("paints every %s string in that state's `text`", (authState) => {
+      const { container } = render(<SplashScreen authState={authState} onScan={vi.fn()} />)
+      const painted = hudText(container)
+      // Anti-vacuity: a sweep that matches nothing passes. Every state paints at least the
+      // header and its status line, and the header is present in all three.
+      expect(painted.length).toBeGreaterThanOrEqual(2)
+      expect(painted.map((el) => el.textContent)).toContain('Biometric Lock')
+      for (const el of painted) {
+        expect(el.style.color).toBe(asJsdom(SCANNER_COLORS[authState].text))
+      }
+    })
+
+    it.each(BOOT_HUD_STATES)("paints the %s corner brackets in that state's `primary`", (authState) => {
+      const { container } = render(<SplashScreen authState={authState} onScan={vi.fn()} />)
+      const brackets = Array.from(container.querySelectorAll<HTMLElement>('div')).filter((el) =>
+        /^4px solid/.test(el.style.borderTop || el.style.borderBottom),
+      )
+      // Anti-vacuity: four brackets, always — the frame is the demo's own geometry and does
+      // not change with the state.
+      expect(brackets).toHaveLength(4)
+      for (const el of brackets) {
+        for (const edge of [el.style.borderTop, el.style.borderRight, el.style.borderBottom, el.style.borderLeft]) {
+          if (edge !== '') expect(edge).toBe(`4px solid ${asJsdom(SCANNER_COLORS[authState].primary)}`)
+        }
+      }
+    })
+
+    it('carries the state all the way to the marks: AUTHORIZED turns the frame green', () => {
+      // The discriminating assertion. Before A87 the whole HUD was one blue whatever the state
+      // was, so a trio that only ever resolved to `idle`'s would look identical — this is what
+      // separates "the palette is keyed by state" from "the palette is a constant".
+      expect(SCANNER_COLORS.authorized.primary).not.toBe(SCANNER_COLORS.idle.primary)
+      const glowOf = (authState: (typeof BOOT_HUD_STATES)[number]) => {
+        const { container, unmount } = render(<SplashScreen authState={authState} onScan={vi.fn()} />)
+        const panel = Array.from(container.querySelectorAll<HTMLElement>('div')).filter(
+          (el) => el.style.boxShadow !== '',
+        )
+        expect(panel).toHaveLength(1)
+        const glow = panel[0].style.background
+        const halo = panel[0].style.boxShadow
+        unmount()
+        return { glow, halo }
+      }
+      const authorized = glowOf('authorized')
+      expect(authorized.glow).toBe(asJsdom(SCANNER_COLORS.authorized.glow))
+      expect(authorized.halo).toContain(asJsdom('rgba(16, 209, 119, 0.3)'))
+      expect(authorized.glow).not.toBe(glowOf('idle').glow)
+    })
+  })
+
   describe('honesty (the demo cannot do biometrics)', () => {
     // Derived, not hand-listed — the same R-11b treatment as the phase list one file over: the
     // union is DEFINED by this tuple, so a fourth HUD state joins this sweep automatically.
@@ -57,16 +139,29 @@ describe('SplashScreen', () => {
       ).toBeInTheDocument()
     })
 
-    it('is readable: the disclosure clears WCAG AA over the boot background (R-6)', () => {
-      // The honesty string must not be the least readable text on a screen full of decoration.
-      // rgba(153,186,221,α) over #000314: α 0.55 → 3.59:1 (fails), 0.65 → 4.65, 0.70 → 5.27.
+    /**
+     * U8.1 replaces the `α >= 0.65` floor this used to assert, and the reason is D8 firing.
+     *
+     * That floor read the alpha out of the rendered colour and compared it to a number whose
+     * meaning lived in a comment — `rgba(153,186,221,α)` over `#000314`. v1's own test lane
+     * wrote down what that could not see (`parity/p8/lane-tests.md:408`): *"a change to the
+     * boot background would move the real ratio without moving this assertion."* That is
+     * precisely what D8 did. The old floor of 0.65 measures **3.92:1 over the new ground** —
+     * it would have stayed green over an AA failure, which is the one outcome the pin exists
+     * to prevent.
+     *
+     * So the claim splits in two, each half asserting exactly what its mechanism enforces:
+     * this pin owns the PAINT (the rendered disclosure is the measured constant, not a
+     * hand-typed near-miss), and `ui/__tests__/palette-contrast.test.ts` owns the RATIO
+     * (`SCANNER_DISCLOSURE_TEXT` over `SCANNER_GROUND` >= 4.5, measured, not inferred from an
+     * alpha). Neither half can drift without reddening: re-typing the colour here reds this,
+     * and lightening the ground or thinning the alpha reds that.
+     */
+    it('paints the disclosure in the measured token (its AA ratio is pinned in palette-contrast)', () => {
       render(<SplashScreen authState="idle" onScan={vi.fn()} />)
-      const alpha = Number(
-        /rgba\(\s*153,\s*186,\s*221,\s*([\d.]+)\s*\)/.exec(
-          screen.getByTestId('boot-disclosure').style.color,
-        )?.[1],
+      expect(screen.getByTestId('boot-disclosure').style.color).toBe(
+        asJsdom(SCANNER_DISCLOSURE_TEXT),
       )
-      expect(alpha).toBeGreaterThanOrEqual(0.65)
     })
 
     it('never claims Face ID happened here — only that the phone uses it', () => {

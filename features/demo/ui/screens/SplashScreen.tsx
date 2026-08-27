@@ -3,6 +3,11 @@
 import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { BootHudState } from '@/features/demo/engine/logic/boot'
+import {
+  SCANNER_COLORS,
+  SCANNER_DISCLOSURE_TEXT,
+} from '@/features/demo/ui/screens/scanner-hud-colors'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /** The HUD's three branches, aliased to the engine's `BootHudState` so the NAME cannot drift —
  *  that is all an alias buys (review R-9). What closes the branch set is `statusBody` below. The
@@ -31,8 +36,9 @@ const status: CSSProperties = { fontFamily: "var(--font-stmono),'Share Tech Mono
  *
  * 1. **It says what it is.** A standing line under the HUD names the scan as simulated. The
  *    prototype's chrome reads exactly like the phone's real gate (`BIOMETRIC LOCK`, `SCANNING`,
- *    `AUTHORIZED` — `scanner-hud-constants.ts:116-125`), and the demo's honesty rule does not
- *    let a browser tab wear that without a caption.
+ *    `AUTHORIZED` — `scanner-hud-constants.ts:154-163`, corrected from `:116-125`, which is
+ *    the timing block), and the demo's honesty rule does not let a browser tab wear that
+ *    without a caption.
  * 2. **The tap target is a real button.** The prototype's `<div onClick>` was unreachable by
  *    keyboard and by AT, which for an unskippable boot gate means locked out of the demo. The
  *    phone's own HUD frame is a `Pressable` with an `accessibilityRole` and label
@@ -48,6 +54,12 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
   const statusId = useId()
   const idle = authState === 'idle'
   /**
+   * The state's trio (A87). `text` paints every string, `primary` every mark, `glow` the
+   * halo — see `scanner-hud-colors.ts`. Before U8.1 this file spelled `#2B8CC1` twelve times
+   * and `#30D158` once, and nothing on the surface changed colour when the state did.
+   */
+  const hud = SCANNER_COLORS[authState]
+  /**
    * One body per HUD state, as a TOTAL record (review R-9).
    *
    * These were three independent `&&` blocks, so a fourth `BootHudState` rendered an EMPTY live
@@ -58,9 +70,9 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
    * fixing R-9: adding a member yields exactly one `TS2741`, here.
    */
   const statusBody: Record<AuthState, ReactNode> = {
-    idle: <div style={{ ...status, color: '#2B8CC1' }}>TAP TO SCAN</div>,
+    idle: <div style={{ ...status, color: hud.text }}>TAP TO SCAN</div>,
     scanning: (
-      <div style={{ ...status, color: '#2B8CC1', display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ ...status, color: hud.text, display: 'flex', alignItems: 'flex-end' }}>
         SCANNING
         <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite' }}>.</span>
         <span style={{ animation: reduceMotion ? undefined : 'blinkDot 1.2s infinite 0.2s' }}>.</span>
@@ -69,8 +81,11 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
     ),
     authorized: (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ ...status, color: '#30D158' }}>AUTHORIZED</div>
-        <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: 'rgba(48,209,88,0.7)', marginTop: 16 }}>
+        <div style={{ ...status, color: hud.text }}>AUTHORIZED</div>
+        {/* A87: was `rgba(48,209,88,0.7)` — the fifth green at 0.7 opacity, 4.27:1 on the new
+            ground. The phone's `authorized.text` is `success` at full strength, and it is the
+            one state whose text DOES stay saturated: 7.29:1 (`scanner-hud-constants.ts:53`). */}
+        <div style={{ fontFamily: "var(--font-stmono),'Share Tech Mono',monospace", fontSize: 14, letterSpacing: 5, color: hud.text, marginTop: 16 }}>
           ACCESS GRANTED
         </div>
       </div>
@@ -93,7 +108,7 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           fontFamily: "var(--font-stmono),'Share Tech Mono',monospace",
           fontSize: 18,
           letterSpacing: 8,
-          color: '#2B8CC1',
+          color: hud.text,
           textTransform: 'uppercase',
           marginBottom: 40,
           animation: reduceMotion ? undefined : 'flicker 8s infinite',
@@ -102,21 +117,29 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
         Biometric Lock
       </div>
 
+      {/* The MARKS. Geometry is the demo's own (220px, not the phone's 280px `FRAME_SIZE`);
+          the hue follows the state, which is the parity win A87 actually buys — the frame
+          turns green with the AUTHORIZED beat instead of staying blue through it, exactly as
+          `BiometricScannerHUD.tsx:421-470` paints it. */}
       <div style={{ position: 'relative', width: 220, height: 220, marginBottom: 46 }}>
-        <div style={bracket({ top: 0, left: 0, borderTop: '4px solid #2B8CC1', borderLeft: '4px solid #2B8CC1' })} />
-        <div style={bracket({ top: 0, right: 0, borderTop: '4px solid #2B8CC1', borderRight: '4px solid #2B8CC1' })} />
-        <div style={bracket({ bottom: 0, left: 0, borderBottom: '4px solid #2B8CC1', borderLeft: '4px solid #2B8CC1' })} />
-        <div style={bracket({ bottom: 0, right: 0, borderBottom: '4px solid #2B8CC1', borderRight: '4px solid #2B8CC1' })} />
-        <div style={{ position: 'absolute', inset: 26, borderRadius: 16, background: 'rgba(43,140,193,0.14)', boxShadow: '0 0 48px 8px rgba(43,140,193,0.30)' }} />
+        <div style={bracket({ top: 0, left: 0, borderTop: `4px solid ${hud.primary}`, borderLeft: `4px solid ${hud.primary}` })} />
+        <div style={bracket({ top: 0, right: 0, borderTop: `4px solid ${hud.primary}`, borderRight: `4px solid ${hud.primary}` })} />
+        <div style={bracket({ bottom: 0, left: 0, borderBottom: `4px solid ${hud.primary}`, borderLeft: `4px solid ${hud.primary}` })} />
+        <div style={bracket({ bottom: 0, right: 0, borderBottom: `4px solid ${hud.primary}`, borderRight: `4px solid ${hud.primary}` })} />
+        {/* Phone `:461-470`: the glow panel is filled with `glow` and haloed with `primary`.
+            The demo's fill was a flat `rgba(43,140,193,0.14)` that took no state; the halo's
+            geometry (48px 8px) and its 0.30 are the demo's own. */}
+        <div style={{ position: 'absolute', inset: 26, borderRadius: 16, background: hud.glow, boxShadow: `0 0 48px 8px ${withAlpha(hud.primary, 0.3)}` }} />
         {authState === 'scanning' && !reduceMotion && (
-          <div style={{ position: 'absolute', left: 16, right: 16, top: 0, height: 2, background: 'linear-gradient(90deg,transparent,#2B8CC1,transparent)', animation: 'hudScan 2s linear infinite', zIndex: 2 }} />
+          <div style={{ position: 'absolute', left: 16, right: 16, top: 0, height: 2, background: `linear-gradient(90deg,transparent,${hud.primary},transparent)`, animation: 'hudScan 2s linear infinite', zIndex: 2 }} />
         )}
       </div>
 
       {/* The status area is a live region so the state change is announced, and carries a floor
           height so the two-line AUTHORIZED state does not shove the frame upward at the moment
           it lands — the phone reserves the same space for the same reason
-          (`STATUS_AREA_MIN_HEIGHT`, scanner-hud-constants.ts:171-172), scaled to these type sizes. */}
+          (`STATUS_AREA_MIN_HEIGHT`, scanner-hud-constants.ts:223, corrected from `:171-172`),
+          scaled to these type sizes. */}
       <div id={statusId} role="status" aria-live="polite" style={{ minHeight: 68, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {statusBody[authState]}
       </div>
@@ -124,12 +147,13 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
       {/* The standing disclosure. Same line `SecurityPane` draws: no sensor exists behind a
           browser tab, so nothing here may read as an authentication that happened.
 
-          The alpha is load-bearing, not taste (review R-6). At the 0.55 this shipped with, the
-          one string carrying the package's honesty claim was the LEAST readable text on the
-          surface — 3.59:1 over `#000314`, a Level-AA failure, while every decorative string
-          around it passed (BIOMETRIC LOCK 5.50, AUTHORIZED 10.15, SKIP 8.22). A low-vision
-          visitor was shown a convincing biometric gate and could not read the caption saying it
-          was fake. 0.70 measures 5.27:1: comfortably over 4.5, still visually subordinate. */}
+          The alpha is load-bearing, not taste (review R-6), and D8's lighter ground moved it a
+          second time. Over the retired `#000314` the arithmetic was 0.55 → 3.59:1 (the
+          Level-AA failure this comment was written for), 0.70 → 5.27. Over `SCANNER_GROUND`
+          the same scale reads 0.55 → 3.20, 0.65 → 3.92, **0.70 → 4.31, still under the
+          floor**, 0.75 → 4.77, 0.80 → 5.19. The value and the reasoning now live on
+          `SCANNER_DISCLOSURE_TEXT`, so the pin can measure the ratio rather than guess at the
+          alpha — the exact hole v1's lane report left open here. */}
       <div
         data-testid="boot-disclosure"
         style={{
@@ -139,7 +163,7 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           fontSize: 11,
           lineHeight: 1.5,
           letterSpacing: 0.3,
-          color: 'rgba(153,186,221,0.70)',
+          color: SCANNER_DISCLOSURE_TEXT,
         }}
       >
         Simulated scan. A browser tab has no biometric sensor. On the phone this is Face ID.

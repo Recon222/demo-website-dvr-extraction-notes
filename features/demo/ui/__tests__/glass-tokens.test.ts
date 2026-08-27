@@ -230,6 +230,14 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // commit — value unchanged, owner corrected.
   ['accent border', '1px solid rgba(43,140,193,0.25)'],
   ['error border', '1px solid rgba(255,71,87,0.3)'],
+  // Deferred.md §97, closed by U8.1 exactly as its trigger words it. `nestedCard.border` is the
+  // most re-drift-prone value in the nested recipe and was the ONE tier value U1.2/U1.3 could
+  // not ban: bare it is live at three non-tier sites, and composed it was live at exactly one —
+  // `BootSequence.tsx:36`'s skip pill, which is not a nested card and had no ruling on what its
+  // border should become until this package. It now derives from `primary` in
+  // `screens/scanner-hud-colors.ts`, so the composed form has no speller left and the ban costs
+  // no sweep. Bare occurrences stay legal, which is why the entry keeps its `1px solid`.
+  ['nested card border', '1px solid rgba(43,140,193,0.45)'],
   // --- glass TIER stops (U1.1): reach for `GLASS_TIER[scheme].<tier>.gradient` ----------
   // The twelve dark stops `tokens/glass-tiers.ts` now owns, banned BARE rather than only as the
   // composed `linear-gradient(...)` above. That distinction is not theoretical: the demo today
