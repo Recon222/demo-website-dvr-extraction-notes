@@ -6387,7 +6387,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 95. W1 (PR #40) — the hand-ported SHADOW values have no drift anchor on either side; only literal shape pins hold them
+## 95. ~~W1 (PR #40) — the hand-ported SHADOW values have no drift anchor on either side~~ — ✅ RESOLVED — PR #42 fix round (F42)
+
+**RESOLVED (W2 F42, `dd680f6`):** the trigger's second option taken — the guard's shadow exclusion now names all three tiers (`card`/`sheet`/`dialog`) with the full reasoning (a composing reader would be "equal by transcription"), names the literal shape pin covering each, and states what would reopen it: a phone-side `Layout.shadow.*` change, or a fourth tier. Original entry below for history.
 
 **Source:** U1.1 report §7 D-3 (`innerShadow`); U1.2/U1.3 report §7 D-3 (`Layout.shadow.card`); `check-rn-parity.mjs:336-344` (the documented exclusion); W1 review r1 F19 (the D2 half is fixed in code; this row is the anchor half).
 
@@ -6676,3 +6678,15 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** raising either token forks the palette the whole port is built on and breaks the drift guard's anchors — a palette/owner decision, not an implementer's. Strictly better than master (which had NO focus indicator, an outright 2.4.7 failure).
 
 **Trigger:** **the D1 owner checkpoint where demo and phone are read side by side** (checkpoint-2 list item 4 shows the focus ring), or U0.5's contrast contract gaining a 1.4.11 row for input boundaries — whichever first. If the owner accepts, these become documented D5-family ceilings with a re-measure note; if not, the fix is palette work with this row's measurements attached.
+
+---
+
+## 119. W2 (PR #42 fix round) — enable `noUnusedLocals` once the remaining TS6133s clear (F36's root cause)
+
+**Source:** W2 review r1 F36; integration report I-5 + § fix round 1 (proposal); measured: 15 `TS6133` across 13 files at `addd03f`, 5 fixed by F36, **11 remaining at `250e12f`** (re-measured by the typescript lane, none in F36's five files).
+
+**What:** the repo has no gate for an unused binding — no `noUnusedLocals`, no ESLint in the gate set. The merge-orphaned-import class has now cost a finding twice (I-5, F36), and grep censuses cannot see a binding whose only "reference" is a comment.
+
+**Why deferred:** the flag is repo-wide and one line, but flipping it reds files owned by other seats; the proposal's own "flip at the W2 fix-merge if clean" trigger fired and the answer was NOT clean (11 remain).
+
+**Trigger (re-cut by the aggregator):** each W3+ package clears the `TS6133`s in files it opens (its report says so); **the flag flips at the first wave boundary where `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false --noUnusedLocals` exits 0** — hard stop **U8.4** (the design-sync closing census runs the command and flips it or records why not).
