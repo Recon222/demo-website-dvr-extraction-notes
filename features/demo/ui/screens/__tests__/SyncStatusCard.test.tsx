@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+// Controlled seam for motion/react's useReducedMotion — the ExportHub/ImportTerminalProgress
+// precedent (R-18/R-23): the real hook latches a module-global on first use, so the setup file's
+// `matches: false` matchMedia stub pins it and a per-test override cannot flip it. The mock also
+// pins WHICH hook the spinner consumes.
+const motionState = vi.hoisted(() => ({ reduce: false as boolean | null }))
+vi.mock('motion/react', async (orig) => ({
+  ...(await orig<typeof import('motion/react')>()),
+  useReducedMotion: () => motionState.reduce,
+}))
 import { render, screen } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -48,6 +57,30 @@ describe('SyncStatusCard', () => {
   it('shows the synchronizing state', () => {
     render(<SyncStatusCard sync={null} syncing />)
     expect(screen.getByText(/Synchronizing/)).toBeInTheDocument()
+  })
+
+  // W4/F86. `features/demo/CLAUDE.md`'s convention, and the shape five in-repo siblings already
+  // ship. The spinner is an INFINITE rotation — the exact class `prefers-reduced-motion` exists
+  // for, and the one this card had missed.
+  it('stops the spinner under prefers-reduced-motion, keeping the state itself', () => {
+    // Anchored to its own label, not to `svg[aria-hidden]` — the card's FIRST such svg is the
+    // header's clock glyph, and a selector that picks that one reads '' in both states and
+    // passes over a live animation. (Measured: it did, on the first run of this case.)
+    const spinner = () => screen.getByText(/Synchronizing/).querySelector('svg') as HTMLElement
+    const { rerender } = render(<SyncStatusCard sync={null} syncing />)
+    expect(spinner().style.animation).toContain('spin')
+
+    motionState.reduce = true
+    try {
+      rerender(<SyncStatusCard sync={null} syncing />)
+      expect(spinner().style.animation).toBe('')
+      // The half a "just delete the animation" fix takes with it: the glyph and the word are
+      // what tell the user anything is happening at all, and both must survive.
+      expect(spinner()).toBeInTheDocument()
+      expect(screen.getByText(/Synchronizing/)).toBeInTheDocument()
+    } finally {
+      motionState.reduce = false
+    }
   })
 
   it('renders every NTP field at parity with the app card', () => {

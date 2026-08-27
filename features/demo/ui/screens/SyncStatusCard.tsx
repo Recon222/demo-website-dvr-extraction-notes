@@ -1,5 +1,6 @@
 'use client'
 
+import { useReducedMotion } from 'motion/react'
 import type { SyncResult } from '@/features/demo/engine/types'
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
@@ -79,6 +80,9 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
  * traceability chain. Presentational; the values come from the (mocked) simulateNtpSync.
  */
 export function SyncStatusCard({ sync, syncing }: SyncStatusCardProps) {
+  // W4/F86 — read BEFORE the early return: a hook after a conditional `return null` is a
+  // rules-of-hooks violation, and this component has one at the next line.
+  const reduce = useReducedMotion()
   if (!syncing && !sync) return null
   const ok = !!sync && !syncing
   const offset = sync ? formatOffset(sync.offsetMs) : null
@@ -113,7 +117,7 @@ export function SyncStatusCard({ sync, syncing }: SyncStatusCardProps) {
                 colour-codes either (it swaps in an `ActivityIndicator` in `colors.primary`,
                 `:241-242`). `link` and not `primary`: this is a 2.5px stroked mark on glass,
                 where `primary` measures 2.87-3.27 and `link` clears with room. */}
-            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={colors.link} strokeWidth="2.5" style={{ animation: 'spin 0.9s linear infinite' }}>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={colors.link} strokeWidth="2.5" style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite' }}>
               <path d="M21 12a9 9 0 1 1-6.2-8.5" strokeLinecap="round" />
             </svg>
             Synchronizing…
