@@ -103,14 +103,27 @@ export function levelDbLabel(level: number): string {
   return `${Math.round(20 * Math.log10(clamped))} dB`
 }
 
-/** The phone's three fill bands (`LevelMeter.tsx:47-51`, `colorForLevelPct`): blue ≤70%,
- *  gold 71–85%, red >85%. Thresholds compare the PERCENTAGE, so the edges land exactly where
- *  the phone's do. */
-export function levelFillColor(level: number): string {
+/** The phone's own band vocabulary (`LevelMeter.tsx:86`: `{ normal, warm, hot }[fillBand]`). */
+export type LevelFillBand = 'normal' | 'warm' | 'hot'
+
+/**
+ * The phone's three fill bands (`LevelMeter.tsx:47-51`, `colorForLevelPct`): normal ≤70%,
+ * warm 71–85%, hot >85%. Thresholds compare the PERCENTAGE, so the edges land exactly where
+ * the phone's do.
+ *
+ * **Returns a BAND, not a colour** (U3.2, A69's engine owner). It used to return three hexes,
+ * which made `engine/` a place colour lives — invisible to `glass-tokens.test.ts`'s
+ * banned-literal sweep, which roots at `features/demo/ui`. Resolving them here would have meant
+ * importing the palette INTO the engine, and `engine/` takes nothing from `ui/`. The phone has
+ * the same split for the same reason: `LevelMeter` computes `fillBand` and paints it with
+ * `colors` inside the component. The demo's threshold logic — the part worth unit-testing
+ * without an `AudioContext` — stays exactly where it was.
+ */
+export function levelFillBand(level: number): LevelFillBand {
   const pct = clamp01(level) * 100
-  if (pct > 85) return '#ff4757'
-  if (pct > 70) return '#ffd93d'
-  return '#2B8CC1'
+  if (pct > 85) return 'hot'
+  if (pct > 70) return 'warm'
+  return 'normal'
 }
 
 // ---- Recorder status vocabulary -------------------------------------------
@@ -138,17 +151,33 @@ export function recorderStatusLabel(phase: RecordingPhase): string {
   }
 }
 
-/** The phone's `getStatusColor` (`TimerCard.tsx:131-137`): error red recording, gold paused,
- *  muted slate idle. Exhaustive for the same reason as the label above. */
-export function recorderStatusColor(phase: RecordingPhase): string {
+/**
+ * What the recorder's status dot and label MEAN, for the UI to paint (U3.2).
+ *
+ * `neutral` and not `'info'`: `READY` carries no severity at all, and the phone spends
+ * `colors.textSecondary` on it (`TimerCard.tsx:137`) rather than any status token.
+ */
+export type RecorderStatusTone = 'error' | 'warning' | 'neutral'
+
+/**
+ * The phone's `getStatusColor` (`TimerCard.tsx:130-139`), minus the colour: error recording,
+ * warning paused, neutral otherwise. Exhaustive for the same reason as the label above — and
+ * `assertNever` here is why this stayed an engine function rather than moving to the screen
+ * wholesale: a `default` arm would silently paint an unknown phase as READY beside a live
+ * microphone.
+ *
+ * It returns a TONE and no longer a hex, so `engine/` holds no colour and imports nothing from
+ * `ui/`. `AudioRecorderScreen` maps the three, which is where the phone maps them too.
+ */
+export function recorderStatusTone(phase: RecordingPhase): RecorderStatusTone {
   switch (phase) {
     case 'recording':
-      return '#ff4757'
+      return 'error'
     case 'paused':
-      return '#ffd93d'
+      return 'warning'
     case 'idle':
     case 'stopped':
-      return '#5a7a9a'
+      return 'neutral'
     default:
       return assertNever(phase)
   }
