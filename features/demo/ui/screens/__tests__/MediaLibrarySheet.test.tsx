@@ -45,6 +45,15 @@ function oneOfEach(): MediaBuckets {
 
 const tab = (name: string) => screen.getByRole('button', { name })
 
+/**
+ * `colors.link` (#b8d4f0) as jsdom normalises it. W0-F1 re-pointed this control's four
+ * accent-as-mark sites off `GLASS.accentFrom`, which the U0.3 re-base turned into a FILL
+ * shade measuring 2.54:1 as text against an AA floor of 4.5 — dimmer than the INACTIVE
+ * tabs' 5.31. W0-F12: reverting any one of them was invisible to every suite, so the four
+ * assertions below are the pin. Same idiom as `ExportHub.test.tsx:115-118`.
+ */
+const LINK = 'rgb(184, 212, 240)'
+
 describe('the sheet header (P4.2’s title, kept)', () => {
   it('is the phone’s "Media Library" with the item total under it', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
@@ -90,6 +99,11 @@ describe('the tabs (row 58)', () => {
 
     expect(tab('Photos tab, 1 items')).toHaveAttribute('aria-pressed', 'true')
     expect(tab('Video tab, 1 items')).toHaveAttribute('aria-pressed', 'false')
+
+    // …and the active tab is the MOST legible thing in the control, not the least (W0-F12).
+    expect(tab('Photos tab, 1 items').style.color).toBe(LINK)
+    expect(tab('Photos tab, 1 items').style.borderBottom).toContain(LINK)
+    expect(tab('Video tab, 1 items').style.color).not.toBe(LINK)
   })
 
   it('badges a populated tab and leaves an empty one unbadged', () => {
@@ -100,6 +114,8 @@ describe('the tabs (row 58)', () => {
     )
 
     expect(within(tab('Photos tab, 2 items')).getByText('2')).toBeInTheDocument()
+    // The numeral is TEXT on its own wash, so it takes `link` too (W0-F12).
+    expect(within(tab('Photos tab, 2 items')).getByText('2').style.color).toBe(LINK)
     // The empty tabs carry their label and nothing else — no `0` pill.
     expect(within(tab('Video tab, 0 items')).queryByText('0')).not.toBeInTheDocument()
   })
@@ -213,6 +229,10 @@ describe('selection (row 58 — auto-select-first)', () => {
 
     expect(screen.getByRole('button', { name: 'Photo: newer.jpg' })).toHaveAttribute('aria-current', 'true')
     expect(screen.getByRole('button', { name: 'Photo: older.jpg' })).not.toHaveAttribute('aria-current')
+
+    // The selection rail is the visual half of `aria-current` (W0-F12).
+    expect(screen.getByRole('button', { name: 'Photo: newer.jpg' }).style.borderLeft).toContain(LINK)
+    expect(screen.getByRole('button', { name: 'Photo: older.jpg' }).style.borderLeft).not.toContain(LINK)
   })
 
   it('re-arms on every tab switch — the new tab’s first item becomes current', () => {

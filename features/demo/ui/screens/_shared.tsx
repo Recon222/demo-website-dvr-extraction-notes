@@ -412,7 +412,13 @@ export function Field({
   const errorId = `${useId()}-error`
   const describedBy = error ? errorId : undefined
   const invalid = error ? true : undefined
-  const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
+  // Re-declare the whole `border` SHORTHAND rather than layering a `borderColor` longhand
+  // over `fieldInput`'s. React removes the longhand when `error` clears and the base's
+  // shorthand does NOT reassert — the input loses its border entirely, with a
+  // "conflicting property" console error nobody read (lit-edge ruling §4.3; caught by the
+  // repo-wide guard in `vitest.setup.ts`). Both branches declaring the same key is what
+  // makes the update an in-place rewrite.
+  const boxStyle = error ? { ...fieldInput, border: '1px solid #ff4757' } : fieldInput
   const assist =
     autoCorrect === false
       ? ({ autoCorrect: 'off', autoCapitalize: 'off', spellCheck: false } as const)

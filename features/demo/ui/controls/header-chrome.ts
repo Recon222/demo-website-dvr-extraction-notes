@@ -41,6 +41,15 @@ import { scheme } from '@/features/demo/ui/tokens/palette'
  * the phone actually builds: a 1px line at the top, drawn over the gradient, costing no layout
  * (`Header.tsx:168-175` — `position:'absolute', top:0, left:0, right:0, height:1, zIndex:1`).
  *
+ * ## `as const satisfies CSSProperties`, not an annotation
+ *
+ * Review r1 F20. An annotation ERASES the literal types — `glassHeaderBar.background` widens to
+ * `Background<string | number> | undefined` and every derivation in this file becomes invisible
+ * to the type system. `tokens/palette.ts:166` and `tokens/glass-tiers.ts:186` use `satisfies`
+ * for the same reason, and commit `7a3a75f` ("type the style pins for the cold typecheck") was
+ * that friction made visible. Excess-property checking is identical either way, so nothing is
+ * given up. `__tests__/header-chrome.test.tsx`'s `_f20` reds a cold `tsc` on the revert.
+ *
  * ## Geometry is NOT in this module, deliberately
  *
  * A37 is a colour row; its Delta names four values and no lengths. The bars' top paddings
@@ -69,10 +78,10 @@ const header = GLASS_TIER[scheme].header
  * end={{x:0,y:1}} style={[styles.header, { borderBottomColor: border }]}>` over
  * `styles.header`'s `borderBottomWidth: 1` (`:476`).
  */
-export const glassHeaderBar: CSSProperties = {
+export const glassHeaderBar = {
   background: `linear-gradient(180deg,${header.gradient[0]},${header.gradient[1]})`,
   borderBottom: `1px solid ${header.border}`,
-}
+} as const satisfies CSSProperties
 
 /**
  * The wizard header alone: the bar above, plus the tier's lit top edge.
@@ -81,10 +90,10 @@ export const glassHeaderBar: CSSProperties = {
  * gradient. The demo's `WizardHeader` is that component's counterpart (10 wizard screens), and
  * it is the only demo bar whose phone twin paints the edge.
  */
-export const glassWizardHeaderBar: CSSProperties = {
+export const glassWizardHeaderBar = {
   ...glassHeaderBar,
   boxShadow: `inset 0 1px 0 ${header.highlightTop}`,
-}
+} as const satisfies CSSProperties
 
 /**
  * A bar BELOW its content: the SAME two stops flipped, hairline on the top edge.
@@ -97,7 +106,7 @@ export const glassWizardHeaderBar: CSSProperties = {
  * Written as a flip of the same two stops rather than a second pair on purpose: a phone-side
  * re-tint of the header tier moves the footer with it, which is what "one recipe" has to mean.
  */
-export const glassHeaderFooterBar: CSSProperties = {
+export const glassHeaderFooterBar = {
   background: `linear-gradient(0deg,${header.gradient[0]},${header.gradient[1]})`,
   borderTop: `1px solid ${header.border}`,
-}
+} as const satisfies CSSProperties
