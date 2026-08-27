@@ -1,15 +1,16 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { useCallback, useId, useState } from 'react'
+import { Accordion, Field, FieldError, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
 import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
 import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { Banner } from '@/features/demo/ui/controls/Banner'
+import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 // The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
 // re-exported here so the modal stays the import site its consumers already use.
@@ -54,6 +55,7 @@ const sectionLabel = {
 function CoordinateField({ label, kind, value, onChange }: { label: string; kind: CoordKind; value: string; onChange(v: string): void }) {
   const [error, setError] = useState<string | undefined>(undefined)
   const [focused, setFocused] = useState(false)
+  const errorId = `${useId()}-error`
   const validate = () => {
     if (value.trim() === '') {
       setError(undefined)
@@ -64,7 +66,7 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
   }
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{label}</div>
+      <div style={fieldLabelStyle}>{label}</div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -75,11 +77,22 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
         }}
         placeholder={kind === 'lat' ? 'e.g., 43.65' : 'e.g., -79.38'}
         aria-label={label}
+        aria-invalid={error !== undefined}
+        // U6.4a. This input had `fieldInputStyle`'s red border and NOTHING else: no
+        // `aria-invalid`, no `aria-describedby`, no live region. A screen-reader visitor got
+        // no announcement at all and no way to reach the message from the field. Its twin in
+        // `inputs/IncidentLocationFields.tsx` was given exactly this at P3 review R-16 and
+        // this copy was missed. Same treatment, from the shared component.
+        aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
         style={fieldInputStyle({ error: Boolean(error), focused })}
       />
-      {error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
+      {error && (
+        <FieldError id={errorId} role="alert">
+          {error}
+        </FieldError>
+      )}
     </div>
   )
 }
@@ -196,14 +209,27 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
       closeAccessibilityLabel={isEdit ? 'Close edit case' : 'Close new case'}
       onClose={handleShellClose}
     >
-      {/* Render order #1 on the phone: the submit-failure banner sits above every field. */}
+      {/* Render order #1 on the phone: the submit-failure banner sits above every field.
+
+          A71/U3.3, handed back to U6.4a by D19 because this lane opens the file. The phone's
+          own line, `NewCaseModal.tsx:271`:
+            `<Banner severity="error" message={submitError} style={styles.errorBanner} />`
+          and `styles.errorBanner:467-469` is `{ marginBottom: Layout.spacing.md }` — 14 -> 16
+          is that value, not a tidy. Its comment (`:464-466`) names what went: "one of five
+          byte-identical local recipes whose text was the saturated `colors.error` on a
+          `colors.error + '20'` fill." The demo's copy was that recipe with the alpha spelled
+          `rgba(255,71,87,0.08)` and the text one shade off, and it is gone with it.
+
+          The fill is now OPAQUE `errorLight`, which is A71's single most portable rule: a
+          translucent wash composites over whatever the parent happens to be and the ratio
+          becomes unmeasurable. */}
       {submitError && (
-        <div
-          role="alert"
-          style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 14, fontSize: 13, fontWeight: 500, color: '#ff6b78' }}
-        >
-          {submitError}
-        </div>
+        <Banner
+          severity="error"
+          message={submitError}
+          testId="new-case-submit-error"
+          style={{ marginBottom: spacing.md }}
+        />
       )}
       {/* Read-only in edit mode, and read FROM the case: the number names the evidence
           folder, which is fixed at creation (phone `NewCaseModal.tsx:296-316`). */}
@@ -214,7 +240,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
         value={caseNumber}
         onChange={(v) => change('caseNumber', v)}
         placeholder="OCC2025-001"
-        hint={isEdit ? 'Case number cannot be changed' : 'Locked once the case is created — it names the evidence folder.'}
+        hint={isEdit ? 'Case number cannot be changed' : 'Locked once the case is created. It names the evidence folder.'}
         error={errors.caseNumber}
       />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />

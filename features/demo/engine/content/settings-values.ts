@@ -214,9 +214,9 @@ export const PROMPT_MODE_OPTIONS: readonly TypedOption<ZipPromptMode>[] = [
 
 /** `STRENGTH_OPTIONS` (ExportSecuritySection.tsx:46-62), display order preserved. */
 export const ENCRYPTION_STRENGTH_OPTIONS: readonly TypedOption<ZipEncryptionStrength>[] = [
-  { label: 'AES-256 — Recommended (strong)', value: 'AES-256' },
-  { label: 'AES-128 — iOS yields AES-256', value: 'AES-128' },
-  { label: 'Standard — weak (ZipCrypto), legacy only', value: 'STANDARD' },
+  { label: 'AES-256. Recommended (strong)', value: 'AES-256' },
+  { label: 'AES-128. iOS yields AES-256', value: 'AES-128' },
+  { label: 'Standard. Weak (ZipCrypto), legacy only', value: 'STANDARD' },
 ]
 
 // ---- Master-row previews ---------------------------------------------------

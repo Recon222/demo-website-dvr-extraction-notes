@@ -2,7 +2,8 @@
 
 import { memo } from 'react'
 import type { CSSProperties } from 'react'
-import type { ImportLogLevel, ImportLogLine } from '@/features/demo/engine/logic/import-log'
+import type { ImportLogLine } from '@/features/demo/engine/logic/import-log'
+import { TERMINAL_PALETTE, TERMINAL_FONT_SIZE } from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
  * TerminalLine — one memoized row of the import terminal (parity P1.4, matrix row 74).
@@ -30,34 +31,12 @@ import type { ImportLogLevel, ImportLogLine } from '@/features/demo/engine/logic
 // (aria-live='off'), so nothing auto-announces — opening a dump is an explicit
 // user opt-in, and the revealed content must be AT-readable. No aria-hidden.
 
-/**
- * Syntax-accent colour per level (phone ImportTerminalProgress.tsx:107-118, with the
- * theme tokens resolved against the phone's dark theme, src/constants/Colors.ts:68-104):
- * textSecondary #99badd · primaryLight #4BA3D4 · warning #ffd93d · success #10d177 ·
- * error #ff4757. FILE #e0a878 and VERB #4ECDC4 are fixed literals on the phone too.
- */
-export const LEVEL_ACCENT: Record<ImportLogLevel, string> = {
-  INIT: '#99badd', // colors.textSecondary
-  FILE: '#e0a878',
-  PDF: '#99badd', // colors.textSecondary
-  AI: '#4BA3D4', // colors.primaryLight
-  VERB: '#4ECDC4',
-  NORM: '#ffd93d', // colors.warning
-  CASE: '#4BA3D4', // colors.primaryLight
-  OK: '#10d177', // colors.success
-  DONE: '#10d177', // colors.success
-  ERR: '#ff4757', // colors.error
-}
-
-/** Fixed row palette (phone ImportTerminalProgress.tsx:100-106 `term`). */
-export const TERM_ROW = {
-  time: '#3a475a',
-  body: '#c6d2df',
-  error: '#ff4757', // colors.error (dark)
-  blockBg: '#080b11',
-  blockBorder: '#1c2733',
-  blockText: '#6f8296',
-} as const
+// U7.1 (A85): the row's colours and its sub-xs type ramp (A86) moved to the ONE owned
+// console palette. `LEVEL_ACCENT` and `TERM_ROW` were two of the four parallel copies
+// `terminal-palette.ts` exists to end; the phone passes the same subset down as a `term`
+// prop (its TerminalLine.tsx:41-53), which the demo deliberately does NOT copy — a new
+// prop on a memoized row is a signature change D20's carve-out does not grant U7.1, and a
+// module import keeps every style object below module-level and referentially stable.
 
 const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
 
@@ -72,21 +51,21 @@ const rowStyle: CSSProperties = {
 }
 const timeStyle: CSSProperties = {
   fontFamily: stmono,
-  fontSize: 10,
+  fontSize: TERMINAL_FONT_SIZE.row,
   width: 44,
   flexShrink: 0,
-  color: TERM_ROW.time,
+  color: TERMINAL_PALETTE.time,
 }
 const tagStyle: CSSProperties = {
   fontFamily: stmono,
-  fontSize: 10,
+  fontSize: TERMINAL_FONT_SIZE.row,
   fontWeight: 600, // Typography.fontWeight.semibold
   width: 38,
   flexShrink: 0,
 }
 const msgStyle: CSSProperties = {
   fontFamily: stmono,
-  fontSize: 10,
+  fontSize: TERMINAL_FONT_SIZE.row,
   lineHeight: '15px',
   flex: 1,
   minWidth: 0,
@@ -99,16 +78,16 @@ const blockStyle: CSSProperties = {
   marginTop: 3,
   marginLeft: 52,
   padding: '6px 9px',
-  background: TERM_ROW.blockBg,
-  borderLeft: `2px solid ${TERM_ROW.blockBorder}`,
+  background: TERMINAL_PALETTE.blockBg,
+  borderLeft: `2px solid ${TERMINAL_PALETTE.blockBorder}`,
   borderTopRightRadius: 4,
   borderBottomRightRadius: 4,
 }
 const blockTextStyle: CSSProperties = {
   fontFamily: stmono,
-  fontSize: 9,
+  fontSize: TERMINAL_FONT_SIZE.detail,
   lineHeight: '15px',
-  color: TERM_ROW.blockText,
+  color: TERMINAL_PALETTE.blockText,
   whiteSpace: 'pre-wrap', // RN Text wraps/preserves by default; web needs it explicit
   wordBreak: 'break-word',
   margin: 0,
@@ -118,10 +97,10 @@ const blockTextStyle: CSSProperties = {
 // text so lifted copy (incl. the emit sites' own trailing ▾) stays verbatim.
 const discloseStyle: CSSProperties = {
   fontFamily: stmono,
-  fontSize: 10,
+  fontSize: TERMINAL_FONT_SIZE.row,
   lineHeight: '15px',
   flexShrink: 0,
-  color: TERM_ROW.blockText,
+  color: TERMINAL_PALETTE.blockText,
 }
 
 export interface TerminalLineProps {
@@ -141,8 +120,8 @@ export const TerminalLine = memo(function TerminalLine({ line, expanded, onToggl
     <>
       {/* Phone gutter format is T+seconds.xx, not mm:ss (TerminalLine.tsx:59, §5.7.3). */}
       <span style={timeStyle}>T+{(line.elapsedMs / 1000).toFixed(2)}</span>
-      <span style={{ ...tagStyle, color: LEVEL_ACCENT[line.level] }}>{line.level}</span>
-      <span style={{ ...msgStyle, color: line.level === 'ERR' ? TERM_ROW.error : TERM_ROW.body }}>{line.text}</span>
+      <span style={{ ...tagStyle, color: TERMINAL_PALETTE.accent[line.level] }}>{line.level}</span>
+      <span style={{ ...msgStyle, color: line.level === 'ERR' ? TERMINAL_PALETTE.error : TERMINAL_PALETTE.body }}>{line.text}</span>
       {hasDetail && (
         <span aria-hidden="true" style={discloseStyle}>
           {expanded ? '▾' : '▸'}

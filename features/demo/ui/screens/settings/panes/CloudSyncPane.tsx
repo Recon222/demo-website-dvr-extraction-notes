@@ -38,7 +38,7 @@ export function CloudSyncPane({ settings }: SettingsPaneProps) {
   return (
     <div data-testid="settings-pane-cloud-sync">
       <PaneStubNote>
-        Cloud sync is out of scope for the demo entirely — nothing you enter here leaves your
+        Cloud sync is out of scope for the demo entirely. Nothing you enter here leaves your
         browser tab, and this switch is fixed off so it cannot suggest otherwise. In the app it is
         the front door to an agency&apos;s own Supabase project: an admin provisions it, enrols
         devices by QR, and every save pushes in the background. The agency owns the database;
@@ -60,7 +60,7 @@ export function CloudSyncPane({ settings }: SettingsPaneProps) {
           }}
         />
         <PaneNote id={reasonId}>
-          Fixed off — cloud sync is out of scope for the demo, and a switch reading &ldquo;on&rdquo;
+          Fixed off. Cloud sync is out of scope for the demo, and a switch reading &ldquo;on&rdquo;
           would suggest case data had left this tab.
         </PaneNote>
       </PaneGroup>

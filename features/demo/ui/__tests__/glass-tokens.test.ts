@@ -49,6 +49,27 @@ const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'tokens/palette.ts', // U0.1 (SEAM) — the two-scheme phone palette; every bare hex below lives here
   'tokens/glass-tiers.ts', // U1.1 (SEAM) — the six glass tiers; the twelve tier stops banned below live here, once
   'tokens/scale.ts', // U0.2 (SEAM) — the numeric scales plus `withAlpha`/`flattenOver`
+  // U5.1 (SEAM) — the map chrome's own constants, the web twin of the phone's
+  // `src/features/location/map-view/constants/index.ts`. It is a token module in the sense
+  // this list means: the map-domain surfaces are declared there ONCE and every `screens/map/`
+  // consumer imports them. It holds `rgba(28,78,132,0.6)` (banned two blocks down as the
+  // header/sheet border) because the phone declares that value TWICE, independently —
+  // `Colors.ts:393`/`:402` for the glass tiers and `constants/index.ts:104` for the map
+  // callout chrome — and collapsing the two here would invent a contract the phone does not
+  // hold. Appended per this docblock's own rule, as U5.1's closing act.
+  //
+  // NOT added to the scheme-half scan's exemptions, and there are none to add to: that scan
+  // exempts nothing (review r2 F24). `mapTokens.ts` declares its two halves as record ARMS and
+  // resolves them with `[scheme]`, so it is clean under it — measured, not assumed.
+  'screens/map/mapTokens.ts',
+  // U7.1 (SEAM) — the always-dark console palette (A85/A91). It is a token module in the sense
+  // this list means (a value has to live exactly once, and this is that once) but NOT a theme
+  // token set: A91/D6(a) forbid resolving the console ground to the app palette, so its
+  // thirteen shades are owned here rather than in `tokens/`, beside the only feature that
+  // paints them. Like `mapTokens.ts` above it lives beside its consumers rather than under
+  // `tokens/`, but for a different reason: the map's halves ARE theme-resolved, the console's
+  // are deliberately not.
+  'screens/import/terminal-palette.ts',
 ])
 
 /**
@@ -324,6 +345,38 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // than adding a second. Reach for `GLASS_TIER[scheme].<tier>`, or the header recipe.
   ['header/sheet border', 'rgba(28,78,132,0.6)'],
   ['header highlightTop', 'rgba(153,186,221,0.1)'],
+  // --- U7.1's console palette: reach for `TERMINAL_PALETTE` --------------------------------
+  // The thirteen off-system console shades `screens/import/terminal-palette.ts` now owns.
+  // These are NOT app-palette hexes and A91 forbids tokenising them to one — but they are
+  // exactly the kind that re-drifts, and this repo had already PROVEN it: `#060a12` and
+  // `#141c28` were live in BOTH `screens/import/ImportTerminalProgress.tsx` and
+  // `screens/NotesScreen.tsx` before U7.1, which is the same duplication the phone's own
+  // module docblock records ("two features owned the same off-system palette and had already
+  // drifted", phone `terminal-palette.ts:10-12`). So unlike U1.1's twelve tier stops, two of
+  // these thirteen are a MEASURED second owner, not a precaution.
+  //
+  // Every one is a near-black navy or a console grey that exists nowhere else in the palette,
+  // so none can be reached for innocently — the same test the recessed-well entries above
+  // pass. Measured after the three consumers were re-pointed: all thirteen have ZERO
+  // occurrences under `ui/` outside `terminal-palette.ts` itself, which is why that file joins
+  // TOKEN_MODULES in this same commit (U0.5's rule: the allow-list lands WITH the bans).
+  //
+  // `#4ba3d4` (cursor / three accents), `#99badd`, `#ffd93d`, `#10d177` and `#ff4757` are
+  // deliberately absent: the module reads them from `palette[TERMINAL_SCHEME]`, they are live
+  // in 15-44 files each, and banning them is the full sweep D3 ruled against.
+  ['terminal screen, light', '#0b1420'],
+  ['terminal screen, dark', '#060a12'],
+  ['terminal bar', '#0a0f18'],
+  ['terminal border', '#141c28'],
+  ['terminal dot', '#242a31'],
+  ['terminal titleText', '#78838f'],
+  ['terminal titleMeta', '#5b8f85'],
+  ['terminal time gutter', '#74818f'],
+  ['terminal body', '#c6d2df'],
+  ['terminal blockBg', '#080b11'],
+  ['terminal blockBorder', '#1c2733'],
+  ['terminal blockText', '#6f8296'],
+  ['terminal accent.FILE', '#e0a878'],
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {

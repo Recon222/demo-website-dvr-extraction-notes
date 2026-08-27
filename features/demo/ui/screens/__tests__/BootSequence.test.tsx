@@ -36,6 +36,27 @@ describe('BootSequence', () => {
     vi.useRealTimers()
   })
 
+  /**
+   * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+   *
+   * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+   * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+   * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+   * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable, so the scan and a
+   * render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT. Shape is
+   * `OcrCaptureScreen.test.tsx`'s — the scanner var IS there, the evidentiary one is NOT, and
+   * the negative half is what catches the swap D13 actually names.
+   */
+  it('paints the boot chrome in the scanner face (A94 / D13)', () => {
+    // This file's ONE scanner-face site is the skip pill, and it only exists while a video is
+    // playing -- `video={null}` goes straight to the scan phase and never renders it. The HUD
+    // text under it belongs to `SplashScreen`, pinned in its own file.
+    render(<BootSequence video={VIDEO} onComplete={vi.fn()} />)
+    const pill = screen.getByRole('button', { name: 'Skip the opening sequence' })
+    expect(pill.style.fontFamily).toContain('--font-stmono')
+    expect(pill.style.fontFamily).not.toContain('--font-jbmono')
+  })
+
   describe('the simulated scan', () => {
     it('waits on the visitor — nothing advances on its own from idle', () => {
       const onComplete = vi.fn()

@@ -20,6 +20,7 @@ import type {
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
 
 export interface ImportFailure {
   filename: string
@@ -134,7 +135,12 @@ export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutc
 const secondaryBtn: CSSProperties = { ...buttonStyle({ variant: 'secondary' }) }
 const primaryBtn: CSSProperties = { ...buttonStyle() }
 
-const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
+// A94/D13, the one violation the mono policy's scan found: this face was Share Tech Mono, the
+// SCANNER/terminal role. The block it paints is a raw failure payload — evidence, not chrome —
+// and the phone agrees at the exact counterpart: `ImportFlowModal.tsx:674`,
+// `detailsText: { fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.mono }`,
+// the evidentiary role, NOT `scannerMono`. Pinned by `ui/__tests__/fonts.test.ts`'s mono policy.
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 /**
  * Collapsible raw-failure context — the phone's "Technical Details" block
@@ -161,7 +167,7 @@ function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
         <pre
           id="import-technical-details"
           data-testid="import-technical-details"
-          style={{ margin: '8px 0 0', padding: '8px 10px', borderRadius: 8, background: '#0a1626', border: GLASS.borderSoft, fontFamily: stmono, fontSize: 11, lineHeight: '16px', color: '#8aa3bd', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+          style={{ margin: '8px 0 0', padding: '8px 10px', borderRadius: 8, background: '#0a1626', border: GLASS.borderSoft, fontFamily: mono, fontSize: 11, lineHeight: '16px', color: '#8aa3bd', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
         >
           {JSON.stringify(details, null, 2)}
         </pre>
@@ -195,7 +201,7 @@ function FailuresCard({ failures }: { failures: ImportFailure[] }) {
     <div style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10, textAlign: 'left' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{failures.length} failed</div>
       {failures.map((f, i) => (
-        <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
+        <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename}: {f.error}</div>
       ))}
     </div>
   )
@@ -270,7 +276,7 @@ export function ImportModal(props: ImportModalProps) {
               </div>
               <ImportResultBody view={result.locations[0]} />
               {result.notice && (
-                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
+                <div style={{ fontSize: 12.5, color: SAMPLE_NOTICE.foreground, background: SAMPLE_NOTICE.background, border: `1px solid ${SAMPLE_NOTICE.border}`, borderRadius: 8, padding: '8px 12px', margin: '4px 0 10px' }}>{result.notice}</div>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={props.onCancel} style={{ ...secondaryBtn, padding: '13px 18px' }}>Done</button>
@@ -286,7 +292,7 @@ export function ImportModal(props: ImportModalProps) {
                 </div>
               </div>
               {result.notice && (
-                <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
+                <div style={{ fontSize: 12.5, color: SAMPLE_NOTICE.foreground, background: SAMPLE_NOTICE.background, border: `1px solid ${SAMPLE_NOTICE.border}`, borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>{result.notice}</div>
               )}
               {result.locations.map((v, i) => (
                 <ImportResultAccordion key={v.locId ?? `loc-${i}`} view={v} open={openIndex === i} onToggle={() => setOpenIndex(openIndex === i ? -1 : i)} onOpenLocation={props.onOpenLocation} />

@@ -9,6 +9,7 @@ import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PaneStubNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { UserProfileModal } from '@/features/demo/ui/screens/settings/UserProfileModal'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Detail pane: **User Profile** (matrix row 85; phone `UserProfileSection.tsx`).
@@ -69,8 +70,8 @@ export interface UserProfilePaneProps {
   saveState: SaveStateKind
 }
 
-const line: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#f0f4f8', marginBottom: 6 }
-const emptyLine: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#99badd' }
+const line: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: colors.text, marginBottom: 6 }
+const emptyLine: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: colors.textSecondary }
 
 /**
  * Phone `src/features/settings/user-profile/components/UserProfileSection.tsx:95-102`:
@@ -109,14 +110,14 @@ function StorageClause({ kind }: { kind: SaveStateKind }) {
     case 'failed':
       return (
         <>
-          This one is real, but the last save to this tab failed — what you enter will be gone if you
+          This one is real, but the last save to this tab failed. What you enter will be gone if you
           reload. The name still auto-fills
         </>
       )
     case 'unavailable':
       return (
         <>
-          This one is real, but this browser isn&rsquo;t storing the session — what you enter lasts
+          This one is real, but this browser isn&rsquo;t storing the session. What you enter lasts
           until you leave or reload this page. The name still auto-fills
         </>
       )
@@ -145,7 +146,7 @@ export function UserProfilePane({ profile, onSave, saveState }: UserProfilePaneP
       <PaneStubNote>
         <StorageClause kind={saveState} /> &ldquo;Completed By&rdquo; on the Completion screen, which
         is what carries it into the Case Notes report. On the phone it lives on the device instead,
-        entered once and reused by every case — and the career fields feed the will-say document.
+        entered once and reused by every case, and the career fields feed the will-say document.
       </PaneStubNote>
 
       <div data-testid="user-profile-section">

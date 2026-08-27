@@ -1,8 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
-import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import {
+  MEDIA_CLOSE_CHIP,
+  listReset,
+  MediaLibrarySheet,
+  previewActionFace,
+  sampleBadge,
+  type MediaLibrarySheetProps,
+} from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
+
+/** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
+ *  hazards) - compare through the same normalisation rather than by hex. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = (hex.replace('#', '').match(/../g) as string[]).map((p) => parseInt(p, 16))
+  return `rgb(${r}, ${g}, ${b})`
+}
 import type { MediaBuckets } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
 
@@ -59,7 +76,10 @@ describe('the sheet header (P4.2’s title, kept)', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
     expect(screen.getByRole('dialog', { name: 'Media Library' })).toBeInTheDocument()
-    expect(screen.getByTestId('modal-subtitle')).toHaveTextContent('3 items')
+    // U7.2: the sheet is `GlassBottomSheet` now, whose subtitle carries no test id — and
+    // adding one to production markup for a pin's convenience is what the reviewer contract
+    // flags. The visible text is the contract anyway.
+    expect(screen.getByText('3 items')).toBeInTheDocument()
   })
 
   it('closes through onClose — the only exit, per D-B6', () => {
@@ -555,6 +575,40 @@ describe('the fullscreen preview (row 65)', () => {
     expect(document.activeElement).toBe(opener)
   })
 
+  /**
+   * W3 r1 F64 / ledger §103 — the regression class the shared hook exists for.
+   *
+   * The block this replaces read `document.activeElement` AT MOUNT. When the opener is disabled
+   * (or otherwise blurred) by the very action that raises the overlay, focus has already fallen
+   * to `<body>` before React runs passive effects, so the "opener" captured was `<body>` and the
+   * hand-back went nowhere — the keyboard user is dropped at the top of the document.
+   *
+   * `useOpenerFocusReturn` captures the origin at GESTURE time (a capture-phase `pointerdown`),
+   * so the real button survives the blur. The blur below is what a self-disabling opener does.
+   *
+   * MUTATION: restore the old five-line block (`const opener = document.activeElement` at mount).
+   * The pin reds — focus lands on `<body>`, not on the button.
+   */
+  it('returns focus to an opener that lost it before the layer mounted (F64)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    // The gesture arms the tracker; the blur is the self-disabling opener's own doing.
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    fireEvent.click(opener)
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(document.activeElement).toBe(layer)
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(document.activeElement).toBe(opener)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
   it('takes the same focus path for a video — no autoFocus branch (R-8)', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
     fireEvent.click(tab('Video tab, 1 items'))
@@ -628,6 +682,18 @@ describe('the item info panel (row 64)', () => {
   it('badges a bundled sample', () => {
     render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ sample: true })] }) })} />)
     expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
   })
 
   it('shows no Sample badge for a live capture', () => {
@@ -643,5 +709,142 @@ describe('the item info panel (row 64)', () => {
     expect(info).toHaveTextContent('Jul 16, 2026')
     // Not the row's `--:--` placeholder — the panel drops the segment (MediaItemInfo.tsx:46-64).
     expect(info).not.toHaveTextContent('--:--')
+  })
+})
+
+describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
+  /**
+   * W3 r1 F61 — this file's five module-level style tables ship readonly. `as const` constrains
+   * the TYPE only, so the writes live in a never-called function (the repo's idiom,
+   * `CentredDialog.test.tsx:627-641`); each `@ts-expect-error` IS the assertion and goes unused,
+   * reddening `tsc`, the moment an `as const` is dropped for a bare `: CSSProperties`.
+   *
+   * MUTATION, and its exact form matters: `const x: CSSProperties = { … }` — the bare annotation
+   * F61 found at 35 sites. Measured (probes Q9/Q10b/Q13): that form KILLS. Dropping only
+   * `as const` while keeping `satisfies` SURVIVES, and that is a property of TypeScript rather
+   * than a weak pin — `satisfies` already pins a fresh literal's type, so `as const` adds only
+   * the `readonly` modifier, which no assignment-plus-directive can distinguish from a
+   * literal-type mismatch. The regression this guards is the annotation, and it is the only form
+   * anyone writes.
+   */
+  it('ships its module-level style tables readonly (F61)', () => {
+    const reject = () => {
+      // @ts-expect-error previewActionFace is readonly
+      previewActionFace.display = 'block'
+      // @ts-expect-error sampleBadge is readonly
+      sampleBadge.fontWeight = 400
+      // @ts-expect-error listReset is readonly
+      listReset.listStyle = 'disc'
+    }
+    expect(typeof reject).toBe('function')
+    expect(previewActionFace.width).toBe(36)
+    expect(sampleBadge.color).toBe(SAMPLE_BADGE.foreground)
+  })
+
+  /**
+   * MUTATION: put `<ModalShell …>` back around the body.
+   *
+   * The phone's `+122/-227` deleted a whole parallel sheet implementation and replaced it with
+   * `<GlassBottomSheet>` (P5's "fold"). The shell is observable through the chrome it owns and
+   * `ModalShell` does not: the sheet scrim, the accent strip, and the absence of a drag handle.
+   */
+  it('is mounted on GlassBottomSheet, not on the page-sheet ModalShell', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+
+    expect(document.querySelector('[data-sheet-scrim]')).not.toBeNull()
+    expect(document.querySelector('[data-sheet-accent-strip]')).not.toBeNull()
+    expect(document.querySelector('[data-modal-header]')).toBeNull()
+    // Phone `:222-224` — the lists own the vertical axis, so no handle and no swipe-to-dismiss.
+    expect(document.querySelector('[data-sheet-handle]')).toBeNull()
+  })
+
+  /**
+   * MUTATION: pass `closeLabel="Close media library"`, i.e. copy the phone's call at `:227`
+   * verbatim. That is the ONE prop this adoption deliberately drops, and the reason is
+   * `GlassBottomSheet`'s own contract: the scrim is announced only when nothing else is.
+   */
+  it('labels exactly ONE dismiss control — the ✕, never the scrim as well', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    expect(screen.getAllByRole('button', { name: 'Close media library' })).toHaveLength(1)
+    expect(document.querySelector('[data-sheet-scrim]')?.getAttribute('aria-label')).toBeNull()
+  })
+
+  /**
+   * MUTATION: drop `hitTarget(...)` from either preview action and paint the disc at 32 again,
+   * or grow the painted disc to 44 instead of padding it.
+   *
+   * A49/DEF-UI-019: the web has no `hitSlop`, and the phone's own ruling
+   * (`MediaPreview.tsx:63-68`) is that the painted circle STAYS 36 because "a 44px disc would
+   * dominate" the row — the minimum is met with slop. On the web the padding IS the slop, and
+   * the equal negative margin hands the 36 box back to the row so the picture does not move.
+   */
+  it.each(['View fullscreen', 'Close preview'])('gives %s a real 44 target around a 36 disc', (name) => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    const button = screen.getByRole('button', { name })
+    const face = button.firstElementChild as HTMLElement
+
+    // 36 + 4 + 4 = 44, and the -4 margin returns the layout box to 36.
+    expect(button).toHaveStyle({ padding: '4px', margin: '-4px' })
+    expect(face).toHaveStyle({ width: '36px', height: '36px' })
+    expect(4 * 2 + 36).toBe(touchTarget.min)
+    // The paint is on the INNER span; a padded button with a background would be a 44 disc.
+    expect(button.style.background).toBe('transparent')
+  })
+
+  /**
+   * MUTATION: re-inline either edge as a literal, or point both at the same value.
+   *
+   * A51: the demo's hand-rolled 3D-glass edges are byte-identical to `ElevatedEdges.dark`
+   * (`button-recipe.ts`'s docblock named this file as the copy and left it to U7.2). They are
+   * imported now, and read through `[scheme]` so the light half arrives with the flip.
+   */
+  it('takes its 3D-glass edges from ElevatedEdges (A51), as longhands', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    const face = screen.getByRole('button', { name: 'Close preview' }).firstElementChild as HTMLElement
+    const norm = (s: string) => s.replace(/\s+/g, '')
+
+    expect(norm(face.style.borderTopColor)).toBe(norm(ElevatedEdges[scheme].top))
+    expect(norm(face.style.borderBottomColor)).toBe(norm(ElevatedEdges[scheme].bottom))
+    // The lit-edge rule: a `border` shorthand here would erase both on the next paint.
+    expect(face.style.borderWidth).toBe('1px')
+    expect(face.style.borderTopColor).not.toBe(face.style.borderRightColor)
+  })
+
+  /**
+   * MUTATION: put the fullscreen chip back to 40 with a 22px glyph.
+   * Phone `MediaPreviewFullscreen.tsx:40-41` — `CLOSE_BUTTON_SIZE = 44`, `CLOSE_ICON_SIZE = 24`.
+   */
+  it('paints the fullscreen close chip at 44 with a 24 glyph (A49)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    const close = within(screen.getByTestId('media-fullscreen')).getByRole('button', { name: 'Close fullscreen' })
+
+    expect(close).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
+    expect(close.querySelector('svg')?.getAttribute('width')).toBe('24')
+    // A90/U4.4's anti-resync: the ground is the chip, never `colors.scrim`.
+    expect(close.style.background.replace(/\s+/g, '')).toBe(MEDIA_CLOSE_CHIP.replace(/\s+/g, ''))
+  })
+
+  /**
+   * MUTATION: put either line back to its pre-U7.2 value (16 / textTertiary message, 13 / the
+   * one-off dim blue hint).
+   *
+   * Phone `EmptyMediaState.tsx:88-99`: message `fontSize.lg` (18) / `fontWeight.medium`, hint
+   * `fontSize.sm` (14), and BOTH `colors.textSecondary` (`:69`, `:74`). This is NOT A80's
+   * `EmptyState` — the phone keeps a separate component for the media tabs because it carries a
+   * hint line, which is why U3.4's sweep correctly left it alone.
+   */
+  it('brings the empty state to the phone two-line recipe, both lines textSecondary', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets() })} />)
+    const empty = screen.getByTestId('empty-media-state')
+    const [message, hint] = Array.from(empty.children) as HTMLElement[]
+    const expected = hexToRgb(colors.textSecondary)
+
+    expect(message).toHaveStyle({ fontSize: '18px', fontWeight: '500' })
+    expect(message.style.color).toBe(expected)
+    expect(hint).toHaveStyle({ fontSize: '14px', marginTop: '8px' })
+    expect(hint.style.color).toBe(expected)
+    // Phone `:56-59` — one accessible name for the whole state, not two orphaned lines.
+    expect(empty.getAttribute('aria-label')).toBe(`${message.textContent}. ${hint.textContent}`)
   })
 })

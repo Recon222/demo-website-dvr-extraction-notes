@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
@@ -24,11 +24,15 @@ import {
 } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { GlassBottomSheet } from '@/features/demo/ui/controls/GlassBottomSheet'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
-import { ModalShell } from '@/features/demo/ui/screens/_shared'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { iconSize, radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The Media Library sheet (phone `MediaLibrarySheet`, ui-mapping 09; matrix rows 57–66).
@@ -99,18 +103,46 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
   }
 
   return (
-    <ModalShell
+    /*
+     * SEAM(U4.1b) adoption — matrix rows 57-66, and P5's "fold" the phone's own implementer
+     * refused once and was overruled on: `MediaLibrarySheet` `+122/-227`, "a whole parallel sheet
+     * implementation was DELETED and replaced by the shared `<GlassBottomSheet>`". Every prop
+     * below is the phone's call at `MediaLibrarySheet.tsx:214-231`, with its reason.
+     *
+     * `visible` is a constant: this component is MOUNTED by the bridge when the library opens
+     * and unmounts through `onClose` (the D-B6 ruling in this file's docblock — exactly one
+     * exit). `ModalShell`, which it replaces, had no exit animation either, so nothing is lost;
+     * a `visible` prop threaded from `DemoExperience` would be new store-facing state for a
+     * transition the surface has never had.
+     */
+    <GlassBottomSheet
+      visible
+      onClose={onClose}
       title="Media Library"
       subtitle={mediaLibrarySubtitle(counts.total)}
-      // Verbatim, phone `MediaLibrarySheet.tsx:208` and `:231` - both spellings of the same
-      // surface's close control agree on the words.
-      closeAccessibilityLabel="Close media library"
-      onClose={onClose}
-      fillBody
+      headerRight={<LibraryCloseButton onClose={onClose} />}
+      // Phone `:218-219`: "A browsing sheet, not a picker: it fills the screen and its lists
+      // scroll inside it, so it needs the shell's definite-height mode."
+      maxHeightRatio={1}
+      fillHeight
+      // Phone `:222-224`: "The lists own the vertical axis; a drag-to-dismiss on the chrome would
+      // be the only way out besides the close button, and the close button is right there."
+      showHandle={false}
+      enableSwipeToDismiss={false}
+      /*
+       * `closeLabel` is DELIBERATELY NOT PASSED, and it is the one prop where this adoption
+       * departs from the phone's call (`:227` passes it). `closeLabel` names the SCRIM;
+       * `GlassBottomSheet`'s own docblock rules the case: "a sheet that renders a labelled ✕
+       * already has one, and giving the scrim the same words would put two identically-named
+       * controls in the tree. Pass it when the sheet has no visible close control; leave it off
+       * when `headerRight` carries one." Measured — passing it here reds
+       * `MediaLibrarySheet.test.tsx` with "Found multiple elements with the role button and name
+       * Close media library". On the phone the scrim IS the only labelled dismiss, which is why
+       * its call differs. At `maxHeightRatio={1}` the scrim is not reachable here anyway, which
+       * is the phone's own note at `:225`.
+       */
     >
-      {/* Undo the shell's body padding so the tab bar and the list rows reach the sheet edges,
-          as they do on the phone; the paddings below are each surface's own. */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, margin: -18 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <MediaTabs active={tab} counts={counts} onSelect={selectTab} />
 
         {/* Between the tabs and the list — the phone's content order (ui-mapping 09:285-296). */}
@@ -176,7 +208,68 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
           onDismiss={() => setPendingDeleteId(null)}
         />
       )}
-    </ModalShell>
+    </GlassBottomSheet>
+  )
+}
+
+/**
+ * A49 / DEF-UI-019 on the web: there is no `hitSlop`, so the PADDING is the hit area and an
+ * equal negative margin hands the painted box back to the flex row that lays it out. The painted
+ * glyph lands exactly where a bare `painted`-square box would put it, because the margin box is
+ * still `painted` either way. `_shared.tsx`'s `modalHeaderIconBtn` is the same idiom.
+ *
+ * The arithmetic is spelled once, from `touchTarget.min`, rather than as two magic numbers per
+ * call site — `SettingsCategoryList`'s `SEPARATOR_INSET` is the precedent for naming a derived
+ * layout figure instead of inlining it.
+ */
+function hitTarget(painted: number): CSSProperties {
+  const pad = (touchTarget.min - painted) / 2
+  return {
+    padding: pad,
+    margin: -pad,
+    background: 'transparent',
+    border: 'none',
+    display: 'flex',
+    cursor: 'pointer',
+  }
+}
+
+/**
+ * The sheet's `headerRight` — phone `MediaLibrarySheet.tsx:194-211`, whose own comment reads:
+ * "The 3D close button lives in the shell's `headerRight` slot. Its four hand-mixed alphas map
+ * one-to-one onto the `nestedCard` tier's four fields."
+ *
+ * The shell owns NO close affordance of its own (`GlassBottomSheet.tsx`'s `headerRight`
+ * docblock), which is why this is the caller's to render. 30x30 painted at `radius.md`
+ * (`:2-9` of its stylesheet), `hitSlop: Layout.spacing.sm` on the phone -> a real 44 target here.
+ */
+function LibraryCloseButton({ onClose }: { onClose(): void }) {
+  return (
+    <button
+      type="button"
+      data-testid="media-library-close-button"
+      // Verbatim, phone `:208` and `:231` — both spellings of this surface's close control agree
+      // on the words.
+      aria-label="Close media library"
+      onClick={onClose}
+      style={hitTarget(30)}
+    >
+      <span
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: radius.md,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...glassButtonFace,
+        }}
+      >
+        <svg width={iconSize.sm} height={iconSize.sm} viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </span>
+    </button>
   )
 }
 
@@ -299,21 +392,28 @@ function MediaPreview({ item, onFullscreen, onClose }: { item: MediaItem; onFull
       <MediaItemInfo item={item} />
 
       {/* ---- Zone 3: the action row ---- */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 12px 4px' }}>
+      {/* Phone `styles.actionRow` `:459-466` — `gap: spacing.sm`. Each button's negative margin
+          hands its painted 36-box back to this row, so the row lays out exactly as it did while
+          the two targets abut across the 8px gap without overlapping. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, padding: '0 12px 4px' }}>
         {/* Image and video only (phone `showFullscreenButton`, MediaPreview.tsx:255) — and only
             with bytes to show: an expired capture has nothing to fill a screen with, so the
             control is absent rather than present-and-empty. */}
         {canFullscreen(item) && (
-          <button type="button" aria-label="View fullscreen" onClick={onFullscreen} style={previewActionButton}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3" />
-            </svg>
+          <button type="button" aria-label="View fullscreen" onClick={onFullscreen} style={hitTarget(PREVIEW_ACTION_SIZE)}>
+            <span style={previewActionFace}>
+              <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3" />
+              </svg>
+            </span>
           </button>
         )}
-        <button type="button" aria-label="Close preview" onClick={onClose} style={previewActionButton}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+        <button type="button" aria-label="Close preview" onClick={onClose} style={hitTarget(PREVIEW_ACTION_SIZE)}>
+          <span style={previewActionFace}>
+            <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </span>
         </button>
       </div>
     </div>
@@ -334,14 +434,17 @@ function canFullscreen(item: MediaItem): item is AvailableMedia {
  * It portals into the phone overlay root like every other overlay in this feature, so it pins to
  * the visible screen instead of scrolling with the sheet's list.
  *
- * FOCUS (R-8). `aria-modal="true"` prunes everything outside this container from the
- * accessibility tree, so leaving focus on the "View fullscreen" button that opened it stranded a
- * keyboard or screen-reader visitor OUTSIDE the only thing they could still perceive — Tab then
- * walked every hidden control behind the layer before reaching Close. The two effects below are
- * `AlertDialog`'s, verbatim in shape (`AlertDialog.tsx:55-61`): focus the container on mount
- * (`tabIndex={-1}`, so the label is announced rather than just the first button), hand focus back
- * to the opener on unmount, guarded by `isConnected` because the row that opened it may have been
- * deleted meanwhile.
+ * FOCUS (R-8, repaired by W3 r1 F64). `aria-modal="true"` prunes everything outside this
+ * container from the accessibility tree, so leaving focus on the "View fullscreen" button that
+ * opened it stranded a keyboard or screen-reader visitor OUTSIDE the only thing they could still
+ * perceive — Tab then walked every hidden control behind the layer before reaching Close.
+ *
+ * The mechanism is `useOpenerFocusReturn` (`ui/primitives/useOpenerFocusReturn.ts`), the demo's
+ * one implementation. The hand-rolled block it replaces read `document.activeElement` AT MOUNT —
+ * the shape U4.3 removed from the dialogs, because a control disabled by the action that raises
+ * an overlay has already lost focus to `<body>` before React runs passive effects. The old
+ * citation here named `AlertDialog.tsx:55-61`, lines that stopped holding the mechanism two waves
+ * ago; ledger §103 lists that stale cite as part of this finding.
  *
  * The video branch's `autoFocus` is gone with it: it solved half the problem (entry, not exit) for
  * one of the two media kinds, and two entry paths in one component is how the photo branch got
@@ -369,14 +472,7 @@ export const MEDIA_CLOSE_CHIP = 'rgba(0, 40, 83, 0.9)'
 function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
   const layerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const opener = document.activeElement
-    layerRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
+  useOpenerFocusReturn(layerRef)
 
   return (
     <PhoneOverlayPortal>
@@ -412,13 +508,18 @@ function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): v
           type="button"
           aria-label="Close fullscreen"
           onClick={onClose}
+          // A49: 40 -> 44 and the glyph 22 -> 24, both the phone's own constants —
+          // `MediaPreviewFullscreen.tsx:40-41`, `CLOSE_BUTTON_SIZE = 44` / `CLOSE_ICON_SIZE = 24`.
+          // The chip is PAINTED at 44 here rather than slop-padded like the preview actions,
+          // because the phone paints it at 44 too: it floats over a black layer with nothing
+          // beside it to dominate.
           style={{
             position: 'absolute',
             top: 44,
             right: 14,
-            width: 40,
-            height: 40,
-            borderRadius: 20,
+            width: touchTarget.min,
+            height: touchTarget.min,
+            borderRadius: radius.full,
             border: 'none',
             background: MEDIA_CLOSE_CHIP,
             color: colors.text,
@@ -428,7 +529,7 @@ function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): v
             cursor: 'pointer',
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <svg width={iconSize.md} height={iconSize.md} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
@@ -529,10 +630,31 @@ function EmptyMediaState({ tab }: { tab: MediaLibraryTabId }) {
   return (
     <div
       data-testid="empty-media-state"
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 32px', textAlign: 'center' }}
+      // Phone `EmptyMediaState.tsx:56-59` — the container carries `${message}. ${hint}` as ONE
+      // accessible name, so a screen reader gets the whole state in one utterance instead of two
+      // orphaned lines.
+      aria-label={`${empty.message}. ${empty.hint}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        // phone `styles.container` `:80-86` — `paddingHorizontal: spacing.xl` (32),
+        // `paddingVertical: spacing.xxl` (48). Already matching; spelled through the scale now.
+        padding: `${spacing.xxl}px ${spacing.xl}px`,
+        textAlign: 'center',
+      }}
     >
-      <div style={{ fontSize: 16, fontWeight: 500, color: '#7a9fc4' }}>{empty.message}</div>
-      <div style={{ fontSize: 13, color: '#5d81a6' }}>{empty.hint}</div>
+      {/* phone `styles.message` `:88-93` — `fontSize.lg` (18, was 16), `fontWeight.medium` (500,
+          already matching), `colors.textSecondary`. Its `marginTop: spacing.md` is deliberately
+          NOT ported: on the phone that 16 is the gap under the ICON (`:61-66`), and this state
+          has no icon to sit under — see the U7.2 report's deferral proposal for the icon itself.
+          The container's `gap: 8` goes with it; the hint carries the phone's own `marginTop`. */}
+      <div style={{ fontSize: 18, fontWeight: 500, color: colors.textSecondary }}>{empty.message}</div>
+      {/* phone `styles.hint` `:95-99` — `fontSize.sm` (14, was 13), `marginTop: spacing.sm` (8),
+          and `colors.textSecondary` as well: the phone paints BOTH lines the same token
+          (`:69`, `:74`). The demo's second line was a dimmer one-off that belonged to no token. */}
+      <div style={{ fontSize: 14, color: colors.textSecondary, marginTop: spacing.sm }}>{empty.hint}</div>
     </div>
   )
 }
@@ -728,41 +850,91 @@ function KindGlyph({ kind }: { kind: MediaItem['kind'] }) {
 
 // ---- Styles -----------------------------------------------------------------
 
-const listReset: CSSProperties = { listStyle: 'none', margin: 0, padding: 0 }
+// W3 r1 F61 — the module-level style tables ship readonly. `as const satisfies CSSProperties`
+// and never a bare annotation: `satisfies` keeps the literal types while `as const` makes the
+// object immutable, which an annotation alone does neither of.
+export const listReset = { listStyle: 'none', margin: 0, padding: 0 } as const satisfies CSSProperties
 
-const metaLine: CSSProperties = {
+const metaLine = {
   display: 'block',
   fontSize: 11,
   color: '#7a9fc4',
   marginTop: 2,
-}
+} as const satisfies CSSProperties
 
-/** The 3D glass action button of the phone's preview action row (`MediaPreview.tsx:258-278`). */
-const previewActionButton: CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
+/**
+ * The 3D-glass face shared by the header close and the two preview action buttons — phone
+ * `MediaPreview.tsx:276-291`'s `actionButtonGlassStyle`, dark arm.
+ *
+ * A51: the two EDGES are `ElevatedEdges`, imported rather than re-typed. `button-recipe.ts`'s
+ * docblock already named this file as the demo's one hand-rolled copy ("byte-identical apart
+ * from `rgba()` spacing, and left to U7.2, which opens that file whole") — this is that
+ * import. The fill and the SIDE colour are not part of that pair and stay spelled, with the
+ * phone's own line numbers: `:278` and `:279`.
+ *
+ * LONGHANDS ONLY, no `border` shorthand. What was here read `border: '1px solid <sides>'` and
+ * then re-set `borderTopColor`/`borderBottomColor` after it — right on first paint and the
+ * exact shape `partner-lit-edge-ruling.md` §3-§4 measured wrong on the next, because React
+ * writes only the keys that CHANGED. It is inert today (a module const never updates) and it is
+ * a live trap the moment anything spreads or conditions it.
+ */
+const glassButtonFace = {
+  background: 'rgba(255,255,255,0.06)', // MediaPreview.tsx:278
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: 'rgba(255,255,255,0.08)', // :279
+  borderLeftColor: 'rgba(255,255,255,0.08)', // :279
+  borderTopColor: ElevatedEdges[scheme].top, // :280 — A51
+  borderBottomColor: ElevatedEdges[scheme].bottom, // :281 — A51
+  color: '#cdd9e6',
+} as const satisfies CSSProperties
+
+/**
+ * The painted disc of a preview action button — phone `ACTION_BUTTON_SIZE = 36`
+ * (`MediaPreview.tsx:69`), was 32 here.
+ *
+ * It stays 36 and the 44 target comes from `hitTarget`, which is the phone's ruling verbatim
+ * (`:63-68`): "The painted circle stays 36 -- it sits in a tight row under the preview and a
+ * 44px disc would dominate it -- so the 44x44 minimum is met with slop (DEF-UI-019). 4 a side
+ * takes 36 to exactly 44, and the row's `gap` is 8, so the two targets abut without
+ * overlapping." Growing the paint to 44 would meet the letter of A49 and lose the picture.
+ */
+const PREVIEW_ACTION_SIZE = 36
+/** Phone `ACTION_ICON_SIZE = 20` (`MediaPreview.tsx:70`), was 18 here. */
+const ACTION_ICON_SIZE = iconSize.sm
+
+export const previewActionFace = {
+  width: PREVIEW_ACTION_SIZE,
+  height: PREVIEW_ACTION_SIZE,
+  borderRadius: radius.full,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  borderTopColor: 'rgba(255,255,255,0.14)',
-  borderBottomColor: 'rgba(0,0,0,0.3)',
-  color: '#cdd9e6',
-  cursor: 'pointer',
-}
+  ...glassButtonFace,
+} as const satisfies CSSProperties
 
-/** The demo's sample badge, shared in appearance with the two capture screens' — a bundled
- *  asset is labelled everywhere it appears, never only where it was made. */
-const sampleBadge: CSSProperties = {
+/**
+ * The demo's sample badge — a bundled asset is labelled everywhere it appears, never only where
+ * it was made.
+ *
+ * W3 r1 F51: the three COLOURS were re-typed here rather than imported, so D12's freeze-and-
+ * defend arm rested on five hand-typed literals happening to agree while `SAMPLE_BADGE`'s
+ * docblock claimed sole ownership of all of them. They come from the seam now. Zero rendered
+ * bytes move — the three values are byte-identical to what this held.
+ *
+ * The chip GEOMETRY (9/700/0.8/uppercase, radius 6, `1px 6px`) stays local and is NOT part of
+ * F51: the seam owns the defended colours, and the finding's own scope note excludes the wider
+ * amber family. If a fourth surface ever needs the geometry too, that is the day to lift it —
+ * `sample-badge.ts` is U7.3's file, not this package's.
+ */
+export const sampleBadge = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: 0.8,
   textTransform: 'uppercase',
-  color: '#ffd07a',
-  background: 'rgba(255,200,90,0.12)',
-  border: '1px solid rgba(255,200,90,0.3)',
+  color: SAMPLE_BADGE.foreground,
+  background: SAMPLE_BADGE.background,
+  border: `1px solid ${SAMPLE_BADGE.border}`,
   borderRadius: 6,
   padding: '1px 6px',
-}
+} as const satisfies CSSProperties

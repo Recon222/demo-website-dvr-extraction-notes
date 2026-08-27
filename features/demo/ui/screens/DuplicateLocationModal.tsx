@@ -3,7 +3,7 @@
 import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
-import { Field, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { Field, FieldError, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { NEW_LOCATION_BLOCK_MESSAGES, newLocationBlock } from '@/features/demo/engine/logic/new-location-gate'
 import type { DuplicateMode } from '@/features/demo/engine/types'
@@ -159,11 +159,13 @@ export function DuplicateLocationModal({
           unconditionally so the region exists before it has content — a region created together
           with its text is not reliably announced. Before R-3 the blank-name arm said nothing at
           all: two primary actions simply vanished from the tab order. */}
-      <div role="status" data-testid="duplicate-location-blocked" style={{ fontSize: 12, color: '#ff6b78' }}>
+      <div role="status" data-testid="duplicate-location-blocked">
         {block !== null && (
-          <div id={blockedId} style={{ marginBottom: 10 }}>
+          // U6.4a — §C.3 rule 1, and the identical shape `NewLocationModal` renders for the
+          // identical gate. No role of its own: it is already inside the region above.
+          <FieldError id={blockedId} style={{ marginTop: 0, marginBottom: 10 }}>
             {NEW_LOCATION_BLOCK_MESSAGES[block]}
-          </div>
+          </FieldError>
         )}
       </div>
 

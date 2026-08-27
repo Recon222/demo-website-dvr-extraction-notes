@@ -82,7 +82,7 @@ export interface AudioRecordingFlowProps {
 /** Phone `RecorderScreen.tsx:186-190` — the info toast the 1-hour ceiling fires. Shown as an
  *  in-screen line here rather than a toast, because the auto-stop also MOVES the visitor to
  *  the review screen and an unexplained screen change is a silent event. */
-const MAX_DURATION_NOTICE = 'Maximum Duration Reached — recording stopped at 1 hour maximum.'
+const MAX_DURATION_NOTICE = 'Maximum Duration Reached. Recording stopped at 1 hour maximum.'
 
 export function AudioRecordingFlow({ defaultFilenameBase, onSave, onClose, deps }: AudioRecordingFlowProps) {
   const [notice, setNotice] = useState<string | null>(null)

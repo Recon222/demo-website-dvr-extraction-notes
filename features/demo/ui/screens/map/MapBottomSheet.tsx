@@ -8,6 +8,7 @@ import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
 import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import { SHEET_SHADOW } from '@/features/demo/ui/controls/sheet-chrome'
+import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
@@ -45,6 +46,9 @@ const SHEET_HEIGHTS = [116, 340, 560]
 const DRAG_THRESHOLD = 40
 
 const clampIndex = (i: number) => Math.max(0, Math.min(i, SHEET_HEIGHTS.length - 1))
+
+/** Phone `styles.divider` — `height: 1`, `marginHorizontal: Layout.spacing.lg`. */
+const divider = { height: 1, flexShrink: 0, margin: `0 ${spacing.lg}px`, background: SHEET_COLORS.divider } as const satisfies CSSProperties
 
 /**
  * The map's draggable bottom sheet — three detents (peek/partial/full), controlled snap index. Drag
@@ -121,12 +125,16 @@ export function MapBottomSheet({
     bottom: TAB_BAR_HEIGHT, // flush with the tab bar — no seam
     height,
     zIndex: 20,
-    background: SHEET_COLORS.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    // U5.1 (A84): the phone's three-stop OPAQUE gradient, not a flat navy and not the `sheet`
+    // glass tier — `constants/index.ts:339-343` records why (compositor occlusion over a live
+    // map surface). The radius follows `SheetBackground.tsx:40-41`'s `Layout.borderRadius.sheet`;
+    // it was a hand-set 20.
+    background: SHEET_COLORS.backgroundGradient,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     borderTop: `1px solid ${SHEET_COLORS.border}`,
-    // A46 — the one upward cast. Was `0 -8px 24px rgba(0,0,0,0.45)`. The GROUND
-    // (`SHEET_COLORS.background`) and the radius stay U5.1's; only the shadow is U4.1's row.
+    // A46 — the one upward cast. Was `0 -8px 24px rgba(0,0,0,0.45)`. The GROUND and the radius
+    // were U5.1's and have landed; only the shadow was U4.1's row.
     boxShadow: SHEET_SHADOW,
     display: 'flex',
     flexDirection: 'column',
@@ -153,6 +161,11 @@ export function MapBottomSheet({
       >
         <SheetHandle contentMode={contentMode} locationCount={locationCount} statusCounts={statusCounts} />
       </div>
+      {/* U5.4 — phone `MapBottomSheet.tsx:212-216`, `styles.divider` `:258-261`: a 1px rule inset
+          by `spacing.lg`, between the handle and the content. `SHEET_COLORS.divider` existed with
+          no divider to paint; its only reader was `LocationDetailCard`'s info-card border, which
+          belongs to the nested tier instead. */}
+      <div data-testid="sheet-divider" style={divider} />
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {contentMode === 'detail' ? (
           detail

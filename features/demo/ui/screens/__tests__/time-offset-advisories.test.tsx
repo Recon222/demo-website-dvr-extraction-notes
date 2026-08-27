@@ -5,6 +5,10 @@ import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
 function jsdomColor(value: string): string {
@@ -58,6 +62,126 @@ describe('TimeOffsetScreen — DST advisory surface', () => {
   it('shows the phone’s DVR-Applies-DST hint line under the toggle', () => {
     render(<TimeOffsetScreen {...base} />)
     expect(screen.getByText('Enable if the DVR clock adjusts for Daylight Saving Time')).toBeInTheDocument()
+  })
+
+  /**
+   * A71 / D19 — the hand-back `banner.test.tsx` held for this package. The phone did the same
+   * move in `4853f9d9`, whose subject IS the ruling: *"route the DST callout through Banner and
+   * stop signalling with colour alone."*
+   *
+   * Both halves are asserted, and F26 is why neither is enough alone: the private trio survived
+   * a whole wave because the surfaces that painted it and the seam that owned it agreed on the
+   * VALUES while having no shared SOURCE. So one case proves the seam reaches the DOM (asserted
+   * against `severityTone('warning')`, never a retyped hex) and one proves the specific pairing
+   * the ruling removed is gone.
+   */
+  describe('the advisory is a warning Banner, not a private dashed callout', () => {
+    it('paints from THE severity seam — fill, all four border sides, and the foreground', () => {
+      render(<TimeOffsetScreen {...base} dstAdvisory={ADVISORY} />)
+      const message = screen.getByText(ADVISORY)
+      const box = message.parentElement as HTMLElement
+      const tone = severityTone('warning')
+      expect(box.style.backgroundColor).toBe(jsdomColor(tone.background))
+      // jsdom does not synthesize `borderColor` back from the four longhands, and the per-side
+      // read is the stronger assertion anyway — it sees a PARTIAL re-tint the shorthand cannot.
+      for (const side of ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
+        expect(box.style[side], side).toBe(jsdomColor(tone.borderColor))
+      }
+      expect(message.style.color).toBe(jsdomColor(tone.color))
+    })
+
+    it('stops spending the saturated amber as the advisory`s own TEXT', () => {
+      render(<TimeOffsetScreen {...base} dstAdvisory={ADVISORY} />)
+      const message = screen.getByText(ADVISORY)
+      // What it used to render: `#ffd93d` text, and a 1px DASHED border of the same hue, over a
+      // 7% wash of it. C.3 rule 1 bans the accent as text; the dashed outline was the demo's
+      // own invention and has no phone counterpart in any revision.
+      expect(message.style.color).not.toBe(jsdomColor(colors.warning))
+      expect(message.closest('[style*="dashed"]')).toBeNull()
+      // OPAQUE. A translucent fill composites over an unknown parent and the measured
+      // `*OnLight` ratio stops being a ratio at all (phone `Banner.tsx:11-16`).
+      // Through the SEAM, like the pin above it (W2 F26). Spelling the fill as `colors.warningLight`
+      // here would red on a re-point of `severityTone('warning')` that the sibling pin accepts.
+      expect((message.parentElement as HTMLElement).style.backgroundColor).toBe(
+        jsdomColor(severityTone('warning').background),
+      )
+    })
+  })
+})
+
+/**
+ * §C.3 rule 1 on this screen's OUTPUT — the calibration verdict and the corrected timestamps.
+ *
+ * The phone de-coloured both in the same campaign and wrote the reasoning into its stylesheet
+ * (`time-offset.tsx:756-758` and `:834-843`, quoted in `phone-ui-delta-inventory.md:12395-12455`):
+ * *"the label above it already says 'Time Difference', so colour was decoration on a calibration
+ * verdict"*, and for the corrected times *"Every accent token in the palette fails at least one
+ * theme on this surface; only `colors.text` clears both."*
+ *
+ * Measured on THIS side rather than quoting the phone's own ground: `primaryLight #4BA3D4`
+ * against the four glass stops these lines actually sit on (`gradientPanel` and `gradientCard`,
+ * each composited over `background`) is **3.82 / 3.88 / 4.24 / 4.35** — below AA 4.5 at every
+ * one of them. `colors.text` is **9.70-11.05** on the same four.
+ *
+ * The pin is a BAN plus a positive, not a ban alone: a ban alone is satisfied by any other
+ * failing colour, which is how "not the accent" becomes "some third hue nobody measured".
+ */
+describe('TimeOffsetScreen — no accent-as-text on the calibration output', () => {
+  const scope = {
+    id: 'a',
+    reqLabel: 'real time',
+    adjLabel: 'DVR time',
+    reqStart: '2025-03-08 23:47:30',
+    reqEnd: '2025-03-09 01:32:30',
+    adjStart: '2025-03-08 23:53:00',
+    adjEnd: '2025-03-09 01:38:00',
+    cameras: 'Cam 1',
+  }
+
+  /** Every line the phone's two rulings name, addressed by the copy a reader sees. */
+  const OUTPUT_LINES = [
+    'the verdict line',
+    'the adjusted start',
+    'the adjusted end',
+  ] as const
+
+  it('paints the verdict and both corrected timestamps in `colors.text`', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[scope]} />)
+    const lines = [
+      screen.getByText('DVR is AHEAD OF real time'),
+      screen.getByText(scope.adjStart),
+      screen.getByText(scope.adjEnd),
+    ]
+    expect(lines.map((el, i) => `${OUTPUT_LINES[i]}: ${el.style.color}`)).toEqual(
+      OUTPUT_LINES.map((name) => `${name}: ${jsdomColor(colors.text)}`),
+    )
+    // ...and specifically not the accent they used to carry. Kept as its own assertion because
+    // the positive above would also pass if `colors.text` were ever re-pointed AT the accent.
+    for (const el of lines) expect(el.style.color).not.toBe(jsdomColor(colors.primaryLight))
+  })
+
+  it('drops the colour DISTINCTION between the REQUESTED and ADJUSTED sub-labels', () => {
+    render(<TimeOffsetScreen {...base} correctedScopes={[scope]} />)
+    // The phone paints both from one token (`time-offset.tsx:566`, `:588`). The demo had
+    // `textTertiary` over `primaryLight` — colour as the sole carrier of which domain a block
+    // is in, on the one screen whose whole job is telling two domains apart. The words already
+    // say it: "Requested (real time)" / "Adjusted (DVR time)".
+    const requested = screen.getByText('Requested (real time)')
+    const adjusted = screen.getByText('Adjusted (DVR time)')
+    expect(adjusted.style.color).toBe(requested.style.color)
+    expect(adjusted.style.color).not.toBe(jsdomColor(colors.primaryLight))
+  })
+
+  it('spells no bare hex at all — every colour on this screen is a palette token', () => {
+    // The census half. A behavioural pin sees only the surfaces a test mounts, so the source IS
+    // the invariant for "nothing was left behind" — the same reasoning `glass-tokens.test.ts`
+    // and `field-recipe-sweep.test.tsx` carry. Comments stripped first: this file's docblocks
+    // name the retired literals on purpose, and an unstripped scan reds on its own history.
+    const src = readFileSync(
+      join(process.cwd(), 'features', 'demo', 'ui', 'screens', 'TimeOffsetScreen.tsx'),
+      'utf8',
+    ).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+    expect(src.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([])
   })
 })
 

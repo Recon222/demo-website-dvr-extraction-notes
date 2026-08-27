@@ -2,7 +2,7 @@
 
 import { useId } from 'react'
 
-import { Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { Field, FieldError, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inputs/LocationFields'
 import { NEW_LOCATION_BLOCK_MESSAGES, newLocationBlock } from '@/features/demo/engine/logic/new-location-gate'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
@@ -201,11 +201,17 @@ export function NewLocationModal({
           (OcrCaptureScreen's R-15 shape). The wrapper renders unconditionally so the region
           exists before it has content — a region created together with its text is not
           reliably announced. */}
-      <div role="status" data-testid="new-location-blocked" style={{ fontSize: 12, color: '#ff6b78' }}>
+      <div role="status" data-testid="new-location-blocked">
         {block !== null && (
-          <div id={blockedId} style={{ marginBottom: 10 }}>
+          // U6.4a: the same validation treatment the `Field` three rows up renders — severity
+          // on the glyph, message in `colors.text` (§C.3 rule 1). It carries NO role of its
+          // own: this div is already inside the `role="status"` above, and nesting an
+          // assertive `role="alert"` in a polite region is the defect U6.2 refused when it
+          // declined to fold `PaneNote` onto `Banner`. `marginTop` is dropped because this
+          // line hangs off no field box — the `Field` above already ends in `spacing.md`.
+          <FieldError id={blockedId} style={{ marginTop: 0, marginBottom: 10 }}>
             {NEW_LOCATION_BLOCK_MESSAGES[block]}
-          </div>
+          </FieldError>
         )}
       </div>
       <ModalActions

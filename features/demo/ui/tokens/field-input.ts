@@ -52,6 +52,73 @@ import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
  */
 const c = palette[scheme]
 
+/**
+ * A72's LABEL half — U6.4a. `styles.labelContainer` (`TextInput.tsx:155-157`) supplies
+ * `marginBottom: Layout.spacing.xs`, `styles.label` (`:158-161`) the `Typography.fontSize.sm`
+ * / `fontWeight.medium` pair, and `:105` paints it `colors.text`.
+ *
+ * ## Why this is a seam and not a style on `Field`
+ *
+ * U6.1 moved `Field`'s label onto these values and left the recipe inline. It was never
+ * `Field`'s alone: the demo declared the SAME four-key object at **eight** sites, all
+ * byte-identical at `13 / 500 / #cdd9e6 / 6` and none importing any of the others —
+ * `_shared.tsx`'s `Field`, `inputs/AddressAutocomplete.tsx`, `inputs/DateTimeField.tsx`,
+ * `inputs/Dropdown.tsx`, `inputs/IncidentLocationFields.tsx`, `screens/NewCaseModal.tsx`'s
+ * `CoordinateField`, `screens/SubmissionScreen.tsx` and
+ * `screens/settings/UserProfileModal.tsx`. Two of the eight reached the tone through
+ * `T.textDim`; the other six spelled the hex. Fixing `Field` alone left seven surfaces a step
+ * smaller and a step darker than the field beside them — which is U2.4 deferral D-3's whole
+ * point, and why its trigger is this package.
+ *
+ * `T.textDim` is DELETED rather than re-pointed. It had no palette sibling (it was the one key
+ * in `T` that was not an alias), so every site spelling it was invisible to `palette[scheme]`
+ * and the one-line light flip (plan §9 clause 12) would have left all eight on the dark half.
+ * Deleting the key is also the guard: a surface that re-grows a private label is a compile
+ * error, not a review finding.
+ *
+ * The required asterisk is deliberately NOT here. It is one `<span>` at the two sites that
+ * take a `required` flag, both already naming `colors.error`; a second export to carry a token
+ * both call sites already spell would add a hop and remove no duplication.
+ */
+// F61: `as const satisfies` rather than a `: CSSProperties` annotation. The annotation left
+// this WRITABLE, and it is the widest-reach instance in the census — 12 importers pass it
+// straight through as `style={fieldLabelStyle}`, so one `fieldLabelStyle.color = …` anywhere
+// in the tree would restyle every form label in the product with no test naming the offender.
+// (U6.4a’s own report flagged this shape as its likely defect 2; the census found it.)
+// `satisfies` keeps the shape checked against `CSSProperties`, which the annotation was for.
+export const fieldLabelStyle = {
+  fontSize: 14,
+  fontWeight: 500,
+  color: c.text,
+  marginBottom: spacing.xs,
+} as const satisfies CSSProperties
+
+/**
+ * A72's ERROR-LINE half — U6.4a, and the row that closes U6.1 deferral proposal 2 for every
+ * site its four modals reach.
+ *
+ * The LAYOUT only; the glyph and the semantics belong to the caller (see `FieldError` in
+ * `screens/_shared.tsx`, which composes both). `errorContainer` (`TextInput.tsx:181-183`) is
+ * `marginTop: Layout.spacing.xs`, `errorText` (`:184-186`) is `fontSize.sm`.
+ *
+ * **The colour is `colors.text`, not `colors.error`, and that is matrix §C.3 rule 1** — the
+ * campaign's adjudicated-closed `P8-DEF-A`, measured by U6.1 over the same dark grounds
+ * `ui/__tests__/palette-contrast.test.ts` composites: the retired red 3.84 worst / 5.34 best,
+ * the phone's own `colors.error` 3.16 / 4.40, `colors.text` 9.56 / 13.30. Porting the phone's
+ * token verbatim would have LOWERED this line. Severity moves to the glyph, which is a
+ * non-text mark and needs only 1.4.11's 3.0.
+ */
+// F61 — same treatment, same reason. Callers spread it (`{ ...fieldErrorStyle, ...style }`),
+// which is unaffected by the readonly marks; only a WRITE is now a compile error.
+export const fieldErrorStyle = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: spacing.xs,
+  fontSize: 14,
+  color: c.text,
+  marginTop: spacing.xs,
+} as const satisfies CSSProperties
+
 /** The live state a caller has; every flag defaults to false. */
 export interface FieldInputState {
   /** The field displays a value it refuses to edit (`editable={false}` on the phone). */

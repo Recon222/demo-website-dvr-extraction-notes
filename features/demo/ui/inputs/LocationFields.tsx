@@ -107,14 +107,14 @@ export const LOCATION_FIELD_LABELS = {
 /** Demo-only. The phone's Submission passes no `onReverseGeocodeError`, so a failed lookup is
  *  logged and never surfaced (ui-mapping 05:35). The demo says so instead of going quiet —
  *  and states the part that matters: the coordinates were kept. */
-export const REVERSE_GEOCODE_UNAVAILABLE = 'Address lookup unavailable — the captured coordinates were kept.'
+export const REVERSE_GEOCODE_UNAVAILABLE = 'Address lookup unavailable. The captured coordinates were kept.'
 
 /** R-17. Mapbox routinely returns `context.address` without `context.place` (rural addresses,
  *  reduced-context tokens). Writing that through blanked an operator-typed City with a
  *  success-shaped outcome and no notice — and `formatAddress` drops empty components, so the
  *  loss propagated silently to the PDF header, the notes, the Cases row and the map sheet.
  *  Only the components the lookup actually resolved are written; this says the rest stands. */
-export const REVERSE_GEOCODE_PARTIAL = 'Address lookup found only part of the address — the rest was left as you typed it.'
+export const REVERSE_GEOCODE_PARTIAL = 'Address lookup found only part of the address. The rest was left as you typed it.'
 
 /** Which post-lookup notice the block is showing. A union, not two booleans: the outcomes are
  *  mutually exclusive and the "both true" state has no rendering. */

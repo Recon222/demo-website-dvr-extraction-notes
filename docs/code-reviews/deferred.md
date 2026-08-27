@@ -6272,6 +6272,8 @@ fourteen sites as their closing act. Any site still measuring < 4.5 after U6 mer
 HIGH — observable as `grep -rn "#2B8CC1" features/demo/ui --include=*.tsx` returning a `color:` site
 outside the token modules.
 
+**TRIGGER LAPSED (W3 r1) → finding F52** (`w3/VETTED-r1.md`): the U6 clause closed with four `color:` sites still under 4.5 and no re-measure in any U6 report. Disposition: the three W3-owned sites fix in W3's round (LocationDetailCard, CaseMapPicker, `_pane-chrome:117`); **SplashScreen ×3 re-cut to U8.1's re-base**; **StoryRail:75 RULED D12-frozen** (the ratified freeze governs the surface — its 3.94 is recorded here as the freeze's documented ceiling, not re-pointed). Row closes when F52 lands and U8.1 takes the splash sites.
+
 **Annotation (PR #42, W2 r1):** the U2/A66 button half is CLOSED — U2.2 re-pointed the four true outline sites, the three tinted-fill sites and the three `CaseActionsSheet` sites at `colors.link` (measured 7.65 on card). The **U6 adoption clause stays open**; the 14-site list above is unchanged for the non-button sites.
 
 ---
@@ -6453,7 +6455,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 100. W2 (PR #42) — `DvrInfoScreen`'s recording-schedule checkbox pill is still hand-rolled, exempted by name from the adoption scan
+## 100. ~~W2 — `DvrInfoScreen`'s checkbox pill hand-rolled, exempted by name~~ — ✅ RESOLVED — W3 (U6.4b)
+
+**RESOLVED:** U6.4b adopted `CheckboxBox` (×2 at head) and hand-deleted the `EXEMPT` entry; the tombstone comment at `choice-controls.test.tsx:204` records it, and the (F32-repaired) dead-exemption test now enforces the state. Original entry below.
 
 **Source:** u2.4 report §9 D-1; matrix A75 / B.5 row 41; phone `app/(form)/dvr-information.tsx:318-329`.
 
@@ -6477,7 +6481,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 102. W2 (PR #42) — the `T.textDim` form-label family (13/500/`#cdd9e6`) vs the phone's 14/500/`colors.text`
+## 102. ~~W2 — the `T.textDim` form-label family~~ — ✅ RESOLVED — W3 (U6.4a)
+
+**RESOLVED, better than the row asked:** `T.textDim` is DELETED (`field-input.ts:69-73` — it had no palette sibling); the label family resolves through the new `fieldLabelStyle`/`fieldErrorStyle` seam (12 importers). Residual mentions are comments. Original entry below.
 
 **Source:** u2.4 report §9 D-3; phone `Picker.tsx:314-317`, `:102`.
 
@@ -6498,6 +6504,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** the fix is one hook (`useOpenerFocusReturn(ref)`) extracted from `CentredDialog` — extracting it with zero callers is speculative; the file owners (U4.4-region, U7.2) were live when U4.3 closed. Note u4.3-d2's original "U4.4 opening either file" trigger technically fired in-wave, but the prescribed action depended on the not-yet-existing hook — re-cut, not evaded.
 
 **Trigger:** **the first of:** U5.3 mounting `GlassBottomSheet` for `MapFiltersSheet`, or U7.2 opening `MediaLibrarySheet`. The mover extracts the hook from `CentredDialog.tsx` (tracker + `canTakeFocus` + the mount effect minus the `openDialogs` push/pop), adopts it at its own surface, fixes the stale citations, and the remaining sites follow one line each.
+
+**TRIGGER LAPSED (W3 r1) → finding F64** (`w3/VETTED-r1.md`): U7.2 rewrote `MediaLibrarySheet` without the extraction; five `activeElement` blocks and both `aria-modal` shells unchanged at `13827de`. Row closes when F64 lands (or its fix report re-defers the ExportActionSheet/PdfPreview tail with a re-cut).
 
 ---
 
@@ -6523,6 +6531,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Trigger:** **U6.1 or U6.2 opening `settings/UserProfileModal.tsx`** — an optional `icon?: ReactNode` before the title stack plus one SVG. **Hard stop: U8 exit** — A60 is Tier-A and must be COMPLETE or carry a ratified divergence (§9 clause 3).
 
+**Annotation (W3 r1):** U6 DECLINED the slot with an in-code ruling (`_shared.tsx:166` "## No leading icon prop"). The soft trigger is spent; only the U8-exit hard stop stands — the owner ratifies the in-code ruling as A60's divergence, or the slot is built then.
+
 ---
 
 ## 106. W2 (PR #42) — `useReducedMotion` returns `false` for the first paint, so every gated animation plays one frame under `prefers-reduced-motion: reduce`
@@ -6547,9 +6557,13 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Trigger:** **the next package with behaviour authority over these files** — U6.4a's field-adoption pass or the first U7.x package that opens them; U5.3 is the model consumer (mounts the shell with real `visible` state).
 
+**Annotation (W3 r1) — trigger RE-CUT a second time:** U6.4a opened the three files but holds no D20 behaviour authority (this aggregator's own mis-cut; the same actor-without-authority shape that misfired the first version). New trigger: **U8's closing motion pass**, which owns motion-value parity, threads `visible={open}` and lifts the three guards.
+
 ---
 
-## 108. W2 (PR #42) — three empty-state strings still carry em dashes, against the standing campaign copy rule
+## 108. ~~W2 — three em-dashed empty-state strings~~ — ✅ RESOLVED — W3 (U7.3, A93 sweep)
+
+**RESOLVED:** the A93 sweep landed with a live guard (`copy-rules.test.ts` — the tests lane probed a planted em dash KILLED and the comment exemption behaving as documented). The guard's own two scope bugs are W3 findings F56/F57. Original entry below.
 
 **Source:** u3.1-u3.4 report §5 D-1; plan §4.3 (no em dashes in user-facing strings).
 
@@ -6573,7 +6587,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 110. W2 (PR #42) — `ImportModal`'s three notice blocks are off-tier and stay off-tier; `:285` is cited by no row at all
+## 110. ~~W2 — `ImportModal`'s three notice blocks off-tier~~ — ✅ RESOLVED — W3 (U7.3)
+
+**RESOLVED:** both ambers stay verbatim per D12 (verified by the sfh lane at head); `import-data-found` sits on `glassCardNested` with the lifted-radius ruling in code (`ImportModal.tsx:188-190`, demo §0.4); the failure LIST keeps its translucent red per this row's own Banner-refusal. The D12 guard's falsifiability is W3 finding F51. Original entry below.
 
 **Source:** u3.3 report §8 D-1; D12; matrix line 364.
 
@@ -6607,6 +6623,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Trigger:** **U7.3 opening `OcrCaptureScreen.tsx`** — return an enum, map in the UI, and RULE on the fifth hue (name it or collapse to four bands) rather than leave it unnamed. If U7.3 is descoped, the next package that moves any OCR confidence colour.
 
+**TRIGGER LAPSED (W3 r1) → finding F65** (`w3/VETTED-r1.md`): U7.3 opened the consumer without the ruling. Condition attached at the desk: the fix changes a §2-protected engine signature, which no U7 row authorizes — the orchestrator grants a D20-style authorization in the fix brief (U3.2's mid-task ruling is precedent) or this row re-cuts to U8 exit with that reason.
+
 ---
 
 ## 113. W2 (PR #42) — the red-as-text family (~20 sites, six distinct reds) has no owning package; C.3 rule 1 is the campaign's most portable recipe and nothing schedules it
@@ -6621,7 +6639,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 114. W2 (PR #42) — `MediaLibrarySheet.tsx:723-724` hand-rolls `ElevatedEdges` byte-identically (rgba spacing aside)
+## 114. ~~W2 — `MediaLibrarySheet` hand-rolls `ElevatedEdges`~~ — ✅ RESOLVED — W3 (U7.2)
+
+**RESOLVED:** imported at `MediaLibrarySheet.tsx:27`, spelled once (`:868` docblock records A51). Original entry below.
 
 **Source:** u2.2 report §7 D3; matrix A51.
 
@@ -6657,7 +6677,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 117. W2 (PR #42) — `Field`'s textarea keeps `minHeight: 76`; the phone's multiline box is 100 with `paddingTop: 16`
+## 117. ~~W2 — `Field`'s textarea 76 vs the phone's 100~~ — ✅ RESOLVED — W3 (U6.4a)
+
+**RESOLVED:** `minHeight: 100` with the phone cite in-code (`_shared.tsx:520-526`). Original entry below.
 
 **Source:** u2.1 report §8 D-2; phone `TextInput.tsx:176-180`.
 
@@ -6690,3 +6712,43 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** the flag is repo-wide and one line, but flipping it reds files owned by other seats; the proposal's own "flip at the W2 fix-merge if clean" trigger fired and the answer was NOT clean (11 remain).
 
 **Trigger (re-cut by the aggregator):** each W3+ package clears the `TS6133`s in files it opens (its report says so); **the flag flips at the first wave boundary where `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false --noUnusedLocals` exits 0** — hard stop **U8.4** (the design-sync closing census runs the command and flips it or records why not).
+
+**Annotation (W3 fix-delta):** 11 → **4 TS6133 (+2 TS6196)** at `eb98295`. The per-package arm fired unhonoured once (`banner.test.tsx`, opened twice by W3, still carries two — assigned to the integrator's W3 rider). Flip-day caveat: `noUnusedLocals` ignores the `_`-prefix convention for locals (`header-chrome.test.tsx`'s `_f20` needs `void _f20` or a rename at the flip).
+
+---
+
+## 120. W3 (`feat/uiparity-w3`) — the RETIRED sweep matches hex SPELLINGS only; a retired colour re-spelled as `rgb()`/`rgba()` passes it
+
+**Source:** W3 r1 aggregator, from two independent witnesses in one wave: U5.1 shipped a local `mapTokens.test.ts` rgb-form ban as compensation, and U7.3's R-9 discloses `OcrCaptureScreen`'s viewfinder spelling the retired `#1e3a5f` as an `rgba()` today (its D-3).
+
+**What:** `tokens/__tests__/palette.test.ts`'s RETIRED needles are hex strings (case/whitespace-normalised since W0/F3, but hex-form only). `rgb(30, 58, 95)` is the same retired colour and is invisible to the sweep — the exact class the sweep exists for, one notation over.
+
+**Why deferred:** the honest fix is a hex→rgb normalizer on the needle side (every needle gains its rgb twin mechanically); doing it mid-wave reopens a W0-owned test file no W3 package holds, and the one live instance (the viewfinder) is disclosed with its own U7.3 D-3 reasoning.
+
+**Trigger:** **the next commit that retires a palette value adds the rgb-form needle in the same commit** (the standing ban-lands-with-the-change rule), or **U8.2's sweep** adds the normalizer to the sweep itself — whichever first. The viewfinder instance closes with either.
+
+---
+
+## 121. W3 (`feat/uiparity-w3`) — one em-dashed message lives in `engine/` copy, outside A93's `ui/` sweep scope
+
+**Source:** U7.3's disclosed D-2; the tests lane verified the only remaining asserted em dash in a rendered string is an `engine/` message (`MediaCaptureScreen.test.tsx:390`).
+
+**What:** the A93 guard (`copy-rules.test.ts`) walks `ui/` only; an engine-authored string that renders in the UI carries the campaign's banned punctuation.
+
+**Why deferred:** one string; editing `engine/logic/media` copy from a styling wave is a §2 scope question, and the guard's scope extension is a design choice (engine strings include non-rendered log text the rule does not govern).
+
+**Trigger:** **the next package that opens `engine/logic/media`'s strings, or U8's exit copy pass** — fix the string and either extend the walker to the engine's rendered-string modules or record here why not.
+
+**Annotation (W3 fix-delta):** the F65 rider cleaned `ocr.ts`'s sibling strings. A fuller census: **83 em-dash string literals under `engine/`**, dominated by `engine/content/narration.ts` (the rail's demo-originated marketing-voice copy). Whether §4.3's rule governs demo-originated narration is an OWNER question for U8's exit copy pass; this row now carries that census so the pass starts from facts.
+
+---
+
+## 122. W3 (rider round) — the D12 MARKS mechanism does not tie a row's GROUND to the surface's real render; today's one mis-grounding is STRICTER than reality
+
+**Source:** W3 r2, silent-failures (finding F81, `w3/VETTED-r1-delta.md` closing section); `palette-contrast.test.ts:1176-1194`; `sample-badge.ts` MARKS table.
+
+**What:** each MARKS row carries its own ground stack, chosen by hand. `SAMPLE_NOTICE`'s row grounds on the `elevated` tier — and the comment at `:1176` claims that is the render — while the notice actually renders on `ModalShell`'s flat `colors.background`. Measured: the mis-grounded bound is STRICTER (12.24 vs the real 13.78), so nothing can flip green over a wrong value today. Second touch-point: the presence floor is `>5` in the badge's own describe and `>3` in the generalised MARKS loop, with no recorded reason for the difference.
+
+**Why deferred:** a strictly-stricter bound with a wrong provenance comment is debt, not risk; the real fix (a per-row ground tied to the render, or each row documenting its measured ground) earns its shape when the mechanism grows.
+
+**Trigger:** **the third MARKS surface** (the next entry added to the table), or any change to `ModalShell`'s notice ground — whichever first. That commit ties each row's ground to its surface's real render (correcting the `:1176` comment), and records the presence floor's value with its reason.

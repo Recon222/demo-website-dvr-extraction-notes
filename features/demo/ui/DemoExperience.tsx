@@ -228,7 +228,7 @@ const PROGRESS_SAVED_TITLE = 'Progress Saved'
 const PROGRESS_SAVED_SHARED = 'You can continue this location later from the Cases screen.\n\n'
 const PROGRESS_SAVED_BODY =
   PROGRESS_SAVED_SHARED +
-  'Your work stays in this browser tab — it survives a refresh, but closing the tab starts fresh.'
+  'Your work stays in this browser tab. It survives a refresh, but closing the tab starts fresh.'
 /**
  * R-2: the demoted arm. `sessionStorage` can be absent or blocked (enterprise policy, privacy
  * extension, sandboxed embed) — `persistDemoStore` answers that with a total no-op handle —
@@ -239,21 +239,21 @@ const PROGRESS_SAVED_BODY =
  */
 const PROGRESS_NOT_STORED_BODY =
   PROGRESS_SAVED_SHARED +
-  "This browser isn't storing the session — your work will be lost if you refresh or close the tab."
+  "This browser isn't storing the session. Your work will be lost if you refresh or close the tab."
 
 /**
  * The location action chooser's toasts (P3.5), lifted from the phone's `cases.tsx` Toast calls
  * — `text1 — text2`, joined because the demo's banner is one line where the phone's Toast has
  * a title row and a body row.
  */
-const LOCATION_NOT_FOUND_NOTICE = 'Error — Location not found.'
+const LOCATION_NOT_FOUND_NOTICE = 'Error. Location not found.'
 const duplicatedNotice = (name: string, mode: DuplicateMode) =>
-  `Location Duplicated — ${name} ${mode === 'with-scopes' ? 'created with scopes.' : 'created.'}`
+  `Location Duplicated. ${name} ${mode === 'with-scopes' ? 'created with scopes.' : 'created.'}`
 /** No phone counterpart: its service throws, this one returns null. Honest, not silent. */
-const DUPLICATION_FAILED_NOTICE = "Duplication Failed — the source location couldn't be read."
-const NEW_ADDRESS_SUBTITLE = 'Submission info copied — enter the new address.'
+const DUPLICATION_FAILED_NOTICE = "Duplication Failed. The source location couldn't be read."
+const NEW_ADDRESS_SUBTITLE = 'Submission info copied. Enter the new address.'
 const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
-  `Location Created — ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
+  `Location Created. ${name} created with copied submission info${mode === 'with-scopes' ? ' and scopes' : ''}`
 /**
  * Same honest-backstop role as DUPLICATION_FAILED_NOTICE; the card stays open for a retry.
  *
@@ -265,7 +265,7 @@ const newAddressCreatedNotice = (name: string, mode: DuplicateMode) =>
  * R-2's rider). If a cause is ever surfaced from the store (type-design's carried NIT: make the
  * refusal a discriminated result), this splits back into three sentences.
  */
-const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location — the source location couldn't be read."
+const NEW_ADDRESS_FAILED_NOTICE = "Failed to Create Location. The source location couldn't be read."
 /**
  * Completion's export scope options (P5.3, matrix row 27). The list lives at the CALLER on the
  * phone too — `completion.tsx:298-316` — and the sheet renders whatever it is handed; labels,
@@ -309,7 +309,7 @@ const UNKNOWN_VALIDATION_FAILURE = 'Validation could not be completed. Nothing w
  * OPEN behind it: the visitor's next move is to go pick a location, and closing the menu would
  * take the way there away.
  */
-const NO_LOCATION_NOTICE = 'No Location — Select a location first.'
+const NO_LOCATION_NOTICE = 'No Location. Select a location first.'
 /**
  * The capture screen's save guard (P4.3). Phone verbatim, from the toast the media-capture
  * route wrapper fires when it has no location to attach the file to
@@ -321,11 +321,11 @@ const NO_LOCATION_NOTICE = 'No Location — Select a location first.'
  * early-return is the thing this exists to make visible.
  */
 const CANNOT_SAVE_MEDIA_NOTICE =
-  'Cannot Save Media — No location selected. Please navigate from a case first.'
+  'Cannot Save Media. No location selected. Please navigate from a case first.'
 /** Phone verbatim (`media-capture.tsx:192-193`): `text1` is 'Photo Saved'/'Video Saved' and
  *  `text2` is the user's filename — WITHOUT the extension, which the wrapper appends after. */
 const mediaSavedNotice = (kind: MediaKind, filename: string): string =>
-  `${kind === 'photo' ? 'Photo' : 'Video'} Saved — ${filename} saved to case`
+  `${kind === 'photo' ? 'Photo' : 'Video'} Saved. ${filename} saved to case`
 /**
  * The audio recorder's save guard (P4.6, review R-1). The same defect the capture screen's
  * notice above exists for, on the third capture surface — and the worse one, because the thing
@@ -337,10 +337,10 @@ const mediaSavedNotice = (kind: MediaKind, filename: string): string =>
  * The phone calls `navigateBack()` straight after the toast; `closeLaunch()` is that.
  */
 const CANNOT_SAVE_AUDIO_NOTICE =
-  'Cannot Save Audio — No location selected. Please navigate from a case first.'
+  'Cannot Save Audio. No location selected. Please navigate from a case first.'
 /** Phone verbatim (`audio-recording.tsx:184-189`): `text2` is `${result.userFilename} saved to
  *  case`, and `userFilename` is the BASE — the route appends `.m4a` separately at `:127`. */
-const audioSavedNotice = (filename: string): string => `Audio Saved — ${filename} saved to case`
+const audioSavedNotice = (filename: string): string => `Audio Saved. ${filename} saved to case`
 
 /** Clear the gate's error list. Empty→empty returns the SAME reference, so the effects below
  *  can call it every render without looping on a fresh array identity. */
@@ -395,7 +395,7 @@ const placeholder = (view: string) => (
  *  every keystroke was silently discarded (updateField early-returns with no location). */
 const noLocationNotice = (onGoToCases: () => void) => (
   <div style={{ minHeight: 786, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
-    <div style={{ marginBottom: 18 }}>No location open — the wizard documents one recovery location at a time.</div>
+    <div style={{ marginBottom: 18 }}>No location open. The wizard documents one recovery location at a time.</div>
     <button type="button" onClick={onGoToCases} style={{ ...buttonStyle({ variant: 'secondary' }) }}>
       Open one from Cases
     </button>
@@ -1711,11 +1711,11 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
       case 'none':
         return undefined
       case 'sample':
-        return 'Live import was disabled — imported the sample request instead.'
+        return 'Live import was disabled. Imported the sample request instead.'
       case 'unavailable':
-        return 'Live model not configured — imported the sample request instead.'
+        return 'Live model not configured. Imported the sample request instead.'
       case 'error':
-        return 'Couldn’t reach the live model — imported the sample request instead.'
+        return 'Couldn’t reach the live model. Imported the sample request instead.'
       default: {
         const exhaustive: never = mode
         return exhaustive
@@ -1736,12 +1736,12 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
   ): Promise<string | null> => {
     const query = buildGeocodeQuery(res.patch.streetAddress, res.patch.city, res.patch.businessName)
     if (query) emitter.log('CASE', 'forward geocode → Mapbox', `query: '${query}'`)
-    else emitter.log('CASE', 'geocode skipped — no usable address in the import')
+    else emitter.log('CASE', 'geocode skipped: no usable address in the import')
     const coords = query ? await forwardGeocode(query) : null
     if (importGen.current !== myGen) return null // cancelled mid-geocode — do not touch the store
     if (query) {
       if (coords) emitter.log('CASE', 'geocode ✓', `lng ${coords.lng.toFixed(5)} · lat ${coords.lat.toFixed(5)}`)
-      else emitter.log('CASE', 'geocode — no match; creating the location without a map pin')
+      else emitter.log('CASE', 'geocode: no match; creating the location without a map pin')
     }
     const id = store.getState().addLocation(caseId, {
       locationName: res.patch.businessName || res.filename || 'Imported location',
@@ -1786,7 +1786,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
     if (locId === null) return // run invalidated mid-geocode — nothing was written, tally untouched
     // The demo's applyImport never writes the OCC# — mapAiToForm drops it and the case
     // record keeps its own number (same rule as the phone's case injection).
-    emitter.log('CASE', 'inject case data ← case record', `occurrenceNumber: '${caseNumber}' — from the selected case, never the model`)
+    emitter.log('CASE', 'inject case data ← case record', `occurrenceNumber: '${caseNumber}' (from the selected case, never the model)`)
     emitter.log('OK', 'import ✓ · location created', `locationId: ${locId}`)
     tally.lastLocId = locId
     tally.notice = tally.notice ?? fallbackNotice(res.fallbackMode)
@@ -1878,7 +1878,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
       for (const name of skipped) {
         tally.failures.push({
           filename: name,
-          error: 'Not attempted — the import stopped after an unexpected failure.',
+          error: 'Not attempted. The import stopped after an unexpected failure.',
           code: 'UNEXPECTED_ERROR',
           details: { stage, detail: `The run stopped before this file was attempted: ${detail}` },
         })
@@ -2014,7 +2014,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
         ? {
             ok: true,
             dvrTime: reading.dvrTime,
-            confidence: { label: conf.message, color: conf.color, measured: read.measured },
+            confidence: { label: conf.message, level: conf.level, measured: read.measured },
             actual,
             resolution: reading.resolution,
           }
@@ -2120,7 +2120,7 @@ export function DemoExperience({ store: injectedStore, boot = false }: DemoExper
       return
     }
     setGateErrors(dropGateErrors)
-    setPdf({ title: 'Case Notes — PDF', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
+    setPdf({ title: 'Case Notes (PDF)', html: generateCaseNotesDoc(selectCaseNotesData(store.getState())) })
   }
 
   /** "Complete & Save" — gated, then the existing location-scoped completion, untouched. */

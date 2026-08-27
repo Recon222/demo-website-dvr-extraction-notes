@@ -130,14 +130,17 @@ describe('DemoExperience — Map case picker', { timeout: 20000 }, () => {
     expect(store.getState().view).toBe('submission')
   })
 
-  it('Change Case opens a dismissible picker that cancels back to the map', () => {
+  it('the search bar`s back button opens a dismissible picker that cancels back to the map', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => { store.getState().createCase({ caseNumber: 'PR25-A', displayName: 'Alpha', unit: 'R' }) })
     fireEvent.click(screen.getByLabelText('Map'))
     fireEvent.click(within(screen.getByTestId('case-map-picker')).getByText('Alpha'))
     expect(screen.queryByText('Pick a Case')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Change Case'))
+    // The floating "Change Case" pill is gone (U5.2 / matrix row 17): PR #127 retired it into the
+    // search bar's `[←]`, which is an icon button carrying the pill's job and the phone's label.
+    expect(screen.queryByText('Change Case')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Change case'))
     expect(screen.getByText('Pick a Case')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Cancel'))
     expect(screen.queryByText('Pick a Case')).not.toBeInTheDocument()

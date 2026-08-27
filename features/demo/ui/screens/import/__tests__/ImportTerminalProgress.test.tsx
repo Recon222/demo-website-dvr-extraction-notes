@@ -22,8 +22,29 @@ import {
   type ImportTerminalProgressProps,
   type TerminalOutcome,
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
-import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
+import { createImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
+import {
+  TERMINAL_PALETTE,
+  TERMINAL_FONT_SIZE,
+  TERMINAL_SCHEME,
+} from '@/features/demo/ui/screens/import/terminal-palette'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
+import { severityTone } from '@/features/demo/ui/tokens/status'
+
+/** jsdom normalizes an inline hex colour to `rgb(r, g, b)`. */
+const jsdomRgb = (hex: string): string => {
+  const probe = document.createElement('div')
+  probe.style.color = hex
+  return probe.style.color
+}
+
+/** jsdom normalizes hex inline colours to rgb(r, g, b). */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 // Fake timers drive the useImportLog coalescing frame (same rig as useImportLog.test.ts).
 beforeEach(() => {
@@ -164,6 +185,52 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     // The phone's strings would be lies here — pin their absence everywhere.
     expect(container.textContent).not.toContain('on-device')
     expect(container.textContent).not.toContain('nothing leaves this phone')
+  })
+
+  // ---- console chrome (U7.1 / A85, A86) ----
+
+  it('paints the title bar from the owned palette — label and meta at their AA-raised values', () => {
+    setup()
+    const label = screen.getByText(TERMINAL_TITLE)
+    const meta = screen.getByTestId('terminal-trust-line')
+    // Raised on the phone (2.99 -> 4.97 and 4.05 -> 5.22); the ratios are pinned in
+    // ui/__tests__/palette-contrast.test.ts, the RENDERED colour here.
+    expect(label.style.color).toBe(rgb(TERMINAL_PALETTE.titleText))
+    expect(meta.style.color).toBe(rgb(TERMINAL_PALETTE.titleMeta))
+    expect(label.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.row}px`)
+    expect(meta.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.meta}px`)
+  })
+
+  it('the live dot takes `cursor`, not the retired teal `accent.verbose` (phone ImportTerminalProgress.tsx:368)', () => {
+    // The demo's TERM_CHROME.liveDot was #4ECDC4 and cited the phone's OLD source
+    // (`term.accent.verbose`, baseline :316). #117 re-pointed it at TERMINAL_PALETTE.cursor
+    // (phone-ui-delta-inventory.md:14990), which also purges A89's teal from this file — the
+    // teal-purge scan U8.2 adds over `ui/screens/**` has no other owner for this site.
+    const { container } = setup()
+    const dot = container.querySelector('[data-testid="terminal-trust-line"]')?.previousElementSibling
+    expect(dot).not.toBeNull()
+    expect((dot as HTMLElement).style.backgroundColor).toBe(rgb(TERMINAL_PALETTE.cursor))
+  })
+
+  it('the caret and the console ground come from the palette, at the named ramp sizes', () => {
+    setup()
+    const caret = screen.getByTestId('terminal-cursor')
+    expect(caret.style.color).toBe(rgb(TERMINAL_PALETTE.cursor))
+    expect(caret.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.cursor}px`)
+    // The panel is the terminal's own ground — far darker than colors.background (A91).
+    const panel = screen.getByTestId('terminal-log').parentElement as HTMLElement
+    expect(panel.style.background).toBe(rgb(TERMINAL_PALETTE.screen[TERMINAL_SCHEME]))
+  })
+
+  it('the jump pill label uses the named row size (A86 — no loose 10 left in this file)', () => {
+    setup({}, (e) => e.log('INIT', 'reading document…'))
+    nextFrame()
+    mockLogMetrics(1000, 200)
+    const log = screen.getByTestId('terminal-log')
+    log.scrollTop = 0
+    fireEvent.wheel(log)
+    fireEvent.scroll(log)
+    expect(screen.getByText('latest').style.fontSize).toBe(`${TERMINAL_FONT_SIZE.row}px`)
   })
 
   it('the trust line follows the run\'s actual FallbackMode: a sample-fallback line flips it to the in-browser wording', () => {
@@ -402,6 +469,25 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(within(screen.getByTestId('terminal-line-1')).getByRole('button')).toHaveAttribute('aria-expanded', 'false')
   })
 
+  /**
+   * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+   *
+   * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+   * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+   * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+   * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable, so the scan and a
+   * render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT. Shape is
+   * `OcrCaptureScreen.test.tsx`'s — the scanner var IS there, the evidentiary one is NOT, and
+   * the negative half is what catches the swap D13 actually names.
+   */
+  it('paints the console title bar and the trust line in the scanner face (A94 / D13)', () => {
+    setup({ batch: { current: 1, total: 1 } })
+    for (const node of [screen.getByText(TERMINAL_TITLE), screen.getByTestId('terminal-trust-line')]) {
+      expect(node.style.fontFamily).toContain('--font-stmono')
+      expect(node.style.fontFamily).not.toContain('--font-jbmono')
+    }
+  })
+
   // ---- badge slot + outcomes ----
 
   it('the badge slot is a fixed 60px in BOTH states — the morph causes zero reflow', () => {
@@ -413,6 +499,46 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(cta.style.height).toBe('60px')
     expect(cta.style.animation).toContain('termFadeIn 350ms')
     expect(screen.queryByTestId('terminal-processing-badge')).not.toBeInTheDocument()
+  })
+
+  /**
+   * U7.3 closes U7.1's deferral A — three #117 deltas in this file that A85 does not list, and
+   * that no package's Files column had claimed. All three were UNPINNED before this block, which
+   * is the same gap U7.1's R3 found across `TERM_CHROME`: the fix would have landed with nothing
+   * red. Every expectation derives from the token, never from a re-typed literal.
+   */
+  it('paints the jump pill on `primaryDark`/`onPrimary`, not the flat mid-tone (DEF-UI-001)', () => {
+    // Phone :108-116. Its own comment: "`onPrimary` on `primary` measures 3.73:1 in dark, and
+    // this pill's label is 13px normal weight, so AA's 4.5 applies with no large-text relief.
+    // On `primaryDark`: 5.80 dark / 8.72 light."
+    // The pill appears only while UNPINNED — a user gesture away from the bottom (the same
+    // setup the tail tests above use).
+    const { emitter } = setup()
+    const el = mockLogMetrics(1000, 200)
+    nextFrame()
+    act(() => emitter.log('INIT', 'a'))
+    nextFrame()
+    fireEvent.wheel(el, { deltaY: -120 })
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    const pill = screen.getByTestId('jump-to-latest-pill')
+    expect(pill.style.background).toBe(jsdomRgb(colors.primaryDark))
+    expect(pill.style.background).not.toBe(jsdomRgb(colors.primary))
+    // The label and the glyph both take the paired token; they were two bare `'#fff'`s, which is
+    // what let a fill and its foreground drift apart without a compile error.
+    expect(within(pill).getByText('latest').style.color).toBe(jsdomRgb(colors.onPrimary))
+    expect(pill.querySelector('svg')?.getAttribute('stroke')).toBe(colors.onPrimary)
+  })
+
+  it('derives the processing badge`s fill from the CURRENT tertiary ground, not the orphan', () => {
+    // Phone :439-441, verbatim: the fill was "the PRE-recolor `backgroundTertiary` (#1a2d44),
+    // orphaned when the ramp moved to #17416e. It never adapted." The demo carried the identical
+    // orphan at `rgba(26,45,68,0.55)`. Asserting the DERIVATION (not the resulting rgba string)
+    // is what makes a re-inline of the orphan fail here.
+    setup({ batch: { current: 1, total: 1 } })
+    const badge = screen.getByTestId('terminal-processing-badge')
+    expect(badge.style.background).toBe(withAlpha(colors.backgroundTertiary, 0.55))
+    expect(badge.style.border).toBe(`1px solid ${withAlpha(colors.primary, 0.32)}`)
   })
 
   it('processing badge: single run copy (phone :399-402) with the truthful sub line', () => {
@@ -441,7 +567,14 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(cta).toHaveTextContent('Import ready for review')
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(16, 209, 119, 0.32)')
-    expect(screen.getByText('Import ready for review', { selector: 'span' }).style.color).toBe('rgb(127, 230, 182)') // #7fe6b6
+    // U7.3: `#7fe6b6` (matrix row 74's "sixth green") is gone. The phone's :242 paints this
+    // title `colors.successOnLight` under D8a, and its :253-256 measures why: '#7fe6b6' on
+    // the 10% success wash is 1.37:1 in light. The saturated accent stays on the ICON, which
+    // is redundant with a title that states the outcome in words.
+    // F63: asserted THROUGH the seam. A palette read here would be the same STRING whether the
+    // component resolves via `severityTone` or by hand, so it could not tell the two apart --
+    // deriving from the seam means a seam whose foreground moves drags this pin with it.
+    expect(screen.getByText('Import ready for review', { selector: 'span' }).style.color).toBe(jsdomRgb(severityTone('success').color))
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('100%')
     fireEvent.click(cta)
     expect(onReview).toHaveBeenCalledTimes(1)
@@ -451,7 +584,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     const { rerenderWith } = setup({ batch: { current: 3, total: 3 } })
     rerenderWith({ outcome: { status: 'success', successCount: 3, totalFiles: 3 } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Batch complete')
-    expect(screen.getByTestId('terminal-review-cta')).toHaveTextContent('Batch complete — 3 of 3 locations')
+    // U7.3: the separator is a COLON on the phone (:275), not an em dash — A93's rule, and
+    // the phone's own wording.
+    expect(screen.getByTestId('terminal-review-cta')).toHaveTextContent('Batch complete: 3 of 3 locations')
   })
 
   it('partial: the amber treatment — a partial batch must never read as clean success', () => {
@@ -459,18 +594,21 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     rerenderWith({ outcome: { status: 'partial', successCount: 2, totalFiles: 3 } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Batch partially failed')
     // R-3's load-bearing fact: the COUNTS are in the accessible name, not suppressed by a label.
-    const cta = screen.getByRole('button', { name: /Batch partially failed — 2 of 3, 1 needs attention/ })
-    expect(cta).toHaveAccessibleDescription('Review the import — some files failed')
-    expect(cta).toHaveTextContent('Batch partially failed — 2 of 3, 1 needs attention')
+    const cta = screen.getByRole('button', { name: /Batch partially failed: 2 of 3, 1 needs attention/ })
+    // The SEMICOLON is the phone's own em-dash fix, recorded in its PR #117 review lane:
+    // "also fixed from an em-dash to a semicolon per the standing no-em-dash rule".
+    expect(cta).toHaveAccessibleDescription('Review the import; some files failed')
+    expect(cta).toHaveTextContent('Batch partially failed: 2 of 3, 1 needs attention')
     expect(cta).toHaveTextContent('Review import →')
-    expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not green
-    expect(cta.style.background).toContain('rgba(255, 217, 61, 0.1)')
+    expect(cta.style.border).toContain(withAlpha(colors.warning, 0.36)) // amber, not green
+    expect(cta.style.background).toContain(withAlpha(colors.warning, 0.1))
+    expect(screen.getByText(/^Batch partially failed:/).style.color).toBe(jsdomRgb(severityTone('warning').color))
   })
 
   it('partial: pluralizes the needs-attention count (phone template parity)', () => {
     const { rerenderWith } = setup({ batch: { current: 4, total: 4 } })
     rerenderWith({ outcome: { status: 'partial', successCount: 1, totalFiles: 4 } })
-    expect(screen.getByTestId('terminal-review-cta')).toHaveTextContent('Batch partially failed — 1 of 4, 3 need attention')
+    expect(screen.getByTestId('terminal-review-cta')).toHaveTextContent('Batch partially failed: 1 of 4, 3 need attention')
   })
 
   it('failure: red treatment, "See error details →", the log stays visible, and the bar does not claim 100%', () => {
@@ -488,7 +626,7 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     expect(screen.getByTestId('terminal-progress-fill').style.width).toBe('55%')
   })
 
-  it('a sample-substituted run marks the CTA itself: amber "sample import — review →" sub (R-25)', () => {
+  it('a sample-substituted run marks the CTA itself: amber "sample import · review →" sub (R-25)', () => {
     // With the dwell, the notice + per-card badge only paint after the tap and Escape
     // discards them — the CTA moment must carry the substitution on its own.
     const { emitter, rerenderWith } = setup()
@@ -496,9 +634,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     nextFrame()
     rerenderWith({ outcome: SUCCESS })
     const cta = screen.getByTestId('terminal-review-cta')
-    expect(cta).toHaveTextContent('sample import — review →')
+    expect(cta).toHaveTextContent('sample import · review →')
     expect(cta).not.toHaveTextContent('Review import →')
-    expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
+    expect(screen.getByText('sample import · review →').style.color).toBe('rgb(255, 217, 61)') // amber, not muted
   })
 
   it('MIXED batch (R-35): a mid-batch fallback still marks the CTA while the live trust line reads cloud', () => {
@@ -517,9 +655,9 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     rerenderWith({ outcome: { status: 'success', successCount: 2, totalFiles: 2 } })
     expect(screen.getByTestId('terminal-trust-line')).toHaveTextContent(TRUST_LINE.cloud) // live surface: current file
     const cta = screen.getByTestId('terminal-review-cta')
-    expect(cta).toHaveTextContent('sample import — review →') // run summary: substitution disclosed
+    expect(cta).toHaveTextContent('sample import · review →') // run summary: substitution disclosed
     expect(cta).not.toHaveTextContent(/^.*Review import →/)
-    expect(screen.getByText('sample import — review →').style.color).toBe('rgb(255, 217, 61)') // amber
+    expect(screen.getByText('sample import · review →').style.color).toBe('rgb(255, 217, 61)') // amber
   })
 
   it('runHadSampleFallback is run-scoped: FILE markers do NOT reset it (unlike deriveTrust)', () => {

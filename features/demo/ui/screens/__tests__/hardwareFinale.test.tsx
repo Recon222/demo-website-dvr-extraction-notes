@@ -132,7 +132,12 @@ describe('CompletionScreen', () => {
     const onComplete = vi.fn()
     render(<CompletionScreen summary={summary} validationErrors={[]} isComplete={false} canComplete={false} dateTimeCompleted="" completedBy="" onChange={vi.fn()} onPreviewPdf={vi.fn()} onPreviewTimeOffsetPdf={vi.fn()} onExportZip={vi.fn()} canExport isExporting={false} onComplete={onComplete} onReviewAgain={vi.fn()} onBackToDashboard={vi.fn()} onBackToCases={vi.fn()} {...nav} />)
     const btn = screen.getByRole('button', { name: 'Complete & Save' })
-    expect(btn).toBeDisabled()
+    // D10 / review F39: this CTA is `aria-disabled`, not `disabled` — a `disabled` attribute
+    // drops the control out of the tab order, so a keyboard visitor cannot reach it to hear
+    // why it is unavailable. `toBeDisabled()` reads the ATTRIBUTE only, so both halves are
+    // asserted here: the announced state, and the refusal (`aria-disabled` is advisory — the
+    // handler has to decline for itself, which is the half `disabled` used to give for free).
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(btn)
     expect(onComplete).not.toHaveBeenCalled()
   })
@@ -141,8 +146,8 @@ describe('CompletionScreen', () => {
 describe('PdfPreview', () => {
   it('renders the document HTML in an iframe and closes', () => {
     const onClose = vi.fn()
-    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    render(<PdfPreview title="Case Notes (PDF)" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Close'))
     expect(onClose).toHaveBeenCalledOnce()
   })

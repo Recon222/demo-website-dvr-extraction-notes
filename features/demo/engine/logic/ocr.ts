@@ -266,15 +266,40 @@ export function isDvrDraftCommittable(
   return draft.slice(0, 10) !== resolution.assumedDate
 }
 
+/**
+ * The four OCR confidence bands. Phone `timestamp-parser.ts:340`, exactly — and exactly this
+ * wide: the phone's own `getConfidenceLevel` returns `{ level, message }` and NOTHING else.
+ */
+export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'fail'
+
 export interface ConfidenceTier {
-  level: 'high' | 'medium' | 'low' | 'fail'
+  level: ConfidenceLevel
   message: string
-  color: string
 }
 
+/**
+ * Phone `timestamp-parser.ts:339-363`, thresholds and copy verbatim.
+ *
+ * ## Review W3/F65 (ledger §112, trigger fired) — the COLOUR left this function
+ *
+ * It used to return a `color: string` alongside the band, which put a presentation decision
+ * inside `engine/` — the layer `features/demo/CLAUDE.md` keeps pure — and made the palette
+ * unreachable from the token system. Worse, one of the four hues (`#ff7a45`, the `low` band) was
+ * an ORPHAN: it belonged to no token module, appeared nowhere else in the demo, and had no phone
+ * counterpart to port, because THE PHONE HAS NO COLOUR HERE AT ALL. §112 asked for it to be
+ * "named as a token or collapsed to the four-band vocabulary". Measured: there is nothing to
+ * name it after, so it collapses — the band is the vocabulary, and
+ * `ui/screens/OcrCaptureScreen.tsx` maps band -> colour through a `Record<ConfidenceLevel, string>`
+ * built from `colors.*`. Zero recognition behaviour changes; the thresholds are untouched.
+ *
+ * The four messages also lose their em dashes. That is not A93 reaching into `engine/` (it does
+ * not — its scan root is `ui/`): these are the exact lines this authorized edit already
+ * rewrites, `:276`'s string is RENDERED on screen, and the replacement is the PHONE'S OWN
+ * punctuation, so it is a copy port under plan §4.1 rule 7 rather than a house-style edit.
+ */
 export function getConfidenceLevel(confidence: number): ConfidenceTier {
-  if (confidence >= 0.8) return { level: 'high', message: 'High confidence — result looks good', color: '#10d177' }
-  if (confidence >= 0.6) return { level: 'medium', message: 'Medium confidence — please verify', color: '#ffd93d' }
-  if (confidence >= 0.4) return { level: 'low', message: 'Low confidence — manual correction likely needed', color: '#ff7a45' }
-  return { level: 'fail', message: 'OCR failed — please enter manually', color: '#ff4757' }
+  if (confidence >= 0.8) return { level: 'high', message: 'High confidence - result looks good' }
+  if (confidence >= 0.6) return { level: 'medium', message: 'Medium confidence - please verify' }
+  if (confidence >= 0.4) return { level: 'low', message: 'Low confidence - manual correction likely needed' }
+  return { level: 'fail', message: 'OCR failed - please enter manually' }
 }

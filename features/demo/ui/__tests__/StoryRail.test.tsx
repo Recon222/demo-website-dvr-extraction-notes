@@ -6,6 +6,26 @@ import { storyRailProps, makeNarration } from './test-utils'
 // Single-mode rail: eyebrow + narration + always-on tip + the standing driving card.
 // The tour chrome (mode toggle, dots, step caption, Next/Back) was removed with the tour.
 describe('StoryRail', () => {
+
+  /**
+   * F53 — the A94/D13 mono policy's RENDER pin for this surface.
+   *
+   * `ui/__tests__/fonts.test.ts`'s scan proves the file SPELLS the scanner face; it cannot prove
+   * anything RENDERS it, because membership is `text.includes` and a dead constant or a docblock
+   * satisfies that (the reviewer's MONO1/2/3 all survived the full suite). `css: false`
+   * (`vitest.config.mts:31`) makes an inline `fontFamily` the only observable, so the scan and a
+   * render pin are two halves of one guard: the scan owns OWNERSHIP, this owns PAINT. Shape is
+   * `OcrCaptureScreen.test.tsx`'s — the scanner var IS there, the evidentiary one is NOT, and
+   * the negative half is what catches the swap D13 actually names.
+   */
+  it('paints the rail`s HUD labels in the scanner face (A94 / D13)', () => {
+    render(<StoryRail {...storyRailProps()} />)
+    for (const node of [screen.getByText(/Interactive Walkthrough/), screen.getByText('Secure entry')]) {
+      expect(node.style.fontFamily).toContain('--font-stmono')
+      expect(node.style.fontFamily).not.toContain('--font-jbmono')
+    }
+  })
+
   it('renders eyebrow/title/paras/bullets for the current chapter', () => {
     render(<StoryRail {...storyRailProps()} />)
     expect(screen.getByText('Secure entry')).toBeInTheDocument()

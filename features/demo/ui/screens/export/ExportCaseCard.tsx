@@ -8,7 +8,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 /**
@@ -52,14 +52,53 @@ export interface ExportCaseCardProps {
  *  `components/marketing/phone-frame.tsx:30-31`) rather than per render. */
 const LIT_GLOW = `0 4px 12px ${withAlpha(colors.link, 0.35)}`
 
-const wrapper: CSSProperties = {
-  marginBottom: 14,
+/**
+ * The card box — ONE element where the phone needs two, and the matrix row asks for the reason
+ * on record.
+ *
+ * The phone splits `wrapper` (shadow + opaque background, `ExportCaseCard.tsx:248-258`) from
+ * `card` (gradient + border + `overflow: 'hidden'`, `:274-279`) because on iOS `masksToBounds`
+ * clips a layer's OWN shadow, so one view cannot both round its gradient's corners and cast a
+ * drop shadow — its comment at `:119-124` says exactly that. **CSS has no such rule.**
+ * `box-shadow` is painted outside the border box and `overflow: hidden` clips only descendants,
+ * so the two live together here and the phone's outer view would be an empty div.
+ *
+ * The phone's SECOND reason for that wrapper is also web-inert and is the more dangerous half to
+ * port blindly: an opaque `backgroundColor` is what lets Fabric take the cheap `shadowPath`
+ * instead of rasterising every card on scroll (`:250-257`), and the phone accepts a documented
+ * cost for it — the grid backdrop stops showing through its cards. Painting that fill here would
+ * buy nothing and would put a solid navy under this card's own alpha-0.85 gradient.
+ */
+const wrapper = {
+  // phone `ExportHub.tsx:310-312` — `cardWrapper.marginBottom: Layout.spacing.md`. The demo's
+  // 14 was a prototype value sitting two short of the scale beside it.
+  marginBottom: spacing.md,
   // A43 (U1.2) - a top-level card is `lg` (12), not `xl`. See CasesScreen's note.
   borderRadius: radius.lg,
   overflow: 'hidden',
-}
+} as const satisfies CSSProperties
 
-const headerBtn: CSSProperties = {
+/**
+ * The expanded body — phone `styles.locationsContainer` (`:334-339`).
+ *
+ * The hairline is `glass.card.border` (the CARD TIER's washed edge, i.e. `GLASS.borderSoft`),
+ * not the flat opaque `colors.border` the demo's 1px spacer div painted, and it is this
+ * element's own `borderTop` rather than a sibling `height: 1` node — which is both what the
+ * phone builds and one fewer node that can drift out of alignment with the box it divides.
+ *
+ * `marginTop: Layout.spacing.base` (`:335`) is deliberately NOT ported. The phone's `card` pads
+ * uniformly at `spacing.md` and its header row closes flush against that padding; the demo's
+ * header button already closes with `padding: '16px 16px 16px 8px'`, so it spends that gap in a
+ * different place. Adding 12 more would double it (§4.2 — do not tidy the lifted geometry). The
+ * 4px BELOW the line is the phone's `paddingTop: spacing.xs` (`:336`), which is where the demo's
+ * old `marginBottom: 4` already sat.
+ */
+const locationsBody = {
+  borderTop: GLASS.borderSoft,
+  paddingTop: spacing.xs,
+} as const satisfies CSSProperties
+
+const headerBtn = {
   flex: 1,
   display: 'flex',
   alignItems: 'flex-start',
@@ -71,7 +110,7 @@ const headerBtn: CSSProperties = {
   textAlign: 'left',
   cursor: 'pointer',
   color: 'inherit',
-}
+} as const satisfies CSSProperties
 
 /*
  * `boxBase` LIVED HERE until U2.4 (A75). It was a 20x20 / radius 5 / 12px-glyph square with
@@ -174,23 +213,33 @@ export function ExportCaseCard({
                 fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace",
                 fontSize: 17,
                 fontWeight: 600,
-                color: '#f0f4f8',
+                // phone `styles.caseNumber:306-311` — `colors.text`.
+                color: colors.text,
               }}
             >
               {card.caseNumber}
             </span>
             {card.displayName && (
-              <span style={{ display: 'block', fontSize: 13, color: '#99badd', marginTop: 4 }}>{card.displayName}</span>
+              // phone `styles.displayName:302-305` — `colors.textSecondary`.
+              <span style={{ display: 'block', fontSize: 13, color: colors.textSecondary, marginTop: 4 }}>
+                {card.displayName}
+              </span>
             )}
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             {/* `medium`, matching phone `export-hub/ExportCaseCard.tsx:182` — the one site that
                 renders the badge at its default size alongside a location count. */}
             <span style={statusBadgeStyle(card.status)}>{card.status.label}</span>
-            <span style={{ fontSize: 11, color: '#7a9fc4' }}>{card.locationCountLabel}</span>
+            {/* phone `styles.locationCount:316-320` — `colors.textSecondary`. This was
+                `#7a9fc4` (= `textTertiary`), one rung DOWN from the phone: a value drift, not
+                a spelling. It is the same call D-1 made for the recorder's six `#5a7a9a` sites
+                — a line the analyst reads does not sit on the tertiary rung. */}
+            <span style={{ fontSize: 11, color: colors.textSecondary }}>{card.locationCountLabel}</span>
           </span>
-          {/* Plain glyphs, exactly as the phone renders them (:173) — not an icon component. */}
-          <span aria-hidden style={{ width: 16, textAlign: 'center', fontSize: 12, color: '#7a9fc4' }}>
+          {/* Plain glyphs, exactly as the phone renders them (:173) — not an icon component.
+              `textTertiary` IS right here: phone `:193` hands the chevron `colors.textTertiary`
+              explicitly, and it is decorative (`aria-hidden`), so 1.4.3 does not reach it. */}
+          <span aria-hidden style={{ width: 16, textAlign: 'center', fontSize: 12, color: colors.textTertiary }}>
             {expanded ? '▾' : '▸'}
           </span>
         </button>
@@ -198,32 +247,41 @@ export function ExportCaseCard({
 
       {expanded && (
         <div style={{ padding: '0 16px 12px' }}>
-          <div style={{ height: 1, background: colors.border, marginBottom: 4 }} />
-          {hasLocations ? (
-            card.locations.map((loc) => (
-              <ExportLocationRow
-                key={loc.id}
-                row={loc}
-                selected={selectedIds.has(loc.id)}
-                disabled={isExporting}
-                onToggle={(locationId) => onToggleLocation(card.id, locationId)}
-              />
-            ))
-          ) : (
-            // An empty case is a real state, not an error. In-card empty LINE, so it is NOT
-            // A80's screen-level `EmptyState` — phone
-            // `case-management/export-hub/components/ExportCaseCard.tsx:340-346`:
-            // `fontSize.sm` (14), italic KEPT, `colors.textTertiary`, centred,
-            // `paddingVertical: Layout.spacing.md` (16).
-            //
-            // The copy is now the phone's, verbatim from its `:218`. It read
-            // "No locations — nothing exportable" with an em dash, above a comment claiming
-            // "Verbatim (phone :195)" — the phone spells it with a COMMA, at `:218`, and the
-            // standing campaign copy rule (plan §4.3) bans em dashes in user-facing strings.
-            <div style={{ fontSize: 14, fontStyle: 'italic', color: colors.textTertiary, textAlign: 'center', padding: '16px 0' }}>
-              No locations, nothing exportable
-            </div>
-          )}
+          <div style={locationsBody}>
+            {hasLocations ? (
+              card.locations.map((loc) => (
+                <ExportLocationRow
+                  key={loc.id}
+                  row={loc}
+                  selected={selectedIds.has(loc.id)}
+                  disabled={isExporting}
+                  onToggle={(locationId) => onToggleLocation(card.id, locationId)}
+                />
+              ))
+            ) : (
+              // An empty case is a real state, not an error. In-card empty LINE, so it is NOT
+              // A80's screen-level `EmptyState` — phone
+              // `case-management/export-hub/components/ExportCaseCard.tsx:340-346`:
+              // `fontSize.sm` (14), italic KEPT, `colors.textTertiary`, centred,
+              // `paddingVertical: Layout.spacing.md` (16).
+              //
+              // The copy is now the phone's, verbatim from its `:218`. It read
+              // "No locations — nothing exportable" with an em dash, above a comment claiming
+              // "Verbatim (phone :195)" — the phone spells it with a COMMA, at `:218`, and the
+              // standing campaign copy rule (plan §4.3) bans em dashes in user-facing strings.
+              <div
+                style={{
+                  fontSize: 14,
+                  fontStyle: 'italic',
+                  color: colors.textTertiary,
+                  textAlign: 'center',
+                  padding: `${spacing.md}px 0`,
+                }}
+              >
+                No locations, nothing exportable
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

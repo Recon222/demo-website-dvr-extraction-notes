@@ -3,6 +3,7 @@
 import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import {
   ENCRYPTION_STRENGTH_OPTIONS,
   PROMPT_MODE_OPTIONS,
@@ -63,8 +64,8 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
     <div data-testid="settings-pane-export-security">
       <PaneStubNote>
         Nothing the demo produces is encrypted: the ZIP pipelines end in an honest &ldquo;no
-        download here&rdquo; notice, and the two documents that are real — the Case Notes and the
-        Time-Offset Calibration reports — are saved through your browser&apos;s own print dialog.
+        download here&rdquo; notice, and the two documents that are real (the Case Notes and the
+        Time-Offset Calibration reports) are saved through your browser&apos;s own print dialog.
         So there is no archive to protect and no secret to keep, and the demo asks for no
         password anywhere. On the phone these switches drive AES encryption of the exported
         evidence.
@@ -125,7 +126,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
           </PaneGroup>
 
           <PaneGroup label="Default Password">
-            <div data-testid="export-security-password-status" style={{ fontSize: 13, color: '#99badd' }}>
+            <div data-testid="export-security-password-status" style={{ fontSize: 14, color: colors.textSecondary }}>
               No default password set
             </div>
             <button
@@ -147,7 +148,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
                 borderRadius: 10,
                 border: GLASS.borderBtn,
                 background: 'transparent',
-                color: '#7a9fc4',
+                color: colors.textTertiary,
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'not-allowed',
@@ -158,7 +159,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
             </button>
             <PaneNote tone="info" id={passwordReasonId}>
               The demo has nowhere to keep a password and nothing to unlock with it, so it never
-              asks for one. On the phone this writes to the device keychain — never to the
+              asks for one. On the phone this writes to the device keychain, never to the
               database, and never into an export.
             </PaneNote>
           </PaneGroup>

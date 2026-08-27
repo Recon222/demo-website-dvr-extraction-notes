@@ -115,7 +115,7 @@ const errorOverlayStyle: CSSProperties = {
   padding: 24,
   textAlign: 'center',
   background: MAP_SURFACE_COLORS.overlayMedium,
-  color: '#f0f4f8',
+  color: colors.text,
   fontSize: 14,
 }
 
@@ -123,8 +123,11 @@ const retryStyle: CSSProperties = {
   padding: '9px 22px',
   borderRadius: 10,
   border: 'none',
+  // U5.1: a FILLED control, so A19's binding rider governs the pair — `onPrimary` measures
+  // 3.73:1 on `primary` and 5.80:1 on `primaryDark`, and `SHEET_COLORS.accent` is the deep
+  // shade for that reason. Label was `#f0f4f8` on `#1a8fc2` (~3.2:1, under the 4.5 text floor).
   background: SHEET_COLORS.accent,
-  color: '#f0f4f8',
+  color: colors.onPrimary,
   fontSize: 14,
   fontWeight: 600,
   fontFamily: 'inherit',

@@ -2,7 +2,7 @@
 
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { TimeField } from '@/features/demo/ui/inputs/TimeField'
-import { T } from '@/features/demo/ui/inputs/input-theme'
+import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 
 export interface DateTimeFieldProps {
   label: string
@@ -19,7 +19,7 @@ export interface DateTimeFieldProps {
 export function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
+      <div style={fieldLabelStyle}>{label}</div>
       <div style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 1 }}>
           <DateField value={value} onChange={onChange} />

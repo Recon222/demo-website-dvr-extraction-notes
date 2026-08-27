@@ -1,6 +1,6 @@
 'use client'
 
-import { NTP_REGION_OPTIONS, type NtpRegion } from '@/features/demo/engine/content/settings-values'
+import { NTP_REGION_OPTIONS } from '@/features/demo/engine/content/settings-values'
 import {
   PaneDescription,
   PaneGroup,
@@ -26,7 +26,7 @@ export function TimeSyncPane({ settings, onChange }: SettingsPaneProps) {
   return (
     <div data-testid="settings-pane-time-sync">
       <PaneStubNote>
-        A browser has no raw UDP socket, so the demo cannot speak NTP at all — its calibration is
+        A browser has no raw UDP socket, so the demo cannot speak NTP at all. Its calibration is
         simulated, and it always reports <code>time.nrc.ca</code> with the NRC stratum-2 chain
         whichever region is selected here. The uncertainty maths and the traceability line on the
         time-offset report are the app&apos;s own; only the network exchange is mocked.

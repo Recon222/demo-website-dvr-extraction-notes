@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 
 import type { CapturedMedia } from '@/features/demo/engine/logic/media'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
+import { severityTone } from '@/features/demo/ui/tokens/status'
+
+/** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
+ *  hazards) — compare through the same normalisation rather than by hex. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = (hex.replace('#', '').match(/../g) as string[]).map((p) => parseInt(p, 16))
+  return `rgb(${r}, ${g}, ${b})`
+}
 
 /**
  * Review Audio (matrix row 69). The auto-reset behaviour is pinned here rather than described
@@ -115,6 +125,18 @@ describe('AudioPreviewScreen — the phone surface', () => {
   it('labels a sample take as one and does not print a size it never measured (§58f)', () => {
     view({ captured: SAMPLE, defaultFilenameBase: 'sample-note' })
     expect(screen.getByText('Sample')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(screen.getByText('Sample')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
     expect(screen.getByText(/no microphone was used/i)).toBeInTheDocument()
     expect(screen.getByText('Size not measured')).toBeInTheDocument()
   })
@@ -238,5 +260,68 @@ describe('AudioPreviewScreen — duration source', () => {
 
     expect(screen.getByTestId('audio-total')).toHaveTextContent('00:09')
     expect(screen.getByRole('slider', { name: 'Audio progress' })).toBeEnabled()
+  })
+})
+
+describe('AudioPreviewScreen — U7.2 chrome (A61, A71)', () => {
+  /**
+   * MUTATION: point either notice back at its local recipe (`GLASS.borderAccent` + an 8% wash,
+   * or `GLASS.borderError` + a 6% wash), or swap the two severities.
+   *
+   * D19 handed this screen's PAIR of notices to U7.2. A71's rule is one callout and an OPAQUE
+   * fill — the `*OnLight` foregrounds are measured against the `*Light` tones and a translucent
+   * wash over an unknown parent cannot be measured (`Banner.tsx:35-42`). Both of these were
+   * exactly such washes.
+   */
+  it('routes the carried-over notice through Banner at info, on an opaque ground', () => {
+    view({ notice: 'Maximum Duration Reached — recording stopped after one hour.' })
+    const banner = screen.getByRole('alert')
+
+    expect(banner).toHaveTextContent('Maximum Duration Reached')
+    expect(banner.getAttribute('aria-label')).toMatch(/^info: /)
+    // Informational, never assertive: it must not interrupt whatever is being read.
+    expect(banner).toHaveAttribute('aria-live', 'polite')
+    // Read off `severityTone` — the SEAM — never re-derived from `palette` here (W2 F26); the
+    // sibling pin in `AudioRecorderScreen.test.tsx` carries the full reasoning. Same package,
+    // same shape: the F26 carry fixed the recorder and left this one behind.
+    expect(banner.style.backgroundColor).toBe(hexToRgb(severityTone('info').background))
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+  })
+
+  it('routes a refused playback through Banner at error, assertively', async () => {
+    play.mockImplementation(() => Promise.reject(new Error('NotAllowedError')))
+    view()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }))
+    })
+
+    const banner = screen.getByRole('alert')
+    expect(banner).toHaveTextContent('The browser refused to start playback')
+    expect(banner.getAttribute('aria-label')).toMatch(/^error: /)
+    // Errors DO interrupt — `role="alert"` implies it, and Banner writes it back explicitly.
+    expect(banner).toHaveAttribute('aria-live', 'assertive')
+    expect(banner.style.backgroundColor).toBe(hexToRgb(severityTone('error').background))
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+  })
+
+  /**
+   * MUTATION: put the title back at 20/700, or move the ✕ back to the trailing position.
+   *
+   * A61's consolidation. The phone paints this header through `FormLayout` -> `Header`
+   * (`AudioRecordingFlow.tsx:127`), whose title is `Header.tsx:198-201` — `flex: 1`,
+   * `fontSize.lg` (18), `semibold` (600) — with the exit control BEFORE it (`:67-88`).
+   */
+  it('adopts OverlayHeader — 18/600 title, exit control LEADING', () => {
+    view()
+    const exit = screen.getByRole('button', { name: 'Exit audio recording' })
+    const title = screen.getByText('Review Audio')
+
+    expect(title).toHaveStyle({ fontSize: '18px', fontWeight: '600' })
+    expect(exit).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
+    const row = exit.parentElement as HTMLElement
+    expect(row.children[0]).toBe(exit)
+    expect(row.children[1]).toBe(title)
   })
 })

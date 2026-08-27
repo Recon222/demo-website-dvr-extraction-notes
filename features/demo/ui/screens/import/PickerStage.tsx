@@ -38,7 +38,7 @@ export const PICKER_COPY = {
   clipboardEmpty: 'Clipboard is empty. Copy the request text first.',
   // No phone equivalent (expo-clipboard needs no permission). Honest browser treatment:
   // navigator.clipboard.readText is missing or denied → say so, point at the card that works.
-  clipboardBlocked: 'Clipboard access is blocked in this browser — use Paste Text instead.',
+  clipboardBlocked: 'Clipboard access is blocked in this browser. Use Paste Text instead.',
   textImportFailed: 'Failed to start text import. Please try again.', // :175 verbatim
   largeBatchTitle: 'Large Batch Import', // :311
   largeBatchMessage: (n: number) => `You selected ${n} files. Import may take several minutes. Continue?`, // :312

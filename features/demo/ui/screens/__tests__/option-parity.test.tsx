@@ -52,7 +52,11 @@ describe('rendered option lists === engine/content/form-options', () => {
     render(<DvrInfoScreen dvr={blankDvr()} retention={{ totalRetention: null, scopes: [] }} onChange={vi.fn()} {...nav} />)
     expect(await renderedOptions(/^Resolution/)).toEqual(labelsOf(RESOLUTION_OPTIONS))
     expect(await renderedOptions(/^Recording FPS/)).toEqual(labelsOf(FPS_OPTIONS))
-    const checkboxes = screen.getAllByRole('checkbox').map((el) => el.textContent ?? '')
+    // The ACCESSIBLE NAME, not `textContent`: since U6.4b the pill contains A75's `CheckboxBox`,
+    // whose glyph is a literal U+2713 character (phone `Checkbox.tsx:75-85`) rather than an SVG,
+    // so `textContent` reads '✓Continuous'. The box is `aria-hidden`, so the name is
+    // unaffected — and the name is what this option-parity suite is actually about.
+    const checkboxes = screen.getAllByRole('checkbox').map((el) => el.getAttribute('aria-label') ?? '')
     expect(checkboxes).toEqual([...RECORDING_SCHEDULE_OPTIONS])
   })
 

@@ -32,8 +32,8 @@ export function SecurityPane({ settings, onChange }: SettingsPaneProps) {
     <div data-testid="settings-pane-security">
       <PaneStubNote>
         There is no biometric sensor behind a browser tab, so none of these can do anything here.
-        On the phone this whole row sits behind a Face ID prompt — that is what the padlock beside
-        it means — and the demo does not simulate the prompt either: a fake Face ID sheet would be
+        On the phone this whole row sits behind a Face ID prompt (that is what the padlock beside
+        it means), and the demo does not simulate the prompt either: a fake Face ID sheet would be
         the one thing worse than an unavailable one. The scanner on the opening screen is the one
         exception, and it says so on its own face: it is an animation, it gates nothing, and these
         switches do not control it.

@@ -82,7 +82,7 @@ describe('OcrCaptureScreen', () => {
   const parsed = {
     ok: true as const,
     dvrTime: '2025-03-08 12:05:30',
-    confidence: { label: 'High', color: '#10d177', measured: false },
+    confidence: { label: 'High', level: 'high' as const, measured: false },
     actual: '2025-03-08 12:00:00',
     resolution: { kind: 'exact' } as const,
   }
@@ -212,7 +212,7 @@ describe('OcrCaptureScreen', () => {
   it('a MEASURED (live camera) confidence carries no Sample badge and no disclaimer', () => {
     // P4.7: the recogniser's own score for a live frame is a real number — badging it
     // "Sample" would be the inverse dishonesty.
-    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, confidence: { label: 'High', color: '#10d177', measured: true } }} />)
+    render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, confidence: { label: 'High', level: 'high' as const, measured: true } }} />)
     expect(screen.getByText('High')).toBeInTheDocument()
     expect(screen.queryByText('Sample')).not.toBeInTheDocument()
     expect(screen.queryByText(/no live frame was scored here/i)).not.toBeInTheDocument()
@@ -286,7 +286,10 @@ describe('OcrCaptureScreen', () => {
     const { rerender } = render(
       <OcrCaptureScreen {...ocrBase} result={timeOnly} dvrDraft="2026-07-31 12:05:30" onConfirm={onConfirm} onConfirmDate={onConfirmDate} />,
     )
-    expect(screen.getByText('No date on the DVR display')).toBeInTheDocument()
+    // U7.3: the blocker is a `<Banner severity="error">` now (A71/D19's hand-back), so its
+    // prose is a MESSAGE PROP folded into one string — a JSX-text selector cannot see it.
+    // The test id is the stronger anchor anyway: it also proves the alert role survived.
+    expect(screen.getByTestId('ocr-assumed-date')).toHaveTextContent('No date on the DVR display.')
     expect(screen.getByText('Use this & calculate')).toHaveAttribute('aria-disabled', 'true')
 
     fireEvent.click(screen.getByText('The date is correct'))

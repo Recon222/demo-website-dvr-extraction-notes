@@ -5,10 +5,21 @@ import {
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette } from '@/features/demo/ui/tokens/palette'
-import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { flattenOver, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
+import {
+  MAP_FILTER_HINT_TEXT,
+  MAP_FILTER_SECTION_LABEL,
+} from '@/features/demo/ui/screens/map/MapFiltersSheet'
+import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
+import { MAP_PICKER_SELECTED_BORDER, MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { SAMPLE_BADGE, SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
+import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
@@ -772,30 +783,440 @@ describe('scrim opacity', () => {
 
 describe('map chrome contrast floors', () => {
   // Rows 41-45 are NEW in this port — the phone has none, and U5 is the only phase that would
-  // otherwise ship with no contrast target at all (matrix §C.1). Grounds: `surfaceBg`
-  // `rgba(0,40,83,0.82)` composited over a satellite tile, so every row measures against BOTH
-  // a bright and a dark tile. All five are U5.2's, whose row rewrites `MapControls.tsx` whole.
+  // otherwise ship with no contrast target at all (matrix §C.1). Landed by U5.2, which builds
+  // the collapsed search bar these rows measure.
   //
-  // Row 41 is the one with a ruling already attached: the filter-count badge renders a NUMERAL,
-  // so C.3 rule 2's "non-text marks" carve-out does not cover it and the 4.5 text floor
-  // applies. `#ffffff` on `primary #2B8CC1` is 3.73 and FAILS; on `primaryDark #1F6B99` it is
-  // 5.80 and passes. D5's amendment takes `primaryDark` as the badge fill (A19's rider) — this
-  // is explicitly NOT one of the inherited ceilings.
-  it.todo(
-    'row 41 (U5.2): clears AA for the filter-count badge numeral on primaryDark, over both tiles — needs the map badge fill',
-  )
+  // THE GROUND IS NOT A TOKEN. The floating chrome composites `MAP_GLASS_COLORS.containerBg`
+  // (`rgba(0,40,83,0.82)`) over whatever the satellite tile happens to be, so every row measures
+  // against BOTH extremes: `#ffffff` for exterior daylight (snow, sand, a white roof — the real
+  // worst case, not a pessimistic one) and `#000000` for night imagery and deep shadow. That is
+  // the two-frame method rows 36-37 already use for `MEDIA_CLOSE_CHIP`.
+  //
+  // DEF-062 is the reason this section exists rather than a reason to skip it: the CHROME's own
+  // 1.70/1.77:1 against a bright tile was closed as ACCEPTED on the phone, with no reopen
+  // trigger (measured here: 8.48 over white, 1.30 over black). D5 says inherit it. What is NOT
+  // inherited is illegible TEXT on top of that chrome, which is what rows 41-44 bound.
 
-  // Rows 42-44: search field text (`colors.text`, >= 4.5), its placeholder
-  // (`colors.textTertiary`, >= 3.79 — the M2b ceiling, NOT 4.5), and the proximity chip text
-  // (`colors.text`, >= 4.5). The placeholder's relief is a ceiling on `card`/`sheet`, not a
-  // licence over tiles: if it lands below 3.79 the placeholder takes `textSecondary` instead.
+  /** Topmost-first, per `contrast`'s contract: the glass, then the tile under it. */
+  const overTile = (tile: string) => [MAP_GLASS_COLORS.containerBg, tile]
+
+  /**
+   * Row 45's ground, and the ONE row here with no tile in it — `MapFiltersSheet` is app chrome on
+   * the `sheet` tier. Resolved through `scheme` rather than spelled `dark`, so the row measures
+   * whichever half the demo consumes (D2, §9 clause 12); the light stacks omit the background
+   * because light's tiers are opaque, exactly as `LIGHT_GROUNDS` does.
+   */
+  const SHEET_GROUNDS: string[][] =
+    scheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
+  const TILES: ReadonlyArray<readonly [string, string]> = [
+    ['a bright daylight tile', '#ffffff'],
+    ['a night tile', '#000000'],
+  ]
+
+  it('row 41: the filter-count badge numeral clears AA on the fill the component actually paints', () => {
+    // The badge renders a NUMERAL, so §C.3 rule 2's "non-text marks" carve-out does not cover it
+    // and the 4.5 text floor applies. The badge fill is opaque, so the tile underneath cannot
+    // reach it — this is the one map row with a single ground.
+    //
+    // Read off `MAP_FILTER_BADGE_FILL`, the constant `MapControls` paints with, NOT off
+    // `palette.primaryDark`: a pin against the palette stays green through exactly the edit it
+    // exists to catch (U0.5's `SwipeDeleteAction` lesson).
+    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBeGreaterThanOrEqual(AA_TEXT)
+    // …and the phone's own pairing is the failure this diverged from. 3.73 is not a rounding
+    // artefact of the line above; it is a different, worse colour.
+    expect(round(contrast(palette.dark.onPrimary, [palette.dark.primary]))).toBe(3.73)
+    expect(round(contrast(palette.dark.onPrimary, [MAP_FILTER_BADGE_FILL]))).toBe(5.8)
+  })
+
+  it('rows 42 + 44: the search text and the proximity chip clear AA over both tiles', () => {
+    // One assertion for two rows because they are one measurement: the chip and the field are
+    // the same `colors.text` on the same `surfaceBg`, which is the "one surface" rule the
+    // redesign introduced when it deleted `inputBg`.
+    expect(
+      TILES.map(([label, tile]) => [label, round(contrast(MAP_GLASS_COLORS.text, overTile(tile)))] as const)
+        .filter(([, ratio]) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('rows 42 + 44: and the chrome text is the palette`s, not a second white', () => {
+    // The map island carried its own `#e7eef6` "primary text" until U5.1 (demo §1.3's
+    // split-brain). Rows 42/44 measure `MAP_GLASS_COLORS.text`; this is what stops that
+    // reading from drifting off `colors.text` while the ratio stays plausible.
+    expect(MAP_GLASS_COLORS.text).toBe(palette.dark.text)
+  })
+
+  // ROW 43 — the search placeholder. STILL TODO after U5.2, on a refuted premise, and the
+  // measurement is recorded here so the next package does not have to re-derive it.
+  //
+  // 1. THE DEMO PAINTS NO PLACEHOLDER COLOUR. The phone passes
+  //    `placeholderTextColor={Colors.dark.textTertiary}` (`MapControls.tsx:143`); the web
+  //    spells that `::placeholder`, which needs a stylesheet rule, and `ui/demo.css` is U8.2's
+  //    alone (plan §6.1: "If a package thinks it needs to touch it, that is a scope error").
+  //    U2.1 hit this first and made the same call for `fieldInputStyle`
+  //    (`tokens/field-input.ts:44-47`). There is no inline route to a pseudo-element.
+  // 2. WHEN U8.2 DOES PAINT IT, `textTertiary` IS THE WRONG VALUE. Measured with the helpers
+  //    above: `colors.textTertiary #7a9fc4` on `surfaceBg` over a white tile is **3.06** —
+  //    below the row's own 3.79 M2b floor, never mind 4.5. Row 43's escape clause is written
+  //    for exactly this: *"If it lands below 3.79 the placeholder must take `textSecondary`"* —
+  //    `#99badd` measures **4.21**, which clears 3.79. The relief is a ceiling on `card`/`sheet`,
+  //    not a licence over satellite tiles.
+  //
+  // SEAM(U8.2): add `[data-demo-root] [data-testid='map-search-input']::placeholder { color:
+  // <textSecondary> }` (or the equivalent scoped rule), then un-todo this with the same
+  // two-tile shape as rows 42/44 at a >= 3.79 bound. Note that `vitest.config.mts` sets
+  // `css: false`, so the RULE is invisible to this suite — the pin has to sit on the exported
+  // constant the rule consumes, or it guards nothing.
   it.todo(
-    'rows 42-44 (U5.2): clears the search text, placeholder and proximity chip floors on surfaceBg over a bright tile — needs the U5.2 chrome',
+    'row 43 (U8.2, not U5.2): the search placeholder needs a ::placeholder rule in demo.css before it can be measured — and must take textSecondary (4.21), not textTertiary (3.06)',
   )
 
   // Row 45: `MapFiltersSheet` section labels, `12/700 textSecondary` on the `sheet` tier —
-  // inherits row 5's bound, on a surface U5.3 creates.
-  it.todo(
-    'row 45 (U5.2): clears AA for MapFiltersSheet section labels on the sheet tier — needs GLASS_TIER + MapFiltersSheet',
+  // inherits row 5's bound, on the surface U5.3 creates. Re-owned from U5.2 because pinning the
+  // ratio AT the section-label constant is what U0.5's structural rule requires, and that
+  // constant could not exist before the sheet did.
+  //
+  // Unlike rows 41-44 there is no tile in the stack: this sheet is APP chrome, not map chrome
+  // (the phone's own D3(a) call at `MapFiltersSheet.tsx:11-13`), so it grounds on the `sheet`
+  // tier over the app background exactly as every other sheet does.
+  it('row 45: MapFiltersSheet section labels clear AA on the sheet tier, both halves', () => {
+    // Both scheme halves, on the tier the sheet actually paints — the `sheet` rows of
+    // DARK_GROUNDS / LIGHT_GROUNDS, isolated so a failure names this surface rather than a
+    // neighbouring tier.
+    expect(
+      offenders(
+        [
+          ['dark section label', palette.dark.textSecondary, stops(GLASS_TIER.dark.sheet, DARK_BG)],
+          ['light section label', palette.light.textSecondary, stops(GLASS_TIER.light.sheet)],
+        ],
+        AA_TEXT,
+      ),
+    ).toEqual([])
+
+    // AT THE CONSTANT (U0.5's rule, the `DangerFill` / `MEDIA_CLOSE_CHIP` / `MAP_FILTER_BADGE_FILL`
+    // precedent): the label the sheet paints IS that ramp in the consumed scheme. Re-pointing it
+    // at `textTertiary` — which carries a documented 3.79 CEILING two cases up and would fail this
+    // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
+    expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
+    expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  /**
+   * The map BOTTOM sheet's own ground, which is not any glass tier (U5.1's R1): the phone paints
+   * it as three OPAQUE stops of `background` / `backgroundSecondary` / `background`
+   * (`map-view/constants/index.ts:339-343`, a compositor ruling — a translucent sheet forces the
+   * GPU to keep blending the live map behind it on every drag frame). So the two distinct grounds
+   * a sheet surface can sit on are those two palette values, with nothing showing through.
+   */
+  const MAP_SHEET_STOPS = [palette[scheme].background, palette[scheme].backgroundSecondary]
+  /** …and a nested info card on top of either of them. */
+  const SHEET_NESTED_GROUNDS: string[][] = MAP_SHEET_STOPS.flatMap((stop) =>
+    stops(GLASS_TIER[scheme].nestedCard, [stop]),
   )
+
+  // Rows 46 + 47 (W3/F52) — the two map-sheet surfaces U5.4 moved onto `colors.primary` as TEXT.
+  //
+  // Both are new rows rather than an amendment to 41-44: those measure the floating chrome over a
+  // satellite tile, and these two sit inside the sheet, where the ground is opaque and known.
+  it('rows 46 + 47: the contact rows and the picker’s selected title clear AA (W3/F52)', () => {
+    // Row 46 — the ONLY affordance for reaching a requester or a site contact. A phone number is
+    // read and dialled, so §C.3 rule 2's "non-text marks" carve-out does not reach it.
+    expect(round(worst(MAP_CONTACT_ROW.color, SHEET_NESTED_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+    // Row 47 — the picker row's selected case number, on the same nested tier over the app ground.
+    expect(
+      round(worst(MAP_PICKER_SELECTED_TITLE, stops(GLASS_TIER[scheme].nestedCard, [palette[scheme].background]))),
+    ).toBeGreaterThanOrEqual(AA_TEXT)
+
+    // AT THE CONSTANT, and the NEGATIVE half with it (W2/F27): a bound alone would stay green if
+    // someone re-pointed either site back at the phone's own token, because `>= 4.5` says nothing
+    // about which value is present. These two lines are what actually red on that edit.
+    expect(MAP_CONTACT_ROW.color).toBe(palette[scheme].link)
+    expect(MAP_PICKER_SELECTED_TITLE).toBe(palette[scheme].link)
+
+    // The phone's pairing IS the failure this diverges from, recorded as an exact figure the way
+    // row 41 records the badge's 3.73. Not a rounding artefact of the bound above — a different,
+    // worse colour, and one that was WORSE THAN THE #00BFFF it replaced (5.07 on this ground).
+    expect(round(worst(palette[scheme].primary, SHEET_NESTED_GROUNDS))).toBeLessThan(AA_TEXT)
+  })
+
+  // Row 48 (W3/F79) - the claim rows 46+47 made and did not measure.
+  //
+  // F52 moved the picker's selected LABEL off `colors.primary` and kept its 2px BORDER on it,
+  // correctly: a selection edge is a non-text mark, so 1.4.11's 3:1 governs rather than 1.4.3's
+  // 4.5. That is an assertion about a ratio, and it was the one value in that fix nobody bounded.
+  it('row 48: the picker’s selection border clears the NON-TEXT floor (W3/F79)', () => {
+    const PICKER_ROW = stops(GLASS_TIER[scheme].nestedCard, [palette[scheme].background])
+    // 3.09 dark / 8.29 light - over the floor, and in dark by 0.09. The bound is what turns a
+    // palette re-tint that eats that margin into a red test rather than a device-pass discovery:
+    // this border is the ONLY mark distinguishing a selected case row from an unselected one.
+    expect(round(worst(MAP_PICKER_SELECTED_BORDER, PICKER_ROW))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+
+    // AT THE CONSTANT, both sides (W2/F27) - the same shape as rows 46+47. The negative is the
+    // one that matters here and it is the OPPOSITE of theirs: this border must not follow the
+    // label onto `link`. D4's "2px primary against 1px glass" is an owner-ratified geometry
+    // ruling, so a well-meaning sweep re-pointing every `primary` in this file reds here.
+    expect(MAP_PICKER_SELECTED_BORDER).toBe(palette[scheme].primary)
+    expect(MAP_PICKER_SELECTED_BORDER).not.toBe(MAP_PICKER_SELECTED_TITLE)
+
+    // ...and the floor it is measured against is the NON-TEXT one. 3.09 would FAIL as text, which
+    // is why row 47 exists separately; asserting the two floors differ keeps a later edit from
+    // quietly collapsing this row into 46/47's bound and calling it green.
+    expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
+  })
+
+  it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {
+    // D5's rider is "do not ADD new `textTertiary` text". The rider exists because that token
+    // carries a documented CEILING two cases up (3.79 dark / 3.87 light) — an inherited
+    // shortfall, not a budget new surfaces may spend. This hint is a new surface, so it takes
+    // `textSecondary` and is held to the same 4.5 as the labels above it.
+    expect(round(worst(MAP_FILTER_HINT_TEXT.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+    // The value the phone paints here, and the number that made it a finding.
+    expect(round(worst(palette[scheme].textTertiary, SHEET_GROUNDS))).toBeLessThan(AA_TEXT)
+    expect(MAP_FILTER_HINT_TEXT.color).not.toBe(palette[scheme].textTertiary)
+  })
+})
+
+describe('the settings pane`s live-value readout (U6.2 / F52, ledger §89)', () => {
+  it('clears AA at the constant the pane paints, and the phone`s own pairing is why', () => {
+    // §89's un-defer condition, met: `_pane-chrome`'s `settingValue` was one of the four
+    // `color:` sites its grep still returned after U6 merged. The phone paints `colors.primary`
+    // (`MediaCaptureSettingsSection.tsx:166`) at 16px/700 — normal-size text, floor 4.5.
+    //
+    // AT THE CONSTANT, per U0.5's rule and the `MAP_FILTER_BADGE_FILL` precedent directly
+    // above: a pin against `palette.link` would stay green through a re-point of the readout,
+    // which is exactly the edit this row exists to catch.
+    expect(PANE_VALUE_TINT).toBe(palette[scheme].link)
+    expect(round(worst(PANE_VALUE_TINT, DARK_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+
+    // …and the divergence is bounded from the other side. 3.94 is not a rounding artefact of
+    // the line above; it is a different, worse colour, and it is §89's headline number.
+    expect(round(contrast(palette.dark.primary, DARK_BG))).toBe(3.94)
+    expect(round(contrast(PANE_VALUE_TINT, DARK_BG))).toBe(9.6)
+  })
+})
+
+describe('terminal console contrast (U7.1 / A85, §C "Terminal title bar / privacy meta / gutter")', () => {
+  // The console has its OWN ground stack — `screen.dark`, `bar`, `blockBg` — none of which is
+  // `palette.background` (A91/D6(a): the terminal ground is deliberately far darker than the
+  // app ground and must NOT be tokenised to it). So these rows composite against the terminal
+  // palette, not `DARK_GROUNDS`, and there is no light half: `TERMINAL_SCHEME` is dark by
+  // construction. Every ground is an opaque hex, so no flattening is involved.
+  //
+  // This block is the falsifiable half of U7.1. The `toEqual` shape pin in
+  // `screens/import/__tests__/terminal-palette.test.ts` fails on ANY edit; these fail only on
+  // the edit that MATTERS — a foreground dropping back under AA. The three §C rows are the
+  // package's whole contrast deliverable, and each was measured on the phone before the raise:
+  // titleText 2.99, titleMeta 4.05, time 2.10.
+  const SCREEN = TERMINAL_PALETTE.screen[TERMINAL_SCHEME]
+
+  it('§C: every console foreground clears AA on its own ground (phone terminal-palette.ts:20-35)', () => {
+    const pairs: [name: string, fg: string, ground: string][] = [
+      ['titleText on bar', TERMINAL_PALETTE.titleText, TERMINAL_PALETTE.bar],
+      ['titleMeta on bar', TERMINAL_PALETTE.titleMeta, TERMINAL_PALETTE.bar],
+      ['time on screen', TERMINAL_PALETTE.time, SCREEN],
+      ['body on screen', TERMINAL_PALETTE.body, SCREEN],
+      ['blockText on blockBg', TERMINAL_PALETTE.blockText, TERMINAL_PALETTE.blockBg],
+      ['error on screen', TERMINAL_PALETTE.error, SCREEN],
+      ['cursor on screen', TERMINAL_PALETTE.cursor, SCREEN],
+      // The live dot is a 5px non-text mark, but it takes `cursor` — already covered above at
+      // the stricter text floor, so it needs no row of its own.
+    ]
+    expect(
+      pairs
+        .map(([name, fg, ground]) => ({ name, ratio: round(contrast(fg, [ground])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: all ten syntax accents clear AA on the console ground (phone: 5.94 error to 14.38 norm)', () => {
+    // Measured at the STRICTER normal-text threshold precisely because the tag text is 10px
+    // (phone `:37-44`) — the large-text allowance never applies anywhere in this palette.
+    expect(
+      Object.entries(TERMINAL_PALETTE.accent)
+        .map(([level, fg]) => ({ level, ratio: round(contrast(fg, [SCREEN])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: the three raised foregrounds land on the phone\'s measured ratios, not merely above the floor', () => {
+    // A floor-only assertion would stay green over a foreground pushed to pure white, which is
+    // the opposite of "hue preserved, lightness lifted until each cleared AA" (phone `:32-35`).
+    // These are the phone's own published numbers.
+    expect(round(contrast(TERMINAL_PALETTE.titleText, [TERMINAL_PALETTE.bar]))).toBe(4.97)
+    expect(round(contrast(TERMINAL_PALETTE.titleMeta, [TERMINAL_PALETTE.bar]))).toBe(5.22)
+    expect(round(contrast(TERMINAL_PALETTE.time, [SCREEN]))).toBe(4.98)
+  })
+
+  it('the console ground stays far darker than the app ground (A91 / D6(a) — do not tokenise it)', () => {
+    // The rider is a RELATIONSHIP, so pin the relationship rather than the hex: any future
+    // "tidy" that points `screen` at `colors.background` reds here even if the hex it lands on
+    // is a plausible navy.
+    expect(SCREEN).not.toBe(palette.dark.background)
+    expect(round(contrast('#ffffff', [SCREEN]))).toBeGreaterThan(
+      round(contrast('#ffffff', [palette.dark.background])),
+    )
+  })
+})
+
+/**
+ * D12's THIRD arm — **freeze AND DEFEND** the "Sample data" amber.
+ *
+ * D12, verbatim: *"It must stay **visually distinct from real data** — that is a correctness
+ * constraint. Re-derive it only if A15's `warningLight #7d5f10` would collide with it (it will
+ * not; they are a fill and a foreground of different families)."*
+ *
+ * "Will not collide" is a PREDICTION, and D12 is the one decision in the set whose failure mode
+ * is the demo lying about its own provenance rather than looking dated. So it is measured here,
+ * not asserted: `deltaE` is the same CIE76 the tier rows use, and the plan §9 clause 2 precedent
+ * (`recessed` two-sided, `nestedCard` >= 1.25) is that a separation claim a ratio is blind to
+ * gets a dE bound.
+ *
+ * ## REVIEW W3/F51 — the first version of this guard was VACUOUS, and the numbers say how
+ *
+ * It compared the badge's 12%-alpha fill composited over the card against the RAW OPAQUE
+ * `warningLight`. That measures the ALPHA, not the hue, and it is monotone in "how little the
+ * badge paints": shipped scored **65.31**, `warningLight` at the badge's own alpha scored
+ * **68.94**, and **deleting the fill entirely scored 77.62** — all "passing" a `> 10` bound. A
+ * guard that rewards the thing it exists to prevent is worse than no guard.
+ *
+ * Two things were wrong and both are fixed below.
+ *
+ * **1. The claim was mis-stated.** Measured at MATCHED alpha over the same card, the badge is
+ * ΔE **3.56–6.16** from `warning` / `warningDark` / `warningLight`. The sample amber and the
+ * ported warning ambers ARE one hue family; D12's "different families" is about ROLE, not hue.
+ * What actually separates them is that this badge is a translucent tint under an AMBER label
+ * while a warning Banner is an OPAQUE ground under a near-white `warningOnLight` label. So the
+ * fill pin measures the two AS RENDERED (which is where 65.31 is the honest number), the
+ * foreground pin carries the load, and a new IDENTITY pin bans the badge's hue from being a
+ * warning token's at any alpha — the form the reviewer's probe B used to walk past it.
+ *
+ * **2. The bound was one-sided.** It is now two-sided, which is plan §9 clause 2's own precedent
+ * for a separation claim (`recessed` ΔE 3–12 **per stop, two-sided**): the badge must be far
+ * from the warning surface AND near enough to nothing — i.e. it must actually PAINT on its card.
+ * The tautology control is explicit: a fully transparent fill must FAIL.
+ *
+ * The 10 threshold is comfortably above the 2.3 "just noticeable" line. The presence floor is 5,
+ * measured 14.90 as shipped and 0 for a deleted fill.
+ */
+describe('D12: the sample-data badge stays distinct from the ported warning family', () => {
+  // The nested card is what both seam-owned badge sites sit on: `ImportResultAccordion`'s
+  // per-location chip and `OcrCaptureScreen`'s confidence chip.
+  const CARD = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
+  const badgeFill = flatten([SAMPLE_BADGE.background, ...CARD])
+  /** The card with NO badge fill on it — what "the badge vanished" looks like. */
+  const bareCard = flatten([...CARD])
+  /** A ported `Banner severity="warning"` as it renders: the OPAQUE `*Light` ground (its own
+   *  docblock forbids any alpha), i.e. `severityTone('warning').background`. */
+  const warningFill = flatten([severityTone('warning').background, ...CARD])
+
+  it('separates the badge FILL from a ported warning surface, as both actually render', () => {
+    // This is the collision D12 names by hand. If a future re-tint walks the warning ground
+    // toward this amber, a sample value and a real warning stop being tellable apart.
+    expect(round(deltaE(badgeFill, warningFill))).toBeGreaterThan(10)
+  })
+
+  it('PAINTS: the fill is visibly present on its card — the tautology control (F51)', () => {
+    // The half that was missing. Without it the metric is monotone in the badge disappearing:
+    // no fill at all scored 77.62 against the old one-sided bound and "passed".
+    expect(round(deltaE(badgeFill, bareCard))).toBeGreaterThan(5)
+    // ...and the control states the inversion outright, so nobody re-derives the old shape.
+    const transparent = flatten([withAlpha(SAMPLE_BADGE.foreground, 0), ...CARD])
+    expect(round(deltaE(transparent, bareCard)), 'a fill that paints nothing must FAIL').toBe(0)
+    expect(round(deltaE(transparent, warningFill))).toBeGreaterThan(round(deltaE(badgeFill, warningFill)))
+  })
+
+  it('is not a warning token wearing an alpha — the HUE identity (F51, the probe-B form)', () => {
+    // `withAlpha(warningLight, 0.12)` passes every perceptual bound above (it is a translucent
+    // amber tint on the same card) while BEING the ported warning ground. Only an identity check
+    // on the hue underneath the alpha can see it, and the structural pin below only sees the
+    // token spelled bare.
+    const [r, g, b] = parse(SAMPLE_BADGE.background)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight'] as const) {
+      const [tr, tg, tb] = parse(palette.dark[token])
+      expect(
+        [r, g, b],
+        `SAMPLE_BADGE.background is \`${token}\` under an alpha — D12 freezes it as its own value`,
+      ).not.toEqual([tr, tg, tb])
+    }
+  })
+
+  it('separates the badge FOREGROUND from every ported warning foreground', () => {
+    const fg = parse(SAMPLE_BADGE.foreground)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningOnLight'] as const) {
+      expect(
+        round(deltaE(fg, parse(palette.dark[token]))),
+        `SAMPLE_BADGE.foreground has converged on \`${token}\``,
+      ).toBeGreaterThan(10)
+    }
+  })
+
+  it('is legible on the card it renders on, which is what makes it a MARK and not decoration', () => {
+    // A badge that clears the family separation and then cannot be read is not a defence.
+    expect(round(contrast(SAMPLE_BADGE.foreground, [SAMPLE_BADGE.background, ...CARD]))).toBeGreaterThan(AA_TEXT)
+  })
+
+  it('is a FROZEN constant block, never a status token (A91)', () => {
+    // The structural half of the defence: if a later "tidy" points the badge at the status
+    // family, every dE above collapses to 0 and the three tests become tautologies. Pin the
+    // NON-identity so the tidy reds here first, with a message that says why.
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight', 'warningOnLight'] as const) {
+      expect(SAMPLE_BADGE.foreground as string, `the badge was tokenised to \`${token}\` — D12 freezes it`).not.toBe(palette.dark[token])
+      expect(SAMPLE_BADGE.background as string).not.toBe(palette.dark[token])
+    }
+  })
+})
+
+/**
+ * D12's freeze-and-defend arm, applied to the OTHER provenance surface (review W3/F76).
+ *
+ * `SAMPLE_BADGE` marks a bundled sample ASSET; `SAMPLE_NOTICE` marks that the demo SUBSTITUTED
+ * sample data for the visitor's own import. That is the provenance claim D12 names first, and it
+ * shipped as two inline literals with zero pins on either value. Same three cases as the badge,
+ * run over BOTH members from one table so a third provenance surface joins by adding a row.
+ *
+ * The notice renders on `ModalShell`'s elevated tier, not the nested card the chips sit on, so
+ * each member is composited over its own real ground rather than a shared convenience constant.
+ */
+describe('D12: every provenance mark stays distinct from the ported warning family', () => {
+  const NESTED = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
+  const ELEVATED = [GLASS_TIER.dark.elevated.gradient[0], palette.dark.background]
+
+  const MARKS = [
+    ['SAMPLE_BADGE', SAMPLE_BADGE, NESTED],
+    ['SAMPLE_NOTICE', SAMPLE_NOTICE, ELEVATED],
+  ] as const
+
+  it.each(MARKS)('%s: its fill separates from a ported warning surface, as both render', (_n, mark, ground) => {
+    expect(round(deltaE(flatten([mark.background, ...ground]), flatten([severityTone('warning').background, ...ground])))).toBeGreaterThan(10)
+  })
+
+  it.each(MARKS)('%s: PAINTS — the fill is visibly present on its own ground', (_n, mark, ground) => {
+    const bare = flatten([...ground])
+    expect(round(deltaE(flatten([mark.background, ...ground]), bare))).toBeGreaterThan(3)
+    // The tautology control, stated so the one-sided shape is not re-derived: a fill that paints
+    // nothing scores 0 here AND scores HIGHER against the warning surface than the shipped mark.
+    const transparent = flatten([withAlpha(mark.foreground, 0), ...ground])
+    expect(round(deltaE(transparent, bare)), 'a fill that paints nothing must FAIL').toBe(0)
+    expect(round(deltaE(transparent, flatten([severityTone('warning').background, ...ground])))).toBeGreaterThan(
+      round(deltaE(flatten([mark.background, ...ground]), flatten([severityTone('warning').background, ...ground]))),
+    )
+  })
+
+  it.each(MARKS)('%s: is not a warning token wearing an alpha — the HUE identity', (_n, mark) => {
+    const [r, g, b] = parse(mark.background)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight'] as const) {
+      const [tr, tg, tb] = parse(palette.dark[token])
+      expect([r, g, b], `background is \`${token}\` under an alpha — D12 freezes it as its own value`).not.toEqual([tr, tg, tb])
+    }
+  })
+
+  it.each(MARKS)('%s: its foreground separates from every ported warning foreground', (_n, mark) => {
+    const fg = parse(mark.foreground)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningOnLight'] as const) {
+      expect(round(deltaE(fg, parse(palette.dark[token]))), `foreground has converged on \`${token}\``).toBeGreaterThan(10)
+    }
+  })
+
+  it.each(MARKS)('%s: is legible on the ground it renders on', (_n, mark, ground) => {
+    expect(round(contrast(mark.foreground, [mark.background, ...ground]))).toBeGreaterThan(AA_TEXT)
+  })
 })
