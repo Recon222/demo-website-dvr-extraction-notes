@@ -338,19 +338,29 @@ describe('glass tokens (P0.5 / G6)', () => {
   it('pins the spreadable fragments to the exact clusters they replaced', () => {
     // `glassCard` is no longer "the cluster it replaced" — U1.2 gave it the two parts A31/A32
     // say the demo never rendered, plus A44's elevation, and U1.3 added `glassCardNested`
-    // beside it. The ORDER of the keys is a separate contract
-    // (`__tests__/glass-card-recipe.test.tsx`): `toEqual` is order-blind, so a re-sort that
-    // erases the lit edge would pass this line unchanged.
+    // beside it. Both carry ONLY LONGHANDS since the lit-edge ruling: a `border` or
+    // `borderColor` key in a fragment is the trap, not the ordering
+    // (`partner-lit-edge-ruling.md` §3-§4). The absence of those keys is pinned in
+    // `__tests__/glass-card-recipe.test.tsx`, because `toEqual` reads as a value list and a
+    // reviewer will not notice a key that is not there.
     expect(glassCard).toEqual({
       borderRadius: 12,
-      border: '1px solid rgba(28,78,132,0.5)',
+      borderStyle: 'solid',
+      borderWidth: 1,
+      borderRightColor: 'rgba(28,78,132,0.5)',
+      borderBottomColor: 'rgba(28,78,132,0.5)',
+      borderLeftColor: 'rgba(28,78,132,0.5)',
       borderTopColor: 'rgba(184,212,240,0.08)',
       background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.15)',
     })
     expect(glassCardNested).toEqual({
       borderRadius: 12,
-      border: '1px solid rgba(43,140,193,0.45)',
+      borderStyle: 'solid',
+      borderWidth: 1,
+      borderRightColor: 'rgba(43,140,193,0.45)',
+      borderBottomColor: 'rgba(43,140,193,0.45)',
+      borderLeftColor: 'rgba(43,140,193,0.45)',
       borderTopColor: 'rgba(184,212,240,0.2)',
       background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
@@ -406,7 +416,9 @@ describe('glass tokens (P0.5 / G6)', () => {
     expect(glassCardNested.background, 'the nested fragment paints the nestedCard tier').toBe(
       `linear-gradient(180deg,${t.nestedCard.gradient[0]},${t.nestedCard.gradient[1]})`,
     )
-    expect(glassCardNested.border).toBe(`1px solid ${t.nestedCard.border}`)
+    for (const side of ['borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
+      expect(glassCardNested[side], `${side} is the nestedCard tier's border`).toBe(t.nestedCard.border)
+    }
     expect(glassCardNested.borderTopColor).toBe(t.nestedCard.highlightTop)
     expect(glassCardNested.boxShadow).toBe(`inset 0 1px 0 ${t.nestedCard.innerShadow}`)
     // A33's whole point: the nested stops are the SWAP of the card's, so a "fix" that made

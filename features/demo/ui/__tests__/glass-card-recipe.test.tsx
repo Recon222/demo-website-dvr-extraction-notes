@@ -245,14 +245,21 @@ describe('the card recipe reaches every glassCard consumer (U1.2 / A31, A32, A44
     }
   })
 
-  it('composes the fragment in the order the phone publishes (border, THEN border-top-color)', () => {
-    // Not a restatement of the `toEqual` in glass-tokens.test.ts: that pins the VALUES, this
-    // pins the ORDER, and the order is what a re-sort of the object literal destroys without
-    // changing a single value. `Object.keys` is the insertion order React replays into the
-    // style declaration.
-    const keys = Object.keys(glassCard)
-    expect(keys.indexOf('borderTopColor')).toBeGreaterThan(keys.indexOf('border'))
-    expect(keys.indexOf('border')).toBeGreaterThanOrEqual(0)
+  it('carries NO border shorthand key — the ruled fragment shape', () => {
+    // What replaced the old key-ORDER pin, and it is the stronger invariant. Ordering only
+    // mattered while a shorthand existed to be ordered against; the measured ruling
+    // (`partner-lit-edge-ruling.md` §3, 40 cells x 3 paints, jsdom AND Chromium, zero
+    // disagreement) is that a fragment carrying ANY of these keys hands its consumers a trap
+    // no ordering can close — `{ ...f, border: X }` was OK on first paint and wrong on the
+    // next. Longhands only leaves nothing to clobber.
+    for (const fragment of [glassCard, glassCardNested]) {
+      for (const banned of ['border', 'borderColor', 'borderTop'] as const) {
+        expect(Object.keys(fragment), `a card fragment must not carry \`${banned}\``).not.toContain(banned)
+      }
+      expect(Object.keys(fragment)).toEqual(
+        expect.arrayContaining(['borderStyle', 'borderWidth', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'borderTopColor']),
+      )
+    }
   })
 })
 
@@ -508,38 +515,40 @@ describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
 })
 
 /**
- * F14 — the escape hatch the module documents, exercised the way a consumer writes it.
+ * The lit-edge composition rule, as RULED — `partner-lit-edge-ruling.md` §3-§4.
  *
- * Every one of the fragment's consumers SPREADS it, so the spread is the only form that
- * matters, and two plausible-looking ways to re-tint a card's sides are wrong. Both measured
- * here, both kept below as negative controls:
+ * Settled by measurement, not argument: 40 cells x 3 paints in jsdom AND real Chromium
+ * (react-dom 19.2.3), zero OK/XX disagreement between the two environments. Two earlier
+ * answers this file used to encode both fell over in that matrix:
  *
- * 1. `{ ...glassCard, borderColor: X, borderTopColor: h }` — the sentence this replaces.
- *    Object spread keeps a duplicate key at the FIRST occurrence's position with the LAST
- *    value, so the "re-set" edge collapses back into the spread's slot at index 2 and
- *    `borderColor` (a four-side shorthand) lands after it and wipes it. First paint read
- *    `rgb(1, 1, 1)` where `rgba(184, 212, 240, 0.08)` was expected.
- * 2. Lifting the edge out first (`const { borderTopColor, ...base } = glassCard`) fixes first
- *    paint and STILL breaks on update: React writes only the keys that changed between
- *    renders, so an unchanged `borderTopColor` is skipped while the changed shorthand is
- *    written — and the shorthand erases it. Measured: `rgb(2, 2, 2)` on the second render.
+ *   - `{ ...f, borderColor: X, borderTopColor: h }` — spread keeps a duplicate key at the
+ *     FIRST occurrence's position with the LAST value, so the "re-set" edge collapses back
+ *     into the spread's slot and the shorthand lands after it. Wrong on first paint.
+ *   - lifting the edge out of the fragment first — right on first paint, wrong on the next:
+ *     React writes only the keys that CHANGED, so an unchanged `borderTopColor` is skipped
+ *     while the changed shorthand is written.
  *
- * The form that survives both is the one with NO shorthand in it: three side LONGHANDS. There
- * is then nothing that can erase the edge, on any render, because nothing writes it.
+ * The ruling removes the trap from the FRAGMENT rather than asking consumers to dodge it:
+ * `glassCard` and `glassCardNested` carry `borderStyle` / `borderWidth` / the three side
+ * colour longhands / `borderTopColor`, and NO shorthand key at all. A consumer then re-tints
+ * with colour longhands, and there is nothing left that can clobber the edge on any paint.
+ *
+ * The cells below are the ruling's own: p1, p2, and the conditional case that is A2's unique
+ * win — when the side longhands COLLAPSE out of the object, the sides self-heal to the
+ * fragment's own tint instead of falling back to `currentColor` (Chromium) / `""` (jsdom),
+ * which is what every shorthand-carrying shape did.
  */
-describe('the documented escape hatch actually works (F14)', () => {
+describe('the lit-edge composition rule (ruled: fragments carry only longhands)', () => {
   const TINT = 'rgb(1, 1, 1)'
   const TINT2 = 'rgb(2, 2, 2)'
-  /** The prescribed form. */
-  const tinted = (tint: string) => ({
-    ...glassCard,
+  const sideLonghands = (tint: string) => ({
     borderRightColor: tint,
     borderBottomColor: tint,
     borderLeftColor: tint,
   })
 
-  it('a re-tinted card keeps its lit edge on FIRST paint', () => {
-    const { container } = render(<div style={tinted(TINT)} />)
+  it('p1 — a re-tinted card keeps its lit edge on first paint', () => {
+    const { container } = render(<div style={{ ...glassCard, ...sideLonghands(TINT) }} />)
     const el = container.firstElementChild as HTMLElement
     expect(el.style.borderTopColor).toBe(HIGHLIGHT)
     expect(el.style.borderRightColor).toBe(TINT)
@@ -547,44 +556,62 @@ describe('the documented escape hatch actually works (F14)', () => {
     expect(el.style.borderLeftColor).toBe(TINT)
   })
 
-  it('and keeps it across an UPDATE, which is where the other two forms fail', () => {
-    const Card = ({ tint }: { tint: string }) => <div style={tinted(tint)} />
+  it('p2/p3 — and across updates that change the tint', () => {
+    const Card = ({ tint }: { tint: string }) => <div style={{ ...glassCard, ...sideLonghands(tint) }} />
     const { container, rerender } = render(<Card tint={TINT} />)
     const el = () => container.firstElementChild as HTMLElement
     expect(el().style.borderTopColor).toBe(HIGHLIGHT)
     rerender(<Card tint={TINT2} />)
     expect(el().style.borderTopColor).toBe(HIGHLIGHT)
     expect(el().style.borderRightColor).toBe(TINT2)
-    rerender(<Card tint={SIDE_BORDER} />)
+    rerender(<Card tint={TINT} />)
     expect(el().style.borderTopColor).toBe(HIGHLIGHT)
-    expect(el().style.borderRightColor).toBe(SIDE_BORDER)
+    expect(el().style.borderRightColor).toBe(TINT)
+  })
+
+  it('the CONDITIONAL form self-heals — sides collapse back to the fragment tint, not to nothing', () => {
+    // `...(expanded && sideLonghands(T))` — the shape a real consumer writes for a lit/idle
+    // card. Every shorthand-carrying fragment left `border-left-color` at `currentColor` /
+    // `""` on the collapse render (ruling Appendix A, `removeSides`); the longhands-only
+    // fragment restores its own tint, because that is the only declaration left standing.
+    const Card = ({ expanded }: { expanded: boolean }) => (
+      <div style={{ ...glassCard, ...(expanded && sideLonghands(TINT)) }} />
+    )
+    const { container, rerender } = render(<Card expanded />)
+    const el = () => container.firstElementChild as HTMLElement
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(TINT)
+    rerender(<Card expanded={false} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(SIDE_BORDER)
+    rerender(<Card expanded />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(TINT)
   })
 
   // Negative controls. Not wishes: if React or jsdom ever stopped resolving a duplicate spread
   // key at the first occurrence's position, or started re-writing unchanged style keys, these
-  // would fail and the rule above would need re-deriving instead of being trusted.
-  it('NEGATIVE CONTROL — the shorthand-then-longhand spread loses the edge on first paint', () => {
-    const { container } = render(
-      <div style={{ ...glassCard, borderColor: TINT, borderTopColor: glassCard.borderTopColor }} />,
-    )
+  // fail and the ruling gets re-derived instead of trusted (the ruling names them as exactly
+  // that tripwire). Both cells are silent in React's own detector, which is why the
+  // `conflicting property` guard in `vitest.setup.ts` is a complement to them and not a
+  // replacement.
+  it('NEGATIVE CONTROL — a `borderColor` override after the spread loses the edge on first paint', () => {
+    const { container } = render(<div style={{ ...glassCard, borderColor: TINT }} />)
     expect((container.firstElementChild as HTMLElement).style.borderTopColor).toBe(TINT)
   })
 
-  it('NEGATIVE CONTROL — lifting the edge out survives first paint and loses it on update', () => {
-    const { borderTopColor: litEdge, ...base } = glassCard
-    const Card = ({ tint }: { tint: string }) => (
-      <div style={{ ...base, borderColor: tint, borderTopColor: litEdge }} />
-    )
-    const { container, rerender } = render(<Card tint={TINT} />)
-    const el = () => container.firstElementChild as HTMLElement
-    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
-    rerender(<Card tint={TINT2} />)
-    expect(el().style.borderTopColor).toBe(TINT2)
+  it('NEGATIVE CONTROL — a `border` override now loses it on FIRST paint too, not on the second', () => {
+    // The ruling's headline change for this fragment. Under the old shape this cell was
+    // `OK p1, FAIL p2` — a trap that shipped green through a first-render-only test. With no
+    // shorthand in the fragment there is nothing for `border` to agree with, so it is wrong
+    // immediately and any render-once pin catches it.
+    const { container } = render(<div style={{ ...glassCard, border: `1px solid ${TINT}` }} />)
+    expect((container.firstElementChild as HTMLElement).style.borderTopColor).toBe(TINT)
   })
 
   it('a boxShadow override after the spread drops the tier inset — compose instead', () => {
     const own = '0 0 12px rgba(43,140,193,0.2)'
-    const { container } = render(
+    render(
       <>
         <div data-testid="replaced" style={{ ...glassCard, boxShadow: own }} />
         <div data-testid="composed" style={{ ...glassCard, boxShadow: `${glassCard.boxShadow}, ${own}` }} />
@@ -594,7 +621,6 @@ describe('the documented escape hatch actually works (F14)', () => {
     expect(screen.getByTestId('replaced').style.boxShadow).not.toContain(inset)
     expect(screen.getByTestId('composed').style.boxShadow).toContain(inset)
     expect(screen.getByTestId('composed').style.boxShadow).toContain(own)
-    expect(container).toBeTruthy()
   })
 })
 

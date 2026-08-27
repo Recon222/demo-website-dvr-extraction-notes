@@ -4,7 +4,7 @@
 //   stay isolated.
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach } from 'vitest'
 
 /**
  * Budget for every `findBy*` / `waitFor`. RTL defaults it to 1000ms, which is NOT enough
@@ -23,8 +23,56 @@ import { afterEach } from 'vitest'
  */
 configure({ asyncUtilTimeout: 5000 })
 
+/**
+ * REPO-WIDE TRIPWIRE: React's own conflicting-shorthand detector, promoted to a test failure.
+ *
+ * When an inline style object writes a shorthand (`border`, `borderColor`, `borderTop`) on an
+ * update while a conflicting longhand (`borderTopColor`) is set, React logs
+ * "Updating a style property during rerender (border) when a conflicting property is set
+ * (borderTopColor)" and then silently paints the wrong thing. That is the lit-edge defect
+ * class (`docs/planning/demo-phone-ui-parity/reports/partner-lit-edge-ruling.md` §4.3): the
+ * warning fired in 100% of the measured update-clobber cells and in no cell that stayed
+ * correct under the ruled rule. A console warning nobody reads is not a gate; this is.
+ *
+ * Deliberately narrow — this single regex, not "fail on any console.error". The suite logs
+ * expected React errors on purpose (error boundaries, act warnings), and a blanket ban would
+ * be a permanent source of unrelated red.
+ *
+ * COMPLEMENT, not a replacement, for the value pins in
+ * `features/demo/ui/__tests__/glass-card-recipe.test.tsx`: React is silent on the two cells
+ * that are wrong on FIRST paint, and those pins are silent on nothing. Each covers what the
+ * other cannot. A test that means to exercise a clobber asserts on `conflictingStyleWarnings`
+ * and clears it.
+ *
+ * Collected and thrown in `afterEach` rather than thrown from the console call itself: a throw
+ * inside React's commit phase unwinds through React internals and reports as an unrelated
+ * failure in a different place.
+ */
+export const conflictingStyleWarnings: string[] = []
+const realConsoleError = console.error
+console.error = (...args: Parameters<typeof console.error>) => {
+  if (/conflicting property/.test(String(args[0] ?? ''))) {
+    conflictingStyleWarnings.push(args.map(String).join(' '))
+  }
+  realConsoleError(...args)
+}
+
+beforeEach(() => {
+  conflictingStyleWarnings.length = 0
+})
+
 afterEach(() => {
   cleanup()
+  if (conflictingStyleWarnings.length > 0) {
+    const seen = conflictingStyleWarnings.join('\n')
+    conflictingStyleWarnings.length = 0
+    throw new Error(
+      'React reported a conflicting style shorthand/longhand update. A style object wrote a ' +
+        'border SHORTHAND over a longhand the fragment sets, so the painted result is wrong ' +
+        'from this render on. Re-tint with colour LONGHANDS only — see the fragment docblocks ' +
+        `in features/demo/ui/glass-tokens.ts.\n${seen}`,
+    )
+  }
 })
 
 // ---- jsdom shims for components/demo UI tests (test-spec § Shared Mock Infrastructure) ----
