@@ -28,19 +28,36 @@ const SETTINGS_ROOT = join(process.cwd(), 'features', 'demo', 'ui', 'screens', '
 
 /**
  * Hex literals that survive on purpose. Each needs a reason a reader can check, not a shrug.
+ *
+ * **Keyed by SITE, not by hex (W3/F66 - W2/F32's remedy with the axes swapped).** Every reason
+ * below names ONE file, and a hex-keyed map exempted the value across the whole
+ * `screens/settings/**` walk: the tests lane's SP2 probe planted the exempt hex in a SECOND file
+ * and SURVIVED. A template-literal key puts the path inside what tsc checks and inside what the
+ * inventory case compares, so a second site spelling an exempt hex is a NEW key and reds naming
+ * its file. `field-recipe-sweep.test.tsx:94`'s file-keyed `ALLOWED` is the sibling this agrees
+ * with now.
+ *
+ * The BAN case is deliberately not exempted at all - a palette hex is an offender wherever it
+ * appears - which is why F66 lands LOW rather than higher.
  */
-const ALLOWED: Readonly<Record<string, string>> = {
+const ALLOWED: Readonly<Record<Site, string>> = {
   // `#cdd9e6` was here, exempted as `T.textDim` with U6.4a named as its trigger. U6.4a fired:
   // the key is deleted from `inputs/input-theme.ts`, the eight hand-rolled copies of the label
   // it carried read `fieldLabelStyle`, and this subtree's three sites — `_pane-chrome`'s stub
   // note, `FormFieldsPane`'s field rows and `UserProfileModal`'s label — take `colors.text`.
   // The row goes with the literal: a reason kept for a literal that no longer exists is
   // exactly the stale exemption the third case below tests for.
-  '#5d7a9a':
-    'FormFieldsPane’s footnote tone. No palette sibling, no matrix row names it, and it is not ' +
+  'panes/FormFieldsPane.tsx:#5d7a9a':
+    'The footnote tone at `:315`. No palette sibling, no matrix row names it, and it is not ' +
     'the `#5a7a9a` U7.2’s D-1 rules on (different hex). D3: an unchanged unique literal is left ' +
     'alone.',
 }
+
+/** `<path relative to the settings root>:<lowercased hex>` - the unit an exemption is granted in. */
+type Site = `${string}:#${string}`
+
+const siteKey = (file: string, hex: string): Site =>
+  `${relative(SETTINGS_ROOT, file).split(sep).join('/')}:${hex.toLowerCase()}` as Site
 
 /** Every palette value, both halves, lowercased — the set this sweep bans. */
 const PALETTE_HEXES = new Set(
@@ -94,15 +111,16 @@ describe('the settings package sources its colours from the palette (U6 exit / D
   })
 
   it('leaves EXACTLY the literals that have a recorded reason — no more, and no fewer', () => {
-    const found = new Set<string>()
+    const found = new Set<Site>()
     for (const file of files) {
       const src = stripComments(readFileSync(file, 'utf8'))
-      for (const hex of src.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []) found.add(hex.toLowerCase())
+      for (const hex of src.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []) found.add(siteKey(file, hex))
     }
     expect(
       Array.from(found).sort(),
-      'the surviving literals no longer match ALLOWED. A NEW hex: add it with a reason, or ' +
-        'route it through the palette. A hex that VANISHED: delete its row — a reason kept for ' +
+      'the surviving literals no longer match ALLOWED. A NEW site: add it with a reason, or ' +
+        'route it through the palette - and note that an exemption granted to one file no ' +
+        'longer excuses the same hex in another (F66). A site that VANISHED: delete its row — a reason kept for ' +
         'a literal that no longer exists is how a stale exemption outlives the thing it excused.',
     ).toEqual(Object.keys(ALLOWED).sort())
   })
