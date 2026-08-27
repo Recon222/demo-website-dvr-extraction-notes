@@ -68,3 +68,44 @@ Unchanged from `w3/VETTED-r1.md`. Rider delta: sfh + web only. Verification v6's
 - **F77 is the round's one fix-introduced regression** — an a11y fix trading never-announces for over-announces; caught because the web lane re-read the fix's rendered behaviour rather than its diff. The lesson for live-region fixes: the content decision is part of the fix, not an implementation detail.
 - **tests' r0 endorsement of `pane-chrome.test.tsx` was self-corrected** ("one assertion too generous — recorded rather than defended") — the honest form; noted because lane self-corrections are the counter-signal to manufactured findings and worth naming when they happen.
 - No lane found foreign content in its file; the tests lane's W2 staging deviation did not recur.
+
+---
+
+# Round 2 — RIDER ROUND + CLOSING @ `3084065`
+
+**Verdict: APPROVE with comments** — **F51–F80 ALL FIXED**; one new **F81 [LOW] → LEDGERED §122** (strictly-stricter today; no rider owed). W3 is merge-ready.
+**Rider diff:** `eb98295..3084065` — F76+F78 `2a47cfb` (U7.3) · F77 `b945701` (U5.2) · F79 `43459d9` (U5.4) · F80 `5001a5f` (U7.2), four clean branch merges. Cold gates: tsc 0 · 4,250 passed · guard 143/143 · `/demo` 107 kB.
+**Lanes read (r2):** web APPROVE 0 new (F77 verified structural — the counts are unreachable by construction; F79's row 48 confirmed with the inverse negative; F80 verified on the gesture AND plain paths; its two r1 LOWs closed) · sfh APPROVE-wc (F76 both probes KILL; the separate-member ruling endorsed; F80 swallows nothing — revert kills 2/3; one new LOW → F81).
+**Verification v6:** F52 pixel-proofed all-green (picker title / contact rows / pane readout all `#b8d4f0`-family; the D4 selection border held; the slider track untouched); F60 photographed in both states; nothing-else-moved at the control-run noise floors. Two new probe drivers landed on master (`2c6cdcc`) for future waves.
+
+## Rider verification (floor + lanes)
+
+| Item | Commit | Status | Evidence |
+|---|---|---|---|
+| F76 (M) + F78 (L) | `2a47cfb` | **FIXED** | `SAMPLE_NOTICE` beside `SAMPLE_BADGE` (`sample-badge.ts:89`, spot-checked), both `ImportModal` sites import it, the D12 describe extended via the MARKS table; sfh's two probes KILL; the separate-member shape (not a second key bag) endorsed by sfh with reasons. `CONFIDENCE_COLOR` frozen. |
+| F77 (M) | `b945701` | **FIXED — structurally** | The announcement no longer embeds the counts; web verified the volatile half is unreachable by construction, not merely absent. |
+| F79 (L) | `43459d9` | **FIXED** | §C.1 row 48 bounds `MAP_PICKER_SELECTED_BORDER` at `AA_NON_TEXT` with the inverse negative beside it. |
+| F80 (L) | `5001a5f` | **FIXED** | The origin is single-use (nulled after capture) — the guard now matches its docblock's claim; web exercised gesture and plain paths; sfh's revert probe kills 2/3. |
+
+## New finding — ledgered, not ridered
+
+### F81 [LOW → §122] The MARKS mechanism does not tie a row's GROUND to the surface's real render — `SAMPLE_NOTICE`'s row grounds on `elevated` (and the comment claims that is the render) while the notice renders on flat `colors.background`; the presence floor also moved 5→3 unremarked
+Lanes: silent-failures (r2; both touch-points measured — the mis-grounded row is STRICTER than reality today, 12.24 bound vs 13.78 real, so nothing can flip green-to-wrong)
+Disposition: **ledger row §122**, trigger below — a strictly-stricter bound with a wrong provenance comment is a debt, not a defect; a third rider for a comment on a conservative bound fails the proportionality bar this campaign has held four waves.
+
+## Final status, F51–F81
+
+**F51–F75 FIXED** (r1 fix round) · **F76–F80 FIXED** (rider round) · **F81 LOW ledgered (§122)**. No PARTIAL, no UNFIXED, no unsettled. W1-through-W3 F-numbering stands at **F81**; next ledger § is **123**.
+
+## Corrections owed at merge (orchestrator)
+
+1. **Matrix D12, rationale sentence:** "a fill and a foreground of different families … will not collide" is refuted by measurement (matched-alpha ΔE 3.56–6.16 — one hue family). The constraint STANDS; the recorded rationale becomes the role-based separation (translucent tint + amber label vs opaque ground + near-white label), per `sample-badge.ts`'s corrected docblock and the F51 fix round.
+2. **The r1 reports' §-correction lists** (each report's own refutations — U5.4's stale LocationRow citations, U2.4-era line cites, etc.) as usual.
+3. **W4 briefs carry the scan conventions verbatim:** the no-exemption + anti-vacuity shape (`one-switch-renderer`), "shrink the CLAIM to the pattern, not widen the pattern until it lies" (F51's fix), and the four-spelling planted control (F54's fix). Fourth consecutive wave of the scan-scope class; the briefs are the only place upstream of it.
+4. **§89's residue is scheduled, not open:** SplashScreen ×3 → U8.1's re-base; StoryRail ruled D12-frozen (recorded in the row). U8.1's brief should name both.
+
+## Pipeline notes (closing)
+
+- The rider round's four commits landed with the seats that own the files, one commit per seat — the per-seat-per-file routing has now run two waves without a dropped touch-point.
+- sfh's F81 is the right kind of last-mile finding: it measured BOTH touch-points before filing and said "stricter today" out loud, which is what let it be ledgered instead of ridered. Zero manufactured findings across the wave's three rounds.
+- Aggregator context: W3 consumed r1 + delta + closing on this seat; warm for W4. F-numbering at F81; next § 123.

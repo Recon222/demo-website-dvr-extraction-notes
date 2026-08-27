@@ -6740,3 +6740,15 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Trigger:** **the next package that opens `engine/logic/media`'s strings, or U8's exit copy pass** — fix the string and either extend the walker to the engine's rendered-string modules or record here why not.
 
 **Annotation (W3 fix-delta):** the F65 rider cleaned `ocr.ts`'s sibling strings. A fuller census: **83 em-dash string literals under `engine/`**, dominated by `engine/content/narration.ts` (the rail's demo-originated marketing-voice copy). Whether §4.3's rule governs demo-originated narration is an OWNER question for U8's exit copy pass; this row now carries that census so the pass starts from facts.
+
+---
+
+## 122. W3 (rider round) — the D12 MARKS mechanism does not tie a row's GROUND to the surface's real render; today's one mis-grounding is STRICTER than reality
+
+**Source:** W3 r2, silent-failures (finding F81, `w3/VETTED-r1-delta.md` closing section); `palette-contrast.test.ts:1176-1194`; `sample-badge.ts` MARKS table.
+
+**What:** each MARKS row carries its own ground stack, chosen by hand. `SAMPLE_NOTICE`'s row grounds on the `elevated` tier — and the comment at `:1176` claims that is the render — while the notice actually renders on `ModalShell`'s flat `colors.background`. Measured: the mis-grounded bound is STRICTER (12.24 vs the real 13.78), so nothing can flip green over a wrong value today. Second touch-point: the presence floor is `>5` in the badge's own describe and `>3` in the generalised MARKS loop, with no recorded reason for the difference.
+
+**Why deferred:** a strictly-stricter bound with a wrong provenance comment is debt, not risk; the real fix (a per-row ground tied to the render, or each row documenting its measured ground) earns its shape when the mechanism grows.
+
+**Trigger:** **the third MARKS surface** (the next entry added to the table), or any change to `ModalShell`'s notice ground — whichever first. That commit ties each row's ground to its surface's real render (correcting the `:1176` comment), and records the presence floor's value with its reason.
