@@ -99,3 +99,55 @@ Unchanged from `VETTED-r1.md`: typescript `a4c5c572ffccfbfd2` · web `a8c0513e70
 - **Scratchpad hygiene from r1 is fixed:** the web lane reports it now uses a per-lane subdirectory (`scratchpad/lane-web-r1/`); no cross-agent contamination reported this round.
 - **Plan corrections owed (orchestrator, at merge) — carried from r1, one addition:** the guard's docblock now publishes the corrected anchor schedule (59 keys / 123 rows; U3.1 adds `successLight`/`warningLight` only) — the plan's U0.4/U1.1/U3.1/U8.2 stage figures and matrix A96's "~44 keys / ~88 rows" must follow it.
 - **Stale trailer in the orchestrator's brief template** (integrator R-2): the `Claude-Session` URL carried a one-character typo (`…Lu3BSv4` vs the repo's `…Lu3mBSv4`) and the `Co-Authored-By` model name was not the committing seat's. The integrator corrected both in `5e2768e`; fix the template.
+
+---
+
+# § Closing verdict — W0 fix-delta r2 @ `281a95a` (appended here; W0's review is two files: `VETTED-r1.md` + this one)
+
+**Verdict: APPROVE** — PR #39 is mergeable. 0 CRITICAL · 0 HIGH · 0 MEDIUM · 0 LOW open. Lanes: type-design F11 FIXED (probe B re-run phone-absent → KILLED), tests F12 FIXED (R1–R4, each revert kills singly) + F11 FIXED (R5, phone-absent), silent-failures F13 FIXED (predicate evaluated both directions) — all APPROVE, 0 new. Aggregator: warm, same seat.
+
+## Fix diff `347d132..281a95a` — my own verification (the floor)
+
+| F-ID | Commit | Verified at source |
+|---|---|---|
+| F11 | `c93c05d` | Membership `expect` now its own `it` at `rn-token-parity.test.ts:87` inside the ungated block (renamed "the guard's local invariants — nothing here reads the phone repo", with the rule stated for the next case). `anchors.length` (`:139-142`) correctly STAYS inside `skipIf` — it reads `checkParity()`. `SCHEME_INVARIANT: ReadonlySet<string> = new Set<PaletteToken>([...])` — typo → TS2769 (probed by td and by the author). Case count 11 → 12. |
+| F12 | `b4de0a1` | `LINK = 'rgb(184, 212, 240)'`; four value assertions in the three EXISTING cases (`:101-105` tab colour + underline, `:116` badge numeral, `:231-233` selected-row rail) plus two negative controls (inactive tab NOT link; unselected row NOT railed) — the fixture I said existed is the one used, ExportHub idiom. My r1 PRESCRIPTION-UNVERIFIED mark is discharged by tests R1–R4. |
+| F13 | `2169c27` | `looksLikeColour = /^(#|[a-z-]+\()/i` — every function notation warns; bare keywords (`transparent`, `currentColor`, `inherit`, `none`) stay silent; new `scale.test.ts` case pins one warn per function form and zero on the four keywords. Predicate-only change; `withAlpha`'s contract untouched. |
+
+Fix-introduced regressions: none (three seats hunted; r2 touched no rendered code — two test files, one dev-only predicate). Cold gates at `281a95a` per the mapping comment and the lanes: guard exit 0 (67/67) · tsc exit 0 · suite exit 0, **269 files / 3,522 passed | 15 todo**.
+
+## Final status, F1–F13
+
+| F | Sev | Final | Closed by |
+|---|---|---|---|
+| F1 | HIGH | FIXED | `8f876b9` (+ F12 pins) |
+| F2 | HIGH | FIXED | `4c2a4fa` + `c93c05d` (F11 closed the PARTIAL) |
+| F3 | HIGH | FIXED | `696f3bb` |
+| F4 | MEDIUM | FIXED | `4f834f9` |
+| F5 | MEDIUM | FIXED | `6221250` |
+| F6 | MEDIUM | FIXED | `7c245fe` + `001627e` (+ `5e2768e` reconciliation) |
+| F7 | MEDIUM | FIXED | `627ac63` |
+| F8 | LOW | FIXED (as scoped; U1.1 derives `GLASS.borderSoft`) | `824df2a` |
+| F9 | LOW | FIXED | `9dbca61` |
+| F10 | LOW | FIXED | `92eb61e` |
+| F11 | HIGH | FIXED | `c93c05d` |
+| F12 | MEDIUM | FIXED | `b4de0a1` |
+| F13 | LOW | FIXED | `2169c27` |
+
+13/13 FIXED · 0 deferred via the ledger from findings (five ledger rows this campaign — §89–§93 — record boundaries, not unfixed findings).
+
+## Ledger interaction (closing)
+
+Rows to add: none. Rows to close: none — §89 (U2/U6), §90 (U2.2), §91 (first CI workflow), §92 (U8.4), §93 (value-change commits) all have unexpired, later-package triggers; §31's partial-resolution note stands. Nothing in r2 touched a trigger.
+
+## Merge gate — resolved
+
+The r1-delta gate "verification re-cut at the post-r2 head" is satisfied by a re-cut at `15e5a6f` **or later**: r2 changed no rendered code (`git diff --stat 347d132..281a95a` excluding docs = two `__tests__` files + `scale.ts`'s dev-warn predicate), so captures taken at `15e5a6f` are pixel-equivalent to `281a95a`. The two surfaces named for the owner's eye stand: the Media Library tab strip (selected tab brightest) and the lit `ExportCaseCard` outline/halo now pale near-white.
+
+## State of W0 — for the PR #39 merge
+
+1. The token layer is in: `ui/tokens/palette.ts` (32 keys × both halves, phone names, type-enforced key set) + `ui/tokens/scale.ts` (scales, `withAlpha`, `flattenOver` with a required ground and dev-warn arms) + the CTA re-based to `PrimaryButtonGradient.dark` (`ACCENT_FROM satisfies typeof colors.primaryDark`).
+2. The gates hold the line mechanically: drift guard 67/67 with comment-stripped regions, loud on a missed marker, membership-pinned against the palette on every box (phone present or not); literal scans normalise both sides; `T` aliases pinned by source; contrast contract ported (4 live rows, 15 owned todos, opaque-bottom guard).
+3. Accent-as-mark regression caught and closed: `GLASS.accentFrom` is a fill shade with zero foreground consumers; the six former sites spend `colors.link` (9.60 / 7.78 / 6.86 / 9.23) and all six carry value pins.
+4. Known and recorded, not open: §89 (`#2B8CC1`-as-text 3.94 at 14 sites → U2/U6), §90 (dark-only CTA pair → U2.2), §91 (guard skips without the phone repo → first CI), §92 (case-map export keeps the old palette → U8.4), §93 (unchanged hexes unbanned until their value moves). Depth inversion / button collapse / `#05080d` cut / grid strength are W1–W8 sequencing, not W0 defects — do not device-pass W0 alone.
+5. Plan corrections owed at merge: guard schedule 59 keys / 123 rows supersedes ~44 / ~88 (A96, U3.1 adds two keys not four); U2.2 +`PrimaryButtonGradient.light`; U8.4 +template decision; U1.4 +`header`/`elevated` ground stacks; matrix line 550's "§89" forward reference is stale; the brief template's `Claude-Session` trailer typo.
