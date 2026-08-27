@@ -242,6 +242,9 @@ describe('Banner — the caller seams', () => {
 describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   /** Every `ui/**` non-test file that renders `<Banner>` today. Paths relative to `ui/`. */
   const ADOPTED = [
+    // U6.4b took its SECOND hand-back: the "Required Fields Missing" callout — and the phone's
+    // mutually-exclusive "No Case Selected" partner beside it, which the demo had never grown.
+    'screens/CompletionScreen.tsx',
     'screens/DateDisambiguationWarning.tsx',
     'screens/EditIncidentLocationModal.tsx',
     'screens/ExtractedScopeScreen.tsx',
@@ -267,7 +270,6 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
    * FallbackMode amber; the `FailuresCard` is a list, not a status line).
    */
   const HANDED_BACK: Readonly<Record<string, string>> = {
-    'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
     'screens/settings/panes/_pane-chrome.tsx':
       'U6.2 — PaneNote carries the RECIPE (see RECIPE_ONLY); the COMPONENT is deferred (D20)',
     'screens/AudioRecorderScreen.tsx': 'U7.2 — the notice + error pair (:252-264)',

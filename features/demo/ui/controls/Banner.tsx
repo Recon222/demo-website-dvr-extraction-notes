@@ -149,6 +149,18 @@ export interface BannerProps {
   message: string
   /** Caller LAYOUT only (margins, alignment). Never a fill: the opacity rule above is the point. */
   style?: CSSProperties
+  /**
+   * A DOM id, so a blocked control can point `aria-describedby` at this banner as its reason
+   * (D10 / review F39: `aria-disabled` announces a STATE and carries none).
+   *
+   * Added by U6.4b for `CompletionScreen`'s blocked `Complete & Save`. It is not a widening of
+   * the severity contract — it adds no colour, no glyph and no semantics — and this module's own
+   * docblock named its absence as one of the three reasons `_pane-chrome`'s `PaneNote` could not
+   * adopt the component ("has no `id`", so R-6's three `aria-describedby` targets would break).
+   * That reason is now retired; the other two (six static notes announcing on mount, two polite
+   * regions turning assertive) stand, so U6.2's deferral is unaffected.
+   */
+  id?: string
   /** Rendered as `data-testid`, the demo's idiom for the phone's `testID`. */
   testId?: string
 }
@@ -186,12 +198,13 @@ const messageStyle = {
   lineHeight: '21px',
 } as const satisfies CSSProperties
 
-export function Banner({ severity, message, style, testId }: BannerProps) {
+export function Banner({ severity, message, style, id, testId }: BannerProps) {
   // SEAM(U3.2). One call, no private derivation — see the docblock and W2 F26.
   const tone = severityTone(severity)
 
   return (
     <div
+      id={id}
       data-testid={testId}
       role="alert"
       // Phone `:63` — the accessible name carries the severity, which the colour cannot.
