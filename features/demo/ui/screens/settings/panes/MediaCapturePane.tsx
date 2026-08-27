@@ -7,9 +7,6 @@ import {
   VIDEO_QUALITY_OPTIONS,
   clampPhotoQuality,
   photoQualityPercent,
-  type MaxVideoDurationOption,
-  type VideoCodecOption,
-  type VideoQualityOption,
 } from '@/features/demo/engine/content/settings-values'
 import {
   PaneDescription,
