@@ -5,7 +5,7 @@ last-full-plan-read: PENDING-MERGE
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***PLANNING PHASE COMPLETE — PAUSED AT THE OWNER GATE.*** Matrix (748L: 97 Tier-A rows — 41 DRIFTED / 24 MISSING / 21 MISSING-SEAM / 7 COMPLETE — + 72 Tier-B + 15 inert + 14 demo-only) and master plan (531L: U0–U8, 9 phases) passed plan-review r1: initial BLOCK 2B/16M/27m → fix round 1 (45/46 fixed, 1 refuted) → fix-delta REVISE 0B/4M/7m → fix round 2 (11/11) → fix-delta r2 all lanes APPROVE → Fable closing verdict **APPROVE**. Full trail in `plan-review/r1/` + `plan-review/r1-delta/`. **NOTHING IN FLIGHT.** Next: owner rules D1–D20 (`02-ratification-brief.md`), then merge the planning bundle to `master`, then brief U0.
+**Last updated:** 2026-08-27 — milestone: ***RATIFIED (D1–D20; D18 overridden, D2 amended) — PLAN-REVIEW ROUND 2 IN FIX.*** r2 (post-ratification edit: waves, both-halves palette, kit citations) vetted BLOCK 1C/3M/7m (V-47..57: both-halves never reached the U1–U4 seams; wave-vs-D18 topology sentence; U0.0/U0.4 PARSE-FAILED ownership). Writer fix round 3 IN FLIGHT → lanes delta → aggregator → merge planning bundle to `master` → owner reload → U0. **The dt kit is integrated on `master`** (`a8b54d3..a039829`: personas pinned to opus + contracts, hooks live (continuity/staleness/git-guard), `tools/worktree-remove.ps1`, GATES.md, CLAUDE.md pointer) — hooks only provably fire at next session start.
 
 ## 1. Mission & role
 
