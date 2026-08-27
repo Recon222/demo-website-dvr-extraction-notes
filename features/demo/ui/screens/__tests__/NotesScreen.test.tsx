@@ -4,6 +4,14 @@ import { NotesScreen, type NotesScreenProps } from '@/features/demo/ui/screens/N
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
+import { TERMINAL_PALETTE } from '@/features/demo/ui/screens/import/terminal-palette'
+import { scheme } from '@/features/demo/ui/tokens/palette'
+
+/** jsdom normalizes hex inline colours to rgb(r, g, b). */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 // The phone's section-editor surface (ui-mapping 08): section states, the five confirm
 // dialogs (exact copy), commit-on-blur-and-unmount, the taken-over banner, Copy all.
@@ -49,6 +57,30 @@ function props(over: Partial<NotesScreenProps> = {}): NotesScreenProps {
     ...over,
   }
 }
+
+describe('NotesScreen — the forced-dark console panel (U7.1 / A85, B.6 row 45)', () => {
+  it('takes its ground and outline from the ONE terminal palette, not a second copy', () => {
+    // Before U7.1 this screen held `#060a12` / `#141c28` as its own literals while
+    // `ImportTerminalProgress` held the same two — the exact duplication the phone's owned
+    // module was created to end (phone terminal-palette.ts:10-12). A value-equality pin would
+    // pass over a re-pasted copy, so this asserts the RELATIONSHIP: the panel paints what the
+    // module says, and the module says what the import terminal's panel says.
+    render(<NotesScreen {...props()} />)
+    const panel = screen.getByLabelText('address & visits').closest('div[style*="overflow-y"]') as HTMLElement
+    expect(panel).not.toBeNull()
+    expect(panel.style.background).toBe(rgb(TERMINAL_PALETTE.screen[scheme]))
+    expect(panel.style.border).toBe(`1px solid ${rgb(TERMINAL_PALETTE.border)}`)
+  })
+
+  it('indexes `screen` with the APP scheme, not the console\'s forced-dark one', () => {
+    // The phone leaves exactly this key scheme-forked (`NotesSectionEditor.tsx:105` reads
+    // `screen[colorScheme]`) because the inset lifts a few points on a light app; everything
+    // INSIDE the panel is force-dark. Same object while the demo renders dark — the pin is
+    // that the two arms are different values, so the distinction is not decorative.
+    expect(TERMINAL_PALETTE.screen[scheme]).toBe(TERMINAL_PALETTE.screen.dark)
+    expect(TERMINAL_PALETTE.screen.light).not.toBe(TERMINAL_PALETTE.screen.dark)
+  })
+})
 
 describe('NotesScreen — section states', () => {
   it('hides empty auto sections entirely (the cameras section never renders)', () => {

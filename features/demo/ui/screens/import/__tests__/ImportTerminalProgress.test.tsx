@@ -24,6 +24,17 @@ import {
 } from '@/features/demo/ui/screens/import/ImportTerminalProgress'
 import { createImportLogBus, type ImportLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { SAMPLE_FALLBACK_PREFIX } from '@/features/demo/ui/import/run-import'
+import {
+  TERMINAL_PALETTE,
+  TERMINAL_FONT_SIZE,
+  TERMINAL_SCHEME,
+} from '@/features/demo/ui/screens/import/terminal-palette'
+
+/** jsdom normalizes hex inline colours to rgb(r, g, b). */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 // Fake timers drive the useImportLog coalescing frame (same rig as useImportLog.test.ts).
 beforeEach(() => {
@@ -164,6 +175,52 @@ describe('ImportTerminalProgress (P1.4, matrix row 74)', () => {
     // The phone's strings would be lies here — pin their absence everywhere.
     expect(container.textContent).not.toContain('on-device')
     expect(container.textContent).not.toContain('nothing leaves this phone')
+  })
+
+  // ---- console chrome (U7.1 / A85, A86) ----
+
+  it('paints the title bar from the owned palette — label and meta at their AA-raised values', () => {
+    setup()
+    const label = screen.getByText(TERMINAL_TITLE)
+    const meta = screen.getByTestId('terminal-trust-line')
+    // Raised on the phone (2.99 -> 4.97 and 4.05 -> 5.22); the ratios are pinned in
+    // ui/__tests__/palette-contrast.test.ts, the RENDERED colour here.
+    expect(label.style.color).toBe(rgb(TERMINAL_PALETTE.titleText))
+    expect(meta.style.color).toBe(rgb(TERMINAL_PALETTE.titleMeta))
+    expect(label.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.row}px`)
+    expect(meta.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.meta}px`)
+  })
+
+  it('the live dot takes `cursor`, not the retired teal `accent.verbose` (phone ImportTerminalProgress.tsx:368)', () => {
+    // The demo's TERM_CHROME.liveDot was #4ECDC4 and cited the phone's OLD source
+    // (`term.accent.verbose`, baseline :316). #117 re-pointed it at TERMINAL_PALETTE.cursor
+    // (phone-ui-delta-inventory.md:14990), which also purges A89's teal from this file — the
+    // teal-purge scan U8.2 adds over `ui/screens/**` has no other owner for this site.
+    const { container } = setup()
+    const dot = container.querySelector('[data-testid="terminal-trust-line"]')?.previousElementSibling
+    expect(dot).not.toBeNull()
+    expect((dot as HTMLElement).style.backgroundColor).toBe(rgb(TERMINAL_PALETTE.cursor))
+  })
+
+  it('the caret and the console ground come from the palette, at the named ramp sizes', () => {
+    setup()
+    const caret = screen.getByTestId('terminal-cursor')
+    expect(caret.style.color).toBe(rgb(TERMINAL_PALETTE.cursor))
+    expect(caret.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.cursor}px`)
+    // The panel is the terminal's own ground — far darker than colors.background (A91).
+    const panel = screen.getByTestId('terminal-log').parentElement as HTMLElement
+    expect(panel.style.background).toBe(rgb(TERMINAL_PALETTE.screen[TERMINAL_SCHEME]))
+  })
+
+  it('the jump pill label uses the named row size (A86 — no loose 10 left in this file)', () => {
+    setup({}, (e) => e.log('INIT', 'reading document…'))
+    nextFrame()
+    mockLogMetrics(1000, 200)
+    const log = screen.getByTestId('terminal-log')
+    log.scrollTop = 0
+    fireEvent.wheel(log)
+    fireEvent.scroll(log)
+    expect(screen.getByText('latest').style.fontSize).toBe(`${TERMINAL_FONT_SIZE.row}px`)
   })
 
   it('the trust line follows the run\'s actual FallbackMode: a sample-fallback line flips it to the in-browser wording', () => {

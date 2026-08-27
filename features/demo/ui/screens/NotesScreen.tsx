@@ -10,6 +10,8 @@ import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import type { RestoreAllMode, ScrapAllMode } from '@/features/demo/engine'
 import { WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { scheme } from '@/features/demo/ui/tokens/palette'
+import { TERMINAL_PALETTE } from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
  * The Notes screen — the phone's seven-section notes editor (P2.1, ui-mapping 08
@@ -45,9 +47,19 @@ export interface NotesScreenProps {
   onMenu(): void
 }
 
-// Forced-dark terminal panel tokens (ui-mapping 08: PANEL_BG dark #060a12, border #141c28).
-const PANEL_BG = '#060a12'
-const PANEL_BORDER = '1px solid #141c28'
+// U7.1 (A85 / B.6 row 45): the panel ground and outline are the IMPORT TERMINAL's, not this
+// screen's — the phone's `NotesSectionEditor.tsx:105-106` reads `TERMINAL_PALETTE.screen[
+// colorScheme]` / `.border` from the same owned module, and its docblock records that these
+// two shades "used to be copy-pasted literals in both features" and had already drifted. The
+// demo had the identical duplication (the same two console shades here and in
+// `ImportTerminalProgress`), so this is that same de-duplication.
+//
+// `screen` is the one key the phone leaves keyed by the APP scheme (the panel lifts a few
+// points on a light app so the inset does not read as a hole punched in a white page), so it
+// indexes with `scheme`, NOT with `TERMINAL_SCHEME` — everything inside the panel is
+// force-dark, the panel shade itself is not.
+const PANEL_BG = TERMINAL_PALETTE.screen[scheme]
+const PANEL_BORDER = `1px solid ${TERMINAL_PALETTE.border}`
 const TEXT = '#dfe9f3'
 const DIM = '#7a93ad'
 const PRIMARY = '#4BA3D4'
