@@ -90,16 +90,18 @@ const srOnly: CSSProperties = {
 const EXPORT_MODAL_Z = 40
 
 /**
- * The progress mode's scrim. The validation mode's is `CentredDialog`'s.
+ * The progress mode's backdrop. The validation mode's is `CentredDialog`'s.
  *
- * SEAM(U4.4): one of the `rgba(4,8,14,0.66)` sites the scrim family collapses. It is the only
- * one left in this file — the validation copy moved into `CentredDialog.tsx`.
+ * A22, RULED (W2 F43): `colors.overlay`, the same value the centred dialogs take, because it is
+ * the same overlay behind the same export flow - the phone's own progress overlay is
+ * `backgroundColor: colors.overlay` at `export/ExportModal.tsx:325`. NOT `colors.scrim`, which
+ * is the sheet family's. Was `rgba(4,8,14,0.66)`, a literal matching neither token.
  */
 const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
   zIndex: EXPORT_MODAL_Z,
-  background: 'rgba(4,8,14,0.66)',
+  background: colors.overlay,
   pointerEvents: 'auto',
 }
 

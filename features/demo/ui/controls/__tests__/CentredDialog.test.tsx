@@ -3,12 +3,12 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import type { CSSProperties } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
-import { CentredDialog, DIALOG_SHADOW, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
+import { CentredDialog, DIALOG_SHADOW, dialogScrim, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -522,5 +522,41 @@ describe('the dialog action row — F41, the phone gap', () => {
 
     // …and 16 is the phone's value, not a coincidence of the scale.
     expect(spacing.md).toBe(16)
+  })
+})
+
+/**
+ * W2 F43 — the backdrop ruling, settled at phone source this round.
+ *
+ * A22's "three darknesses collapse into one" is refuted for the DIALOG subset. The phone paints
+ * TWO backdrop values, and the half of A22 that survives is its own sentence saying so:
+ *   - sheet family -> `colors.scrim` (0.32). Shipped by U4.4, `sheet-chrome.test.tsx:208-214`.
+ *   - centred dialogs -> `colors.overlay` (0.9): `DeleteConfirmationModal.tsx:229`,
+ *     `export/ExportModal.tsx:325,360` — both `backgroundColor: colors.overlay`.
+ * The shipped `rgba(4,8,14,0.66)` matched NEITHER token.
+ *
+ * Pinned as a DIFFERENCE as well as a value, for the reason `palette-contrast.test.ts:675-686`
+ * gives about the same pair: "do NOT resync the two" is the finding, and a resync to `scrim`
+ * would pass a value pin written independently.
+ */
+describe('the dialog backdrop — F43, colors.overlay and not colors.scrim', () => {
+  it('dialogScrim paints colors.overlay and owns no layering of its own', () => {
+    expect(dialogScrim.background).toBe(colors.overlay)
+    expect(dialogScrim.background).not.toBe(colors.scrim)
+    // `zIndex` stays the shell's — D14 froze the numbers per caller.
+    expect(dialogScrim).not.toHaveProperty('zIndex')
+  })
+
+  it('the rendered dialog backdrop is the token, not a literal', () => {
+    mount()
+    expect(norm(scrim().style.background)).toBe(norm(colors.overlay))
+  })
+
+  it("ExportModal's PROGRESS backdrop follows the dialogs, not the sheets", () => {
+    // Not a dialog panel — a full-bleed centred column — but it is the same overlay behind the
+    // same export flow, and DIFF.md counted it among the surviving 0.66 literals.
+    render(<ExportModal mode="progress" stage="zipping" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />)
+    const progressScrim = document.querySelector<HTMLElement>('[data-export-scrim]')!
+    expect(norm(progressScrim.style.background)).toBe(norm(colors.overlay))
   })
 })
