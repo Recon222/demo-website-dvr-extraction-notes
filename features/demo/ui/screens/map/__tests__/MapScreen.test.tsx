@@ -720,6 +720,36 @@ describe('MapScreen — the proximity anchor chain (review R-18)', () => {
 
     await waitFor(() => expect(screen.getByTestId('proximity-chip')).toBeInTheDocument())
   })
+
+  it('F58: says nothing about a "current view" or a gesture when there is no map', async () => {
+    // The whole contradiction in one mount. `MapCanvas` paints "Map preview unavailable"; the
+    // sheet over it used to tell the visitor to long-press that map, and the host announced a
+    // "current view" for a centre that is `DEFAULT_MAP_CENTER`, a frozen literal — `getCenter()`
+    // resolves to null with no map (`MapCanvas.tsx:304-307`).
+    vi.unstubAllEnvs()
+    const store = createDemoStore()
+    const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
+    store.getState().addLocation(caseId, { locationName: 'Typed, never picked' }) // no gps
+    const s = store.getState()
+    const empty = toMapData(s.cases.find((c) => c.id === caseId)!, s.locations.filter((l) => l.caseId === caseId))
+    const { container } = render(<MapScreen viewerCaseId="x" mapData={empty} onEditIncident={vi.fn()} />)
+    expect(container.querySelector('[data-map-fallback]')).toBeInTheDocument()
+
+    openFilters()
+    expect(screen.getByTestId('filter-hint')).toHaveTextContent(
+      'The live map is unavailable, so the proximity ring cannot be moved.',
+    )
+
+    fireEvent.click(screen.getByTestId('filter-proximity'))
+    expect(
+      await screen.findByText(
+        'Nothing is plotted and the live map is unavailable, so proximity is centred on the demo default location.',
+      ),
+    ).toBeInTheDocument()
+    // The two sentences the fallback panel makes untrue are BOTH gone.
+    expect(screen.queryByText(/current view/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Long-press/)).not.toBeInTheDocument()
+  })
 })
 
 describe('MapScreen — camera visibility', () => {

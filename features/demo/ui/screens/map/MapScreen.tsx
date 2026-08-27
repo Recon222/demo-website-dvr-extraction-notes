@@ -39,6 +39,18 @@ const PROXIMITY_UNAVAILABLE = "Proximity analysis couldn't load. Check your conn
  * appears somewhere, filtering against a point nobody picked.
  */
 const PROXIMITY_CENTRED_ON_VIEW = 'Proximity centred on the current view. Long-press the map to move it.'
+/**
+ * F58: the same event when there is no map to have a "current view" OF.
+ *
+ * `MapCanvas` returns `[data-map-fallback]` instead of `[data-map-canvas]` without
+ * `NEXT_PUBLIC_MAPBOX_TOKEN` (`MapCanvas.tsx:620-626`), and its `getCenter()` then resolves to
+ * `null` (`:304-307`) — so the anchor chain falls through to `DEFAULT_MAP_CENTER`, a frozen
+ * literal. The sentence above claimed a view the visitor cannot see and a gesture they cannot
+ * perform; this one claims neither. Three anchor provenances, three outcomes: a plotted row is
+ * silent, a real map centre says "current view", and the constant says it is a constant.
+ */
+const PROXIMITY_CENTRED_ON_DEFAULT =
+  'Nothing is plotted and the live map is unavailable, so proximity is centred on the demo default location.'
 
 /** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
 const NO_CAMERAS: readonly MapCameraMarker[] = Object.freeze([])
@@ -157,6 +169,19 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
    * document-level `keydown` handler on every commit of this screen. Phone `MapHost.tsx:166-167`
    * spells both the same way.
    */
+  /**
+   * F58 — is there a live map surface at all? Read HERE, not at module scope, and read from the
+   * same expression `MapCanvas` decides its own render from (`MapCanvas.tsx:273`): Next inlines
+   * this at build time, but the demo's suites drive the token-less path with `vi.stubEnv`, so a
+   * module-level capture would freeze whichever value was present at import and the honest branch
+   * would be untestable.
+   *
+   * Two consumers, deliberately the same fact: the sheet's hint (which names a long-press gesture)
+   * and the anchor notice (which names a "current view"). Both sentences are true exactly when a
+   * map exists, so they must not be allowed to disagree.
+   */
+  const canPlaceRing = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN)
+
   const openFilters = useCallback(() => setFiltersVisible(true), [])
   const closeFilters = useCallback(() => setFiltersVisible(false), [])
 
@@ -233,6 +258,24 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     if (!proximityActive || !proximityCenter || !proximityModule) return null
     return proximityModule.computeProximity(filtered, proximityCenter, proximityRadius)
   }, [proximityActive, proximityCenter, proximityModule, filtered, proximityRadius])
+
+  /**
+   * Is the ring actually FILTERING right now? (F62.)
+   *
+   * `proximityActive` is the REQUEST — `setProximityActive(true)` commits synchronously, while
+   * the Turf chunk it needs is still in flight. Between those two moments proximity is "on" and
+   * filtering nothing: `proximityResult` is null, `display` is the unfiltered set, and there is
+   * no ring on the map. The failure path was already honest (`PROXIMITY_UNAVAILABLE` reverts the
+   * toggle); the LOADING path was not, and the chip printed "2 km · 9 of 9" over a map with no
+   * ring — an on-map indicator asserting a filter that is not running, which is exactly what
+   * `PROXIMITY_UNAVAILABLE`'s own docblock forbids for the sibling path.
+   *
+   * One condition rather than a three-state union: the two booleans answer different questions
+   * and both already exist, so the union would re-encode a derivation rather than remove one.
+   * The SWITCH keeps reading `proximityActive`, because a toggle must reflect the tap that set
+   * it; only the claim about filtering is withheld.
+   */
+  const proximityFiltering = proximityResult !== null
 
   const display = proximityResult?.data ?? filtered
   const markers = useMemo(() => buildMarkers(display), [display])
@@ -382,12 +425,26 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
       const plotted = filtered.items[0]?.coord
       const anchor = plotted ?? mapRef.current?.getCenter() ?? DEFAULT_MAP_CENTER
       setProximityCenter([anchor[0], anchor[1]])
-      // Only the derived-anchor arms are announced: an anchor taken from a row the visitor can
-      // see in the sheet explains itself.
-      if (!plotted) setNotice(PROXIMITY_CENTRED_ON_VIEW)
+      /**
+       * Only the derived-anchor arms are announced: an anchor taken from a row the visitor can
+       * see in the sheet explains itself. Of the other two, F58 asked which sentence is true.
+       *
+       * The discriminator is `canPlaceRing`, NOT whether `getCenter()` returned. Those differ,
+       * and the difference matters: `mapRef.current` is assigned inside an async IIFE after two
+       * dynamic imports (`MapCanvas.tsx:315-338`), so `getCenter()` is null for the first few ms
+       * of EVERY mount, token or not. Discriminating on it would have told a visitor with a
+       * perfectly good map that the map was unavailable, for the window in which they are most
+       * likely to be pressing things.
+       *
+       * And in that window `DEFAULT_MAP_CENTER` genuinely IS the current view: `MapCanvas` opens
+       * the map centred on that same frozen constant, read from this same module
+       * (`MapCanvas.tsx:335`). So the sentence is true whenever a map exists at all — which is
+       * exactly what `canPlaceRing` says, and is the same fact the sheet's hint reads.
+       */
+      if (!plotted) setNotice(canPlaceRing ? PROXIMITY_CENTRED_ON_VIEW : PROXIMITY_CENTRED_ON_DEFAULT)
     }
     setProximityActive(true)
-  }, [proximityActive, proximityCenter, filtered.items, loadProximity])
+  }, [proximityActive, proximityCenter, filtered.items, loadProximity, canPlaceRing])
 
   /** Long-press: re-centre the ring when proximity is on, else activate it there
    *  (phone MapHost.tsx:359-368). */
@@ -437,7 +494,11 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             /* The search chrome's back button IS the change-case affordance now, with the same
                gating the deleted pill had (phone `MapHost.tsx:511-514`). */
             onClose={onChangeCase}
-            proximityActive={proximityActive}
+            /* F62 — the FILTERING fact, not the request. `MapControls`'s own prop docblock reads
+               "True while the proximity ring is active — renders the summary chip", and during
+               the chunk-load window `proximityActive` is not that. The chip is the map's only
+               claim that a filter is running, so it may not appear before one is. */
+            proximityActive={proximityFiltering}
             proximityRadius={proximityRadius}
             /**
              * The chip ✕. `handleProximityToggle` is passed whole rather than split, and the
@@ -491,6 +552,10 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onClose={closeFilters}
             activeStatuses={filters.statuses}
             onStatusToggle={handleStatusToggle}
+            /* The REQUEST, deliberately not `proximityFiltering` (F62): a switch must reflect the
+               tap that set it, or a visitor who turns proximity on watches it spring back while
+               the chunk loads and taps again. The radius chips ride the same flag for the same
+               reason — they are what the request is configuring. */
             proximityActive={proximityActive}
             proximityRadius={proximityRadius}
             /* The SAME function the chip's ✕ receives. This is the caller that brings its ON
@@ -502,6 +567,7 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onClearAll={handleClearAllFilters}
             locationCount={locationCount}
             filteredCount={filteredCount}
+            canPlaceRing={canPlaceRing}
           />
           {pendingCall && (
             <CallConfirmSheet

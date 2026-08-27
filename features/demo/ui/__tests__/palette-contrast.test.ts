@@ -10,7 +10,10 @@ import { flattenOver, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
-import { MAP_FILTER_SECTION_LABEL } from '@/features/demo/ui/screens/map/MapFiltersSheet'
+import {
+  MAP_FILTER_HINT_TEXT,
+  MAP_FILTER_SECTION_LABEL,
+} from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
@@ -932,6 +935,17 @@ describe('map chrome contrast floors', () => {
     // row 41 records the badge's 3.73. Not a rounding artefact of the bound above — a different,
     // worse colour, and one that was WORSE THAN THE #00BFFF it replaced (5.07 on this ground).
     expect(round(worst(palette[scheme].primary, SHEET_NESTED_GROUNDS))).toBeLessThan(AA_TEXT)
+  })
+
+  it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {
+    // D5's rider is "do not ADD new `textTertiary` text". The rider exists because that token
+    // carries a documented CEILING two cases up (3.79 dark / 3.87 light) — an inherited
+    // shortfall, not a budget new surfaces may spend. This hint is a new surface, so it takes
+    // `textSecondary` and is held to the same 4.5 as the labels above it.
+    expect(round(worst(MAP_FILTER_HINT_TEXT.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+    // The value the phone paints here, and the number that made it a finding.
+    expect(round(worst(palette[scheme].textTertiary, SHEET_GROUNDS))).toBeLessThan(AA_TEXT)
+    expect(MAP_FILTER_HINT_TEXT.color).not.toBe(palette[scheme].textTertiary)
   })
 })
 

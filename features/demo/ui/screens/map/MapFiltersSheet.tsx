@@ -85,6 +85,20 @@ export interface MapFiltersSheetProps {
   locationCount: number
   /** Locations surviving those filters AND the proximity ring. */
   filteredCount: number
+  /**
+   * Is there a live map surface to long-press? (F58.)
+   *
+   * The hint below is the phone's, and the phone always has a map. The demo does not: without
+   * `NEXT_PUBLIC_MAPBOX_TOKEN`, `MapCanvas` returns `[data-map-fallback]` INSTEAD of
+   * `[data-map-canvas]` (`MapCanvas.tsx:620-626`) — a panel that says "Map preview unavailable"
+   * in as many words. Shipping the long-press hint over that panel had the sheet contradicting
+   * the surface underneath it, which is the demo's honesty rule failing in the one direction it
+   * exists to catch: telling the visitor to perform a gesture on something that is not there.
+   *
+   * REQUIRED, not defaulted-true: a default would make the honest branch the one a caller has to
+   * remember, and there is exactly one caller.
+   */
+  canPlaceRing: boolean
 }
 
 /**
@@ -98,30 +112,30 @@ export interface MapFiltersSheetProps {
  * edit it exists to catch (re-pointing this label at `textTertiary`, which measures below AA on
  * the sheet tier).
  */
-export const MAP_FILTER_SECTION_LABEL: CSSProperties & { color: string } = {
+export const MAP_FILTER_SECTION_LABEL = {
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: 0.5,
   textTransform: 'uppercase',
   marginBottom: spacing.sm,
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties & { color: string }
 
 /** Phone `styles.body` `:226-230` — `16 / 16 / 8` (A82). The shell's body has no padding of its own. */
-const body: CSSProperties = {
+const body = {
   paddingLeft: spacing.md,
   paddingRight: spacing.md,
   paddingTop: spacing.md,
   paddingBottom: spacing.sm,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.chipRow` `:238-243`. */
-const chipRow: CSSProperties = {
+const chipRow = {
   display: 'flex',
   flexWrap: 'wrap',
   gap: spacing.sm,
   marginBottom: spacing.lg,
-}
+} as const satisfies CSSProperties
 
 /**
  * Phone `styles.chip` `:244-253`.
@@ -134,7 +148,7 @@ const chipRow: CSSProperties = {
  * Border longhands, no shorthand: `borderColor` is itself a four-side shorthand and this object is
  * spread by two callers that then re-tint. `borderStyle` is CSS's default-none problem, not RN's.
  */
-const chip: CSSProperties = {
+const chip = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -161,48 +175,83 @@ const chip: CSSProperties = {
   // (`:138`, `:206`). `chipSelected` overrides it; a `<button>` has a UA colour, so leaving this
   // to the default paints the browser's, not the palette's.
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.chipDot` `:254-258`. */
-const chipDot: CSSProperties = {
+const chipDot = {
   width: 7,
   height: 7,
   borderRadius: radius.full,
   flex: '0 0 auto',
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.switchRow` `:263-269`. */
-const switchRow: CSSProperties = {
+const switchRow = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: spacing.sm,
   minHeight: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.switchLabel` `:270-273` — 14/500 `colors.text`, NOT the shared switch's own 16. */
-const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: colors.text }
+const switchLabel = { fontSize: 14, fontWeight: 500, color: colors.text } as const satisfies CSSProperties
 
-/** Phone `styles.hintText` `:279-282`, painted `colors.textTertiary` (`:217`). */
-const hintText: CSSProperties = { fontSize: 12, lineHeight: '16px', color: colors.textTertiary }
+/**
+ * Phone `styles.hintText` `:279-282`. The phone paints it `colors.textTertiary` (`:217`); the
+ * demo does not, and F60 is why.
+ *
+ * D5's rider is verbatim *"do not ADD new `textTertiary` text"*. `textTertiary` carries a
+ * documented CEILING of 3.79 (dark) / 3.87 (light) in `palette-contrast.test.ts` — an INHERITED
+ * shortfall, kept because the phone ships it, not a budget for new surfaces to spend. This hint
+ * is a new surface: it measures **4.23** on the sheet tier, under the 4.5 the same file's row 45
+ * holds the section labels to. `textSecondary` measures **5.82** on the same stacks.
+ *
+ * The contradiction was in this file already: `MAP_FILTER_SECTION_LABEL`'s docblock names
+ * `textTertiary` as the value that "measures below AA on the sheet tier" and then `hintText`
+ * painted with it eight lines down.
+ *
+ * EXPORTED for the same reason the label is — row 45's sibling assertion pins the ratio at the
+ * constant this component paints, so re-pointing it back at `textTertiary` reds.
+ */
+export const MAP_FILTER_HINT_TEXT = {
+  fontSize: 12,
+  lineHeight: '16px',
+  color: colors.textSecondary,
+} as const satisfies CSSProperties & { color: string }
+
+/**
+ * The proximity switch's visible label AND its accessible name — one string, read once (F59).
+ * Phone `:170`. `switch-name-is-its-label` in the suite pins that the two stay the same value.
+ */
+const PROXIMITY_SWITCH_LABEL = 'Filter by radius'
+
+/** The phone's hint, verbatim (`MapFiltersSheet.tsx:218`). Only true when a map is rendered. */
+const HINT_CAN_PLACE = 'Long-press the map to place or move the proximity ring.'
+/**
+ * F58: what the sheet says instead when there is no map surface to press. It promises no gesture
+ * and describes no view — it states the one thing that is true, which is that the ring is where
+ * the demo put it and cannot be moved. No em-dash (A93's sweep + its guard).
+ */
+const HINT_NO_MAP = 'The live map is unavailable, so the proximity ring cannot be moved.'
 
 /** Phone `styles.footerRow` `:283-287`. The shell wraps this in `paddingBottom: 12` and nothing else. */
-const footerRow: CSSProperties = {
+const footerRow = {
   display: 'flex',
   gap: spacing.sm,
   paddingLeft: spacing.md,
   paddingRight: spacing.md,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.footerButton` `:288-290`. */
-const footerButton: CSSProperties = { flexGrow: 1, flexShrink: 1, flexBasis: 0 }
+const footerButton = { flexGrow: 1, flexShrink: 1, flexBasis: 0 } as const satisfies CSSProperties
 
 /**
  * Off-screen but readable by assistive tech. A second copy of `ExportModal.tsx:70-80`'s constant,
  * knowingly: hoisting it would mean editing that screen, which belongs to no U5 package. Proposed
  * as a deferral rather than smuggled across a package boundary.
  */
-const srOnly: CSSProperties = {
+const srOnly = {
   position: 'absolute',
   width: 1,
   height: 1,
@@ -212,7 +261,7 @@ const srOnly: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   whiteSpace: 'nowrap',
   border: 0,
-}
+} as const satisfies CSSProperties
 
 /** The chip's selected paint, from the severity trio. Spread AFTER `chip`, colour longhands only. */
 function chipSelected(tone: ReturnType<typeof severityTone>): CSSProperties {
@@ -238,6 +287,7 @@ export function MapFiltersSheet({
   onClearAll,
   locationCount,
   filteredCount,
+  canPlaceRing,
 }: MapFiltersSheetProps) {
   // Phone `:94-98`, verbatim — including that BOTH arms take their plural from `locationCount`.
   const plural = locationCount === 1 ? 'location' : 'locations'
@@ -304,7 +354,10 @@ export function MapFiltersSheet({
             type="button"
             data-testid="filter-done"
             onClick={onClose}
-            aria-label="Apply filters and close"
+            // F59 / WCAG 2.5.3: the visible word leads, the phone's own sentence (`:123`)
+            // follows. "Apply filters and close" alone left a speech-input visitor unable to say
+            // "click Done" — the one thing the button reads as.
+            aria-label="Done, apply filters and close"
             style={{ ...buttonStyle({ variant: 'primary' }), ...footerButton }}
           >
             Done
@@ -348,16 +401,32 @@ export function MapFiltersSheet({
         {/* ---- Proximity ---- */}
         <div style={MAP_FILTER_SECTION_LABEL}>Proximity</div>
         <div style={switchRow}>
-          <span style={switchLabel}>Filter by radius</span>
+          {/* `aria-hidden` because the switch's own accessible name IS these words (below):
+              without it a screen reader read the line twice, once as loose text and once as the
+              control's name — and with the OLD name it read two DIFFERENT things, "Filter by
+              radius" then "Activate proximity mode, switch, off". */}
+          <span aria-hidden="true" style={switchLabel}>
+            {PROXIMITY_SWITCH_LABEL}
+          </span>
           {/* The demo's ONE switch renderer (SEAM(U2.3)). `hideLabel` is exactly what the phone
               does here — it passes the shared `<Switch>` no `label` and draws its own row
               (`:169-180`) — and it is the prop U2.3 added so a host with its own label never
-              re-implements the track. The accessible name carries the DIRECTION, verbatim from
-              `:175-177`. */}
+              re-implements the track.
+
+              F59, FOURTH SITE — the row counts three map controls and this is a fourth, in the
+              same file and the same failure class. The phone's two-state name (`:175-177`,
+              "Activate/Deactivate proximity mode") shares NO substring with the visible "Filter
+              by radius", so speech input could not address the switch at all. Dropped rather than
+              appended, because the switch ROLE plus `aria-checked` already announce the direction
+              (the role literal is deliberately not spelled here — `one-switch-renderer.test.ts`
+              is a raw source scan and a comment naming it is indistinguishable from a fourth
+              track; U5.1 and U5.2 tripped the sibling banned-literal scan the same way):
+              "Activate proximity mode, switch, off" states "off" twice and the phone's RN
+              `Switch` carries `accessibilityState` for the same reason. Named divergence. */}
           <Toggle
             hideLabel
             testId="filter-proximity"
-            label={proximityActive ? 'Deactivate proximity mode' : 'Activate proximity mode'}
+            label={PROXIMITY_SWITCH_LABEL}
             on={proximityActive}
             onClick={onProximityToggle}
           />
@@ -374,7 +443,11 @@ export function MapFiltersSheet({
                   type="button"
                   data-testid={`filter-radius-${preset}`}
                   onClick={() => onRadiusChange(preset)}
-                  aria-label={`${preset} kilometre radius`}
+                  // F59 / WCAG 2.5.3. The phone spells this `${preset} kilometre radius`
+                  // (`:200`), which does not contain the chip's own visible token `0.5 km` — so
+                  // "click 0.5 km", the only name a speech-input visitor can read off the chip,
+                  // addressed nothing. `km` is kept as the unit the chip prints.
+                  aria-label={`${preset} km radius`}
                   aria-pressed={isSelected}
                   style={isSelected ? { ...chip, ...chipSelected(info) } : chip}
                 >
@@ -385,7 +458,9 @@ export function MapFiltersSheet({
           </div>
         )}
 
-        <div style={hintText}>Long-press the map to place or move the proximity ring.</div>
+        <div data-testid="filter-hint" style={MAP_FILTER_HINT_TEXT}>
+          {canPlaceRing ? HINT_CAN_PLACE : HINT_NO_MAP}
+        </div>
 
         {/* Last in the body so the sr-only copy never interrupts the linear reading order; a live
             region announces from wherever it sits. */}
