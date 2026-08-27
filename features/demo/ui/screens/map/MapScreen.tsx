@@ -259,6 +259,24 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
     return proximityModule.computeProximity(filtered, proximityCenter, proximityRadius)
   }, [proximityActive, proximityCenter, proximityModule, filtered, proximityRadius])
 
+  /**
+   * Is the ring actually FILTERING right now? (F62.)
+   *
+   * `proximityActive` is the REQUEST — `setProximityActive(true)` commits synchronously, while
+   * the Turf chunk it needs is still in flight. Between those two moments proximity is "on" and
+   * filtering nothing: `proximityResult` is null, `display` is the unfiltered set, and there is
+   * no ring on the map. The failure path was already honest (`PROXIMITY_UNAVAILABLE` reverts the
+   * toggle); the LOADING path was not, and the chip printed "2 km · 9 of 9" over a map with no
+   * ring — an on-map indicator asserting a filter that is not running, which is exactly what
+   * `PROXIMITY_UNAVAILABLE`'s own docblock forbids for the sibling path.
+   *
+   * One condition rather than a three-state union: the two booleans answer different questions
+   * and both already exist, so the union would re-encode a derivation rather than remove one.
+   * The SWITCH keeps reading `proximityActive`, because a toggle must reflect the tap that set
+   * it; only the claim about filtering is withheld.
+   */
+  const proximityFiltering = proximityResult !== null
+
   const display = proximityResult?.data ?? filtered
   const markers = useMemo(() => buildMarkers(display), [display])
   // The camera frames the PRE-proximity set (review R-1a) — narrowing a radius re-plots without
@@ -476,7 +494,11 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             /* The search chrome's back button IS the change-case affordance now, with the same
                gating the deleted pill had (phone `MapHost.tsx:511-514`). */
             onClose={onChangeCase}
-            proximityActive={proximityActive}
+            /* F62 — the FILTERING fact, not the request. `MapControls`'s own prop docblock reads
+               "True while the proximity ring is active — renders the summary chip", and during
+               the chunk-load window `proximityActive` is not that. The chip is the map's only
+               claim that a filter is running, so it may not appear before one is. */
+            proximityActive={proximityFiltering}
             proximityRadius={proximityRadius}
             /**
              * The chip ✕. `handleProximityToggle` is passed whole rather than split, and the
@@ -530,6 +552,10 @@ export function MapScreen({ viewerCaseId, mapData, onChangeCase, onGoToLocation,
             onClose={closeFilters}
             activeStatuses={filters.statuses}
             onStatusToggle={handleStatusToggle}
+            /* The REQUEST, deliberately not `proximityFiltering` (F62): a switch must reflect the
+               tap that set it, or a visitor who turns proximity on watches it spring back while
+               the chunk loads and taps again. The radius chips ride the same flag for the same
+               reason — they are what the request is configuring. */
             proximityActive={proximityActive}
             proximityRadius={proximityRadius}
             /* The SAME function the chip's ✕ receives. This is the caller that brings its ON
