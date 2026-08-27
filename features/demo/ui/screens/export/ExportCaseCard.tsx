@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { CaseCheckboxState } from '@/features/demo/engine/logic/export'
+import { CheckboxBox } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
@@ -71,22 +72,19 @@ const headerBtn: CSSProperties = {
   color: 'inherit',
 }
 
-/** 20px rounded square — the case-level control, visually distinct from the round row marks. */
-const boxBase: CSSProperties = {
-  flex: '0 0 auto',
-  width: 20,
-  height: 20,
-  borderRadius: 5,
-  borderWidth: 2,
-  borderStyle: 'solid',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 12,
-  fontWeight: 700,
-  lineHeight: '14px',
-  color: '#fff',
-}
+/*
+ * `boxBase` LIVED HERE until U2.4 (A75). It was a 20x20 / radius 5 / 12px-glyph square with
+ * `#2B8CC1` and `#7a9fc4` written into the three consumer branches beside it, and the phone
+ * renders this same control through its shared `Checkbox`
+ * (`ExportCaseCard.tsx:22`, `:159-165`). `ui/controls/choice-controls.tsx`'s `CheckboxBox` is
+ * the canonical recipe: 24x24, radius `sm`, `borderWidth 2`, `colors.primary` fill, an
+ * `onPrimary` mark at 16/700 and — the visible change on this card — an OPAQUE
+ * `colors.background` when unchecked instead of a transparent hole.
+ *
+ * `ariaChecked` below is unchanged and now feeds BOTH the attribute and the paint, so the
+ * `assertNever` that closes it covers the visual state too: a 4th `CaseCheckboxState` can no
+ * longer paint "unchecked" while announcing something else.
+ */
 
 /**
  * `aria-checked` for a tri-state control: `'mixed'` is the web's indeterminate.
@@ -154,20 +152,12 @@ export function ExportCaseCard({
             background: 'transparent',
             border: 'none',
             cursor: checkboxDisabled ? 'default' : 'pointer',
-            opacity: checkboxDisabled ? 0.4 : 1,
+            // 0.5, not the demo's own 0.4 — phone `Checkbox.tsx:106-108`, `:118-120`. D10
+            // keeps the opacity idiom; only the value is the phone's.
+            opacity: checkboxDisabled ? 0.5 : 1,
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              ...boxBase,
-              background: checkbox === 'all' ? '#2B8CC1' : 'transparent',
-              borderColor: checkbox === 'none' ? '#7a9fc4' : '#2B8CC1',
-              color: checkbox === 'all' ? '#fff' : '#2B8CC1',
-            }}
-          >
-            {checkbox === 'all' ? '✓' : checkbox === 'some' ? '–' : null}
-          </span>
+          <CheckboxBox checked={ariaChecked(checkbox)} />
         </button>
         <button
           type="button"

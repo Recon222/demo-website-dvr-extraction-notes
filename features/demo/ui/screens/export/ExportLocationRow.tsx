@@ -1,6 +1,8 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import type { CaseLocationRow } from '@/features/demo/ui/screens/screenData'
 
 /**
@@ -38,7 +40,16 @@ const rowStyle: CSSProperties = {
   color: 'inherit',
 }
 
-/** 22px circle, 2px ring — the phone's indicator geometry (:117-123). */
+/**
+ * 22px circle, 2px ring — the phone's indicator geometry (`ExportLocationRow.tsx:121-136`).
+ *
+ * NOT `CheckboxBox` (A75), deliberately: the phone hand-rolls this mark too rather than
+ * reaching for its shared `Checkbox`, so a row mark and a checkbox are two controls in both
+ * apps. `ui/controls/__tests__/choice-controls.test.tsx` exempts this file by name for exactly
+ * that reason. U2.4 moves its four literals onto tokens and leaves the geometry alone;
+ * `marginRight` is the phone's `indicatorSlot` (`:118-120`, `spacing.base`), which the demo
+ * had at 10.
+ */
 const indicatorBase: CSSProperties = {
   flex: '0 0 auto',
   width: 22,
@@ -49,7 +60,7 @@ const indicatorBase: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  marginRight: 10,
+  marginRight: spacing.base,
   fontSize: 13,
   fontWeight: 700,
   lineHeight: '16px',
@@ -68,11 +79,15 @@ export function ExportLocationRow({ row, selected, disabled, onToggle }: ExportL
     >
       <span
         aria-hidden
+        data-row-indicator
         style={{
           ...indicatorBase,
-          background: selected ? '#2B8CC1' : 'transparent',
-          borderColor: selected ? '#2B8CC1' : '#7a9fc4',
-          color: '#fff',
+          // `indicatorOn` / `indicatorOff` / `indicatorMark` (`:129-142`). `onPrimary`, not a
+          // raw white: the mark sits on the `primary` fill, and `textInverse` is navy in dark,
+          // so neither existing default was correct here (the phone's own D7 note).
+          background: selected ? colors.primary : 'transparent',
+          borderColor: selected ? colors.primary : colors.textTertiary,
+          color: colors.onPrimary,
         }}
       >
         {selected ? '✓' : null}
