@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { palette, colors, type PaletteToken } from '@/features/demo/ui/tokens/palette'
+import { palette, colors, scheme, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 
 // Guards for the U0.1 palette port (matrix A1-A9, A19, A27, A28).
@@ -141,9 +141,20 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
     expect(Object.keys(palette.light).sort()).toEqual(Object.keys(palette.dark).sort())
   })
 
-  it('exposes the consumed scheme as a single switchable site', () => {
-    // Consumers read `colors.<phoneName>`; flipping the demo to light is this one binding.
-    expect(colors).toBe(palette.dark)
+  it('DERIVES the consumed scheme from `scheme`, in source and in value (W1-F24)', () => {
+    // Consumers read `colors.<phoneName>`; flipping the demo to light is this one binding,
+    // and D2's whole door is that flipping `scheme` flips `colors` WITH it.
+    //
+    // Value equality alone cannot see that. While `scheme === 'dark'`, `palette[scheme]` IS
+    // `palette.dark`, so a regression at palette.ts:189 back to a hard-coded `.dark` passes
+    // any runtime comparison — and the literal scan exempts `palette.ts` as a declarer, so
+    // nothing else looks. The SOURCE assertion is the half that reds; it is the same idiom
+    // `scale.test.ts` uses for `T.rowH` and `palette.test.ts` uses for the `T` aliases.
+    const src = readFileSync(join(UI_ROOT, 'tokens', 'palette.ts'), 'utf8')
+    expect(src, 'colors must be DERIVED from `scheme`, not hard-coded to a half').toMatch(
+      /export const colors = palette\[scheme\]/,
+    )
+    expect(colors).toBe(palette[scheme])
   })
 
   it('keeps the retired navy ramp out of every UI source file', () => {
