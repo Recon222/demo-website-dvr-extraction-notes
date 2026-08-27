@@ -15,7 +15,7 @@ import {
   MAP_FILTER_SECTION_LABEL,
 } from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
-import { MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { MAP_PICKER_SELECTED_BORDER, MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SAMPLE_BADGE, SAMPLE_NOTICE } from '@/features/demo/ui/controls/sample-badge'
@@ -936,6 +936,31 @@ describe('map chrome contrast floors', () => {
     // row 41 records the badge's 3.73. Not a rounding artefact of the bound above — a different,
     // worse colour, and one that was WORSE THAN THE #00BFFF it replaced (5.07 on this ground).
     expect(round(worst(palette[scheme].primary, SHEET_NESTED_GROUNDS))).toBeLessThan(AA_TEXT)
+  })
+
+  // Row 48 (W3/F79) - the claim rows 46+47 made and did not measure.
+  //
+  // F52 moved the picker's selected LABEL off `colors.primary` and kept its 2px BORDER on it,
+  // correctly: a selection edge is a non-text mark, so 1.4.11's 3:1 governs rather than 1.4.3's
+  // 4.5. That is an assertion about a ratio, and it was the one value in that fix nobody bounded.
+  it('row 48: the picker’s selection border clears the NON-TEXT floor (W3/F79)', () => {
+    const PICKER_ROW = stops(GLASS_TIER[scheme].nestedCard, [palette[scheme].background])
+    // 3.09 dark / 8.29 light - over the floor, and in dark by 0.09. The bound is what turns a
+    // palette re-tint that eats that margin into a red test rather than a device-pass discovery:
+    // this border is the ONLY mark distinguishing a selected case row from an unselected one.
+    expect(round(worst(MAP_PICKER_SELECTED_BORDER, PICKER_ROW))).toBeGreaterThanOrEqual(AA_NON_TEXT)
+
+    // AT THE CONSTANT, both sides (W2/F27) - the same shape as rows 46+47. The negative is the
+    // one that matters here and it is the OPPOSITE of theirs: this border must not follow the
+    // label onto `link`. D4's "2px primary against 1px glass" is an owner-ratified geometry
+    // ruling, so a well-meaning sweep re-pointing every `primary` in this file reds here.
+    expect(MAP_PICKER_SELECTED_BORDER).toBe(palette[scheme].primary)
+    expect(MAP_PICKER_SELECTED_BORDER).not.toBe(MAP_PICKER_SELECTED_TITLE)
+
+    // ...and the floor it is measured against is the NON-TEXT one. 3.09 would FAIL as text, which
+    // is why row 47 exists separately; asserting the two floors differ keeps a later edit from
+    // quietly collapsing this row into 46/47's bound and calling it green.
+    expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)
   })
 
   it('row 45b (F60): the sheet`s HINT is body text and clears the same floor', () => {
