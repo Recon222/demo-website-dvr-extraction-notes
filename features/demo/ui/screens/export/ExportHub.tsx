@@ -76,14 +76,32 @@ const listArea: CSSProperties = {
   padding: '58px 16px 16px',
 }
 
+/**
+ * The whole-screen empty state — phone `styles.centered` (`:295-300`) + `styles.emptyText`
+ * (`:301-305`), fused because the demo renders one node where RN needs a `View` and a `Text`.
+ *
+ * NOT `controls/EmptyState` (A80's seam), and the phone is the reason rather than the demo's
+ * convenience: `case-management/components/EmptyState.tsx` exists at `dd5551ec` and the hub does
+ * not call it — the phone uses that component at exactly ONE site (`CaseList.tsx:194`) and
+ * hand-rolls this screen's empty state, because the component's 48pt block plus its
+ * unconditional 24pt trailing margin is a list-body treatment, not a centred flex-1 fill.
+ * Routing this through `EmptyState` would replace `padding: xl` with `paddingVertical: xxl` and
+ * add 24px of trailing space under a line with no action beneath it — a divergence FROM the
+ * phone wearing a seam's name. What A80 actually owes this surface is its three values, which
+ * is what moved.
+ */
 const emptyArea: CSSProperties = {
   flex: 1,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: 24,
-  fontSize: 16,
-  color: '#99badd',
+  // phone `:299` — `Layout.spacing.xl`; the demo's 24 was `spacing.lg`, one step short.
+  padding: spacing.xl,
+  // phone `:302` — `Typography.fontSize.lg`. On plan §4.9's ladder (12/14/16/18/20/24/30/36),
+  // so it is a literal here exactly as `controls/EmptyState.tsx` spells its own 18.
+  fontSize: 18,
+  // phone `:303` — `colors.textSecondary`. The value was already right, spelled as bare hex.
+  color: colors.textSecondary,
   textAlign: 'center',
 }
 

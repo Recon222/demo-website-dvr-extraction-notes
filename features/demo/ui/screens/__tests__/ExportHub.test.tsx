@@ -120,6 +120,37 @@ describe('ExportHub — empty state', () => {
     expect(screen.getByText('No cases to export')).toBeInTheDocument()
     expect(document.querySelector('[data-export-footer]')).toBeNull()
   })
+
+  /**
+   * A80's three values, on the surface the phone hand-rolls rather than on its `EmptyState`
+   * component — `styles.centered:295-300` + `styles.emptyText:301-305`. The demo had 24 / 16 /
+   * `'#99badd'`: one spacing step short, one type step short, and the right colour spelled as
+   * a bare hex that a palette re-base would have walked away from.
+   */
+  it('centres the phone`s block: `spacing.xl`, 18px, `textSecondary` (A80)', () => {
+    renderHub({ cases: [] })
+    expect(screen.getByText('No cases to export')).toHaveStyle({
+      padding: `${spacing.xl}px`,
+      fontSize: '18px',
+      color: colors.textSecondary,
+      textAlign: 'center',
+    })
+  })
+
+  /**
+   * Exclusivity, not just values. The seam is RIGHT THERE and reaching for it is the plausible
+   * wrong move: `controls/EmptyState` would paint `paddingVertical: xxl` (48) and hang an
+   * unconditional 24px `marginBottom` under a message with no action — neither of which the
+   * phone's hub does. Asserting the values above alone would stay green through that swap,
+   * because a nested `EmptyState` leaves this node's own padding untouched.
+   */
+  it('does NOT route through the `EmptyState` seam — the phone hand-rolls this one', () => {
+    renderHub({ cases: [] })
+    const line = screen.getByText('No cases to export')
+    expect(line.style.paddingTop).not.toBe(`${spacing.xxl}px`)
+    expect(line.querySelector('div')).toBeNull()
+    expect(line.style.marginBottom).toBe('')
+  })
 })
 
 describe('ExportHub — single-open accordion', () => {
