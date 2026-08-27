@@ -506,3 +506,127 @@ describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
     )
   })
 })
+
+/**
+ * F14 — the escape hatch the module documents, exercised the way a consumer writes it.
+ *
+ * Every one of the fragment's consumers SPREADS it, so the spread is the only form that
+ * matters, and two plausible-looking ways to re-tint a card's sides are wrong. Both measured
+ * here, both kept below as negative controls:
+ *
+ * 1. `{ ...glassCard, borderColor: X, borderTopColor: h }` — the sentence this replaces.
+ *    Object spread keeps a duplicate key at the FIRST occurrence's position with the LAST
+ *    value, so the "re-set" edge collapses back into the spread's slot at index 2 and
+ *    `borderColor` (a four-side shorthand) lands after it and wipes it. First paint read
+ *    `rgb(1, 1, 1)` where `rgba(184, 212, 240, 0.08)` was expected.
+ * 2. Lifting the edge out first (`const { borderTopColor, ...base } = glassCard`) fixes first
+ *    paint and STILL breaks on update: React writes only the keys that changed between
+ *    renders, so an unchanged `borderTopColor` is skipped while the changed shorthand is
+ *    written — and the shorthand erases it. Measured: `rgb(2, 2, 2)` on the second render.
+ *
+ * The form that survives both is the one with NO shorthand in it: three side LONGHANDS. There
+ * is then nothing that can erase the edge, on any render, because nothing writes it.
+ */
+describe('the documented escape hatch actually works (F14)', () => {
+  const TINT = 'rgb(1, 1, 1)'
+  const TINT2 = 'rgb(2, 2, 2)'
+  /** The prescribed form. */
+  const tinted = (tint: string) => ({
+    ...glassCard,
+    borderRightColor: tint,
+    borderBottomColor: tint,
+    borderLeftColor: tint,
+  })
+
+  it('a re-tinted card keeps its lit edge on FIRST paint', () => {
+    const { container } = render(<div style={tinted(TINT)} />)
+    const el = container.firstElementChild as HTMLElement
+    expect(el.style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el.style.borderRightColor).toBe(TINT)
+    expect(el.style.borderBottomColor).toBe(TINT)
+    expect(el.style.borderLeftColor).toBe(TINT)
+  })
+
+  it('and keeps it across an UPDATE, which is where the other two forms fail', () => {
+    const Card = ({ tint }: { tint: string }) => <div style={tinted(tint)} />
+    const { container, rerender } = render(<Card tint={TINT} />)
+    const el = () => container.firstElementChild as HTMLElement
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    rerender(<Card tint={TINT2} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderRightColor).toBe(TINT2)
+    rerender(<Card tint={SIDE_BORDER} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderRightColor).toBe(SIDE_BORDER)
+  })
+
+  // Negative controls. Not wishes: if React or jsdom ever stopped resolving a duplicate spread
+  // key at the first occurrence's position, or started re-writing unchanged style keys, these
+  // would fail and the rule above would need re-deriving instead of being trusted.
+  it('NEGATIVE CONTROL — the shorthand-then-longhand spread loses the edge on first paint', () => {
+    const { container } = render(
+      <div style={{ ...glassCard, borderColor: TINT, borderTopColor: glassCard.borderTopColor }} />,
+    )
+    expect((container.firstElementChild as HTMLElement).style.borderTopColor).toBe(TINT)
+  })
+
+  it('NEGATIVE CONTROL — lifting the edge out survives first paint and loses it on update', () => {
+    const { borderTopColor: litEdge, ...base } = glassCard
+    const Card = ({ tint }: { tint: string }) => (
+      <div style={{ ...base, borderColor: tint, borderTopColor: litEdge }} />
+    )
+    const { container, rerender } = render(<Card tint={TINT} />)
+    const el = () => container.firstElementChild as HTMLElement
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    rerender(<Card tint={TINT2} />)
+    expect(el().style.borderTopColor).toBe(TINT2)
+  })
+
+  it('a boxShadow override after the spread drops the tier inset — compose instead', () => {
+    const own = '0 0 12px rgba(43,140,193,0.2)'
+    const { container } = render(
+      <>
+        <div data-testid="replaced" style={{ ...glassCard, boxShadow: own }} />
+        <div data-testid="composed" style={{ ...glassCard, boxShadow: `${glassCard.boxShadow}, ${own}` }} />
+      </>,
+    )
+    const inset = `inset 0 1px 0 ${tier.card.innerShadow}`
+    expect(screen.getByTestId('replaced').style.boxShadow).not.toContain(inset)
+    expect(screen.getByTestId('composed').style.boxShadow).toContain(inset)
+    expect(screen.getByTestId('composed').style.boxShadow).toContain(own)
+    expect(container).toBeTruthy()
+  })
+})
+
+/**
+ * F19 — `GLASS.shadowCard` carries BOTH scheme halves, like every other value in the wave.
+ *
+ * D2 as amended, verbatim: "Nothing hard-codes a dark value that has a light sibling." The
+ * phone's light card shadow is not the dark one at a different alpha — it is TINTED
+ * (`rgba(30,58,138,0.18)`, not black) and cast one pixel shorter, because a neutral black
+ * shadow disappears against white (`Layout.ts:115-137`).
+ *
+ * Nothing anchors this: `Layout.shadow` is one of the three things the phone's design-sync
+ * generator deliberately does not emit, and RN spells it as five props no CSS-shaped anchor
+ * can read (ledger §95). These two literals ARE the gate.
+ */
+describe('the card elevation shadow ships both halves (F19 / A44, D2)', () => {
+  it('transcribes Layout.shadow.card, both schemes, and consumes the rendered one', async () => {
+    const { SHADOW_CARD } = await import('@/features/demo/ui/glass-tokens')
+    expect(SHADOW_CARD).toEqual({
+      // `Layout.ts:123-128` — shadowColor `rgba(30, 58, 138, 0.18)`, offset {0,3},
+      // shadowOpacity 1 (so the colour's own alpha is final), radius 8.
+      light: '0 3px 8px rgba(30,58,138,0.18)',
+      // `Layout.ts:130-136` — `#000`, offset {0,4}, shadowOpacity 0.15, radius 8.
+      dark: '0 4px 8px rgba(0,0,0,0.15)',
+    })
+    // Pins that the consumed half is the one that ships. It does NOT catch the indirection
+    // being SEVERED back to a spelled `'0 4px 8px rgba(0,0,0,0.15)'` — measured, probe Q7,
+    // SURVIVED (exit 0) — because the severed literal equals `SHADOW_CARD[scheme]` while
+    // `scheme` is `'dark'`, and a literal-vs-reference distinction is not observable at
+    // runtime (same class as U1.1's P4b). That is exactly the class W1/F18 files against
+    // `GLASS_TIER.dark`, and its source scan is the mechanism that catches it: `SHADOW_CARD`
+    // belongs in that scan's list. Not duplicated here — F18's owner holds that file.
+    expect(GLASS.shadowCard).toBe(SHADOW_CARD[scheme])
+  })
+})
