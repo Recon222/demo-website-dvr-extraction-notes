@@ -227,6 +227,15 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['disabledText', '#6b7f95'],
   ['primaryDark / accent top stop', '#1F6B99'],
   ['accent bottom stop', '#17527A'],
+  // --- U1.4's header tier, banned on the day it entered a recipe (review r1 F22) ----------
+  // The list's own rule: the package that first writes a tier value into a recipe bans it.
+  // U1.4 wrote both into `controls/header-chrome.ts` and deferred the entries only because
+  // `glass-tokens.test.ts` belonged to the U1.2 seat in that window; the window is closed.
+  // NOTE the first is ONE literal serving TWO tiers — `header.border` and `sheet.border` are
+  // both `rgba(28,78,132,0.6)` (`Colors.ts:393` / `:402`), so U4.1 inherits this entry rather
+  // than adding a second. Reach for `GLASS_TIER[scheme].<tier>`, or the header recipe.
+  ['header/sheet border', 'rgba(28,78,132,0.6)'],
+  ['header highlightTop', 'rgba(153,186,221,0.1)'],
 ]
 
 describe('glass tokens (P0.5 / G6)', () => {
