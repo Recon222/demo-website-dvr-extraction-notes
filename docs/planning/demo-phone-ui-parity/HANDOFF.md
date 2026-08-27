@@ -2,7 +2,7 @@
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-26 — milestone: BOTH RECON INVENTORIES LANDED + committed (`de50e9d` on `docs/ui-parity-planning`). Matrix + master-plan writer IN FLIGHT. Nothing merged to master yet.
+**Last updated:** 2026-08-26 — milestone: MATRIX + PLAN DRAFTED (`3365e3e`): matrix 699 lines = 97 Tier-A rows (5 COMPLETE / 44 DRIFTED / 21 MISSING-SEAM / 22 MISSING) + 72 Tier-B (56 DRIFTED / 3 MISSING) + 15 inert + 14 demo-only, decisions D1–D17; plan 465 lines = U0 tokens → U1 glass/cards → U2 controls ∥ U3 status/badges → U4 sheets/dialogs → U5 map ∥ U6 wizard/settings/export → U7 import/OCR/audio/media → U8 splash/shell/design-sync (~4–5 wks two-lane). **PLAN-REVIEW ROUND 1 IN FLIGHT** (3 Opus lanes → `plan-review/r1/lane-*.md`). Nothing merged to master yet.
 
 ## 1. Mission & role
 
@@ -45,14 +45,15 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 **Branch:** `docs/ui-parity-planning` (worktree `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\demo-ui-parity-planning`) off `master` @ `5cf88fe`. Owner's main checkout is on `feat/splash-a-three` (splash WIP — unrelated; leave it alone).
 **Phone HEAD:** `main` @ `dd5551ec` (2026-08-25). **Demo-parity baseline on the phone:** `d9606460` (2026-07-30) — everything after it is the delta.
 **Known:** `.design-sync/check-rn-parity.mjs` (v1's 9-anchor RN↔web token drift guard) is RED on master — `Button PRIMARY_GRADIENT.dark not found` (phone P9 moved it).
-**Landed:** `demo-ui-inventory.md` (2,480 lines, §0–§8 + census script `census.mjs`; §5 shows the drift guard masks FOUR real token drifts — bg `#0d1b2a→#002853`, border `#1e3a5f→#1c4e84`, the primary gradient renamed `PRIMARY_GRADIENT→PrimaryButtonGradient` and inverted in character). **Landed:** `phone-ui-delta-inventory.md` (18,613 lines; §0 High confidence; §0.6 flags: rulings D3(a)/D1(a) superseded by #127 code — follow the code; `.design-sync/tokens.css` + `constants/README.md` on the phone are STALE, never mine them; contrast ratios mostly COMPUTED not observed — only PR #125's DEVICE-PASS observed hardware). **In flight:** `matrix-plan-writer` → `00-ui-parity-matrix.md` + `01-master-ui-parity-plan.md`. Then: plan-review lanes (Opus) on the two docs → writer fix round → owner ratification.
+**Landed:** `demo-ui-inventory.md` (2,480 lines, §0–§8 + census script `census.mjs`; §5 shows the drift guard masks FOUR real token drifts — bg `#0d1b2a→#002853`, border `#1e3a5f→#1c4e84`, the primary gradient renamed `PRIMARY_GRADIENT→PrimaryButtonGradient` and inverted in character). **Landed:** `phone-ui-delta-inventory.md` (18,613 lines; §0 High confidence; §0.6 flags: rulings D3(a)/D1(a) superseded by #127 code — follow the code; `.design-sync/tokens.css` + `constants/README.md` on the phone are STALE, never mine them; contrast ratios mostly COMPUTED not observed — only PR #125's DEVICE-PASS observed hardware). **Landed:** `00-ui-parity-matrix.md` + `01-master-ui-parity-plan.md` (draft, `3365e3e`). **In flight:** plan-review r1 — `planrev-architect` / `planrev-quality` / `planrev-reality` (Opus, following `.claude/agents/plan-*.md`, findings to `plan-review/r1/`). Next: small Opus aggregator → one vetted doc → `matrix-plan-writer` (warm) fix round → lanes fix-delta → owner ratifies D1–D17 → planning bundle PR to master.
 
 ## 6. Agent roster & continuity handles
 
 | Role | Handle | Model | Status |
 |---|---|---|---|
 | Phone UI-delta inventory | `recon-phone-delta` | Opus | done (resumable to settle inventory contradictions) |
-| Matrix + master plan writer | `matrix-plan-writer` | Opus | in flight |
+| Matrix + master plan writer | `matrix-plan-writer` | Opus | done; WARM — fix rounds go to it by path |
+| Plan-review r1 lanes architect / quality / reality | `planrev-architect` / `planrev-quality` / `planrev-reality` | Opus | in flight; fix-delta resumes THESE |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
