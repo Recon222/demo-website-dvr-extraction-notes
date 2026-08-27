@@ -10,6 +10,7 @@ import {
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media'
 import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
@@ -204,16 +205,22 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
         </div>
       )}
 
-      {notice !== null && (
-        <div role="status" style={{ borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
-          {notice}
-        </div>
-      )}
+      {/* D19 hand-back: U3.3 built `Banner` and handed this screen's PAIR to U7.2, which opens
+          the file anyway. Both were local recipes — a `borderAccent`/8%-wash info box and a
+          `borderError`/6%-wash error box — and A71 is that there is ONE severity callout.
+          The fill goes OPAQUE (`*Light`), which is the point: the phone's own reason
+          (`Banner.tsx:11-16`) is that the `*OnLight` foregrounds are measured against those
+          tones and a translucent wash over an unknown parent cannot be measured at all.
+          `role="status"` becomes Banner's `role="alert" aria-live="polite"` — the same
+          politeness, plus a severity in the accessible name that the colour never carried. */}
+      {notice !== null && <Banner severity="info" message={notice} style={{ marginBottom: 14 }} />}
 
       {playbackBlocked && (
-        <div role="alert" style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: '#ff8a93', lineHeight: 1.5 }}>
-          The browser refused to start playback. The recording itself is unaffected — it is still here and still saveable.
-        </div>
+        <Banner
+          severity="error"
+          message="The browser refused to start playback. The recording itself is unaffected — it is still here and still saveable."
+          style={{ marginBottom: 14 }}
+        />
       )}
 
       {/* Between the player card and the action row — the phone's content order

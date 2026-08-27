@@ -14,9 +14,11 @@ import {
   type RecordingPhase,
 } from '@/features/demo/engine/logic/media'
 import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import type { AudioMeter } from '@/features/demo/ui/inputs/useAudioAnalyser'
 
 /**
@@ -288,16 +290,25 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
         </div>
       )}
 
-      {notice !== null && (
-        <div role="status" style={{ margin: '12px 20px 0', borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
-          {notice}
-        </div>
-      )}
+      {/* D19 hand-back, the recorder's half: U3.3 built `Banner` and handed this file's PAIR
+          here. A71 — one severity callout, and the fill goes OPAQUE (`*Light`) because that is
+          the only ground the `*OnLight` foregrounds are measured against (`Banner.tsx:11-16`). */}
+      {notice !== null && <Banner severity="info" message={notice} style={{ margin: '12px 20px 0' }} />}
 
       {failure !== null && (
-        <div role="alert" style={{ margin: '12px 20px 0', borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: '12px 14px' }}>
-          <div style={{ fontSize: 12, color: '#ff8a93', lineHeight: 1.5, marginBottom: 8 }}>{failure}</div>
-          <button type="button" onClick={props.onDismissFailure} style={{ background: 'transparent', border: 'none', padding: 0, color: '#9fd4ee', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        /* Dismiss sits BESIDE the Banner, not inside it — a Banner is a status line, not a
+           layout slot, and it has never had a dismiss affordance in any phone revision
+           (`Banner.tsx`'s docblock). The row is the phone's own `errorBannerRow`
+           (`export-hub/ExportHub.tsx:278-282` + `:185-194`): flex row, `alignItems: center`,
+           `gap: Layout.spacing.md`, the Banner at `flex: 1`, and a `secondary`/`small` Button
+           next to it. That also replaces the bare transparent text link this screen had. */
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, margin: '12px 20px 0' }}>
+          <Banner severity="error" message={failure} style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={props.onDismissFailure}
+            style={buttonStyle({ variant: 'secondary', size: 'small' })}
+          >
             Dismiss
           </button>
         </div>

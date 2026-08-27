@@ -15,7 +15,8 @@ import { RESTING_METER } from '@/features/demo/ui/inputs/useAudioAnalyser'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
-import { radius, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 
 /** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
  *  hazards) — compare through the same normalisation rather than by hex. */
@@ -367,5 +368,55 @@ describe('AudioRecorderScreen — U7.2 chrome (matrix rows 67-69, A43, A61, D-1)
     const row = close.parentElement as HTMLElement
     expect(row).toHaveTextContent('AUDIO CAPTURE')
     expect(row.children[0]).toBe(close)
+  })
+})
+
+describe('AudioRecorderScreen — the D19 Banner hand-back (A71)', () => {
+  /**
+   * MUTATION: give either Banner a translucent fill — `style={{ background: 'rgba(...)' }}` —
+   * or swap `severity="error"` for `"warning"`.
+   *
+   * A71's single non-negotiable is the OPAQUE fill (`Banner.tsx:35-42`): the `*OnLight`
+   * foregrounds are measured against the `*Light` tones and a wash over an unknown parent
+   * cannot be measured at all. Both notices here used to be exactly such washes — 8% accent
+   * and 6% error over the CRT shell.
+   */
+  it.each([
+    ['info', { notice: 'Recording stops automatically after one hour.' }, 'one hour'],
+    ['error', { failure: 'The recording failed and produced no audio or video — nothing was saved.' }, 'nothing was saved'],
+  ] as const)('routes the %s notice through Banner on an opaque severity ground', (severity, over, text) => {
+    render(<AudioRecorderScreen {...props(over)} />)
+    const banner = screen.getByRole('alert')
+
+    expect(banner).toHaveTextContent(text)
+    // The accessible name carries the severity, which the colour cannot (phone `Banner.tsx:63`).
+    expect(banner.getAttribute('aria-label')).toMatch(new RegExp(`^${severity}: `))
+    expect(banner.style.backgroundColor).toBe(hexToRgb(colors[`${severity}Light`]))
+    // Opaque: `*Light` is a flat hex in both halves, so jsdom reads back `rgb(...)`, never `rgba`.
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+    expect(banner.style.borderTopColor).toBe(hexToRgb(colors[severity]))
+  })
+
+  /**
+   * MUTATION: move the Dismiss button back INSIDE the Banner's box (a `children` slot), or drop
+   * it to the old transparent text link.
+   *
+   * A Banner is a status line, not a layout slot, and has never carried a dismiss affordance.
+   * The row is phone `export-hub/ExportHub.tsx:185-194` + `:278-282`.
+   */
+  it('puts Dismiss BESIDE the error Banner, on the secondary/small button recipe', () => {
+    const p = props({ failure: 'The recording failed and produced no audio or video — nothing was saved.' })
+    render(<AudioRecorderScreen {...p} />)
+    const banner = screen.getByRole('alert')
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
+
+    expect(banner.contains(dismiss)).toBe(false)
+    expect(dismiss.parentElement).toBe(banner.parentElement)
+    expect(banner.parentElement).toHaveStyle({ gap: `${spacing.md}px`, alignItems: 'center' })
+    expect(banner.style.flex).toBe('1 1 0%')
+    expect(dismiss).toHaveStyle(buttonStyle({ variant: 'secondary', size: 'small' }))
+
+    fireEvent.click(dismiss)
+    expect(p.onDismissFailure).toHaveBeenCalledTimes(1)
   })
 })
