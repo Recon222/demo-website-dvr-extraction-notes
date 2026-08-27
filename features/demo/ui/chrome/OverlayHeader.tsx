@@ -82,16 +82,8 @@ export type OverlayHeaderVariant =
   /** Over a live camera feed. D17 freezes this palette. */
   | 'cameraScrim'
 
-export interface OverlayHeaderProps {
-  /** Omit for a header with no leading control (the OCR confirm stage has none). */
-  onBack?(): void
-  /**
-   * Screen-reader name for the leading control. REQUIRED whenever `onBack` is given, and
-   * deliberately not defaulted to "Close" — the reason is `ModalShell`'s, verbatim from phone
-   * `ModalHeader.tsx:32-38`: near-identical surfaces that all announce "Close" are
-   * indistinguishable to a screen-reader user. Each caller keeps the words it already had.
-   */
-  backLabel?: string
+/** Everything that does not depend on whether there is a leading control. */
+interface OverlayHeaderBase {
   title?: string
   /** Trailing slot — the recorder's AUDIO CAPTURE badge today. */
   trailing?: ReactNode
@@ -100,16 +92,36 @@ export interface OverlayHeaderProps {
   style?: CSSProperties
 }
 
+/**
+ * The leading control, as a DISCRIMINATED PAIR rather than two optionals (W3 r1 F74).
+ *
+ * `backLabel` was prose-required and type-optional, so `<OverlayHeader variant="glass"
+ * onBack={fn} />` compiled and rendered an icon-only button with NO accessible name — a control
+ * a screen reader announces as "button" and voice input cannot address at all. All four callers
+ * pass it; the hole was latent on a brand-new shared seam, which is exactly when it is cheapest
+ * to close.
+ *
+ * The shape is `SettingsNavBarProps`' own, this wave (`settings/SettingsNavBar.tsx:100-102`).
+ * The `onBack?: undefined` arm is what makes the pair EXHAUSTIVE rather than merely additive:
+ * without it, `{ onBack: fn }` alone still matches the no-control arm by width subtyping.
+ *
+ * NOT defaulted to "Close", and that is `ModalShell`'s reason verbatim from phone
+ * `ModalHeader.tsx:32-38`: near-identical surfaces that all announce "Close" are
+ * indistinguishable to a screen-reader user. Each caller keeps the words it already had.
+ */
+type OverlayHeaderControl =
+  | { onBack(): void; backLabel: string }
+  | { onBack?: undefined; backLabel?: undefined }
+
+export type OverlayHeaderProps = OverlayHeaderBase & OverlayHeaderControl
+
 const tier = GLASS_TIER[scheme]
 
 /**
  * Per-variant leading-control paint and size. A record rather than two ternaries so a new
  * variant cannot be added while forgetting one of the four fields.
  */
-const CONTROL: Record<
-  OverlayHeaderVariant,
-  { size: number; background: string; borderColor: string; icon: number; stroke: string }
-> = {
+export const CONTROL = {
   glass: {
     size: touchTarget.min, // RecorderScreen.tsx:281-282 — `Layout.touchTarget.min`
     background: tier.card.gradient[0], // RecorderScreen.tsx:79 — `glassStyle.gradient[0]`
@@ -124,23 +136,30 @@ const CONTROL: Record<
     icon: 28, // VisionCameraScreen.tsx:651 — `size={28}`; off §4.9's ladder, lifted not snapped
     stroke: CAMERA_CHROME.onCamera, // VisionCameraScreen.tsx:651 — `color="#FFFFFF"`
   },
-}
+  // W3 r1 F61 — Record-FORM rather than a `Record<>` annotation: `satisfies` keeps the literal
+  // types (so a missing variant is still a compile error, which is what this table is for)
+  // while `as const` makes it readonly. An annotation alone widens every value to `string`.
+} as const satisfies Record<
+  OverlayHeaderVariant,
+  { size: number; background: string; borderColor: string; icon: number; stroke: string }
+>
 
-const row: CSSProperties = {
+// W3 r1 F61 — module-level style tables ship readonly. Third recurrence of the F20/F38 class.
+const row = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: spacing.sm,
-}
+} as const satisfies CSSProperties
 
 /** Phone `Header.tsx:198-201` + `:88`. */
-const titleText: CSSProperties = {
+const titleText = {
   flex: 1,
   minWidth: 0,
   fontSize: 18,
   fontWeight: 600,
   color: colors.text,
-}
+} as const satisfies CSSProperties
 
 export function OverlayHeader({ onBack, backLabel, title, trailing, variant, style }: OverlayHeaderProps) {
   const control = CONTROL[variant]
