@@ -152,7 +152,10 @@ function ProfilePicker({
           moved this very picker off its hand-rolled chips and onto `RadioGroup`
           (`ProfilePicker.tsx:75-81`), and `RadioGroup.tsx:151-156` records that the migration
           could not ship until the radio grew `minHeight: touchTarget.min`, because these chips
-          were 46px. This is the 3-up group `RadioOption`'s `flexShrink: 1` exists for. */}
+          were 46px. This is the 3-up group `RadioOption`'s `flexShrink: 1` + `minWidth: 0`
+          exist for — and W2 review F29 is why it names both: the shrink alone is inert against
+          an unbreakable word, and this row shipped ~42px past the pane's right padding with
+          the selected chip clipped. */}
       <div role="radiogroup" aria-label={COPY.profileLabel} style={{ display: 'flex', gap: spacing.sm }}>
         {PROFILES.map((p) => (
           <RadioOption
