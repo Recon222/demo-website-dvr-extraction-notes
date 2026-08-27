@@ -365,7 +365,7 @@ Write to `docs/code-reviews/pr-<NUMBER>-fixes-review.md` — a **separate** file
 
 ### Deferral ledger
 
-Any finding deliberately not fixed **must** be logged in `docs/code-reviews/deferred.md` before merge, in the established house format — a numbered `## N. <title>` section with **Source**, **What**, **Why deferred**, and **Trigger**. The ledger's own preamble sets the bar: *"Each entry needs a real reason to wait and a concrete un-defer trigger — this is not a general TODO dump."* Resolved entries are struck through and marked `✅ RESOLVED — PR #<N>` rather than deleted. Number the new entry after the current last one.
+Any finding deliberately not fixed **must** reach `docs/code-reviews/deferred.md` before merge — but **`dt-review-aggregator` is the ledger's sole writer**. Propose the deferral in your report in the house format (**Source**, **What**, **Why deferred**, **Trigger**); the aggregator judges it and writes the numbered `## N. <title>` row after the current last one. Do not edit the file yourself, and do not reserve or claim a § range. The ledger's own preamble sets the bar: *"Each entry needs a real reason to wait and a concrete un-defer trigger — this is not a general TODO dump."* Resolved entries are struck through and marked `✅ RESOLVED — PR #<N>` rather than deleted.
 
 ### Commit → finding mapping table on the PR
 

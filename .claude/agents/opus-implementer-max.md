@@ -31,7 +31,7 @@ Lift phone copy/values verbatim with file:line citations. Honesty beats copy-par
 - Verify brief claims against source first; refute with file:line evidence when wrong.
 - Engine: pure TS + heavy unit tests (80% gate). UI: presentational, behavioral RTL tests.
 - For every non-obvious design decision, record the alternative you rejected and why in the commit body — reviewers weigh rationale.
-- Deferrals → `docs/code-reviews/deferred.md` house format (check max § first). Never edit plan/matrix/HANDOFF.
+- Deferrals: PROPOSE them in your report (house format — Source / What / Why deferred / concrete Trigger). `dt-review-aggregator` is the SOLE writer of `docs/code-reviews/deferred.md`; never edit it, or the plan, matrix or HANDOFF.
 - Gates: full `pnpm test --silent` + `pnpm exec tsc --noEmit` (+ `next build` if bundle-relevant; 107 kB pin).
 
 ## Git

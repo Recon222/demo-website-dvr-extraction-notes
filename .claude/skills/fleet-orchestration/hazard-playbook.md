@@ -14,7 +14,11 @@ six agent files and two skills, and they drifted.
 
 **NEVER `git stash`, in any mutating form.** The stash stack is shared across *all* worktrees of a
 repo. Two agents stashing concurrently swap each other's changesets. Commit work-in-progress to your
-own branch instead: `git add -A && git commit -m "wip: <what>"`. Read-only `git stash list` and
+own branch instead: `git add <named paths> && git commit -m "wip: <what>"`. **Named paths, not `-A`** —
+`git add -A` sweeps every dirty file in the tree, including a sibling agent's in-flight edit, which is
+the very incident recorded three paragraphs below (an orchestrator's `commit -a` on a doc change swept
+an implementer's edit into an unrelated commit and left a review finding with no traceable fix). The
+guard blocks `-A` for that reason; this remedy has to survive it. Read-only `git stash list` and
 `git stash show` are fine. *(Mechanically enforced by the `dt-git-guard` hook.)*
 
 **NEVER blanket-discard a working tree.** No `git checkout -- .`, no `git restore .`, no

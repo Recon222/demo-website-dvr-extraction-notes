@@ -85,13 +85,13 @@ Implementation PRs are reviewed by a multi-agent pipeline: **`/demo-code-review`
 ```
 
 - **Two modes.** The initial run dispatches fresh agents and records their agent IDs in the review doc. `--fix-delta` reads those IDs back and resumes the original reviewers with their full context, so each one judges the fixes to *its own* findings.
-- **Every revision pass gets a fix-delta re-review before merge**, and the review artifacts are committed. Reviews live in `docs/code-reviews/` as `pr-<N>-review.md` and `pr-<N>-fixes-review.md`.
+- **Every revision pass gets a fix-delta re-review before merge**, and the review artifacts are committed. A one-off PR review lands in `docs/code-reviews/` as `pr-<N>-review.md` + `pr-<N>-fixes-review.md`; a **campaign phase** gets its own directory holding the lane files and the vetted doc — `docs/code-reviews/parity/p<N>/` for v1, `docs/code-reviews/ui-parity/u<N>/` for the current UI-parity effort. Phase reviews use the directory form.
 - **Merges are merge commits** — `gh pr merge <N> --merge --delete-branch`. Never squash, never rebase.
 - **Commits are granular**, red and green together (the failing test and the code that passes it land in the same commit), and each fix commit maps to a review finding. Post the commit→finding table as a PR comment after each fix round.
 - **This is the gate for the demo↔phone parity effort** — see `docs/planning/demo-phone-parity/01-master-parity-plan.md` §6. Brief every reviewer with the phase's package scope so they don't flag surfaces that are scheduled for a later phase.
 
 ### Deferral ledger
 
-`docs/code-reviews/deferred.md` is the living record of findings deliberately **not** fixed. Log every deferral there **before merging**, in the house format — a numbered `## N. <title>` section with **Source**, **What**, **Why deferred**, and **Trigger**.
+`docs/code-reviews/deferred.md` is the living record of findings deliberately **not** fixed. **`dt-review-aggregator` is its sole writer.** Everyone else — implementers, review lanes, the orchestrator — *proposes* a deferral in their report, in the house format (**Source**, **What**, **Why deferred**, **Trigger**); the aggregator decides whether it is real and writes the numbered `## N. <title>` row, before merging. One writer means no reserved § ranges, no "next free §", and no two agents editing the file in the same round — the reserved-range protocol existed only to manage concurrent writers and still produced four diverged copies in one campaign.
 
 The ledger's bar is explicit and enforced by the fix-delta reviewers: *each entry needs a real reason to wait **and** a concrete un-defer trigger.* It is not a TODO dump — a vague deferral or a missing trigger is itself a review finding. Resolved entries are struck through and marked `✅ RESOLVED — PR #<N>` rather than deleted, so the history of the decision survives.

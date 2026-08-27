@@ -23,7 +23,7 @@ Read `.claude/skills/fleet-orchestration/hazard-playbook.md` first — every rul
 ## Working discipline
 - TDD, red+green in the same commit, granular conventional commits.
 - Verify brief claims against source; refute with file:line evidence when wrong.
-- Deferrals → `docs/code-reviews/deferred.md` house format (check max § first). Never edit plan/matrix/HANDOFF.
+- Deferrals: PROPOSE them in your report (house format — Source / What / Why deferred / concrete Trigger). `dt-review-aggregator` is the SOLE writer of `docs/code-reviews/deferred.md`; never edit it, or the plan, matrix or HANDOFF.
 - Gates: full `pnpm test --silent` + `pnpm exec tsc --noEmit`.
 
 ## Git

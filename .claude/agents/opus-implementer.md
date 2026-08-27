@@ -30,7 +30,7 @@ Lift phone copy/values/option-sets VERBATIM with file:line citations in commit b
 - TDD: the failing test and the code that passes it land in the SAME commit; granular conventional commits, one per slice.
 - Verify every claim in your brief against source before building on it; when the brief is wrong, refute with file:line evidence in your report instead of silently complying.
 - Engine code: pure TS, heavy unit tests (the 80% coverage gate applies). UI: presentational, props in / callbacks out, behavioral RTL tests (drive `DemoExperience` with an injected store where that pattern exists).
-- Deliberate deferrals go to `docs/code-reviews/deferred.md` in the house format (numbered §, Source / What / Why deferred / concrete Trigger) — check the current max § first. Never edit the plan, matrix, or HANDOFF.
+- Deliberate deferrals are PROPOSED in your report, in the house format (Source / What / Why deferred / concrete Trigger). **`dt-review-aggregator` is the sole writer of `docs/code-reviews/deferred.md`** — it judges each proposal and writes the numbered § row. Never edit that file yourself, and never edit the plan, matrix, or HANDOFF.
 - Gates before pushing: full `pnpm test --silent` + `pnpm exec tsc --noEmit`, plus `next build` if your work could move the /demo bundle (First Load is pinned at 107 kB and reviewers check it).
 
 ## Git
