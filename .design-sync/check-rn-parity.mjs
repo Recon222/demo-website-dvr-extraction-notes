@@ -160,12 +160,21 @@ function readStop(text, scheme, i, opts = {}) {
 export function checkParity() {
   const colors = source('RN Colors.ts', join(RN, 'src/constants/Colors.ts'))
   const layout = source('RN Layout.ts', join(RN, 'src/constants/Layout.ts'))
-  const theme = source('web input-theme.ts', join(WEB, 'features/demo/ui/inputs/input-theme.ts'))
+  // U0.1 made `tokens/palette.ts` the demo's palette and turned `inputs/input-theme.ts`'s `T`
+  // into a re-export of it. The guard reads the DEFINITION, not the re-export: `T`'s aliases
+  // are pinned at RUNTIME by tokens/__tests__/palette.test.ts:144-158, which is a stronger
+  // check than parsing source text, and `T` only carries 8 of this stage's 15 keys anyway.
+  const paletteSrc = source('web tokens/palette.ts', join(WEB, 'features/demo/ui/tokens/palette.ts'))
+  // U0.2's scale seam. `touchFloor` used to read `T.rowH`, a literal that U0.0 deliberately
+  // left in place because it was the guard's ONLY resolving anchor at the time.
+  const scaleSrc = source('web tokens/scale.ts', join(WEB, 'features/demo/ui/tokens/scale.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
 
   // RN dark palette only — slice from `dark: {` so we don't read the light `primary`.
   const darkOpts = { after: 'dark: {', before: '} as const' }
+  // The demo's matching half. `palette.ts` declares `const dark = { … } as const`.
+  const webDarkOpts = { after: 'const dark = {', before: '} as const' }
   // One-level resolver for the RN side. `Colors.dark.primaryDark` -> look `primaryDark` up
   // in the same region. No `resolve` of its own: the chain stops here by construction.
   const rnDark = (name) => readField(colors.text, name, darkOpts)
@@ -182,15 +191,15 @@ export function checkParity() {
   // Every read is wrapped: the readers throw on a miss, and one miss must never disable the
   // rest of the table.
   const anchors = [
-    { label: 'primary',     rn: attempt(colors, (t) => readField(t, 'primary', darkOpts)),       web: attempt(theme, (t) => readField(t, 'primary')) },
-    { label: 'background',  rn: attempt(colors, (t) => readField(t, 'background', darkOpts)),    web: attempt(theme, (t) => readField(t, 'bg')) },
-    { label: 'border',      rn: attempt(colors, (t) => readField(t, 'border', darkOpts)),        web: attempt(theme, (t) => readField(t, 'border')) },
-    { label: 'text',        rn: attempt(colors, (t) => readField(t, 'text', darkOpts)),          web: attempt(theme, (t) => readField(t, 'text')) },
-    { label: 'textMute',    rn: attempt(colors, (t) => readField(t, 'textSecondary', darkOpts)), web: attempt(theme, (t) => readField(t, 'textMute')) },
-    { label: 'error',       rn: attempt(colors, (t) => readField(t, 'error', darkOpts)),         web: attempt(theme, (t) => readField(t, 'error')) },
+    { label: 'primary',     rn: attempt(colors, (t) => readField(t, 'primary', darkOpts)),       web: attempt(paletteSrc, (t) => readField(t, 'primary', webDarkOpts)) },
+    { label: 'background',  rn: attempt(colors, (t) => readField(t, 'background', darkOpts)),    web: attempt(paletteSrc, (t) => readField(t, 'background', webDarkOpts)) },
+    { label: 'border',      rn: attempt(colors, (t) => readField(t, 'border', darkOpts)),        web: attempt(paletteSrc, (t) => readField(t, 'border', webDarkOpts)) },
+    { label: 'text',        rn: attempt(colors, (t) => readField(t, 'text', darkOpts)),          web: attempt(paletteSrc, (t) => readField(t, 'text', webDarkOpts)) },
+    { label: 'textMute',    rn: attempt(colors, (t) => readField(t, 'textSecondary', darkOpts)), web: attempt(paletteSrc, (t) => readField(t, 'textSecondary', webDarkOpts)) },
+    { label: 'error',       rn: attempt(colors, (t) => readField(t, 'error', darkOpts)),         web: attempt(paletteSrc, (t) => readField(t, 'error', webDarkOpts)) },
     { label: 'gradientTop', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
     { label: 'gradientBot', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
-    { label: 'touchFloor',  rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(theme, (t) => readField(t, 'rowH')) },
+    { label: 'touchFloor',  rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(scaleSrc, (t) => readField(t, 'min', { after: 'export const touchTarget = {', before: '}' })) },
   ]
 
   const parseFailed = anchors.filter((a) => isParseFailed(a.rn) || isParseFailed(a.web))
