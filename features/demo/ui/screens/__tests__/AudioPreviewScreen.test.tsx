@@ -3,7 +3,6 @@ import { act, render, screen, fireEvent } from '@testing-library/react'
 
 import type { CapturedMedia } from '@/features/demo/engine/logic/media'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
-import { colors } from '@/features/demo/ui/tokens/palette'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 
