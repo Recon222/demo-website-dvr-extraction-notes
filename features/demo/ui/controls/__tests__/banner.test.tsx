@@ -3,8 +3,9 @@ import { render, within } from '@testing-library/react'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
-import { Banner, type BannerSeverity } from '@/features/demo/ui/controls/Banner'
-import { colors, palette } from '@/features/demo/ui/tokens/palette'
+import { Banner } from '@/features/demo/ui/controls/Banner'
+import { palette } from '@/features/demo/ui/tokens/palette'
+import { SEVERITIES, severityTone, type StatusSeverity } from '@/features/demo/ui/tokens/status'
 
 /**
  * A71 / U3.3. The phone's `src/components/common/__tests__/Banner.test.tsx` split into the two
@@ -28,7 +29,9 @@ import { colors, palette } from '@/features/demo/ui/tokens/palette'
  *    itself the thing the opacity block below proves, so the two are a pair.
  */
 
-const SEVERITIES: BannerSeverity[] = ['info', 'warning', 'error', 'success']
+// `SEVERITIES` is the seam's own export (`tokens/status.ts:45`), not a local re-type. A local
+// copy is how the private trio hid: two declarations of the same four names cannot disagree
+// loudly, so nothing observed the divergence (W2 F26).
 const SCHEMES = ['light', 'dark'] as const
 
 /** jsdom rewrites every inline colour to `rgb()`; pins compare against the TOKEN, never a retyped literal. */
@@ -103,16 +106,21 @@ describe('Banner — what it renders (phone Banner.tsx:45-99)', () => {
   it.each(SEVERITIES)('paints %s from its own three tokens', (severity) => {
     const { box, icon, message } = mount({ severity })
 
+    // Read off `severityTone` — the SEAM — never re-derived from `palette` here. That is the
+    // whole of W2 F26: a pin that computes the trio itself agrees with a Banner that computes
+    // the trio itself, and the two agree all the way through a re-tint of the seam neither of
+    // them reads. Mutating `severityTone`'s `background` now reds this line.
+    const tone = severityTone(severity)
     // phone `:69` — fill and border are two different tokens on purpose. In DARK all four
-    // `*OnLight` collapse to `#f0f4f8`, so the foreground carries no severity there and the
+    // `*OnLight` collapse to one value, so the foreground carries no severity there and the
     // fill+border pair has to (phone CaseStatusBadge's `getStatusConfig` says the same).
-    expect(box.style.backgroundColor).toBe(rgb(colors[`${severity}Light`]))
-    expect(sides(box)).toEqual(Array(4).fill(rgb(colors[severity])))
+    expect(box.style.backgroundColor).toBe(rgb(tone.background))
+    expect(sides(box)).toEqual(Array(4).fill(rgb(tone.borderColor)))
 
     // phone `:79` — the half that has to be READ, asserted off the rendered node rather than
     // trusting the token pair alone. Rewiring Banner to the saturated accent — the exact defect
     // this component exists to eliminate — passes every container-only assertion above.
-    expect(message.style.color).toBe(rgb(colors[`${severity}OnLight`]))
+    expect(message.style.color).toBe(rgb(tone.color))
   })
 
   it.each(SEVERITIES)('gives %s an icon that takes the FOREGROUND, never the accent', (severity) => {
@@ -120,8 +128,12 @@ describe('Banner — what it renders (phone Banner.tsx:45-99)', () => {
     // phone `:49-51`, and this is a measured rule: as an icon the saturated accent drops to
     // 1.92-2.24:1 in three of the eight severity/scheme combinations. `stroke` is an SVG
     // attribute, so it reads back as the raw token rather than jsdom's `rgb()`.
-    expect(icon.getAttribute('stroke')).toBe(colors[`${severity}OnLight`])
-    expect(icon.getAttribute('stroke')).not.toBe(colors[severity])
+    const tone = severityTone(severity)
+    expect(icon.getAttribute('stroke')).toBe(tone.color)
+    expect(icon.getAttribute('stroke')).not.toBe(tone.borderColor)
+    // `tone.accent` is the bare-mark token and must never reach a foreground either — in three
+    // of the eight severity/scheme cells it measures 1.92-2.24:1 on its own tone.
+    expect(icon.getAttribute('stroke')).not.toBe(tone.accent)
   })
 
   it('draws a different glyph per severity — there is no `icon` prop to override it', () => {
@@ -202,7 +214,7 @@ describe('Banner — the caller seams', () => {
     const { box } = mount({ style: { marginBottom: 16 } })
     expect(box.style.marginBottom).toBe('16px')
     expect(box.style.padding).toBe('12px')
-    expect(box.style.backgroundColor).toBe(rgb(colors.infoLight))
+    expect(box.style.backgroundColor).toBe(rgb(severityTone('info').background))
   })
 
   it('emits `testId` as `data-testid`, and omits the attribute otherwise', () => {
