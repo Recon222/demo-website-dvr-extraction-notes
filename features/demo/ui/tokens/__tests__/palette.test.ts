@@ -33,6 +33,17 @@ function sourceFiles(dir: string): string[] {
 }
 
 /**
+ * Both sides of the sweep go through this — lower-cased (§4.7) and whitespace-STRIPPED, the
+ * same treatment `glass-tokens.test.ts`'s BANNED scan and the drift guard's `norm` apply.
+ *
+ * Review r1 F3: the needle used to be compared RAW, so the list below worked only by author
+ * discipline — an entry written `'#35A0D6'` matched nothing, silently, and every later
+ * package is instructed to append to this list. The whitespace strip is for the entries that
+ * are coming: a retired `rgba(19,34,54,0.85)` must also catch `rgba(19, 34, 54, 0.85)`.
+ */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
+/**
  * Hexes the phone RETIRED in its P0 re-base. No file under ui/ may carry one — including
  * the token modules, because there is nothing left for them to define. Matched
  * case-insensitively: the demo mixes spellings for the same colour, and a case-sensitive
@@ -138,9 +149,9 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
   it('keeps the retired navy ramp out of every UI source file', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
-      const text = readFileSync(file, 'utf8').toLowerCase()
+      const text = norm(readFileSync(file, 'utf8'))
       for (const [name, hex, replacement] of RETIRED) {
-        if (text.includes(hex)) {
+        if (text.includes(norm(hex))) {
           offenders.push(`${relative(UI_ROOT, file).split(sep).join('/')} still carries the retired ${name} ${hex} — use ${replacement}`)
         }
       }
