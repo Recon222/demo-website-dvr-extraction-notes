@@ -108,7 +108,7 @@ const searchPill: CSSProperties = {
   padding: '0 12px',
   borderRadius: 20,
   border: `1px solid ${MAP_GLASS_COLORS.border}`,
-  background: MAP_GLASS_COLORS.inputBg,
+  background: MAP_GLASS_COLORS.containerBg,
   boxShadow: `0 1px 4px ${MAP_GLASS_COLORS.shadow}`,
   pointerEvents: 'auto',
 }
@@ -230,7 +230,7 @@ export function MapControls({
           style={{
             ...pillBase,
             borderColor: activeFilterCount > 0 ? MAP_GLASS_COLORS.primary : MAP_GLASS_COLORS.border,
-            background: activeFilterCount > 0 ? MAP_GLASS_COLORS.clearActiveBg : MAP_GLASS_COLORS.inputBg,
+            background: activeFilterCount > 0 ? MAP_GLASS_COLORS.clearActiveBg : MAP_GLASS_COLORS.containerBg,
             color: activeFilterCount > 0 ? MAP_GLASS_COLORS.primaryLight : MAP_GLASS_COLORS.textSecondary,
           }}
         >
@@ -249,7 +249,7 @@ export function MapControls({
           style={{
             ...pillBase,
             borderColor: proximityActive ? PROXIMITY_COLORS.accent : MAP_GLASS_COLORS.border,
-            background: proximityActive ? PROXIMITY_COLORS.fillLight : MAP_GLASS_COLORS.inputBg,
+            background: proximityActive ? PROXIMITY_COLORS.fillLight : MAP_GLASS_COLORS.containerBg,
             color: proximityActive ? PROXIMITY_COLORS.accent : MAP_GLASS_COLORS.textSecondary,
             fontWeight: proximityActive ? 600 : 500,
           }}
@@ -271,7 +271,7 @@ export function MapControls({
                 style={{
                   ...pillBase,
                   borderColor: selected ? PROXIMITY_COLORS.accent : MAP_GLASS_COLORS.border,
-                  background: selected ? PROXIMITY_COLORS.fillMedium : MAP_GLASS_COLORS.inputBg,
+                  background: selected ? PROXIMITY_COLORS.fillMedium : MAP_GLASS_COLORS.containerBg,
                   color: selected ? PROXIMITY_COLORS.accent : MAP_GLASS_COLORS.textSecondary,
                   fontWeight: selected ? 600 : 500,
                 }}
