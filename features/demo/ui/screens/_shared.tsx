@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
@@ -9,6 +9,7 @@ import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -185,17 +186,6 @@ export function ModalShell({
   return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
 
-const fieldInput: CSSProperties = {
-  width: '100%',
-  borderRadius: 8,
-  border: GLASS.border,
-  background: colors.background,
-  color: '#f0f4f8',
-  fontSize: 15,
-  padding: '11px 12px',
-  outline: 'none',
-}
-
 /** A labelled text input (or textarea when `multiline`), lifted from the prototype's form styling. */
 export function Field({
   label,
@@ -261,13 +251,20 @@ export function Field({
   const errorId = `${useId()}-error`
   const describedBy = error ? errorId : undefined
   const invalid = error ? true : undefined
-  const boxStyle = error ? { ...fieldInput, borderColor: '#ff4757' } : fieldInput
+  // `readOnly` IS the phone's `editable={false}`, i.e. its `isDisabled` (`TextInput.tsx:67`).
+  const [focused, setFocused] = useState(false)
+  const boxStyle = fieldInputStyle({ error: error !== undefined, focused, disabled: readOnly })
+  const focusProps = { onFocus: () => setFocused(true), onBlur: () => setFocused(false) }
+  // The read-only dimming lives on the BOX, never on the wrapper below. A wrapper opacity
+  // takes the LABEL down with it — the exact defect the phone's PR #115 fixed and D10 forbids
+  // ("never fade a label that carries data"). `NewCaseModal.tsx:215` renders this path for
+  // the case number of an existing case.
   const assist =
     autoCorrect === false
       ? ({ autoCorrect: 'off', autoCapitalize: 'off', spellCheck: false } as const)
       : {}
   return (
-    <div style={readOnly ? { marginBottom: 14, opacity: 0.6 } : { marginBottom: 14 }}>
+    <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
         {label}
         {required && <span style={{ color: '#ff4757' }}> *</span>}
@@ -284,6 +281,7 @@ export function Field({
           rows={3}
           maxLength={maxLength}
           {...assist}
+          {...focusProps}
           style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
@@ -297,6 +295,7 @@ export function Field({
           readOnly={readOnly}
           maxLength={maxLength}
           {...assist}
+          {...focusProps}
           style={boxStyle}
         />
       )}
