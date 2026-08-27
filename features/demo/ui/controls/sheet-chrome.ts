@@ -17,27 +17,38 @@
  * render. Same finding, same reasoning as U1.4's header bars. `sheetSurfaceHasNoInset` in the
  * test file pins the absence.
  *
- * ## The border is spelled in LONGHANDS, and that is load-bearing
+ * ## The border carries NO shorthand key, and that is load-bearing
  *
- * The tier wants four 1px sides in `border` and a 2px lit top in `highlightTop`. Three
- * spellings reach that; only one survives a consumer.
+ * The tier wants four 1px sides in `border` and a 2px lit top in `highlightTop`. Every spelling
+ * that puts a SHORTHAND slot in the fragment — `border`, `borderTop`, or even `borderColor`,
+ * which is a four-side shorthand — is a trap for whoever spreads it, so this fragment has none.
+ * Only colour LONGHANDS.
  *
- *   1. `{ border: '1px solid <border>', borderTop: '2px solid <highlightTop>' }` — correct as
- *      written, but a consumer's `{ ...sheetSurface, borderColor: X }` appends `borderColor`
- *      AFTER both shorthands and repaints the top edge X.
- *   2. `{ ...tierFragment, borderColor: X, borderTopColor: Y }` — the escape hatch
- *      `glass-tokens.ts:129-130` documents. **It is broken.** Re-assigning a key that the
- *      spread already introduced keeps that key's ORIGINAL position, so the object's key order
- *      is `['border', 'borderTopColor', 'borderColor']` and `borderColor` applies LAST.
- *      Measured in jsdom: the lit edge renders as the SIDE tint (`rgb(1, 1, 1)` for a probe
- *      `borderColor`), not `highlightTop`. Do not use it here or anywhere.
- *   3. The longhand form below. `borderColor` sits at index 3 and `borderTopColor` at index 4,
- *      so a consumer that re-assigns `borderColor` gets its override on the three sides AND
- *      keeps the lit edge — the duplicate key holds position 3, ahead of the top colour.
- *      Measured: top stays `rgba(184, 212, 240, 0.14)`.
+ * Ruled by `reports/partner-lit-edge-ruling.md` §3-§4 after two seats measured different paints
+ * of the same object and generalised in opposite directions. What settled it:
  *
- * A consumer that writes the `border` SHORTHAND after the spread still erases everything — it
- * is a new key, so it lands last. There is no defence against that one; do not do it.
+ *   React writes only the style keys whose VALUE CHANGED (`setValueForStyles`). So a fragment
+ *   whose key order protects the edge on first paint stops protecting it on the next update:
+ *   the changed shorthand is written, the unchanged `borderTopColor` is skipped, and the edge
+ *   silently becomes the side tint. Measured, jsdom and Chromium alike, with React's own
+ *   `Updating a style property during rerender (borderColor) when a conflicting property is
+ *   set (borderTopColor)` warning:
+ *
+ *     { ...withBorderColorKey, borderColor: X }   p1 rgb(200,200,200)  p2 rgb(2,2,2)  <- TRAP
+ *     { ...thisFragment,       borderColor: X }   p1 rgb(1,1,1)        p2 rgb(2,2,2)  <- LOUD
+ *     { ...thisFragment,       three side longhands }  p1/p2/p3 all rgb(200,200,200)  <- OK
+ *
+ * The middle row is the point. This form does NOT make a `borderColor` override work — it makes
+ * it fail on the FIRST paint, visibly, instead of passing review and breaking on an update
+ * nobody re-rendered in a test. A trap that survives paint 1 is worse than a plain failure.
+ *
+ * **The consumer rule, therefore: after spreading this, write only COLOUR LONGHANDS**
+ * (`borderRightColor` / `borderBottomColor` / `borderLeftColor`, and `borderTopColor` if you
+ * really mean to recolour the lit edge). Never `border`, `borderTop` or `borderColor`.
+ * One benign asymmetry, measured and worth knowing: if a consumer applies those longhands
+ * CONDITIONALLY, dropping them restores this fragment's own tint rather than falling back to
+ * `currentColor` — because the tint lives in longhands here too. Every shorthand-carrying form
+ * loses the sides to `currentColor` in that cell.
  *
  * ## What jsdom cannot see
  *
@@ -98,12 +109,15 @@ export const sheetSurface: CSSProperties = {
   background: `linear-gradient(180deg,${sheet.gradient[0]},${sheet.gradient[1]})`,
   borderTopLeftRadius: radius.sheet,
   borderTopRightRadius: radius.sheet,
-  // Longhands, in this order, for the reason in the docblock. Do not collapse to shorthands.
+  // Longhands only — no `border`, no `borderTop`, and no `borderColor` (which is itself a
+  // four-side shorthand). See the docblock; this is the ruled form.
   borderStyle: 'solid',
   borderWidth: 1,
   borderTopWidth: 2,
-  borderColor: sheet.border,
   borderTopColor: sheet.highlightTop,
+  borderRightColor: sheet.border,
+  borderBottomColor: sheet.border,
+  borderLeftColor: sheet.border,
   boxShadow: SHEET_SHADOW,
   overflow: 'hidden',
   // Web analog of the phone's `insets.bottom` (`:436`), reserved on BOTH the default and the
