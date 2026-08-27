@@ -10,6 +10,8 @@ import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
 import { DateTimeField, Field } from '@/features/demo/ui/screens/_shared'
 import { EditIncidentLocationModal } from '@/features/demo/ui/screens/EditIncidentLocationModal'
 import { NewCaseModal } from '@/features/demo/ui/screens/NewCaseModal'
+import { NewLocationModal } from '@/features/demo/ui/screens/NewLocationModal'
+import { DuplicateLocationModal } from '@/features/demo/ui/screens/DuplicateLocationModal'
 import { RequestedScopeScreen } from '@/features/demo/ui/screens/RequestedScopeScreen'
 import { SubmissionScreen } from '@/features/demo/ui/screens/SubmissionScreen'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
@@ -176,7 +178,7 @@ describe('A72 label sweep — the form-label family has ONE owner (U6.4a)', () =
     expect(
       Object.keys(ALLOWED).sort(),
       'an ALLOWED row names a file that no longer spells the retired tone — delete the row.',
-    ).toEqual([...live].sort())
+    ).toEqual(Array.from(live).sort())
   })
 
   it('is the phone`s recipe, spelled once', () => {
@@ -270,7 +272,7 @@ describe('every form label in the demo renders the shared recipe, not a private 
     expectSharedLabel(labelFor('Latitude'), 'IncidentLocationFields')
   })
 
-  it('`NewCaseModal.CoordinateField` — the modal`s own second copy of the same label', () => {
+  it('NewCaseModal.CoordinateField — the modal own second copy of the same label', () => {
     render(<NewCaseModal form={blankCaseForm} onChange={vi.fn()} onSubmit={vi.fn()} onCancel={vi.fn()} />)
     expectSharedLabel(labelFor('Longitude'), 'NewCaseModal')
   })
@@ -292,7 +294,7 @@ describe('every form label in the demo renders the shared recipe, not a private 
     expectSharedLabel(labelFor('Case Number'), 'SubmissionScreen')
   })
 
-  it('`RequestedScopeScreen` — the radio group`s label', () => {
+  it('RequestedScopeScreen — the radio group label', () => {
     render(
       <RequestedScopeScreen
         scopes={[{ id: 's1', startDateTime: '', endDateTime: '', isActualTime: true, cameras: '' }]}
@@ -310,4 +312,110 @@ describe('every form label in the demo renders the shared recipe, not a private 
     fireEvent.click(screen.getByTestId('user-profile-section-edit-button'))
     expectSharedLabel(labelFor('Start Date in Field'), 'UserProfileModal')
   })
+})
+
+// ---------------------------------------------------------------------------------------
+// A72's ERROR half — matrix §C.3 rule 1 at the four sites U6.1 deferral proposal 2 named,
+// all of them reachable from this row's four modals.
+// ---------------------------------------------------------------------------------------
+
+/** The rendered form of `colors.error`, obtained from jsdom rather than hand-converted. */
+const ERROR_STROKE = () => probeColor(colors.error)
+
+/**
+ * A validation line is correct only if BOTH halves of §C.3 rule 1 hold: the message is NOT
+ * red, and the severity is carried by a mark that IS. Asserting only the text colour would
+ * pass a line that lost its red and said nothing instead — which is a legibility fix that
+ * deletes the signal, and the rule's whole point is that the signal moves rather than goes.
+ */
+function expectSeverityOnGlyph(line: HTMLElement | null, where: string) {
+  expect(line, `${where}: no validation line found`).not.toBeNull()
+  const el = line as HTMLElement
+  expect(el.style.color, `${where}: message must not be red`).toBe(probeColor(colors.text))
+  expect(el.style.fontSize, where).toBe('14px')
+  const glyph = el.querySelector('svg')
+  expect(glyph, `${where}: severity has no glyph to sit on`).not.toBeNull()
+  expect((glyph as SVGElement).getAttribute('stroke'), where).toBe(colors.error)
+  expect((glyph as SVGElement).getAttribute('aria-hidden'), where).toBe('true')
+}
+
+describe('validation lines carry severity on the glyph, never as red text (§C.3 rule 1)', () => {
+  afterEach(cleanup)
+
+  it('`NewCaseModal.CoordinateField` — and it gains the a11y association it never had', () => {
+    // The value is a controlled PROP: typing into it with a spy `onChange` never changes
+    // what the blur validator reads, so the bad value is seeded instead of typed.
+    render(
+      <NewCaseModal
+        form={{ ...blankCaseForm, incidentLatitude: 'not a coordinate' }}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    const lat = screen.getByLabelText('Latitude')
+    fireEvent.blur(lat)
+
+    const line = screen.getByRole('alert')
+    expectSeverityOnGlyph(line, 'NewCaseModal.CoordinateField')
+    // The half that was MISSING entirely before U6.4a: this input had a red border and no
+    // announcement and no way back to the message. Its twin in `IncidentLocationFields` got
+    // this at P3 review R-16; this copy was missed.
+    expect(lat.getAttribute('aria-invalid')).toBe('true')
+    expect(lat.getAttribute('aria-describedby')).toBe(line.id)
+    expect(line.id).not.toBe('')
+  })
+
+  it('`IncidentLocationFields.CoordinateField`, through `EditIncidentLocationModal`', () => {
+    render(
+      <EditIncidentLocationModal
+        values={{ ...blankIncident, latitude: 'not a coordinate' }}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        reverseGeocode={async () => null}
+      />,
+    )
+    fireEvent.blur(screen.getByLabelText('Latitude'))
+    expectSeverityOnGlyph(screen.getByRole('alert'), 'IncidentLocationFields')
+  })
+
+  it('NewLocationModal blocked reason — inside its region, never a nested alert', () => {
+    render(
+      <NewLocationModal
+        form={{ locationName: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    const region = screen.getByTestId('new-location-blocked')
+    expectSeverityOnGlyph(region.firstElementChild as HTMLElement, 'NewLocationModal')
+    // The politeness is the point: an assertive `role="alert"` nested in this polite region
+    // would interrupt the visitor on every keystroke that changes the gate.
+    expect(region.getAttribute('role')).toBe('status')
+    expect(region.querySelectorAll('[role="alert"]').length).toBe(0)
+  })
+
+  it('DuplicateLocationModal blocked reason — the identical gate, the identical shape', () => {
+    render(
+      <DuplicateLocationModal
+        name=""
+        onChangeName={vi.fn()}
+        existingNames={['Main Store']}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+      />,
+    )
+    const region = screen.getByTestId('duplicate-location-blocked')
+    expectSeverityOnGlyph(region.firstElementChild as HTMLElement, 'DuplicateLocationModal')
+    expect(region.getAttribute('role')).toBe('status')
+    expect(region.querySelectorAll('[role="alert"]').length).toBe(0)
+  })
+
+  it('`_shared.Field` — the site the treatment came from, still on it', () => {
+    render(<Field label="Unit" value="" onChange={vi.fn()} error="Unit is required" />)
+    expectSeverityOnGlyph(screen.getByRole('alert'), 'Field')
+  })
+
 })

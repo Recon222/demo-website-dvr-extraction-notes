@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Accordion, Field, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
+import { useCallback, useId, useState } from 'react'
+import { Accordion, Field, FieldError, ModalActions, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
 import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/demo/engine/logic/coordinates'
@@ -54,6 +54,7 @@ const sectionLabel = {
 function CoordinateField({ label, kind, value, onChange }: { label: string; kind: CoordKind; value: string; onChange(v: string): void }) {
   const [error, setError] = useState<string | undefined>(undefined)
   const [focused, setFocused] = useState(false)
+  const errorId = `${useId()}-error`
   const validate = () => {
     if (value.trim() === '') {
       setError(undefined)
@@ -75,11 +76,22 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
         }}
         placeholder={kind === 'lat' ? 'e.g., 43.65' : 'e.g., -79.38'}
         aria-label={label}
+        aria-invalid={error !== undefined}
+        // U6.4a. This input had `fieldInputStyle`'s red border and NOTHING else: no
+        // `aria-invalid`, no `aria-describedby`, no live region. A screen-reader visitor got
+        // no announcement at all and no way to reach the message from the field. Its twin in
+        // `inputs/IncidentLocationFields.tsx` was given exactly this at P3 review R-16 and
+        // this copy was missed. Same treatment, from the shared component.
+        aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
         style={fieldInputStyle({ error: Boolean(error), focused })}
       />
-      {error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
+      {error && (
+        <FieldError id={errorId} role="alert">
+          {error}
+        </FieldError>
+      )}
     </div>
   )
 }

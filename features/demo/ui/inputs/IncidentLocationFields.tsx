@@ -12,7 +12,7 @@ import {
   REVERSE_GEOCODE_UNAVAILABLE,
 } from '@/features/demo/ui/inputs/LocationFields'
 import { reverseGeocode as defaultReverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
-import { Field } from '@/features/demo/ui/screens/_shared'
+import { Field, FieldError } from '@/features/demo/ui/screens/_shared'
 import { fieldLabelStyle, fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /**
@@ -126,9 +126,9 @@ function CoordinateField({
         style={fieldInputStyle({ error: Boolean(error), focused })}
       />
       {error && (
-        <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+        <FieldError id={errorId} role="alert">
           {error}
-        </div>
+        </FieldError>
       )}
     </div>
   )
