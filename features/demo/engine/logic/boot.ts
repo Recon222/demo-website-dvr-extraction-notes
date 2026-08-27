@@ -89,9 +89,11 @@ export const BOOT_SEQUENCE_MS = SCAN_MS + AUTHORIZED_MS
  * created it. Bound together, a half-flip is `TS2741` at both the constant and the prop.
  *
  * `poster` stays nullable *inside* the pair because it is genuinely optional once a source
- * exists: the boot surface is already `#000314` (the phone's splash background,
- * `AuthenticatedSplashScreen.tsx:288`), so a late first frame reads as black rather than as a
- * flash of the wrong thing.
+ * exists: the boot surface is already painted (`SCANNER_GROUND`, the phone's splash background
+ * at `AuthenticatedSplashScreen.tsx:288`), so a late first frame reads as the gate's own navy
+ * rather than as a flash of the wrong thing. The value named here used to be `#000314`; D8
+ * ported it to `#002853` and the phone retired the old one entirely, so the literal is gone
+ * from this comment rather than left as a fifth place to mine it from.
  */
 export interface BootVideo {
   readonly src: string

@@ -177,6 +177,85 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
     expect(offenders, `the phone retired these in its P0 re-base:\n${offenders.join('\n')}`).toEqual([])
   })
 
+  describe('the boot-gate darknesses U8.1 retired (D8, deferred §111)', () => {
+    /**
+     * Both families are matched on a COMMENT-STRIPPED file, unlike `RETIRED` above.
+     *
+     * The scrim family's own history is written into four docblocks that quote the literal
+     * ("Was `rgba(4,8,14,0.55)`" — `sheet-chrome.ts`, `input-theme.ts`, `CentredDialog.tsx`,
+     * `ExportModal.tsx`), and those sentences are the record of why the value moved. Matching
+     * raw text would force either their deletion or a five-entry exemption list in which the
+     * two real exemptions stopped being visible.
+     */
+    const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+
+    /**
+     * Needles run against `norm()`ed source, so they see one lower-cased, whitespace-free
+     * spelling of each family — which is what lets one alternation stand in for the hex and the
+     * functional forms at once. `spellings` is the control that proves it: ledger §120 records
+     * this suite's other sweep passing green over a retired colour merely re-spelled, so an
+     * empty offender list is worth nothing until the needle is shown to bite.
+     */
+    const FAMILIES = [
+      {
+        name: 'the boot ground',
+        replacement: 'SCANNER_GROUND (palette[scheme].background, #002853)',
+        needle: /#000314|rgba?\(0,3,20/,
+        // `#000314` has no letters, so upper- and lower-case are the same string — the
+        // case-insensitivity `norm` provides is real but untestable here, and saying so beats a
+        // control that only looks like two spellings.
+        spellings: ['#000314', 'rgb(0, 3, 20)', 'rgba(0, 3, 20, 0.55)'],
+        exempt: [] as readonly string[],
+      },
+      {
+        name: 'the scrim family',
+        replacement: 'palette[scheme].scrim, or .overlay for chrome over media',
+        needle: /#04080e|rgba?\(4,8,14/,
+        spellings: ['#04080e', '#04080E', 'rgb(4, 8, 14)', 'rgba(4, 8, 14, 0.55)'],
+        /**
+         * The two permanent exemptions §111 ruled, and no others — an unlisted file is an
+         * offender by default.
+         *
+         * `_shared.modalScrim` is a demo-only stand-in (the phone's page sheets are native
+         * `pageSheet` presentations with an OS dim, so there is no phone token to port), and
+         * `ExitDialog` is D12-frozen: it sits outside the phone frame and is not a phone
+         * surface at all. `BootSequence.tsx` was the third and is why the ban could not land
+         * until this package.
+         */
+        exempt: ['screens/_shared.tsx', 'controls/ExitDialog.tsx'] as readonly string[],
+      },
+    ] as const
+
+    const scan = (needle: RegExp): string[] =>
+      sourceFiles(UI_ROOT)
+        .filter((file) => needle.test(norm(stripComments(readFileSync(file, 'utf8')))))
+        .map((file) => relative(UI_ROOT, file).split(sep).join('/'))
+
+    it.each(FAMILIES)('$name: the needle matches every spelling of the colour', (family) => {
+      for (const spelling of family.spellings) {
+        expect(family.needle.test(norm(spelling)), `${family.name} misses ${spelling}`).toBe(true)
+      }
+    })
+
+    it.each(FAMILIES)('$name: no file outside the ruled exemptions carries it', (family) => {
+      expect(
+        scan(family.needle).filter((f) => !family.exempt.includes(f)),
+        `use ${family.replacement}`,
+      ).toEqual([])
+    })
+
+    it.each(FAMILIES)('$name: every exemption is still a real one', (family) => {
+      // The anti-vacuity half. An exemption that no longer spells the value is a hole nobody
+      // notices, because the scan it widens has no way to report that it was widened for
+      // nothing — so the list shrinks in the commit that removes the last spelling, or reds.
+      // Sorted on both sides: `scan` walks the tree in directory order, which is not the order
+      // a human lists exemptions in, and an order-sensitive compare would red for that alone.
+      expect(scan(family.needle).filter((f) => family.exempt.includes(f)).sort()).toEqual(
+        [...family.exempt].sort(),
+      )
+    })
+  })
+
   it("resolves every T alias to its phone-named palette source", () => {
     const ALIASES = {
       bg: 'background',
