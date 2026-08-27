@@ -56,9 +56,45 @@ const MAP_TOKENS_SRC = join(
 /** Line comments stripped, exactly as `palette.test.ts` does: a leftover `// was text: '#e7eef6'` above a re-typed literal otherwise satisfies the alias regex. */
 const source = (): string => readFileSync(MAP_TOKENS_SRC, 'utf8').replace(/\/\/[^\n]*/g, '')
 
+/**
+ * ONE record's body, `export const <NAME> = {` .. `} as const`.
+ *
+ * Scoping is not tidiness — it is MUTATION PROBE P1, which SURVIVED without it. This module
+ * declares `text: colors.text` TWICE (`MAP_GLASS_COLORS` and `SHEET_COLORS`), so a file-wide
+ * `\btext\s*:\s*colors\.text\b` matched the OTHER record and stayed green while the one under
+ * test was de-aliased back to `'#f0f4f8'` — the exact false-alias failure the structural pin
+ * exists to catch, reproduced by the pin itself. Six of the eight aliased keys collide this way.
+ *
+ * Throws rather than falling back to the whole file: a marker that misses must red, not widen
+ * (the lesson `check-rn-parity.mjs:137-144` records for its own `before`).
+ */
+const recordBody = (src: string, name: string): string => {
+  const start = src.indexOf(`export const ${name} = {`)
+  if (start === -1) throw new Error(`record not found: ${name}`)
+  const end = src.indexOf('} as const', start)
+  if (end === -1) throw new Error(`record end not found: ${name}`)
+  return src.slice(start, end)
+}
+
 /** `key: colors.<token>` — the alias spelled in a VALUE position, not merely a matching string. */
-const aliasesPaletteToken = (src: string, key: string, token: string): boolean =>
-  new RegExp(`\\b${key}\\s*:\\s*colors\\.${token}\\b`).test(src)
+const aliasesPaletteToken = (src: string, record: string, key: string, token: string): boolean =>
+  new RegExp(`\\b${key}\\s*:\\s*colors\\.${token}\\b`).test(recordBody(src, record))
+
+describe('recordBody — the slicer every structural pin below goes through', () => {
+  it('addresses ONE record, and throws rather than widening', () => {
+    // MUTATION PROBE P1's fix, pinned. Without the scope the alias checks matched a
+    // same-named key in a DIFFERENT record and survived a real de-alias (exit 0).
+    const src = source()
+    const glass = recordBody(src, 'MAP_GLASS_COLORS')
+    const sheet = recordBody(src, 'SHEET_COLORS')
+    expect(glass, 'the glass record must not swallow the sheet record').not.toContain('backgroundGradient')
+    expect(sheet).toContain('backgroundGradient')
+    // Both declare `text:`, which is the collision that made the unscoped scan unfalsifiable.
+    expect(glass).toContain('text:')
+    expect(sheet).toContain('text:')
+    expect(() => recordBody(src, 'NO_SUCH_RECORD')).toThrow(/record not found/)
+  })
+})
 
 describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
   it('aliases every shared key to the palette rather than re-typing its hex', () => {
@@ -75,7 +111,10 @@ describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
     } as const
     for (const [key, token] of Object.entries(ALIASES)) {
       expect(MAP_GLASS_COLORS[key as keyof typeof ALIASES], `${key} value`).toBe(colors[token])
-      expect(aliasesPaletteToken(src, key, token), `${key} must READ colors.${token}, not re-type its hex`).toBe(true)
+      expect(
+        aliasesPaletteToken(src, 'MAP_GLASS_COLORS', key, token),
+        `${key} must READ colors.${token} inside MAP_GLASS_COLORS, not re-type its hex`,
+      ).toBe(true)
     }
   })
 
@@ -140,7 +179,10 @@ describe('SHEET_COLORS (A84 — the map bottom sheet)', () => {
       // on `primaryDark` 5.80. It was `#1a8fc2` — an accent on no ramp in the palette.
       ['accent', 'primaryDark'],
     ] as const) {
-      expect(aliasesPaletteToken(src, key, token), `${key} must READ colors.${token}`).toBe(true)
+      expect(
+        aliasesPaletteToken(src, 'SHEET_COLORS', key, token),
+        `${key} must READ colors.${token} inside SHEET_COLORS`,
+      ).toBe(true)
     }
   })
 
@@ -212,13 +254,13 @@ describe('the marks painted ONTO the tiles — theme-invariant, and still the ph
     // demo shipped ALREADY equalled these values, so the three value assertions above passed
     // over the un-derived code (measured — they were green before the edit landed). What
     // changes is whether they still hold after `MAP_PIN_COLORS.working` moves.
-    const src = source()
+    const body = recordBody(source(), 'PROXIMITY_COLORS')
     for (const [key, call] of [
       ['accent', 'MAP_PIN_COLORS\\.working'],
       ['fillLight', 'withAlpha\\(MAP_PIN_COLORS\\.working, 0\\.15\\)'],
       ['fillMedium', 'withAlpha\\(MAP_PIN_COLORS\\.working, 0\\.2\\)'],
     ] as const) {
-      expect(new RegExp(`\\b${key}\\s*:\\s*${call}`).test(src), `${key} must DERIVE from the pin colour`).toBe(true)
+      expect(new RegExp(`\\b${key}\\s*:\\s*${call}`).test(body), `${key} must DERIVE from the pin colour`).toBe(true)
     }
   })
 
