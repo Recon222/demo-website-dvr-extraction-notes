@@ -1,12 +1,22 @@
 // RN <-> Web token drift guard.
 //
-// The web demo's dark palette mirrors the React Native app's `Colors.dark` (+ the
-// Button primary gradient and the 44pt touch floor) BY HAND — `T` in
-// features/demo/ui/inputs/input-theme.ts, and the same hexes hardcoded across the
-// wizard screens. Nothing enforces that mirror, so a hex change in the RN app silently
-// desyncs the two products. This checker pins the shared anchors: it parses the CURRENT
-// value from each side and asserts they're equal — so changing Colors.dark.primary in
-// the RN repo fails until the web `T.primary` follows (and vice-versa).
+// The web demo's palette mirrors the React Native app's `Colors` BY HAND (plus the CTA
+// gradient and the 44pt touch floor). Nothing enforces that mirror, so a hex change in
+// the RN app silently desyncs the two products. This checker pins the shared anchors: it
+// parses the CURRENT value from each side and asserts they're equal — so changing
+// `Colors.dark.primary` in the RN repo fails until `palette.dark.primary` follows here
+// (and vice-versa).
+//
+// Sides read, as of U0.4:
+//   RN   src/constants/Colors.ts        `Colors.light` / `Colors.dark`, `PrimaryButtonGradient`
+//        src/constants/Layout.ts        `touchTarget.min`
+//   web  features/demo/ui/tokens/palette.ts   the definition, NOT `T`'s re-export
+//        features/demo/ui/tokens/scale.ts     `touchTarget.min`
+//        features/demo/ui/glass-tokens.ts     `ACCENT_FROM` / `ACCENT_TO`
+//
+// BOTH scheme halves are pinned (decision D2 as amended by the owner, 2026-08-27). The
+// demo renders only `dark`; a light half that quietly diverges is drift the moment
+// `palette.ts`'s one-site scheme switch is flipped.
 //
 // It parses values live (no hardcoded expectations), so it never goes stale on a
 // legitimate synchronized change — only on drift.
@@ -125,12 +135,14 @@ const VALUE = `'[^']*'|"[^"]*"|[0-9.]+|[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)
  * and becomes a PARSE-FAILED row. An alias chain is precisely the shape that hides drift —
  * the guard says "I could not read this" instead of following it.
  */
-function value(raw, resolve) {
+function value(raw, follow) {
   const quoted = raw.match(/^'([^']*)'$/) ?? raw.match(/^"([^"]*)"$/)
   if (quoted) return norm(quoted[1])
   if (/^[0-9.]+$/.test(raw)) return norm(raw)
-  if (!resolve) throw new Error(`unresolved reference: ${raw}`)
-  return resolve(raw.split('.').pop())
+  // (`follow` is `opts.resolve`; named apart from it here only to avoid shadowing the
+  //  `resolve` imported from node:path at the top of the file.)
+  if (!follow) throw new Error(`unresolved reference: ${raw}`)
+  return follow(raw.split('.').pop())
 }
 
 /** Pull `key: <value>` from a specific object-literal region of a source file. */
@@ -157,6 +169,49 @@ function readStop(text, scheme, i, opts = {}) {
   return value(m[i], opts.resolve)
 }
 
+/**
+ * The palette keys anchored at THIS stage of the port.
+ *
+ * The rule, from the master plan (§6.6 gate 1): the anchor set is what the port has TOKENISED
+ * so far, and **adding an anchor is the closing act of the package that creates its web-side
+ * token.** A phase is never gated on an anchor whose web token does not exist yet. So the set
+ * grows with the phases and only with them:
+ *
+ *   U0.4 (this list)  the 15 palette keys U0.1 created and the plan's U0.4 row names
+ *   U1.1              +24 glass-tier keys (both gradient stops + border + highlightTop, x6)
+ *   U3.1              +4 status keys (success, successLight, warning, warningLight)
+ *   U8.2              +gridSubtle
+ *   -> ~44 keys at the end, each pinned in both halves
+ *
+ * `success` and `warning` DO already exist in `tokens/palette.ts` and are still deliberately
+ * absent here: U3.1's row claims all four status anchors as its own closing act, and taking
+ * them early would leave that package with nothing to close.
+ *
+ * Both halves are pinned — decision D2 as amended by the owner on 2026-08-27. 15 keys x
+ * { light, dark } = 30 rows. The demo renders only `dark`, but a light half that silently
+ * diverges is drift the moment `palette.ts`'s one-site scheme switch is flipped.
+ */
+export const PALETTE_KEYS = [
+  'primary',
+  'primaryLight',
+  'primaryDark',
+  'background',
+  'backgroundSecondary',
+  'backgroundTertiary',
+  'text',
+  'textSecondary',
+  'textTertiary',
+  'textInverse',
+  'border',
+  'error',
+  'errorLight',
+  'errorDark',
+  'link',
+]
+
+/** Both scheme halves, in report order. */
+export const SCHEMES = ['light', 'dark']
+
 export function checkParity() {
   const colors = source('RN Colors.ts', join(RN, 'src/constants/Colors.ts'))
   const layout = source('RN Layout.ts', join(RN, 'src/constants/Layout.ts'))
@@ -171,36 +226,65 @@ export function checkParity() {
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
 
-  // RN dark palette only — slice from `dark: {` so we don't read the light `primary`.
-  const darkOpts = { after: 'dark: {', before: '} as const' }
-  // The demo's matching half. `palette.ts` declares `const dark = { … } as const`.
-  const webDarkOpts = { after: 'const dark = {', before: '} as const' }
-  // One-level resolver for the RN side. `Colors.dark.primaryDark` -> look `primaryDark` up
-  // in the same region. No `resolve` of its own: the chain stops here by construction.
-  const rnDark = (name) => readField(colors.text, name, darkOpts)
+  // Region slices, per scheme, per side. All four are plain string-index cuts, not parsers.
+  //
+  // The RN markers rely on ORDER and it is worth stating why they are safe: `light: {` and
+  // `dark: {` each occur twice in Colors.ts (`Colors` at :9/:128, `GlassColors` at :274/:345)
+  // and `indexOf` takes the FIRST, so both slices land inside `Colors`. Light is bounded by
+  // the start of dark rather than by `} as const`, which would run past it.
+  const rnRegion = {
+    light: { after: 'light: {', before: 'dark: {' },
+    dark: { after: 'dark: {', before: '} as const' },
+  }
+  // The demo's matching halves. `palette.ts` declares `const light = { … } as const` and
+  // `const dark = { … } as const` as two top-level bindings, so each has its own marker.
+  const webRegion = {
+    light: { after: 'const light = {', before: '} as const' },
+    dark: { after: 'const dark = {', before: '} as const' },
+  }
+  // One-level resolvers, one per side per scheme. `Colors.dark.primaryDark` -> look
+  // `primaryDark` up in the same region. Neither carries a `resolve` of its own, so the chain
+  // stops here by construction (see `value` above).
+  const rnRef = (scheme) => (name) => readField(colors.text, name, rnRegion[scheme])
+  const webRef = (scheme) => (name) => readField(paletteSrc.text, name, webRegion[scheme])
+
+  // Every read is wrapped by `attempt`: the readers throw on a miss, and one miss must never
+  // disable the rest of the table. That is U0.0's degrade, and this table is where it earns
+  // its keep — 35 rows, each independently resolvable.
+  const anchors = []
+  for (const scheme of SCHEMES) {
+    for (const key of PALETTE_KEYS) {
+      anchors.push({
+        key,
+        scheme,
+        label: `${key}.${scheme}`,
+        rn: attempt(colors, (t) => readField(t, key, { ...rnRegion[scheme], resolve: rnRef(scheme) })),
+        web: attempt(paletteSrc, (t) => readField(t, key, { ...webRegion[scheme], resolve: webRef(scheme) })),
+      })
+    }
+  }
+
   // The CTA gradient moved on the phone's P9: `PRIMARY_GRADIENT` in `Button.tsx` became
   // `PrimaryButtonGradient` in `Colors.ts:471`, and its dark stops are now
   // `[Colors.dark.primaryDark, '#17527A']` — one literal and one reference, which is why
-  // reading it at all needs the resolver above. `Button.tsx` is no longer read.
+  // reading it at all needs the resolver. `Button.tsx` is no longer read.
+  //
+  // DARK ONLY, and that is not an oversight: the phone's light pair (`['#2563eb','#1d3584']`)
+  // has NO web-side token. U0.3 kept the demo's stops as the two module consts below, which
+  // are the dark pair only. Anchoring light here would gate the phase on a token that does
+  // not exist — the one thing §6.6 gate 1 forbids. Whichever package gives the demo a light
+  // accent pair adds these two rows as its closing act.
   const gradOpts = {
     after: 'export const PrimaryButtonGradient = {',
     before: '} as const',
-    resolve: rnDark,
+    resolve: rnRef('dark'),
   }
-
-  // Every read is wrapped: the readers throw on a miss, and one miss must never disable the
-  // rest of the table.
-  const anchors = [
-    { label: 'primary',     rn: attempt(colors, (t) => readField(t, 'primary', darkOpts)),       web: attempt(paletteSrc, (t) => readField(t, 'primary', webDarkOpts)) },
-    { label: 'background',  rn: attempt(colors, (t) => readField(t, 'background', darkOpts)),    web: attempt(paletteSrc, (t) => readField(t, 'background', webDarkOpts)) },
-    { label: 'border',      rn: attempt(colors, (t) => readField(t, 'border', darkOpts)),        web: attempt(paletteSrc, (t) => readField(t, 'border', webDarkOpts)) },
-    { label: 'text',        rn: attempt(colors, (t) => readField(t, 'text', darkOpts)),          web: attempt(paletteSrc, (t) => readField(t, 'text', webDarkOpts)) },
-    { label: 'textMute',    rn: attempt(colors, (t) => readField(t, 'textSecondary', darkOpts)), web: attempt(paletteSrc, (t) => readField(t, 'textSecondary', webDarkOpts)) },
-    { label: 'error',       rn: attempt(colors, (t) => readField(t, 'error', darkOpts)),         web: attempt(paletteSrc, (t) => readField(t, 'error', webDarkOpts)) },
-    { label: 'gradientTop', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
-    { label: 'gradientBot', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
-    { label: 'touchFloor',  rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(scaleSrc, (t) => readField(t, 'min', { after: 'export const touchTarget = {', before: '}' })) },
-  ]
+  anchors.push(
+    { key: 'gradientTop', scheme: 'dark', label: 'gradientTop.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
+    { key: 'gradientBot', scheme: 'dark', label: 'gradientBot.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
+    // Scheme-invariant: a touch floor is a geometry constant, and neither repo branches it.
+    { key: 'touchFloor', scheme: 'any', label: 'touchFloor', rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(scaleSrc, (t) => readField(t, 'min', { after: 'export const touchTarget = {', before: '}' })) },
+  )
 
   const parseFailed = anchors.filter((a) => isParseFailed(a.rn) || isParseFailed(a.web))
   // A parse failure is drift even when both sides fail identically — an anchor that cannot
@@ -219,17 +303,22 @@ if (invokedDirectly) {
     process.exit(0)
   }
   const { anchors, drift, parseFailed } = checkParity()
-  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(12)} RN=${a.rn}  web=${a.web}`)
+  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(26)} RN=${a.rn}  web=${a.web}`)
   if (parseFailed.length) {
-    console.error(`\n✗ ${parseFailed.length} anchor(s) could not be parsed on one side — the guard is BLIND there:`)
+    console.error(`\n✗ ${parseFailed.length} anchor row(s) could not be parsed on one side — the guard is BLIND there:`)
     for (const p of parseFailed) console.error(`  ${p.label}: RN=${p.rn}  web=${p.web}`)
     console.error('A moved or renamed constant. Repoint the reader in .design-sync/check-rn-parity.mjs.')
   }
   if (drift.length) {
-    console.error(`\n✗ ${drift.length} token(s) drifted between the RN app and the web demo:`)
-    for (const d of drift) console.error(`  ${d.label}: RN Colors.dark = ${d.rn}, web T = ${d.web}`)
-    console.error('\nUpdate features/demo/ui/inputs/input-theme.ts (and the screens that hardcode the hex) to match, or vice-versa.')
+    console.error(`\n✗ ${drift.length} anchor row(s) drifted between the RN app and the web demo:`)
+    for (const d of drift) console.error(`  ${d.label}: RN Colors.${d.scheme} = ${d.rn}, web = ${d.web}`)
+    console.error('\nUpdate features/demo/ui/tokens/palette.ts (or tokens/scale.ts / glass-tokens.ts for')
+    console.error('the touch floor and the accent stops) to match the phone, or vice-versa.')
     process.exit(1)
   }
-  console.log(`\n✓ all ${anchors.length} shared anchors match between the RN app and the web demo`)
+  const keys = new Set(anchors.map((a) => a.key))
+  console.log(
+    `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
+      `(${keys.size} keys x both scheme halves, minus the light gradient the demo has no token for)`,
+  )
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { checkParity, norm, rnAvailable, RN_ROOT } from '../../../../../.design-sync/check-rn-parity.mjs'
+import { checkParity, norm, PALETTE_KEYS, rnAvailable, RN_ROOT } from '../../../../../.design-sync/check-rn-parity.mjs'
+
+/** One row of the guard's table. `scheme` is `'any'` for scheme-invariant anchors. */
+type Anchor = { key: string; scheme: string; label: string; rn: string; web: string }
 
 // Drift guard: the demo's palette (`tokens/palette.ts`) mirrors the phone app's `Colors` BY
 // HAND, and nothing but this enforces it. The guard parses the CURRENT value from each side
@@ -65,6 +68,45 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     for (const a of anchors) {
       expect(a.rn, `${a.label} RN side`).not.toContain('PARSE-FAILED')
       expect(a.web, `${a.label} web side`).not.toContain('PARSE-FAILED')
+    }
+  })
+
+  it.skipIf(!rnAvailable())('pins every palette key in BOTH scheme halves (D2, amended)', () => {
+    const { anchors } = checkParity()
+    for (const key of PALETTE_KEYS) {
+      const schemes = anchors
+        .filter((a: Anchor) => a.key === key)
+        .map((a: Anchor) => a.scheme)
+        .sort()
+      expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
+    }
+    // The stage's SIZE, stated so that shrinking the table to reach green is a red instead.
+    // Gate 1 in the plan is a claim about a set, not about an exit code. Growing these two
+    // numbers is the closing act of U1.1 (+24 keys), U3.1 (+4) and U8.2 (+1) — see
+    // PALETTE_KEYS in the guard for the rule and the schedule.
+    expect(PALETTE_KEYS.length, 'U0.4 anchors 15 palette keys').toBe(15)
+    expect(anchors.length, '15 keys x 2 halves + 2 dark gradient stops + the touch floor').toBe(33)
+  })
+
+  it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
+    const { anchors } = checkParity()
+    const at = (key: string, scheme: string) =>
+      anchors.find((a: Anchor) => a.key === key && a.scheme === scheme) as Anchor
+    // The failure this exists for: a "light" reader whose region markers actually slice the
+    // DARK block still reports zero drift, because both sides then compare the same block to
+    // itself. Every assertion above stays green through it.
+    //
+    // Every one of these 15 keys genuinely differs between the phone's two halves, so a stuck
+    // reader collapses one of these pairs. If a future token is deliberately scheme-invariant
+    // (`onPrimary` is `#ffffff` in both, which is why it is not anchored here), EXCLUDE IT BY
+    // NAME rather than deleting the check.
+    for (const key of PALETTE_KEYS) {
+      expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
+        at(key, 'dark').rn,
+      )
+      expect(at(key, 'light').web, `web ${key}: the light and dark reads returned the same value`).not.toBe(
+        at(key, 'dark').web,
+      )
     }
   })
 })
