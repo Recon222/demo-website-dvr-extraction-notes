@@ -445,7 +445,11 @@ describe('the nested tier reaches every adopted site (U1.3 / A33, A34, A35, A55)
     const rows = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
       (el) => el.style.backgroundImage === NESTED_GRADIENT,
     )
-    expect(rows).toHaveLength(1)
+    // TWO since U6.4b: the per-scope row, and the Total DVR Retention box it joined. That box
+    // was a private `rgba(43,140,193,0.08)` wash under the `elevated` border — an accent fill
+    // at 0.08 beneath an accent border at 0.25, a pairing no tier spells. The phone has both on
+    // `nestedCard` (`dvr-information.tsx:401` and `:429`), which is what makes them one family.
+    expect(rows).toHaveLength(2)
     rows.forEach(expectNestedTier)
   })
 

@@ -116,7 +116,9 @@ describe('SyncStatusCard — severity rides the icon, never the words (row 35)',
     const offenders: string[] = []
     for (const props of [{ sync, syncing: false }, { sync: null, syncing: true }]) {
       const { container, unmount } = render(<SyncStatusCard {...props} />)
-      for (const el of container.querySelectorAll<HTMLElement>('[style]')) {
+      // `Array.from`, not a bare `for...of` over the NodeList: `tsconfig` targets es5, where
+      // iterating a `NodeListOf` needs `--downlevelIteration` (TS2802).
+      for (const el of Array.from(container.querySelectorAll<HTMLElement>('[style]'))) {
         if (el.style.color && SEVERITY_TOKENS.some((t) => el.style.color === jsdomColor(t))) {
           offenders.push(`${el.textContent}: ${el.style.color}`)
         }

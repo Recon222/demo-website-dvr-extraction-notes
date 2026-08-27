@@ -201,14 +201,10 @@ describe('no hand-rolled copy of either control survives', () => {
       // rather than using its shared `Checkbox`. A row mark, not a checkbox.
       'circular row indicator, hand-rolled on the phone as well',
     ],
-    [
-      'checkbox:screens/DvrInfoScreen.tsx',
-      // A 16px box inside a 2-up pill. The phone uses two stacked shared `Checkbox` rows
-      // (`app/(form)/dvr-information.tsx:318-329`), so porting it is a LAYOUT change, not a
-      // recipe adoption — and `DvrInfoScreen.tsx` is U6.4b's file (matrix B.5 row 41), open
-      // concurrently by U3.2 in this wave.
-      'checkbox pill — a layout port, owned by U6.4b',
-    ],
+    // `checkbox:screens/DvrInfoScreen.tsx` WAS here, reserved for U6.4b by name. U6.4b adopted
+    // `CheckboxBox` (matrix row 41 / A75), so the exemption is dead and the dead-exemption case
+    // below is what said so. The row's own argument only ever excused the BOX: the 2-up pill
+    // ROW is still demo-owned geometry, and adopting the box did not change it.
   ])
 
   function sourceFiles(dir: string): string[] {

@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import type { DvrInformation, FormFieldId } from '@/features/demo/engine/types'
 import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { CheckboxBox } from '@/features/demo/ui/controls/choice-controls'
 import {
   RESOLUTION_OPTIONS,
   FPS_OPTIONS,
@@ -16,8 +17,9 @@ import {
   toggleRecordingSchedule,
 } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
-import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { severityTone, type StatusSeverity } from '@/features/demo/ui/tokens/status'
 
@@ -123,6 +125,19 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
   // Three section cards, each hidden once it has nothing left to hold — a titled card with an
   // empty body reads as a bug. The store's cascade hides the whole SCREEN when the last field
   // anywhere on it goes off, so an all-empty render is unreachable.
+  //
+  // TWO of the three no longer need a call-site guard: U6.1 moved the collapse into
+  // `SectionCard`'s recipe (`Children.toArray(children).length === 0`), and every child of the
+  // first two sections is a `{show.x && <Field/>}` that `toArray` drops. Their hoisted booleans
+  // were deleted here as redundant — U6.4a's consume-me item 4 hands that deletion to this
+  // package, and `field-visibility.test.tsx`'s "drops each DVR card independently" is the pin
+  // that proves the recipe still does it.
+  //
+  // `showRetention` STAYS, and it is the exception U6.1's Defect 2 predicted by name: this
+  // section's body is a TERNARY, so it always yields exactly one child and the recipe's
+  // zero-children test can never fire for it. Without this guard, switching off all three
+  // retention fields renders an empty titled card holding a placeholder that names a control
+  // no longer on the screen. Pinned in `status-owners.test.tsx`.
   const show = {
     dvrLocation: isFieldVisible('dvr.dvrLocation'),
     dvrTypeBrand: isFieldVisible('dvr.dvrTypeBrand'),
@@ -138,15 +153,12 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
     totalDvrRetention: isFieldVisible('dvr.totalDvrRetention'),
     daysUntilOverwritten: isFieldVisible('dvr.daysUntilOverwritten'),
   }
-  const showBasics = show.dvrLocation || show.dvrTypeBrand || show.serialModelNumber || show.dvrUsername || show.dvrPassword
-  const showRecording = show.numberOfChannels || show.activeCameras || show.resolution || show.recordingFps || show.recordingSchedule
   const showRetention = show.firstRecordedDate || show.totalDvrRetention || show.daysUntilOverwritten
 
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="DVR Information" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        {showBasics && (
         <SectionCard title="Basic DVR Details">
           {show.dvrLocation && <Field label="DVR Location" value={dvr.dvrLocation} onChange={(v) => onChange('dvrLocation', v)} placeholder="e.g., Manager's office" />}
           {show.dvrTypeBrand && <Field label="DVR Type / Brand" value={dvr.dvrTypeBrand} onChange={(v) => onChange('dvrTypeBrand', v)} placeholder="e.g., Hikvision, Dahua" />}
@@ -154,9 +166,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
           {show.dvrUsername && <Field label="DVR Username" value={dvr.dvrUsername} onChange={(v) => onChange('dvrUsername', v)} placeholder="e.g., admin" />}
           {show.dvrPassword && <Field label="DVR Password" value={dvr.dvrPassword} onChange={(v) => onChange('dvrPassword', v)} placeholder="Login password" />}
         </SectionCard>
-        )}
 
-        {showRecording && (
         <SectionCard title="Recording Configuration">
           {show.numberOfChannels && <Field label="Channels" value={dvr.numberOfChannels} onChange={(v) => onChange('numberOfChannels', v)} placeholder="e.g., 16" />}
           {show.activeCameras && <Field label="Active Cameras" value={dvr.activeCameras} onChange={(v) => onChange('activeCameras', v)} placeholder="e.g., 8" />}
@@ -178,7 +188,8 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
           )}
           {show.recordingSchedule && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Recording Schedule</div>
+            {/* U6.4a's A72 seam — this was one of the retired four-key label copies. */}
+            <div style={fieldLabelStyle}>Recording Schedule</div>
             <div style={{ display: 'flex', gap: 10 }}>
               {RECORDING_SCHEDULE_OPTIONS.map((opt) => {
                 const on = parseRecordingSchedule(dvr.recordingSchedule).includes(opt.toLowerCase())
@@ -194,21 +205,33 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                       flex: 1,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
+                      // Phone `Checkbox.tsx:116` puts `spacing.sm` between the box and its label;
+                      // the seam deliberately carries no `marginRight`, so the row supplies it.
+                      gap: spacing.sm,
                       padding: '11px 12px',
                       borderRadius: 8,
-                      border: `1px solid ${on ? '#2B8CC1' : colors.border}`,
-                      background: on ? 'rgba(43,140,193,0.14)' : colors.background,
-                      color: on ? '#f0f4f8' : '#cdd9e6',
+                      border: `1px solid ${on ? colors.primary : colors.border}`,
+                      background: on ? withAlpha(colors.primary, 0.14) : colors.background,
+                      // ONE token, not a ternary. The phone's label is `colors.text` in both
+                      // states (`Checkbox.tsx:88`) — selection is carried by the box, the border
+                      // and the fill, three carriers already. The demo dimmed the unchecked
+                      // label to the retired `#cdd9e6`, making colour a FOURTH carrier and the
+                      // only one that also said "less readable".
+                      color: colors.text,
                       fontSize: 14,
                       fontWeight: 500,
                       cursor: 'pointer',
                       textAlign: 'left',
                     }}
                   >
-                    <span style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid ${on ? '#2B8CC1' : '#3a567a'}`, background: on ? '#2B8CC1' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
-                    </span>
+                    {/* A75 / SEAM(U2.4). Was a private 16x16 square at `borderWidth: 1` with a
+                        hand-inlined `#fff` SVG tick — one of the three sites matrix A75 names.
+                        The seam is the phone's `Checkbox.tsx:109-128`: 24x24, `borderWidth: 2`,
+                        `radius.sm`, `colors.primary` fill, and the glyph as the LITERAL U+2713
+                        in `colors.onPrimary`. The row geometry around it stays demo-owned — the
+                        phone has no pill here at all (its `Checkbox` row is a bare 44px line),
+                        and A75 is the BOX recipe, not the row. */}
+                    <CheckboxBox checked={on} />
                     {opt}
                   </button>
                 )
@@ -217,13 +240,12 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
           </div>
           )}
         </SectionCard>
-        )}
 
         {showRetention && (
         <SectionCard title="Retention">
           {show.firstRecordedDate && (
             <>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>First Recorded Date</div>
+              <div style={fieldLabelStyle}>First Recorded Date</div>
               <div style={{ marginBottom: 14 }}>
                 <DateField value={dvr.firstRecordedDate} onChange={(v) => onChange('firstRecordedDate', v)} />
               </div>
@@ -233,16 +255,24 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
           {retention.totalRetention != null ? (
             <>
               {show.totalDvrRetention && (
-              <div style={{ marginBottom: 14, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#7a9fc4', letterSpacing: 0.3 }}>Total DVR Retention</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{retention.totalRetention} days</div>
-                <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>From the earliest recorded date to today.</div>
+              /* A55 — the nested tier. Was a private `rgba(43,140,193,0.08)` wash under the
+                 `elevated` border, a pairing no tier spells: an accent border at 0.25 over an
+                 accent FILL at 0.08. The phone's is `<Card glass glassVariant="nestedCard">`
+                 (`dvr-information.tsx:401`), the same tier the per-scope rows below already take,
+                 which is what makes the two read as one family. Lifted 10/14 kept (demo §0.4). */
+              <div style={{ ...glassCardNested, marginBottom: 14, borderRadius: 10, padding: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: colors.textTertiary, letterSpacing: 0.3 }}>Total DVR Retention</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: colors.text, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{retention.totalRetention} days</div>
+                <div style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>From the earliest recorded date to today.</div>
               </div>
               )}
 
               {show.daysUntilOverwritten && retention.scopes.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#cdd9e6', marginBottom: 8 }}>Retention status by scope</div>
+                  {/* A sub-heading, not a field label — hence `colors.text` at 600 rather than
+                      `fieldLabelStyle`. Phone `scopeRetentionTitle` (`dvr-information.tsx:530-535`)
+                      is `fontSize.base`/semibold; the demo's lifted 13 stays (demo §0.4). */}
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 8 }}>Retention status by scope</div>
                   {retention.scopes.map((s) => {
                     const status = getRetentionStatus(s.daysUntilOverwritten)
                     return (
@@ -250,8 +280,8 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                       // card hairline. Lifted `borderRadius: 10` kept (demo §0.4).
                       <div key={s.label} style={{ ...glassCardNested, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, marginBottom: 8 }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8' }}>{s.label}</div>
-                          <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{s.label}</div>
+                          <div style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>
                             {s.daysUntilOverwritten === 0 ? 'Already overwritten' : `${s.daysUntilOverwritten} days until overwritten · ${s.overwrittenDate}`}
                           </div>
                         </div>
@@ -267,7 +297,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
             // on the screen. With First Recorded Date switched off in the Form Fields grid and
             // either retention output left on, this card's whole body used to be an instruction
             // to use a picker three clicks away in Settings.
-            <div style={{ fontSize: 12, color: '#7a9fc4', fontStyle: 'italic', padding: '4px 2px' }} data-testid="dvr-retention-empty">
+            <div style={{ fontSize: 12, color: colors.textTertiary, fontStyle: 'italic', padding: '4px 2px' }} data-testid="dvr-retention-empty">
               {show.firstRecordedDate
                 ? 'Pick the first recorded date to calculate total retention and per-scope overwrite countdowns.'
                 : 'Turn First Recorded Date back on in Settings → Form Fields to calculate retention.'}
