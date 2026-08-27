@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
+import type { CSSProperties } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { ModalShell } from '@/features/demo/ui/screens/_shared'
+import { ModalShell, modalHeaderBar } from '@/features/demo/ui/screens/_shared'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { iconSize, spacing } from '@/features/demo/ui/tokens/scale'
 
 describe('ModalShell', () => {
   it('portals its dialog into the PhoneOverlayContext node when present (pins to the phone viewport, outside the scroller)', () => {
@@ -71,5 +75,103 @@ describe('ModalShell', () => {
     )
     fireEvent.click(container.querySelector('[data-modal-scrim]')!)
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * A60 — the page-sheet header (`ModalHeader.tsx:54-97`, package U4.2).
+ *
+ * The phone shipped this header byte-for-byte in five modals plus every page sheet in
+ * `case-management` (`NewCaseModal.tsx:252-260` is the same `elevated` gradient over the same
+ * `padding: Layout.spacing.lg` / `borderBottomWidth: 1` block). `ModalShell` is the demo's one
+ * copy of it, so these pin the RELATIONSHIP — the bar reads `elevated`, of the CONSUMED scheme,
+ * at the phone's scale steps — rather than restating the literals the production file writes.
+ */
+const elevated = GLASS_TIER[scheme].elevated
+
+/** `linear-gradient(<angle>,<stop>,<stop>)` → its parts. Throws rather than returning null: a
+ *  fragment that stopped being a two-stop linear gradient must fail loudly, not compare against
+ *  `undefined` and pass. (Same helper, same reason, as `header-chrome.test.tsx:38`.) */
+function gradient(value: CSSProperties['background']): { angle: string; stops: [string, string] } {
+  const m = /^linear-gradient\((\d+deg),(rgba?\([^)]*\)),(rgba?\([^)]*\))\)$/.exec(String(value ?? ''))
+  if (!m) throw new Error(`not a two-stop linear gradient: ${value}`)
+  return { angle: m[1], stops: [m[2], m[3]] }
+}
+
+describe('A60 — the modal header bar', () => {
+  it('paints the ELEVATED tier of the consumed scheme, top to bottom, with the tier hairline under it', () => {
+    expect(gradient(modalHeaderBar.background)).toEqual({
+      angle: '180deg',
+      stops: [elevated.gradient[0], elevated.gradient[1]],
+    })
+    expect(modalHeaderBar.borderBottomColor).toBe(elevated.border)
+    expect(modalHeaderBar.borderBottomWidth).toBe(1)
+    expect(modalHeaderBar.borderBottomStyle).toBe('solid')
+  })
+
+  it('carries NO border shorthand of any kind, so a consumer`s colour longhand cannot conflict', () => {
+    // The lit-edge ruling, §1: the longhand-only fragment is the only measured shape with no
+    // first-paint-OK / update-FAIL trap. A `border` / `borderColor` / `borderBottom` key here
+    // reintroduces exactly that trap for eight surfaces.
+    for (const key of ['border', 'borderColor', 'borderBottom', 'borderTop'] as const) {
+      expect(modalHeaderBar[key]).toBeUndefined()
+    }
+  })
+
+  it('is the phone`s row block: padding lg, gap sm, centred (ModalHeader.tsx:82-88)', () => {
+    expect(modalHeaderBar.padding).toBe(spacing.lg)
+    expect(modalHeaderBar.gap).toBe(spacing.sm)
+    expect(modalHeaderBar.display).toBe('flex')
+    expect(modalHeaderBar.alignItems).toBe('center')
+  })
+
+  it('is what the rendered header actually carries (a fragment nothing spreads is decoration)', () => {
+    const { container } = render(
+      <ModalShell title="x" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    const bar = container.querySelector<HTMLElement>('[data-modal-header]')!
+    expect(bar.style.padding).toBe(`${spacing.lg}px`)
+    expect(bar.style.gap).toBe(`${spacing.sm}px`)
+    // jsdom re-spaces `rgba()`; compare on the value, not on its whitespace.
+    expect(bar.style.borderBottomColor.replace(/\s/g, '')).toBe(elevated.border)
+  })
+
+  it('titles at 2xl/bold in the text token, flexed so the close glyph is pushed to the edge', () => {
+    render(
+      <ModalShell title="Import Recovery Request" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    const title = screen.getByText('Import Recovery Request')
+    expect(title).toHaveStyle({ fontSize: '24px', fontWeight: '700', color: colors.text })
+    expect(title.parentElement).toHaveStyle({ flex: '1' })
+  })
+
+  it('closes with a 24px glyph in the textSecondary tone (ModalHeader.tsx:75)', () => {
+    render(
+      <ModalShell title="x" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    const glyph = screen.getByRole('button', { name: 'Close' }).querySelector('svg')!
+    expect(glyph.getAttribute('width')).toBe(String(iconSize.md))
+    expect(glyph.getAttribute('height')).toBe(String(iconSize.md))
+    expect(glyph.getAttribute('stroke')).toBe(colors.textSecondary)
+  })
+
+  it('gives the close control a 52x52 HIT box while its layout box stays 32x32 (the web`s hitSlop)', () => {
+    render(
+      <ModalShell title="x" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    const close = screen.getByRole('button', { name: 'Close' })
+    const pad = Number.parseInt(close.style.padding, 10)
+    const bleed = Number.parseInt(close.style.margin, 10)
+    // The painted+clickable box, and the box the flex row measures.
+    expect(iconSize.md + pad * 2).toBe(52)
+    expect(iconSize.md + pad * 2 + bleed * 2).toBe(iconSize.md + spacing.xs * 2)
   })
 })

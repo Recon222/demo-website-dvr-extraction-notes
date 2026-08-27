@@ -8,7 +8,9 @@ import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/Da
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { iconSize, spacing } from '@/features/demo/ui/tokens/scale'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -52,6 +54,76 @@ const grid: CSSProperties = {
   inset: 0,
   backgroundImage: GLASS.gridOverlay,
   pointerEvents: 'none',
+}
+
+/**
+ * SEAM(U4.2): the page-sheet header bar - matrix A60, phone `ModalHeader.tsx:54-97`.
+ *
+ * The phone shipped this block byte-for-byte in five modals (`ModalHeader.tsx:4-11` names them)
+ * and again, without the icon or the close control, in every `case-management` page sheet:
+ * `NewCaseModal.tsx:252-260` is the same `elevated` LinearGradient over the same
+ * `padding: Layout.spacing.lg` + `borderBottomWidth: 1` + `borderBottomColor: glassStyle.border`.
+ * `ModalShell` is the demo's single copy of it, so it reads the tier rather than a navy of its
+ * own - the drift guard can then see a phone-side re-tint.
+ *
+ * ## `elevated`, and only two of its four parts
+ *
+ * `ModalHeader.tsx:52` takes `GlassColors[colorScheme].elevated` and spends exactly `gradient`
+ * (`:56`) and `border` (`:59`, on one edge). It never touches `highlightTop` or `innerShadow`.
+ * U1.4 made the same finding for the header tier and drew the same line: painting a part the
+ * phone leaves unpainted is invention, not a port (`controls/header-chrome.ts:20-35`).
+ *
+ * ## Longhands only, no border shorthand of any kind
+ *
+ * The lit-edge ruling (`reports/partner-lit-edge-ruling.md` §1, measured in jsdom AND Chromium
+ * across three paints) is that a glass fragment carries NO `border` / `borderColor` / `borderTop`
+ * key, and a consumer writes only colour longhands after spreading one. This bar has a single
+ * edge rather than a lit top, so it has no highlight to lose - but a `borderBottom:` shorthand
+ * here would still be the one slot that turns `{ ...modalHeaderBar, borderBottomColor: X }` into
+ * React's `conflicting property` warning and a wrong edge on paint 2. There is no reason to leave
+ * the trap in a fragment that eight surfaces render.
+ *
+ * ## No leading icon prop
+ *
+ * `ModalHeader` takes a required `icon` (`:29`). Of this shell's eight callers exactly one has a
+ * phone counterpart that passes one (`UserProfileModal.tsx:138` - `person-circle-outline`); the
+ * other seven port `case-management` page sheets whose headers carry no glyph at all. A required
+ * prop with one honest value and seven invented ones is worse than no prop, so the slot is not
+ * built here. See the U4.2 report's deferral proposals for the trigger.
+ */
+export const modalHeaderBar: CSSProperties = {
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: spacing.sm, // ModalHeader.tsx:87
+  padding: spacing.lg, // ModalHeader.tsx:85 - was 18
+  background: `linear-gradient(180deg,${GLASS_TIER[scheme].elevated.gradient[0]},${GLASS_TIER[scheme].elevated.gradient[1]})`,
+  borderBottomStyle: 'solid', // :86 `borderBottomWidth: 1`, spelled in longhands per the ruling
+  borderBottomWidth: 1,
+  borderBottomColor: GLASS_TIER[scheme].elevated.border, // :59
+}
+
+/**
+ * The header's two glyph buttons (close, and the optional back chevron).
+ *
+ * `ModalHeader.tsx:94-96` paints a `padding: Layout.spacing.xs` frame - 24 + 4 + 4 = 32 square -
+ * and then hands it `hitSlop={10}` (`:70`), taking the HIT area to 52 while the header stays
+ * 32 tall. Its own comment says that is the point: a real 44 (let alone 52) frame would grow the
+ * header by 20px.
+ *
+ * The web has no `hitSlop`. A49/DEF-UI-019's ruling is "real padding or a pseudo-element", and an
+ * inline `CSSProperties` object cannot write a pseudo-element - so the padding IS the hit area
+ * (14 each side: 24 + 28 = 52) and an equal negative margin hands the 32-square box back to the
+ * flex row. The painted glyph lands in exactly the position `padding: 4` put it, because the
+ * margin box is 32 either way and the glyph is centred in it.
+ */
+const modalHeaderIconBtn: CSSProperties = {
+  cursor: 'pointer',
+  display: 'flex',
+  background: 'transparent',
+  border: 'none',
+  padding: 14, // (52 - iconSize.md) / 2
+  margin: -10, // 14 - spacing.xs: the phone's hitSlop, spelled as layout
 }
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals.
@@ -133,26 +205,27 @@ export function ModalShell({
         }}
       >
         <div style={grid} />
-        <div style={{ position: 'relative', padding: 18, borderBottom: GLASS.border, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {onBack && (
-              <button type="button" aria-label={backLabel} onClick={onBack} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
+        <div data-modal-header style={modalHeaderBar}>
+          {onBack && (
+            <button type="button" aria-label={backLabel} onClick={onBack} style={modalHeaderIconBtn}>
+              <svg width={iconSize.md} height={iconSize.md} viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          )}
+          {/* `flex: 1` is the phone's own title style (`ModalHeader.tsx:92`): the stack takes the
+              row and pushes the close glyph to the padding edge, which is why the bar needs no
+              `justifyContent` of its own. */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: colors.text }}>{title}</div>
+            {subtitle && (
+              <div id={subtitleId} data-testid="modal-subtitle" style={{ fontSize: 13, color: colors.textSecondary, marginTop: 4 }}>
+                {subtitle}
+              </div>
             )}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8' }}>{title}</div>
-              {subtitle && (
-                <div id={subtitleId} data-testid="modal-subtitle" style={{ fontSize: 13, color: '#99badd', marginTop: 4 }}>
-                  {subtitle}
-                </div>
-              )}
-            </div>
           </div>
-          <button type="button" aria-label="Close" onClick={onClose} style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
+          <button type="button" aria-label="Close" onClick={onClose} style={modalHeaderIconBtn}>
+            <svg width={iconSize.md} height={iconSize.md} viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="2" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
