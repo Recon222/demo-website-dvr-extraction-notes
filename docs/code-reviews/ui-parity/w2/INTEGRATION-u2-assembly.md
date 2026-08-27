@@ -393,4 +393,130 @@ three uniformly, which is why it was fixed as a class rather than as one file.
 | `node .design-sync/check-rn-parity.mjs` | **0** | **117/117** anchor rows |
 | `pnpm build` | **0** | **`/demo` First Load 107 kB** ✓ |
 
-*Integrator: `dt-integrator` (Opus 5, xhigh). Gates quoted from a cold cache at `e11d3a4`.*
+---
+
+# § U2.4 assembly — phase U2 complete
+
+**Merge commit:** `231ccf3` — `origin/uiparity/u2.pickers` @ `c98590f` into `feat/uiparity-u2` @ `a69cc67`
+**Seat:** `dt-integrator` (Opus 5, xhigh)
+
+The last U2 package: `controls/choice-controls.tsx` (RadioGroup + Checkbox, A74/A75) with adoption
+scans, the recessed well's five parts, the DATE/TIME triggers, and a render pin on
+TimeOffsetScreen's outline buttons.
+
+## u.1 Zero conflicts — which is the part to be careful about
+
+`git merge` reported no conflicts and committed on its own. That is not a reason to relax, it is
+the reason to look harder: **U2.4 was cut from `e11d3a4`, before the master carry at `48eaae3`**,
+so it has never seen W1's fix rounds, F24's emptied clause-12 skip set, or the scan repair that
+carry required. The two sides edited different lines, so git had nothing to raise; the overlap is
+entirely semantic.
+
+Every repair the carry made was **re-verified present at the merged head**, not assumed:
+
+| Carry repair | Verified at |
+|---|---|
+| the clause-12 scan's record-arm skip | `glass-tokens.test.ts:303` |
+| CompletionScreen's single `padding` shorthand | `CompletionScreen.tsx` (`60px 16px 16px`) |
+| U2.1's seam at all three Field call sites | `_shared.tsx`, `NewCaseModal.tsx`, `IncidentLocationFields.tsx` |
+
+Two interactions that could only have failed here, both clean: the clause-12 scan now sweeps
+U2.4's new production modules and finds no offender, and U2.4's new inline styles pass the
+`vitest.setup.ts` conflicting-property tripwire it was written without knowledge of.
+
+The merge's auto-generated message was amended to carry the reasoning and the required trailers.
+
+## u.2 U2.4 closes integration finding I-4
+
+`§ U2 assembly` §5 raised **I-4 [MEDIUM]** — U2.2's ~45 button adoptions had no adoption scan, and
+probe **U2.2-out** proved it: reverting `TimeOffsetScreen`'s outline button to the literal U2.2
+deleted left the whole suite green at `e11d3a4`. A ledger row was proposed with trigger U2.4.
+
+**U2.4 shipped the coverage.** Re-running the identical mutation at the merged head:
+
+```
+P1/I-4  TimeOffsetScreen outline button -> the literal U2.2 deleted        EXIT 1 · KILLED
+        AssertionError: Use Current Time: expected 'rgb(75, 163, 212)' to be 'rgb(184, 212, 240)'
+```
+
+**The proposed ledger row for I-4 is withdrawn — resolved in-wave, not deferred.** U2.4 also ships
+the *class* of guard I-4 asked for: `choice-controls.test.tsx:225` scans every `.tsx` under
+`ui/` for a `role="radio"` / `role="checkbox"` in a file that does not import the shared control,
+with a two-entry `EXEMPT` map that states a reason per entry. That is exactly the adoption scan
+U2.2 lacked, and probe **P7'** confirms it bites.
+
+## u.3 Probes — 5 valid, 5 KILLED
+
+Probes in `worktrees/probe-u24` at `231ccf3`, `node_modules` junctioned from `u2-phase`, junction
+removed with `cmd /c rmdir` **before** `git worktree remove` (33 entries before and after). Every
+mutation asserted its own pattern matched and that the file changed; all mutated files restored
+**byte-identically**.
+
+| Probe | Origin | Mutation | Exit | Evidence |
+|-------|--------|----------|------|----------|
+| **P1 / I-4** | U2.4 (closes integration I-4) | `TimeOffsetScreen:77` outline → the literal U2.2 deleted | **1 · KILLED** | `expected 'rgb(75, 163, 212)' to be 'rgb(184, 212, 240)'` + a second row |
+| **P3** | U2.4 | `glassWell`'s longhands → a `border` shorthand — the W1 lit-edge shape | **1 · KILLED** | `expected […] to not include 'border'` + the object-shape pin |
+| **P7′** | U2.4 (adapted) | a hand-rolled `role="radio"` in a file with no `<RadioOption` | **1 · KILLED** | `import RadioOption from ui/controls/choice-controls instead of re-inlining the ring: expected [ 'screens/NewCaseModal.tsx' ]` |
+| **NEW** | **integrator** | a hard-coded scheme half inside U2.4's new `choice-controls.tsx` | **1 · KILLED** | `expected [ 'controls/choice-controls.tsx' ] to deeply equal []` |
+| **P3 (2nd arm)** | U2.4 | — | — | counted with P3 |
+
+**P3 is the carry interaction worth naming.** U2.4's `glassWell` uses the four `border*Color`
+longhands, and collapsing them to a `border` shorthand — the exact defect class W1's fix rounds
+existed to eliminate — reds two independent pins. U2.4 arrived at that discipline without having
+W1 in its history, and the merged tree enforces it.
+
+**NEW is the carry's scan proving itself on new territory.** The record-arm skip added in
+`§ master carry (W1)` §w.3 was defended as *"the arm, never the file"*. Here it is exercised
+against a module that did not exist when it was written: a genuine hard-coded half in
+`choice-controls.tsx` still reds.
+
+Two first attempts were malformed and are recorded rather than quietly re-rolled: a `<button …/>`
+inserted beside `<RadioOption` produced adjacent JSX with no fragment (a transform error, exit 1
+with **zero** failing tests — not a kill), and a `CSSProperties` anchor that does not exist in that
+file. Both were re-specified before being counted. An exit code without a named killer is not a
+KILLED verdict.
+
+## u.4 Phase U2 gates — cold cache at `231ccf3`
+
+`tsconfig.tsbuildinfo`, `.next/`, `node_modules/.vite`, `node_modules/.cache` deleted first. Exit
+codes captured directly.
+
+| Gate | Exit | Result |
+|------|------|--------|
+| `pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `pnpm test --silent` | **0** | 280 files · **3677 passed \| 8 todo (3685)** |
+| `node .design-sync/check-rn-parity.mjs` | **0** | **117/117** anchor rows |
+| `pnpm build` | **0** | **`/demo` First Load 107 kB** ✓ |
+
+Counts across the phase: `e11d3a4` 277 / 3620 · `48eaae3` 277 / 3634 · `231ccf3` 280 / 3677. U2.4
+adds three test files and 43 assertions; no todo moved.
+
+### Seams — 26 markers
+
+`SEAM(U2.4)` `controls/choice-controls.tsx` is new and wired. The single legitimate wait remains
+`SEAM(U6.4b)` at `CompletionScreen.tsx`, pinned by `glass-card-recipe.test.tsx` asserting the
+techGlow *"is still here"* — it reds when U6.4b removes it.
+
+## u.5 Ledger status after phase U2
+
+| Row | Status |
+|---|---|
+| A's PR-3 → trigger U7.2 (`§ W0` I-1) | **stands** |
+| A's PR-1 → trigger U2.2 (`§ W0` I-2) | **stands** — U2.2 landed without it |
+| I-4, button adoption scan → trigger U2.4 | **WITHDRAWN — resolved by U2.4** (§u.2) |
+| I-7, the tripwire never drives the Field error path → trigger U6.1 | **stands** (`§ master carry (W1)` §w.7) |
+
+## u.6 Residual risk for the phase review
+
+1. **I-7 is the open one**, and U2.4 does not touch it: `fieldInputStyle` is still the single
+   place all five text inputs resolve through, and a longhand reintroduced there still reds
+   nothing.
+2. **The adoption scan is file-level, not element-level.** `choice-controls.test.tsx:225` clears a
+   file the moment it contains `<RadioOption` anywhere, so a file that adopts the control in one
+   place and hand-rolls it in another is invisible. Narrow, and strictly better than the nothing
+   U2.2 had — noted so the next scan author does not inherit the shape unexamined.
+3. **Three U2 seams now sit under one screen.** `TimeOffsetScreen` carries U2.1's `DateTimeField`,
+   U2.2's buttons, U2.3's `Toggle` and now U2.4's render pin. It finally has a style pin; it still
+   has no render test of its own beyond that pin.
+
+*Integrator: `dt-integrator` (Opus 5, xhigh). Three merges: `e11d3a4` (U2 assembly), `48eaae3` (master carry, W1), `231ccf3` (U2.4 — phase U2 complete). Gates quoted cold at each merged head.*
