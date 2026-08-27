@@ -9,6 +9,7 @@ import type { SaveStateKind, SaveStatusView } from '@/features/demo/engine/logic
 import { APP_NAME, DEMO_VERSION_LINE } from '@/features/demo/engine/content/app-info'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
+import { glassHeaderBar, glassHeaderFooterBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface DrawerItem {
@@ -338,8 +339,7 @@ export function WizardDrawer({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '54px 18px 14px',
-                borderBottom: GLASS.border,
-                background: 'linear-gradient(180deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))',
+                ...glassHeaderBar,
               }}
             >
               <div style={{ fontSize: 21, fontWeight: 700, color: '#f0f4f8' }}>Navigation</div>
@@ -389,7 +389,10 @@ export function WizardDrawer({
               />
             </div>
 
-            <div style={{ padding: '14px 18px', borderTop: GLASS.border, textAlign: 'center', background: 'linear-gradient(0deg,rgba(26,45,68,0.6),rgba(13,27,42,0.2))' }}>
+            {/* The drawer's foot is the header tier REVERSED, exactly as the phone's is
+                (`CustomDrawerContent.tsx:436-440` - `[...gradient].reverse()` plus
+                `borderTopColor`). Not a second gradient: a re-tint of the tier moves both. */}
+            <div style={{ padding: '14px 18px', textAlign: 'center', ...glassHeaderFooterBar }}>
               {saveStatus && (
                 <div data-save-status={saveStatus.kind} style={{ fontSize: 11, marginBottom: 8, color: SAVE_STATUS_COLOR[saveStatus.kind] }}>
                   {saveStatus.text}
