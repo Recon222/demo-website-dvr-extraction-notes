@@ -1,199 +1,163 @@
-# Lane: web — W0 (phase U0), PR #39 @ 7099e54 vs master
+# Lane: web — W0 (phase U0), PR #39
 
-Mode: code review. Shared worktree read at worktrees/u0-phase (read-only). Contrast arithmetic run
-in the session scratchpad (WCAG 2.1 relative luminance + source-over compositing, independently
-implemented and cross-checked against the U0.5 report's own published figures — onPrimary on the
-two CTA stops reproduces **5.80 / 8.32** exactly, so the helper agrees with the shipped one). No
-repo file was mutated; no probe worktree was cut.
+## Round 1 (fix delta)
 
-Gates read, not re-run: _captures/w0/assembly-gates.log.build — /demo **107 kB** First Load, shared
-**106 kB**, marketing routes unmoved. Playwright before/after captures under
-_captures/w0/{before,after} (after: 6 of 10 groups present at review time).
+Head reviewed: feat/uiparity-u0 @ 15e5a6f (fix diff 10553c8..15e5a6f), shared worktree
+worktrees/u0-phase, read-only. Authority: the fix-mapping comment on PR #39. Read this round: the
+mapping table; 8f876b9 (F1) in full; 7c245fe/001627e (F6) as F1's blast radius, because LIT_GLOW
+calls withAlpha at module scope; 824df2a (F8) and 92eb61e (F10) for my MEDIUM/LOW; glass-tokens.ts,
+input-theme.ts, scale.ts:84-150 and ledger §89/§93 at head. Contrast re-measured in a per-lane
+scratchpad subdir (scratchpad/lane-web-r1/); no probe worktree needed — no mutation was required to
+settle anything this round.
 
----
-
-## CRITICAL
-
-None.
-
----
-
-## HIGH
-
-```
-[HIGH] U0.3 re-based GLASS.accentFrom to a FILL shade, but six shipped sites spend it as a
-       FOREGROUND MARK — every one falls below its WCAG floor, and the selected media tab is
-       now darker than its unselected siblings
-File: features/demo/ui/glass-tokens.ts:34 (the re-base) — consumers:
-      features/demo/ui/screens/MediaLibrarySheet.tsx:221, :222, :240, :571
-      features/demo/ui/screens/ExportModal.tsx:157
-      features/demo/ui/screens/export/ExportCaseCard.tsx:127
-Issue: ACCENT_FROM moved #35A0D6 -> #1F6B99 (= primaryDark). That is correct and sanctioned for the
-  CTA FILL it was measured against — white ON the gradient goes 2.94 -> 5.80. But GLASS.accentFrom
-  is also spent as label colour, badge colour, tab underline, selected-row rule, spinner arc and
-  card outline. Those six read in the OPPOSITE direction: darkening the token darkens the mark
-  against an unchanged (and, after U0.1, slightly LIGHTER) ground. The worst is the Media Library
-  tab strip, where the ACTIVE tab's label is now dimmer than the inactive #7a9fc4 labels beside it
-  — the selected state has become the least legible thing in the control. Nothing in the suite
-  measures this direction: every accent/link-as-text row in palette-contrast.test.ts is it.todo
-  pending U1.1, so the gate is green over it.
-Evidence: measured, per site (old -> new, on the real composited ground):
-  - MediaLibrarySheet.tsx:222  active tab label, 13px/700, on ModalShell colors.background
-      **5.92 -> 2.54**   (WCAG 1.4.3 AA text = 4.5; 13px/700 is NOT large text)
-  - MediaLibrarySheet.tsx:240  tab badge numeral, 10px/700, on rgba(43,140,193,0.16)
-      **4.83 -> 2.05**   (1.4.3)
-  - MediaLibrarySheet.tsx:221  active-tab 2px underline
-      **5.92 -> 2.54**   (1.4.11 non-text = 3.0)
-  - MediaLibrarySheet.tsx:571  selected-row 2px borderLeft
-      **5.39 -> 2.29**   (1.4.11)
-  - ExportModal.tsx:157  spinner arc vs its own track rgba(43,140,193,0.25)
-      **4.79 -> 2.32**   (1.4.11) — arc-vs-ground is 6.59 -> 3.22, still over the line, but
-      arc-vs-track is the signal, and under prefers-reduced-motion the ring does not rotate (the
-      R-18 comment at :159-162 calls it "the only static signal that work is in flight"), so track
-      separation is the ENTIRE affordance in reduced-motion mode.
-  - ExportCaseCard.tsx:127  expanded-card accent outline on GLASS.gradientPanel
-      **5.53 -> 2.74**   (1.4.11; expansion is also signalled by content, so this is the mildest of
-      the six — listed for completeness, not as the driver)
-  REPRODUCED VISUALLY, not just computed: _captures/w0/before/06-media/12-s4-library-tabs.png vs
-  _captures/w0/after/06-media/12-s4-library-tabs.png. Before: "Photos" is a bright blue tab with a
-  bright underline. After: "Photos" and its "1" badge are a dim navy, visibly darker than
-  "Video"/"Audio", and the underline has nearly vanished into the sheet.
-  The repo's own rule already names the fix: features/demo/ui/tokens/palette.ts:91-94 — "primary is
-  a FILL ... Interactive labels and their 1px outlines take link; surfaces take primary."
-  GLASS.accentFrom is now a shade DEEPER than primary, so the rule applies to it a fortiori. The
-  PR's own foundation report (u0-foundation-implementation-report.md:71-72) caught exactly one
-  member of this family — ExportCaseCard's glow, fixed with withAlpha — and then did not sweep for
-  the other six.
-Fix: keep GLASS.accentFrom for fills only, and re-point the six foreground uses at colors.link
-  (#b8d4f0) — measured **9.60** on colors.background, **7.78** on the badge fill, **12.20** on the
-  export scrim — or at colors.primaryLight (#4BA3D4, 5.24) if the design wants a saturated mark.
-  Then convert one it.todo into a live row that measures the accent-as-MARK token against its
-  grounds, so the next re-base cannot repeat this; today every accent row in
-  palette-contrast.test.ts measures only white ON the stops.
-```
+**Capture provenance, and it matters:** _captures/w0/DIFF.md:6 names the AFTER set as
+feat/uiparity-u0 @ **7099e54** — the PRE-fix head (after/06-media/12-s4-library-tabs.png is stamped
+00:52; 8f876b9 landed 01:29). **The verification seat has NOT re-run at the merged head**, so the
+AFTER captures still show the DEFECT, not the fix, and nothing below is claimed off them. The same
+applies to assembly-gates.log.build — the 107 kB First Load figure is 7099e54's.
 
 ---
 
-## MEDIUM
+### F1 (my round-0 HIGH) — six accent-as-mark sites -> colors.link · commit 8f876b9 · **FIXED**
+
+All six sites read at head, not from memory:
+
+| Site | Head | Value |
+|---|---|---|
+| active-tab underline | MediaLibrarySheet.tsx:225 | `2px solid ${isActive ? colors.link : 'transparent'}` |
+| active tab label | MediaLibrarySheet.tsx:226 | `isActive ? colors.link : '#7a9fc4'` |
+| tab badge numeral | MediaLibrarySheet.tsx:245 | `isActive ? colors.link : '#7a9fc4'` |
+| selected-row rule | MediaLibrarySheet.tsx:576 | `2px solid ${selected ? colors.link : 'transparent'}` |
+| spinner arc | ExportModal.tsx:161 | `borderTopColor: colors.link` |
+| lit card outline + glow | ExportCaseCard.tsx:49, 131-132 | `border: 1px solid ${colors.link}`; `LIT_GLOW = withAlpha(colors.link, 0.35)` |
+
+Re-measured at 15e5a6f (WCAG 2.1, source-over composited, my own implementation):
 
 ```
-[MEDIUM] The colors.background re-base pushed the 14 #2B8CC1-as-text sites from a passing 4.66 to
-         a failing 3.94 — a sanctioned change moved an inherited ceiling across the AA line
-File: features/demo/ui/tokens/palette.ts:53 (the ground) — worst-lit consumers:
-      features/demo/ui/screens/SplashScreen.tsx:61, :63, :96
-      features/demo/ui/screens/settings/SettingsNavBar.tsx:93
-      features/demo/ui/screens/settings/SettingsCategoryList.tsx:112
-      features/demo/ui/StoryRail.tsx:75
-      (+ AboutPane.tsx:88, _pane-chrome.tsx:56, FormFieldsPane.tsx:228, ExportCaseCard.tsx:161,
-       ExportLocationRow.tsx:74 — 14 sites in all)
-Issue: #2B8CC1 (colors.primary) is used as a TEXT colour at those sites, directly on the app
-  background. That background went #0d1b2a -> #002853, which is LIGHTER, so accent-on-background
-  contrast fell. It crossed the AA line in this diff: **4.66 -> 3.94** on the flat background (on
-  gradientCard it was already failing: 4.35 -> 4.25). "TAP TO SCAN" on the splash, the "Settings"
-  nav label at 16px/500 and the StoryRail chapter label are all real text at normal size.
-Evidence: the class is a documented inheritance (DEF-UI-018, restated at palette.ts:91-94 and in
-  palette-contrast.test.ts:22) and its sweep belongs to a later wave under D3 — so this is NOT a
-  request to sweep 14 literals in W0. It IS a request to record that W0 moved the baseline: the
-  later wave can no longer assume "accent-as-text on the app background passes today". Nothing in
-  the suite observes it — the link row is it.todo (palette-contrast.test.ts:293-295).
-Fix: ledger it in docs/code-reviews/deferred.md with the measured pair (4.66 -> 3.94) and a trigger
-  naming the wave that sweeps #2B8CC1 to colors.link, so the number arrives with the work instead
-  of being re-derived. No code change required in W0.
+surface                         master  same-ground pre-U0.3   U0.3    FIXED(link)   floor
+tab label / colors.background     5.92          5.01           2.54       9.60        4.5
+badge numeral / 0.16 wash         4.83          4.06           2.05       7.78        4.5
+spinner arc / its 0.25 track      4.79          3.58           1.81       6.86        3.0
+lit outline / gradientPanel       4.90          4.81           2.44       9.23        3.0
 ```
 
-```
-[MEDIUM] Two hand-typed rgba() copies of colors.border survive in the token modules — the exact
-         drift class this PR's own withAlpha fix was written to kill
-File: features/demo/ui/glass-tokens.ts:51-52
-      features/demo/ui/inputs/input-theme.ts:15-16
-Issue: both spell rgba(28,78,132,0.5) by hand with the comment "kept as a literal because CSS has
-  no alpha-on-hex". That reason expired in this same commit: withAlpha (SEAM(U0.2)) landed here and
-  withAlpha(colors.border, 0.5) returns rgba(28, 78, 132, 0.5) — the same colour, derived. Leaving
-  them typed means the next colors.border move silently splits the hairline from its own 50% wash,
-  which is precisely what ExportCaseCard's glow did before this PR fixed it by derivation.
-Evidence: features/demo/ui/screens/export/ExportCaseCard.tsx:129-132 and
-  docs/planning/demo-phone-ui-parity/reports/u0-foundation-implementation-report.md:71-72 —
-  "Re-basing only the token ships a deep-blue border with a light-blue glow. Fixed by derivation,
-  not transcription." Two sites in the token layer were not given the same treatment.
-Fix: build both borders with withAlpha(colors.border, 0.5) instead of the typed literal (and the
-  T.borderSoft mirror), then update the two string pins in glass-tokens.test.ts to the spaced form
-  that withAlpha and jsdom both produce. The spacing difference is real — the pins currently assert
-  the unspaced literal.
-```
+Every site clears its floor with room. grep at head confirms the structural claim in the commit
+message: GLASS.accentFrom now has **zero** foreground consumers — the only live references left are
+gradientAccent (the CTA fill), T.accentFrom/T.accentTo, and the @theme mirror pin. So U0.3's
+5.80/8.32 measurement is once again true of every site that spends the token.
+
+**Blast radius, checked:** LIT_GLOW is evaluated at module load, and F6 (7c245fe) added a
+warnUnparseable dev-console arm to withAlpha in the same round. #b8d4f0 takes the 6-digit hex branch
+of parseColor, so the arm is not reached and the returned string is byte-identical to the pre-F6
+result — no import-time console noise, no changed value. The two moved pins (ExportHub.test.tsx,
+ExportModal.reduced-motion.test.tsx) moved WITH the value and are the tests lane's to judge.
+
+**Ruling on the refutation — arithmetic ACCEPTED, conclusion PARTLY REJECTED.**
+The author's same-ground figures reproduce exactly on my independent implementation: **5.01 / 4.06 /
+3.58**. They are the right way to isolate U0.3's own contribution, and I accept them as such. But
+they do not support *"the inversion was latent before U0.3"* for three of the four surfaces: on the
+post-U0.1 ground with the OLD accent, the tab label (5.01 >= 4.5), the spinner arc (3.58 >= 3.0) and
+the lit outline (4.81 >= 3.0) all still CLEARED their floors. U0.3 is the sole cause at those three.
+The claim holds for exactly one site — the badge numeral, already at 4.06 < 4.5 same-ground, which
+U0.1's lighter ground broke (4.83 -> 4.06) before U0.3 drove it to 2.05.
+My round-0 pairs (5.92 -> 2.54 etc.) are master -> 7099e54, i.e. what the PR as a whole did to the
+shipped pixels, which is the number the before/after captures show and the one a user would have
+experienced. Both framings are correct and answer different questions; neither changes the fix, and
+the fix is right either way.
+
+### MEDIUM 1 — #2B8CC1-as-text crossed the AA line when the ground lightened — **FIXED as filed**
+
+I asked for a ledger entry, not a sweep. docs/code-reviews/deferred.md **§89** carries all fourteen
+sites, the measured pair (4.66 -> 3.94, plus the 4.35 -> 4.25 glass ceiling), the D3 reason, and a
+concrete trigger: matrix **A66 (U2)** + **U6** re-measure as their closing act, with any site still
+below 4.5 after U6 reopening at HIGH, and a grep-observable violation condition. That is the format's
+bar met.
+
+### MEDIUM 2 — two hand-typed rgba(28,78,132,0.5) copies of colors.border — **PARTIAL, accepted**
+
+T.borderSoft is gone (F8 824df2a) — it was dead, which is a better outcome than deriving it.
+GLASS.borderSoft (glass-tokens.ts:59-63) stays hand-typed, now with a disclosed reason I accept on
+the merits: **U1.1 derives this token from GLASS_TIER.dark.card** along with gradientCard,
+gradientPanel and borderAccent, so hand-deriving it now would be the same edit twice in the file U1.1
+opens. One residual, and it is why this is PARTIAL not FIXED: that deferral lives **only in a code
+comment**, with no ledger row and therefore no expiring trigger (§93 covers the unchanged
+high-frequency hexes, not this). The repo's own rule is "Log every deferral there before merging."
+Also note the comment's second reason — "this string is pinned byte-exactly" — is circular; the U1.1
+argument carries it alone. One ledger row with U1.1 as the trigger closes this.
+
+### LOW — marketing shell's copied backdrop — **FIXED** · commit 92eb61e (F10)
+
+components/marketing/phone-frame.tsx:6-14 now says the **geometry** is copied and the colours are
+marketing's own and deliberately do not track the demo, naming the #002853 re-base explicitly;
+:52-53 carries the matching inline note. That is the second of the two options I offered, and the
+better one — marketing is not a parity target.
+
+### LOW — withAlpha per render in ExportCaseCard — **FIXED**, folded into F1
+
+Now the module const LIT_GLOW (ExportCaseCard.tsx:49-51), citing the repo's hoist convention, and
+still derived from the same token as the outline it haloes.
 
 ---
 
-## LOW
+### New finding this round
 
 ```
-[LOW] The marketing device shell's copied screen backdrop no longer matches the demo's
-File: components/marketing/phone-frame.tsx:48
-Issue: screenStyle.background is still #0d1b2a; the demo shell it documents itself as copying moved
-  to colors.background (#002853) at features/demo/ui/PhoneFrame.tsx:60. Cosmetically near-invisible
-  — the slot is filled edge-to-edge by <AppDemo/> — so this is a maintenance note, not a visual bug.
-Evidence: components/marketing/phone-frame.tsx:6-11 states the constants are COPIED from
-  features/demo/ui/PhoneFrame.tsx and deliberately not imported (the wall). The wall test
-  (components/marketing/__tests__/phone-frame.test.tsx:56-66) guards the IMPORT, not the values, so
-  nothing notices when the copy drifts. Correctly out of palette.test.ts's scan root, which is
-  features/demo/ui/** only.
-Fix: either update the literal to #002853 with a comment naming the demo line it mirrors, or state
-  in the docblock that only the geometry is mirrored and colour is marketing's own.
+[LOW] The source guard that would keep GLASS.accentFrom fill-only was proposed by F1 and then
+      landed by nobody — the two seats each deferred to the other on one file
+File: features/demo/ui/__tests__/glass-tokens.test.ts (absent; F1 proposal in 8f876b9's message)
+Issue: F1's commit message says the guard "belongs in glass-tokens.test.ts, which another seat is
+  editing this round (F3) — proposed in the report instead of taken, to keep one writer per file."
+  F3 (696f3bb) then edited that file for the literal scans and did not add it. At head the file
+  references accentFrom only in the @theme mirror pin, the shape pin and the T alias pin — none of
+  which observes WHERE the token is spent. So the invariant F1 establishes ("zero foreground
+  consumers") is currently held by nothing but the commit message.
+Evidence: grep of accentFrom in glass-tokens.test.ts at 15e5a6f returns lines 132, 157, 195, 197
+  only. The one-writer-per-file convention is sound; what failed is that the handoff had no owner.
+Fix: one source scan in glass-tokens.test.ts asserting no file under features/demo/ui/** spells
+  GLASS.accentFrom / T.accentFrom in a color:, borderTopColor:, borderLeft: or borderBottom:
+  position — or, if that is judged too brittle, a ledger row with U1.1 as the trigger. Either is
+  fine; the current state (neither) is not.
 ```
 
-```
-[LOW] withAlpha runs on every render of every expanded export card
-File: features/demo/ui/screens/export/ExportCaseCard.tsx:130-132
-Issue: the derived glow is computed inside the JSX style object, so a regex parse + string build
-  runs per card per render. It is a module-constant expression — nothing in it depends on props.
-  Immaterial at the demo's list sizes; listed only because the repo has an explicit
-  hoist-static-styles convention (components/marketing/phone-frame.tsx:30-31).
-Evidence: a module-scope const holding withAlpha(GLASS.accentFrom, 0.35) is the same one line and
-  keeps the derivation, which is the point of the fix.
-Fix: hoist it to a module constant.
-```
+**On the coordinator's residual — four of six F1 sites carry no style pin: not mine.** Whether each
+re-pointed site needs its own rendered-value assertion is test-analyzer's call under the contract,
+and I decline to file it. The web-lane half of that concern is the token-level guard above, which is
+the one that prevents recurrence rather than detecting it site by site.
 
 ---
 
-## Web Summary
+## Web Summary (Round 1 fix delta)
 
-CRITICAL: 0 · HIGH: 1 · MEDIUM: 2 · LOW: 2
-Verdict: REVISE
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 1
+Round-0 findings: HIGH 1 **FIXED** · MEDIUM 1 **FIXED** · MEDIUM 1 **PARTIAL (accepted)** · LOW 2 **FIXED**
+Verdict: APPROVE with comments
 
-Marketing<->demo isolation: **preserved.** No file under components/, lib/ or app/(default)/ imports
-@/features/demo or the new ui/tokens/* modules (grepped, all three import forms). The @theme mirrors
---color-demo-accent-from/-to moved with the token and are consumed only by app/demo/error.tsx:45,
-which is on the /demo route; its white-on-gradient CTA IMPROVES (2.94 -> 5.80). Root layout
-untouched; no 'use client' added to any server component.
+Marketing<->demo isolation: **preserved.** The only marketing file in the fix diff is
+components/marketing/phone-frame.tsx, comments only. No import of @/features/demo or ui/tokens/* from
+components/, lib/ or app/(default)/.
 
-Bundle impact: **none.** Build log: /demo 107 kB First Load, shared-by-all 106 kB, every marketing
-route unchanged. The two new modules are plain `as const` object literals plus four pure functions —
-no runtime getters, no Proxy, no barrel re-export, no new dependency, no heavy import made static
-(mapbox-gl and pdfjs-dist remain await-imported inside their effect/function).
+Bundle impact: **none in the fix diff; unverified at the merged head.** No dependency, no import
+shape, no lazy->static change; the only new imports are `colors` into two files the demo already
+loads. The 107 kB figure in assembly-gates.log.build is 7099e54's and should be re-cut with the
+captures.
 
-Browser-resource cleanup: **n/a** — no effects, listeners, timers, object URLs or observers added or
-altered by this diff.
+Browser-resource cleanup: **n/a** — no effects, listeners, timers or observers touched.
 
-Accessibility: **gaps found** — one HIGH (six accent-as-foreground sites below their WCAG floor,
-reproduced in the before/after captures) and one MEDIUM (14 accent-as-text sites crossed the AA line
-when the ground lightened). No new dialog, focus-management, live-region, landmark or keyboard
-regressions: ModalShell, role="switch" + switchKeyDown, aria-pressed, role="progressbar" and its
-sr-only role="status" mirror are all untouched.
+Accessibility: **round-0 gaps closed.** The four re-measured surfaces clear their WCAG floors at the
+merged head (9.60 / 7.78 / 6.86 / 9.23), and the selected tab is now the most legible mark in its
+control (link 9.60 vs the inactive #7a9fc4 at 5.31) rather than the least. primaryLight was correctly
+refused: 5.24 is below the inactive tabs' 5.31, which would have preserved the visible half of the
+defect — I withdraw it as an alternative.
 
-Style-convention adherence: **correct half.** Every changed demo file stays on inline CSSProperties;
-no Tailwind class entered features/demo/ui/**; the only app/css/style.css edit is the two
-demo-scoped @theme mirrors. Lifted rules intact — radius.lg / radius.control substitute 12 and 10
-for the identical literals, and the 404 = 378 + 13x2 frame math, the 0.62 -> 251x504 / 0.78 ->
-316x634 ceil contract and [data-demo-root]'s box-sizing are untouched in both halves. No new
-keyframes, no new global CSS, no new animation needing a prefers-reduced-motion gate. withAlpha
-returns a literal rgba(r, g, b, a) as documented — never color-mix() — which is what keeps every
-derived value visible to the contrast gate.
+Style-convention adherence: **correct half.** Inline CSSProperties throughout; no Tailwind entered
+features/demo/ui/**; no lifted pixel value, frame math or keyframe touched; no new animation.
 
 Out-of-lane observations:
-- Pipeline hygiene: a scratch file I created in my own session scratchpad (.../scratchpad/c.mjs)
-  came back on a later read holding a DIFFERENT agent's contrast-table output. Nothing of mine was
-  lost (I re-ran under unique filenames and every figure above is reproduced), and my lane file was
-  written once, to this path only — but the session scratchpad is evidently not isolated per-lane
-  this round. Worth the orchestrator's attention.
-- parseColor (tokens/scale.ts:85) leaves its rgb() branch unanchored (no trailing $) and does not
-  accept 8-digit hex; withAlpha silently passes gradient strings through unchanged. All documented,
-  none reachable today — typescript-reviewer / silent-failure-hunter territory.
+- The AFTER captures and the build log are pre-fix (7099e54); the verification seat should re-cut at
+  15e5a6f before merge. Two things want eyes in that run, both unverified by me: the lit
+  ExportCaseCard outline and its halo are now a pale near-white (#b8d4f0 at 0.35) where they were a
+  saturated blue — correct by the token rule and by the numbers, but a real change in the Export
+  Hub's character; and the Media Library tab strip should now show the selected tab clearly brightest.
+- parseColor at head accepts 4- and 8-digit hex, so withAlpha('#rrggbbaa', a) now REPLACES the input's
+  own alpha rather than returning it unchanged. Documented and intended (U5.4's four sites), and no
+  current caller passes one — noting it for U5.4, not filing it.

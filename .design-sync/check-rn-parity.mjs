@@ -212,9 +212,15 @@ function readConst(text, name, opts = {}) {
  * ONE stop per call, on purpose: an anchor ROW is the unit of PARSE-FAILED isolation, so the
  * two stops of a gradient must be able to fail independently. Both go through `value`, so a
  * stop that is an identifier reference resolves like any other field.
+ *
+ * The pattern is CLOSED on the right (`\\s*\\]`) and that is the whole of review F21: without it a
+ * three-stop tuple matched, the reader silently compared only the first two, and the row
+ * reported OK against a gradient the demo cannot render. Truncation was the one malformed
+ * shape this reader accepted quietly; now it lands as PARSE-FAILED like every other one. A
+ * one-stop tuple already threw. Both callers pass 2-tuples, so nothing legitimate is lost.
  */
 export function readStop(text, key, i, opts = {}) {
-  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
+  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})\\s*\\]`))
   if (!m) throw new Error(`tuple stops not found: ${key}`)
   return value(m[i], opts.resolve)
 }
@@ -372,6 +378,14 @@ export const PALETTE_KEYS = [
 export const TIER_KEYS = ['card', 'nestedCard', 'elevated', 'header', 'sheet', 'recessed']
 export const TIER_PARTS = ['gradientTop', 'gradientBot', 'border', 'highlightTop']
 
+/**
+ * Keys whose two halves hold the SAME value by design, excluded from the stuck-reader check
+ * below. Both are `#ffffff` in either scheme (`Colors.ts:95-96`, `:201-202`) — a foreground for
+ * a filled surface does not change with the theme. Anything added here needs the same one-line
+ * justification, or it is hiding a stuck reader. None of the 24 tier keys qualifies.
+ */
+export const SCHEME_INVARIANT = ['onPrimary', 'onError']
+
 /** Both scheme halves, in report order. */
 export const SCHEMES = ['light', 'dark']
 
@@ -487,7 +501,33 @@ export function checkParity() {
   // A parse failure is drift even when both sides fail identically — an anchor that cannot
   // be read has not been proven equal.
   const drift = anchors.filter((a) => a.rn !== a.web || isParseFailed(a.rn))
-  return { anchors, drift, parseFailed }
+
+  // The third failure mode, and the one `drift` is structurally blind to (review F17): a reader
+  // STUCK on one half compares that half to itself, so every row is equal and the table is a
+  // wall of OK. Measured: flattening both tier scopes to one level printed "all 115 anchor rows
+  // match" and exited 0 while comparing light to light. It has to be computed here rather than
+  // in the vitest file, because the standalone CLI is advertised as authoritative ("exit 1 on
+  // drift or mismatch") and quoted as verification evidence — two entry points reaching opposite
+  // verdicts on the same tree is worse than either verdict alone.
+  //
+  // Parse-failed rows are skipped: they are already reported, and two identical
+  // "field not found" strings are not evidence of a stuck reader.
+  const halves = new Map()
+  for (const a of anchors) {
+    if (a.scheme !== 'light' && a.scheme !== 'dark') continue
+    const pair = halves.get(a.key) ?? {}
+    pair[a.scheme] = a
+    halves.set(a.key, pair)
+  }
+  const stuck = []
+  for (const [key, pair] of halves) {
+    if (!pair.light || !pair.dark || SCHEME_INVARIANT.includes(key)) continue
+    for (const side of ['rn', 'web']) {
+      if (isParseFailed(pair.light[side]) || isParseFailed(pair.dark[side])) continue
+      if (pair.light[side] === pair.dark[side]) stuck.push({ key, side, value: pair.light[side] })
+    }
+  }
+  return { anchors, drift, parseFailed, stuck }
 }
 
 const statusOf = (a) => (isParseFailed(a.rn) || isParseFailed(a.web) ? 'PARSE-FAILED' : a.rn === a.web ? 'OK' : 'DRIFT')
@@ -499,7 +539,7 @@ if (invokedDirectly) {
     console.log(`skip: RN repo not found at ${RN}`)
     process.exit(0)
   }
-  const { anchors, drift, parseFailed } = checkParity()
+  const { anchors, drift, parseFailed, stuck } = checkParity()
   // 30 fits `nestedCard.highlightTop.light`, the longest label in the set.
   for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(30)} RN=${a.rn}  web=${a.web}`)
   if (parseFailed.length) {
@@ -507,13 +547,21 @@ if (invokedDirectly) {
     for (const p of parseFailed) console.error(`  ${p.label}: RN=${p.rn}  web=${p.web}`)
     console.error('A moved or renamed constant. Repoint the reader in .design-sync/check-rn-parity.mjs.')
   }
+  if (stuck.length) {
+    console.error(
+      `\n✗ ${stuck.length} anchor row-pair(s) read the SAME value for light and dark — a reader is STUCK on one half:`,
+    )
+    for (const s of stuck) console.error(`  ${s.key} (${s.side} side): both halves read ${s.value}`)
+    console.error('A scope that names the tier but not the scheme lands on the LIGHT half for BOTH')
+    console.error('schemes, which reports zero drift while proving nothing. Re-read the scope markers.')
+  }
   if (drift.length) {
     console.error(`\n✗ ${drift.length} anchor row(s) drifted between the RN app and the web demo:`)
     for (const d of drift) console.error(`  ${d.label}: RN Colors.${d.scheme} = ${d.rn}, web = ${d.web}`)
     console.error('\nUpdate features/demo/ui/tokens/palette.ts (or tokens/scale.ts / glass-tokens.ts for')
     console.error('the touch floor and the accent stops) to match the phone, or vice-versa.')
-    process.exit(1)
   }
+  if (drift.length || stuck.length) process.exit(1)
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
       `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +

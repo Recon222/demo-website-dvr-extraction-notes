@@ -245,14 +245,21 @@ describe('the card recipe reaches every glassCard consumer (U1.2 / A31, A32, A44
     }
   })
 
-  it('composes the fragment in the order the phone publishes (border, THEN border-top-color)', () => {
-    // Not a restatement of the `toEqual` in glass-tokens.test.ts: that pins the VALUES, this
-    // pins the ORDER, and the order is what a re-sort of the object literal destroys without
-    // changing a single value. `Object.keys` is the insertion order React replays into the
-    // style declaration.
-    const keys = Object.keys(glassCard)
-    expect(keys.indexOf('borderTopColor')).toBeGreaterThan(keys.indexOf('border'))
-    expect(keys.indexOf('border')).toBeGreaterThanOrEqual(0)
+  it('carries NO border shorthand key — the ruled fragment shape', () => {
+    // What replaced the old key-ORDER pin, and it is the stronger invariant. Ordering only
+    // mattered while a shorthand existed to be ordered against; the measured ruling
+    // (`partner-lit-edge-ruling.md` §3, 40 cells x 3 paints, jsdom AND Chromium, zero
+    // disagreement) is that a fragment carrying ANY of these keys hands its consumers a trap
+    // no ordering can close — `{ ...f, border: X }` was OK on first paint and wrong on the
+    // next. Longhands only leaves nothing to clobber.
+    for (const fragment of [glassCard, glassCardNested]) {
+      for (const banned of ['border', 'borderColor', 'borderTop'] as const) {
+        expect(Object.keys(fragment), `a card fragment must not carry \`${banned}\``).not.toContain(banned)
+      }
+      expect(Object.keys(fragment)).toEqual(
+        expect.arrayContaining(['borderStyle', 'borderWidth', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'borderTopColor']),
+      )
+    }
   })
 })
 
@@ -504,5 +511,148 @@ describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
     expect(GLASS.gradientPanel).toBe(
       `linear-gradient(180deg,${tier.elevated.gradient[0]},${tier.elevated.gradient[1]})`,
     )
+  })
+})
+
+/**
+ * The lit-edge composition rule, as RULED — `partner-lit-edge-ruling.md` §3-§4.
+ *
+ * Settled by measurement, not argument: 40 cells x 3 paints in jsdom AND real Chromium
+ * (react-dom 19.2.3), zero OK/XX disagreement between the two environments. Two earlier
+ * answers this file used to encode both fell over in that matrix:
+ *
+ *   - `{ ...f, borderColor: X, borderTopColor: h }` — spread keeps a duplicate key at the
+ *     FIRST occurrence's position with the LAST value, so the "re-set" edge collapses back
+ *     into the spread's slot and the shorthand lands after it. Wrong on first paint.
+ *   - lifting the edge out of the fragment first — right on first paint, wrong on the next:
+ *     React writes only the keys that CHANGED, so an unchanged `borderTopColor` is skipped
+ *     while the changed shorthand is written.
+ *
+ * The ruling removes the trap from the FRAGMENT rather than asking consumers to dodge it:
+ * `glassCard` and `glassCardNested` carry `borderStyle` / `borderWidth` / the three side
+ * colour longhands / `borderTopColor`, and NO shorthand key at all. A consumer then re-tints
+ * with colour longhands, and there is nothing left that can clobber the edge on any paint.
+ *
+ * The cells below are the ruling's own: p1, p2, and the conditional case that is A2's unique
+ * win — when the side longhands COLLAPSE out of the object, the sides self-heal to the
+ * fragment's own tint instead of falling back to `currentColor` (Chromium) / `""` (jsdom),
+ * which is what every shorthand-carrying shape did.
+ */
+describe('the lit-edge composition rule (ruled: fragments carry only longhands)', () => {
+  const TINT = 'rgb(1, 1, 1)'
+  const TINT2 = 'rgb(2, 2, 2)'
+  const sideLonghands = (tint: string) => ({
+    borderRightColor: tint,
+    borderBottomColor: tint,
+    borderLeftColor: tint,
+  })
+
+  it('p1 — a re-tinted card keeps its lit edge on first paint', () => {
+    const { container } = render(<div style={{ ...glassCard, ...sideLonghands(TINT) }} />)
+    const el = container.firstElementChild as HTMLElement
+    expect(el.style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el.style.borderRightColor).toBe(TINT)
+    expect(el.style.borderBottomColor).toBe(TINT)
+    expect(el.style.borderLeftColor).toBe(TINT)
+  })
+
+  it('p2/p3 — and across updates that change the tint', () => {
+    const Card = ({ tint }: { tint: string }) => <div style={{ ...glassCard, ...sideLonghands(tint) }} />
+    const { container, rerender } = render(<Card tint={TINT} />)
+    const el = () => container.firstElementChild as HTMLElement
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    rerender(<Card tint={TINT2} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderRightColor).toBe(TINT2)
+    rerender(<Card tint={TINT} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderRightColor).toBe(TINT)
+  })
+
+  it('the CONDITIONAL form self-heals — sides collapse back to the fragment tint, not to nothing', () => {
+    // `...(expanded && sideLonghands(T))` — the shape a real consumer writes for a lit/idle
+    // card. Every shorthand-carrying fragment left `border-left-color` at `currentColor` /
+    // `""` on the collapse render (ruling Appendix A, `removeSides`); the longhands-only
+    // fragment restores its own tint, because that is the only declaration left standing.
+    const Card = ({ expanded }: { expanded: boolean }) => (
+      <div style={{ ...glassCard, ...(expanded && sideLonghands(TINT)) }} />
+    )
+    const { container, rerender } = render(<Card expanded />)
+    const el = () => container.firstElementChild as HTMLElement
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(TINT)
+    rerender(<Card expanded={false} />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(SIDE_BORDER)
+    rerender(<Card expanded />)
+    expect(el().style.borderTopColor).toBe(HIGHLIGHT)
+    expect(el().style.borderLeftColor).toBe(TINT)
+  })
+
+  // Negative controls. Not wishes: if React or jsdom ever stopped resolving a duplicate spread
+  // key at the first occurrence's position, or started re-writing unchanged style keys, these
+  // fail and the ruling gets re-derived instead of trusted (the ruling names them as exactly
+  // that tripwire). Both cells are silent in React's own detector, which is why the
+  // `conflicting property` guard in `vitest.setup.ts` is a complement to them and not a
+  // replacement.
+  it('NEGATIVE CONTROL — a `borderColor` override after the spread loses the edge on first paint', () => {
+    const { container } = render(<div style={{ ...glassCard, borderColor: TINT }} />)
+    expect((container.firstElementChild as HTMLElement).style.borderTopColor).toBe(TINT)
+  })
+
+  it('NEGATIVE CONTROL — a `border` override now loses it on FIRST paint too, not on the second', () => {
+    // The ruling's headline change for this fragment. Under the old shape this cell was
+    // `OK p1, FAIL p2` — a trap that shipped green through a first-render-only test. With no
+    // shorthand in the fragment there is nothing for `border` to agree with, so it is wrong
+    // immediately and any render-once pin catches it.
+    const { container } = render(<div style={{ ...glassCard, border: `1px solid ${TINT}` }} />)
+    expect((container.firstElementChild as HTMLElement).style.borderTopColor).toBe(TINT)
+  })
+
+  it('a boxShadow override after the spread drops the tier inset — compose instead', () => {
+    const own = '0 0 12px rgba(43,140,193,0.2)'
+    render(
+      <>
+        <div data-testid="replaced" style={{ ...glassCard, boxShadow: own }} />
+        <div data-testid="composed" style={{ ...glassCard, boxShadow: `${glassCard.boxShadow}, ${own}` }} />
+      </>,
+    )
+    const inset = `inset 0 1px 0 ${tier.card.innerShadow}`
+    expect(screen.getByTestId('replaced').style.boxShadow).not.toContain(inset)
+    expect(screen.getByTestId('composed').style.boxShadow).toContain(inset)
+    expect(screen.getByTestId('composed').style.boxShadow).toContain(own)
+  })
+})
+
+/**
+ * F19 — `GLASS.shadowCard` carries BOTH scheme halves, like every other value in the wave.
+ *
+ * D2 as amended, verbatim: "Nothing hard-codes a dark value that has a light sibling." The
+ * phone's light card shadow is not the dark one at a different alpha — it is TINTED
+ * (`rgba(30,58,138,0.18)`, not black) and cast one pixel shorter, because a neutral black
+ * shadow disappears against white (`Layout.ts:115-137`).
+ *
+ * Nothing anchors this: `Layout.shadow` is one of the three things the phone's design-sync
+ * generator deliberately does not emit, and RN spells it as five props no CSS-shaped anchor
+ * can read (ledger §95). These two literals ARE the gate.
+ */
+describe('the card elevation shadow ships both halves (F19 / A44, D2)', () => {
+  it('transcribes Layout.shadow.card, both schemes, and consumes the rendered one', async () => {
+    const { SHADOW_CARD } = await import('@/features/demo/ui/glass-tokens')
+    expect(SHADOW_CARD).toEqual({
+      // `Layout.ts:123-128` — shadowColor `rgba(30, 58, 138, 0.18)`, offset {0,3},
+      // shadowOpacity 1 (so the colour's own alpha is final), radius 8.
+      light: '0 3px 8px rgba(30,58,138,0.18)',
+      // `Layout.ts:130-136` — `#000`, offset {0,4}, shadowOpacity 0.15, radius 8.
+      dark: '0 4px 8px rgba(0,0,0,0.15)',
+    })
+    // Pins that the consumed half is the one that ships. It does NOT catch the indirection
+    // being SEVERED back to a spelled `'0 4px 8px rgba(0,0,0,0.15)'` — measured, probe Q7,
+    // SURVIVED (exit 0) — because the severed literal equals `SHADOW_CARD[scheme]` while
+    // `scheme` is `'dark'`, and a literal-vs-reference distinction is not observable at
+    // runtime (same class as U1.1's P4b). That is exactly the class W1/F18 files against
+    // `GLASS_TIER.dark`, and its source scan is the mechanism that catches it: `SHADOW_CARD`
+    // belongs in that scan's list. Not duplicated here — F18's owner holds that file.
+    expect(GLASS.shadowCard).toBe(SHADOW_CARD[scheme])
   })
 })
