@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CSSProperties } from 'react'
-import { render } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import {
   SCRIM_FADE_KEYFRAME,
   SHEET_ENTER_MS,
@@ -21,6 +21,8 @@ import {
   sheetTitle,
 } from '@/features/demo/ui/controls/sheet-chrome'
 import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
+import { ExportActionSheet } from '@/features/demo/ui/screens/ExportActionSheet'
+import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
@@ -267,5 +269,34 @@ describe('motion constants', () => {
     // `animationType="slide"` translated both. The two must not share a keyframe.
     expect(SCRIM_FADE_KEYFRAME).not.toBe(SHEET_SLIDE_KEYFRAME)
     expect(SHEET_SLIDE_KEYFRAME).toBe('sheetUp')
+  })
+})
+
+describe('A46 — one upward cast, three sheets', () => {
+  it('is the SAME shadow on the picker sheet, the export action sheet and the map sheet', () => {
+    // The matrix calls these "four near-misses of one recipe". Three of them are sheets and
+    // take it here; the fourth is `TabBar.tsx:80`, which is A63's flat bar and U8.3's row.
+    // Relational on purpose: each assertion reads `SHEET_SHADOW`, so re-hardcoding any one of
+    // them reds, and moving the recipe moves all three together.
+    render(
+      <ExportActionSheet
+        options={[{ id: 'case', label: 'Export Case' }]}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+    expect(screen.getByTestId('export-action-sheet').style.boxShadow).toBe(SHEET_SHADOW)
+    cleanup()
+
+    render(
+      <MapBottomSheet
+        items={[]}
+        statusCounts={{ started: 0, working: 0, complete: 0 }}
+        snapIndex={1}
+        onSnapChange={() => {}}
+        contentMode="list"
+      />,
+    )
+    expect(document.querySelector<HTMLElement>('[data-map-sheet]')!.style.boxShadow).toBe(SHEET_SHADOW)
   })
 })
