@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 
 export interface PdfPreviewProps {
   title: string
@@ -125,14 +126,14 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Focus return (deferred §21): remember the opener at mount, hand focus back on unmount so a
-  // keyboard user lands back on the "Preview / Export" button they came from.
-  useEffect(() => {
-    const opener = document.activeElement
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
+  // Focus return (deferred §21): hand focus back on unmount so a keyboard user lands back on the
+  // "Preview / Export" button they came from.
+  //
+  // W3 r1 F64 / ledger §103: the mount-time `document.activeElement` read this replaces was the
+  // broken shape, and §103 names this layer as the other likeliest reproducer — its opener also
+  // disables itself. NO `focusRef` argument, deliberately: this layer never took focus on mount
+  // and giving it one here would be a behaviour change riding a mechanism fix.
+  useOpenerFocusReturn()
 
   const content = (
     <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'absolute', inset: 0, zIndex: 43, background: '#11151c', display: 'flex', flexDirection: 'column', animation: reducedMotion ? undefined : 'screenIn 0.3s ease', pointerEvents: 'auto' }}>

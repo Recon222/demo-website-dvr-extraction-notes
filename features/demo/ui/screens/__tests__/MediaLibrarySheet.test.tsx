@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
-import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import {
+  MEDIA_CLOSE_CHIP,
+  listReset,
+  MediaLibrarySheet,
+  previewActionFace,
+  sampleBadge,
+  type MediaLibrarySheetProps,
+} from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
 
@@ -567,6 +575,40 @@ describe('the fullscreen preview (row 65)', () => {
     expect(document.activeElement).toBe(opener)
   })
 
+  /**
+   * W3 r1 F64 / ledger §103 — the regression class the shared hook exists for.
+   *
+   * The block this replaces read `document.activeElement` AT MOUNT. When the opener is disabled
+   * (or otherwise blurred) by the very action that raises the overlay, focus has already fallen
+   * to `<body>` before React runs passive effects, so the "opener" captured was `<body>` and the
+   * hand-back went nowhere — the keyboard user is dropped at the top of the document.
+   *
+   * `useOpenerFocusReturn` captures the origin at GESTURE time (a capture-phase `pointerdown`),
+   * so the real button survives the blur. The blur below is what a self-disabling opener does.
+   *
+   * MUTATION: restore the old five-line block (`const opener = document.activeElement` at mount).
+   * The pin reds — focus lands on `<body>`, not on the button.
+   */
+  it('returns focus to an opener that lost it before the layer mounted (F64)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    const opener = screen.getByRole('button', { name: 'View fullscreen' })
+    opener.focus()
+
+    // The gesture arms the tracker; the blur is the self-disabling opener's own doing.
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    fireEvent.click(opener)
+    const layer = screen.getByTestId('media-fullscreen')
+    expect(document.activeElement).toBe(layer)
+
+    fireEvent.click(within(layer).getByRole('button', { name: 'Close fullscreen' }))
+
+    expect(document.activeElement).toBe(opener)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
   it('takes the same focus path for a video — no autoFocus branch (R-8)', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
     fireEvent.click(tab('Video tab, 1 items'))
@@ -640,6 +682,18 @@ describe('the item info panel (row 64)', () => {
   it('badges a bundled sample', () => {
     render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ sample: true })] }) })} />)
     expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(within(screen.getByTestId('media-preview-info')).getByText('Sample')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
   })
 
   it('shows no Sample badge for a live capture', () => {
@@ -659,6 +713,34 @@ describe('the item info panel (row 64)', () => {
 })
 
 describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
+  /**
+   * W3 r1 F61 — this file's five module-level style tables ship readonly. `as const` constrains
+   * the TYPE only, so the writes live in a never-called function (the repo's idiom,
+   * `CentredDialog.test.tsx:627-641`); each `@ts-expect-error` IS the assertion and goes unused,
+   * reddening `tsc`, the moment an `as const` is dropped for a bare `: CSSProperties`.
+   *
+   * MUTATION, and its exact form matters: `const x: CSSProperties = { … }` — the bare annotation
+   * F61 found at 35 sites. Measured (probes Q9/Q10b/Q13): that form KILLS. Dropping only
+   * `as const` while keeping `satisfies` SURVIVES, and that is a property of TypeScript rather
+   * than a weak pin — `satisfies` already pins a fresh literal's type, so `as const` adds only
+   * the `readonly` modifier, which no assignment-plus-directive can distinguish from a
+   * literal-type mismatch. The regression this guards is the annotation, and it is the only form
+   * anyone writes.
+   */
+  it('ships its module-level style tables readonly (F61)', () => {
+    const reject = () => {
+      // @ts-expect-error previewActionFace is readonly
+      previewActionFace.display = 'block'
+      // @ts-expect-error sampleBadge is readonly
+      sampleBadge.fontWeight = 400
+      // @ts-expect-error listReset is readonly
+      listReset.listStyle = 'disc'
+    }
+    expect(typeof reject).toBe('function')
+    expect(previewActionFace.width).toBe(36)
+    expect(sampleBadge.color).toBe(SAMPLE_BADGE.foreground)
+  })
+
   /**
    * MUTATION: put `<ModalShell …>` back around the body.
    *

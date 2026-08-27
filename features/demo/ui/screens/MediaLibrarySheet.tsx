@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import {
@@ -25,9 +25,11 @@ import {
 import type { MediaItem } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { GlassBottomSheet } from '@/features/demo/ui/controls/GlassBottomSheet'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { iconSize, radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
@@ -432,14 +434,17 @@ function canFullscreen(item: MediaItem): item is AvailableMedia {
  * It portals into the phone overlay root like every other overlay in this feature, so it pins to
  * the visible screen instead of scrolling with the sheet's list.
  *
- * FOCUS (R-8). `aria-modal="true"` prunes everything outside this container from the
- * accessibility tree, so leaving focus on the "View fullscreen" button that opened it stranded a
- * keyboard or screen-reader visitor OUTSIDE the only thing they could still perceive — Tab then
- * walked every hidden control behind the layer before reaching Close. The two effects below are
- * `AlertDialog`'s, verbatim in shape (`AlertDialog.tsx:55-61`): focus the container on mount
- * (`tabIndex={-1}`, so the label is announced rather than just the first button), hand focus back
- * to the opener on unmount, guarded by `isConnected` because the row that opened it may have been
- * deleted meanwhile.
+ * FOCUS (R-8, repaired by W3 r1 F64). `aria-modal="true"` prunes everything outside this
+ * container from the accessibility tree, so leaving focus on the "View fullscreen" button that
+ * opened it stranded a keyboard or screen-reader visitor OUTSIDE the only thing they could still
+ * perceive — Tab then walked every hidden control behind the layer before reaching Close.
+ *
+ * The mechanism is `useOpenerFocusReturn` (`ui/primitives/useOpenerFocusReturn.ts`), the demo's
+ * one implementation. The hand-rolled block it replaces read `document.activeElement` AT MOUNT —
+ * the shape U4.3 removed from the dialogs, because a control disabled by the action that raises
+ * an overlay has already lost focus to `<body>` before React runs passive effects. The old
+ * citation here named `AlertDialog.tsx:55-61`, lines that stopped holding the mechanism two waves
+ * ago; ledger §103 lists that stale cite as part of this finding.
  *
  * The video branch's `autoFocus` is gone with it: it solved half the problem (entry, not exit) for
  * one of the two media kinds, and two entry paths in one component is how the photo branch got
@@ -467,14 +472,7 @@ export const MEDIA_CLOSE_CHIP = 'rgba(0, 40, 83, 0.9)'
 function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
   const layerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const opener = document.activeElement
-    layerRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
+  useOpenerFocusReturn(layerRef)
 
   return (
     <PhoneOverlayPortal>
@@ -852,14 +850,17 @@ function KindGlyph({ kind }: { kind: MediaItem['kind'] }) {
 
 // ---- Styles -----------------------------------------------------------------
 
-const listReset: CSSProperties = { listStyle: 'none', margin: 0, padding: 0 }
+// W3 r1 F61 — the module-level style tables ship readonly. `as const satisfies CSSProperties`
+// and never a bare annotation: `satisfies` keeps the literal types while `as const` makes the
+// object immutable, which an annotation alone does neither of.
+export const listReset = { listStyle: 'none', margin: 0, padding: 0 } as const satisfies CSSProperties
 
-const metaLine: CSSProperties = {
+const metaLine = {
   display: 'block',
   fontSize: 11,
   color: '#7a9fc4',
   marginTop: 2,
-}
+} as const satisfies CSSProperties
 
 /**
  * The 3D-glass face shared by the header close and the two preview action buttons — phone
@@ -877,7 +878,7 @@ const metaLine: CSSProperties = {
  * writes only the keys that CHANGED. It is inert today (a module const never updates) and it is
  * a live trap the moment anything spreads or conditions it.
  */
-const glassButtonFace: CSSProperties = {
+const glassButtonFace = {
   background: 'rgba(255,255,255,0.06)', // MediaPreview.tsx:278
   borderStyle: 'solid',
   borderWidth: 1,
@@ -886,7 +887,7 @@ const glassButtonFace: CSSProperties = {
   borderTopColor: ElevatedEdges[scheme].top, // :280 — A51
   borderBottomColor: ElevatedEdges[scheme].bottom, // :281 — A51
   color: '#cdd9e6',
-}
+} as const satisfies CSSProperties
 
 /**
  * The painted disc of a preview action button — phone `ACTION_BUTTON_SIZE = 36`
@@ -902,7 +903,7 @@ const PREVIEW_ACTION_SIZE = 36
 /** Phone `ACTION_ICON_SIZE = 20` (`MediaPreview.tsx:70`), was 18 here. */
 const ACTION_ICON_SIZE = iconSize.sm
 
-const previewActionFace: CSSProperties = {
+export const previewActionFace = {
   width: PREVIEW_ACTION_SIZE,
   height: PREVIEW_ACTION_SIZE,
   borderRadius: radius.full,
@@ -910,18 +911,30 @@ const previewActionFace: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   ...glassButtonFace,
-}
+} as const satisfies CSSProperties
 
-/** The demo's sample badge, shared in appearance with the two capture screens' — a bundled
- *  asset is labelled everywhere it appears, never only where it was made. */
-const sampleBadge: CSSProperties = {
+/**
+ * The demo's sample badge — a bundled asset is labelled everywhere it appears, never only where
+ * it was made.
+ *
+ * W3 r1 F51: the three COLOURS were re-typed here rather than imported, so D12's freeze-and-
+ * defend arm rested on five hand-typed literals happening to agree while `SAMPLE_BADGE`'s
+ * docblock claimed sole ownership of all of them. They come from the seam now. Zero rendered
+ * bytes move — the three values are byte-identical to what this held.
+ *
+ * The chip GEOMETRY (9/700/0.8/uppercase, radius 6, `1px 6px`) stays local and is NOT part of
+ * F51: the seam owns the defended colours, and the finding's own scope note excludes the wider
+ * amber family. If a fourth surface ever needs the geometry too, that is the day to lift it —
+ * `sample-badge.ts` is U7.3's file, not this package's.
+ */
+export const sampleBadge = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: 0.8,
   textTransform: 'uppercase',
-  color: '#ffd07a',
-  background: 'rgba(255,200,90,0.12)',
-  border: '1px solid rgba(255,200,90,0.3)',
+  color: SAMPLE_BADGE.foreground,
+  background: SAMPLE_BADGE.background,
+  border: `1px solid ${SAMPLE_BADGE.border}`,
   borderRadius: 6,
   padding: '1px 6px',
-}
+} as const satisfies CSSProperties

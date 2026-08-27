@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import {
+  CONTROL,
+  OverlayHeader,
+  row,
+  titleText,
+  type OverlayHeaderProps,
+} from '@/features/demo/ui/chrome/OverlayHeader'
 import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -156,5 +162,58 @@ describe('OverlayHeader — placement is the caller’s', () => {
     expect(row).toHaveStyle({ position: 'absolute', top: '44px', padding: '0 20px' })
     // The discriminating assertion: the recipe's own `space-between` must have LOST.
     expect(row.style.justifyContent).toBe('flex-start')
+  })
+})
+
+describe('OverlayHeader — W3 r1 fixes', () => {
+  /**
+   * F74. `backLabel` was prose-required and type-optional, so a nameless icon-only button was
+   * constructible. The pin is a COMPILE-TIME one — the repo's established idiom for a type
+   * invariant no runtime assertion can reach (`CentredDialog.test.tsx:605-638`,
+   * `sheet-chrome.test.tsx:109-111`): each `@ts-expect-error` IS the assertion, and relaxing the
+   * type back to two optionals makes it UNUSED, which reds `tsc`.
+   *
+   * MUTATION: `type OverlayHeaderControl = { onBack?(): void; backLabel?: string }`.
+   */
+  it('cannot be given a leading control without an accessible name (F74)', () => {
+    // @ts-expect-error onBack without backLabel renders a button with no accessible name
+    const nameless: OverlayHeaderProps = { variant: 'glass', onBack: () => {} }
+    // @ts-expect-error backLabel without onBack labels a control that is never rendered
+    const orphanLabel: OverlayHeaderProps = { variant: 'glass', backLabel: 'Close camera' }
+    // Both legal arms still compile — the pair is exhaustive, not merely restrictive.
+    const withControl: OverlayHeaderProps = { variant: 'glass', onBack: () => {}, backLabel: 'Close camera' }
+    const without: OverlayHeaderProps = { variant: 'glass', title: 'Captured timestamp' }
+    expect([nameless, orphanLabel, withControl, without]).toHaveLength(4)
+  })
+
+  /**
+   * F61. The three module-level tables ship readonly — third recurrence of the F20/F38 class.
+   * `as const satisfies` and not an annotation: `satisfies` keeps `CONTROL`'s literal types, so
+   * a missing variant is still a compile error.
+   *
+   * MUTATION, and its exact form matters: `const x: CSSProperties = { … }` — the bare annotation
+   * F61 found at 35 sites. Measured (probes Q9/Q10b/Q13): that form KILLS. Dropping only
+   * `as const` while keeping `satisfies` SURVIVES, and that is a property of TypeScript rather
+   * than a weak pin — `satisfies` already pins a fresh literal's type, so `as const` adds only
+   * the `readonly` modifier, which no assignment-plus-directive can distinguish from a
+   * literal-type mismatch. The regression this guards is the annotation, and it is the only form
+   * anyone writes.
+   */
+  it('ships its style tables readonly (F61)', () => {
+    // `as const` constrains the TYPE, not the runtime object, so the writes live in a function
+    // that is never called — the repo's own idiom (`CentredDialog.test.tsx:627-641`). Executing
+    // them would really mutate a module singleton and leak into every later case in this file.
+    const reject = () => {
+      // @ts-expect-error CONTROL is readonly
+      CONTROL.cameraScrim.borderColor = 'red'
+      // @ts-expect-error row is readonly
+      row.display = 'block'
+      // @ts-expect-error titleText is readonly
+      titleText.fontWeight = 400
+    }
+    expect(typeof reject).toBe('function')
+    // ...and the tables still hold what the recipe wrote.
+    expect(CONTROL.glass.size).toBe(touchTarget.min)
+    expect(CONTROL.cameraScrim.size).toBe(48)
   })
 })

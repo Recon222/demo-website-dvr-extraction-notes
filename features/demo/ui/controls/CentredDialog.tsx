@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { useOpenerFocusReturn } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import type { ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -152,45 +153,18 @@ export const dialogScrim = {
  * `ExportModal:231` each read `document.activeElement` at mount — the path this note calls
  * broken — so consolidating onto THEM would have been a regression. It is the survivor.
  */
-let activationOrigin: HTMLElement | null = null
-let tracking = false
-
-/** What a restored focus can legally land on. Mirrors the focusable set the demo actually
- *  renders — every overlay opener here is a button or a `tabIndex` div. */
-const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]'
-
-/**
- * Can this element still take focus at RESTORE time? A disconnected or still-disabled opener
- * is not an error — it is the normal outcome of a destructive or state-changing action — so
- * focus is left where it is rather than forced somewhere arbitrary.
+/*
+ * The activation tracker, `canTakeFocus` and the mount/unmount focus effect USED TO LIVE HERE.
+ * W3 r1 F64 (ledger §103's trigger, fired and unperformed in W3) moved them to
+ * `ui/primitives/useOpenerFocusReturn.ts`, which is now the demo's one mechanism and has four
+ * callers. `trackDialogActivationOrigin` is re-exported below so this file's existing importers
+ * and `CentredDialog.test.tsx`'s tracker assertion keep working unchanged.
  *
- * Deliberately NOT applied when the origin is captured: at mount the opener is very often
- * disabled, because disabling it is what raised this dialog. That is the whole finding.
+ * What stayed: `openDialogs` below. It is dialog-STACKING policy (Escape answered by the topmost
+ * only), not focus, and §103 scopes the extraction the same way.
  */
-function canTakeFocus(el: HTMLElement | null): el is HTMLElement {
-  return !!el && el.isConnected && (el as Partial<HTMLButtonElement>).disabled !== true
-}
+export { trackDialogActivationOrigin } from '@/features/demo/ui/primitives/useOpenerFocusReturn'
 
-function rememberPointerOrigin(e: Event) {
-  const target = e.target
-  activationOrigin = target instanceof HTMLElement ? target.closest<HTMLElement>(FOCUSABLE) : null
-}
-
-function rememberKeyOrigin() {
-  // Keyboard activation fires on the focused element, and at keydown it is still focused.
-  const active = document.activeElement
-  activationOrigin = active instanceof HTMLElement && active !== document.body ? active : null
-}
-
-/** Idempotent; exported so a test can assert the tracker is armed without importing internals. */
-export function trackDialogActivationOrigin(): void {
-  if (typeof document === 'undefined' || tracking) return
-  tracking = true
-  document.addEventListener('pointerdown', rememberPointerOrigin, true)
-  document.addEventListener('keydown', rememberKeyOrigin, true)
-}
-
-trackDialogActivationOrigin()
 
 /**
  * Every mounted dialog, oldest first. Escape is answered by the LAST one only.
@@ -286,22 +260,17 @@ export function CentredDialog({
     return () => document.removeEventListener('keydown', onKey)
   }, [dismissOnEscape, onDismiss])
 
+  // Focus in, and back to the opener on unmount. W3 r1 F64: the mechanism is the shared hook now.
+  useOpenerFocusReturn(panelRef)
+
   useEffect(() => {
     // The ref OBJECT is the stack token: it is stable for this component's whole life, which a
-    // fresh `{}` per effect run would not be.
+    // fresh `{}` per effect run would not be. Ordering with the hook above does not matter — this
+    // effect touches the stack only, and the hook touches focus only.
     openDialogs.push(panelRef)
-    // The gesture's own origin wins; `document.activeElement` is the fallback for a dialog
-    // nobody clicked open (a finished pipeline, a store change). The captured value is
-    // connectivity-checked HERE as well as at restore time, so a stale origin left by an
-    // earlier interaction can never become this dialog's opener.
-    const captured = activationOrigin?.isConnected ? activationOrigin : null
-    const active = document.activeElement
-    const opener = captured ?? (active instanceof HTMLElement && active !== document.body ? active : null)
-    panelRef.current?.focus()
     return () => {
       const at = openDialogs.indexOf(panelRef)
       if (at >= 0) openDialogs.splice(at, 1)
-      if (canTakeFocus(opener)) opener.focus()
     }
   }, [])
 

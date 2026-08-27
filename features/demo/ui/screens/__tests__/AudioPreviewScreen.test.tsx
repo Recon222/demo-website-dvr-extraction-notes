@@ -3,6 +3,7 @@ import { act, render, screen, fireEvent } from '@testing-library/react'
 
 import type { CapturedMedia } from '@/features/demo/engine/logic/media'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { touchTarget } from '@/features/demo/ui/tokens/scale'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 
@@ -124,6 +125,18 @@ describe('AudioPreviewScreen — the phone surface', () => {
   it('labels a sample take as one and does not print a size it never measured (§58f)', () => {
     view({ captured: SAMPLE, defaultFilenameBase: 'sample-note' })
     expect(screen.getByText('Sample')).toBeInTheDocument()
+    /**
+     * W3 r1 F51 — D12's freeze-and-defend arm, pinned where it RENDERS.
+     *
+     * MUTATION: re-inline any one of the three values at the consumer (the state this fix
+     * repaired). Read through `SAMPLE_BADGE`, so the assertion cannot drift from the seam and
+     * a re-typed literal reds. The provenance mark is a correctness constraint, not a style.
+     */
+    expect(screen.getByText('Sample')).toHaveStyle({
+      color: SAMPLE_BADGE.foreground,
+      background: SAMPLE_BADGE.background,
+      borderColor: SAMPLE_BADGE.border,
+    })
     expect(screen.getByText(/no microphone was used/i)).toBeInTheDocument()
     expect(screen.getByText('Size not measured')).toBeInTheDocument()
   })

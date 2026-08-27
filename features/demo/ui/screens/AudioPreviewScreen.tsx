@@ -12,6 +12,7 @@ import {
 import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
 import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 
@@ -196,7 +197,9 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
 
       {captured.sample && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '1px 6px' }}>
+          {/* W3 r1 F51 — D12's defended amber comes from `SAMPLE_BADGE`, not from three
+              re-typed literals. Zero rendered bytes move. */}
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: SAMPLE_BADGE.foreground, background: SAMPLE_BADGE.background, border: `1px solid ${SAMPLE_BADGE.border}`, borderRadius: 6, padding: '1px 6px' }}>
             Sample
           </span>
           <span style={{ fontSize: 11, color: '#9fc0db', lineHeight: 1.45 }}>
