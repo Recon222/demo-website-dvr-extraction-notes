@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 import type { CSSProperties } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import { CentredDialog, DIALOG_SHADOW, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
+import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
@@ -344,5 +349,123 @@ describe('CentredDialog — the entrance is gated', () => {
     preferReducedMotion()
     mount()
     expect(panel().style.animation).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------- the fold
+
+/**
+ * §9 clause 7's census shape, as tests rather than a report line: ONE centred dialog.
+ *
+ * TWO pins, because either alone is weak. The scan catches a NEW hand-rolled panel (jsdom
+ * renders no CSS, so the source IS the invariant — `glass-tokens.test.ts`'s anti-re-drift
+ * argument, and its `norm`). The behavioural pin catches the likelier regression: a caller
+ * that imports the shell and then overrides the surface back on the element it renders.
+ */
+const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
+
+/** Whole-line comments are not code. `census.mjs:65` skips them for the same reason: this
+ *  file's own docblock names the literal it bans. */
+const isComment = (line: string): boolean => /^\s*(\/\/|\*|\/\*)/.test(line)
+
+function uiSourceLines(dir: string, out: Array<[string, string]> = []): Array<[string, string]> {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== '__tests__') uiSourceLines(p, out)
+    } else if (/\.tsx?$/.test(entry.name)) {
+      const rel = relative(UI_ROOT, p).split(sep).join('/')
+      for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) {
+        if (!isComment(line)) out.push([rel, line])
+      }
+    }
+  }
+  return out
+}
+
+/** The keys the shell owns. A caller may position and stack; it may not repaint. */
+const SURFACE_KEYS = [
+  'background',
+  'borderRadius',
+  'borderStyle',
+  'borderWidth',
+  'borderTopColor',
+  'borderRightColor',
+  'borderBottomColor',
+  'borderLeftColor',
+  'boxShadow',
+  'padding',
+  'left',
+  'right',
+  'top',
+  'transform',
+] as const
+
+const surfaceOf = (el: HTMLElement): string =>
+  SURFACE_KEYS.map((k) => `${k}:${norm(el.style[k as 'background'] ?? '')}`).join(';')
+
+describe('the fold — one centred dialog, not three', () => {
+  it('no UI source re-declares the old shared dialog cast', () => {
+    const banned = norm('0 24px 60px rgba(0,0,0,0.55)')
+    const offenders = uiSourceLines(UI_ROOT)
+      .filter(([, line]) => norm(line).includes(banned))
+      .map(([rel]) => rel)
+    expect(offenders.filter((f, i) => offenders.indexOf(f) === i)).toEqual([])
+  })
+
+  it('DIALOG_SHADOW is declared in exactly one UI source', () => {
+    const needle = norm(DIALOG_SHADOW)
+    const holders = uiSourceLines(UI_ROOT)
+      .filter(([, line]) => norm(line).includes(needle))
+      .map(([rel]) => rel)
+    expect(holders.filter((f, i) => holders.indexOf(f) === i)).toEqual(['controls/CentredDialog.tsx'])
+  })
+
+  it('all three callers render the SAME shell element shape', () => {
+    const shapes: Record<string, string> = {}
+
+    render(<AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />)
+    shapes.alert = surfaceOf(panel())
+    cleanup()
+
+    render(
+      <DeleteConfirmationModal
+        target={{ type: 'location', locationName: 'Kim', address: '' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    shapes.delete = surfaceOf(panel())
+    cleanup()
+
+    render(
+      <ExportModal
+        mode="validation"
+        validationResult={{
+          caseId: 'c1',
+          caseNumber: 'PR25-0098213',
+          validLocations: [],
+          invalidLocations: [
+            { locationId: 'l1', locationName: 'Rear Alley Camera', valid: false, errors: ['Completion date'] },
+          ],
+          allValid: false,
+          totalLocations: 1,
+          validCount: 0,
+          invalidCount: 1,
+        }}
+        onContinueAnyway={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    shapes.export = surfaceOf(panel())
+    cleanup()
+
+    expect(shapes.delete).toBe(shapes.alert)
+    expect(shapes.export).toBe(shapes.alert)
+    // …and it is the recipe's, not three matching hand-rolls.
+    expect(shapes.alert).toContain('borderRadius:12px')
+    expect(shapes.alert).toContain('padding:16px')
+    expect(shapes.alert).toContain(`borderTopColor:${norm(elevated.highlightTop)}`)
+    expect(shapes.alert).toContain('left:24px;right:24px')
   })
 })
