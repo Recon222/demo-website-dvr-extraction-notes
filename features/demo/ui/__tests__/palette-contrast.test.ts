@@ -94,9 +94,21 @@ function luminance([r, g, b]: Rgba): number {
  *  - `flattenOver` returns its input UNCHANGED when a layer is unparseable — a silent
  *    pass-through that would hand this file a plausible ratio for a nonsense colour. So every
  *    layer goes through `parse` FIRST, which throws. Do not remove that line.
+ *  - `flattenOver` treats its LAST ground as the painted surface and DISCARDS that ground's
+ *    alpha. A translucent bottom therefore composites against nothing and returns a plausible
+ *    WRONG answer rather than an error. `parse` cannot see it — the layer is valid — so the
+ *    invariant is asserted here instead of left in prose (review r1 F6 clause 2). The comment
+ *    on the ground stacks below already forbids bottoming out on a glass stop; this is what
+ *    makes that a rule instead of a hope, and U1.1 is the package that will first test it.
  */
 function flatten(stack: string[]): Rgba {
-  stack.forEach(parse)
+  const parsed = stack.map(parse)
+  const bottom = parsed[parsed.length - 1]
+  if (bottom[3] !== 1) {
+    throw new Error(
+      `palette-contrast: the bottom ground must be opaque, got ${stack[stack.length - 1]}`,
+    )
+  }
   const [top, ...grounds] = stack
   return parse(flattenOver(top, ...grounds))
 }
@@ -255,6 +267,13 @@ describe('palette contrast contract', () => {
         '#000000',
       ]),
     ).toThrow(/cannot parse/)
+
+    // …and the BOTTOM of a stack must be opaque. `flattenOver` treats its last ground as the
+    // painted surface and DISCARDS its alpha, so a translucent one yields a plausible wrong
+    // answer instead of an error: `contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])` measured
+    // 21.00 — identical to pure black — for a wash that is 90% transparent. `parse` cannot
+    // catch this one; the layer parses perfectly well. Review r1 F6 clause (2).
+    expect(() => contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])).toThrow(/bottom ground must be opaque/)
 
     // CIE76 dE. Black to white is the L* axis end to end: 100, by definition.
     expect(round(deltaE(parse('#000000'), parse('#ffffff')))).toBe(100)
