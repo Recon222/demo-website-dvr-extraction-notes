@@ -66,25 +66,43 @@ afterEach(() => {
 const renderScreen = () =>
   render(<MapScreen viewerCaseId="x" mapData={buildMapData()} onEditIncident={vi.fn()} />)
 
-describe('MapScreen — the proximity chunk fails to load', () => {
-  it('leaves the control OFF instead of asserting "Proximity ON" over an unfiltered map', async () => {
-    renderScreen()
-    await waitFor(() => expect(screen.getByTestId('proximity-toggle-button')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+/**
+ * Activation moved to long-press when U5.2 collapsed the chrome — the "Proximity" pill lives in
+ * `MapFiltersSheet` (U5.3) now, and the phone has had no on-map toggle since PR #127.
+ *
+ * The failure contract is UNCHANGED and is what this file exists for: `handleLongPress` calls the
+ * same `loadProximity()`, so a rejected chunk still has to leave the feature OFF, say so, and stay
+ * re-attemptable. The observable moved with the control: "Proximity ON" was the pill's label, and
+ * the proximity chip's PRESENCE is the same claim in the new chrome — a chip over a map that is
+ * not filtering is the exact lie §49a/R-9 forbids.
+ */
+async function longPressMap(container: HTMLElement) {
+  // `MapCanvas.onPointerDown` bails out unless `mapRef.current` exists, and mapbox arrives
+  // through a dynamic import — so the press has to wait for the reveal, not just for the DOM.
+  // The old toggle pill needed no map at all, which is why this wait is new.
+  await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const canvas = container.querySelector('[data-map-canvas]')!
+  fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
+  vi.advanceTimersByTime(500)
+  vi.useRealTimers()
+}
 
-    await waitFor(() =>
-      expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity'),
-    )
-    const toggle = screen.getByTestId('proximity-toggle-button')
-    expect(toggle).not.toHaveTextContent('Proximity ON')
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    // No radius presets, because there is no radius to choose.
-    expect(screen.queryByTestId('radius-preset-1')).not.toBeInTheDocument()
+describe('MapScreen — the proximity chunk fails to load', () => {
+  it('leaves proximity OFF instead of flying a chip over an unfiltered map', async () => {
+    const { container } = renderScreen()
+    await waitFor(() => expect(screen.getByTestId('map-search-input')).toBeInTheDocument())
+    await longPressMap(container)
+
+    await waitFor(() => expect(warn).toHaveBeenCalled())
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
+    // …and nothing else in the chrome claims a filter either.
+    expect(screen.queryByTestId('map-filter-badge')).not.toBeInTheDocument()
   })
 
   it('tells the visitor, out loud and in the console', async () => {
-    renderScreen()
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    const { container } = renderScreen()
+    await longPressMap(container)
     expect(await screen.findByText(/Proximity analysis couldn't load/)).toBeInTheDocument()
     expect(warn).toHaveBeenCalledWith(
       '[demo/map] the proximity module failed to load — proximity stays off:',
@@ -93,25 +111,25 @@ describe('MapScreen — the proximity chunk fails to load', () => {
   })
 
   it('never draws a ring, and never claims a narrowed count', async () => {
-    renderScreen()
-    await waitFor(() => expect(screen.getByTestId('map-location-count')).toHaveTextContent('3 locations'))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    const { container } = renderScreen()
+    await waitFor(() => expect(screen.getByText('3 Locations')).toBeInTheDocument())
+    await longPressMap(container)
     await waitFor(() => expect(warn).toHaveBeenCalled())
     expect(mapInstance.addSource).not.toHaveBeenCalled()
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('3 locations')
+    expect(screen.getByText('3 Locations')).toBeInTheDocument()
   })
 
   it('RE-ATTEMPTS on the next press — the rejected promise must not be parked in the ref', async () => {
-    renderScreen()
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    const { container } = renderScreen()
+    await longPressMap(container)
     await waitFor(() => expect(warn).toHaveBeenCalledTimes(1))
     // Dismiss the first notice so the second one is unambiguous.
     fireEvent.click(screen.getByText(/Proximity analysis couldn't load/))
 
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    await longPressMap(container)
     // A second breadcrumb can only exist if a second import was attempted: a memoised rejected
     // promise has already run its single `.catch` and would stay silent forever.
     await waitFor(() => expect(warn).toHaveBeenCalledTimes(2))
-    expect(screen.getByTestId('proximity-toggle-button')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
   })
 })

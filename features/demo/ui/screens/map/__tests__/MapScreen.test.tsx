@@ -68,6 +68,11 @@ beforeEach(() => {
   })
   // Past CLUSTER_MAX_ZOOM so the tiny fixtures plot as individual pins unless a test says otherwise.
   mapInstance.getZoom.mockReturnValue(16)
+  // ~13 km from every fixture pin unless a test aims the long press somewhere else. Restored
+  // HERE and not just cleared, because `mockClear` above keeps the implementation: a
+  // `mockReturnValue` set inside one case would otherwise steer the next one's long press
+  // (the same leak class R-26c closed for call counts).
+  mapInstance.unproject.mockReturnValue({ lng: -79.7, lat: 43.7 })
   vi.stubEnv('NEXT_PUBLIC_MAPBOX_TOKEN', 'pk.test')
 })
 afterEach(() => {
@@ -202,23 +207,62 @@ function renderRich(over: Partial<Parameters<typeof MapScreen>[0]> = {}) {
   return render(<MapScreen viewerCaseId="x" mapData={buildRichMapData()} onEditIncident={vi.fn()} {...over} />)
 }
 
+/**
+ * Activate proximity the only way the visitor still can (U5.2).
+ *
+ * The `proximity-toggle-button` pill and the four `radius-preset-*` pills moved into
+ * `MapFiltersSheet` (U5.3), so long-press is the surviving on-map route — which is also the
+ * phone's: `MapControls` has had no proximity toggle since PR #127, and the chip's ✕ is the
+ * only on-map way back off. Aiming `unproject` is what makes a long press land near the
+ * fixtures instead of the default ~13 km away.
+ */
+function longPressMap(container: HTMLElement, at?: { lng: number; lat: number }) {
+  if (at) mapInstance.unproject.mockReturnValue(at)
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const canvas = container.querySelector('[data-map-canvas]')!
+  fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
+  vi.advanceTimersByTime(500)
+  vi.useRealTimers()
+}
+
+/** Inside the ring: near the two clustered fixtures, ~2.5 km from the far annex. */
+const NEAR_THE_PINS = { lng: -79.6, lat: 43.6 }
+
+/**
+ * U5.2 collapsed the chrome: the status pills, the Clear pill, the proximity toggle, the four
+ * radius presets and the `map-location-count` pill are gone (matrix "pill-chrome deletion"), and
+ * `MapFiltersSheet` (U5.3) is where they land. Everything below that used to be driven through one
+ * of those controls is now driven through a route that still exists — the search field, a map
+ * long-press, the chip's ✕, or the sheet's own Clear button — and keeps its original assertion.
+ *
+ * What has NO surviving route is parked as `it.todo` naming U5.3, never deleted: a todo is loud in
+ * the reporter, a deletion is silent. That is this repo's own idiom for a pin whose surface does
+ * not exist yet (`ui/__tests__/palette-contrast.test.ts:740`, and plan §5 U0.5's "land them
+ * `it.todo` and un-todo in U5.2").
+ */
 describe('MapScreen — status + text filters', () => {
-  it('starts unfiltered, with the count badge covering every plottable location', async () => {
+  it('starts unfiltered, with the sheet header covering every plottable location', async () => {
     renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('3 locations')
+    // The count moved out of the deleted `map-location-count` pill; the sheet header is where a
+    // no-proximity total is still stated.
     expect(screen.getByText('3 Locations')).toBeInTheDocument()
   })
 
-  it('a status pill narrows the pins, the sheet list and the sheet header together', async () => {
+  it('a text filter narrows the pins, the sheet list and the sheet header together', async () => {
     renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('status-toggle-complete'))
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'Rear' } })
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
     expect(screen.getByText('1 Location')).toBeInTheDocument()
     expect(screen.queryByText('Loading dock')).not.toBeInTheDocument()
     expect(screen.getByText('Rear door')).toBeInTheDocument()
   })
+
+  // The STATUS half of the same pipeline. `mapFilters.test.ts` pins `matchesStatusFilter` and
+  // `toggleStatus` as functions; what is parked is the screen-level wiring, which U5.3 restores
+  // through the sheet's status chips (`onStatusToggle` emits the full array).
+  it.todo('(U5.3) a status chip narrows the pins, the sheet list and the sheet header together')
 
   it('keeps the incident pin through a filter that matches no location', async () => {
     renderRich()
@@ -236,83 +280,92 @@ describe('MapScreen — status + text filters', () => {
     expect(screen.getByText('Rear door')).toBeInTheDocument()
   })
 
-  it('counts both filter slots on the Clear pill and restores everything on clear', async () => {
-    renderRich()
+  it('renders NO filters button at all until a sheet is wired — no affordance that lies', async () => {
+    // `MapScreen` deliberately omits `onOpenFilters` until U5.3 mounts `MapFiltersSheet`
+    // (§49a: "a mount without a handler simply has no button, rather than a button that swallows
+    // every press"). Search stays whole, so the bar is a working search bar rather than a broken
+    // filter bar.
+    const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('status-toggle-started'))
-    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'dock' } })
-    await waitFor(() => expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear (2)'))
-    fireEvent.click(screen.getByTestId('clear-filters-button'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear')
-    expect(screen.getByTestId('map-search-input')).toHaveValue('')
+    expect(screen.queryByTestId('map-open-filters')).not.toBeInTheDocument()
+    expect(screen.getByTestId('map-search-input')).toBeInTheDocument()
+
+    // …and that stays true with something to count, which is the case a "just render it disabled"
+    // regression would sail through.
+    longPressMap(container, NEAR_THE_PINS)
+    await waitFor(() => expect(screen.getByTestId('proximity-chip')).toBeInTheDocument())
+    expect(screen.queryByTestId('map-filter-badge')).not.toBeInTheDocument()
   })
+
+  // `MapScreen`'s badge derivation — `filters.statuses.length + (proximityActive ? 1 : 0)` — is
+  // pinned inside `MapControls` (rendering, label, threshold, fill) but not yet AT the screen,
+  // because the screen paints no filters button until U5.3 supplies `onOpenFilters`. U5.3 un-todos
+  // this by asserting three statuses + proximity reads 4 while `countActiveFilters` reads 3.
+  it.todo('(U5.3) the filters badge counts active statuses + proximity, never the search text')
+
+  // The Clear pill went into the sheet's footer as "Clear All". The sheet's EMPTY-state clear
+  // route survives and is pinned below ("names the FILTER, offers Clear, …"); what is parked is
+  // the two-slot count that used to ride on the pill's own label.
+  it.todo('(U5.3) counts both filter slots on the sheet footer`s Clear All, and restores on clear')
 
   it('drops a detail card whose location the filter just removed', async () => {
     renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     fireEvent.click(screen.getByText('Loading dock'))
     expect(screen.getByText('Location Details')).toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('status-toggle-complete'))
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'Rear' } })
     await waitFor(() => expect(screen.queryByText('Location Details')).not.toBeInTheDocument())
   })
 })
 
 describe('MapScreen — proximity', () => {
-  it('activating narrows to the radius, draws the ring and reports "N of M"', async () => {
-    renderRich()
+  it('activating narrows to the radius, draws the ring and reports "N of M" on the chip', async () => {
+    const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    longPressMap(container, NEAR_THE_PINS)
     // The Turf module is fetched on first activation.
     await waitFor(() => expect(mapInstance.addSource).toHaveBeenCalledWith('demo-proximity-ring', expect.anything()))
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('2 of 3 locations')
-    expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity ON')
+    // The "N of M" the deleted count pill used to carry now rides on the proximity chip — the
+    // phone's own home for it, and the only place it is stated at all.
+    expect(screen.getByTestId('proximity-chip')).toHaveTextContent('1 km · 2 of 3')
   })
 
-  it('the radius presets widen and tighten the surviving set', async () => {
-    renderRich()
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(2)) // 1 km default
-    fireEvent.click(screen.getByTestId('radius-preset-5'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('radius-preset-0.5'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
-  })
+  // The four radius presets moved into the sheet, so there is no on-map route to a radius change.
+  // `mapProximity.test.ts` still pins the radius maths; what is parked is the screen wiring.
+  it.todo('(U5.3) the sheet`s radius chips widen and tighten the surviving set')
 
-  it('deactivating restores every location and tears the ring down', async () => {
-    renderRich()
+  it('the chip ✕ restores every location and tears the ring down', async () => {
+    const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    longPressMap(container, NEAR_THE_PINS)
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    fireEvent.click(screen.getByTestId('proximity-chip-dismiss'))
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     expect(mapInstance.removeSource).toHaveBeenCalledWith('demo-proximity-ring')
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('3 locations')
+    // Off means gone: the chip is the whole on-map indication that proximity is running.
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
   })
 
   it('a long press on the map activates proximity at the pressed coordinate', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
     const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
-    vi.advanceTimersByTime(500)
-    vi.useRealTimers()
-    await waitFor(() => expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity ON'))
-    // unproject is stubbed to a coordinate ~11 km from every fixture pin, so nothing survives.
+    longPressMap(container)
+    await waitFor(() => expect(screen.getByTestId('proximity-chip')).toBeInTheDocument())
+    // unproject defaults to a coordinate ~13 km from every fixture pin, so nothing survives.
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(0))
   })
 
-  it('stacks with the status filter — proximity narrows what the filter already left', async () => {
-    renderRich()
+  it('stacks with the text filter — proximity narrows what the filter already left', async () => {
+    const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('status-toggle-started'))
+    // "ar" matches "Rear door" (0 km) and "Far annex" (3.3 km) but not "Loading dock", so the
+    // text filter leaves 2 and the 1 km ring then drops one — "1 of 2" only exists if both
+    // stages ran, in that order.
+    fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'ar' } })
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('1 of 2 locations')
+    longPressMap(container, NEAR_THE_PINS)
+    await waitFor(() => expect(screen.getByTestId('proximity-chip')).toHaveTextContent('1 km · 1 of 2'))
   })
 })
 
@@ -327,29 +380,26 @@ describe('MapScreen — the sheet never lies about why it is empty (review R-6)'
     expect(empty).toHaveAttribute('data-empty-reason', 'filters')
     expect(empty).toHaveTextContent('No locations match your filters.')
     expect(empty).not.toHaveTextContent('add an address')
-    // The badge is the contradiction the visitor needs — it must not vanish at zero.
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('No locations match')
+    // The `map-location-count` pill that used to carry the contradiction ("No locations match")
+    // is deleted with the rest of the pill chrome. It was insurance against the sheet's OWN copy
+    // lying, and review R-6 fixed that copy — which is the sentence being read one line above.
 
     fireEvent.click(screen.getByTestId('map-sheet-clear-filters'))
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     expect(screen.queryByTestId('map-sheet-empty')).not.toBeInTheDocument()
   })
 
-  it('names PROXIMITY when the radius is what emptied it, and shows "0 of 3"', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
+  it('names PROXIMITY when the radius is what emptied it, and the chip shows "0 of 3"', async () => {
     const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    // Long-press far from every fixture pin (the unproject stub is ~13 km away).
-    const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
-    vi.advanceTimersByTime(500)
-    vi.useRealTimers()
+    // Long-press far from every fixture pin (the unproject default is ~13 km away).
+    longPressMap(container)
 
     const empty = await screen.findByTestId('map-sheet-empty')
     expect(empty).toHaveAttribute('data-empty-reason', 'proximity')
     expect(empty).toHaveTextContent('No locations inside the proximity radius')
     expect(screen.queryByTestId('map-sheet-clear-filters')).not.toBeInTheDocument()
-    expect(screen.getByTestId('map-location-count')).toHaveTextContent('0 of 3 locations')
+    expect(screen.getByTestId('proximity-chip')).toHaveTextContent('1 km · 0 of 3')
   })
 
   it('keeps the no-data sentence when a search runs on a nothing-plottable case (MR-3)', async () => {
@@ -381,8 +431,8 @@ describe('MapScreen — the sheet never lies about why it is empty (review R-6)'
     const node = await screen.findByTestId('map-sheet-empty')
     expect(node).toHaveAttribute('data-empty-reason', 'no-data')
     expect(node).toHaveTextContent('No located locations yet')
-    // Nothing to count, so no badge either.
-    expect(screen.queryByTestId('map-location-count')).not.toBeInTheDocument()
+    // Nothing filtering, so no chip either — the chrome is a bare search bar over an empty map.
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
   })
 })
 
@@ -403,65 +453,41 @@ describe('MapScreen — the camera is never yanked (review R-1)', () => {
     expect(afterFirstNarrow).toBeGreaterThanOrEqual(before)
   })
 
-  it('does not re-fit on proximity activation or on a radius change', async () => {
-    renderRich()
+  it('does not re-fit on proximity activation', async () => {
+    const { container } = renderRich()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     const before = mapInstance.fitBounds.mock.calls.length
     const beforeSingle = mapInstance.setZoom.mock.calls.length
 
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
+    longPressMap(container, NEAR_THE_PINS)
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
-    fireEvent.click(screen.getByTestId('radius-preset-0.5'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(1))
 
     // Neither the bbox fit nor the single-survivor centre+zoom teleport may fire.
     expect(mapInstance.fitBounds.mock.calls.length).toBe(before)
     expect(mapInstance.setZoom.mock.calls.length).toBe(beforeSingle)
   })
+
+  // The radius half of the same guard: tightening 1 km → 0.5 km must not re-frame either. No
+  // on-map radius control survives U5.2's collapse, so the second half waits for the sheet.
+  it.todo('(U5.3) does not re-fit on a radius change')
 })
 
+/**
+ * The anchor chain — `handleProximityToggle`'s ON branch — has NO caller between U5.2 and U5.3.
+ *
+ * It only ever ran when proximity was switched on without a coordinate, and the one control that
+ * did that (the "Proximity" pill) moved into `MapFiltersSheet`. A long press always supplies its
+ * own centre, so it reaches `handleLongPress` instead and never derives one. The code is
+ * untouched and still reachable through the chip ✕'s OFF branch; U5.3's "Filter by radius" Toggle
+ * is what brings the ON branch — and `PROXIMITY_CENTRED_ON_VIEW` with it — back into reach.
+ *
+ * Parked, not deleted: three real behaviours (R-18a/R-18b) with a named owner and a live route
+ * waiting for them one package away.
+ */
 describe('MapScreen — the proximity anchor chain (review R-18)', () => {
-  it('anchors on the first plotted row, silently — a visible row explains itself', async () => {
-    renderRich()
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(2))
-    expect(screen.queryByText(/Proximity centred on the current view/)).not.toBeInTheDocument()
-  })
-
-  it("falls back to the map's own centre when nothing is plotted, and SAYS so", async () => {
-    const store = createDemoStore()
-    const caseId = store.getState().createCase({ caseNumber: 'PR25-0', displayName: 'Empty', unit: 'R' })
-    store.getState().addLocation(caseId, { locationName: 'Typed, never picked' })
-    const st = store.getState()
-    const empty = toMapData(st.cases.find((c) => c.id === caseId)!, st.locations.filter((l) => l.caseId === caseId))
-    render(<MapScreen viewerCaseId="x" mapData={empty} onEditIncident={vi.fn()} />)
-    // Wait for the map to exist, so the chain can reach step 2 rather than step 3.
-    await waitFor(() => expect(screen.getByTestId('map-loading-cover')).toHaveStyle({ opacity: '0' }))
-
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    expect(await screen.findByText(/Proximity centred on the current view/)).toBeInTheDocument()
-    // The live camera centre, not a hard-coded continent centroid (the phone's step 4).
-    expect(mapInstance.getCenter).toHaveBeenCalled()
-  })
-
-  it('KEEPS a long-pressed centre across off→on — it must not re-derive an anchor', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const { container } = renderRich()
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    const canvas = container.querySelector('[data-map-canvas]')!
-    fireEvent.pointerDown(canvas, { clientX: 40, clientY: 40, isPrimary: true })
-    vi.advanceTimersByTime(500)
-    vi.useRealTimers()
-    // The long-pressed centre is ~13 km from every fixture pin, so nothing survives.
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(0))
-
-    fireEvent.click(screen.getByTestId('proximity-toggle-button')) // off
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
-    fireEvent.click(screen.getByTestId('proximity-toggle-button')) // on again
-    // If the chain re-derived an anchor it would land on a plotted row and keep 2 of 3.
-    await waitFor(() => expect(liveMarkers('location')).toHaveLength(0))
-  })
+  it.todo('(U5.3) anchors on the first plotted row, silently — a visible row explains itself')
+  it.todo("(U5.3) falls back to the map's own centre when nothing is plotted, and SAYS so")
+  it.todo('(U5.3) KEEPS a long-pressed centre across off→on — it must not re-derive an anchor')
 })
 
 describe('MapScreen — camera visibility', () => {
@@ -527,16 +553,17 @@ describe('MapScreen — camera visibility', () => {
 
 describe('MapScreen — case switch', () => {
   it('clears filters, proximity and the selection when the viewer case changes', async () => {
-    const { rerender } = render(<MapScreen viewerCaseId="a" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
+    const { container, rerender } = render(<MapScreen viewerCaseId="a" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
     fireEvent.change(screen.getByTestId('map-search-input'), { target: { value: 'dock' } })
-    fireEvent.click(screen.getByTestId('proximity-toggle-button'))
-    await waitFor(() => expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity ON'))
+    longPressMap(container, NEAR_THE_PINS)
+    await waitFor(() => expect(screen.getByTestId('proximity-chip')).toBeInTheDocument())
 
     rerender(<MapScreen viewerCaseId="b" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(screen.getByTestId('map-search-input')).toHaveValue(''))
-    expect(screen.getByTestId('proximity-toggle-button')).toHaveTextContent('Proximity')
-    expect(screen.getByTestId('clear-filters-button')).toHaveTextContent('Clear')
+    // Proximity off is now visible as the chip's absence, and the radius reset comes back with it
+    // when the chip returns.
+    expect(screen.queryByTestId('proximity-chip')).not.toBeInTheDocument()
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
   })
 
