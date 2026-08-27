@@ -2,6 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LocationDetailCard, cameraCountLabel } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { cameraMarker, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
+import { glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { MAP_PIN_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { radius, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { severityTone, STATUS_SEVERITY } from '@/features/demo/ui/tokens/status'
 
 const fullLoc = sheetLocation({
   businessName: 'Kim Convenience', address: '1450 Eglinton, Mississauga',
@@ -145,5 +152,120 @@ describe('LocationDetailCard — cameras without a GPS fix are counted, not hidd
     expect(cameraCountLabel(2, 2)).toBe('2')
     // Never invent a bigger denominator than the numerator.
     expect(cameraCountLabel(3, 2)).toBe('3')
+  })
+})
+
+// ---- U5.4 — surfaces (matrix rows 21/22; A55, A70, A68) --------------------------------------
+describe('LocationDetailCard — surfaces', () => {
+  /** jsdom rewrites an inline hex to `rgb(r, g, b)` and re-spaces `rgba(...)` on read-back. */
+  const hexToJsdomRgb = (hex: string) =>
+    `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
+  const respace = (value: string) => value.replace(/,(?=\S)/g, ', ')
+  /** Both rewrites at once, for a gradient whose stops are hexes. */
+  const norm = (value: string) => respace(value).replace(/#[0-9a-f]{6}/gi, hexToJsdomRgb)
+
+  // A55. Phone `LocationDetailCard.tsx:323`, `:509`, `:595-597`, `:664-666`, `:749-751` — every
+  // content card is `<Card glass glassVariant="nestedCard">`, which U5.1's R2 established as the
+  // tier the map sheet's INFO cards take while its ROWS take `card`. Per side, because a
+  // `border`/`borderColor` written after the fragment spread erases the lit edge silently.
+  it('paints every info card on the nested tier, lit edge intact (A55)', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} />)
+    const cards = [screen.getByTestId('detail-requester-card'), screen.getByTestId('detail-contact-card')]
+    const side = respace(glassCardNested.borderRightColor)
+    for (const card of cards) {
+      expect(card.style.borderRightColor).toBe(side)
+      expect(card.style.borderBottomColor).toBe(side)
+      expect(card.style.borderLeftColor).toBe(side)
+      expect(card.style.borderTopColor).toBe(respace(glassCardNested.borderTopColor))
+      expect(card.style.borderTopColor).not.toBe(side)
+      expect(card.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
+    }
+    // The two tiers must not collapse into one another — U5.1's R2 in DOM form.
+    expect(glassCardNested.background).not.toBe(glassCard.background)
+    expect(cards[0].style.backgroundImage).not.toBe(respace(glassCard.background))
+  })
+
+  // A70 + phone `:493-505`. The badge is the severity trio plus a dot on the FOREGROUND token; it
+  // was `${color}25` behind bare `PIN_COLORS` text.
+  it('paints the status badge from the severity trio, not the tile pins (A70)', () => {
+    render(<LocationDetailCard item={sheetLocation({ ...fullLoc, status: 'working' })} {...cb()} />)
+    const badge = screen.getByTestId('detail-status-badge')
+    const tone = severityTone(STATUS_SEVERITY.working)
+    expect(badge.style.background).toBe(hexToJsdomRgb(tone.background))
+    expect(badge.style.borderColor).toBe(hexToJsdomRgb(tone.borderColor))
+    expect(badge.style.color).toBe(hexToJsdomRgb(tone.color))
+    expect(badge.style.background).not.toBe(hexToJsdomRgb(MAP_PIN_COLORS.working))
+    expect(screen.getByTestId('detail-status-dot').style.background).toBe(hexToJsdomRgb(tone.color))
+  })
+
+  it('fills the incident type chip from the error pair (A70)', () => {
+    render(<LocationDetailCard item={incItem} {...cb()} />)
+    const chip = screen.getByTestId('detail-type-chip')
+    const tone = severityTone(STATUS_SEVERITY.incident)
+    expect(chip.style.background).toBe(hexToJsdomRgb(tone.background))
+    expect(chip.style.color).toBe(hexToJsdomRgb(tone.color))
+    expect(chip.style.color).not.toBe(hexToJsdomRgb(MAP_PIN_COLORS.incident))
+  })
+
+  // A68 + PR #127 `e882912f`: no `size="large"` anywhere in the map view, and both CTAs are the
+  // shared `<Button variant="primary" fullWidth>` (phone `:367-375`, `:797-808`). The hand-rolled
+  // `linear-gradient(135deg,#1a8fc2,#0f6f9e)` was duplicated verbatim in two files.
+  it.each([
+    ['location', fullLoc, 'Go to Location'],
+    ['incident', incItem, 'Edit Incident Location'],
+  ] as const)('drives the %s CTA from buttonStyle at medium (A68)', (_kind, item, label) => {
+    render(<LocationDetailCard item={item} {...cb()} />)
+    const cta = screen.getByText(label)
+    const primary = buttonStyle({ variant: 'primary' })
+    expect(cta.style.backgroundImage).toBe(norm(primary.background as string))
+    expect(cta.style.borderRadius).toBe(`${radius.control}px`)
+    expect(cta.style.minHeight).toBe(`${touchTarget.comfortable}px`)
+    expect(cta.style.backgroundImage).not.toContain('135deg')
+  })
+
+  // Phone `:256-268` — "A ghost <Button> rather than the hand-rolled tinted pill it replaces:
+  // that pill was one of six local button implementations on this screen".
+  it('drives the back affordance from the ghost variant (A64/A65)', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} />)
+    const back = screen.getByTestId('detail-back-button')
+    expect(back.style.background).toBe('transparent')
+    expect(back.style.color).toBe(hexToJsdomRgb(colors.link))
+    expect(back).toHaveAccessibleName('Back to all locations')
+  })
+
+  // Phone `:563-571`: "Active state switches the glass tier rather than overriding the card's
+  // border: `elevated` is the variant whose border is already primary-tinted, so 'on' reads
+  // brighter and bluer without a one-off colour." The demo had `rgba(43,140,193,0.5)`/`0.12`.
+  it('switches the cameras toggle between the nested and elevated TIERS, not a one-off tint', () => {
+    const withCameras = sheetLocation({ ...fullLoc, cameras: [cameraMarker({ id: 'l1:c1' })] })
+    const { unmount } = render(<LocationDetailCard item={withCameras} {...cb()} cameras={{ shown: false, onToggle: vi.fn() }} />)
+    const off = screen.getByTestId('detail-cameras-toggle')
+    expect(off.style.borderRightColor).toBe(respace(GLASS_TIER[scheme].nestedCard.border))
+    unmount()
+    render(<LocationDetailCard item={withCameras} {...cb()} cameras={{ shown: true, onToggle: vi.fn() }} />)
+    const on = screen.getByTestId('detail-cameras-toggle')
+    expect(on.style.borderRightColor).toBe(respace(GLASS_TIER[scheme].elevated.border))
+    // The lit edge moves with the tier rather than being erased by a shorthand.
+    expect(on.style.borderTopColor).toBe(respace(GLASS_TIER[scheme].elevated.highlightTop))
+    expect(on.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
+  })
+
+  // Phone `:713-716`, `:735-738`, `:786-789` — the tappable contact rows are `colors.primary`,
+  // never `PIN_COLORS.working` (#00BFFF), which is a mark for satellite tiles.
+  it('paints the tap-to-call/email rows from the palette accent', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} />)
+    const phone = screen.getByText('905-555-1234')
+    expect(phone.style.color).toBe(hexToJsdomRgb(colors.primary))
+    expect(phone.style.color).not.toBe(hexToJsdomRgb(MAP_PIN_COLORS.working))
+  })
+
+  // Phone `:987-996`: "Uppercase micro-label ... On `textSecondary`, not `textTertiary`: the
+  // tertiary token is a documented sub-AA ceiling (M2b) and these labels are read, not skimmed."
+  it('lifts the card micro-labels off textTertiary (M2b)', () => {
+    render(<LocationDetailCard item={fullLoc} {...cb()} />)
+    const label = screen.getByText('Requester')
+    expect(label.style.color).toBe(hexToJsdomRgb(colors.textSecondary))
+    expect(label.style.color).not.toBe(hexToJsdomRgb(colors.textTertiary))
+    expect(label.style.fontSize).toBe('12px')
   })
 })
