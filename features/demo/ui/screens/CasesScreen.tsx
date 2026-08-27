@@ -1,8 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/screenData'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
@@ -210,8 +211,8 @@ function CaseRow({
             <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-            <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>
-            <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add Location</button>
+            <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, ...buttonStyle({ variant: 'secondary', size: 'small' }) }}>Import</button>
+            <button type="button" onClick={() => onAddLocation(c.id)} style={{ flex: 1, ...buttonStyle({ size: 'small' }) }}>Add Location</button>
           </div>
         </div>
       )}

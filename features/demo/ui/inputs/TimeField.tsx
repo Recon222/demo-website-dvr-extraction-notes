@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { formatTime, mergeTime, nowParts, parsePartsLoose } from '@/features/demo/engine/logic/datetime-parts'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { TimeWheel } from '@/features/demo/ui/inputs/TimeWheel'
-import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface TimeFieldProps {
   value: string
@@ -36,8 +36,8 @@ export function TimeField({ value, onChange }: TimeFieldProps) {
     setOpen(false)
   }
 
-  const ghostBtn = { flex: 1, padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' } as const
-  const primaryBtn = { flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' } as const
+  const ghostBtn = { flex: 1, ...buttonStyle({ variant: 'secondary' }) } as const
+  const primaryBtn = { flex: 1, ...buttonStyle() } as const
 
   return (
     <>

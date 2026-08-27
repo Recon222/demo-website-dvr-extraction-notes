@@ -1,8 +1,9 @@
 'use client'
 
 import type { ScopeEntry } from '@/features/demo/engine/types'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { GLASS, glassCard, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface ExtractedScopeScreenProps {
   scopes: ScopeEntry[]
@@ -39,7 +40,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
             <Field label="Cameras" value={ex.cameras} onChange={(v) => onChange(i, { cameras: v })} placeholder="Cameras exported" />
           </div>
         ))}
-        <button type="button" onClick={onRegenerate} style={{ width: '100%', textAlign: 'center', padding: 12, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>Regenerate from offset</button>
+        <button type="button" onClick={onRegenerate} style={{ width: '100%', marginBottom: 14, ...buttonStyle({ variant: 'secondary' }) }}>Regenerate from offset</button>
         <WizardNext label="Continue →" onClick={onNext} />
       </div>
     </div>

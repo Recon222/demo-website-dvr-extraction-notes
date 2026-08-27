@@ -6,7 +6,7 @@ import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CorrectedScope {
@@ -76,7 +76,7 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
             {/* Phone `app/(form)/time-offset.tsx:467-476`: `variant="outline"`, default size,
                 `style={styles.flexButton}`. A66. */}
             <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, ...buttonStyle({ variant: 'outline' }) }}>Use Current Time</button>
-            <button type="button" onClick={onCalculateClick} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
+            <button type="button" onClick={onCalculateClick} disabled={!canCalc} style={{ flex: 1, ...buttonStyle({ disabled: !canCalc }) }}>Calculate</button>
           </div>
           {/* Phone `app/(form)/time-offset.tsx:505-533`: `variant="outline"`, default size, with
               NON-STRING children — so the phone has to re-state `colors.link` on both the icon

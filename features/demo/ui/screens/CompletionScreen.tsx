@@ -3,7 +3,7 @@
 import type { FormFieldId } from '@/features/demo/engine/types'
 import { DateTimeField, Field, SectionCard, WizardHeader } from '@/features/demo/ui/screens/_shared'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 export interface CompletionSummary {
   occNumber: string
@@ -70,9 +70,9 @@ export function CompletionScreen(p: CompletionScreenProps) {
           </div>
           <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f4f8', marginBottom: 10 }}>Location Complete</div>
           <div style={{ fontSize: 14, color: '#9fc0db', lineHeight: 1.5, maxWidth: 280, marginBottom: 30 }}>Saved and marked complete. This location is locked, with its PDFs and media archived.</div>
-          <button type="button" onClick={p.onBackToDashboard} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Back to Dashboard</button>
-          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Return to Cases</button>
-          <button type="button" onClick={p.onReviewAgain} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Review / Export again</button>
+          <button type="button" onClick={p.onBackToDashboard} style={{ width: '100%', marginBottom: 10, ...buttonStyle() }}>Back to Dashboard</button>
+          <button type="button" onClick={p.onBackToCases} style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary' }) }}>Return to Cases</button>
+          <button type="button" onClick={p.onReviewAgain} style={{ width: '100%', ...buttonStyle({ variant: 'secondary' }) }}>Review / Export again</button>
         </div>
       </div>
     )
@@ -134,7 +134,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
           Preview / Export PDF
         </button>
         {p.summary.offset && (
-          <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>Preview Time-Offset Calibration</button>
+          <button type="button" onClick={p.onPreviewTimeOffsetPdf} style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary' }) }}>Preview Time-Offset Calibration</button>
         )}
         {/* Phone order (FormActions, completion.tsx:504-572): Preview/Export PDF → the
             conditional Time-Offset preview → Export Zip → Complete & Save. */}
@@ -144,7 +144,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
           disabled={!p.canExport}
           aria-label="Export options"
           title={p.canExport ? 'Choose between exporting this location or the full case' : 'Open a location first'}
-          style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: p.canExport ? 'pointer' : 'not-allowed', opacity: p.canExport ? 1 : 0.45, marginBottom: 10 }}
+          style={{ width: '100%', marginBottom: 10, ...buttonStyle({ variant: 'secondary', disabled: !p.canExport }) }}
         >
           {p.isExporting ? 'Exporting...' : 'Export Zip'}
         </button>
@@ -153,7 +153,7 @@ export function CompletionScreen(p: CompletionScreenProps) {
           onClick={p.onComplete}
           disabled={!p.canComplete}
           title={p.canComplete ? undefined : 'Open a location first'}
-          style={{ width: '100%', textAlign: 'center', padding: 15, ...glassBtnPrimary, fontSize: 15, fontWeight: 700, cursor: p.canComplete ? 'pointer' : 'not-allowed', opacity: p.canComplete ? 1 : 0.45, boxShadow: p.canComplete ? '0 6px 18px rgba(37,128,173,0.35)' : 'none' }}
+          style={{ width: '100%', ...buttonStyle({ disabled: !p.canComplete }) }}
         >
           Complete &amp; Save
         </button>

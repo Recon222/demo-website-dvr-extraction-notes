@@ -3,11 +3,12 @@
 import { useEffect, useId } from 'react'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
-import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
@@ -365,7 +366,7 @@ export function ModalActions({
 }) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
-      <button type="button" onClick={onCancel} style={{ flex: 1, textAlign: 'center', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+      <button type="button" onClick={onCancel} style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}>
         {cancelLabel}
       </button>
       <button
@@ -375,16 +376,11 @@ export function ModalActions({
         onClick={onSubmit}
         aria-disabled={submitBlocked}
         aria-describedby={submitBlocked ? submitDescribedBy : undefined}
-        style={{
-          flex: 1,
-          textAlign: 'center',
-          padding: 13,
-          ...glassBtnPrimary,
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: submitBlocked ? 'not-allowed' : 'pointer',
-          opacity: submitBlocked ? 0.45 : 1,
-        }}
+        // `submitBlocked` is deliberately NOT the `disabled` ATTRIBUTE (see its doc above —
+        // the caller's handler is the enforcement point and must still run). It is the disabled
+        // PAINT only, which is exactly what D10 buys: `colors.disabled` fill + `disabledText`
+        // label, replacing the `opacity: 0.45` this carried.
+        style={{ flex: 1, ...buttonStyle({ disabled: submitBlocked }) }}
       >
         {submitLabel}
       </button>
@@ -422,7 +418,7 @@ export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(
 /** Primary "Continue" button at the foot of a wizard screen. */
 export function WizardNext({ label, onClick }: { label: string; onClick(): void }) {
   return (
-    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 6px 18px rgba(37,128,173,0.35)' }}>
+    <button type="button" onClick={onClick} style={{ width: '100%', ...buttonStyle() }}>
       {label}
     </button>
   )

@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { formatDate, mergeDate, nowParts, parsePartsLoose } from '@/features/demo/engine/logic/datetime-parts'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { Calendar } from '@/features/demo/ui/inputs/Calendar'
-import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 export interface DateFieldProps {
   value: string
@@ -86,7 +86,7 @@ export function DateField({ value, onChange, emptyLabel }: DateFieldProps) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              style={{ width: '100%', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ width: '100%', ...buttonStyle() }}
             >
               Done
             </button>

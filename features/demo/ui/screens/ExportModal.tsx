@@ -12,8 +12,9 @@ import {
   type ExportStage,
   type ProgressInfo,
 } from '@/features/demo/engine/logic/export'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -335,12 +336,7 @@ function ValidationContent({
             aria-label="Cancel export"
             style={{
               flex: 1,
-              padding: 12,
-              fontSize: 14.5,
-              fontWeight: 600,
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1,
-              ...glassBtnSecondary,
+              ...buttonStyle({ variant: 'secondary', disabled: isExporting }),
             }}
           >
             {prompt.cancelLabel}
@@ -352,12 +348,7 @@ function ValidationContent({
             aria-label="Continue with export"
             style={{
               flex: 1,
-              padding: 12,
-              fontSize: 14.5,
-              fontWeight: 600,
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1,
-              ...glassBtnPrimary,
+              ...buttonStyle({ disabled: isExporting }),
             }}
           >
             {prompt.continueLabel}

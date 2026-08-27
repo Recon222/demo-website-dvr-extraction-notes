@@ -178,18 +178,19 @@ export const glassCardNested = {
   boxShadow: `inset 0 1px 0 ${tier.nestedCard.innerShadow}`,
 } as const satisfies CSSProperties
 
-/** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
-export const glassBtnPrimary = {
-  borderRadius: radius.control,
-  border: 'none',
-  background: GLASS.gradientAccent,
-  color: '#fff',
-} as const satisfies CSSProperties
-
-/** Secondary button base: radius `control` · button border · raised fill · muted text. */
-export const glassBtnSecondary = {
-  borderRadius: radius.control,
-  border: GLASS.borderBtn,
-  background: colors.backgroundSecondary,
-  color: colors.textSecondary,
-} as const satisfies CSSProperties
+/*
+ * `glassBtnPrimary` / `glassBtnSecondary` LIVED HERE until U2.2 (A64/A65/A68). They were a
+ * four-key colour fragment each — radius, border, background, label — and every one of their
+ * ~45 call sites then re-derived padding, label size, min-height and a disabled treatment by
+ * hand. `ui/controls/button-recipe.ts`'s `buttonStyle()` is the whole recipe instead: five
+ * variants x three sizes x enabled/disabled, in both scheme halves.
+ *
+ * They are DELETED rather than kept as thin aliases. An alias would have carried the recipe's
+ * padding and min-height into every un-migrated site (the spread wins over a `padding:` written
+ * before it) while leaving that site's `fontSize:` — written AFTER the spread — at the demo's
+ * old 13/14/15. Half-ported is worse than either end, and §9 clause 7's census wants ONE button
+ * recipe, not two spellings of one.
+ *
+ * `GLASS.gradientAccent` stays: it is `ACCENT_FROM`/`ACCENT_TO` under a name the drift guard and
+ * `input-theme.ts` both read, and `PrimaryButtonGradient.dark` points at those same two consts.
+ */

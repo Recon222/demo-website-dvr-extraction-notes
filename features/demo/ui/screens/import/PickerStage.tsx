@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, ReactNode, Ref } from 'react'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /**
  * Import picker — step 1 of the phone's ImportPickerModal, ported for P1.2 (matrix row 71).
@@ -279,7 +280,7 @@ export function PickerStage(props: PickerStageProps) {
             <button
               type="button"
               onClick={() => setPendingFiles(null)}
-              style={{ flex: 1, padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}
             >
               {PICKER_COPY.cancel}
             </button>
@@ -290,7 +291,7 @@ export function PickerStage(props: PickerStageProps) {
                 setPendingFiles(null)
                 void startPdfImport(files)
               }}
-              style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, ...buttonStyle() }}
             >
               {PICKER_COPY.largeBatchContinue}
             </button>
@@ -374,7 +375,7 @@ export function PickerStage(props: PickerStageProps) {
       <button
         type="button"
         onClick={props.onCancel}
-        style={{ width: '100%', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+        style={{ width: '100%', ...buttonStyle({ variant: 'secondary' }) }}
       >
         {PICKER_COPY.cancel}
       </button>
