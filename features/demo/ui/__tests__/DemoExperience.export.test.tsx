@@ -117,7 +117,15 @@ describe('Completion — the Export Zip affordance', () => {
     const store = createDemoStore()
     render(<DemoExperience store={store} />)
     act(() => store.getState().setView('completion'))
-    expect(screen.getByText('Export Zip')).toBeDisabled()
+    // D10 / review F39: this CTA is `aria-disabled`, not `disabled` — a `disabled` attribute
+    // drops the control out of the tab order, so a keyboard visitor cannot reach it to hear
+    // why it is unavailable. `toBeDisabled()` reads the ATTRIBUTE only, so both halves are
+    // asserted here: the announced state, and the refusal (`aria-disabled` is advisory — the
+    // handler has to decline for itself, which is the half `disabled` used to give for free).
+    const cta = screen.getByText('Export Zip')
+    expect(cta).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(cta)
+    expect(screen.queryByTestId('export-action-sheet')).not.toBeInTheDocument()
   })
 
   it('Cancel closes the sheet and dispatches nothing', () => {
@@ -204,11 +212,13 @@ describe('Export This Location — the single-location ZIP pipeline', () => {
   it('the CTA reads "Exporting..." and is inert while a run is in flight', () => {
     setup()
     chooseScope('location')
-    expect(screen.getByText('Exporting...')).toBeDisabled()
+    expect(screen.getByText('Exporting...')).toHaveAttribute('aria-disabled', 'true')
     expect(screen.queryByText('Export Zip')).not.toBeInTheDocument()
     runToEnd()
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
-    expect(screen.getByText('Export Zip')).toBeEnabled()
+    // Live again — the attribute is ABSENT, not `aria-disabled="false"`: a control that has to
+    // announce "not disabled" is one nobody asked about.
+    expect(screen.getByText('Export Zip')).not.toHaveAttribute('aria-disabled')
   })
 })
 

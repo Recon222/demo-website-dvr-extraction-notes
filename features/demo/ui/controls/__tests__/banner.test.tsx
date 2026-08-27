@@ -242,6 +242,9 @@ describe('Banner — the caller seams', () => {
 describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   /** Every `ui/**` non-test file that renders `<Banner>` today. Paths relative to `ui/`. */
   const ADOPTED = [
+    // U6.4b took its SECOND hand-back: the "Required Fields Missing" callout — and the phone's
+    // mutually-exclusive "No Case Selected" partner beside it, which the demo had never grown.
+    'screens/CompletionScreen.tsx',
     'screens/DateDisambiguationWarning.tsx',
     'screens/EditIncidentLocationModal.tsx',
     'screens/ExtractedScopeScreen.tsx',
@@ -249,6 +252,12 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     // `rgba(255,71,87,0.08)` wash under `#ff6b78` — one of the five byte-identical local
     // recipes the phone's own `NewCaseModal.tsx:464-466` names.
     'screens/NewCaseModal.tsx',
+    // U6.4b took its D19 hand-back: the DST advisory, which was the demo's ONLY dashed border
+    // and painted `#ffd93d` as its own message text. The phone made the same move in
+    // `4853f9d9` — "route the DST callout through Banner and stop signalling with colour alone".
+    // Sorted ABOVE `import/PickerStage`: the comparison is `sort()`'s, so uppercase `T` (84)
+    // precedes lowercase `i` (105).
+    'screens/TimeOffsetScreen.tsx',
     'screens/import/PickerStage.tsx',
   ]
 
@@ -261,8 +270,6 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
    * FallbackMode amber; the `FailuresCard` is a list, not a status line).
    */
   const HANDED_BACK: Readonly<Record<string, string>> = {
-    'screens/TimeOffsetScreen.tsx': 'U6.4b — the dashed amber advisory (:129-136)',
-    'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
     'screens/settings/panes/_pane-chrome.tsx':
       'U6.2 — PaneNote carries the RECIPE (see RECIPE_ONLY); the COMPONENT is deferred (D20)',
     'screens/AudioRecorderScreen.tsx': 'U7.2 — the notice + error pair (:252-264)',
@@ -327,7 +334,7 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
       'U6.2 — PaneNote takes Banner’s recipe + BannerIcon; the COMPONENT stays deferred (D20)',
   }
 
-  it('has exactly the four own-lane adoptions D19 left to U3.3', () => {
+  it('has exactly the adoptions D19 left to U3.3, plus every hand-back since taken', () => {
     const found = sourceFiles(UI_ROOT)
       .filter(rendersBanner)
       .map((f) => relative(UI_ROOT, f).split(sep).join('/'))
