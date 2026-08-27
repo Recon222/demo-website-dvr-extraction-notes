@@ -3,12 +3,15 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import {
   MAP_GLASS_COLORS,
   MAP_GLASS_SCHEMES,
   MAP_SURFACE_COLORS,
+  SHEET_COLORS,
 } from '@/features/demo/ui/screens/map/mapTokens'
-import { colors, palette } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -112,6 +115,73 @@ describe('MAP_GLASS_COLORS (A83, D5 — the floating map chrome)', () => {
     // Phone `constants/index.ts:273` — one shadow for both schemes, so it is deliberately NOT
     // a two-half key and the guard anchors it as scheme-invariant.
     expect(MAP_GLASS_COLORS.shadow).toBe('rgba(0, 0, 0, 0.35)')
+  })
+})
+
+describe('SHEET_COLORS (A84 — the map bottom sheet)', () => {
+  it('kills the split-brain: ONE primary text tone across the whole map', () => {
+    // demo §1.3 named it: `SHEET_COLORS.text #e7eef6` coexisted with
+    // `MAP_GLASS_COLORS.text #f0f4f8`, two "primary text" whites 4 units apart, in one feature.
+    expect(SHEET_COLORS.text).toBe(colors.text)
+    expect(SHEET_COLORS.text).toBe(MAP_GLASS_COLORS.text)
+    expect(SHEET_COLORS.textDim).toBe(colors.textSecondary)
+    expect(SHEET_COLORS.textFaint).toBe(colors.textTertiary)
+    const src = source()
+    for (const [key, token] of [
+      ['text', 'text'],
+      ['textDim', 'textSecondary'],
+      ['textFaint', 'textTertiary'],
+      // A19's binding rider. This key's ONE reader is `MapCanvas`'s retry button, a FILLED
+      // control, so it pairs with the DEEP shade: `onPrimary` on `primary` measures 3.73,
+      // on `primaryDark` 5.80. It was `#1a8fc2` — an accent on no ramp in the palette.
+      ['accent', 'primaryDark'],
+    ] as const) {
+      expect(aliasesPaletteToken(src, key, token), `${key} must READ colors.${token}`).toBe(true)
+    }
+  })
+
+  it('takes the sheet ground the phone actually ships — three opaque stops, NOT the sheet glass tier', () => {
+    // REFUTES plan §5's U5.1 row and matrix A84, both of which say `background -> sheet
+    // gradient (A38)`. The phone declares the opposite IN SOURCE, twice:
+    //   `constants/index.ts:339-343` — "Fully opaque (alpha 1.0) on purpose, in BOTH themes …
+    //   opaque lets the compositor occlude the map region behind the sheet. This is why the
+    //   sheet does NOT use `GlassColors[scheme].sheet`, whose dark gradient starts at 0.98."
+    //   `README.md:407` restates it as the opaque-sheet performance rule.
+    // The demo's sheet translates over a live mapbox-gl canvas for the same reason, so the
+    // ruling ports as-is: `[background, backgroundSecondary, background]` at [0, .5, 1].
+    expect(SHEET_COLORS.backgroundGradient).toBe(
+      `linear-gradient(180deg,${colors.background} 0%,${colors.backgroundSecondary} 50%,${colors.background} 100%)`,
+    )
+    // The `sheet` tier's own top stop is 0.98 — translucent, and the value A84 would have had
+    // us paint. A pin, not a comment: if someone "fixes" this toward A84 it must red.
+    expect(SHEET_COLORS.backgroundGradient).not.toContain(GLASS_TIER[scheme].sheet.gradient[0])
+    // The old flat key is gone: `rgb(10, 22, 36)` was a hand-rolled navy on no ramp at all.
+    expect(SHEET_COLORS).not.toHaveProperty('background')
+  })
+
+  it('sources its chrome from the sheet tier and the border token', () => {
+    // Phone `MapBottomSheet.tsx:208` — `borderTopColor: GlassColors[colorScheme].sheet.border`.
+    expect(SHEET_COLORS.border).toBe(GLASS_TIER[scheme].sheet.border)
+    // Phone `MapBottomSheet.tsx:215` — `withAlpha(colors.border, 0.5)`.
+    expect(SHEET_COLORS.divider).toBe(withAlpha(colors.border, 0.5))
+    // Phone `SheetHandle.tsx:69` — `withAlpha(colors.text, 0.2)`. Was a bare white at 20%,
+    // which is a different colour: the handle now tracks the text ramp, as the phone's does.
+    expect(SHEET_COLORS.handle).toBe(withAlpha(colors.text, 0.2))
+  })
+
+  it('paints sheet rows on the CARD tier and info cards on the NESTED tier', () => {
+    // REFUTES matrix A84's "`rowBg`/`rowBorder` -> nestedCard (A33/A34)". The phone's
+    // `LocationRow.tsx:70` reads `GlassColors[colorScheme].card` — its docblock at `:5` says
+    // "Renders as a glass card: `GlassColors[scheme].card` gradient" — and matrix row 18
+    // ("Phone rebuilt it on `GlassColors[scheme].card`") agrees with the phone against A84.
+    // The nested tier belongs to `LocationDetailCard`'s four info cards, which the phone moved
+    // to `<Card glass glassVariant="nestedCard">`; that is where A84's reference belongs.
+    expect(SHEET_COLORS.rowBg).toBe(GLASS.gradientCard)
+    expect(SHEET_COLORS.rowBorder).toBe(GLASS_TIER[scheme].card.border)
+    expect(SHEET_COLORS.infoBg).toBe(glassCardNested.background)
+    // The two tiers must not collapse into one — that is what makes a row read as sitting on
+    // the sheet and an info card as sitting IN the row.
+    expect(SHEET_COLORS.rowBg).not.toBe(SHEET_COLORS.infoBg)
   })
 })
 

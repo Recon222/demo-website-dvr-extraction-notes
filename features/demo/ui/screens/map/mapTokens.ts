@@ -1,4 +1,6 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
@@ -227,17 +229,71 @@ export const MAP_SURFACE_COLORS = {
   borderStrong: 'rgba(28, 78, 132, 0.6)',
 } as const
 
-/** Always-dark "glass" surface tokens for the bottom sheet (the satellite tiles are dark). */
+/**
+ * SEAM(U5.1): the map bottom sheet's surfaces (A84). U5.4 paints its rows and cards from here.
+ *
+ * Every value is now an alias. Nothing below is transcribed, because unlike the floating
+ * chrome the phone holds NO map-local sheet constants any more: `6e10eea3` collapsed
+ * `SHEET_SURFACE_COLORS` down to the background gradient alone, and everything else it used to
+ * carry — accent strip, top border, handle, divider, row glass — is derived from the theme at
+ * the call site (`constants/index.ts:326-334`). So the demo derives them too, from the same
+ * tokens the phone's call sites reach for. That also means these keys take no drift-guard
+ * anchors: their sources are already anchored in `tokens/palette.ts` and
+ * `tokens/glass-tiers.ts`, and an anchor here would compare a value to itself.
+ *
+ * ## The ground is THREE OPAQUE STOPS, not the `sheet` glass tier
+ *
+ * Plan §5's U5.1 row and matrix A84 both say `background -> sheet gradient (A38)`. **The phone
+ * says the opposite, in source, twice**, and it is a performance ruling rather than a
+ * preference — `constants/index.ts:339-343`: *"Fully opaque (alpha 1.0) on purpose, in BOTH
+ * themes: the sheet translates over the live Mapbox GL surface, and a translucent surface
+ * forces the compositor to keep rendering the map behind the sheet AND alpha-blend it on every
+ * drag frame (a UI-thread cost that dropped the drag to ~45fps). … This is why the sheet does
+ * NOT use `GlassColors[scheme].sheet`, whose dark gradient starts at 0.98 alpha."*
+ * `map-view/README.md:407` restates it. The demo's sheet drags over a live `mapbox-gl` canvas
+ * for exactly the same reason, so the ruling ports unchanged.
+ *
+ * ## Rows are the CARD tier; only the info cards are NESTED
+ *
+ * A84 says `rowBg`/`rowBorder -> nestedCard`. The phone's `LocationRow.tsx:70` reads
+ * `GlassColors[colorScheme].card`, its docblock at `:5` says so in words, and matrix row 18
+ * ("Phone rebuilt it on `GlassColors[scheme].card` + `Layout.shadow.card`") agrees with the
+ * phone against A84. The nested tier is `LocationDetailCard`'s four info cards, which the phone
+ * moved to `<Card glass glassVariant="nestedCard">` — that is where A84's reference belongs,
+ * and it is `infoBg` below.
+ *
+ * The dark half only, and here that note is still exactly right (unlike `MAP_GLASS_SCHEME`
+ * above): every source these alias is itself two-halved, so flipping `scheme` flips this whole
+ * record with it. There is nothing left to hard-code.
+ */
 export const SHEET_COLORS = {
-  background: 'rgb(10, 22, 36)',
-  border: 'rgba(30, 58, 95, 0.55)',
-  handle: 'rgba(255, 255, 255, 0.20)',
-  divider: 'rgba(30, 58, 95, 0.50)',
-  rowBg: 'rgba(19, 34, 54, 0.78)',
-  rowBorder: 'rgba(30, 58, 95, 0.45)',
-  infoBg: 'rgba(255, 255, 255, 0.04)',
-  text: '#e7eef6',
-  textDim: '#9fb6d0',
-  textFaint: '#7a9fc4',
-  accent: '#1a8fc2',
+  /**
+   * Phone `SHEET_SURFACE_COLORS[scheme].backgroundGradient` (`constants/index.ts:350-367`)
+   * painted by `SheetBackground.tsx:31-37` at `locations` `[0, 0.5, 1]`, vertical. Renamed from
+   * `background` because it is no longer a colour: the old `rgb(10, 22, 36)` was a hand-rolled
+   * navy on no ramp in the palette at all.
+   */
+  backgroundGradient: `linear-gradient(180deg,${colors.background} 0%,${colors.backgroundSecondary} 50%,${colors.background} 100%)`,
+  /** Phone `MapBottomSheet.tsx:208` — `GlassColors[colorScheme].sheet.border`. */
+  border: GLASS_TIER[scheme].sheet.border,
+  /** Phone `SheetHandle.tsx:69` — the pill tracks the TEXT ramp, not a bare white. */
+  handle: withAlpha(colors.text, 0.2),
+  /** Phone `MapBottomSheet.tsx:215` — `withAlpha(colors.border, 0.5)`. */
+  divider: withAlpha(colors.border, 0.5),
+  /** Phone `LocationRow.tsx:70,88` — the card tier's gradient. */
+  rowBg: GLASS.gradientCard,
+  /** Phone `LocationRow.tsx:91` — `glass.border`, the card tier's. */
+  rowBorder: GLASS_TIER[scheme].card.border,
+  /** The nested tier `LocationDetailCard`'s info cards moved to. U5.4 takes the radius to 12. */
+  infoBg: glassCardNested.background,
+  text: colors.text,
+  textDim: colors.textSecondary,
+  textFaint: colors.textTertiary,
+  /**
+   * The sheet's accent SURFACE. Its one reader is `MapCanvas`'s retry button — a filled
+   * control — so A19's binding rider applies and it takes the DEEP shade: `onPrimary` measures
+   * 3.73:1 on `primary` and 5.80:1 on `primaryDark`. Was `#1a8fc2`, an accent on no ramp.
+   * (U5.4 may fold that button onto U2.2's `buttonStyle`, at which point this key can go.)
+   */
+  accent: colors.primaryDark,
 } as const
