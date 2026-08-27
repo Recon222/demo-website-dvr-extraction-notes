@@ -10,7 +10,7 @@ import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
-import { isDvrDraftCommittable, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
+import { isDvrDraftCommittable, type ConfidenceLevel, type DvrDateResolution } from '@/features/demo/engine/logic/ocr'
 import { OCR_BOX_HEIGHT_FRACTION, OCR_BOX_WIDTH_FRACTION, ocrCropRegion } from '@/features/demo/engine/logic/ocr-crop'
 import { CAPTURE_PERMISSION_COPY, selectCaptureDevice } from '@/features/demo/engine/logic/media'
 import type { OcrSampleFrame } from '@/features/demo/engine/content/seed'
@@ -27,7 +27,7 @@ export type OcrResult =
       dvrTime: string
       /** `measured: false` = the fixed sample score (R-16's badge applies); `true` = the
        *  in-browser recogniser's own score for a live frame — a real number, no badge. */
-      confidence: { label: string; color: string; measured: boolean }
+      confidence: { label: string; level: ConfidenceLevel; measured: boolean }
       actual: string
       /** What the reader had to assume — drives the warning/blocker, exactly one at a time. */
       resolution: DvrDateResolution
@@ -117,6 +117,25 @@ const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', w
 // write `label12.color = x` and every later render of every other consumer moves with it,
 // with no compile error. `satisfies` keeps the same type-checking and makes the write a
 // TS2540 (verified). Third recurrence of the class (F20, F38, now F61), so it is spelled out.
+/**
+ * F65 / ledger §112 — the OCR confidence band's colour, which now lives HERE rather than in
+ * `engine/logic/ocr.ts`. The engine returns a `ConfidenceLevel` and nothing else, which is what
+ * the phone's `getConfidenceLevel` has always returned (`timestamp-parser.ts:339-342`).
+ *
+ * A `Record` keyed by the union, so a fifth band is a compile error here rather than an
+ * `undefined` that paints `currentColor`. Three of the four are the status tokens the rest of
+ * the demo already uses. The fourth, `low`, was the orphan `#ff7a45` that §112 asked to be named
+ * or collapsed: there is no token and no phone value to name it after, so it takes `warningDark`
+ * — the ramp's own deeper amber, one step from `medium`'s `warning`, which is exactly the
+ * "worse than medium, not yet failed" step the band means.
+ */
+const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
+  high: colors.success,
+  medium: colors.warning,
+  low: colors.warningDark,
+  fail: colors.error,
+}
+
 const label12 = { fontSize: 12, color: '#7a9fc4' } as const satisfies CSSProperties
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
@@ -418,7 +437,7 @@ export function OcrCaptureScreen({
                     </span>
                   )}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: result.confidence.color }}>{result.confidence.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: CONFIDENCE_COLOR[result.confidence.level] }}>{result.confidence.label}</span>
               </div>
               {!result.confidence.measured && (
                 <div style={{ fontSize: 11, color: '#7a9fc4', lineHeight: 1.45, marginBottom: 10 }}>

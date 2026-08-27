@@ -83,9 +83,12 @@ describe('parseTimestampFromText', () => {
 })
 
 describe('getConfidenceLevel', () => {
-  it('maps the score into a tier with a colour', () => {
+  it('maps the score into a BAND and nothing else (F65 / §112)', () => {
+    // The colour left this function: presentation does not belong in `engine/`, and the phone's
+    // own `getConfidenceLevel` (`timestamp-parser.ts:339-342`) returns `{ level, message }` too.
+    // `ui/screens/OcrCaptureScreen.tsx`'s `CONFIDENCE_COLOR` owns the hue now.
+    expect(Object.keys(getConfidenceLevel(0.9)).sort()).toEqual(['level', 'message'])
     expect(getConfidenceLevel(0.9).level).toBe('high')
-    expect(getConfidenceLevel(0.9).color).toBe('#10d177')
     expect(getConfidenceLevel(0.7).level).toBe('medium')
     expect(getConfidenceLevel(0.5).level).toBe('low')
     expect(getConfidenceLevel(0.2).level).toBe('fail')
