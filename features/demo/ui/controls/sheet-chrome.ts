@@ -60,18 +60,29 @@
 
 import type { CSSProperties } from 'react'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 
 const sheet = GLASS_TIER[scheme].sheet
 
 /**
- * A46 — `Layout.shadow.sheet.dark` (`Layout.ts:175-190`: `#000`, offset `0 -8`, opacity `0.5`,
- * radius `40`). Casts UPWARD, because the sheet rises from the bottom edge. The demo had four
- * near-misses of this one recipe; this is the survivor.
+ * A46 — `Layout.shadow.sheet` (`Layout.ts:175-190`). Casts UPWARD, because the sheet rises from
+ * the bottom edge. The demo had four near-misses of this one recipe; this is the survivor.
+ *
+ * BOTH HALVES (D2, and W2/F34). RN spends five props (`shadowColor` / `shadowOffset` /
+ * `shadowOpacity` / `shadowRadius`) on what CSS spends one on, and light folds `shadowColor`'s
+ * own alpha into `shadowOpacity` (0.15 x 1) — the same mapping `button-recipe.ts:167-174`
+ * documents. Shipping the dark string unconditionally is what F34 caught: on the flip day every
+ * sheet would cast a pure-black 40px shadow onto a pale surface.
  */
-export const SHEET_SHADOW = '0 -8px 40px rgba(0,0,0,0.5)'
+export const SHEET_SHADOWS = {
+  dark: '0 -8px 40px rgba(0,0,0,0.5)', // Layout.ts:183-189 — #000 / 0 -8 / 0.5 / 40
+  light: '0 -8px 28px rgba(30, 58, 138, 0.15)', // Layout.ts:176-182 — 0 -8 / 1 / 28
+} as const satisfies Record<ColorScheme, string>
+
+/** The consumed half. Every sheet reads this; the record above is what makes the flip one line. */
+export const SHEET_SHADOW = SHEET_SHADOWS[scheme]
 
 /**
  * Enter / exit durations, phone `GlassBottomSheet.tsx:30-31`. The scrim fades across the same
@@ -211,7 +222,9 @@ export const sheetAccentDot: CSSProperties = {
   borderRadius: radius.full,
   background: colors.primary,
   flexShrink: 0,
-  boxShadow: `0 0 4px ${withAlpha(colors.primary, 0.4)}`,
+  // DARK-ONLY, like the phone's `isDark && {...}` at `:326-332`. W2/F34: shipping it
+  // unconditionally would glow a deep-navy `primary` against white.
+  boxShadow: scheme === 'dark' ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined,
 }
 
 /**
@@ -225,7 +238,8 @@ export const sheetTitle: CSSProperties = {
   letterSpacing: 0.3,
   textTransform: 'uppercase',
   color: colors.text,
-  textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+  // DARK-ONLY, like the phone's `isDark && {...}` at `:339-343`. W2/F34.
+  textShadow: scheme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',

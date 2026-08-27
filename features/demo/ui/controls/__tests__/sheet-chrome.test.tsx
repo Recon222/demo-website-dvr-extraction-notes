@@ -6,6 +6,7 @@ import {
   SHEET_ENTER_MS,
   SHEET_EXIT_MS,
   SHEET_SHADOW,
+  SHEET_SHADOWS,
   SHEET_SLIDE_KEYFRAME,
   sheetAccentDot,
   sheetAccentStrip,
@@ -114,6 +115,12 @@ describe('sheetSurface — the A38 ground', () => {
     expect(sheetSurface.boxShadow).toBe(SHEET_SHADOW)
     expect(SHEET_SHADOW).toBe('0 -8px 40px rgba(0,0,0,0.5)')
     expect(SHEET_SHADOW).not.toContain('inset')
+    // W2/F34 — BOTH halves ship, and the consumed one is the scheme's.
+    expect(SHEET_SHADOW).toBe(SHEET_SHADOWS[scheme])
+    expect(SHEET_SHADOWS.light).toBe('0 -8px 28px rgba(30, 58, 138, 0.15)')
+    expect(SHEET_SHADOWS.light).not.toBe(SHEET_SHADOWS.dark)
+    // …and neither half casts a pure black onto the other's ground.
+    expect(SHEET_SHADOWS.light).not.toContain('rgba(0,0,0')
     // Upward, not downward: the sheet rises from the bottom edge. This is the A45/A46 mistake
     // phone §1.5 records — Phase 5 put `sheet` on a dialog and inverted its cast.
     expect(SHEET_SHADOW).toContain('-8px')
@@ -236,6 +243,18 @@ describe('sheetHeaderBand — the A37 header tier, not the sheet tier', () => {
     expect(sheetHeaderTitleRow.gap).toBe(8)
     expect(sheetHeaderTitleRow.flex).toBe(1)
   })
+})
+
+describe('the dark-only treatments (W2/F34)', () => {
+  it('gates the accent-dot glow and the title text-shadow on the scheme', () => {
+    // The phone wraps both in `isDark && {...}` (`GlassBottomSheet.tsx:326-332`, `:339-343`).
+    // Shipping them unconditionally would glow a deep-navy `primary` against white and drop a
+    // black text shadow under near-black text.
+    const dark = scheme === 'dark'
+    expect(sheetAccentDot.boxShadow).toBe(dark ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined)
+    expect(sheetTitle.textShadow).toBe(dark ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined)
+  })
+
 })
 
 describe('the header glyphs', () => {
