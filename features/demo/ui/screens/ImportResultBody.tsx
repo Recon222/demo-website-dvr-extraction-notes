@@ -76,7 +76,9 @@ export function ImportResultBody({ view }: { view: ImportedLocationView }) {
                     // 1.81-1.88:1 (DVR) and 2.09-2.17:1 (ACTUAL) in light, and 4.02-4.48:1 for
                     // ACTUAL in dark. The tint and border keep the colour coding; the label
                     // carries the words."
-                    // `#7fe3b4` was matrix row 79's "fourth green" and dies with it. The
+                    // The ACTUAL-TIME label's old hex was matrix row 79's "fourth green" and
+                    // dies with it (not spelled here: U7.1's D-4 -- a comment is source to
+                    // every literal scan in this repo, so naming a retired hex re-inlines it). The
                     // GEOMETRY is the demo's lifted 10/700/0.4/r4 (demo §0.4; §4.9 gives no
                     // package here a font-size move) -- only the colour treatment moves.
                     color: colors.text,
