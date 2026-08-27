@@ -110,7 +110,7 @@ describe('drawer Media accordion — wiring (row 80)', () => {
 
     expect(store.getState().modal).toBeNull()
     expect(store.getState().drawerOpen).toBe(true)
-    expect(screen.getByText('No Location — Select a location first.')).toBeInTheDocument()
+    expect(screen.getByText('No Location. Select a location first.')).toBeInTheDocument()
   })
 
   it('records the library visit under its own id, so the snapshot guard accepts it', () => {

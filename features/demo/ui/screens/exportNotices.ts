@@ -34,7 +34,7 @@ export interface ExportTerminalNotice {
 export const EXPORT_DOWNLOAD_TITLE = "Downloads Aren't Available in the Demo"
 
 const NO_FILE =
-  'This demo runs entirely in a browser tab — no file system, no share sheet — so there is no file to hand you. Everything that would have gone into it is in this session and on screen.'
+  'This demo runs entirely in a browser tab (no file system, no share sheet), so there is no file to hand you. Everything that would have gone into it is in this session and on screen.'
 
 const REAL_DOCUMENTS =
   'The court documents are the exception, and they are real: preview the Case Notes or the Time-Offset Calibration from Completion and print or save either one as a PDF.'
@@ -57,11 +57,11 @@ export type SimulatedExportRun = Exclude<ExportRun, { type: 'case-map' }>
 function artifactOf(run: SimulatedExportRun): string {
   switch (run.type) {
     case 'case':
-      return "a ZIP of the whole case — every location's documents, media and JSON metadata, plus the interactive case map"
+      return "a ZIP of the whole case: every location's documents, media and JSON metadata, plus the interactive case map"
     case 'case-subset':
-      return `a ZIP of the ${run.locationIds.length} selected ${plural(run.locationIds.length)} — their documents, media and JSON metadata`
+      return `a ZIP of the ${run.locationIds.length} selected ${plural(run.locationIds.length)}: their documents, media and JSON metadata`
     case 'location':
-      return "a ZIP of this location — its documents, media and JSON metadata"
+      return "a ZIP of this location: its documents, media and JSON metadata"
     case 'location-geojson':
       return "this location's canonical GeoJSON, with a feature per camera and per coordinate"
     default:
@@ -143,7 +143,7 @@ export function describeCaseMapTerminal(outcome: CaseMapOutcome): ExportTerminal
           coverageClause(outcome.coverage) +
           (outcome.mapIsEmpty ? ' Nothing plots yet, so it opens with an empty map.' : '') +
           (outcome.hasToken ? '' : ' Without a Mapbox token its basemap stays blank.') +
-          `\n\nThis one is real: a self-contained interactive HTML map of the case — every location, its cameras and the incident scene — openable in any browser with no server. It is the same file the app writes into the case ZIP.`,
+          `\n\nThis one is real: a self-contained interactive HTML map of the case (every location, its cameras and the incident scene), openable in any browser with no server. It is the same file the app writes into the case ZIP.`,
       }
     case 'builder-unavailable':
       return {

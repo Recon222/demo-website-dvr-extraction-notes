@@ -118,7 +118,7 @@ describe('DemoExperience — media capture bridge', () => {
     expect(store.getState().view).toBe('dvrInfo')
     // Phone verbatim (`media-capture.tsx:192-193`), joined into the demo's one-line banner. The
     // filename is the user's, WITHOUT the extension, exactly as the phone's toast reports it.
-    expect(screen.getByText(`Photo Saved — ${SAMPLE_MEDIA.photo.suggestedFilename} saved to case`)).toBeInTheDocument()
+    expect(screen.getByText(`Photo Saved. ${SAMPLE_MEDIA.photo.suggestedFilename} saved to case`)).toBeInTheDocument()
   })
 
   it('mints an id per capture, so two saves are two rows', () => {
@@ -165,7 +165,7 @@ describe('DemoExperience — media capture bridge', () => {
 
     expect(store.getState().locations).toBe(before.locations)
     expect(
-      screen.getByText('Cannot Save Media — No location selected. Please navigate from a case first.'),
+      screen.getByText('Cannot Save Media. No location selected. Please navigate from a case first.'),
     ).toBeInTheDocument()
     expect(store.getState().view).toBe('dvrInfo')
   })

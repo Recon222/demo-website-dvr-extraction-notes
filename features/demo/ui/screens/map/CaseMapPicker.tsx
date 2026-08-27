@@ -112,7 +112,7 @@ export function CaseMapPicker({ cases, dismissible, preselectedId = null, onPick
         <div style={allCasesRow} aria-disabled="true">
           <div style={{ flex: 1 }}>
             <div style={{ ...rowTitle, color: '#9fb6d0' }}>All Cases</div>
-            <div style={rowMeta}>Coming soon — view all your cases on one map</div>
+            <div style={rowMeta}>Coming soon. View all your cases on one map</div>
           </div>
         </div>
 

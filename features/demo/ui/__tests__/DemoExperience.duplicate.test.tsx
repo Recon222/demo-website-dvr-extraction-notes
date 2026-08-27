@@ -131,7 +131,7 @@ describe('DemoExperience — location action chooser', () => {
     expect(store.getState().view).toBe('cases')
     expect(store.getState().currentLocationId).toBe(sourceId)
     expect(screen.getByTestId('demo-notification')).toHaveTextContent(
-      'Location Duplicated — Main Store - Copy created with scopes.',
+      'Location Duplicated. Main Store - Copy created with scopes.',
     )
   })
 
@@ -150,7 +150,7 @@ describe('DemoExperience — location action chooser', () => {
 
     expect(store.getState().locations[1].form.scopes).toEqual([])
     expect(screen.getByTestId('demo-notification')).toHaveTextContent(
-      'Location Duplicated — Main Store - Copy created.',
+      'Location Duplicated. Main Store - Copy created.',
     )
   })
 
@@ -228,7 +228,7 @@ describe('DemoExperience — location action chooser', () => {
       expect(screen.queryByRole('dialog', { name: 'Duplicate Location' })).toBeNull()
       expect(card()).toBeInTheDocument()
       expect(store.getState().modal).toBe('newAddressLocation')
-      expect(screen.getByText('Submission info copied — enter the new address.')).toBeInTheDocument()
+      expect(screen.getByText('Submission info copied. Enter the new address.')).toBeInTheDocument()
       // Name pre-deduped from "New Location"; the on-site contact travels; the address does not.
       expect(screen.getByLabelText('Location Name')).toHaveValue('New Location')
       expect(screen.getByLabelText('Location Contact')).toHaveValue('Sandeep Gill')
@@ -283,7 +283,7 @@ describe('DemoExperience — location action chooser', () => {
       expect(store.getState().view).toBe('submission')
       expect(store.getState().modal).toBeNull()
       expect(screen.getByTestId('demo-notification')).toHaveTextContent(
-        'Location Created — New Location created with copied submission info and scopes',
+        'Location Created. New Location created with copied submission info and scopes',
       )
     })
 
@@ -298,7 +298,7 @@ describe('DemoExperience — location action chooser', () => {
 
       expect(store.getState().locations[1].form.scopes).toEqual([])
       expect(screen.getByTestId('demo-notification')).toHaveTextContent(
-        'Location Created — New Location created with copied submission info',
+        'Location Created. New Location created with copied submission info',
       )
     })
 

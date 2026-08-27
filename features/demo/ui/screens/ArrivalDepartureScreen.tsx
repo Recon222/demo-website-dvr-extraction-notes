@@ -31,7 +31,7 @@ export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFi
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Arrival / Departure" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        {visits.length === 0 && <EmptyState message="No visits recorded — add one if you attended the site." />}
+        {visits.length === 0 && <EmptyState message="No visits recorded. Add one if you attended the site." />}
         {visits.map((a, i) => (
           <div key={a.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

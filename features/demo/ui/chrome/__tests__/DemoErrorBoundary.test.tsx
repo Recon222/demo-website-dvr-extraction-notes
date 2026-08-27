@@ -43,7 +43,7 @@ describe('DemoErrorBoundary', () => {
     )
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('Something went wrong')
-    expect(alert).toHaveTextContent('This screen hit an unexpected error — your session data is still here.')
+    expect(alert).toHaveTextContent('This screen hit an unexpected error. Your session data is still here.')
     expect(alert).toHaveTextContent('boom')
     expect(screen.getByRole('button', { name: 'Return to Cases' })).toBeInTheDocument()
   })

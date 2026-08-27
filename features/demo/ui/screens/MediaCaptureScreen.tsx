@@ -543,7 +543,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
           {deviceFailure && <div style={{ ...noticeLine, color: '#ffd07a' }}>{deviceFailure.message}</div>}
           {mode === 'video' && audioDegraded && (
             <div style={{ ...noticeLine, color: '#ffd07a' }}>
-              This browser gave the page a camera but no microphone — the take will be silent.
+              This browser gave the page a camera but no microphone. The take will be silent.
             </div>
           )}
           {/* R-9: the shutter's refusal, said out loud. `role="status"` so it is announced
@@ -915,7 +915,7 @@ function ReviewStage({
 
       {maxDurationHit && (
         <div style={{ ...noticeLine, color: '#ffd07a', marginTop: 12 }}>
-          Recording stopped at the one-hour limit — everything up to that point was kept.
+          Recording stopped at the one-hour limit. Everything up to that point was kept.
         </div>
       )}
 

@@ -10,8 +10,8 @@ import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import type { RestoreAllMode, ScrapAllMode } from '@/features/demo/engine'
 import { WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
-import { scheme } from '@/features/demo/ui/tokens/palette'
-import { TERMINAL_PALETTE } from '@/features/demo/ui/screens/import/terminal-palette'
+import { palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
  * The Notes screen — the phone's seven-section notes editor (P2.1, ui-mapping 08
@@ -60,10 +60,30 @@ export interface NotesScreenProps {
 // force-dark, the panel shade itself is not.
 const PANEL_BG = TERMINAL_PALETTE.screen[scheme]
 const PANEL_BORDER = `1px solid ${TERMINAL_PALETTE.border}`
-const TEXT = '#dfe9f3'
-const DIM = '#7a93ad'
-const PRIMARY = '#4BA3D4'
-const WARNING = '#ffd93d'
+
+// U7.3 (U7.1's deferral B; B.6 row 45's A44 half). Everything BELOW the panel shell renders
+// inside the phone's `<ForceColorScheme scheme="dark">` (`NotesSectionEditor.tsx:110`), where
+// the phone then reads ordinary `colors.*`. The demo has no theme context, so the forced scheme
+// is written down — `palette[TERMINAL_SCHEME]`, the pattern U7.1 established for exactly this
+// subtree. NOT `colors` (that is the APP scheme; a flip would drop light-theme greys onto a
+// near-black console) and NOT `palette.dark` (the scheme-half scan exempts no file).
+//
+// Four of the five were hand-held hexes. `PRIMARY`/`WARNING` were byte-exact matches for
+// `primaryLight`/`warning` and only needed naming; `TEXT` and `DIM` were genuine drift:
+//   TEXT `#dfe9f3` -> `text` `#f0f4f8`            phone SectionBlock.tsx:266 (`notesText`)
+//   DIM  `#7a93ad` -> SPLIT, see below            phone SectionBlock.tsx:212 vs :213
+// `DIM` was one demo constant covering two phone tokens — `restoreLabel` is `textTertiary`
+// and `restoreHint` is `textSecondary` — so it is gone rather than renamed, and each of its
+// three sites now spells the tone the phone spells there.
+const FORCED = palette[TERMINAL_SCHEME]
+
+/**
+ * A94/D13: the notes body keeps JetBrains Mono, the EVIDENTIARY face. D13's ruling names "the
+ * notes panel" in that role, and it is a demo-originated choice rather than a ported one — the
+ * phone's notes components carry no `fontFamily` at all (measured at `dd5551ec`: zero hits in
+ * `src/features/documentation/notes/components/`), so its editor renders in the platform sans.
+ * `ui/__tests__/fonts.test.ts`'s mono policy reds if this becomes the scanner face.
+ */
 const MONO = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 const bodyText: CSSProperties = {
@@ -72,7 +92,7 @@ const bodyText: CSSProperties = {
   outline: 'none',
   resize: 'none',
   background: 'transparent',
-  color: TEXT,
+  color: FORCED.text, // phone SectionBlock.tsx:266
   fontSize: 13,
   lineHeight: '24px',
   padding: 0,
@@ -87,7 +107,7 @@ const linkBtn: CSSProperties = {
   padding: 0,
   fontSize: 12.5,
   fontWeight: 600,
-  color: PRIMARY,
+  color: FORCED.primaryLight, // phone SectionBlock.tsx:224,300 (`actionText`)
   fontFamily: 'inherit',
 }
 
@@ -168,7 +188,7 @@ const SectionBlock = memo(function SectionBlock({
         onCommitAddendum(meta.id, addendumDraft)
         if (addendumDraft.trim() === '') setAddendumOpen(false) // empty blur closes it again
       }}
-      style={{ ...bodyText, fontSize: 12.5, color: '#a9c2d8', borderLeft: '2px solid rgba(122,147,173,0.4)', paddingLeft: 10, marginTop: 6 }}
+      style={{ ...bodyText, fontSize: 12.5, color: FORCED.textSecondary, borderLeft: `2px solid ${FORCED.border}`, paddingLeft: 10, marginTop: 6 }}
     />
   )
 
@@ -179,8 +199,8 @@ const SectionBlock = memo(function SectionBlock({
       <div style={{ marginBottom: 24 }}>
         {meta.stale && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: DIM }}>{meta.label}</span>
-            <span style={{ fontSize: 12, color: DIM }}>wizard has new content for this section</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: FORCED.textTertiary }}>{meta.label}</span>
+            <span style={{ fontSize: 12, color: FORCED.textSecondary }}>wizard has new content for this section</span>
             <button type="button" style={linkBtn} onClick={() => onRequestReset(meta.id, meta.label, true)}>
               Restore
             </button>
@@ -220,10 +240,10 @@ const SectionBlock = memo(function SectionBlock({
       )}
       {meta.stale && (
         <div style={{ marginTop: 10, borderRadius: 10, border: '1px solid rgba(255,217,61,0.25)', background: 'rgba(255,217,61,0.06)', padding: '10px 12px' }}>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 1.2, color: WARNING, marginBottom: 6 }}>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: 1.2, color: FORCED.warning, marginBottom: 6 }}>
             SOURCE DATA CHANGED — AUTO-GENERATED WOULD NOW READ
           </div>
-          <div style={{ fontSize: 12.5, lineHeight: '20px', color: '#c7d6e4', whiteSpace: 'pre-wrap', fontFamily: MONO, marginBottom: 8 }}>
+          <div style={{ fontSize: 12.5, lineHeight: '20px', color: FORCED.textSecondary, whiteSpace: 'pre-wrap', fontFamily: MONO, marginBottom: 8 }}>
             {meta.freshContent}
           </div>
           <button type="button" style={linkBtn} onClick={() => onRequestReset(meta.id, meta.label, false)}>
@@ -237,7 +257,7 @@ const SectionBlock = memo(function SectionBlock({
         <button
           type="button"
           onClick={() => setAddendumOpen(true)}
-          style={{ ...linkBtn, color: DIM, opacity: 0.5, fontWeight: 500, marginTop: 4 }}
+          style={{ ...linkBtn, color: FORCED.textTertiary, opacity: 0.5, fontWeight: 500, marginTop: 4 }}
         >
           + add note
         </button>

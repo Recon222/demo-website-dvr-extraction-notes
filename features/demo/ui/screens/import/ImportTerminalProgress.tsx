@@ -21,6 +21,7 @@ import {
   TERMINAL_FONT_SIZE,
   TERMINAL_SCHEME,
 } from '@/features/demo/ui/screens/import/terminal-palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * ImportTerminalProgress — the live import terminal (parity P1.4, matrix row 74).
@@ -257,7 +258,12 @@ const jumpPillStyle: CSSProperties = {
   padding: '5px 10px',
   borderRadius: 9999,
   border: 'none',
-  background: colors.primary,
+  // `primaryDark`, not the flat `primary` — the phone's own reason at its :108-112: "`onPrimary`
+  // on `primary` measures 3.73:1 in dark, and this pill's label is 13px normal weight, so AA's
+  // 4.5 applies with no large-text relief. On `primaryDark`: 5.80 dark / 8.72 light." That is
+  // DEF-UI-001, the ceiling D5 inherits everywhere the phone has NOT already fixed it — and here
+  // it has (phone :113).
+  background: colors.primaryDark,
   cursor: 'pointer',
 }
 const badgeBase: CSSProperties = {
@@ -356,19 +362,19 @@ interface CtaView {
  */
 function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: boolean): CtaView {
   const reviewSub = runHadSample
-    ? { sub: 'sample import — review →', subColor: colors.warning }
+    ? { sub: 'sample import · review →', subColor: colors.warning }
     : { sub: 'Review import →', subColor: colors.textSecondary }
   switch (outcome.status) {
     case 'success': {
       const batch = outcome.totalFiles > 1
       return {
         icon: <Icon path="M8 12l2.5 2.5L16 9" size={22} color={colors.success} circle />, // checkmark-circle
-        titleColor: '#7fe6b6', // :240
-        border: 'rgba(16,209,119,0.32)',
-        bg: 'rgba(16,209,119,0.10)',
+        titleColor: colors.successOnLight, // phone :242 (D8a)
+        border: withAlpha(colors.success, 0.32), // phone :243
+        bg: withAlpha(colors.success, 0.1), // phone :244
         headline: batch ? 'Batch complete' : 'Import ready for review',
         title: batch
-          ? `Batch complete — ${outcome.successCount} of ${outcome.totalFiles} location${outcome.totalFiles === 1 ? '' : 's'}`
+          ? `Batch complete: ${outcome.successCount} of ${outcome.totalFiles} location${outcome.totalFiles === 1 ? '' : 's'}`
           : 'Import ready for review',
         ...reviewSub,
         a11y: 'Review the import before it saves',
@@ -378,21 +384,21 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
       const failed = outcome.totalFiles - outcome.successCount
       return {
         icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.warning} circle />, // alert-circle
-        titleColor: colors.warning,
-        border: 'rgba(255,217,61,0.36)',
-        bg: 'rgba(255,217,61,0.10)',
+        titleColor: colors.warningOnLight, // phone :283 (D8a)
+        border: withAlpha(colors.warning, 0.36), // phone :284
+        bg: withAlpha(colors.warning, 0.1), // phone :285
         headline: 'Batch partially failed',
-        title: `Batch partially failed — ${outcome.successCount} of ${outcome.totalFiles}, ${failed} need${failed === 1 ? 's' : ''} attention`,
+        title: `Batch partially failed: ${outcome.successCount} of ${outcome.totalFiles}, ${failed} need${failed === 1 ? 's' : ''} attention`,
         ...reviewSub,
-        a11y: 'Review the import — some files failed',
+        a11y: 'Review the import; some files failed', // phone :292 — the semicolon IS the phone's
       }
     }
     case 'failure':
       return {
         icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.error} circle />,
-        titleColor: colors.error,
-        border: 'rgba(255,71,87,0.32)',
-        bg: 'rgba(255,71,87,0.10)',
+        titleColor: colors.errorOnLight, // phone :298 (D8a)
+        border: withAlpha(colors.error, 0.32), // phone :299
+        bg: withAlpha(colors.error, 0.1), // phone :300
         headline: isBatchRun ? 'Batch failed' : 'Import failed',
         title: isBatchRun ? 'Batch failed' : 'Import failed',
         sub: 'See error details →',
@@ -600,8 +606,11 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
 
         {!pinned && lines.length > 0 && (
           <button type="button" data-testid="jump-to-latest-pill" aria-label="Jump to latest log line" onClick={jumpToLatest} style={jumpPillStyle}>
-            <Icon path="M12 5v13M19 12l-7 7-7-7" size={13} color="#fff" />
-            <span style={{ fontFamily: stmono, fontSize: TERMINAL_FONT_SIZE.row, fontWeight: 600, color: '#fff' }}>latest</span>
+            {/* Phone :115-116 — `colors.onPrimary`, the token that pairs with `primaryDark`
+                above. The bare `'#fff'` here was the same value under no name, which is what
+                let the pill's fill and its label drift apart in the first place. */}
+            <Icon path="M12 5v13M19 12l-7 7-7-7" size={13} color={colors.onPrimary} />
+            <span style={{ fontFamily: stmono, fontSize: TERMINAL_FONT_SIZE.row, fontWeight: 600, color: colors.onPrimary }}>latest</span>
           </button>
         )}
       </div>
@@ -641,7 +650,12 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
       ) : (
         <div
           data-testid="terminal-processing-badge"
-          style={{ ...badgeBase, border: '1px solid rgba(43,140,193,0.32)', background: 'rgba(26,45,68,0.55)' }}
+          // The fill was `rgba(26,45,68,0.55)`. The phone names it at its :439-441: it is "the
+          // PRE-recolor `backgroundTertiary`, orphaned when the ramp moved" to the current one,
+          // and "it never adapted". The demo carried the identical orphan. Both parts derive
+          // now (phone :444-446). The two hexes the phone quotes are left out on purpose: to
+          // `glass-tokens.test.ts`'s banned-literal scan a comment is source (U7.1's D-4).
+          style={{ ...badgeBase, border: `1px solid ${withAlpha(colors.primary, 0.32)}`, background: withAlpha(colors.backgroundTertiary, 0.55) }}
         >
           <Spinner reduce={reduce} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

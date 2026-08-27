@@ -152,7 +152,7 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     const { props } = renderStage({ readClipboardText: () => Promise.reject(new Error('NotAllowedError')) })
     fireEvent.click(screen.getByText('Paste from Clipboard'))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Clipboard access is blocked in this browser — use Paste Text instead.',
+      'Clipboard access is blocked in this browser. Use Paste Text instead.',
     )
     expect(props.onClipboardText).not.toHaveBeenCalled()
   })

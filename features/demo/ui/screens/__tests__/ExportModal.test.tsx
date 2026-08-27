@@ -107,7 +107,7 @@ describe('ExportModal — progress mode', () => {
       })
       const live = screen.getByTestId('export-progress-announcement')
       await vi.waitFor(() =>
-        expect(live).toHaveTextContent('Generating PDFs... — Location 1 of 2 — "Front Counter"'),
+        expect(live).toHaveTextContent('Generating PDFs..., Location 1 of 2, "Front Counter"'),
       )
 
       const noop = vi.fn()
@@ -122,7 +122,7 @@ describe('ExportModal — progress mode', () => {
         />,
       )
       await vi.waitFor(() =>
-        expect(live).toHaveTextContent('Generating PDFs... — Location 2 of 2 — "Rear Alley Camera"'),
+        expect(live).toHaveTextContent('Generating PDFs..., Location 2 of 2, "Rear Alley Camera"'),
       )
     })
 

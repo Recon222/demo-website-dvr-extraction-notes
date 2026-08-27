@@ -142,7 +142,7 @@ export function SplashScreen({ authState, onScan, reduceMotion = false }: Splash
           color: 'rgba(153,186,221,0.70)',
         }}
       >
-        Simulated scan — a browser tab has no biometric sensor. On the phone this is Face ID.
+        Simulated scan. A browser tab has no biometric sensor. On the phone this is Face ID.
       </div>
 
       {/* Full-bleed tap target, last in the DOM so it sits over the chrome above. */}

@@ -248,15 +248,14 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     'screens/DateDisambiguationWarning.tsx',
     'screens/EditIncidentLocationModal.tsx',
     'screens/ExtractedScopeScreen.tsx',
+    'screens/OcrCaptureScreen.tsx', // U7.3's hand-back: the assumed-date blocker + the read failure.
     'screens/import/PickerStage.tsx',
   ]
 
   /**
-   * The D19 hand-backs still outstanding, one row per FILE, each naming the package that owes
-   * it. U7.2 took its two and moved them into `ADOPTED` — that was the pair the plan booked as
-   * a single entry (`AudioRecorderScreen` + `AudioPreviewScreen`), which is why the plan's
-   * entry count and this object's row count were never the same number. Neither is written
-   * down anywhere here, deliberately (W2 F48). When you adopt, DELETE your row
+   * The D19 hand-backs still outstanding, with the package that owes each one. U7.2 took its
+   * two (`AudioRecorderScreen`, `AudioPreviewScreen`) and moved them into `ADOPTED`; U7.3 took
+   * its one (`OcrCaptureScreen`). When you adopt, DELETE your row
    * here and add the file to `ADOPTED` above — do not edit a count, there isn't one.
    * `ImportModal.tsx` is deliberately absent from BOTH lists: see the refutation in
    * `docs/planning/demo-phone-ui-parity/reports/u3.3-implementation-report.md` (D12 defends the
@@ -267,7 +266,6 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
     'screens/NewCaseModal.tsx': 'U6.4a — the submit-error banner (:201-208)',
     'screens/settings/panes/_pane-chrome.tsx': 'U6.2 — PaneNote, 3 tones, 8 sites (:75-118)',
-    'screens/OcrCaptureScreen.tsx': 'U7.3 — the error and assumed-date callouts (:389-423, :476-479)',
   }
 
   const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')

@@ -4,8 +4,8 @@ import { NotesScreen, type NotesScreenProps } from '@/features/demo/ui/screens/N
 import type { NoteSectionMeta } from '@/features/demo/engine/logic/notes'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
-import { TERMINAL_PALETTE } from '@/features/demo/ui/screens/import/terminal-palette'
-import { scheme } from '@/features/demo/ui/tokens/palette'
+import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
+import { palette, scheme } from '@/features/demo/ui/tokens/palette'
 
 /** jsdom normalizes hex inline colours to rgb(r, g, b). */
 const rgb = (hex: string): string => {
@@ -79,6 +79,84 @@ describe('NotesScreen — the forced-dark console panel (U7.1 / A85, B.6 row 45)
     // that the two arms are different values, so the distinction is not decorative.
     expect(TERMINAL_PALETTE.screen[scheme]).toBe(TERMINAL_PALETTE.screen.dark)
     expect(TERMINAL_PALETTE.screen.light).not.toBe(TERMINAL_PALETTE.screen.dark)
+  })
+})
+
+/**
+ * U7.3 closes U7.1's deferral B — the five hand-held constants INSIDE the forced-dark subtree.
+ *
+ * The phone wraps this editor's content in `<ForceColorScheme scheme="dark">`
+ * (`NotesSectionEditor.tsx:110`) and then reads plain `colors.*` inside it, so every value below
+ * is `palette[TERMINAL_SCHEME]` — the U7.1 forced-scheme pattern, never `palette.dark` (which
+ * `glass-tokens.test.ts`'s scheme-half scan exempts no file from) and never `colors`, which is
+ * the APP scheme and would put light-theme greys on a near-black console the day light opens.
+ *
+ * Values are asserted THROUGH the palette, not as hexes: a hex pin here would be a second copy
+ * of the thing the tokenisation exists to delete.
+ */
+describe('NotesScreen — the forced-dark foregrounds (U7.1 deferral B / B.6 row 45)', () => {
+  const forced = palette[TERMINAL_SCHEME]
+
+  it('paints the section body in the forced-dark `text`, not a private near-copy', () => {
+    // Was `#dfe9f3`, which is on no ramp in either repo. Phone `SectionBlock.tsx:266` —
+    // `style={[styles.notesText, { color: colors.text }]}` inside the forced-dark subtree.
+    render(<NotesScreen {...props()} />)
+    const body = screen.getByLabelText('address & visits')
+    expect(body.style.color).toBe(rgb(forced.text))
+  })
+
+  it('paints the stale caption`s warning and the action links from the palette', () => {
+    render(<NotesScreen {...props({ sections: [meta({ stale: true, freshContent: 'fresher line' })] })} />)
+    // Phone `SectionBlock.tsx:281` puts `colors.warning` on the stale DOT. The demo has no dot
+    // and spends the same token on the caption itself, so the marker survives the port; the
+    // token is the phone's either way.
+    expect(screen.getByText(/SOURCE DATA CHANGED/).style.color).toBe(rgb(forced.warning))
+    // Phone `SectionBlock.tsx:224,300` — `actionText: { color: colors.primaryLight }`.
+    expect(screen.getByRole('button', { name: 'Reset to auto-generated' }).style.color).toBe(rgb(forced.primaryLight))
+    // Phone `SectionBlock.tsx:287` — `stalePreview: { color: colors.textSecondary }`. Was
+    // `#c7d6e4`, a one-off belonging to no token.
+    expect(screen.getByText('fresher line').style.color).toBe(rgb(forced.textSecondary))
+  })
+
+  it('splits the retired `#7a93ad` the way the phone splits it — label tertiary, hint secondary', () => {
+    // One demo constant covered two phone tokens. `#7a93ad` is a drifted near-copy of
+    // `textTertiary` (`#7a9fc4`), and the phone spends BOTH tones in this block:
+    //   `restoreLabel`  `:212` -> textTertiary   ·   `restoreHint` `:213` -> textSecondary
+    // Collapsing them onto one value is what lost the distinction; it comes back here.
+    // (D5's rider bans ADDING textTertiary text. This adds none — it names a tone already
+    // painted, at the site the phone paints the same one.)
+    // The restore ROW is the deleted-and-stale shape (`isDeleted = manuallyEdited && content
+    // === ''`), which is the only state that renders the label + hint pair.
+    render(<NotesScreen {...props({ sections: [meta({ stale: true, manuallyEdited: true, content: '' })] })} />)
+    expect(screen.getByText('address & visits').style.color).toBe(rgb(forced.textTertiary))
+    expect(screen.getByText('wizard has new content for this section').style.color).toBe(rgb(forced.textSecondary))
+  })
+
+  it('paints the `+ add note` link and the addendum input from the palette', () => {
+    // Phone `:317` — `addendumAddText: { color: colors.textTertiary }`.
+    const { unmount } = render(<NotesScreen {...props()} />)
+    expect(screen.getByRole('button', { name: '+ add note' }).style.color).toBe(rgb(forced.textTertiary))
+    unmount()
+
+    // Two more un-tokened one-offs the DIM sweep surfaced, both with a phone counterpart:
+    //   `#a9c2d8`               -> textSecondary   phone SectionBlock.tsx:190 (`addendumText`)
+    //   rgba(122,147,173,0.4)   -> border          phone SectionBlock.tsx:174 (`addendumWrap`)
+    // The second is the retired `#7a93ad` again, spelled as an rgba so a hex sweep missed it.
+    render(<NotesScreen {...props({ sections: [meta({ userAddendum: 'a stored note' })] })} />)
+    const addendum = screen.getByLabelText('Note added to address & visits')
+    expect(addendum.style.color).toBe(rgb(forced.textSecondary))
+    expect(addendum.style.borderLeft).toBe(`2px solid ${rgb(forced.border)}`)
+  })
+
+  it('keeps the notes body on the EVIDENTIARY mono face (A94 / D13)', () => {
+    // D13 names "the notes panel" in JetBrains Mono's role list, and that ruling is what
+    // governs: the phone has NO mono face here at all — `grep fontFamily
+    // src/features/documentation/notes/components/*.tsx` returns zero hits at `dd5551ec`, so
+    // the whole editor renders in the platform sans there. This is therefore demo-originated
+    // and D13-ruled, not a drift from a phone value. It stays JetBrains; a move to the scanner
+    // face would also red `ui/__tests__/fonts.test.ts`'s policy scan.
+    render(<NotesScreen {...props()} />)
+    expect(screen.getByLabelText('address & visits').style.fontFamily).toContain('--font-jbmono')
   })
 })
 

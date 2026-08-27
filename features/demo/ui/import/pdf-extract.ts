@@ -45,7 +45,7 @@ export async function extractPdfText(file: File): Promise<string> {
   const trimmed = text.trim()
   if (trimmed.length < MIN_NATIVE_EXTRACTION_LENGTH) {
     throw new PdfExtractionError(
-      'This PDF looks scanned or image-only — no selectable text was found. Paste the request text instead.',
+      'This PDF looks scanned or image-only. No selectable text was found. Paste the request text instead.',
     )
   }
   return trimmed

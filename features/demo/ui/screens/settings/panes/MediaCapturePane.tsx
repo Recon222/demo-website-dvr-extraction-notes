@@ -48,7 +48,7 @@ export function MediaCapturePane({ settings, onChange }: SettingsPaneProps) {
     <div data-testid="settings-pane-media-capture">
       <PaneStubNote>
         The demo captures through the browser (<code>getUserMedia</code> /{' '}
-        <code>MediaRecorder</code>), which exposes none of these knobs — quality, codec, duration
+        <code>MediaRecorder</code>), which exposes none of these knobs. Quality, codec, duration
         cap and shutter sound are the camera app&apos;s to choose, and nothing captured here
         carries EXIF, so no GPS is ever embedded. On the phone every one of these is applied at
         the capture itself.

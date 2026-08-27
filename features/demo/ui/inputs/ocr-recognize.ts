@@ -42,7 +42,7 @@ const OCR_ASSET_BASE = '/ocr'
 /** One honest sentence for every way the recogniser can fail: the distinction the visitor can
  *  act on is not WHICH internal step broke, but that nothing was read and what still works. */
 export const OCR_RECOGNITION_FAILED_MESSAGE =
-  'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.'
+  'Text recognition failed. Nothing was read from the frame. Try again, or use the sample DVR clock below.'
 
 type TesseractWorker = Awaited<ReturnType<(typeof import('tesseract.js'))['createWorker']>>
 

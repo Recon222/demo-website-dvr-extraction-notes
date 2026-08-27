@@ -312,7 +312,7 @@ describe('the live shutter', () => {
       view.rerender(<OcrCaptureScreen {...h.props} result={parsedResult} dvrDraft="2025-03-08 12:05:30" />)
     })
     await act(async () => {
-      release({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' })
+      release({ ok: false, message: 'Text recognition failed. Nothing was read from the frame. Try again, or use the sample DVR clock below.' })
     })
 
     // Retake returns to the aim stage: the stale failure must not materialise out of context,
@@ -327,7 +327,7 @@ describe('the live shutter', () => {
 
   it('choosing a sample clears a lingering failure notice — it described a read that no longer matters', async () => {
     const h = harness({
-      recognize: async () => ({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
+      recognize: async () => ({ ok: false, message: 'Text recognition failed. Nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
     })
     render(<OcrCaptureScreen {...h.props} />)
     await grant()
@@ -344,7 +344,7 @@ describe('the live shutter', () => {
 
   it('surfaces a recognition failure as the honest notice — no read is fabricated', async () => {
     const h = harness({
-      recognize: async () => ({ ok: false, message: 'Text recognition failed — nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
+      recognize: async () => ({ ok: false, message: 'Text recognition failed. Nothing was read from the frame. Try again, or use the sample DVR clock below.' }),
     })
     render(<OcrCaptureScreen {...h.props} />)
     await grant()
@@ -355,7 +355,7 @@ describe('the live shutter', () => {
     })
 
     expect(h.reads).toHaveLength(0)
-    expect(screen.getByText(/Text recognition failed — nothing was read/)).toBeInTheDocument()
+    expect(screen.getByText(/Text recognition failed\. Nothing was read/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByText(/Text recognition failed/)).not.toBeInTheDocument()
   })

@@ -86,7 +86,7 @@ describe('audio recording — the bridge', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Audio' }))
 
     // The BASE, as on the phone — the route appends `.m4a` after building the toast.
-    expect(screen.getByText('Audio Saved — manager statement saved to case')).toBeInTheDocument()
+    expect(screen.getByText('Audio Saved. manager statement saved to case')).toBeInTheDocument()
   })
 
   it('with no location open: tells the visitor, saves nothing, and closes the recorder (R-1)', () => {
@@ -105,7 +105,7 @@ describe('audio recording — the bridge', () => {
 
     expect(store.getState().locations).toBe(before.locations)
     expect(
-      screen.getByText('Cannot Save Audio — No location selected. Please navigate from a case first.'),
+      screen.getByText('Cannot Save Audio. No location selected. Please navigate from a case first.'),
     ).toBeInTheDocument()
     // Never the success line as well as the refusal.
     expect(screen.queryByText(/Audio Saved/)).not.toBeInTheDocument()

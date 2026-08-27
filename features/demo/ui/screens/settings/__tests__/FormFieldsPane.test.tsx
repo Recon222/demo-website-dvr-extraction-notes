@@ -71,7 +71,7 @@ describe('the grid is the wizard inventory', () => {
     renderPane()
     fireEvent.click(screen.getByTestId('fc-group-timeOffset'))
     const body = screen.getByTestId('fc-body-timeOffset')
-    expect(body).toHaveTextContent('Required time calibration — always shown.')
+    expect(body).toHaveTextContent('Required time calibration, always shown.')
     expect(within(body).queryAllByRole('switch')).toHaveLength(0)
 
     fireEvent.click(screen.getByTestId('fc-group-mediaCapture'))
