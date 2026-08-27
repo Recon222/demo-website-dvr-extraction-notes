@@ -63,7 +63,7 @@ describe('the library reads the OPEN location’s media', () => {
     render(<DemoExperience store={store} />)
     openLibrary(store)
 
-    expect(screen.getByTestId('modal-subtitle')).toHaveTextContent('2 items')
+    expect(screen.getByText('2 items')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Photo: front-door.jpg' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Photo: elsewhere.jpg' })).not.toBeInTheDocument()
   })
@@ -183,6 +183,6 @@ describe('deleting a capture (row 66)', () => {
     expect(screen.getByRole('dialog', { name: 'Media Library' })).toBeInTheDocument()
     // The Photos tab is empty now and says so, per tab.
     expect(screen.getByText('No photos')).toBeInTheDocument()
-    expect(screen.getByTestId('modal-subtitle')).toHaveTextContent('1 items')
+    expect(screen.getByText('1 items')).toBeInTheDocument()
   })
 })

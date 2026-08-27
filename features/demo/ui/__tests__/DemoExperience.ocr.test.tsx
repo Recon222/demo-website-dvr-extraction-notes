@@ -174,7 +174,9 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
     const store = openOcr()
     fireEvent.click(screen.getByText('Time only'))
 
-    expect(screen.getByText('No date on the DVR display')).toBeInTheDocument()
+    // U7.3: the blocker became a `<Banner severity="error">` (A71/D19's hand-back) and its
+    // prose is a message PROP, so a JSX-text selector no longer reaches it.
+    expect(screen.getByTestId('ocr-assumed-date')).toHaveTextContent('No date on the DVR display.')
     fireEvent.click(screen.getByText('Use this & calculate'))
     expect(store.getState().capture.dvrDateTime).toBe('')
 

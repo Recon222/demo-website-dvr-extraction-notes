@@ -141,13 +141,13 @@ export const SAMPLE_FALLBACK_PREFIX = 'sample fallback:'
 function emitFallback(emitter: ImportLogEmitter | undefined, mode: Exclude<FallbackMode, 'none'>): void {
   switch (mode) {
     case 'sample':
-      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live import disabled — importing the sample request`)
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live import disabled, importing the sample request`)
       break
     case 'unavailable':
-      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured — importing the sample request`, '/api/extract → 503 NOT_CONFIGURED')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} live model not configured, importing the sample request`, '/api/extract → 503 NOT_CONFIGURED')
       break
     case 'error':
-      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model — importing the sample request`, '/api/extract failed (non-503 or network error)')
+      emitter?.log('NORM', `${SAMPLE_FALLBACK_PREFIX} couldn't reach the live model, importing the sample request`, '/api/extract failed (non-503 or network error)')
       break
     default: {
       const exhaustive: never = mode
@@ -205,14 +205,14 @@ export async function runImport(input: {
     emitter?.log('OK', 'normalize ✓', `warnings: ${warnings.length}`)
     // Live reply that parsed but yielded nothing usable → don't create a blank location.
     if (fallbackMode === 'none' && fieldCount === 0 && timeFrameCount === 0) {
-      emitter?.log('ERR', 'no recognizable fields found — nothing to import')
+      emitter?.log('ERR', 'no recognizable fields found: nothing to import')
       onStage?.('error')
       // The OCC# is not a usable form field (the case record owns it), but it IS the
       // honest "here's what the model DID find" for the failure card's Data Found block.
       const partialData = occurrenceNumber ? { caseNumber: occurrenceNumber } : undefined
       return {
         ok: false,
-        error: 'No recognizable fields found in this document — check it and try again.',
+        error: 'No recognizable fields found in this document. Check it and try again.',
         warnings,
         fallbackMode,
         code: 'NO_FIELDS_FOUND',

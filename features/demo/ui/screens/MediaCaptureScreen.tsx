@@ -16,10 +16,12 @@ import {
   type CapturePermission,
 } from '@/features/demo/engine/logic/media'
 
+import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import type { FrameGrabOptions } from '@/features/demo/ui/inputs/capture-media'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui/inputs/useMediaCapture'
+import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -97,25 +99,36 @@ const shell: CSSProperties = {
   overflow: 'hidden',
 }
 
+/**
+ * Placement only — `OverlayHeader` (SEAM(U7.2)) owns the row and the control.
+ *
+ * `top: 44` is the demo's device-frame value and stays: the phone computes
+ * `Math.max(insets.top, 20) + 10` (`VisionCameraScreen.tsx:319`) and nothing inside the demo's
+ * 378x786 frame has a status bar to inset from. The horizontal padding moves 16 -> 20, which is
+ * what the phone actually spells (`:324`, `Layout.spacing.mdlg`) and what every sibling overlay
+ * surface in this feature already uses.
+ */
 const topControls: CSSProperties = {
   position: 'absolute',
   top: 44,
   left: 0,
   right: 0,
-  display: 'flex',
-  justifyContent: 'space-between',
-  padding: '0 16px',
+  padding: '0 20px',
   zIndex: 4,
 }
 
-/** Phone `controlButton`: 48×48 circle on a 40%-black scrim (`VisionCameraScreen.tsx:637-644`). */
+/**
+ * Phone `controlButton`: 48x48 circle on a 40%-black scrim (`VisionCameraScreen.tsx:775-782`).
+ * Still used by the torch/switch control in the bottom row; the TOP-bar close is
+ * `OverlayHeader`'s `cameraScrim` variant, which carries these same four values.
+ */
 const controlButton: CSSProperties = {
   width: 48,
   height: 48,
   borderRadius: 24,
-  background: 'rgba(0,0,0,0.4)',
+  background: CAMERA_CHROME.controlScrim,
   border: 'none',
-  color: '#fff',
+  color: CAMERA_CHROME.onCamera,
   fontSize: 20,
   lineHeight: 1,
   display: 'flex',
@@ -130,7 +143,7 @@ const bottomControls: CSSProperties = {
   left: 0,
   right: 0,
   padding: '18px 20px 26px',
-  background: 'linear-gradient(0deg,rgba(0,0,0,0.88),transparent)',
+  background: `linear-gradient(0deg,${CAMERA_CHROME.controlBarFade},transparent)`,
   zIndex: 4,
 }
 
@@ -145,7 +158,7 @@ const mainRow: CSSProperties = {
 /** Phone `ModeToggle` container: pill on a 50%-black scrim (`ModeToggle.tsx:179-184`). */
 const modePill: CSSProperties = {
   display: 'inline-flex',
-  background: 'rgba(0,0,0,0.5)',
+  background: CAMERA_CHROME.modePillScrim,
   borderRadius: 20,
   padding: 4,
   marginBottom: 18,
@@ -479,7 +492,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              background: 'rgba(0,0,0,0.6)',
+              background: CAMERA_CHROME.indicatorScrim,
               borderRadius: 20,
               padding: '8px 16px',
             }}
@@ -489,7 +502,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
                 width: 12,
                 height: 12,
                 borderRadius: 6,
-                background: '#FF3B30',
+                background: CAMERA_CHROME.recording,
                 animation: reduceMotion ? undefined : 'blinkDot 1s ease-in-out infinite',
               }}
             />
@@ -500,11 +513,16 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
         </div>
       )}
 
-      <div style={topControls}>
-        <button type="button" aria-label="Close camera" onClick={onCancel} style={controlButton}>
-          ✕
-        </button>
-      </div>
+      {/* SEAM(U7.2): `OverlayHeader`'s `cameraScrim` adopter (A61). The control keeps the
+          phone's 48 (`VisionCameraScreen.tsx:776-777`) and its 40%-black scrim — D17 freezes
+          this palette — and the bare `✕` TEXT glyph becomes the same stroked path the other
+          three adopters draw. */}
+      <OverlayHeader
+        variant="cameraScrim"
+        onBack={onCancel}
+        backLabel="Close camera"
+        style={topControls}
+      />
 
       <div style={bottomControls}>
         <div style={{ marginBottom: 4 }}>
@@ -525,7 +543,7 @@ export function MediaCaptureScreen({ onCancel, onSave, deps }: MediaCaptureScree
           {deviceFailure && <div style={{ ...noticeLine, color: '#ffd07a' }}>{deviceFailure.message}</div>}
           {mode === 'video' && audioDegraded && (
             <div style={{ ...noticeLine, color: '#ffd07a' }}>
-              This browser gave the page a camera but no microphone — the take will be silent.
+              This browser gave the page a camera but no microphone. The take will be silent.
             </div>
           )}
           {/* R-9: the shutter's refusal, said out loud. `role="status"` so it is announced
@@ -661,7 +679,7 @@ function ShutterButton({
           width: innerSize,
           height: innerSize,
           borderRadius: mode === 'video' && isRecording ? 6 : innerSize / 2,
-          background: mode === 'photo' ? '#FFFFFF' : '#FF3B30',
+          background: mode === 'photo' ? CAMERA_CHROME.onCamera : CAMERA_CHROME.recording,
         }}
       />
     </button>
@@ -722,7 +740,7 @@ function PermissionStage({
               width: 10,
               height: 10,
               borderRadius: 5,
-              background: permission === 'denied' ? '#FF3B30' : '#ffd07a',
+              background: permission === 'denied' ? CAMERA_CHROME.recording : '#ffd07a',
               flexShrink: 0,
             }}
           />
@@ -897,7 +915,7 @@ function ReviewStage({
 
       {maxDurationHit && (
         <div style={{ ...noticeLine, color: '#ffd07a', marginTop: 12 }}>
-          Recording stopped at the one-hour limit — everything up to that point was kept.
+          Recording stopped at the one-hour limit. Everything up to that point was kept.
         </div>
       )}
 

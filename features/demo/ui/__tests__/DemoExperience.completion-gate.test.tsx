@@ -246,7 +246,7 @@ describe('Completion gate — Preview / Export PDF', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
 
-    expect(screen.queryByTitle('Case Notes — PDF')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Case Notes (PDF)')).not.toBeInTheDocument()
     const dialog = screen.getByRole('alertdialog', { name: 'Missing Required Fields' })
     // The phone's PDF-path alert body is the joined messages, not the Save-Progress prompt.
     expect(dialog).toHaveTextContent(MSG.address)
@@ -280,7 +280,7 @@ describe('Completion gate — Preview / Export PDF', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
 
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })

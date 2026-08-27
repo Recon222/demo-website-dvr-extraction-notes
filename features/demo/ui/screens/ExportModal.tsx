@@ -134,7 +134,7 @@ function ProgressContent({
    * an sr-only region written on the next tick. The composed string is what changes, so every
    * stage AND every location tick is announced.
    */
-  const spoken = [view.stageMessage, view.progressLabel, view.locationLabel].filter(Boolean).join(' — ')
+  const spoken = [view.stageMessage, view.progressLabel, view.locationLabel].filter(Boolean).join(', ')
   const [announcement, setAnnouncement] = useState('')
   useEffect(() => {
     setAnnouncement(spoken)

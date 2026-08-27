@@ -19,7 +19,7 @@ const FALLBACK_COPY: Partial<Record<AppView, string>> = {
   mediaCapture: 'An unexpected error occurred during media capture',
   audioRecording: 'An unexpected error occurred during audio recording. Please try again.',
 }
-const GENERIC_COPY = 'This screen hit an unexpected error — your session data is still here.'
+const GENERIC_COPY = 'This screen hit an unexpected error. Your session data is still here.'
 
 const wrap: CSSProperties = {
   position: 'absolute',

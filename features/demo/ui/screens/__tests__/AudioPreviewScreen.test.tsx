@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 
 import type { CapturedMedia } from '@/features/demo/engine/logic/media'
 import { AudioPreviewScreen } from '@/features/demo/ui/screens/AudioPreviewScreen'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
+
+/** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
+ *  hazards) — compare through the same normalisation rather than by hex. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = (hex.replace('#', '').match(/../g) as string[]).map((p) => parseInt(p, 16))
+  return `rgb(${r}, ${g}, ${b})`
+}
 
 /**
  * Review Audio (matrix row 69). The auto-reset behaviour is pinned here rather than described
@@ -238,5 +247,65 @@ describe('AudioPreviewScreen — duration source', () => {
 
     expect(screen.getByTestId('audio-total')).toHaveTextContent('00:09')
     expect(screen.getByRole('slider', { name: 'Audio progress' })).toBeEnabled()
+  })
+})
+
+describe('AudioPreviewScreen — U7.2 chrome (A61, A71)', () => {
+  /**
+   * MUTATION: point either notice back at its local recipe (`GLASS.borderAccent` + an 8% wash,
+   * or `GLASS.borderError` + a 6% wash), or swap the two severities.
+   *
+   * D19 handed this screen's PAIR of notices to U7.2. A71's rule is one callout and an OPAQUE
+   * fill — the `*OnLight` foregrounds are measured against the `*Light` tones and a translucent
+   * wash over an unknown parent cannot be measured (`Banner.tsx:35-42`). Both of these were
+   * exactly such washes.
+   */
+  it('routes the carried-over notice through Banner at info, on an opaque ground', () => {
+    view({ notice: 'Maximum Duration Reached — recording stopped after one hour.' })
+    const banner = screen.getByRole('alert')
+
+    expect(banner).toHaveTextContent('Maximum Duration Reached')
+    expect(banner.getAttribute('aria-label')).toMatch(/^info: /)
+    // Informational, never assertive: it must not interrupt whatever is being read.
+    expect(banner).toHaveAttribute('aria-live', 'polite')
+    expect(banner.style.backgroundColor).toBe(hexToRgb(colors.infoLight))
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+  })
+
+  it('routes a refused playback through Banner at error, assertively', async () => {
+    play.mockImplementation(() => Promise.reject(new Error('NotAllowedError')))
+    view()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }))
+    })
+
+    const banner = screen.getByRole('alert')
+    expect(banner).toHaveTextContent('The browser refused to start playback')
+    expect(banner.getAttribute('aria-label')).toMatch(/^error: /)
+    // Errors DO interrupt — `role="alert"` implies it, and Banner writes it back explicitly.
+    expect(banner).toHaveAttribute('aria-live', 'assertive')
+    expect(banner.style.backgroundColor).toBe(hexToRgb(colors.errorLight))
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+  })
+
+  /**
+   * MUTATION: put the title back at 20/700, or move the ✕ back to the trailing position.
+   *
+   * A61's consolidation. The phone paints this header through `FormLayout` -> `Header`
+   * (`AudioRecordingFlow.tsx:127`), whose title is `Header.tsx:198-201` — `flex: 1`,
+   * `fontSize.lg` (18), `semibold` (600) — with the exit control BEFORE it (`:67-88`).
+   */
+  it('adopts OverlayHeader — 18/600 title, exit control LEADING', () => {
+    view()
+    const exit = screen.getByRole('button', { name: 'Exit audio recording' })
+    const title = screen.getByText('Review Audio')
+
+    expect(title).toHaveStyle({ fontSize: '18px', fontWeight: '600' })
+    expect(exit).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
+    const row = exit.parentElement as HTMLElement
+    expect(row.children[0]).toBe(exit)
+    expect(row.children[1]).toBe(title)
   })
 })

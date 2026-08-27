@@ -1,8 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { CAMERA_CHROME } from '@/features/demo/ui/screens/camera-chrome'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { Banner } from '@/features/demo/ui/controls/Banner'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { DateTimeField } from '@/features/demo/ui/screens/_shared'
 import { DateDisambiguationWarning } from '@/features/demo/ui/screens/DateDisambiguationWarning'
@@ -14,6 +18,7 @@ import { grabVideoFrame, type FrameGrabOptions, type MediaDevicesLike } from '@/
 import { useCaptureStream } from '@/features/demo/ui/inputs/useCaptureStream'
 import { disposeDvrRecognizer, recognizeDvrStrip, type OcrRecognizeFn } from '@/features/demo/ui/inputs/ocr-recognize'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 export type OcrResult =
   | {
@@ -109,7 +114,27 @@ const corner = (pos: CSSProperties): CSSProperties => ({ position: 'absolute', w
 
 const label12: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
-const scrim: CSSProperties = { position: 'absolute', background: 'rgba(0,0,0,0.6)' } // phone darkOverlayOpacity
+
+/**
+ * The confirm stage's evidence surfaces — matrix A33/A34/A35/A55, B.6 row 37.
+ *
+ * Was a hand-rolled slab: a near-black fill behind a 60%-alpha hairline. That hairline was the
+ * phone's RETIRED pre-P0 `border` spelled as an `rgba()`, which is exactly why
+ * `tokens/__tests__/palette.test.ts`'s retired-hex sweep — a HEX scan — never saw it. (The hex
+ * is deliberately not written here: that scan reads RAW text, so to it a docblock is source.
+ * `palette.test.ts`'s RETIRED list is its one home.)
+ *
+ * The phone paints THREE `<Card glass glassVariant="nestedCard">` on this screen
+ * (`ConfirmationScreen.tsx:248`, `:301`, `:327`); the demo merges the first two and this is
+ * the tier they both take. Longhands only after the spread (the lit-edge rule): the fragment
+ * carries `borderTopColor` and no shorthand may follow it.
+ */
+const evidenceCard: CSSProperties = { ...glassCardNested, padding: 16, marginBottom: 16 }
+// SEAM(U7.2): the mask outside the guide box. The ALPHA is the phone's
+// (`ocr-time-capture/constants/index.ts:53`, `darkOverlayOpacity: 0.6`); the COLOUR is the
+// demo's own black where the phone washes its app background (`BoundingBoxOverlay.tsx:87`).
+// D17 freezes the camera palette, so the value moved nowhere — see `camera-chrome.ts`.
+const scrim: CSSProperties = { position: 'absolute', background: CAMERA_CHROME.guideMask }
 
 const viewfinderPanel: CSSProperties = {
   position: 'absolute',
@@ -280,7 +305,7 @@ export function OcrCaptureScreen({
         if (!grab || !grab.ok) {
           // A camera that has not delivered a frame yet and a canvas that cannot encode land
           // on the same honest sentence — nothing was captured.
-          setNotice((grab && !grab.ok ? grab.failure.message : null) ?? 'This browser could not turn the camera frame into an image — nothing was captured.')
+          setNotice((grab && !grab.ok ? grab.failure.message : null) ?? 'This browser could not turn the camera frame into an image. Nothing was captured.')
           return
         }
         const recognize = deps?.recognize ?? recognizeDvrStrip
@@ -354,11 +379,25 @@ export function OcrCaptureScreen({
     }
 
     return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8', marginBottom: 16 }}>Captured timestamp</div>
+      // U7.3 (B.6 row 37): the APP ground, not the camera's near-black. `OcrCaptureFlow.tsx:109-110`
+      // is explicit that the phone's ForceColorScheme wrap "deliberately does NOT cover the
+      // confirmation step above: that is a normal themed form screen with no camera behind it."
+      // The demo's confirm stage inherited `#05080d` only because both stages live in one
+      // component, and a translucent glass tier over a near-black parent is unmeasurable against
+      // a contract that assumes the app ground — `controls/Banner.tsx`'s opacity rule, applied to
+      // a surface rather than a fill.
+      <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: colors.background, padding: '54px 22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {/* SEAM(U7.2): `OverlayHeader`'s fourth adopter (A61) — the one site that had no header
+            CONTROL at all, only a bare title div. It stays control-less (this stage's exits are
+            its own Cancel / Try again CTAs) and takes the seam's 18/600 title so the four
+            surfaces stop disagreeing about what a screen title is. The shell already insets
+            22px, so the header supplies only its bottom gap.
+            SEAM(U7.3): the confirm stage's CARDS below, its assumed-date warning, the mono
+            policy and A93's copy sweep are U7.3's — untouched here. */}
+        <OverlayHeader variant="glass" title="Captured timestamp" style={{ marginBottom: 16 }} />
         {result.ok ? (
           <>
-            <div style={{ borderRadius: 12, border: '1px solid rgba(30,58,95,0.6)', background: '#0a1320', padding: 16, marginBottom: 16 }}>
+            <div style={evidenceCard}>
               <div style={{ ...label12, marginBottom: 4 }}>Parsed DVR time</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f4f8', fontFamily: mono, marginBottom: 14 }}>{result.dvrTime}</div>
               {/* R-16 applies to the SAMPLE score only: that one is the screen's one
@@ -369,7 +408,7 @@ export function OcrCaptureScreen({
                 <span style={{ ...label12, display: 'flex', alignItems: 'center', gap: 6 }}>
                   OCR confidence
                   {!result.confidence.measured && (
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '1px 6px' }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: SAMPLE_BADGE.foreground, background: SAMPLE_BADGE.background, border: `1px solid ${SAMPLE_BADGE.border}`, borderRadius: 6, padding: '1px 6px' }}>
                       Sample
                     </span>
                   )}
@@ -378,7 +417,7 @@ export function OcrCaptureScreen({
               </div>
               {!result.confidence.measured && (
                 <div style={{ fontSize: 11, color: '#7a9fc4', lineHeight: 1.45, marginBottom: 10 }}>
-                  Fixed for sample frames — no live frame was scored here. It rates how legibly the characters
+                  Fixed for sample frames. No live frame was scored here. It rates how legibly the characters
                   read, never which date they mean.
                 </div>
               )}
@@ -393,12 +432,22 @@ export function OcrCaptureScreen({
             {result.resolution.kind === 'ambiguous' && <DateDisambiguationWarning result={result.resolution.ambiguity} />}
 
             {result.resolution.kind === 'assumed-date' && (
-              <div role="alert" style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>No date on the DVR display</div>
-                <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5, marginBottom: 12 }}>
-                  Only a time was read from this frame. The date below is <strong>assumed</strong> — today&apos;s date on this
-                  device, not something OCR saw. Correct it, or confirm it, before it becomes a scope boundary.
-                </div>
+              /* A71 / D19's hand-back. Was the family Banner exists to absorb: a translucent
+                 `rgba(255,71,87,0.06)` fill (unmeasurable by construction) under a heading in the
+                 saturated accent family. The phone deleted the identical shape one file over and
+                 said why — `DateDisambiguationWarning.tsx:19-28`, the callout this screen already
+                 renders above. Its two structural consequences here, both the phone's own:
+                 the prose FOLDS into `message` (a Banner is a status line, not a layout slot), so
+                 the 15/600 heading and the `<strong>` on "assumed" are gone with the callout; and
+                 the control becomes a SIBLING, the shape U7.2 gave the recorder's Dismiss.
+                 Severity stays `error` — this blocks the commit, and the accessible name and the
+                 assertive live region both follow from it. */
+              <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                <Banner
+                  severity="error"
+                  testId="ocr-assumed-date"
+                  message="No date on the DVR display. Only a time was read from this frame. The date below is assumed: today's date on this device, not something OCR saw. Correct it, or confirm it, before it becomes a scope boundary."
+                />
                 {/* R-35: `aria-disabled`, not `disabled` — the §44b rule applied to the button
                     that actually trips it. This one's state flips UNDER the operator's finger:
                     pressing it sets `dateConfirmed`, a native `disabled` blurs the just-pressed
@@ -406,20 +455,18 @@ export function OcrCaptureScreen({
                     blocked-reason clears and the (aria-disabled) commit CTA below becomes the
                     thing to press. The click is guarded in the handler instead — the same
                     three-layer shape as the CTA, and re-confirming would be idempotent anyway. */}
+                {/* Onto U2.2's ONE button recipe (A64/A65/A68). The hand-rolled shape spelled
+                    `#2B8CC1` and `#4BA3D4` raw — the two literals `outline` already owns — and
+                    D10 keeps the demo's `opacity` + `aria-disabled` idiom over a `disabled`
+                    fill, so `disabled` is deliberately NOT passed here: the recipe would paint
+                    `disabledText` on a label that is still the operator's next affordance. */}
                 <button
                   type="button"
                   onClick={onConfirmDateClick}
                   aria-disabled={dateConfirmed}
                   style={{
+                    ...buttonStyle({ variant: 'outline', size: 'small' }),
                     width: '100%',
-                    textAlign: 'center',
-                    padding: 11,
-                    borderRadius: 10,
-                    border: '1px solid #2B8CC1',
-                    background: 'transparent',
-                    color: '#4BA3D4',
-                    fontSize: 14,
-                    fontWeight: 600,
                     cursor: dateConfirmed ? 'default' : 'pointer',
                     opacity: dateConfirmed ? 0.45 : 1,
                   }}
@@ -440,7 +487,7 @@ export function OcrCaptureScreen({
                 the date re-enables it (the R-7 failure shape). The click is guarded instead. */}
             <div style={{ marginTop: 'auto' }}>
               <div role="status" style={{ ...label12 }}>
-                {!dvrDraft && <div id={blockedId} style={{ marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
+                {!dvrDraft && <div id={blockedId} style={{ marginBottom: 10 }}>DVR Time Required. Please enter the DVR timestamp before continuing.</div>}
                 {dateNeedsConfirming && <div id={blockedId} style={{ marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -480,8 +527,13 @@ export function OcrCaptureScreen({
           </>
         ) : (
           <>
-            <div style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: 16, marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: '#ff8a93', marginBottom: 8 }}>Couldn&apos;t read a timestamp</div>
+            {/* A71 / D19's second hand-back, and the phone's own two-part shape: the verdict is a
+                severity line, the evidence is a nested card. `ConfirmationScreen.tsx:301-304`
+                renders the detected text in `<Card glass glassVariant="nestedCard">` with its
+                label above it — the demo keeps its own "OCR text:" wording and type (no package
+                owns a font-size move on this screen, §4.9) and takes the tier. */}
+            <Banner severity="error" testId="ocr-read-failed" message={"Couldn't read a timestamp."} style={{ marginBottom: 16 }} />
+            <div style={evidenceCard}>
               <div style={{ fontSize: 12, color: '#9fc0db', lineHeight: 1.5 }}>OCR text: <span style={{ fontFamily: mono, color: '#cdd9e6' }}>{result.rawText}</span></div>
             </div>
             <button type="button" onClick={onRetake} style={{ marginTop: 'auto', ...buttonStyle() }}>Try again</button>
@@ -540,14 +592,14 @@ export function OcrCaptureScreen({
               <div style={corner({ bottom: -2, right: -2, borderBottom: '3px solid #4BA3D4', borderRight: '3px solid #4BA3D4' })} />
             </div>
             {/* Phone CameraInstructions.tsx:20, verbatim. */}
-            <div style={{ position: 'absolute', top: 6, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+            <div style={{ position: 'absolute', top: 6, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#fff', textShadow: `0 1px 3px ${CAMERA_CHROME.instructionShadow}` }}>
               Align DVR timestamp to fill the bounding box
             </div>
           </>
         ) : permission === 'unavailable' ? (
           <div style={viewfinderPanel}>
             <div style={{ fontSize: 13, color: '#ff8a93', lineHeight: 1.5 }}>
-              No camera available here — use the sample DVR clock below (same OCR pipeline).
+              No camera available here. Use the sample DVR clock below (same OCR pipeline).
             </div>
           </div>
         ) : permission === 'denied' ? (
@@ -598,7 +650,7 @@ export function OcrCaptureScreen({
         {deviceFailure && live && <div style={{ fontSize: 12, lineHeight: 1.45, color: '#ffd07a', marginBottom: 8 }}>{deviceFailure.message}</div>}
       </div>
 
-      <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: 'linear-gradient(0deg,rgba(0,0,0,0.88),transparent)', zIndex: 3 }}>
+      <div style={{ marginTop: 'auto', padding: '20px 20px 26px', background: `linear-gradient(0deg,${CAMERA_CHROME.controlBarFade},transparent)`, zIndex: 3 }}>
         {/* Belt for the R-4 race: while a live read is in flight the sample paths are held —
             a sample landing mid-recognition is the very supersession the token exists for. */}
         {/* The THIRD site of the tinted-fill recipe above, inline — the partner's W2 census

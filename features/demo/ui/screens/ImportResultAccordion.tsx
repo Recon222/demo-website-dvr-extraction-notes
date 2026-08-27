@@ -3,6 +3,7 @@
 import { useId } from 'react'
 import type { CSSProperties } from 'react'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
 import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
 
@@ -39,7 +40,7 @@ export function ImportResultAccordion({ view, open, onToggle, onOpenLocation }: 
           <span style={{ display: 'block', fontSize: 12, color: '#7fa8cc', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace" }}>{view.caseNumber}</span>
         </span>
         {view.isSample && (
-          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: '#ffd07a', background: 'rgba(255,200,90,0.12)', border: '1px solid rgba(255,200,90,0.3)', borderRadius: 6, padding: '2px 7px' }}>
+          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: SAMPLE_BADGE.foreground, background: SAMPLE_BADGE.background, border: `1px solid ${SAMPLE_BADGE.border}`, borderRadius: 6, padding: '2px 7px' }}>
             Sample data
           </span>
         )}

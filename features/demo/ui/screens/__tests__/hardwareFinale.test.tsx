@@ -146,8 +146,8 @@ describe('CompletionScreen', () => {
 describe('PdfPreview', () => {
   it('renders the document HTML in an iframe and closes', () => {
     const onClose = vi.fn()
-    render(<PdfPreview title="Case Notes — PDF" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    render(<PdfPreview title="Case Notes (PDF)" html="<!DOCTYPE html><html><body><p>doc</p></body></html>" onClose={onClose} />)
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Close'))
     expect(onClose).toHaveBeenCalledOnce()
   })

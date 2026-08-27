@@ -38,7 +38,7 @@ const PROXIMITY_UNAVAILABLE = "Proximity analysis couldn't load. Check your conn
  * filter, since the anchor chain reads the post-filter list — and without it the ring simply
  * appears somewhere, filtering against a point nobody picked.
  */
-const PROXIMITY_CENTRED_ON_VIEW = 'Proximity centred on the current view — long-press the map to move it.'
+const PROXIMITY_CENTRED_ON_VIEW = 'Proximity centred on the current view. Long-press the map to move it.'
 
 /** Stable empty list — a fresh `[]` per render would re-plot MapCanvas's markers every commit. */
 const NO_CAMERAS: readonly MapCameraMarker[] = Object.freeze([])

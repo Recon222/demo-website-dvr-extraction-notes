@@ -151,9 +151,9 @@ describe('option lists (phone labels + values, in order)', () => {
       { label: 'Prompt before every export', value: 'always_prompt' },
     ])
     expect(ENCRYPTION_STRENGTH_OPTIONS).toEqual([
-      { label: 'AES-256 — Recommended (strong)', value: 'AES-256' },
-      { label: 'AES-128 — iOS yields AES-256', value: 'AES-128' },
-      { label: 'Standard — weak (ZipCrypto), legacy only', value: 'STANDARD' },
+      { label: 'AES-256. Recommended (strong)', value: 'AES-256' },
+      { label: 'AES-128. iOS yields AES-256', value: 'AES-128' },
+      { label: 'Standard. Weak (ZipCrypto), legacy only', value: 'STANDARD' },
     ])
   })
 

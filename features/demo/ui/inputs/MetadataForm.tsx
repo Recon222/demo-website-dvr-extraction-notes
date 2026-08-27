@@ -80,7 +80,7 @@ export function filenameHelperText(mediaType: MediaKind): string {
  * state: `maxLength` refuses the 101st character, so an over-length name is impossible rather
  * than invalid, and there is no second message to write.
  */
-export const FILENAME_REQUIRED_MESSAGE = 'Enter a file name — this is what the file is stored as.'
+export const FILENAME_REQUIRED_MESSAGE = 'Enter a file name. This is what the file is stored as.'
 
 const savingAsLabel: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
 /** U6.4a: the filename the visitor is about to save under is DATA they must read, so it takes

@@ -451,7 +451,7 @@ describe('live viewfinder', () => {
     // Photo mode says nothing about audio — the warning belongs to the take that would be silent.
     expect(screen.queryByText(/the take will be silent/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Video mode' }))
-    expect(screen.getByText(/gave the page a camera but no microphone — the take will be silent/)).toBeInTheDocument()
+    expect(screen.getByText(/gave the page a camera but no microphone\. The take will be silent/)).toBeInTheDocument()
   })
 
   it('says so when the device list could not be READ — not just when there is nothing in it', async () => {

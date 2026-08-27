@@ -54,7 +54,7 @@ describe('ImportModal progress stage × real sample-mode run (P1.4)', () => {
     const log = await screen.findByTestId('terminal-log')
     await within(log).findByText('reading pasted text…')
     // The sample substitution is visible in the log AND in the trust line — never 'on-device'.
-    within(log).getByText('sample fallback: live import disabled — importing the sample request')
+    within(log).getByText('sample fallback: live import disabled, importing the sample request')
     expect(screen.getByTestId('terminal-trust-line')).toHaveTextContent(TRUST_LINE.sample)
     // The real pipeline's stage completions landed.
     within(log).getByText('parse + map ✓')

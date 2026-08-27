@@ -57,7 +57,7 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
         <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: 2, color: '#4ecdc4', textTransform: 'uppercase', marginBottom: 10 }}>
           Exploration manifest
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8', marginBottom: 8 }}>Before you go —</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8', marginBottom: 8 }}>Before you go</div>
         <div style={{ fontSize: 14, lineHeight: 1.55, color: '#bcccde', marginBottom: 16 }}>
           You haven&apos;t explored everything yet:
         </div>

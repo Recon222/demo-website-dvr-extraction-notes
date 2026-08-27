@@ -12,6 +12,8 @@ import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
 import { MAP_FILTER_SECTION_LABEL } from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
+import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
+import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
@@ -890,5 +892,126 @@ describe('map chrome contrast floors', () => {
     // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
     expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
     expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+})
+
+describe('terminal console contrast (U7.1 / A85, §C "Terminal title bar / privacy meta / gutter")', () => {
+  // The console has its OWN ground stack — `screen.dark`, `bar`, `blockBg` — none of which is
+  // `palette.background` (A91/D6(a): the terminal ground is deliberately far darker than the
+  // app ground and must NOT be tokenised to it). So these rows composite against the terminal
+  // palette, not `DARK_GROUNDS`, and there is no light half: `TERMINAL_SCHEME` is dark by
+  // construction. Every ground is an opaque hex, so no flattening is involved.
+  //
+  // This block is the falsifiable half of U7.1. The `toEqual` shape pin in
+  // `screens/import/__tests__/terminal-palette.test.ts` fails on ANY edit; these fail only on
+  // the edit that MATTERS — a foreground dropping back under AA. The three §C rows are the
+  // package's whole contrast deliverable, and each was measured on the phone before the raise:
+  // titleText 2.99, titleMeta 4.05, time 2.10.
+  const SCREEN = TERMINAL_PALETTE.screen[TERMINAL_SCHEME]
+
+  it('§C: every console foreground clears AA on its own ground (phone terminal-palette.ts:20-35)', () => {
+    const pairs: [name: string, fg: string, ground: string][] = [
+      ['titleText on bar', TERMINAL_PALETTE.titleText, TERMINAL_PALETTE.bar],
+      ['titleMeta on bar', TERMINAL_PALETTE.titleMeta, TERMINAL_PALETTE.bar],
+      ['time on screen', TERMINAL_PALETTE.time, SCREEN],
+      ['body on screen', TERMINAL_PALETTE.body, SCREEN],
+      ['blockText on blockBg', TERMINAL_PALETTE.blockText, TERMINAL_PALETTE.blockBg],
+      ['error on screen', TERMINAL_PALETTE.error, SCREEN],
+      ['cursor on screen', TERMINAL_PALETTE.cursor, SCREEN],
+      // The live dot is a 5px non-text mark, but it takes `cursor` — already covered above at
+      // the stricter text floor, so it needs no row of its own.
+    ]
+    expect(
+      pairs
+        .map(([name, fg, ground]) => ({ name, ratio: round(contrast(fg, [ground])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: all ten syntax accents clear AA on the console ground (phone: 5.94 error to 14.38 norm)', () => {
+    // Measured at the STRICTER normal-text threshold precisely because the tag text is 10px
+    // (phone `:37-44`) — the large-text allowance never applies anywhere in this palette.
+    expect(
+      Object.entries(TERMINAL_PALETTE.accent)
+        .map(([level, fg]) => ({ level, ratio: round(contrast(fg, [SCREEN])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: the three raised foregrounds land on the phone\'s measured ratios, not merely above the floor', () => {
+    // A floor-only assertion would stay green over a foreground pushed to pure white, which is
+    // the opposite of "hue preserved, lightness lifted until each cleared AA" (phone `:32-35`).
+    // These are the phone's own published numbers.
+    expect(round(contrast(TERMINAL_PALETTE.titleText, [TERMINAL_PALETTE.bar]))).toBe(4.97)
+    expect(round(contrast(TERMINAL_PALETTE.titleMeta, [TERMINAL_PALETTE.bar]))).toBe(5.22)
+    expect(round(contrast(TERMINAL_PALETTE.time, [SCREEN]))).toBe(4.98)
+  })
+
+  it('the console ground stays far darker than the app ground (A91 / D6(a) — do not tokenise it)', () => {
+    // The rider is a RELATIONSHIP, so pin the relationship rather than the hex: any future
+    // "tidy" that points `screen` at `colors.background` reds here even if the hex it lands on
+    // is a plausible navy.
+    expect(SCREEN).not.toBe(palette.dark.background)
+    expect(round(contrast('#ffffff', [SCREEN]))).toBeGreaterThan(
+      round(contrast('#ffffff', [palette.dark.background])),
+    )
+  })
+})
+
+/**
+ * D12's THIRD arm — **freeze AND DEFEND** the "Sample data" amber.
+ *
+ * D12, verbatim: *"It must stay **visually distinct from real data** — that is a correctness
+ * constraint. Re-derive it only if A15's `warningLight #7d5f10` would collide with it (it will
+ * not; they are a fill and a foreground of different families)."*
+ *
+ * "Will not collide" is a PREDICTION, and D12 is the one decision in the set whose failure mode
+ * is the demo lying about its own provenance rather than looking dated. So it is measured here,
+ * not asserted: `deltaE` is the same CIE76 the tier rows use, and the plan §9 clause 2 precedent
+ * (`recessed` two-sided, `nestedCard` >= 1.25) is that a separation claim a ratio is blind to
+ * gets a dE bound.
+ *
+ * The threshold is 10, comfortably above the 2.3 "just noticeable" line and below every measured
+ * value here, so it fails on a real convergence rather than on rounding. The badge is measured
+ * as it RENDERS — its 12% fill composited over the nested card it sits on — because that is the
+ * colour the operator distinguishes, and an uncomposited comparison of two `rgba()` strings
+ * would pass over a fill that vanishes into its parent.
+ */
+describe('D12: the sample-data badge stays distinct from the ported warning family', () => {
+  // The nested card is what both badge sites sit on: `ImportResultAccordion`'s per-location
+  // chip and `OcrCaptureScreen`'s confidence chip.
+  const CARD = [GLASS_TIER.dark.nestedCard.gradient[0], palette.dark.background]
+  const badgeFill = flatten([SAMPLE_BADGE.background, ...CARD])
+  const warningFill = flatten([palette.dark.warningLight, ...CARD])
+
+  it('separates the badge FILL from `warningLight`, the ported warning ground', () => {
+    // This is the collision D12 names by hand. If a future re-tint of `warningLight` walks it
+    // toward this amber, a sample value and a real warning stop being tellable apart.
+    expect(round(deltaE(badgeFill, warningFill))).toBeGreaterThan(10)
+  })
+
+  it('separates the badge FOREGROUND from every ported warning foreground', () => {
+    const fg = parse(SAMPLE_BADGE.foreground)
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningOnLight'] as const) {
+      expect(
+        round(deltaE(fg, parse(palette.dark[token]))),
+        `SAMPLE_BADGE.foreground has converged on \`${token}\``,
+      ).toBeGreaterThan(10)
+    }
+  })
+
+  it('is legible on the card it renders on, which is what makes it a MARK and not decoration', () => {
+    // A badge that clears the family separation and then cannot be read is not a defence.
+    expect(round(contrast(SAMPLE_BADGE.foreground, [SAMPLE_BADGE.background, ...CARD]))).toBeGreaterThan(AA_TEXT)
+  })
+
+  it('is a FROZEN constant block, never a status token (A91)', () => {
+    // The structural half of the defence: if a later "tidy" points the badge at the status
+    // family, every dE above collapses to 0 and the three tests become tautologies. Pin the
+    // NON-identity so the tidy reds here first, with a message that says why.
+    for (const token of ['warning', 'warningDark', 'warningAccent', 'warningLight', 'warningOnLight'] as const) {
+      expect(SAMPLE_BADGE.foreground as string, `the badge was tokenised to \`${token}\` — D12 freezes it`).not.toBe(palette.dark[token])
+      expect(SAMPLE_BADGE.background as string).not.toBe(palette.dark[token])
+    }
   })
 })

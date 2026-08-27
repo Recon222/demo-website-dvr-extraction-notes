@@ -72,9 +72,9 @@ const empty: CSSProperties = { padding: `0 ${spacing.md}px` }
 const clearButton: CSSProperties = { ...buttonStyle({ variant: 'primary' }), width: '100%', fontFamily: 'inherit' }
 
 export const EMPTY_COPY: Record<SheetEmptyReason, string> = {
-  'no-data': 'No located locations yet — add an address to a location to plot it here.',
+  'no-data': 'No located locations yet. Add an address to a location to plot it here.',
   filters: 'No locations match your filters.',
-  proximity: 'No locations inside the proximity radius — widen it or turn Proximity off.',
+  proximity: 'No locations inside the proximity radius. Widen it or turn Proximity off.',
 }
 
 /** phone `styles.footer` `:101-104` — `paddingHorizontal: md`, `paddingTop: sm`. The bottom

@@ -61,7 +61,7 @@ export interface FormFieldsPaneProps {
 
 /** Phone copy, verbatim (`FormCustomizationSection.tsx:41-47`), keyed by the demo's step ids. */
 const SCREEN_NOTES: Partial<Record<FormStepId, string>> = {
-  timeOffset: 'Required time calibration — always shown. No individual fields to configure.',
+  timeOffset: 'Required time calibration, always shown. No individual fields to configure.',
   extractedScope: 'Auto-calculated from the time offset. No individual fields to configure.',
   notes: 'Auto-generated from your entries. No individual fields to configure.',
   mediaCapture: 'A capture tool opened from the wizard drawer. No individual fields to configure.',

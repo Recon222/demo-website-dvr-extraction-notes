@@ -175,7 +175,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Review / Export again'))
     fireEvent.click(screen.getByText('Preview / Export PDF'))
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument() // the PdfPreview iframe
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument() // the PdfPreview iframe
 
     // Re-completing returns to the confirmation; the flag never flipped off in between.
     fireEvent.click(screen.getByLabelText('Close preview'))
@@ -770,7 +770,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'scan.pdf', { type: 'application/pdf' })] } })
 
     // The dwell CTA is the amber partial — counts in the VISIBLE accname (R-3), never green.
-    const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+    const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 2, 1 needs attention/ })
     expect(cta).toHaveTextContent('Review import →')
     expect(cta.style.border).toContain('rgba(255, 217, 61, 0.36)') // amber, not success green
     expect(cta.style.border).not.toContain('rgba(16, 209, 119')
@@ -797,7 +797,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.change(input, { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'bad.pdf', { type: 'application/pdf' })] } })
 
       // The catch reports through the tally: amber partial, never 'The import failed unexpectedly' alone.
-      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 2, 1 needs attention/ })
+      const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 2, 1 needs attention/ })
       fireEvent.click(cta)
       expect(await screen.findByText(/Imported 1 of 2 requests/)).toBeInTheDocument() // landed file reported
       expect(screen.getByText(/The import failed unexpectedly/)).toBeInTheDocument() // synthetic failure row
@@ -830,12 +830,12 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       ] } })
 
       // The visitor selected THREE — the denominator must say three, at the CTA moment…
-      const cta = await screen.findByRole('button', { name: /Batch partially failed — 1 of 3, 2 need attention/ })
+      const cta = await screen.findByRole('button', { name: /Batch partially failed: 1 of 3, 2 need attention/ })
       fireEvent.click(cta)
       expect(await screen.findByText(/Imported 1 of 3 requests/)).toBeInTheDocument() // …and in the result view
       // …and both casualties are named, instead of one row spelled 'import'.
-      expect(screen.getByText(/b\.pdf — The import failed unexpectedly/)).toBeInTheDocument()
-      expect(screen.getByText(/c\.pdf — Not attempted — the import stopped/)).toBeInTheDocument()
+      expect(screen.getByText(/b\.pdf: The import failed unexpectedly/)).toBeInTheDocument()
+      expect(screen.getByText(/c\.pdf: Not attempted\. The import stopped/)).toBeInTheDocument()
       expect(screen.queryByText(/^import — /)).not.toBeInTheDocument()
       expect(runPdf).toHaveBeenCalledTimes(2) // c.pdf really was never attempted
       expect(store.getState().locations.length).toBe(1)
@@ -939,7 +939,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       // Run A's rejection lands AFTER run B took the token. Since ca0df27 the catch no longer
       // publishes a self-contained failure object but run A's whole TALLY through finishImport
       // (stage + result + lastLocId) — so dropping the token check would paint an amber
-      // "Batch partially failed — 1 of 2" CTA and a result card over a live, unfinished run.
+      // "Batch partially failed: 1 of 2" CTA and a result card over a live, unfinished run.
       await act(async () => { rejectA(new Error('boom from the superseded run')) })
 
       expect(screen.queryByRole('button', { name: /Batch partially failed/ })).not.toBeInTheDocument()
@@ -1090,7 +1090,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
 
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
   })
 
   it('completion: Escape dismisses the PDF preview and focus returns to the opener button (deferred §21)', () => {
@@ -1102,10 +1102,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const opener = screen.getByText('Preview / Export PDF')
     opener.focus() // jsdom does not focus on click — make the opener the focused element, as a real tap/tab would
     fireEvent.click(opener)
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByTitle('Case Notes — PDF')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Case Notes (PDF)')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(opener)
   })
 
@@ -1116,14 +1116,14 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     act(() => store.getState().setView('completion'))
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
-    const frame = screen.getByTitle('Case Notes — PDF') as HTMLIFrameElement
+    const frame = screen.getByTitle('Case Notes (PDF)') as HTMLIFrameElement
     const print = vi.fn()
     ;(frame.contentWindow as Window & { print: () => void }).print = print
 
     fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
     expect(print).toHaveBeenCalledTimes(1)
     // The preview stays up — printing is not a dismissal.
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
   })
 
   it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {

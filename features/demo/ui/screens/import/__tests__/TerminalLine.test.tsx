@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { TerminalLine, LEVEL_ACCENT, TERM_ROW } from '@/features/demo/ui/screens/import/TerminalLine'
+import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
+import { TERMINAL_PALETTE, TERMINAL_FONT_SIZE } from '@/features/demo/ui/screens/import/terminal-palette'
 import type { ImportLogLevel, ImportLogLine } from '@/features/demo/engine/logic/import-log'
 
 const mkLine = (over: Partial<ImportLogLine> = {}): ImportLogLine => ({
@@ -25,20 +26,23 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     expect(screen.getByText('extract text ✓')).toBeInTheDocument()
   })
 
-  it('pins the full 10-level accent map to the phone palette (ImportTerminalProgress.tsx:107-118)', () => {
+  it('pins the full 10-level accent map to the phone palette (terminal-palette.ts:88-101)', () => {
+    // U7.1: the map moved into the owned module (A85) and VERB left the pre-recolor teal for
+    // `textTertiary` (A89's purge — phone `terminal-palette.ts:93-95`). The values live in
+    // `terminal-palette.test.ts`; what this asserts is that each one REACHES THE TAG.
     const expected: Record<ImportLogLevel, string> = {
       INIT: '#99badd',
       FILE: '#e0a878',
       PDF: '#99badd',
       AI: '#4BA3D4',
-      VERB: '#4ECDC4',
+      VERB: '#7a9fc4',
       NORM: '#ffd93d',
       CASE: '#4BA3D4',
       OK: '#10d177',
       DONE: '#10d177',
       ERR: '#ff4757',
     }
-    expect(LEVEL_ACCENT).toEqual(expected)
+    expect(TERMINAL_PALETTE.accent).toEqual(expected)
     for (const [level, colour] of Object.entries(expected) as [ImportLogLevel, string][]) {
       const { unmount } = render(
         <TerminalLine line={mkLine({ level, text: `msg-${level}` })} expanded={false} onToggleDetail={() => {}} />,
@@ -51,9 +55,18 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
 
   it('renders the message in the body colour, and in the error colour for ERR (TerminalLine.tsx:61)', () => {
     renderLine(mkLine({ text: 'normal line' }))
-    expect(screen.getByText('normal line').style.color).toBe(hexToJsdomRgb(TERM_ROW.body))
+    expect(screen.getByText('normal line').style.color).toBe(hexToJsdomRgb('#c6d2df'))
     renderLine(mkLine({ level: 'ERR', text: '✗ failed at normalizing' }))
-    expect(screen.getByText('✗ failed at normalizing').style.color).toBe(hexToJsdomRgb(TERM_ROW.error))
+    expect(screen.getByText('✗ failed at normalizing').style.color).toBe(hexToJsdomRgb('#ff4757'))
+  })
+
+  it('renders the T+ gutter at its AA-RAISED colour (U7.1 / A85 — was #3a475a at 2.10:1)', () => {
+    // The gutter had NO colour pin before U7.1 — the raise from #3a475a to #74818f would have
+    // landed with nothing red. "The time gutter is evidentiary context on a forensic surface,
+    // not decoration" (phone terminal-palette.ts:34-35).
+    renderLine(mkLine())
+    expect(screen.getByText('T+1.23').style.color).toBe(hexToJsdomRgb(TERMINAL_PALETTE.time))
+    expect(TERMINAL_PALETTE.time).toBe('#74818f')
   })
 
   it('pins the gutter geometry: time width 44 / tag width 38 / mono 10 (TerminalLine.tsx:82-84)', () => {
@@ -61,7 +74,7 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     const time = screen.getByText('T+1.23')
     const tag = screen.getByText('OK')
     expect(time.style.width).toBe('44px')
-    expect(time.style.fontSize).toBe('10px')
+    expect(time.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.row}px`)
     expect(tag.style.width).toBe('38px')
     expect(tag.style.fontWeight).toBe('600')
   })
@@ -88,8 +101,9 @@ describe('TerminalLine (P1.4, matrix row 74)', () => {
     const block = screen.getByTestId('terminal-detail-7')
     expect(block).toHaveTextContent('warnings: 3')
     expect(block.style.marginLeft).toBe('52px')
-    expect(block.style.background).toBe(hexToJsdomRgb(TERM_ROW.blockBg))
-    expect(block.style.borderLeft).toBe(`2px solid ${hexToJsdomRgb(TERM_ROW.blockBorder)}`)
+    expect(block.style.background).toBe(hexToJsdomRgb(TERMINAL_PALETTE.blockBg))
+    expect(block.style.borderLeft).toBe(`2px solid ${hexToJsdomRgb(TERMINAL_PALETTE.blockBorder)}`)
+    expect(block.querySelector('pre')?.style.fontSize).toBe(`${TERMINAL_FONT_SIZE.detail}px`)
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('▾')).toBeInTheDocument()
     // Short detail (≤120 chars) stays readable by assistive tech.

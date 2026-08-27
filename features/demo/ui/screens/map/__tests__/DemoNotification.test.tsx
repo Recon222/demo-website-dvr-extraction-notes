@@ -36,8 +36,8 @@ describe('DemoNotification', () => {
   })
 
   it('is a live region — for the export and failure arms it is the only feedback there is [R-9]', () => {
-    render(<DemoNotification message="Error — Location not found." onDismiss={vi.fn()} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Error — Location not found.')
+    render(<DemoNotification message="Error. Location not found." onDismiss={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Error. Location not found.')
   })
 
   it('clears its timer on unmount (no post-unmount dismiss)', () => {

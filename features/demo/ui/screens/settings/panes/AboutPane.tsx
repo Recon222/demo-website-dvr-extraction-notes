@@ -41,7 +41,7 @@ export function AboutPane() {
       <PaneStubNote>
         Everything on this screen describes what you are actually looking at: a browser build of
         the demo, carrying the app&apos;s version. Contact Support hands the address to your
-        browser — if nothing happens, this machine has no mail app registered, so the address is
+        browser. If nothing happens, this machine has no mail app registered, so the address is
         printed below it to copy.
       </PaneStubNote>
 
