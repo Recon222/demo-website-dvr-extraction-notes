@@ -5,7 +5,7 @@ last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***SESSION-LIMIT CUTOFF (reset 3:50am Toronto) killed 9 in-flight seats + the verification seat's transcript; owner said proceed. RECOVERED: all 9 resumed by ID with transcripts intact; committed progress verified in every worktree (U2.2 3 commits + own uncommitted edits, U4.1 4 commits, U3.2/U3.3 not started); verification seat RESPAWNED (v2) from its on-disk state.*** W1: integrated @ `044578a` (fix r1 + master carry; cold gates green 3,575+10 todo, guard 115/115, `rn-token-parity` 18 passed / 0 skipped); fix-mapping posted on PR #41; **FIX-DELTA IN FLIGHT** (five warm lanes, resumed) + re-cut captures (v2 seat) → aggregator → APPROVE → merge #41. W2: U2.1+U2.3 in `feat/uiparity-u2` @ `b9124b8`; U3.1+U3.4 in `feat/uiparity-u3` @ `ae87f9b`; IN FLIGHT (resumed): U2.2, U4.1, U3.2, U3.3; queued: U2.4, U4.2/U4.3, U4.4. Stray probe worktrees `probe-u2.2-recipe`, `probe-w1d-tests` — owners told to clean; if still present after they report, remove via the script. OWNER CHECKPOINT 1: `worktrees/_captures/w1/DIFF.md` §5.
+**Last updated:** 2026-08-27 — milestone: ***W1 fix-delta lanes DONE (`ab1403b`): F14–F22 all FIXED/PARTIAL-on-one-gap; four lanes converged on ONE remaining defect (F18's direct-half scan misses `SHADOW_CARD.dark` + bracket/destructure forms) → AGGREGATOR delta IN FLIGHT → F23 to the U1.4 seat → targeted delta → APPROVE → merge PR #41. UNSETTLED (Fable partner adjudicating with a harness): W1 F14's fragment shape (three side longhands, no `borderColor`) vs U4.1's measured counter-claim (a consumer `{...f, borderColor}` override loses the edge under F14's form) — one ruling pending, `reports/partner-lit-edge-ruling.md`. W2: U2.1+U2.3 in u2 @ `b9124b8`; U3.1+U3.4 in u3 @ `ae87f9b`; U4.1 in u4 @ `3ec3de4` (GlassBottomSheet shell; 61 probes; 3,637 green); IN FLIGHT: U2.2 (resumed), U3.2, U3.3, U4.2, U4.3, U4.4 (U4.1 seat, `uiparity/u4.scrims`); queued: U2.4 (after U2.2). Verification v2 re-cutting W1 at 044578a. OWNER CHECKPOINT 1: `_captures/w1/DIFF.md` §5.***
 
 ## 1. Mission & role
 
@@ -82,7 +82,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Plan-review r1 aggregator v2 | `planrev-aggregator-v2` | Opus | STOPPED (redundant) — never resume |
 | Fix-delta r1 aggregator (unnamed, per §2 policy) | agentId `a7557cc07fd72b866` | **Fable** | done — issued the closing APPROVE; retire-eligible |
 | Kit-integration (dt kit → this repo: personas, hooks, git-guard, GATES.md, CLAUDE.md pointer) — on `master` in the main checkout | agentId `aab4aa3d664ebec47` | Opus | in flight |
-| **PARTNER — hard problems only** (`dt-partner`, WARM; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight on its one legwork task (baseline gates, Colors.ts scheme-key parity, harness check) — after that, hard questions only |
+| **PARTNER — hard problems only** (`dt-partner`, WARM; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight: the lit-edge composition ruling (F14 vs U4.1) with a React/jsdom/Chromium harness |
 | **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | warm; probed U0.1/U0.5 premises (one refuted, one confirmed) |
 | **U0 implementer A** (`opus-implementer`; U0.0→U0.3; worktree `worktrees/u0-foundation`, branch `uiparity/u0.foundation`) | agentId `ae5f52b4da850cd08` | Opus xhigh | done (~351k tokens); WARM for W0 fix rounds on its packages |
 | **U0.4 implementer** (`opus-implementer-max`; worktree `worktrees/u0-guard`, branch `uiparity/u0.guard`) | agentId `adff9eb9a7670742f` | Opus max | done (`3182b33`, merged; 33/33 anchors; 7 probes 0 survivors); WARM for W0 fix rounds |
@@ -99,7 +99,9 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | **U3.1→U3.4 implementer** (`opus-implementer`; `u3-status`, `uiparity/u3.status`) | agentId `a29c3ecd7bdf86f63` | Opus xhigh | done (`eefc0ee`, merged into U3 @ ae87f9b; guard 131 rows; 15 italics ruled KEEP); WARM |
 | **U3.2 implementer** (`opus-implementer-max`; `u3-severity`, `uiparity/u3.severity`) | agentId `ae1c1cc2c29908306` | Opus max | in flight |
 | **U3.3 implementer** (`opus-implementer`; `u3-banner`, `uiparity/u3.banner`) | agentId `ae5212edcaf8ada66` | Opus xhigh | in flight |
-| **U4.1 (+U4.4 next) implementer** (`opus-implementer-max`; `u4-sheet`, `uiparity/u4.sheet`) | agentId `a182220a9c6c7b4a9` | Opus max | in flight |
+| **U4.1 (+U4.4 next) implementer** (`opus-implementer-max`; `u4-sheet`, `uiparity/u4.sheet`) | agentId `a182220a9c6c7b4a9` | Opus max | U4.1 done (`cf195e6`, merged into U4 @ 3ec3de4); now on U4.4 (`uiparity/u4.scrims`) |
+| **U4.2 implementer** (`opus-implementer`; `u4-modal`, `uiparity/u4.modal`) | agentId `a285e52f0befce2f2` | Opus xhigh | in flight |
+| **U4.3 implementer** (`opus-implementer-max`; `u4-dialog`, `uiparity/u4.dialog`) | agentId `aacd7de1d0b63642a` | Opus max | in flight |
 | **VERIFICATION seat** (Playwright captures; WARM across waves; captures under `worktrees/_captures/w<N>/{before,after}`, Playwright scratch at `worktrees/_pw`) | agentId `ae2b8ca4003b5eb41` | Opus | TRANSCRIPT LOST at the cutoff — do not resume; artifacts inherited by v2 |
 | **VERIFICATION seat v2** (respawned from on-disk state; WARM across waves) | agentId `a6ddd2310b9caabc9` | Opus | in flight: W1 re-cut at 044578a |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
