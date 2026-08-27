@@ -16,6 +16,7 @@ import { glassCard } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 
 /** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
@@ -56,6 +57,45 @@ function props(over: Partial<AudioRecorderScreenProps> = {}): AudioRecorderScree
     ...over,
   }
 }
+
+/**
+ * F31. `STATUS_TONE_COLOR` (`AudioRecorderScreen.tsx:119-123`) is A69's engine owner after U3.2
+ * moved the paint out of `engine/logic/media`. `audio-levels.test.ts` covers the tone VOCABULARY
+ * — it renders nothing and sees no colour — so between the refactor and this block the three
+ * status colours had no observer at all: collapsing REC's red and PAUSED's gold onto
+ * `textSecondary` left the full suite green. Net protection LOSS through a correct refactor; the
+ * engine hexes had been pinned under the 80% gate before it.
+ */
+describe('AudioRecorderScreen — status tone paint (F31)', () => {
+  it('paints the dot and the label per phase, and never collapses REC onto PAUSED', () => {
+    const paintFor = (phase: AudioRecorderScreenProps['phase'], label: string) => {
+      const { unmount } = render(<AudioRecorderScreen {...props({ phase, canStop: phase !== 'idle' })} />)
+      const paint = {
+        dot: screen.getByTestId('recording-status-dot').style.background,
+        label: screen.getByText(label).style.color,
+      }
+      unmount()
+      return paint
+    }
+
+    // Phone `TimerCard.tsx:130-139`: error recording, warning paused, textSecondary otherwise.
+    // Read off the tokens — a literal would stay green through a re-point of any of the three.
+    const rec = paintFor('recording', 'REC')
+    const paused = paintFor('paused', 'PAUSED')
+    const ready = paintFor('idle', 'READY')
+    expect(rec).toEqual({ dot: hexToRgb(colors.error), label: hexToRgb(colors.error) })
+    expect(paused).toEqual({ dot: hexToRgb(colors.warning), label: hexToRgb(colors.warning) })
+    expect(ready).toEqual({
+      dot: hexToRgb(colors.textSecondary),
+      label: hexToRgb(colors.textSecondary),
+    })
+
+    // The mutation the review found surviving: two arms collapsed onto the neutral. Every
+    // equality above still holds one-by-one under a partial collapse, so the distinctness is
+    // asserted separately — a live microphone and a paused one must not read the same.
+    expect(new Set([rec.dot, paused.dot, ready.dot]).size).toBe(3)
+  })
+})
 
 const liveMeter = (level: number) => ({
   bars: new Array<number>(SPECTRUM_BAR_COUNT).fill(level),
@@ -391,10 +431,15 @@ describe('AudioRecorderScreen — the D19 Banner hand-back (A71)', () => {
     expect(banner).toHaveTextContent(text)
     // The accessible name carries the severity, which the colour cannot (phone `Banner.tsx:63`).
     expect(banner.getAttribute('aria-label')).toMatch(new RegExp(`^${severity}: `))
-    expect(banner.style.backgroundColor).toBe(hexToRgb(colors[`${severity}Light`]))
+    // Read off `severityTone` — the SEAM — never re-derived from `palette` here. W2 F26: a pin
+    // that computes the trio itself agrees with a Banner that computes the trio itself, and the
+    // two go on agreeing straight through a re-tint of the seam neither of them reads. Banner
+    // consumes `severityTone` as of F26, so this pin has to as well.
+    const tone = severityTone(severity)
+    expect(banner.style.backgroundColor).toBe(hexToRgb(tone.background))
     // Opaque: `*Light` is a flat hex in both halves, so jsdom reads back `rgb(...)`, never `rgba`.
     expect(banner.style.backgroundColor).not.toContain('rgba')
-    expect(banner.style.borderTopColor).toBe(hexToRgb(colors[severity]))
+    expect(banner.style.borderTopColor).toBe(hexToRgb(tone.borderColor))
   })
 
   /**

@@ -5,7 +5,6 @@ import type { TypedOption } from '@/features/demo/engine/content/settings-values
 import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { colors } from '@/features/demo/ui/tokens/palette'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 

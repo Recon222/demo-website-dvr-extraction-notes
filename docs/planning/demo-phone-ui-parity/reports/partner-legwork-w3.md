@@ -225,3 +225,125 @@ waves and nothing else enforces it.
 7. **U5.3's dot rule is two-state** (W3-C10).
 8. **Add `AudioRecorderScreen.tsx` and `OcrCaptureScreen.tsx` to §6.1** (§4), and give U5.4 an explicit U2.2 dependency.
 9. **U7.2 owns four notices, not two** (§2.1) and **U6.3's lit-border row is already done by W1** (§2.4).
+
+---
+
+# § re-verified on `7bcb553` (W2 assembled)
+
+**Base moved:** `feat/uiparity-w1` `d91ab76` → **`feat/uiparity-w2` `7bcb553`** ("Merge feat/uiparity-u4
+into feat/uiparity-w2 — wave 2 assembly, step 3 of 3 (§6.2 order)"). Read by
+`git archive 7bcb553 features/demo | tar -x` into session scratch; no seat worktree touched.
+All **verified** at `7bcb553` unless marked.
+
+## S1. The nine new W2 seams W3 composes with
+
+| Module | Lines | The exports W3 needs |
+|---|---|---|
+| `controls/GlassBottomSheet.tsx` | 412 | `GlassBottomSheet` `:210`, `GlassBottomSheetProps` `:115`, `PICKER_SHEET_Z` `:41`, `shouldDismissSheet` `:85`, `DISMISS_DISTANCE_RATIO` `:51`, `DISMISS_VELOCITY` `:53` |
+| `controls/sheet-chrome.ts` | 276 | `sheetSurface` `:108`, `sheetScrim` `:135`, `sheetHandle` `:163`, `sheetHeaderBand` `:182`, `sheetTitle` `:222`, `sheetSubtitle` `:238`, `sheetAccentDot` `:208`, `sheetAccentStrip` `:257`, `sheetBody` `:270`, `sheetBodyFill` `:273`, `sheetFooter` `:276`, `SHEET_SHADOW` `:74`, `SHEET_ENTER_MS`/`SHEET_EXIT_MS` `:81-82` |
+| `controls/CentredDialog.tsx` | 327 | `CentredDialog` `:240`, `dialogSurface` `:76`, `dialogScrim` `:108`, `DIALOG_SHADOW` `:60`, `trackDialogActivationOrigin` `:163` |
+| `controls/Banner.tsx` | 198 | `Banner` `:146`, `BannerSeverity` `:68`, `BannerProps` `:103` |
+| `controls/EmptyState.tsx` | 86 | `EmptyState` `:79`, `EmptyStateProps` `:49` |
+| `controls/button-recipe.ts` | 260 | `buttonStyle` `:221`, `ButtonVariant` `:116`, `ButtonSize` `:118`, **`SAMPLE_TINT` `:113`**, `PrimaryButtonGradient` `:69`, **`ElevatedEdges` `:83`**, `DangerFill` `:99` |
+| `controls/choice-controls.tsx` | 195 | `RadioOption` `:78`, `CheckboxBox` `:171`, `CheckboxChecked` `:140` |
+| `tokens/status.ts` | 189 | `STATUS_SEVERITY` `:54`, `STATUS_ACCENT` `:89`, `severityTone` `:118`, `statusBadgeStyle` `:172`, `neutralTone` `:136`, `SEVERITIES` `:45` |
+| `tokens/field-input.ts` | 80 | `fieldInputStyle` `:65`, `FieldInputState` `:56` |
+
+**`GlassBottomSheet`'s close prop is `closeLabel`** (props block `:115-209`, docblock quoting phone
+`:105`) — W3-C1 was acted on correctly, and the sheet/modal-header split is now live in-tree:
+`MediaLibrarySheet.tsx` passes **`closeAccessibilityLabel="Close media library"`** to `ModalShell`.
+
+## S2. W3 rows already done, or changed in kind, by W2
+
+| Row | Status at `7bcb553` | What W3 should now do |
+|---|---|---|
+| **U6.3** — *"`ARTIFACT_COLOR` → the status seam (A69)"* | **REFUTED IN-TREE.** `ExportHub.tsx:103` docblock: *"**NOT a `STATUS_SEVERITY` consumer, and not a badge.** The phone spells these as three direct tokens."* The map survives at `:112`, consumed `:215`. | Strike the row, or re-word it to "leave `ARTIFACT_COLOR` as three direct tokens and record why". |
+| **U6.2** — `NOTE_TONE` → `Banner` (D19 hand-back) | **HALF DONE, deliberately.** `_pane-chrome.tsx` (321L) adopted **`RadioOption`** (`:6`, `:216`) for U2.4, and `PaneNote` `:89` took Banner's severity **tone pairs** but **not the component**: `:74-79` records that adopting `<Banner>` would move padding 13→12 and radius 10→8, i.e. geometry, so it was declined and documented. | U6.2's Banner half is a *ruling to ratify*, not work to do. Its remaining scope is `PaneGroup` `:44`, `PaneSelect` `:241`, `PaneSlider` `:277`, `PaneStubNote` `:145`, `PaneDescription` `:25` and the row/card geometry (A78/A79). |
+| **U7.2** — `MEDIA_CLOSE_CHIP` splits out at `rgba(0,40,83,0.9)` | **DONE by U4.4.** `MediaLibrarySheet.tsx` now **exports** `MEDIA_CLOSE_CHIP = 'rgba(0, 40, 83, 0.9)'` with a long anti-resync docblock (records the 3.95:1 measurement on a daylight still that motivated it) and paints the chip with `colors.text`. | Delete the row's chip half; U7.2 inherits it. |
+| **U7.2** — recorder engine tones (A69's engine owner) | **DONE by U3.2.** `engine/logic/media` now exports `recorderStatusTone`/`levelFillBand` (tones and bands, not colours); `AudioRecorderScreen.tsx` holds `STATUS_TONE_COLOR` and `LEVEL_BAND_COLOR`, and **D-1's `#5a7a9a` → `colors.textSecondary` landed** with the reason in-file. | U7.2 no longer touches the engine. Its `:169,:172` pin-move is spent. |
+| **U7.2 / U7.3** — the six A66 outline sites | **The tinted-fill pair is done, and my own W2 census was short.** U2.2 converted `OcrCaptureScreen`'s `panelButton`, `AudioRecorderScreen`'s `sampleButton` **and a third inline site** (`OcrCaptureScreen`'s sample picker) to `buttonStyle({ variant: 'outline' }) + SAMPLE_TINT`. Its docblock refutes A66 at source: *"matrix A66 counted it as one and it is not … neither that wash nor `#9fd4ee` returns a single hit anywhere in the phone's `src/` at `dd5551ec`."* | **Correction to `partner-legwork-w2.md` C3: three sites, not two.** W3 inherits the recipe; nothing left to convert. |
+| **U7.2** — every button in `MediaCaptureScreen` / `OcrCaptureScreen` / `AudioPreviewScreen` | **DONE.** All now `buttonStyle(...)`; `glassBtnPrimary`/`glassBtnSecondary` are gone from those three files. | U7.2/U7.3 keep only the header, card, notice and palette halves. |
+| **U5.4** — A57 "map rows are nested ROWS at radius 8" | **REFUTED IN-TREE by U3.4.** `map/LocationRow.tsx` comment: *"the phone's own `location/map-view/components/LocationRow.tsx:287` is `Layout.borderRadius.lg` = 12 at `dd5551ec`. A map sheet row is a nested CARD in D13(a)'s depth tier, not a nested row."* Left at 12, now `radius.lg`. | **U5.4 must not move it to 8.** Update A57's row. |
+| **U5 (A46)** — `MapBottomSheet`'s shadow | **DONE by U4.1.** `MapBottomSheet.tsx` imports `SHEET_SHADOW`; the comment scopes the rest: *"The GROUND (`SHEET_COLORS.background`) and the radius stay U5.1's; only the shadow is U4.1's row."* | U5.1 keeps the ground + radius; the shadow is spent. |
+| **U4.4 in map** | `CallConfirmSheet.tsx` scrim → `colors.scrim`, with a new test pinning it. | Nothing owed. |
+| **U6.4a** — the modal `coordInput` copies | **DONE by U2.1.** `fieldInputStyle` has 8 consumers incl. `NewCaseModal`, `IncidentLocationFields`, `AddressAutocomplete`, `SubmissionScreen`. | U6.4a's A72 half is spent; only its residuals remain. |
+| **U3.4 in map** | `screens/map/` has **no** `EmptyState` / `statusBadgeStyle` / `STATUS_ACCENT` consumer yet (measured). | Confirms W2-C7: `LocationList`/`MapScreen` carry no italic empty state; **U5.3/U5.4 will be `map/`'s first `STATUS_ACCENT` consumers.** |
+
+## S3. First-package facts
+
+**U5.1 — the map island is intact.** `screens/map/mapTokens.ts` is **152 lines with zero `palette`
+references** (measured) — byte-unchanged since before U0. Every value `partner-legwork-w3.md` §1.2 listed
+still reads exactly as quoted: `containerBg 'rgba(13, 27, 42, 0.65)'` `:45`, `inputBg` `:46`,
+`primaryLight '#4BA3D4'` `:58`, `overlayMedium 'rgba(13, 27, 42, 0.85)'` `:136`, `SHEET_COLORS` `:140-152`
+with `background 'rgb(10, 22, 36)'`, `text '#e7eef6'`, `accent '#1a8fc2'`. **W2 made exactly three
+surgical edits inside `map/`** — the three in S2 above — and touched no token. So U5.1's re-point list is
+still accurate line-for-line, and `partner-legwork-u0.md`'s `primaryLight` single-owner recommendation is
+still un-actioned and still lands here.
+
+**U6.1 — the plan's first U6 package is `_shared` wizard chrome, and its row moved.** `_shared.tsx` grew
++290/−86 in W2 (`fieldInputStyle`, `Toggle`'s `hideLabel`, `ModalShell`'s required close label,
+`GlassBottomSheet` composition). Its U6.1 targets survive but are no longer where the row says:
+`Field` `:200`→**re-check**, `WizardNext`/`SectionCard`/`AddRowButton` all shifted by roughly +200.
+**Do not paste U6.1's line numbers from the plan** — grep by export name. The row's `AddRowButton`
+`#2a4a6f`/`#4BA3D4` half is likely already spent by U2.2's `buttonStyle` sweep; verify before briefing.
+
+**U7.1 — unchanged and still owed.** `screens/import/` still holds exactly four files
+(`ImportTerminalProgress.tsx` 666L, `TerminalLine.tsx` 178L, `PasteStage.tsx`, `PickerStage.tsx`);
+**`terminal-palette.ts` does not exist.** The four parallel palettes are where W3 left them:
+`TERM_CHROME` `ImportTerminalProgress.tsx:180`, `C` `:192`, `LEVEL_ACCENT` `TerminalLine.tsx:39`,
+`TERM_ROW` `:53`. **`TOKEN_MODULES` is still the same four entries** (`glass-tokens.test.ts:47-52`) —
+`glass-tokens.ts`, `tokens/palette.ts`, `tokens/glass-tiers.ts`, `tokens/scale.ts`. The walk now takes a
+`skip` parameter (`:56-60`) defaulting to `TOKEN_MODULES`, with the scheme-half scan passing an **empty**
+set. **U7.1 appends `screens/import/terminal-palette.ts` to `TOKEN_MODULES` and to nothing else** —
+W3-C9 stands verbatim.
+
+## S4. Shifted W3 cites (`d91ab76` → `7bcb553`)
+
+**Unchanged:** `MapScreen.tsx:90` (`changeCasePill` const) and `:367` (its render) · `MapControls.tsx:55`
+(`container`) · `SettingsCategoryList.tsx:48` (`SEPARATOR_INSET = 64`) · `SettingsNavBar.tsx:113`
+(`width: 92`) · `ImportTerminalProgress.tsx:180`, `:192` · `TerminalLine.tsx:39`, `:53` ·
+`mapTokens.ts` (all).
+
+| Cite | `d91ab76` | **`7bcb553`** | Δ |
+|---|---|---|---|
+| `TimeOffsetScreen.tsx` dashed advisory | `:133` | **`:130`** | −3 |
+| `NewCaseModal.tsx` submit-error banner | `:205` | **`:202`** | −3 |
+| `CompletionScreen.tsx` error card | `:93` | **`:94`** | +1 |
+| `CompletionScreen.tsx` `techGlow` (`SEAM(U6.4b)`) | `:105` | **`:106`** | +1 |
+| `OcrCaptureScreen.tsx` assumed-date banner | `:390` | **`:396`** | +6 |
+| `AudioRecorderScreen.tsx` notices | `:252` / `:258` | **`:281` / `:287`** | +29 |
+| `AudioPreviewScreen.tsx` notices | `:207` / `:213` | **`:208` / `:214`** | +1 |
+| `AudioRecorderScreen.tsx` radius-16 card sites | `:159` / `:205` | **`:188` / `:234`** | +29 |
+| `MediaLibrarySheet.tsx` `ElevatedEdges` pair | `:723-724` | **`:750-751`** | +27 |
+| `ExportHub.tsx` `ARTIFACT_COLOR` | `:98` | **`:112`** | +14 |
+| `MediaCaptureScreen.tsx` black scrims | `:115,132,147,481` | **`:116,133,148,482`** | +1 |
+| `OcrCaptureScreen.tsx` black scrims | `:111,537,595` | **`:112,543,601`** | +1 / +6 |
+| `_pane-chrome.tsx` `PaneNote` | `:82` | **`:89`** | +7 |
+| `_pane-chrome.tsx` `PaneStubNote` | `:132` | **`:145`** | +13 |
+
+`_pane-chrome.tsx`'s `NOTE_TONE` and module-local `radioOption` are **gone** — replaced by Banner's tone
+pairs inside `PaneNote` and by the shared `RadioOption`.
+
+## S5. U5 ∥ U6 ∥ U7 disjointness — HOLDS at `7bcb553`
+
+Measured: `grep -rln "screens/map/" screens/settings screens/export screens/import screens/_shared.tsx
+screens/OcrCaptureScreen.tsx screens/AudioRecorderScreen.tsx screens/MediaLibrarySheet.tsx` returns
+**nothing**. No U6 or U7 target imports from `screens/map/`, and no `map/` file imports a U6/U7 target.
+The three lanes remain file-disjoint.
+
+The W2-era cross-phase pairs `partner-legwork-w3.md` §4 flagged are now **spent, not pending**: U2.2 →
+U7.2 on `AudioRecorderScreen.tsx` and U2.2 → U7.3 on `OcrCaptureScreen.tsx` both already landed in W2, so
+W3 opens those files with W2's work already in them rather than racing it. `MediaLibrarySheet.tsx`'s
+U4.4 → U7.2 serialisation likewise resolved in W2's favour.
+
+## S6. What changed in the W3 corrections
+
+- **W3-C1 CLOSED** — `closeLabel` on the sheet, `closeAccessibilityLabel` on `ModalShell`; both live.
+- **W3-C7 partly spent** — the two radius-16 spread sites survive (now `:188`/`:234`) and are still U7.2's.
+- **W3-C5, C6, C8, C9, C10 all stand.** `#007AFF` still absent; six black alphas still six (shifted +1/+6);
+  `mapTokens.ts` still untouched; `TOKEN_MODULES` still four; `MapFiltersSheet` still absent.
+- **W3-C2 unchanged and still unfixed in the plan** — `.env.local` still present with a live
+  `NEXT_PUBLIC_MAPBOX_TOKEN`.
+- **New:** `partner-legwork-w2.md` C3 undercounted the tinted-fill recipe (three sites, not two); U2.2
+  found the third and refuted A66's classification at source. Recorded here rather than editing the W2
+  report, per the append-only rule.

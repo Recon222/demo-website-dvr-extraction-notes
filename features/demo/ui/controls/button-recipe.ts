@@ -1,10 +1,19 @@
 import type { CSSProperties } from 'react'
 
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { colors, palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, palette, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
+ * The three two-half records below and the size table all close with
+ * `as const satisfies Record<…>` — the W1/F19 shape (`tokens/glass-tiers.ts:186`). `as const`
+ * alone keeps the literal types but constrains NOTHING, so a half spelled `darK`, a `light` half
+ * that quietly drifts to a different shape, or a fourth size, all compile. Naming `ColorScheme`
+ * rather than `'light' | 'dark'` is what makes the scheme union single-source: D2's light door
+ * opens from `palette.ts`, and a record that spells its own halves would not follow it there.
+ * `satisfies` and not an annotation, in every case: the annotation is what made `SIZES` MUTABLE
+ * and would widen `44` back to `number` (W2/F38, one wave after W1/F20 fixed the same shape).
+ *
  * SEAM(U2.2): the demo's ONE button recipe — five variants x three sizes x enabled/disabled,
  * in both scheme halves.
  *
@@ -69,7 +78,7 @@ import { radius, spacing, touchTarget, withAlpha } from '@/features/demo/ui/toke
 export const PrimaryButtonGradient = {
   light: ['#2563eb', '#1d3584'],
   dark: [GLASS.accentFrom, GLASS.accentTo],
-} as const satisfies Record<'light' | 'dark', readonly [string, string]>
+} as const satisfies Record<ColorScheme, readonly [string, string]>
 
 /**
  * The lit-top / grounded-bottom edge pair that turns a flat gradient into a raised, pressable
@@ -83,7 +92,7 @@ export const PrimaryButtonGradient = {
 export const ElevatedEdges = {
   light: { top: 'rgba(255, 255, 255, 0.35)', bottom: 'rgba(0, 0, 0, 0.1)' },
   dark: { top: 'rgba(255, 255, 255, 0.14)', bottom: 'rgba(0, 0, 0, 0.3)' },
-} as const
+} as const satisfies Record<ColorScheme, { top: string; bottom: string }>
 
 /**
  * The DEEP red a filled destructive control paints, so `onError` (`#ffffff` in both schemes) can
@@ -99,7 +108,7 @@ export const ElevatedEdges = {
 export const DangerFill = {
   light: palette.light.errorDark,
   dark: palette.dark.errorLight,
-} as const
+} as const satisfies Record<ColorScheme, string>
 
 /**
  * The demo-only tint under the three sample/fallback buttons (D12: *follow* — they are inside the
@@ -132,11 +141,11 @@ export interface ButtonRecipeOptions {
 
 /** Phone `:96-110` through `Layout.spacing:10-21` / `Layout.touchTarget:54-59`, and `:180-189`
  *  through `Typography.fontSize:17-26`. The three label sizes are on §4.9's ladder as-is. */
-const SIZES: Record<ButtonSize, Pick<CSSProperties, 'padding' | 'minHeight' | 'fontSize'>> = {
+const SIZES = {
   small: { padding: `${spacing.sm}px ${spacing.md}px`, minHeight: touchTarget.min, fontSize: 14 },
   medium: { padding: `${spacing.md}px ${spacing.lg}px`, minHeight: touchTarget.comfortable, fontSize: 16 },
   large: { padding: `${spacing.lg}px ${spacing.xl}px`, minHeight: touchTarget.large, fontSize: 18 },
-}
+} as const satisfies Record<ButtonSize, Pick<CSSProperties, 'padding' | 'minHeight' | 'fontSize'>>
 
 /** The four border sides, in one place, so no caller ever spells a shorthand. */
 type Edges = { top: string; right: string; bottom: string; left: string }

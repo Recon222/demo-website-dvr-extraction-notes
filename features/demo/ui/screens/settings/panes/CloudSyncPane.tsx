@@ -54,8 +54,7 @@ export function CloudSyncPane({ settings }: SettingsPaneProps) {
         <Toggle
           label="Enable cloud sync"
           on={settings.cloudSyncEnabled}
-          disabled
-          describedBy={reasonId}
+          disabled={{ reasonId }}
           onClick={() => {
             /* inert — see the note directly below */
           }}

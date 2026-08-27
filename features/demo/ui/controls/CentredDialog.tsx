@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { scheme } from '@/features/demo/ui/tokens/palette'
+import type { ColorScheme } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 
@@ -48,16 +49,32 @@ import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 const elevated = GLASS_TIER[scheme].elevated
 
 /**
- * A45 — `Layout.shadow.dialog.dark` (`Layout.ts:165-171`: `#000`, offset `0 8`, opacity `0.5`,
- * radius `40`). Casts DOWNWARD: a surface floating in the middle of the screen throws its
- * shadow down, not up. The phone's own rationale for reaching for `dialog` rather than `sheet`
- * is written at its single consumer, `PasswordModal.tsx:112-123`, and names exactly this
- * shape: *"this overlay is `justifyContent: 'center'`, so the card floats in the middle of the
- * screen."*
+ * A45 — `Layout.shadow.dialog` (`Layout.ts:157-172`). Casts DOWNWARD: a surface floating in the
+ * middle of the screen throws its shadow down, not up. The phone's own rationale for reaching
+ * for `dialog` rather than `sheet` is written at its single consumer,
+ * `PasswordModal.tsx:112-123`, and names exactly this shape: *"this overlay is
+ * `justifyContent: 'center'`, so the card floats in the middle of the screen."*
+ *
+ * BOTH HALVES (D2, and W2/F34). RN spends five props (`shadowColor` / `shadowOffset` /
+ * `shadowOpacity` / `shadowRadius`) on what CSS spends one on, and light folds `shadowColor`'s
+ * own alpha into `shadowOpacity` (0.15 x 1) — the same mapping `sheet-chrome.ts`'s
+ * `SHEET_SHADOWS` and `button-recipe.ts:167-174` document. Shipping the dark string
+ * unconditionally is what F34 caught: on the flip day every dialog would cast a pure-black 40px
+ * shadow onto a pale surface.
+ *
+ * The two halves differ in RADIUS as well as colour (40 dark, 28 light) — the phone's, not a
+ * derivation. Same sign, because a centred dialog casts downward in both schemes; the SIGN is
+ * the only thing this shares with `SHEET_SHADOWS`, which is inverted.
  *
  * The demo's three copies shared `0 24px 60px rgba(0,0,0,0.55)` by value; this replaces it.
  */
-export const DIALOG_SHADOW = '0 8px 40px rgba(0,0,0,0.5)'
+export const DIALOG_SHADOWS = {
+  dark: '0 8px 40px rgba(0,0,0,0.5)', // Layout.ts:165-171 — #000 / 0 8 / 0.5 / 40
+  light: '0 8px 28px rgba(30, 58, 138, 0.15)', // Layout.ts:158-163 — 0 8 / 1 / 28
+} as const satisfies Record<ColorScheme, string>
+
+/** The consumed half. Every dialog reads this; the record above is what makes the flip one line. */
+export const DIALOG_SHADOW = DIALOG_SHADOWS[scheme]
 
 /**
  * The painted surface of a centred dialog: ground, border, lit edge, radius, cast, padding.
@@ -73,7 +90,7 @@ export const DIALOG_SHADOW = '0 8px 40px rgba(0,0,0,0.5)'
  * same value in the web form. One value, two independent sources — so it belongs to the
  * recipe rather than to three call sites.
  */
-export const dialogSurface: CSSProperties = {
+export const dialogSurface = {
   // A43 / D13(a): `lg` is "cards, modals, form sections". `Card`'s glass branch hardcodes it
   // (`Card.tsx:225,250`) and `glassVariant` selects colours only — depth rides the gradient,
   // never the corner. The demo's three copies were at 16; U1.2 deliberately left
@@ -89,28 +106,34 @@ export const dialogSurface: CSSProperties = {
   borderTopColor: elevated.highlightTop,
   boxShadow: `inset 0 1px 0 ${elevated.innerShadow}, ${DIALOG_SHADOW}`,
   padding: spacing.md,
-}
+} as const satisfies CSSProperties
 
 /**
  * The dim behind the dialog. `zIndex` is the shell's.
  *
- * SEAM(U4.4): this literal is where `AlertDialog.tsx:131`, `DeleteConfirmationModal.tsx:97`
- * and `ExportModal.tsx:84` — the three `rgba(4,8,14,0.66)` sites the scrim family names — now
- * live, as ONE site. Those three `file:line`s no longer exist.
+ * A22, RULED (W2 F43). The phone paints TWO backdrop values, not one, and this is the second:
+ *   - the SHEET family takes `colors.scrim` (0.32), shipped by U4.4 on `sheetScrim`;
+ *   - the CENTRED DIALOGS take `colors.overlay` (0.9), at phone source in both of its dialog
+ *     files: `DeleteConfirmationModal.tsx:229` and `export/ExportModal.tsx:325,360`, each
+ *     `backgroundColor: colors.overlay`.
  *
- * FINDING for U4.4, recorded where it will be read: A22 folds these onto `colors.scrim`, but
- * the phone paints BOTH centred dialogs' backdrops with `colors.overlay`
- * (`DeleteConfirmationModal.tsx:229`, `export/ExportModal.tsx:325,360`) and reserves
- * `colors.scrim` for the sheet family and `PasswordModal.tsx:98`. `overlay` is
- * `rgba(0,40,83,0.9)`; `scrim` is `rgba(0,40,83,0.32)`. They are not interchangeable and A22
- * says so itself.
+ * A22's "three darknesses collapse into one" is refuted for the dialog subset; the half of it
+ * that survives is its own sentence, that scrim and overlay are deliberately NOT
+ * interchangeable. Do NOT "resync" this to `colors.scrim` - the pin asserts the DIFFERENCE as
+ * well as the value, because a resync would pass a value pin written independently. The phone
+ * reserves `scrim` for the sheet family and for `PasswordModal.tsx:98`, which is matrix B.4
+ * row 26 and ruled OUT of this port.
+ *
+ * This site is where `AlertDialog.tsx:131`, `DeleteConfirmationModal.tsx:97` and
+ * `ExportModal.tsx:84` - the three `rgba(4,8,14,0.66)` literals - collapsed at U4.3. That
+ * literal matched neither token; it is gone now, and those three `file:line`s no longer exist.
  */
-export const dialogScrim: CSSProperties = {
+export const dialogScrim = {
   position: 'absolute',
   inset: 0,
-  background: 'rgba(4,8,14,0.66)',
+  background: colors.overlay,
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
 /**
  * The element that started the current interaction, captured at GESTURE time.

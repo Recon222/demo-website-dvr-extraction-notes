@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { PickerStage, PICKER_COPY, BATCH_SIZE_WARNING_THRESHOLD } from '@/features/demo/ui/screens/import/PickerStage'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /** jsdom rewrites inline hex to `rgb()`; pins compare against the token, never a retyped literal. */
 const rgb = (hex: string): string => {
@@ -108,10 +108,13 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     const { fileInput } = renderStage()
     fireEvent.change(fileInput(), { target: { files: [txt()] } })
     const alert = screen.getByTestId('import-picker-error') // phone's own testID, lifted
-    expect(alert.style.backgroundColor).toBe(rgb(colors.errorLight))
-    expect(sides(alert)).toEqual(Array(4).fill(rgb(colors.error)))
+    // The SEAM, not a re-derivation from `palette` — W2 F26: a pin that computes the trio
+    // itself agrees with a component that computes it itself, straight through a re-tint.
+    const tone = severityTone('error')
+    expect(alert.style.backgroundColor).toBe(rgb(tone.background))
+    expect(sides(alert)).toEqual(Array(4).fill(rgb(tone.borderColor)))
     expect(alert.style.borderRadius).toBe('8px') // radius.md, not the old local 10
-    expect((alert.lastElementChild as HTMLElement).style.color).toBe(rgb(colors.errorOnLight))
+    expect((alert.lastElementChild as HTMLElement).style.color).toBe(rgb(tone.color))
     expect(alert).toHaveAttribute('aria-live', 'assertive')
   })
 

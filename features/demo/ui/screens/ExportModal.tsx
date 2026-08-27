@@ -8,15 +8,15 @@ import {
   describeValidationPrompt,
   missingFieldLine,
   type CasePdfValidationResult,
-  type ExportModalMode,
   type ExportStage,
   type ProgressInfo,
 } from '@/features/demo/engine/logic/export'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * ExportModal — the unified export progress / validation overlay (parity P5.3, matrix row 25).
@@ -89,16 +89,18 @@ const srOnly: CSSProperties = {
 const EXPORT_MODAL_Z = 40
 
 /**
- * The progress mode's scrim. The validation mode's is `CentredDialog`'s.
+ * The progress mode's backdrop. The validation mode's is `CentredDialog`'s.
  *
- * SEAM(U4.4): one of the `rgba(4,8,14,0.66)` sites the scrim family collapses. It is the only
- * one left in this file — the validation copy moved into `CentredDialog.tsx`.
+ * A22, RULED (W2 F43): `colors.overlay`, the same value the centred dialogs take, because it is
+ * the same overlay behind the same export flow - the phone's own progress overlay is
+ * `backgroundColor: colors.overlay` at `export/ExportModal.tsx:325`. NOT `colors.scrim`, which
+ * is the sheet family's. Was `rgba(4,8,14,0.66)`, a literal matching neither token.
  */
 const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
   zIndex: EXPORT_MODAL_Z,
-  background: 'rgba(4,8,14,0.66)',
+  background: colors.overlay,
   pointerEvents: 'auto',
 }
 
@@ -308,7 +310,8 @@ function ValidationContent({
         >
           {prompt.summary}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Phone `export/ExportModal.tsx:441`: `gap: Layout.spacing.md` (W2 F41). */}
+        <div style={{ display: 'flex', gap: spacing.md }}>
           <button
             type="button"
             onClick={onCancel}
