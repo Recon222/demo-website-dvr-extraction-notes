@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { open, phone, shot, step, tab, summary } = require('./lib');
-const { createCase, expandCase, addLocation } = require('./flows');
+const { createCase, expandCase, addLocation, withMapFilters } = require('./flows');
 
 const CASE_A = 'OCC-2026-P5A';   // armed case, several locations (clustering + export)
 const CASE_B = 'OCC-2026-P5B';   // a second case, so the hub shows >1 card
@@ -137,12 +137,16 @@ async function main() {
   });
 
   await safely('S4 — status filter + text search + clear', async () => {
-    const st = p.locator('[data-testid^="status-toggle-"]').first();
-    if (await st.count()) {
-      await st.click();
-      await page.waitForTimeout(800);
-      await shot(page, 's4-status-filter-active');
-    }
+    // U5.3 moved the status chips into MapFiltersSheet — see flows.withMapFilters.
+    const hit = await withMapFilters(page, async (isNew) => {
+      const st = p.locator(isNew
+        ? '[data-testid^="filter-status-"]:not([data-testid$="-dot"])'
+        : '[data-testid^="status-toggle-"]').first();
+      if (!(await st.count())) return false;
+      await st.click(); await page.waitForTimeout(700);
+      return true;
+    });
+    if (hit) await shot(page, 's4-status-filter-active');
     const search = p.locator('[data-testid="map-search-input"]');
     if (await search.count()) {
       await search.fill('Plaza');
@@ -156,19 +160,35 @@ async function main() {
       await search.fill('');
       await page.waitForTimeout(600);
     }
-    const clear = p.locator('[data-testid="clear-filters-button"]');
-    if (await clear.count()) { await clear.click(); await page.waitForTimeout(700); await shot(page, 's4-filters-cleared'); }
+    const cleared = await withMapFilters(page, async (isNew) => {
+      const clear = p.locator(isNew
+        ? '[data-testid="filter-clear-all"]' : '[data-testid="clear-filters-button"]');
+      if (!(await clear.count())) return false;
+      await clear.click(); await page.waitForTimeout(700);
+      return true;
+    });
+    if (cleared) await shot(page, 's4-filters-cleared');
   });
 
   await safely('S4 — proximity ring + presets, camera markers', async () => {
-    const prox = p.locator('[data-testid="proximity-toggle-button"]');
-    if (await prox.count()) {
-      await prox.click();
-      await page.waitForTimeout(900);
+    const armed = await withMapFilters(page, async (isNew) => {
+      const prox = p.locator(isNew
+        ? '[data-testid="filter-proximity"]' : '[data-testid="proximity-toggle-button"]');
+      if (!(await prox.count())) return false;
+      await prox.click(); await page.waitForTimeout(900);
+      return true;
+    });
+    if (armed) {
       await shot(page, 's4-proximity-active');
       for (const preset of ['1', '2', '5']) {
-        const b = p.locator(`[data-testid="radius-preset-${preset}"]`);
-        if (await b.count()) { await b.click(); await page.waitForTimeout(700); await shot(page, `s4-proximity-radius-${preset}km`); break; }
+        const done = await withMapFilters(page, async (isNew) => {
+          const b = p.locator(isNew
+            ? `[data-testid="filter-radius-${preset}"]` : `[data-testid="radius-preset-${preset}"]`);
+          if (!(await b.count())) return false;
+          await b.click(); await page.waitForTimeout(700);
+          return true;
+        });
+        if (done) { await shot(page, `s4-proximity-radius-${preset}km`); break; }
       }
     }
     const cam = p.getByRole('button', { name: /camera/i }).first();

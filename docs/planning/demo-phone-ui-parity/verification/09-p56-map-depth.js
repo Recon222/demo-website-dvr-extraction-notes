@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { open, phone, shot, step, tab, summary } = require('./lib');
-const { createCase, expandCase, addLocation } = require('./flows');
+const { createCase, expandCase, addLocation, withMapFilters, proximityArmed, disarmProximity } = require('./flows');
 
 const CASE = 'OCC-2026-P6';
 
@@ -81,13 +81,24 @@ async function main() {
   });
 
   await safely('S4 — status filter', async () => {
-    const st = p.locator('[data-testid="status-toggle-working"]');
-    if (await st.count()) {
-      await st.click(); await page.waitForTimeout(1000);
-      console.log('  >> after status filter:', await countOf(p));
-      await shot(page, 's4-status-filter-working');
-      await st.click(); await page.waitForTimeout(800);
-    }
+    // U5.3: the chips live in MapFiltersSheet now. `filters-sheet-*` shots are NEW in W3 and
+    // pair with nothing in the BEFORE set — that IS the finding, not a harness fault.
+    const sel = (isNew) => isNew
+      ? '[data-testid="filter-status-working"]' : '[data-testid="status-toggle-working"]';
+    const hit = await withMapFilters(page, async (isNew) => {
+      if (isNew) await shot(page, 's4-filters-sheet-open');
+      const st = p.locator(sel(isNew));
+      if (!(await st.count())) return false;
+      await st.click(); await page.waitForTimeout(700);
+      if (isNew) await shot(page, 's4-filters-sheet-status-on');
+      return true;
+    });
+    if (!hit) return;
+    console.log('  >> after status filter:', await countOf(p));
+    await shot(page, 's4-status-filter-working');
+    await withMapFilters(page, async (isNew) => {
+      await p.locator(sel(isNew)).click(); await page.waitForTimeout(500);
+    });
   });
 
   await safely('S4 — text filter + discriminated empty states', async () => {
@@ -99,32 +110,48 @@ async function main() {
     console.log('  >> no-match text:', (await p.innerText()).split('\n').filter(Boolean).slice(-3).join(' | '));
     await shot(page, 's4-empty-no-match');
     await s.fill(''); await page.waitForTimeout(800);
-    const clear = p.locator('[data-testid="clear-filters-button"]');
-    if (await clear.count()) { await clear.click(); await page.waitForTimeout(800); }
+    // U5.3 renamed the clear affordance and moved it into the sheet footer.
+    await withMapFilters(page, async (isNew) => {
+      const clear = p.locator(isNew
+        ? '[data-testid="filter-clear-all"]' : '[data-testid="clear-filters-button"]');
+      if (await clear.count()) { await clear.click(); await page.waitForTimeout(800); }
+    });
     await shot(page, 's4-filters-cleared');
   });
 
   await safely('S4 — proximity ring + radius presets', async () => {
-    await p.locator('[data-testid="proximity-toggle-button"]').click();
-    await page.waitForTimeout(1200);
+    const armed = await withMapFilters(page, async (isNew) => {
+      const tog = p.locator(isNew
+        ? '[data-testid="filter-proximity"]' : '[data-testid="proximity-toggle-button"]');
+      if (!(await tog.count())) return false;
+      await tog.click(); await page.waitForTimeout(1000);
+      if (isNew) await shot(page, 's4-filters-sheet-proximity-on');
+      return true;
+    });
+    if (!armed) return;
     console.log('  >> proximity on:', await countOf(p));
     await shot(page, 's4-proximity-on');
-    for (const preset of ['1', '2', '5', '10']) {
-      const b = p.locator(`[data-testid="radius-preset-${preset}"]`);
-      if (await b.count()) {
-        await b.click(); await page.waitForTimeout(1000);
-        console.log(`  >> radius ${preset}km:`, await countOf(p));
-        await shot(page, `s4-proximity-${preset}km`);
-      }
+    // PROXIMITY_PRESETS moved 1/2/5/10 -> 0.5/1/2/5 (mapTokens.ts). Try both spellings; the
+    // sheet must be reopened per preset so the map shot behind it stays comparable.
+    for (const preset of ['0.5', '1', '2', '5', '10']) {
+      const done = await withMapFilters(page, async (isNew) => {
+        const b = p.locator(isNew
+          ? `[data-testid="filter-radius-${preset}"]` : `[data-testid="radius-preset-${preset}"]`);
+        if (!(await b.count())) return false;
+        await b.click(); await page.waitForTimeout(800);
+        return true;
+      });
+      if (!done) continue;
+      console.log(`  >> radius ${preset}km:`, await countOf(p));
+      await shot(page, `s4-proximity-${preset}km`);
     }
   });
 
   // ---- Surface 5: long-press placement accuracy --------------------------
   await safely('S5 — long-press on the map canvas (placement accuracy)', async () => {
-    // Turn proximity OFF so the long-press is what activates it.
-    const prox = p.locator('[data-testid="proximity-toggle-button"]');
-    const label = await prox.getAttribute('aria-label');
-    if (label && /Deactivate/i.test(label)) { await prox.click(); await page.waitForTimeout(900); }
+    // Turn proximity OFF so the long-press is what activates it. U5.2 replaced the toggle
+    // button with a dismissible `proximity-chip`; `disarmProximity` handles both builds.
+    await disarmProximity(page);
 
     const canvas = p.locator('.mapboxgl-canvas-container, [data-testid="map-canvas"]').first();
     const box = await canvas.boundingBox();
@@ -140,18 +167,18 @@ async function main() {
     await page.waitForTimeout(1400);                 // > LONG_PRESS_MS
     await page.mouse.up({ button: 'left' });
     await page.waitForTimeout(1400);
-    const after = await prox.getAttribute('aria-label');
-    console.log('  >> proximity aria-label after long-press:', after, '| count:', await countOf(p));
+    const after = await proximityArmed(page);
+    console.log('  >> proximity armed after long-press:', after, '| count:', await countOf(p));
     await shot(page, 's5-after-long-press');
 
     // Negative control: the RIGHT button must NOT arm it (R-5 follow-up).
-    if (after && /Deactivate/i.test(after)) { await prox.click(); await page.waitForTimeout(800); }
+    await disarmProximity(page);
     await page.mouse.move(tx + 30, ty + 20);
     await page.mouse.down({ button: 'right' });
     await page.waitForTimeout(1400);
     await page.mouse.up({ button: 'right' });
     await page.waitForTimeout(900);
-    console.log('  >> after RIGHT-button hold:', await prox.getAttribute('aria-label'));
+    console.log('  >> armed after RIGHT-button hold:', await proximityArmed(page));
     await shot(page, 's5-after-right-button-hold');
   });
 

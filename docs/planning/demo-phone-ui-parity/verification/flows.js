@@ -99,4 +99,53 @@ async function fillDateTime(page, nth) {
   await page.waitForTimeout(350);
 }
 
-module.exports = { createCase, expandCase, addLocation, openWizard, gotoScreen, fillDateTime };
+/**
+ * U5.3 moved the map's status chips, the proximity switch and the radius presets OFF the map
+ * surface and INTO `MapFiltersSheet`. The pre-W3 testids (`status-toggle-*`,
+ * `proximity-toggle-button`, `radius-preset-*`, `clear-filters-button`) no longer exist, so the
+ * old `safely()` steps silently shot nothing and the AFTER sets came back 8/14 and 17/21.
+ *
+ * Runs `fn(isNew)` with the sheet OPEN when the new UI is present, and closes it again, so a
+ * post-sheet map shot is comparable with the pre-W3 one. `isNew === false` on any build that
+ * still has the loose chips — this stays backward-compatible with master.
+ */
+async function withMapFilters(page, fn) {
+  const p = phone(page);
+  const opener = p.locator('[data-testid="map-open-filters"]');
+  const isNew = (await opener.count()) > 0;
+  if (isNew) {
+    await opener.click();
+    await p.locator('[data-testid="map-filters-sheet"]').waitFor({ timeout: 8000 });
+    await page.waitForTimeout(350);
+  }
+  const out = await fn(isNew);
+  if (isNew) {
+    await p.locator('[data-testid="filter-done"]').click();
+    await page.waitForTimeout(700);
+  }
+  return out;
+}
+
+/** Is the proximity ring armed? New UI answers with the chip; old UI with the button's label. */
+async function proximityArmed(page) {
+  const p = phone(page);
+  if (await p.locator('[data-testid="proximity-chip"]').count()) return true;
+  const old = p.locator('[data-testid="proximity-toggle-button"]');
+  if (!(await old.count())) return false;
+  return /Deactivate/i.test((await old.getAttribute('aria-label')) || '');
+}
+
+/** Disarm proximity by whichever affordance this build has. */
+async function disarmProximity(page) {
+  const p = phone(page);
+  if (!(await proximityArmed(page))) return;
+  const chip = p.locator('[data-testid="proximity-chip-dismiss"]');
+  if (await chip.count()) { await chip.click(); await page.waitForTimeout(800); return; }
+  await p.locator('[data-testid="proximity-toggle-button"]').click();
+  await page.waitForTimeout(800);
+}
+
+module.exports = {
+  createCase, expandCase, addLocation, openWizard, gotoScreen, fillDateTime,
+  withMapFilters, proximityArmed, disarmProximity,
+};
