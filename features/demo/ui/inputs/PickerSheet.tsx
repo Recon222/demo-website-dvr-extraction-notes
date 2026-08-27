@@ -1,9 +1,16 @@
 'use client'
 
-import { useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { T } from '@/features/demo/ui/inputs/input-theme'
-import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { GlassBottomSheet } from '@/features/demo/ui/controls/GlassBottomSheet'
+
+/**
+ * Re-exported, not redefined. `PICKER_SHEET_Z` moved to `controls/GlassBottomSheet.tsx` with
+ * the shell that paints it; D14 froze the NUMBER and three pins
+ * (`settings/__tests__/UserProfilePane.test.tsx:306,315,316`) plus two `screens/_shared.tsx`
+ * docblocks read it from HERE, so the import path is unchanged for every existing consumer.
+ */
+export { PICKER_SHEET_Z } from '@/features/demo/ui/controls/GlassBottomSheet'
 
 export interface PickerSheetProps {
   title: string
@@ -14,110 +21,75 @@ export interface PickerSheetProps {
 }
 
 /**
- * The LOWEST layer a picker paints on — its scrim; the panel sits one above (`+ 1`).
+ * Demo-owned picker chrome the shell does not carry.
  *
- * Exported (review FD-2) because it is the upper bound of the modal-over-modal ordering: a sheet
- * that OPENS pickers (the User Profile editor, whose two date fields do) must stay strictly below
- * this, or the picker it opened would render behind it. Bounding against the scrim rather than
- * the panel is deliberate — the scrim is what dims the surface underneath, so it is the layer the
- * opener has to be under.
+ * Body: the phone's sheet body has no padding at all (`GlassBottomSheet.tsx:368-370`) because
+ * its callers pad their own content — matrix A82's map filters body carries `16/16/8`. The
+ * demo's three pickers do not, so the padding they have always had lives here.
+ *
+ * Footer: `16px 16px 4px` rather than a flat 16, because the shell's own footer node adds
+ * `paddingBottom: 12` (A58). 4 + 12 = the 16 the pickers rendered before this package, so the
+ * three footers are unmoved to the pixel. The divider is demo-owned too: the phone's sheet
+ * footer has no border and A58 does not give it one, so removing it would be a visible change
+ * to three surfaces with nothing phone-sourced to replace it. Kept, and named as demo chrome —
+ * the same call U1.4 made for `WizardHeader`'s 56px top padding.
  */
-export const PICKER_SHEET_Z = 31
-
-const dot: CSSProperties = { width: 6, height: 6, borderRadius: 3, background: T.primary }
+const pickerBody: CSSProperties = { padding: 16 }
+const pickerFooter: CSSProperties = { padding: '16px 16px 4px', borderTop: `1px solid ${T.border}` }
 
 /**
- * Bottom-anchored, auto-height sheet for the pickers (calendar, time wheel, dropdown). It
- * portals into the phone-screen overlay (outside the scroll container) so it always anchors
- * to the visible screen bottom regardless of scroll, and falls back to inline render when no
- * overlay is present (e.g. isolated tests). Scrim click, the ✕ button, and Escape all dismiss.
+ * The demo's ✕. The shell owns no close affordance by design (phone `:135-137`), so the three
+ * pickers' existing button is passed in as `headerRight` rather than deleted: it is a real
+ * close route for a pointer user who cannot reach a keyboard's Escape, and three tests press
+ * it by its accessible name.
+ */
+function CloseButton({ onClose }: { onClose(): void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Close"
+      onClick={onClose}
+      style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMute} strokeWidth="2" strokeLinecap="round">
+        <path d="M18 6L6 18M6 6l12 12" />
+      </svg>
+    </button>
+  )
+}
+
+/**
+ * The picker preset over `GlassBottomSheet` (SEAM(U4.1b)) — the calendar, the time wheel and
+ * the dropdown all mount this.
+ *
+ * It is a preset and not a second sheet: everything below it — the portal, the scrim, the
+ * ground, the header band, the handle, the four close routes and the motion — is the shell's.
+ * What survives here is the three pickers' own chrome and nothing else.
+ *
+ * `visible` is hard-coded true because all three callers already mount this conditionally
+ * (`DateField.tsx:81`, `TimeField.tsx:63`, `Dropdown.tsx:127` are all `{open && <PickerSheet`).
+ * The consequence, stated rather than hidden: the pickers get the shell's ENTER animation and
+ * NOT its exit — unmounting the shell skips the `closing` phase entirely, which is exactly the
+ * behaviour they have today. Threading `visible` through would edit three files that U2.4
+ * owns; it is proposed as a deferral with that package as the trigger.
+ *
+ * `showAccentStrip={false}` is not a demo preference — every form sheet on the phone passes it
+ * (`Picker.tsx:175`, `TimePicker.tsx:133`, `DateTimePicker.tsx:262`, `ExportActionSheet.tsx:107`).
+ * `DateTimePicker.tsx:253-261` records why: the 2px tapering rule stacked under the header's
+ * uniform 1px border reads as one doubled band, "thicker and brighter in the middle" (measured
+ * there at dE 0.0 at the edges to 22.5 at the centre against the border's flat 10.9).
  */
 export function PickerSheet({ title, onClose, children, footer }: PickerSheetProps) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const content = (
-    <>
-      <div
-        data-sheet-scrim
-        onClick={onClose}
-        style={{ position: 'absolute', inset: 0, zIndex: PICKER_SHEET_Z, background: T.scrim, pointerEvents: 'auto' }}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: PICKER_SHEET_Z + 1,
-          pointerEvents: 'auto',
-          maxHeight: '92%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: T.raised,
-          borderTopLeftRadius: 18,
-          borderTopRightRadius: 18,
-          border: `1px solid ${T.primaryEdge}`,
-          borderTop: `2px solid ${T.topHighlight}`,
-          boxShadow: '0 -16px 40px -8px rgba(0,0,0,0.6)',
-          overflow: 'hidden',
-          animation: 'sheetUp 0.28s ease',
-        }}
-      >
-        {/* Header — gradient fill + straight solid divider (shared by all three pickers). */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '14px 18px',
-            background: 'linear-gradient(180deg,rgba(25,48,72,0.8),rgba(15,32,53,0.4))',
-            borderBottom: `1px solid ${T.border}`,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={dot} />
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: 0.3,
-                textTransform: 'uppercase',
-                color: T.textDim,
-              }}
-            >
-              {title}
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            style={{ cursor: 'pointer', display: 'flex', background: 'transparent', border: 'none', padding: 0 }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMute} strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ overflowY: 'auto', padding: 16 }}>{children}</div>
-
-        {/* Footer (optional) */}
-        {footer && <div style={{ padding: 16, borderTop: `1px solid ${T.border}` }}>{footer}</div>}
-      </div>
-    </>
+  return (
+    <GlassBottomSheet
+      visible
+      title={title}
+      onClose={onClose}
+      showAccentStrip={false}
+      headerRight={<CloseButton onClose={onClose} />}
+      footer={footer ? <div style={pickerFooter}>{footer}</div> : undefined}
+    >
+      <div style={pickerBody}>{children}</div>
+    </GlassBottomSheet>
   )
-
-  return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }

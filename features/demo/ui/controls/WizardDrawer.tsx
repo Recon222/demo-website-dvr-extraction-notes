@@ -334,7 +334,8 @@ export function WizardDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={fade}
-            style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }}
+            data-scrim
+            style={{ position: 'absolute', inset: 0, zIndex: 41, background: colors.scrim, pointerEvents: 'auto' }}
           />
         )}
         {open && (

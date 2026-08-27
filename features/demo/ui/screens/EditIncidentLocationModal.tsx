@@ -57,7 +57,7 @@ export function EditIncidentLocationModal({ values, onChange, onSubmit, onCancel
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   return (
-    <ModalShell title={EDIT_INCIDENT_COPY.title} onClose={onCancel}>
+    <ModalShell title={EDIT_INCIDENT_COPY.title} closeAccessibilityLabel="Close incident location" onClose={onCancel}>
       {/* A71/U3.3. The phone's own line, `EditIncidentLocationModal.tsx:125`:
           `<Banner severity="error" message={submitError} style={styles.errorBanner} />`.
           `errorBanner` there is `{ marginBottom: Layout.spacing.md }` and its comment (`:182-184`)

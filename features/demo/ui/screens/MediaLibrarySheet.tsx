@@ -99,7 +99,15 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
   }
 
   return (
-    <ModalShell title="Media Library" subtitle={mediaLibrarySubtitle(counts.total)} onClose={onClose} fillBody>
+    <ModalShell
+      title="Media Library"
+      subtitle={mediaLibrarySubtitle(counts.total)}
+      // Verbatim, phone `MediaLibrarySheet.tsx:208` and `:231` - both spellings of the same
+      // surface's close control agree on the words.
+      closeAccessibilityLabel="Close media library"
+      onClose={onClose}
+      fillBody
+    >
       {/* Undo the shell's body padding so the tab bar and the list rows reach the sheet edges,
           as they do on the phone; the paddings below are each surface's own. */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, margin: -18 }}>
@@ -339,6 +347,25 @@ function canFullscreen(item: MediaItem): item is AvailableMedia {
  * one of the two media kinds, and two entry paths in one component is how the photo branch got
  * missed in the first place.
  */
+/**
+ * The fullscreen close chip's ground. Deliberately NOT `colors.scrim`, and exported only so
+ * `ui/__tests__/palette-contrast.test.ts` can pin the composited ratio against the value the UI
+ * actually paints. Matrix A90; phone `MediaPreviewFullscreen.tsx:63`.
+ *
+ * `colors.scrim` is the SHEET-BACKDROP token and sits at 0.32 on purpose: a backdrop should dim
+ * the app behind an open sheet, not black it out. Right for a backdrop, wrong for this chip. A
+ * backdrop wants to be see-through; a 40px disc behind a 22px glyph, painted over whatever frame
+ * the analyst is examining, does not. This replaces `rgba(0,0,0,0.5)`, which over a bright
+ * daylight CCTV still composited to #808080 and left the glyph at 3.95:1 — under the 4.5:1 a
+ * 22px icon-as-control wants, and the ✕ is the ONLY exit from this layer.
+ *
+ * This is not drift away from the token convergence; it is a contract the shared token cannot
+ * satisfy at any single alpha. Do NOT "resync" it to `colors.scrim` — that is the PR #127
+ * `3893169e` regression coming back by another route, and the contrast rows below it are what
+ * catch the attempt.
+ */
+export const MEDIA_CLOSE_CHIP = 'rgba(0, 40, 83, 0.9)'
+
 function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): void }) {
   const isPhoto = item.kind === 'photo'
   const layerRef = useRef<HTMLDivElement | null>(null)
@@ -393,8 +420,8 @@ function MediaFullscreen({ item, onClose }: { item: AvailableMedia; onClose(): v
             height: 40,
             borderRadius: 20,
             border: 'none',
-            background: 'rgba(0,0,0,0.5)',
-            color: '#fff',
+            background: MEDIA_CLOSE_CHIP,
+            color: colors.text,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

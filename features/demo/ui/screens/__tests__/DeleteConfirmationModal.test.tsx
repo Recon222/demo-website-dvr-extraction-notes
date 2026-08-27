@@ -128,6 +128,36 @@ describe('DeleteConfirmationModal — dismissal', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onConfirm).not.toHaveBeenCalled()
   })
+
+  /**
+   * U4.3. This dialog used to read `document.activeElement` in its mount effect — the path
+   * `CentredDialog.tsx` documents as broken, and the reason the three focus blocks could not
+   * be consolidated onto the majority. A row action that disables itself while the confirm is
+   * up (the swipe-delete belt) is non-focusable by the time React runs passive effects, so the
+   * old read captured `<body>` and cancelling dropped a keyboard visitor at document start.
+   *
+   * The shell's capture-phase tracker reads the opener at GESTURE time instead. If this ever
+   * goes green through `document.activeElement` again, focus restore has silently regressed
+   * for exactly the openers that need it most.
+   */
+  it('restores focus to the row action that was pressed, even after it disabled itself', () => {
+    const opener = document.createElement('button')
+    opener.textContent = 'Delete'
+    document.body.appendChild(opener)
+    opener.focus()
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    opener.disabled = true
+    expect(document.activeElement).toBe(document.body)
+
+    const { unmount } = render(
+      <DeleteConfirmationModal target={caseTarget()} onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    opener.disabled = false
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
 })
 
 /** jsdom normalizes hex inline colours to rgb(r, g, b). Same helper as `TerminalLine.test.tsx:116`. */

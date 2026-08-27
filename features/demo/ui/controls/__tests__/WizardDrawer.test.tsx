@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { WizardDrawer } from '@/features/demo/ui/controls/WizardDrawer'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 const items = [{ id: 'submission' as const, label: 'Submission', active: true }]
 const cb = {
@@ -76,5 +77,12 @@ describe('the media accordion follows the form profile (P7.3)', () => {
     expect(screen.queryByRole('button', { name: 'Open camera to capture media' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record audio note' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open media library' })).toBeInTheDocument()
+  })
+
+  it('dims the screen behind it with the ONE backdrop token (A22/U4.4)', () => {
+    render(<WizardDrawer open items={items} {...cb} />)
+    // Was `rgba(4,8,14,0.55)`. The token is a BACKDROP alpha — 0.32 in dark, so the app reads
+    // through it instead of being blacked out.
+    expect(document.querySelector<HTMLElement>('[data-scrim]')!.style.background).toBe(colors.scrim)
   })
 })

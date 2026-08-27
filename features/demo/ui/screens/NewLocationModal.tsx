@@ -167,7 +167,7 @@ export function NewLocationModal({
   }
 
   return (
-    <ModalShell title={COPY.title} subtitle={subtitle} onClose={onCancel}>
+    <ModalShell title={COPY.title} subtitle={subtitle} closeAccessibilityLabel="Close new location" onClose={onCancel}>
       <Field
         label={COPY.locationName}
         required

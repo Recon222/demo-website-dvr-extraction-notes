@@ -191,7 +191,11 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
   }
 
   return (
-    <ModalShell title={isEdit ? 'Edit Case' : 'New Case'} onClose={handleShellClose}>
+    <ModalShell
+      title={isEdit ? 'Edit Case' : 'New Case'}
+      closeAccessibilityLabel={isEdit ? 'Close edit case' : 'Close new case'}
+      onClose={handleShellClose}
+    >
       {/* Render order #1 on the phone: the submit-failure banner sits above every field. */}
       {submitError && (
         <div

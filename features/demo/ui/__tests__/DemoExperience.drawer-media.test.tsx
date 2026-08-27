@@ -93,7 +93,7 @@ describe('drawer Media accordion — wiring (row 80)', () => {
     // Scoped to the sheet: the drawer is on its way out but still mounted for its exit
     // animation, and it carries a `Close` of its own.
     const sheet = screen.getByRole('dialog', { name: 'Media Library' })
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Close media library' }))
 
     expect(store.getState().modal).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Media Library' })).not.toBeInTheDocument()

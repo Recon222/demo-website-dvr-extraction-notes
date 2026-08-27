@@ -48,7 +48,7 @@ describe('ModalShell a11y', () => {
   it('is an aria-modal dialog that closes on Escape', () => {
     const onClose = vi.fn()
     render(
-      <ModalShell title="New Case" onClose={onClose}>
+      <ModalShell title="New Case" closeAccessibilityLabel="Close new case" onClose={onClose}>
         <div />
       </ModalShell>,
     )

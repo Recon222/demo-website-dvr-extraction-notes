@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useReducedMotion } from 'motion/react'
 import type { SettingsCategoryId } from '@/features/demo/engine/content/settings-catalog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { SettingsNavBar } from '@/features/demo/ui/screens/settings/SettingsNavBar'
 import { SettingsCategoryList } from '@/features/demo/ui/screens/settings/SettingsCategoryList'
 import { findSettingsRow, type SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
-import { MODAL_SCRIM_Z, MODAL_SHEET_Z } from '@/features/demo/ui/screens/_shared'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { MODAL_SHEET_Z, modalScrim, modalSheet, modalSheetEnter } from '@/features/demo/ui/screens/_shared'
+// `@/lib/hooks`, not `motion/react`: that hook caches its `matchMedia` subscription
+// module-globally (`import/PickerStage.tsx:94`), so it never observed a preference set after
+// the module loaded - measured here, where the sheet kept animating under `reduce`.
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 
 /**
  * The Settings sheet — the demo's port of the phone's `SettingsModal` (P7.1, matrix row 81,
@@ -21,9 +23,16 @@ import { colors } from '@/features/demo/ui/tokens/palette'
  * header variants that swap with the pane (`SettingsNavBar`), and its detail pane is a pushed
  * screen with its own back affordance. Wrapping that in `ModalShell` would mean either a second
  * header stacked under the first, or a "custom header" escape hatch on a component eight other
- * modals depend on. The sheet CHROME is still shared by value — the same scrim, the same
- * `top: 34` inset, radius, panel colour and `screenIn` entrance the shell renders — so the two
- * surfaces read identically even though they are built separately.
+ * modals depend on. Plan §5's U4.2 row anticipates exactly this and names the alternative: the
+ * sheet consumes the *scrim + sheet* seam and keeps only its own nav bar.
+ *
+ * ## The chrome is IMPORTED now, not copied (U4.2)
+ *
+ * It used to be shared "by value": `:64-96` re-declared `ModalShell`'s scrim and panel objects
+ * byte for byte, which meant a change to one silently diverged the other (demo inventory §4,
+ * leverage point 2, in those words). Both surfaces now spread `modalScrim` / `modalSheet` from
+ * `_shared`, and `SettingsModal.test.tsx`'s `the modal chrome is ONE recipe` block asserts the
+ * two rendered declaration strings are equal, so the copy cannot regrow quietly.
  *
  * ## Navigation state is local, exactly as on the phone
  *
@@ -61,31 +70,6 @@ import { colors } from '@/features/demo/ui/tokens/palette'
  * are read from the surfaces that own them instead of re-typed at the assertion.
  */
 export const SETTINGS_SHEET_Z = MODAL_SHEET_Z
-
-const scrim: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  zIndex: MODAL_SCRIM_Z,
-  background: 'rgba(4,8,14,0.55)',
-  pointerEvents: 'auto',
-}
-
-const sheet: CSSProperties = {
-  position: 'absolute',
-  left: 0,
-  right: 0,
-  top: 34,
-  bottom: 0,
-  zIndex: SETTINGS_SHEET_Z,
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-  background: colors.background,
-  overflow: 'hidden',
-  display: 'flex',
-  flexDirection: 'column',
-  animation: 'screenIn 0.3s ease',
-  pointerEvents: 'auto',
-}
 
 const pane: CSSProperties = {
   position: 'relative',
@@ -164,14 +148,14 @@ export function SettingsModal({ sections, renderPane, onClose }: SettingsModalPr
 
   return (
     <PhoneOverlayPortal>
-      <div data-modal-scrim onClick={onClose} style={scrim} />
+      <div data-modal-scrim onClick={onClose} style={modalScrim} />
       <div
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
         data-testid="settings-modal"
-        style={sheet}
+        style={{ ...modalSheet, ...(reduceMotion ? null : modalSheetEnter) }}
       >
         {/* `role="group"` on the detail pane is load-bearing (R-10), not decoration: a role-less
             div maps to ARIA `generic`, whose name-from is PROHIBITED, so the `aria-labelledby`

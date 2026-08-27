@@ -95,6 +95,8 @@ export function UserProfileModal({ profile, onSave, onClose }: UserProfileModalP
   return (
     <ModalShell
       title="User Profile"
+      // Verbatim, phone `UserProfileModal.tsx:141`.
+      closeAccessibilityLabel="Close user profile"
       onClose={onClose}
       // Opens over the Settings sheet — the demo's one modal-over-modal (see `MODAL_LAYER`).
       elevation={MODAL_LAYER.overSheet}

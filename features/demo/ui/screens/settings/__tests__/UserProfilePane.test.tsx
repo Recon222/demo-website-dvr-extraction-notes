@@ -204,7 +204,7 @@ describe('the editor — what it renders', () => {
   it('has NO Cancel button — the header × is the only cancel path (phone parity)', () => {
     const { dialog } = openEditor(FULL)
     expect(within(dialog).queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Close user profile' })).toBeInTheDocument()
     expect(within(dialog).getByTestId('user-profile-save-button')).toHaveTextContent('Save Profile')
   })
 
@@ -282,7 +282,7 @@ describe('the editor — save and discard', () => {
   it('discards the draft on × — nothing is committed', () => {
     const { onSave, dialog } = openEditor(FULL)
     fireEvent.change(within(dialog).getByLabelText('Full Name'), { target: { value: 'Someone Else' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close user profile' }))
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'User Profile' })).not.toBeInTheDocument()
@@ -293,7 +293,7 @@ describe('the editor — save and discard', () => {
   it('reopens on the STORED values, not the discarded draft', () => {
     const { dialog } = openEditor(FULL)
     fireEvent.change(within(dialog).getByLabelText('Full Name'), { target: { value: 'Someone Else' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close user profile' }))
 
     fireEvent.click(screen.getByTestId('user-profile-section-edit-button'))
     expect(screen.getByLabelText('Full Name')).toHaveValue('K. Vasilyev')

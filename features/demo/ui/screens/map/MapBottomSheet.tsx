@@ -7,6 +7,7 @@ import { SHEET_COLORS, type StatusCounts } from '@/features/demo/ui/screens/map/
 import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
 import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
+import { SHEET_SHADOW } from '@/features/demo/ui/controls/sheet-chrome'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
@@ -124,7 +125,9 @@ export function MapBottomSheet({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTop: `1px solid ${SHEET_COLORS.border}`,
-    boxShadow: '0 -8px 24px rgba(0,0,0,0.45)',
+    // A46 — the one upward cast. Was `0 -8px 24px rgba(0,0,0,0.45)`. The GROUND
+    // (`SHEET_COLORS.background`) and the radius stay U5.1's; only the shadow is U4.1's row.
+    boxShadow: SHEET_SHADOW,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',

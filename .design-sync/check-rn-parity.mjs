@@ -355,6 +355,10 @@ export const PALETTE_KEYS = [
   // overlays — the first anchors that are not bare hexes
   'overlay',
   'overlayLight',
+  // the sheet/modal backdrop (A22, U4.4). Anchored SEPARATELY from `overlay` on purpose: the
+  // two are the same value in light and deliberately different in dark, so one anchor could
+  // not express both halves and a "resync" of the dark half would pass unnoticed.
+  'scrim',
   // disabled
   'disabled',
   'disabledText',
