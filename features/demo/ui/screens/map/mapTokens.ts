@@ -1,5 +1,4 @@
 import type { LocationMapStatus } from '@/features/demo/engine/store/selectors'
-import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
@@ -288,14 +287,21 @@ export const CAMERA_MARKER = {
  * `map-view/README.md:407` restates it. The demo's sheet drags over a live `mapbox-gl` canvas
  * for exactly the same reason, so the ruling ports unchanged.
  *
- * ## Rows are the CARD tier; only the info cards are NESTED
+ * ## Rows are the CARD tier; only the info cards are NESTED (U5.1's R2, closed by U5.4)
  *
- * A84 says `rowBg`/`rowBorder -> nestedCard`. The phone's `LocationRow.tsx:70` reads
+ * A84 said `rowBg`/`rowBorder -> nestedCard`. The phone's `LocationRow.tsx:70` reads
  * `GlassColors[colorScheme].card`, its docblock at `:5` says so in words, and matrix row 18
  * ("Phone rebuilt it on `GlassColors[scheme].card` + `Layout.shadow.card`") agrees with the
  * phone against A84. The nested tier is `LocationDetailCard`'s four info cards, which the phone
- * moved to `<Card glass glassVariant="nestedCard">` — that is where A84's reference belongs,
- * and it is `infoBg` below.
+ * moved to `<Card glass glassVariant="nestedCard">`.
+ *
+ * U5.1 held that ruling here as three projection keys (`rowBg` / `rowBorder` / `infoBg`) so
+ * U5.4 could paint from them. U5.4 adopted the FRAGMENTS instead — `glassCard` on the row,
+ * `glassCardNested` on the info cards — which is what "the same recipe `Card.tsx` paints"
+ * means on the web, and which carries the lit edge and the inset the three keys could not.
+ * The keys are gone with their readers; the refutation is now pinned where it renders, in
+ * `__tests__/LocationRow.test.tsx` and `__tests__/LocationDetailCard.test.tsx`, including that
+ * the two tiers do not collapse into one another.
  *
  * The dark half only, and here that note is still exactly right (unlike `MAP_GLASS_SCHEME`
  * above): every source these alias is itself two-halved, so flipping `scheme` flips this whole
@@ -315,15 +321,8 @@ export const SHEET_COLORS = {
   handle: withAlpha(colors.text, 0.2),
   /** Phone `MapBottomSheet.tsx:215` — `withAlpha(colors.border, 0.5)`. */
   divider: withAlpha(colors.border, 0.5),
-  /** Phone `LocationRow.tsx:70,88` — the card tier's gradient. */
-  rowBg: GLASS.gradientCard,
-  /** Phone `LocationRow.tsx:91` — `glass.border`, the card tier's. */
-  rowBorder: GLASS_TIER[scheme].card.border,
-  /** The nested tier `LocationDetailCard`'s info cards moved to. U5.4 takes the radius to 12. */
-  infoBg: glassCardNested.background,
   text: colors.text,
   textDim: colors.textSecondary,
-  textFaint: colors.textTertiary,
   /**
    * The sheet's accent SURFACE. Its one reader is `MapCanvas`'s retry button — a filled
    * control — so A19's binding rider applies and it takes the DEEP shade: `onPrimary` measures

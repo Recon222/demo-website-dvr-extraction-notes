@@ -16,6 +16,8 @@ import { SectionCard } from '@/features/demo/ui/screens/_shared'
 import { SettingsCategoryList } from '@/features/demo/ui/screens/settings/SettingsCategoryList'
 import type { SettingsSectionView } from '@/features/demo/ui/screens/settings/settingsData'
 import { TimeOffsetScreen, type TimeOffsetScreenProps } from '@/features/demo/ui/screens/TimeOffsetScreen'
+import { LocationRow } from '@/features/demo/ui/screens/map/LocationRow'
+import { sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import { CasesScreen, type CasesScreenProps } from '@/features/demo/ui/screens/CasesScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { ExportCaseCard, type ExportCaseCardProps } from '@/features/demo/ui/screens/export/ExportCaseCard'
@@ -91,20 +93,33 @@ const HIGHLIGHT = normColor(tier.card.highlightTop)
 const SIDE_BORDER = normColor(tier.card.border)
 
 /**
- * Every element painting the card gradient, minus `<button>`s.
+ * The card surfaces that ARE cards on a `<button>`, by `data-testid` (U5.4).
  *
- * The one button that paints it is `AudioRecorderScreen`'s transport pill (`:481`,
- * `borderRadius: 21`) — not a card, and U7.2's DEF-UI-008 carve-out keeps it on its own
- * gradient deliberately. Every `glassCard` consumer today is a `<div>`; a future card on a
- * `<button>` belongs in this list explicitly, not silently.
+ * `LocationRow` is the first — the map sheet's row is pressable and paints the card tier, which
+ * is the phone's own shape (`map-view/components/LocationRow.tsx:73-97`: a `Pressable` wrapping
+ * the `GlassColors[scheme].card` gradient). It is exactly the "a future card on a `<button>`"
+ * case the note below reserved, so it is named rather than admitted by loosening the filter.
+ */
+const CARD_BUTTONS: ReadonlySet<string> = new Set(['location-row'])
+
+/**
+ * Every element painting the card gradient, minus `<button>`s that are not named above.
+ *
+ * The one button that paints it and is NOT a card is `AudioRecorderScreen`'s transport pill
+ * (`:481`, `borderRadius: 21`) — U7.2's DEF-UI-008 carve-out keeps it on its own gradient
+ * deliberately. A card on a `<button>` belongs in `CARD_BUTTONS` explicitly, not silently.
  */
 function cardSurfaces(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
-    (el) => el.style.backgroundImage === CARD_GRADIENT && el.tagName !== 'BUTTON',
+    (el) =>
+      el.style.backgroundImage === CARD_GRADIENT &&
+      (el.tagName !== 'BUTTON' || CARD_BUTTONS.has(el.dataset.testid ?? '')),
   )
 }
 
 const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn(), isFieldVisible: () => true }
+
+const mapRowItem = sheetLocation({ businessName: 'Kim', address: '1450 Eglinton, Mississauga' })
 
 const scope = (id: string) => ({
   id,
@@ -217,6 +232,8 @@ const CONSUMERS: ReadonlyArray<[name: string, render: () => { container: HTMLEle
   ['RequestedScopeScreen', () => render(<RequestedScopeScreen scopes={[scope('s1'), scope('s2')]} onChange={vi.fn()} onAdd={vi.fn()} onRemove={vi.fn()} {...nav} />), 2],
   ['SectionCard (_shared)', () => render(<SectionCard title="DVR Time vs Actual Time">body</SectionCard>), 1],
   ['SettingsCategoryList', () => render(<SettingsCategoryList sections={settingsSections} onSelect={vi.fn()} />), 2],
+  // U5.4 — the map sheet's row, and the first card painted on a `<button>` (see `CARD_BUTTONS`).
+  ['LocationRow (map)', () => render(<LocationRow item={mapRowItem} selected={false} onSelect={vi.fn()} />), 1],
   // SectionCard ("DVR Time vs Actual Time") + one corrected-scope card.
   ['TimeOffsetScreen', () => render(<TimeOffsetScreen {...timeOffsetProps} />), 2],
 ]

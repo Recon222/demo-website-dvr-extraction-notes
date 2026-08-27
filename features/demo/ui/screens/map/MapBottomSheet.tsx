@@ -8,7 +8,7 @@ import { SheetHandle } from '@/features/demo/ui/screens/map/SheetHandle'
 import { LocationList, type SheetEmptyReason } from '@/features/demo/ui/screens/map/LocationList'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import { SHEET_SHADOW } from '@/features/demo/ui/controls/sheet-chrome'
-import { radius } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface MapBottomSheetProps {
   items: SheetItem[]
@@ -46,6 +46,9 @@ const SHEET_HEIGHTS = [116, 340, 560]
 const DRAG_THRESHOLD = 40
 
 const clampIndex = (i: number) => Math.max(0, Math.min(i, SHEET_HEIGHTS.length - 1))
+
+/** Phone `styles.divider` — `height: 1`, `marginHorizontal: Layout.spacing.lg`. */
+const divider: CSSProperties = { height: 1, flexShrink: 0, margin: `0 ${spacing.lg}px`, background: SHEET_COLORS.divider }
 
 /**
  * The map's draggable bottom sheet — three detents (peek/partial/full), controlled snap index. Drag
@@ -158,6 +161,11 @@ export function MapBottomSheet({
       >
         <SheetHandle contentMode={contentMode} locationCount={locationCount} statusCounts={statusCounts} />
       </div>
+      {/* U5.4 — phone `MapBottomSheet.tsx:212-216`, `styles.divider` `:258-261`: a 1px rule inset
+          by `spacing.lg`, between the handle and the content. `SHEET_COLORS.divider` existed with
+          no divider to paint; its only reader was `LocationDetailCard`'s info-card border, which
+          belongs to the nested tier instead. */}
+      <div data-testid="sheet-divider" style={divider} />
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {contentMode === 'detail' ? (
           detail
