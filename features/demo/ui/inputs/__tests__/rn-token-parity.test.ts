@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { palette, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
   norm,
@@ -66,10 +66,29 @@ describe('norm — the compare-time normalisation both sides go through', () => 
   })
 })
 
-// Review W0/F4. Both cases are pure string work — no sibling repo, so they run everywhere,
-// which matters for a guard whose every other case is `skipIf`.
-describe('region() — what the slice actually contains', () => {
+// EVERYTHING IN THIS BLOCK IS UNGATED, and that is the point of the block. Every case in the
+// `parity` describe below is `it.skipIf(!rnAvailable())`, so on a box without the sibling phone
+// checkout — the default contributor box, and any CI that has not been taught to clone it — all
+// of them report green by skipping. An assertion whose two sides are BOTH local has no business
+// living there. Before adding a case below, ask what it reads: if the answer is "nothing outside
+// this repo", it belongs here.
+describe("the guard's local invariants — nothing here reads the phone repo", () => {
   const DARK = { after: 'const dark = {', before: '} as const' }
+
+  // Review W0/F2, moved here by W0/F11. Both sides are local — a `.mjs` array and a TS module in
+  // this repo — yet this lived inside a `skipIf` case, where a probe swapping `'link'` for
+  // `'card'` SURVIVED with the phone repo absent (5 passed | 6 skipped, exit 0).
+  //
+  // It is the ONLY assertion in this file that compares the guard's hand-maintained key list to
+  // something outside itself; every other check iterates that list, so they are all tautological
+  // without it. The guard is `.mjs` and cannot import `palette.ts`, which is why the list is
+  // hand-maintained and why this pin has to exist at all. A palette token added without an
+  // anchor reds HERE, on every box.
+  it('anchors exactly the palette tokens, no more and no fewer', () => {
+    expect([...PALETTE_KEYS].sort(), 'the guard must anchor exactly the palette tokens').toEqual(
+      Object.keys(palette.dark).sort(),
+    )
+  })
 
   it('does not read a value out of a // comment', () => {
     // The shape that survived at review time: a refactor leaves the OLD value commented above
@@ -117,16 +136,8 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         .sort()
       expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
     }
-    // MEMBERSHIP, not cardinality. Review W0/F2: the guard's key list is hand-maintained (it is
-    // .mjs and cannot import this TS module), and the old `PALETTE_KEYS.length === 15` pin
-    // SURVIVED swapping `'link'` for `'card'` — every count and every loop above stayed green
-    // because they all iterate the list itself. This is the only assertion in the file that
-    // compares the list to something outside it, so it is the one that makes the other three
-    // non-tautological. A palette token added without an anchor reds HERE.
-    expect([...PALETTE_KEYS].sort(), 'the guard must anchor exactly the palette tokens').toEqual(
-      Object.keys(palette.dark).sort(),
-    )
-    // Cardinality is now derived from that, and only covers what membership cannot: deletion of
+    // Cardinality is derived from the membership pin above (which is UNGATED — see the
+    // `local invariants` describe), and covers only what membership cannot: deletion of
     // the three anchors that are NOT palette keys (both CTA gradient stops + the touch floor).
     expect(anchors.length, 'every palette key in both halves, + 2 gradient stops + touchFloor').toBe(
       PALETTE_KEYS.length * 2 + 3,
@@ -151,7 +162,9 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // deleting the check: these two are `#ffffff` in both halves by design (`Colors.ts:95-96`,
     // `:201-202`) — a foreground for filled surfaces does not change with the scheme. Any key
     // added here needs the same justification, in one line, or it is hiding a stuck reader.
-    const SCHEME_INVARIANT = new Set(['onPrimary', 'onError'])
+    // Typed, so a typo'd exclusion is a compile error rather than a misleading runtime red.
+    // Annotated as ReadonlySet<string> so `.has(k)` still takes the untyped .mjs key.
+    const SCHEME_INVARIANT: ReadonlySet<string> = new Set<PaletteToken>(['onPrimary', 'onError'])
     for (const key of PALETTE_KEYS.filter((k: string) => !SCHEME_INVARIANT.has(k))) {
       expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
         at(key, 'dark').rn,
