@@ -40,5 +40,5 @@
 ## After you rule
 
 1. Orchestrator writes the rulings into matrix § OWNER RATIFICATION + plan §3 (via the warm writer), commits, opens the planning-bundle PR `docs/ui-parity-planning → master` (merge commit).
-2. Cuts `feat/uiparity` (per D18) and briefs **U0** per plan §6.4 under the HANDOFF §2 spawn policy (`opus-implementer`, unnamed; lanes explicit Opus; Fable aggregator).
+2. Cuts the **`feat/uiparity-u0`** phase branch off `master` (**D18 as overridden** — plan §4.8) and briefs **U0** per plan §6.4 under the HANDOFF §2 spawn policy (`opus-implementer`, unnamed; lanes explicit Opus; Fable aggregator).
 3. Your first device checkpoint comes after U1.
