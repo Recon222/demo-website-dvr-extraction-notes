@@ -197,8 +197,28 @@ const switchRow: CSSProperties = {
 /** Phone `styles.switchLabel` `:270-273` — 14/500 `colors.text`, NOT the shared switch's own 16. */
 const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: colors.text }
 
-/** Phone `styles.hintText` `:279-282`, painted `colors.textTertiary` (`:217`). */
-const hintText: CSSProperties = { fontSize: 12, lineHeight: '16px', color: colors.textTertiary }
+/**
+ * Phone `styles.hintText` `:279-282`. The phone paints it `colors.textTertiary` (`:217`); the
+ * demo does not, and F60 is why.
+ *
+ * D5's rider is verbatim *"do not ADD new `textTertiary` text"*. `textTertiary` carries a
+ * documented CEILING of 3.79 (dark) / 3.87 (light) in `palette-contrast.test.ts` — an INHERITED
+ * shortfall, kept because the phone ships it, not a budget for new surfaces to spend. This hint
+ * is a new surface: it measures **4.23** on the sheet tier, under the 4.5 the same file's row 45
+ * holds the section labels to. `textSecondary` measures **5.82** on the same stacks.
+ *
+ * The contradiction was in this file already: `MAP_FILTER_SECTION_LABEL`'s docblock names
+ * `textTertiary` as the value that "measures below AA on the sheet tier" and then `hintText`
+ * painted with it eight lines down.
+ *
+ * EXPORTED for the same reason the label is — row 45's sibling assertion pins the ratio at the
+ * constant this component paints, so re-pointing it back at `textTertiary` reds.
+ */
+export const MAP_FILTER_HINT_TEXT: CSSProperties & { color: string } = {
+  fontSize: 12,
+  lineHeight: '16px',
+  color: colors.textSecondary,
+}
 
 /**
  * The proximity switch's visible label AND its accessible name — one string, read once (F59).
@@ -435,7 +455,7 @@ export function MapFiltersSheet({
           </div>
         )}
 
-        <div data-testid="filter-hint" style={hintText}>
+        <div data-testid="filter-hint" style={MAP_FILTER_HINT_TEXT}>
           {canPlaceRing ? HINT_CAN_PLACE : HINT_NO_MAP}
         </div>
 
