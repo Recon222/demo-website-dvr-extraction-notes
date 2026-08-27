@@ -86,6 +86,12 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // straight over every one of them because the alphas differ. Banning the stop itself is what
   // stops U1.3/U1.4/U2.4/U4.1 pasting the NEW values back in the same way.
   // Measured before landing: all twelve have ZERO occurrences under `ui/`, so this costs no sweep.
+  // KNOWN LIMIT, not this package's to fix: the scan below is WHITESPACE-sensitive, so these
+  // twelve catch `rgba(23,65,110,0.7)` and miss `rgba(23, 65, 110, 0.7)` — which is the spelling
+  // `Colors.ts` uses and therefore the one a paste out of the phone arrives in. W0's review
+  // raised it as a HIGH against `:132-134` with a SURVIVED probe; the fix is one `replace(/\s+/g,'')`
+  // on both sides of the comparison and it belongs to that round, not here. Until it lands these
+  // entries bite only on the unspaced form.
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
