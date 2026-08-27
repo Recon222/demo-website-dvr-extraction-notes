@@ -284,7 +284,8 @@ export const webTierScope = (scheme, tier) => ({
  *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows -> 117
  *   U3.1 (LANDED) +8 palette keys x 2                                     = +16 rows -> 133
  *   U4.4 (LANDED) +scrim x 2                                              =  +2 rows -> 135
- *                -> 41 palette keys / 65 anchor keys / 135 rows, MEASURED, which is what this
+ *   U5.1 (LANDED) +2 map-glass keys x 2, +4 always-dark map-chrome rows   =  +8 rows -> 143
+ *                -> 41 palette keys / 67 anchor keys / 143 rows, MEASURED, which is what this
  *                   table produces today
  *   U8.2         +gridSubtle x 2                                         =  +4 rows
  *
@@ -293,6 +294,12 @@ export const webTierScope = (scheme, tier) => ({
  * both dropped the two LIGHT gradient stops U2.2 added on the line above them). The final total
  * is deliberately no longer stated: it depends on what U8.2 actually lands, and a hand-typed
  * end figure is exactly what drifted twice.
+ *
+ * W3/F68 is F49's class again, same block, next wave: U5.1 landed its eight rows and left the
+ * ladder saying 135 while the table produced 143. The MEASURED line moved with it — the whole
+ * point of that line is that it states what the table produces, so leaving it behind is the same
+ * defect one line lower. `2 map-glass keys x 2 halves` + `4 always-dark map-chrome rows` is the
+ * split the run's own summary prints, not an inference.
  *
  * DO NOT TREAT THESE NUMBERS AS A GATE. They are a reading aid. The gate is
  * `rn-token-parity.test.ts:211-214`, whose expectation is DERIVED
