@@ -229,7 +229,7 @@ describe('ImportModal', () => {
 
   it('a code outside the map falls back to the pipeline\'s own honest string (phone §5.7.8 precedent)', () => {
     render(
-      <ImportModal stage="result" text="" activeStage={null} lastRealStage={null} batch={null} result={{ ok: false, error: 'This PDF looks scanned or image-only — no selectable text was found. Paste the request text instead.', code: 'PDF_SCANNED' }} {...cb} />,
+      <ImportModal stage="result" text="" activeStage={null} lastRealStage={null} batch={null} result={{ ok: false, error: 'This PDF looks scanned or image-only. No selectable text was found. Paste the request text instead.', code: 'PDF_SCANNED' }} {...cb} />,
     )
     expect(ERROR_MESSAGES.PDF_SCANNED).toBeUndefined() // deliberately unmapped
     expect(ERROR_MESSAGES.NO_FIELDS_FOUND).toBeUndefined() // deliberately unmapped
