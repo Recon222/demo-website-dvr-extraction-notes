@@ -112,30 +112,30 @@ export interface MapFiltersSheetProps {
  * edit it exists to catch (re-pointing this label at `textTertiary`, which measures below AA on
  * the sheet tier).
  */
-export const MAP_FILTER_SECTION_LABEL: CSSProperties & { color: string } = {
+export const MAP_FILTER_SECTION_LABEL = {
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: 0.5,
   textTransform: 'uppercase',
   marginBottom: spacing.sm,
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties & { color: string }
 
 /** Phone `styles.body` `:226-230` — `16 / 16 / 8` (A82). The shell's body has no padding of its own. */
-const body: CSSProperties = {
+const body = {
   paddingLeft: spacing.md,
   paddingRight: spacing.md,
   paddingTop: spacing.md,
   paddingBottom: spacing.sm,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.chipRow` `:238-243`. */
-const chipRow: CSSProperties = {
+const chipRow = {
   display: 'flex',
   flexWrap: 'wrap',
   gap: spacing.sm,
   marginBottom: spacing.lg,
-}
+} as const satisfies CSSProperties
 
 /**
  * Phone `styles.chip` `:244-253`.
@@ -148,7 +148,7 @@ const chipRow: CSSProperties = {
  * Border longhands, no shorthand: `borderColor` is itself a four-side shorthand and this object is
  * spread by two callers that then re-tint. `borderStyle` is CSS's default-none problem, not RN's.
  */
-const chip: CSSProperties = {
+const chip = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -175,27 +175,27 @@ const chip: CSSProperties = {
   // (`:138`, `:206`). `chipSelected` overrides it; a `<button>` has a UA colour, so leaving this
   // to the default paints the browser's, not the palette's.
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.chipDot` `:254-258`. */
-const chipDot: CSSProperties = {
+const chipDot = {
   width: 7,
   height: 7,
   borderRadius: radius.full,
   flex: '0 0 auto',
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.switchRow` `:263-269`. */
-const switchRow: CSSProperties = {
+const switchRow = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: spacing.sm,
   minHeight: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.switchLabel` `:270-273` — 14/500 `colors.text`, NOT the shared switch's own 16. */
-const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: colors.text }
+const switchLabel = { fontSize: 14, fontWeight: 500, color: colors.text } as const satisfies CSSProperties
 
 /**
  * Phone `styles.hintText` `:279-282`. The phone paints it `colors.textTertiary` (`:217`); the
@@ -214,11 +214,11 @@ const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: color
  * EXPORTED for the same reason the label is — row 45's sibling assertion pins the ratio at the
  * constant this component paints, so re-pointing it back at `textTertiary` reds.
  */
-export const MAP_FILTER_HINT_TEXT: CSSProperties & { color: string } = {
+export const MAP_FILTER_HINT_TEXT = {
   fontSize: 12,
   lineHeight: '16px',
   color: colors.textSecondary,
-}
+} as const satisfies CSSProperties & { color: string }
 
 /**
  * The proximity switch's visible label AND its accessible name — one string, read once (F59).
@@ -236,22 +236,22 @@ const HINT_CAN_PLACE = 'Long-press the map to place or move the proximity ring.'
 const HINT_NO_MAP = 'The live map is unavailable, so the proximity ring cannot be moved.'
 
 /** Phone `styles.footerRow` `:283-287`. The shell wraps this in `paddingBottom: 12` and nothing else. */
-const footerRow: CSSProperties = {
+const footerRow = {
   display: 'flex',
   gap: spacing.sm,
   paddingLeft: spacing.md,
   paddingRight: spacing.md,
-}
+} as const satisfies CSSProperties
 
 /** Phone `styles.footerButton` `:288-290`. */
-const footerButton: CSSProperties = { flexGrow: 1, flexShrink: 1, flexBasis: 0 }
+const footerButton = { flexGrow: 1, flexShrink: 1, flexBasis: 0 } as const satisfies CSSProperties
 
 /**
  * Off-screen but readable by assistive tech. A second copy of `ExportModal.tsx:70-80`'s constant,
  * knowingly: hoisting it would mean editing that screen, which belongs to no U5 package. Proposed
  * as a deferral rather than smuggled across a package boundary.
  */
-const srOnly: CSSProperties = {
+const srOnly = {
   position: 'absolute',
   width: 1,
   height: 1,
@@ -261,7 +261,7 @@ const srOnly: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   whiteSpace: 'nowrap',
   border: 0,
-}
+} as const satisfies CSSProperties
 
 /** The chip's selected paint, from the severity trio. Spread AFTER `chip`, colour longhands only. */
 function chipSelected(tone: ReturnType<typeof severityTone>): CSSProperties {

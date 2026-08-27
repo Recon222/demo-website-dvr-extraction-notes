@@ -301,7 +301,11 @@ describe('MapFiltersSheet — footer', () => {
     mount({ proximityActive: true })
     const offenders = ['filter-clear-all', 'filter-done', 'filter-radius-0.5', 'filter-radius-5']
       .map((id) => screen.getByTestId(id))
-      .map((el) => [el.getAttribute('data-testid'), el.textContent ?? '', el.getAttribute('aria-label') ?? ''])
+      .map((el) => [
+        el.getAttribute('data-testid') ?? '',
+        el.textContent ?? '',
+        el.getAttribute('aria-label') ?? '',
+      ])
       .filter(([, visible, name]) => !name.toLowerCase().includes(visible.toLowerCase().trim()))
     expect(offenders).toEqual([])
   })
