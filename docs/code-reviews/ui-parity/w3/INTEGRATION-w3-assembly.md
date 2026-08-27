@@ -254,3 +254,81 @@ The first cold suite run was **red** (1 file / 1 test) — that is the hazard-#2
 
 Every conflict resolution's reasoning is written into the merge commit body, per the hazard
 playbook's recovery rule.
+
+---
+
+# ADDENDUM — r1 fix-merge (nine seats)
+
+Nine fix branches merged `--no-ff` into `feat/uiparity-w3` in the coordinator's order, seam-owner
+first: u7.3 → u7.2 → u5.4 → u5.3 → u5.2 → u6.2 → u6.4a → u6.4b → int. Head **`3dc8676`**.
+
+## Conflicts — 2, both in `__tests__/palette-contrast.test.ts`, both genuine unions
+
+Four seats append §C.1-style rows to one file, which is the collision the brief predicted.
+
+| Merge | Hunks | Resolution |
+|---|---|---|
+| u5.3 | 2 (imports + body) | u5.4's rows 46/47 + its `MAP_SHEET_STOPS` / `SHEET_NESTED_GROUNDS` consts, and u5.3's row 45b, both kept. The textual conflict existed only because the two appended `it` blocks **shared a closing `})`** — each is now closed properly. |
+| u6.2 | 1 (imports only) | `PANE_VALUE_TINT` unioned in; u6.2's `it` block appended elsewhere and auto-merged. |
+
+Verified as **live**, not merely syntactically present: all five seats' symbols
+(`MAP_FILTER_BADGE_FILL`, `MAP_FILTER_HINT_TEXT`, `MAP_FILTER_SECTION_LABEL`, `MAP_CONTACT_ROW`,
+`MAP_PICKER_SELECTED_TITLE`, `PANE_VALUE_TINT`) occur more than once — import **plus** at least one
+assertion — so no seat's row was dropped while its import survived, the failure mode an import-block
+union actually has. Row count tracked upward across the chain (35 → 36) as each seat landed.
+
+The other seven merges were clean, including all three seats that touched `banner.test.tsx`
+(u6.4a / u6.4b / int).
+
+## Watch items
+
+1. **`palette-contrast.test.ts`** — see above.
+2. **`banner.test.tsx`** (u6.4a + u6.4b + int) — coherent post-merge: `ADOPTED` still 10 entries,
+   `HANDED_BACK` still the single `_pane-chrome.tsx` row, both predicates
+   (`importsBannerModule` / `rendersBanner`) intact, and F69's rewording survived the three-way
+   overlap.
+3. **F55 halves** (`field-recipe-sweep.test.tsx` u6.4a, `status-owners.test.tsx` u6.4b) — the
+   integrator ruling **holds post-merge**: positives read the seam (`severityTone('error')` at
+   `field-recipe-sweep:472`, `status-owners:98`), negatives stay in palette terms
+   (`status-owners:94` `not.toBe(rgb(colors.error))`). Two seats, one ruling, no drift.
+4. **Mono policy** (u7.3's F53 rewrite) vs font-touching edits elsewhere — no collision; render pins
+   landed across six test files (9 `--font-stmono` `toContain` assertions).
+5. **Clean-merge defects** — none found. The full cold suite is the detector for the r1 MapScreen
+   class (a cross-file pin/string pair), and it is green.
+
+## Probe spot-checks at the MERGED head
+
+Run in a throwaway worktree at `3dc8676`, never in place.
+
+| Probe | Pre-fix | At merged head |
+|---|---|---|
+| F51-B — badge fill re-pointed to the ported warning ground | SURVIVED | **KILLED** |
+| F51-C — fill paints nothing (the tautology control) | SURVIVED | **KILLED** |
+| F53-MONO1 — render site loses the scanner face | SURVIVED | **KILLED** (by the new render pin) |
+| F54 `flat` (the only pre-fix kill) | KILLED | **KILLED** |
+| F54 `nested` | SURVIVED | **KILLED** |
+| F54 `light` | SURVIVED | **KILLED** |
+| F54 `computed` (F26's own form) | SURVIVED | **KILLED** |
+
+F51's root fix confirmed at source too: all three former orphan files
+(`MediaLibrarySheet.tsx`, `MediaCaptureScreen.tsx`, `AudioPreviewScreen.tsx`) now consume
+`SAMPLE_BADGE`.
+
+**A methodology note worth keeping.** The first F54 run reported four kills *and a red negative
+control*. The cause was environmental — the probe worktree's `node_modules` was a directory junction
+into the wave tree, and pnpm's symlink layout did not resolve `vitest` through it, so every run
+exited non-zero for module-not-found rather than for a guard firing. **All four verdicts were void
+and were discarded**, a real `pnpm install` was done in the probe tree, and every probe was re-run
+with a green control asserted both before the mutation and after the restore. A probe harness
+without a control proves nothing; a non-zero exit code is only a kill if the clean tree is green.
+
+## Gates — COLD at `3dc8676`
+
+| Gate | Exit | Result |
+|---|---|---|
+| `npx tsc --noEmit --incremental false` | **0** | clean |
+| `pnpm test --silent` | **0** | **307 files, 4,235 passed + 2 todo (4,237)** |
+| `node .design-sync/check-rn-parity.mjs` | **0** | **143 anchor rows** |
+| `pnpm build` | **0** | 20/20 static; **`/demo` 107 kB** |
+
+Suite is above the ≥4,209 expectation; guard still 143; `/demo` unchanged at 107 kB.
