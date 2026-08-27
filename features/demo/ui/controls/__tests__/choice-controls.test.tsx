@@ -299,16 +299,28 @@ describe('no hand-rolled copy of either control survives', () => {
  * below it. `minWidth: 0` is what releases the floor. Two docblocks asserted the opposite and
  * are corrected in the same commit.
  *
- * WHAT THIS PIN CAN AND CANNOT DO, stated plainly: **jsdom performs no layout**, so the
- * overflow itself is not observable here and the honest evidence is the verification re-cut of
- * the four settings shots. What IS observable, and what a revert would break, is that both keys
- * are present on every label at 3-up — `flexShrink` without `minWidth` is precisely the shipped
- * defect, so the pair is the falsifiable part.
+ * W2 RIDER F29' — the label was only HALF the floor. `min-width: auto` is the CSS default on
+ * EVERY flex item, so releasing the inner span while the `<button>` kept its own left the row
+ * 21px past the pane (Chromium at `250e12f`: clientWidth 342 vs scrollWidth 363,
+ * `fc-profile-canvas` right edge 433.8 vs 413). Three declarations are required and the tests
+ * below check all three: `minWidth: 0` on the button, `minWidth: 0` on the label, and
+ * `overflowWrap: 'break-word'` so a word narrower boxes cannot hold paints inside its box
+ * instead of over the neighbour's border.
+ *
+ * WHAT THESE PINS CAN AND CANNOT DO, stated plainly and for the third time at this site because
+ * the two previous claims here were wrong: **jsdom performs no layout.** These are DECLARATION
+ * pins. They catch a revert — which is what the first round's regression actually was — and they
+ * cannot catch a miscalculation, a changed padding or a longer label.
+ *
+ * The rendered proof is CAPTURE-GATED and still owed: the defect is measured twice at `250e12f`
+ * (web in Chromium, and verification's pixels — `_captures/w2/DIFF.md` §f1-§f7, rightmost pixel
+ * x781 vs pane inset x739 on all four settings shots), but no shot of the FIX exists yet.
+ * Nothing in this file substitutes for the next re-cut.
  */
 describe('RadioOption at 3-up (W2 F29)', () => {
   const LABELS = ['Forensic', 'Limited', 'Canvas']
 
-  it('gives every label BOTH shrink keys — `flexShrink` alone is the shipped defect', () => {
+  it('releases the min-width floor on BOTH nested flex items, and lets the word break', () => {
     const { container } = render(
       // The pane's own container: `FormFieldsPane`'s row, at the 378px phone-frame width.
       <div role="radiogroup" style={{ display: 'flex', gap: 8, width: 378 - 32 }}>
@@ -317,6 +329,14 @@ describe('RadioOption at 3-up (W2 F29)', () => {
         ))}
       </div>,
     )
+    // The BUTTON is the item the row shrinks; F29 pinned only the span inside it.
+    const buttons = Array.from(container.querySelectorAll('[role="radio"]')) as HTMLElement[]
+    expect(buttons).toHaveLength(3)
+    buttons.forEach((el, i) => {
+      expect(el.style.flex, LABELS[i]).toBe('1 1 0%')
+      expect(el.style.minWidth, LABELS[i]).toBe('0px')
+    })
+
     const labels = Array.from(container.querySelectorAll('[data-radio-label]')) as HTMLElement[]
     expect(labels).toHaveLength(3)
     // A plain index loop, not `labels.entries()`: tsconfig targets es5 and iterating an array
@@ -325,15 +345,18 @@ describe('RadioOption at 3-up (W2 F29)', () => {
     labels.forEach((el, i) => {
       expect(el.style.flexShrink, LABELS[i]).toBe('1')
       expect(el.style.minWidth, LABELS[i]).toBe('0px')
+      expect(el.style.overflowWrap, LABELS[i]).toBe('break-word')
     })
   })
 
-  it('does not truncate — the phone wraps to two lines rather than ellipsing', () => {
+  it('breaks rather than truncates — the phone wraps to two lines, it does not ellipse', () => {
     const { container } = render(
       <RadioOption label="Forensic" selected={false} onSelect={vi.fn()} />,
     )
     const label = container.querySelector('[data-radio-label]') as HTMLElement
     expect(label.style.whiteSpace).toBe('')
     expect(label.style.textOverflow).toBe('')
+    // Breaking is not truncating: every character stays on screen, on a second line.
+    expect(label.style.overflowWrap).toBe('break-word')
   })
 })
