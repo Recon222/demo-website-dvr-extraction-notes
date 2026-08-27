@@ -93,7 +93,6 @@ const ITALIC_KEEP_LIST: Readonly<Record<string, number>> = {
   'screens/MediaLibrarySheet.tsx': 2, // `item.caption`, twice (the info line and the list row)
   'screens/ExportModal.tsx': 2, // `view.locationLabel` and `prompt.summary`
   'screens/SyncStatusCard.tsx': 1, // `sync.traceability`
-  'screens/DateDisambiguationWarning.tsx': 1, // `warning.suggestion`
   'screens/TimeOffsetScreen.tsx': 2, // `Cameras: {sc.cameras}`, and the dashed advisory (U6.4b's Banner)
   'screens/OcrCaptureScreen.tsx': 1, // the "Manually edited" status label
   'screens/DeleteConfirmationModal.tsx': 1, // the red warning line (U4.3/§C.3 rule 1, not A80)
@@ -147,7 +146,12 @@ describe('the italic keep-list (A80 — what the sweep must NOT touch)', () => {
     // 20 measured at `28e7993` (partner legwork W2, C7). U3.4 converted five screen-level
     // sites to `EmptyState`: CasesScreen:86, DashboardScreen:62, CamerasScreen:83,
     // ArrivalDepartureScreen:33, ExtractedScopeScreen:27.
-    expect(kept, '20 measured before U3.4, 5 converted').toBe(20 - 5)
+    // U3.3 then removed a SIXTH italic, and not by sweeping: `DateDisambiguationWarning`'s
+    // suggestion BOX is gone entirely, because the phone folds `warning.suggestion` into the
+    // Banner message (phone `DateDisambiguationWarning.tsx:47`). The ruling is a deletion, not a
+    // de-italicisation — there is no longer a node to italicise — which is why the entry left
+    // the list above rather than changing its count. Do not restore either.
+    expect(kept, '20 measured before U3.4; 5 converted there, 1 deleted by U3.3').toBe(20 - 5 - 1)
     // The five converted files must carry NO screen-level italic any more. Three of them are
     // off the list entirely; two keep exactly their in-card line, asserted by the census above.
     for (const gone of ['screens/CamerasScreen.tsx', 'screens/ArrivalDepartureScreen.tsx', 'screens/ExtractedScopeScreen.tsx']) {

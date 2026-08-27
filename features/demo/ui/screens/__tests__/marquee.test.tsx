@@ -262,19 +262,21 @@ describe('OcrCaptureScreen', () => {
 
   it('renders the ambiguity warning when the resolver was unsure', () => {
     render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity } }} />)
-    expect(screen.getByText('Date Format Ambiguity Detected')).toBeInTheDocument()
+    expect(screen.getByTestId('date-disambiguation-warning')).toHaveTextContent(
+      'Date Format Ambiguity Detected',
+    )
     expect(screen.getByText(/Jun 7, 2024 \(MM-DD\)/)).toBeInTheDocument()
     expect(screen.getByText('Jul 6, 2024')).toBeInTheDocument()
   })
 
   it('stays silent when the resolver was confident', () => {
     render(<OcrCaptureScreen {...ocrBase} result={{ ...parsed, resolution: { kind: 'ambiguous', ambiguity: { ...ambiguity, confidence: 'high' } } }} />)
-    expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('date-disambiguation-warning')).not.toBeInTheDocument()
   })
 
   it('stays silent when the date was never ambiguous', () => {
     render(<OcrCaptureScreen {...ocrBase} result={parsed} />)
-    expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('date-disambiguation-warning')).not.toBeInTheDocument()
   })
 
   it('holds the commit until an assumed date is confirmed', () => {
