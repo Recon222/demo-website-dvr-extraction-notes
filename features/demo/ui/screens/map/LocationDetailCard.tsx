@@ -38,7 +38,7 @@ export interface LocationDetailCardProps {
 // phone `styles.content` `:826-829` — `paddingHorizontal: mdlg` (20), `paddingBottom: lg` (24).
 // The 14px top is the demo's own: the phone's ScrollView sits under a handle + divider that
 // already open the space, and demo §0.4 forbids tidying a lifted value with no counterpart.
-const container: CSSProperties = { padding: `14px ${spacing.mdlg}px ${spacing.lg}px` }
+const container = { padding: `14px ${spacing.mdlg}px ${spacing.lg}px` } as const satisfies CSSProperties
 
 /**
  * "‹  All Locations" — phone `BackButton` `:256-268`, a `<Button variant="ghost" size="small">`.
@@ -51,14 +51,14 @@ const container: CSSProperties = { padding: `14px ${spacing.mdlg}px ${spacing.lg
  * the web analog of the phone's `alignSelf: 'flex-start'` (`:831`). Outside the border family,
  * so the recipe's four longhands are untouched.
  */
-const backBtn: CSSProperties = {
+const backBtn = {
   ...buttonStyle({ variant: 'ghost', size: 'small' }),
   display: 'inline-flex',
   marginBottom: spacing.md,
-}
-const nameRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.base, marginBottom: spacing.md }
+} as const satisfies CSSProperties
+const nameRow = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.base, marginBottom: spacing.md } as const satisfies CSSProperties
 // phone `styles.locationName` `:841-846` — `fontSize['2xl']` (24). Was 21.
-const name: CSSProperties = { fontSize: 24, fontWeight: 700, color: SHEET_COLORS.text, letterSpacing: -0.3, flex: 1 }
+const name = { fontSize: 24, fontWeight: 700, color: SHEET_COLORS.text, letterSpacing: -0.3, flex: 1 } as const satisfies CSSProperties
 
 /**
  * The four content cards — phone `:323`, `:509`, `:595-597`, `:664-666`, `:749-751`, every one a
@@ -71,18 +71,18 @@ const name: CSSProperties = { fontSize: 24, fontWeight: 700, color: SHEET_COLORS
  *
  * THE LIT-EDGE RULE: spread the fragment, then write no `border` / `borderColor` / `borderTop`.
  */
-const card: CSSProperties = { ...glassCardNested, padding: spacing.base, marginBottom: spacing.base }
+const card = { ...glassCardNested, padding: spacing.base, marginBottom: spacing.base } as const satisfies CSSProperties
 // phone `styles.infoCard` `:874-876` — the scope / requester / contact wrappers take `mdlg` (20);
 // only the address card takes `base` (`styles.addressCard` `:869-872`).
-const infoCard: CSSProperties = { ...card, marginBottom: spacing.mdlg }
+const infoCard = { ...card, marginBottom: spacing.mdlg } as const satisfies CSSProperties
 /**
  * phone `styles.cardLabel` `:990-996`, whose comment is the reason for the token move: *"Uppercase
  * micro-label at the top of each content card. On `textSecondary`, not `textTertiary`: the
  * tertiary token is a documented sub-AA ceiling (M2b) and these labels are read, not skimmed."*
  * The demo had `textFaint` (= `textTertiary`) at 10px/700.
  */
-const cardLabel: CSSProperties = { fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textSecondary, marginBottom: spacing.sm }
-const rowText: CSSProperties = { fontSize: 14, fontWeight: 500, color: SHEET_COLORS.text, padding: '6px 0' }
+const cardLabel = { fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textSecondary, marginBottom: spacing.sm } as const satisfies CSSProperties
+const rowText = { fontSize: 14, fontWeight: 500, color: SHEET_COLORS.text, padding: '6px 0' } as const satisfies CSSProperties
 /**
  * The tap-to-call / tap-to-email rows — this card's ONLY affordance for reaching a requester or
  * a site contact, and the one place on it where colour carries a control.
@@ -134,7 +134,7 @@ export const MAP_CONTACT_ROW = {
  * button, one of six local button implementations on this screen, at a seventh height and
  * radius" — `LocationList.tsx:98-100`), which is why this is an adoption and not a shared const.
  */
-const cta: CSSProperties = { ...buttonStyle({ variant: 'primary' }), width: '100%' }
+const cta = { ...buttonStyle({ variant: 'primary' }), width: '100%' } as const satisfies CSSProperties
 /** Phone copy, verbatim (ui-mapping 03:256/262 — `IncidentDetailCard`'s only CTA). */
 export const EDIT_INCIDENT_LABEL = 'Edit Incident Location'
 
@@ -168,7 +168,7 @@ const statusBadge = (tone: SeverityTone): CSSProperties => ({
 const statusDot = (tone: SeverityTone): CSSProperties => ({ width: 6, height: 6, borderRadius: radius.full, background: tone.color, flex: '0 0 auto' })
 /** phone `styles.incidentTypeChip` `:909-919` — no border, no dot, uppercase at `radius.control`. */
 const incidentTone = severityTone(STATUS_SEVERITY.incident)
-const typeChip: CSSProperties = {
+const typeChip = {
   display: 'inline-block',
   fontSize: 12,
   fontWeight: 700,
@@ -180,7 +180,7 @@ const typeChip: CSSProperties = {
   background: incidentTone.background,
   color: incidentTone.color,
   whiteSpace: 'nowrap',
-}
+} as const satisfies CSSProperties
 
 /**
  * The cameras toggle — a tappable nested card between the address and the requester cards,

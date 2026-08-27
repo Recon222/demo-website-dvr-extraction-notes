@@ -48,7 +48,7 @@ const DRAG_THRESHOLD = 40
 const clampIndex = (i: number) => Math.max(0, Math.min(i, SHEET_HEIGHTS.length - 1))
 
 /** Phone `styles.divider` — `height: 1`, `marginHorizontal: Layout.spacing.lg`. */
-const divider: CSSProperties = { height: 1, flexShrink: 0, margin: `0 ${spacing.lg}px`, background: SHEET_COLORS.divider }
+const divider = { height: 1, flexShrink: 0, margin: `0 ${spacing.lg}px`, background: SHEET_COLORS.divider } as const satisfies CSSProperties
 
 /**
  * The map's draggable bottom sheet — three detents (peek/partial/full), controlled snap index. Drag
