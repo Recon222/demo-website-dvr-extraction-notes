@@ -104,7 +104,13 @@ describe('sheetSurface — the A38 ground', () => {
     expect(sheetSurface.borderTopLeftRadius).toBe(radius.sheet)
     expect(sheetSurface.borderTopRightRadius).toBe(radius.sheet)
     expect(radius.sheet).toBe(22)
+    // A bottom sheet's lower corners are off-screen, so these must stay absent. Since W2/F38
+    // narrowed the fragment with `as const satisfies`, that is now a COMPILE-time contract as
+    // well as a runtime one: adding either key makes the `@ts-expect-error` unused and reds
+    // `tsc --noEmit`, which is in the gate set.
+    // @ts-expect-error borderBottomLeftRadius must not exist on sheetSurface
     expect(sheetSurface.borderBottomLeftRadius).toBeUndefined()
+    // @ts-expect-error borderBottomRightRadius must not exist on sheetSurface
     expect(sheetSurface.borderBottomRightRadius).toBeUndefined()
   })
 
