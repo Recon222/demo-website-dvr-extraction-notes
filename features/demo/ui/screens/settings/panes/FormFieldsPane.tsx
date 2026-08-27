@@ -12,7 +12,7 @@ import {
 import { PROFILE_BLURBS, PROFILE_LABELS, describeProfile } from '@/features/demo/engine/content/profiles'
 import { PROFILES, type FormFieldId, type FormStepDef, type FormStepId, type Profile } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
+import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { PaneDescription } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
@@ -137,67 +137,6 @@ function LockPill({ id, testId }: { id: string; testId: string }) {
   )
 }
 
-/**
- * The grid's switch. `_shared.tsx`'s `Toggle` prints its label INSIDE the control, which is
- * right for a settings row and wrong here — a grid row already draws its own label, and the two
- * would read twice to a sighted visitor and once too often to a screen reader. Same visual
- * track, same `aria-disabled`-not-`disabled` rule (the control stays focusable so a keyboard
- * visitor reaches it and hears WHY), same `switchKeyDown`.
- *
- * "Hears why" is `describedBy` (R-6): a locked switch points at its own `LockPill`, so focusing
- * it announces "…, switch, on, dimmed, Always on" instead of stopping at "dimmed". Without it a
- * screen-reader visitor cannot tell a deliberate lock from a broken control — the pill is an
- * unlabelled span two nodes away and is never read at that moment.
- */
-function RowSwitch({
-  label,
-  on,
-  disabled,
-  describedBy,
-  onToggle,
-  testId,
-}: {
-  label: string
-  on: boolean
-  disabled: boolean
-  /** Id of the element saying WHY this control is inert. Read only while `disabled`. */
-  describedBy?: string
-  onToggle(): void
-  testId: string
-}) {
-  const activate = () => {
-    if (!disabled) onToggle()
-  }
-  return (
-    <div
-      role="switch"
-      aria-checked={on}
-      aria-disabled={disabled || undefined}
-      aria-describedby={disabled ? describedBy : undefined}
-      aria-label={label}
-      data-testid={testId}
-      tabIndex={0}
-      onClick={activate}
-      onKeyDown={switchKeyDown(activate)}
-      style={{
-        flex: '0 0 auto',
-        width: 46,
-        height: 28,
-        borderRadius: 14,
-        background: on ? '#2B8CC1' : colors.border,
-        position: 'relative',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{ position: 'absolute', top: 3, [on ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: on ? '#fff' : '#7a9fc4' }}
-      />
-    </div>
-  )
-}
-
 function ProfilePicker({
   profile,
   onApplyProfile,
@@ -296,12 +235,18 @@ function ScreenRow({
           </span>
         </button>
         {locked && <LockPill id={lockId(step.id)} testId={`fc-screen-lock-${step.id}`} />}
-        <RowSwitch
+        {/* `hideLabel` (U2.3): the row's chevron button already prints `step.label`, so the
+            switch takes it as its accessible NAME only — printing it twice reads twice to a
+            sighted visitor and once too often to a screen reader. `describedBy` points a locked
+            switch at its own `LockPill`, so focus announces "…, switch, on, dimmed, Always on"
+            rather than stopping at "dimmed" (R-6). */}
+        <Toggle
+          hideLabel
           label={step.label}
           on={locked ? true : visible}
           disabled={locked}
           describedBy={lockId(step.id)}
-          onToggle={() => onToggleStep(step.id, !visible)}
+          onClick={() => onToggleStep(step.id, !visible)}
           testId={`fc-screen-toggle-${step.id}`}
         />
       </div>
@@ -322,12 +267,13 @@ function ScreenRow({
                     {f.label}
                   </span>
                   {fieldLocked && <LockPill id={lockId(f.id)} testId={`fc-field-lock-${f.id}`} />}
-                  <RowSwitch
+                  <Toggle
+                    hideLabel
                     label={f.label}
                     on={fieldLocked ? true : on}
                     disabled={fieldLocked}
                     describedBy={lockId(f.id)}
-                    onToggle={() => onToggleField(f.id, !on)}
+                    onClick={() => onToggleField(f.id, !on)}
                     testId={`fc-toggle-${f.id}`}
                   />
                 </div>
