@@ -5,7 +5,7 @@ last-full-plan-read: PENDING-MERGE
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***RATIFIED (D1–D20; D18 overridden, D2 amended) — PLAN-REVIEW ROUND 2 IN FIX.*** r2 (post-ratification edit: waves, both-halves palette, kit citations) vetted BLOCK 1C/3M/7m (V-47..57: both-halves never reached the U1–U4 seams; wave-vs-D18 topology sentence; U0.0/U0.4 PARSE-FAILED ownership). Writer fix round 3 IN FLIGHT → lanes delta → aggregator → merge planning bundle to `master` → owner reload → U0. **The dt kit is integrated on `master`** (`a8b54d3..a039829`: personas pinned to opus + contracts, hooks live (continuity/staleness/git-guard), `tools/worktree-remove.ps1`, GATES.md, CLAUDE.md pointer) — hooks only provably fire at next session start.
+**Last updated:** 2026-08-27 — milestone: ***PLANNING COMPLETE, RATIFIED, REVIEW-CLOSED (APPROVE). Bundle merged to `master`. NEXT: U0 (wave 0) — brief `opus-implementer` for U0.0→U0.5 in dependency order per plan §5/§6.2.*** Plan-review trail: r1 (BLOCK 2B/16M/27m → 3 fix rounds → APPROVE) + r2 post-ratification (BLOCK 1C/3M/7m → fix round → APPROVE); 57 vetted findings total, every one fixed or evidence-refuted; `plan-review/r1/`, `plan-review/r2/`. The dt kit is live on `master` (hooks fire at next session start). Owner asleep; standing directive: run start→finish, pause only at the D1 wave-boundary device checkpoints for the owner's look (do not block waiting — proceed to the next wave; the checkpoint is a report the owner reads on waking).
 
 ## 1. Mission & role
 
