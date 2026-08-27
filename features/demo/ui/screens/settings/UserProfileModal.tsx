@@ -8,6 +8,7 @@ import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { Field, MODAL_LAYER, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The User Profile editor — the demo's port of the phone's `UserProfileModal`
@@ -43,7 +44,7 @@ export interface UserProfileModalProps {
 }
 
 const labelLine: CSSProperties = { fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }
-const durationLine: CSSProperties = { fontSize: 12.5, color: '#7a9fc4', marginTop: 6 }
+const durationLine: CSSProperties = { fontSize: 12.5, color: colors.textTertiary, marginTop: 6 }
 
 /**
  * One `mode="date"` career-start field: label, the date button, and the computed span below it

@@ -15,6 +15,7 @@ import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { PaneDescription } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -107,14 +108,14 @@ const chevronButton: CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   textAlign: 'left',
-  color: '#f0f4f8',
+  color: colors.text,
 }
 
 const pill: CSSProperties = {
   flex: '0 0 auto',
   fontSize: 10.5,
   fontWeight: 600,
-  color: '#7a9fc4',
+  color: colors.textTertiary,
   border: GLASS.borderSoft,
   borderRadius: 999,
   padding: '2px 8px',
@@ -122,7 +123,7 @@ const pill: CSSProperties = {
 }
 
 const bodyStyle: CSSProperties = { padding: '2px 12px 12px 30px' }
-const noteStyle: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: '#7a9fc4' }
+const noteStyle: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: colors.textTertiary }
 
 /**
  * The "Always on" tag beside a locked row — and, since review R-6, that row's switch's
@@ -146,8 +147,12 @@ function ProfilePicker({
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, color: '#f0f4f8' }}>{COPY.profileLabel}</div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.45, color: '#7a9fc4', margin: '4px 0 10px' }}>{COPY.profileHelp}</div>
+      {/* The phone's `settingLabel` / `settingHelp` (`MediaCaptureSettingsSection.tsx:396-407`),
+          hand-rolled here because this group is a `radiogroup` and cannot nest inside
+          `PaneGroup`'s `role="group"`. It has to move WITH `PaneGroup` or this pane disagrees
+          with every sibling in the same sheet. */}
+      <div style={{ fontSize: 16, fontWeight: 600, color: colors.text }}>{COPY.profileLabel}</div>
+      <div style={{ fontSize: 14, lineHeight: '21px', color: colors.textSecondary, margin: '4px 0 10px' }}>{COPY.profileHelp}</div>
       {/* A74 — the profile chips are the shared radio now, as they are on the phone: PR #123
           moved this very picker off its hand-rolled chips and onto `RadioGroup`
           (`ProfilePicker.tsx:75-81`), and `RadioGroup.tsx:151-156` records that the migration
@@ -164,13 +169,13 @@ function ProfilePicker({
           />
         ))}
       </div>
-      <div style={{ fontSize: 12.5, color: '#99badd', marginTop: 10 }}>{PROFILE_BLURBS[profile]}</div>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 10 }}>{PROFILE_BLURBS[profile]}</div>
       {/* Derived from PROFILE_DEFAULTS, never from the blurb above it.
           R-17: scoped to the PROFILE, because that is all `describeProfile` counts. The old
           "every screen and field is on" was a present-tense claim about the live form, which
           the visitor's own overrides can falsify one row below — the counterweight §82d built
           against a stale blurb must not need one of its own. */}
-      <div data-testid="fc-profile-reduction" style={{ fontSize: 11.5, color: '#7a9fc4', marginTop: 3 }}>
+      <div data-testid="fc-profile-reduction" style={{ fontSize: 11.5, color: colors.textTertiary, marginTop: 3 }}>
         {reduction.steps === 0 && reduction.fields === 0
           ? 'This profile hides nothing by default.'
           : `Hides ${plural(reduction.steps, 'screen')} · ${plural(reduction.fields, 'field')} by default.`}
@@ -216,7 +221,7 @@ function ScreenRow({
           onClick={() => setExpanded((e) => !e)}
           style={chevronButton}
         >
-          <span aria-hidden="true" style={{ width: 12, textAlign: 'center', color: '#7a9fc4', fontSize: 13 }}>
+          <span aria-hidden="true" style={{ width: 12, textAlign: 'center', color: colors.textTertiary, fontSize: 13 }}>
             {expanded ? '▾' : '▸'}
           </span>
           <span style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -294,7 +299,7 @@ export function FormFieldsPane({
         <ScreenRow key={s.id} step={s} {...rowProps} />
       ))}
 
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#f0f4f8', margin: '16px 0 8px' }}>{COPY.additiveHeader}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: colors.text, margin: '16px 0 8px' }}>{COPY.additiveHeader}</div>
       {ADDITIVE_FORM_STEPS.map((s) => (
         <ScreenRow key={s.id} step={s} {...rowProps} />
       ))}
