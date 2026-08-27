@@ -6,11 +6,12 @@ import {
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette } from '@/features/demo/ui/tokens/palette'
+import { palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { MAP_FILTER_BADGE_FILL } from '@/features/demo/ui/screens/map/MapControls'
+import { MAP_FILTER_SECTION_LABEL } from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 
 /**
@@ -762,6 +763,15 @@ describe('map chrome contrast floors', () => {
 
   /** Topmost-first, per `contrast`'s contract: the glass, then the tile under it. */
   const overTile = (tile: string) => [MAP_GLASS_COLORS.containerBg, tile]
+
+  /**
+   * Row 45's ground, and the ONE row here with no tile in it — `MapFiltersSheet` is app chrome on
+   * the `sheet` tier. Resolved through `scheme` rather than spelled `dark`, so the row measures
+   * whichever half the demo consumes (D2, §9 clause 12); the light stacks omit the background
+   * because light's tiers are opaque, exactly as `LIGHT_GROUNDS` does.
+   */
+  const SHEET_GROUNDS: string[][] =
+    scheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
   const TILES: ReadonlyArray<readonly [string, string]> = [
     ['a bright daylight tile', '#ffffff'],
     ['a night tile', '#000000'],
@@ -825,10 +835,32 @@ describe('map chrome contrast floors', () => {
   )
 
   // Row 45: `MapFiltersSheet` section labels, `12/700 textSecondary` on the `sheet` tier —
-  // inherits row 5's bound, on a surface U5.3 creates. Re-owned from U5.2: the sheet is U5.3's
-  // file, and pinning the ratio AT its section-label constant is what U0.5's structural rule
-  // requires, so it cannot land before that constant exists.
-  it.todo(
-    'row 45 (U5.3, not U5.2): clears AA for MapFiltersSheet section labels on the sheet tier — needs MapFiltersSheet',
-  )
+  // inherits row 5's bound, on the surface U5.3 creates. Re-owned from U5.2 because pinning the
+  // ratio AT the section-label constant is what U0.5's structural rule requires, and that
+  // constant could not exist before the sheet did.
+  //
+  // Unlike rows 41-44 there is no tile in the stack: this sheet is APP chrome, not map chrome
+  // (the phone's own D3(a) call at `MapFiltersSheet.tsx:11-13`), so it grounds on the `sheet`
+  // tier over the app background exactly as every other sheet does.
+  it('row 45: MapFiltersSheet section labels clear AA on the sheet tier, both halves', () => {
+    // Both scheme halves, on the tier the sheet actually paints — the `sheet` rows of
+    // DARK_GROUNDS / LIGHT_GROUNDS, isolated so a failure names this surface rather than a
+    // neighbouring tier.
+    expect(
+      offenders(
+        [
+          ['dark section label', palette.dark.textSecondary, stops(GLASS_TIER.dark.sheet, DARK_BG)],
+          ['light section label', palette.light.textSecondary, stops(GLASS_TIER.light.sheet)],
+        ],
+        AA_TEXT,
+      ),
+    ).toEqual([])
+
+    // AT THE CONSTANT (U0.5's rule, the `DangerFill` / `MEDIA_CLOSE_CHIP` / `MAP_FILTER_BADGE_FILL`
+    // precedent): the label the sheet paints IS that ramp in the consumed scheme. Re-pointing it
+    // at `textTertiary` — which carries a documented 3.79 CEILING two cases up and would fail this
+    // row's 4.5 — reds here, where a pin against `palette` alone would stay green.
+    expect(MAP_FILTER_SECTION_LABEL.color).toBe(palette[scheme].textSecondary)
+    expect(round(worst(MAP_FILTER_SECTION_LABEL.color, SHEET_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+  })
 })
