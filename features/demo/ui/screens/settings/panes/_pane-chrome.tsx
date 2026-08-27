@@ -5,6 +5,8 @@ import type { TypedOption } from '@/features/demo/engine/content/settings-values
 import { SelectField } from '@/features/demo/ui/screens/_shared'
 import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -66,15 +68,19 @@ export function PaneGroup({
 
 export type PaneNoteTone = 'info' | 'warning' | 'success'
 
-/** Phone dark-theme `colors.info` / `.warning` / `.success` (`src/constants/Colors.ts:99-103`). */
-const NOTE_TONE: Record<PaneNoteTone, { fg: string; border: string; bg: string }> = {
-  info: { fg: '#4BA3D4', border: 'rgba(75,163,212,0.35)', bg: 'rgba(75,163,212,0.10)' },
-  warning: { fg: '#ffd93d', border: 'rgba(255,217,61,0.35)', bg: 'rgba(255,217,61,0.09)' },
-  success: { fg: '#10d177', border: 'rgba(16,209,119,0.35)', bg: 'rgba(16,209,119,0.09)' },
-}
-
 /**
- * The phone's `infoBox` / `warningNote` / `successNote` boxes, one component, three tones.
+ * A69's eighth status-colour owner, retired. The three hand-mixed triples this replaces spent
+ * the SATURATED accent as the note's text on a 9-10% tint of its own hue — the pairing the
+ * phone's `Banner` docblock measures at **1.92-2.24:1** and §C.3 rule 1 bans outright.
+ *
+ * The phone's `infoBox` / `warningNote` / `successNote` are `<Banner severity>` at `main`
+ * (e.g. `LocationSettingsSection.tsx:126`, `MediaCaptureSettingsSection.tsx:224`), so the tone
+ * half is exactly `severityTone()`. **Only the tone half lands here.** Replacing `PaneNote`
+ * with the `Banner` COMPONENT — which would also move padding 13 -> 12, radius 10 -> 8 and
+ * fontSize 12.5 -> 14 — is U6.2's under D19's re-cut, and U6.2 already opens this file.
+ *
+ * `PaneNoteTone` needs no runtime guard: `severityTone(tone)` only compiles while every tone
+ * IS a severity, so widening the union to something with no `*Light` pair is a type error here.
  *
  * `id` (R-6) makes a note addressable as an `aria-describedby` target. Every inert control in
  * these panes points at the short note beside it, so the reason is announced AT the control
@@ -96,21 +102,27 @@ export function PaneNote({
   role?: 'status'
   children: ReactNode
 }) {
-  const t = NOTE_TONE[tone]
+  const t = severityTone(tone)
   return (
     <div
       id={id}
       role={role}
       data-pane-note={tone}
       style={{
+        // Geometry unchanged and deliberately so — see the tone docblock above: the Banner
+        // adoption that moves 13/10/12.5 to the phone's 12/8/14 is U6.2's half of D19.
         padding: 13,
         marginTop: 10,
         borderRadius: 10,
-        border: `1px solid ${t.border}`,
-        background: t.bg,
+        // Three longhands, never the `border` shorthand: a shorthand after a longhand erases
+        // it, and React writes only CHANGED keys on update.
+        borderWidth: 1,
+        borderStyle: 'solid',
+        borderColor: t.borderColor,
+        background: t.background,
         fontSize: 12.5,
         lineHeight: 1.5,
-        color: t.fg,
+        color: t.color,
       }}
     >
       {children}

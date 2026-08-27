@@ -2,6 +2,7 @@
 
 import type { FormFieldId } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface ArrivalRow {
@@ -30,7 +31,7 @@ export function ArrivalDepartureScreen({ visits, onChange, onAdd, onRemove, isFi
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Arrival / Departure" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        {visits.length === 0 && <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '8px 0 14px' }}>No visits recorded — add one if you attended the site.</div>}
+        {visits.length === 0 && <EmptyState message="No visits recorded — add one if you attended the site." />}
         {visits.map((a, i) => (
           <div key={a.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

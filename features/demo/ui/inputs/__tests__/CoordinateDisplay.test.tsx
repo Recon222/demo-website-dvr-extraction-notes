@@ -2,6 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
 import { CoordinateDisplay, COPY_LABELS, COPY_RESET_MS } from '@/features/demo/ui/inputs/CoordinateDisplay'
+import { colors } from '@/features/demo/ui/tokens/palette'
+
+/** jsdom rewrites an inline hex to `rgb(r, g, b)` on read-back. */
+const hexToJsdomRgb = (hex: string) =>
+  `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
 import { pickFromReverseFeature } from '@/features/demo/ui/inputs/reverse-geocode'
 
 describe('CoordinateDisplay', () => {
@@ -21,7 +26,27 @@ describe('CoordinateDisplay', () => {
 
     expect(rating).toHaveTextContent('Poor')
     expect(accuracy.style.color).toBe(rating.style.color)
-    expect(accuracy.style.color).toBe('rgb(255, 71, 87)')
+    // Phone `CoordinateDisplay.tsx:55-72`: `Poor` takes the NEUTRAL foreground, not a red. No
+    // red in the dark palette clears AA on this ground (`error` 3.15, `errorDark` 2.56,
+    // `errorLight` 1.64), and this label is the ONLY carrier of the rating — there is no fill
+    // or border beside it. Read off the token: a literal would survive a re-point of it.
+    expect(accuracy.style.color).toBe(hexToJsdomRgb(colors.errorOnLight))
+    expect(accuracy.style.color).not.toBe(hexToJsdomRgb(colors.error))
+  })
+
+  it('keeps the three tones distinguishable — the label is the only carrier', () => {
+    // The defect the phone's own fork exists to undo: handing dark the badge's `*OnLight` set
+    // painted Excellent, Fair and Poor at CIE76 dE 0.0 from each other. Excellent and Fair must
+    // stay saturated; only Poor goes neutral.
+    const colourAt = (accuracyM: number) => {
+      const { unmount } = render(<CoordinateDisplay lat={0} lng={0} accuracyM={accuracyM} source="gps" />)
+      const value = screen.getByTestId('coordinate-display-rating').style.color
+      unmount()
+      return value
+    }
+    expect(colourAt(3)).toBe(hexToJsdomRgb(colors.success))
+    expect(colourAt(20)).toBe(hexToJsdomRgb(colors.warning))
+    expect(new Set([colourAt(3), colourAt(20), colourAt(40)]).size).toBe(3)
   })
 
   it('omits the accuracy and rating when no accuracy was measured', () => {

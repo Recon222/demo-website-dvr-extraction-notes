@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { spacing } from '@/features/demo/ui/tokens/scale'
 import type { CaseLocationRow } from '@/features/demo/ui/screens/screenData'
+import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 /**
  * One selectable location inside an expanded export card — port of the phone's
@@ -111,9 +112,9 @@ export function ExportLocationRow({ row, selected, disabled, onToggle }: ExportL
           </span>
         )}
       </span>
-      <span style={{ flex: '0 0 auto', padding: '3px 8px', borderRadius: 12, background: row.status.bg }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: row.status.color }}>{row.status.label}</span>
-      </span>
+      {/* `small`, matching phone `export-hub/ExportLocationRow.tsx:87`. `flex: '0 0 auto'` is
+          the demo's own row layout and survives the recipe. */}
+      <span style={{ flex: '0 0 auto', ...statusBadgeStyle(row.status, 'small') }}>{row.status.label}</span>
     </button>
   )
 }

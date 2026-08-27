@@ -8,6 +8,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -221,6 +222,13 @@ const LIGHT_GROUNDS: string[][] = [
   ...stops(GLASS_TIER.light.sheet),
   ...stops(GLASS_TIER.light.recessed, [GLASS_TIER.light.sheet.gradient[0]]),
 ]
+
+/**
+ * Both halves, in report order — the rows that assert per scheme iterate this rather than
+ * spelling `['light', 'dark'] as const` at each site (phone `:283`, `:382`).
+ */
+const SCHEMES = ['light', 'dark'] as const
+type GlassScheme = (typeof SCHEMES)[number]
 
 /** Every ground `fg` can land on in that scheme, worst first. Phone `:161-165`. */
 function worst(fg: string, grounds: string[][]): number {
@@ -443,6 +451,56 @@ describe('palette contrast contract', () => {
     ).toEqual([])
   })
 
+  /**
+   * A19's binding rider, in THE BADGE's own terms (matrix A19, §C.3 rule 2, D5's amendment).
+   *
+   * Rows 16/18 above pin `onPrimary` / `onError` AT THE CONSTANTS. This row pins the pairing
+   * the status recipe actually MANUFACTURES: `severityTone()` is what every badge, chip and
+   * note in the demo spends, so a re-point of any `*Light` / `*OnLight` token — or a wiring
+   * swap inside the recipe, fill against foreground — reds here rather than in a screen test
+   * that reads the value back out of the same object it just put in.
+   *
+   * It is also the plan's U3.1 "ADD: the four `*OnLight`-on-`*Light` pairs at >= 4.5", which
+   * U3.1 did not land (its report §2.2 lists rows 22-25 and 30 only). Measured: dark
+   * info 5.94 / warning 5.40 / success 5.93 / error 5.79.
+   *
+   * **4.5 and not 3.0**, because a badge renders a WORD: §C.3 rule 2's carve-out is "non-text
+   * marks", and that same reading is why D5's amendment refuses `primary #2B8CC1` (3.73) under
+   * the map's filter-count NUMERAL and takes `primaryDark #1F6B99` (5.80) instead.
+   *
+   * The four severity fills are OPAQUE, so they are measured flat — one ground, no stack; a
+   * ground stack under an opaque fill would be measuring layers that cannot show through. The
+   * neutral is the exception, and that is why it is a second arm: its fill is a 15% tint, so it
+   * is composited over every ground a badge can land on and taken at the worst.
+   */
+  it('clears AA for every text-on-fill pairing the status recipe can produce (A19s rider)', () => {
+    for (const s of SCHEMES) {
+      expect(
+        offenders(
+          SEVERITIES.map((severity) => {
+            const tone = severityTone(severity, s)
+            return [`${s} ${severity} badge`, tone.color, [[tone.background]]] as [string, string, string[][]]
+          }),
+          AA_TEXT,
+        ),
+      ).toEqual([])
+
+      const neutral = neutralTone(s)
+      expect(
+        offenders(
+          [
+            [
+              `${s} neutral badge`,
+              neutral.color,
+              (s === 'dark' ? DARK_GROUNDS : LIGHT_GROUNDS).map((ground) => [neutral.background, ...ground]),
+            ],
+          ],
+          AA_TEXT,
+        ),
+      ).toEqual([])
+    }
+  })
+
   // Row 21, phone `:265-274`. The ratios above are only true of the SHIPPED UI if the shared
   // danger recipe actually points at those two tokens, and nothing asserts that link. The
   // phone's `SwipeDeleteAction.test.tsx` compared the rendered value against `DangerFill`
@@ -469,9 +527,40 @@ describe('palette contrast contract', () => {
   // stops) is now writable. The ONLY remaining missing input is `warningAccent`, so this row
   // is U3.1's alone from here — the U0.5 docblock above listed it among U1.1's un-todos, which
   // its own title refutes.
-  it.todo(
-    'rows 22-25 (U3.1): clears the 1.4.11 non-text floor for the four status accents, both themes — needs warningAccent',
-  )
+  it('clears the 1.4.11 non-text floor for the four status accents, both themes (rows 22-25)', () => {
+    // DEF-UI-017's acceptance bar, verbatim from phone `:277-304`: every severity at or above
+    // 3:1 against both `card` gradient stops AND both `sheet` stops, in BOTH themes. The dark
+    // `working` cell is the one the row recorded failing at 2.87 before the re-base, with no
+    // light mode involved.
+    //
+    // A NARROWER GROUND STACK THAN `DARK_GROUNDS`, and that is the phone's contract, not a
+    // weakening: `barGrounds` omits `nestedCard` and `recessed`. These four are read as MARKS
+    // on a status bar, a badge rail and a map sheet — surfaces that sit on `card` and `sheet` —
+    // and widening the stack here would silently re-scope a ported row into a new one.
+    const barGrounds = (s: GlassScheme): string[][] =>
+      s === 'dark'
+        ? [...stops(GLASS_TIER.dark.card, DARK_BG), ...stops(GLASS_TIER.dark.sheet, DARK_BG)]
+        : [...stops(GLASS_TIER.light.card), ...stops(GLASS_TIER.light.sheet)]
+
+    // The four tokens are named, never re-typed — `warningAccent` is U3.1's whole reason for
+    // existing and `palette.ts` carries `warningDark` at the same DARK hex. Reading the
+    // constant is what makes a re-point of either one visible here; a literal `'#ffc62b'`
+    // would stay green through exactly the edit this row exists to catch.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        offenders(
+          [
+            [`${s} started`, c.warningAccent, barGrounds(s)],
+            [`${s} working`, c.infoDark, barGrounds(s)],
+            [`${s} complete`, c.successDark, barGrounds(s)],
+            [`${s} incident`, c.error, barGrounds(s)],
+          ],
+          AA_NON_TEXT,
+        ),
+      ).toEqual([])
+    }
+  })
 
   // Row 31. Phone `:305-342`. Two channels, because only one is available in each theme: light
   // separates on the FILL, dark cannot (dark `textTertiary` sits exactly on its 3.79 floor on
@@ -551,9 +640,20 @@ describe('palette contrast contract', () => {
   // by collapsing to one colour passes the number and fails the user. `warningOnLight` clears
   // easily and is `#f0f4f8` in dark, so reassigning `started` to it would make three of the
   // four the same near-white. Needs `warningAccent` (U3.1).
-  it.todo(
-    'row 30 (U3.1): keeps the four status accents four distinguishable hues — needs warningAccent',
-  )
+  it('keeps the four status accents four distinguishable hues (row 30)', () => {
+    // Phone `:377-388`. Half the acceptance bar is a NUMBER and half is this: a palette that
+    // clears 3:1 by collapsing to one colour passes rows 22-25 and fails the user. The trap is
+    // concrete — `warningOnLight` clears easily and is `#f0f4f8` in dark, so reassigning
+    // `started` to it would make three of the four the same near-white and rows 22-25 would
+    // not notice.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        new Set([c.warningAccent, c.infoDark, c.successDark, c.error]).size,
+        `${s}: the four status accents collapsed`,
+      ).toBe(4)
+    }
+  })
 })
 
 describe('scrim opacity', () => {

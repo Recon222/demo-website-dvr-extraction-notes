@@ -154,7 +154,9 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
     const store = openOcr()
     fireEvent.click(screen.getByText('Ambiguous date'))
 
-    expect(screen.getByText('Date Format Ambiguity Detected')).toBeInTheDocument()
+    expect(screen.getByTestId('date-disambiguation-warning')).toHaveTextContent(
+      'Date Format Ambiguity Detected',
+    )
     expect(screen.getByText(/Jun 7, 2024 \(MM-DD\)/)).toBeInTheDocument()
     expect(screen.getByText('Jul 6, 2024')).toBeInTheDocument()
 
@@ -165,7 +167,7 @@ describe('DemoExperience — OCR confirmation', { timeout: 20000 }, () => {
   it('no warning on the unambiguous sample frame', () => {
     openOcr()
     fireEvent.click(screen.getByText('Use sample DVR clock'))
-    expect(screen.queryByText('Date Format Ambiguity Detected')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('date-disambiguation-warning')).not.toBeInTheDocument()
   })
 
   it('holds a dateless read until the assumed date is confirmed, then commits it', () => {

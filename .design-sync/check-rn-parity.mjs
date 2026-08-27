@@ -283,11 +283,19 @@ export const webTierScope = (scheme, tier) => ({
  *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows
  *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
  *                -> 115 rows / 56 keys HERE, which is what this table produces today
- *   U3.1         +successLight, +warningLight x 2                        =  +4 rows
- *                (`success`/`warning`/`successDark`/`warningDark` are ALREADY HERE — U0.1
- *                 created them, so U3.1 adds two keys, not the four its row claims)
+ *   U3.1 (LANDED) +8 keys x 2                                            = +16 rows
+ *                -> 40 palette keys / 131 rows HERE, which is what this table produces today
  *   U8.2         +gridSubtle x 2                                         =  +4 rows
- *   -> 59 keys / 123 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *   -> 65 keys / 135 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *
+ * U3.1's count corrects BOTH earlier figures. The plan's U3.1 row says "the four status
+ * anchors (`success`, `successLight`, `warning`, `warningLight`)"; U0.4's schedule above said
+ * two, on the grounds that `success`/`warning`/`successDark`/`warningDark` were already here.
+ * Both undercount, and the reason is structural rather than arithmetic: this list is not a
+ * chosen subset any more. Since W0/F2 it is pinned by MEMBERSHIP — `rn-token-parity.test.ts`
+ * asserts it equals `Object.keys(palette.dark)` — so a package that creates N palette tokens
+ * anchors N keys or reds that pin. U3.1 created eight (`successLight`, `warningLight`,
+ * `infoLight`, `warningAccent`, and the four `*OnLight`), so eight is not a choice it made.
  *
  * Both halves are pinned per decision D2 as amended by the owner on 2026-08-27. The demo renders
  * only `dark`, but a light half that silently diverges is drift the moment `palette.ts`'s
@@ -311,16 +319,29 @@ export const PALETTE_KEYS = [
   'border',
   'borderLight',
   'borderDark',
-  // status
+  // status. U3.1 added the eight the demo had no web-side token for; `warningAccent` is a
+  // SEPARATE key from `warningDark` even though dark spells them the same hex (light does not),
+  // so it gets its own row and a re-point of either side fails alone.
   'success',
+  'successLight',
   'successDark',
   'error',
   'errorLight',
   'errorDark',
   'warning',
+  'warningLight',
   'warningDark',
+  'warningAccent',
   'info',
+  'infoLight',
   'infoDark',
+  // status foregrounds. All four are `#f0f4f8` in DARK and four different hexes in light, which
+  // is exactly why they are anchored: a light half that quietly re-tints them is invisible to
+  // every other gate in this repo.
+  'infoOnLight',
+  'warningOnLight',
+  'successOnLight',
+  'errorOnLight',
   // foregrounds for filled surfaces — the only two keys that are scheme-INVARIANT (#ffffff in
   // both halves), which is why the light-vs-dark structural pin excludes them by name.
   'onPrimary',

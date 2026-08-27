@@ -6,13 +6,16 @@ import {
   RECORDER_SCALE_LABELS,
   formatDuration,
   levelDbLabel,
-  levelFillColor,
-  recorderStatusColor,
+  levelFillBand,
   recorderStatusLabel,
+  recorderStatusTone,
+  type LevelFillBand,
+  type RecorderStatusTone,
   type RecordingPhase,
 } from '@/features/demo/engine/logic/media'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import type { AudioMeter } from '@/features/demo/ui/inputs/useAudioAnalyser'
 
 /**
@@ -101,6 +104,31 @@ export interface AudioRecorderScreenProps {
   onCancel(): void
 }
 
+/**
+ * The two status→colour maps the engine used to hold (U3.2, A69's engine owner). They live here
+ * for the same reason the phone's live in `TimerCard` and `LevelMeter`: `engine/` takes nothing
+ * from `ui/`, so the engine decides WHICH band or tone applies and this screen decides what that
+ * looks like.
+ *
+ * Neither is `severityTone()`. Both paint a bare mark and a bare label — no fill behind text —
+ * and the phone spends the plain tokens on both (`TimerCard.tsx:130-139`, `LevelMeter.tsx:86`).
+ *
+ * `neutral` moved `#5a7a9a` -> `colors.textSecondary`: the old slate belonged to no token and is
+ * below AA on this ground, and `textSecondary` is what the phone's own default arm returns.
+ */
+const STATUS_TONE_COLOR: Record<RecorderStatusTone, string> = {
+  error: colors.error,
+  warning: colors.warning,
+  neutral: colors.textSecondary,
+}
+
+/** Phone `LevelMeter.tsx:86`, byte for byte: `{ normal: primary, warm: warning, hot: error }`. */
+const LEVEL_BAND_COLOR: Record<LevelFillBand, string> = {
+  normal: colors.primary,
+  warm: colors.warning,
+  hot: colors.error,
+}
+
 const MONO = "var(--font-jbmono),'JetBrains Mono',monospace"
 const MUTED = '#5a7a9a'
 const BAR_WIDTH = 4
@@ -173,7 +201,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
                 width: 8,
                 height: 8,
                 borderRadius: 4,
-                background: recorderStatusColor(phase),
+                background: STATUS_TONE_COLOR[recorderStatusTone(phase)],
                 // Recording: a smooth 1s pulse. Paused: the phone's hard blink (its Easing.steps).
                 // Idle: invisible, as the phone fades it to opacity 0 (TimerCard.tsx:114).
                 opacity: phase === 'idle' || phase === 'stopped' ? 0 : 1,
@@ -188,7 +216,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
                       : undefined,
               }}
             />
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 2, color: recorderStatusColor(phase) }}>
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: 2, color: STATUS_TONE_COLOR[recorderStatusTone(phase)] }}>
               {recorderStatusLabel(phase)}
             </span>
           </div>
@@ -240,7 +268,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(30,58,95,0.5)', overflow: 'hidden' }}>
             <div
               data-testid="level-fill"
-              style={{ height: '100%', borderRadius: 2, width: `${Math.round(meter.level * 100)}%`, background: levelFillColor(meter.level), transition: reduceMotion ? undefined : 'width 120ms linear' }}
+              style={{ height: '100%', borderRadius: 2, width: `${Math.round(meter.level * 100)}%`, background: LEVEL_BAND_COLOR[levelFillBand(meter.level)], transition: reduceMotion ? undefined : 'width 120ms linear' }}
             />
           </div>
           <span style={{ fontFamily: MONO, fontSize: 10, color: '#7a9fc4', minWidth: 48, textAlign: 'right' }}>
