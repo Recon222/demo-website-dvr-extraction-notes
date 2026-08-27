@@ -5,7 +5,7 @@ import { LocationFields, type LocationFieldValues } from '@/features/demo/ui/inp
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
 import type { reverseGeocode } from '@/features/demo/ui/inputs/reverse-geocode'
 import type { DemoLocation, FormFieldId } from '@/features/demo/engine/types'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 
 /**
  * Submission Details — wizard step 1 (phone `app/(form)/submission.tsx`, ui-mapping 05).
@@ -128,22 +128,23 @@ export function SubmissionScreen({
     }
   }
 
-  // A section card with a title and nothing under it reads as broken, so the requester block
-  // goes when its last field does. Location Information always keeps the address components
-  // (always-on), and Case Information is the always-on OCC number.
-  const showRequester =
-    isFieldVisible('submission.requesterName') ||
-    isFieldVisible('submission.requesterBadgeNumber') ||
-    isFieldVisible('submission.requesterUnit') ||
-    isFieldVisible('submission.requesterPhone') ||
-    isFieldVisible('submission.requesterEmail')
+  // The `showRequester` hoist was here, and U6.1 (§8 item 1) handed its deletion to U6.4a:
+  // "a section whose title has nothing under it reads as broken" is the phone's own rule
+  // (`FormSection.tsx:114-120`) and `SectionCard` carries it INSIDE the recipe now, so this
+  // call site was applying it twice. `Children.toArray` drops `false`, and every child below
+  // is a `{isFieldVisible(...) && <Field/>}` — so an all-hidden Requester block resolves to
+  // `[]` and the card returns null on its own. `field-visibility.test.tsx:286-295` is the
+  // end-to-end proof, unchanged and still green. Mutate the RECIPE, never the consumer.
 
   return (
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Submission Details" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
         <SectionCard title="Case Information">
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>{COPY.caseNumber}</div>
+          {/* A72's label half, from the seam — this line is a `Field` label in everything but
+              the input under it, and it sat a step smaller and darker than the five real
+              `Field`s in the card below. */}
+          <div style={fieldLabelStyle}>{COPY.caseNumber}</div>
           {/* The GEOMETRY half of A72 only, per D10 as amended. The phone's PR #115 replaced
               a `containerStyle={{opacity:0.6}}` that faded its own LABEL; this is two SIBLING
               divs, so the label above is already at full contrast and there is nothing to fix.
@@ -153,7 +154,6 @@ export function SubmissionScreen({
               idiom (`map/CaseMapPicker.tsx:112` spells it on a plain div the same way). */}
           <div aria-disabled="true" style={{ ...fieldInputStyle(), opacity: 0.6 }}>{occNumber || '—'}</div>
         </SectionCard>
-        {showRequester && (
         <SectionCard title="Requester Information">
           {isFieldVisible('submission.requesterName') && <Field label={COPY.requesterName} value={fields.requesterName} onChange={(v) => onChange('requesterName', v)} placeholder={COPY.requesterNamePlaceholder} />}
           {isFieldVisible('submission.requesterBadgeNumber') && <Field label={COPY.requesterBadge} value={fields.requesterBadge} onChange={(v) => onChange('requesterBadge', v)} placeholder={COPY.requesterBadgePlaceholder} />}
@@ -161,7 +161,6 @@ export function SubmissionScreen({
           {isFieldVisible('submission.requesterPhone') && <Field label={COPY.requesterPhone} value={fields.requesterPhone} onChange={(v) => onChange('requesterPhone', v)} placeholder={COPY.requesterPhonePlaceholder} />}
           {isFieldVisible('submission.requesterEmail') && <Field label={COPY.requesterEmail} value={fields.requesterEmail} onChange={(v) => onChange('requesterEmail', v)} placeholder={COPY.requesterEmailPlaceholder} />}
         </SectionCard>
-        )}
         <SectionCard title="Location Information">
           <LocationFields locationId={locationId} values={locationValues} onChange={handleLocationChange} showGps={isFieldVisible('submission.latitude')} deps={gpsDeps} reverseGeocode={reverseGeocode} />
           {isFieldVisible('submission.locationContact') && <Field label={COPY.contactPerson} value={fields.locationContact} onChange={(v) => onChange('locationContact', v)} placeholder={COPY.contactPlaceholder} />}

@@ -9,6 +9,7 @@ import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PaneStubNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { UserProfileModal } from '@/features/demo/ui/screens/settings/UserProfileModal'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * Detail pane: **User Profile** (matrix row 85; phone `UserProfileSection.tsx`).
@@ -69,8 +70,8 @@ export interface UserProfilePaneProps {
   saveState: SaveStateKind
 }
 
-const line: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#f0f4f8', marginBottom: 6 }
-const emptyLine: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#99badd' }
+const line: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: colors.text, marginBottom: 6 }
+const emptyLine: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: colors.textSecondary }
 
 /**
  * Phone `src/features/settings/user-profile/components/UserProfileSection.tsx:95-102`:

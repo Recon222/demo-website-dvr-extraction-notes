@@ -10,6 +10,7 @@ import {
 } from '@/features/demo/engine/logic/media'
 import type { MediaKind } from '@/features/demo/engine/types'
 import { Field } from '@/features/demo/ui/screens/_shared'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The shared filename + notes form (parity P4.4, matrix row 56) — the phone's
@@ -82,10 +83,12 @@ export function filenameHelperText(mediaType: MediaKind): string {
 export const FILENAME_REQUIRED_MESSAGE = 'Enter a file name — this is what the file is stored as.'
 
 const savingAsLabel: CSSProperties = { fontSize: 12, color: '#7a9fc4' }
+/** U6.4a: the filename the visitor is about to save under is DATA they must read, so it takes
+ *  `colors.text` — it read the retired form-label hex, which had no palette sibling at all. */
 const savingAsValue: CSSProperties = {
   fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace",
   fontSize: 13,
-  color: '#cdd9e6',
+  color: colors.text,
   wordBreak: 'break-all',
 }
 

@@ -35,6 +35,30 @@ async function main() {
     await shot(page, 'new-case-modal');
   });
 
+  // OPTIONAL (U6.1). The only error-then-clear path a driver can reach: `NewCaseModal` sets
+  // `errors.caseNumber` on a refused submit and clears it as the visitor types, and those two
+  // renders are `Field`'s error branch appearing and disappearing on a MOUNTED field. The
+  // verification seat flagged that transition as unreachable from the harness, so U6.1's
+  // recipe change (severity on the icon, message in `colors.text`, §C.3 rule 1) had no
+  // before/after capture. Wholly non-fatal: any miss leaves the walk exactly as it was.
+  await step('OPTIONAL — Field error appears then clears (U6.1)', async () => {
+    try {
+      const dlg = p.getByRole('dialog', { name: 'New Case' });
+      await dlg.getByRole('button', { name: 'Create Case' }).first().click();
+      await page.waitForTimeout(300);
+      const alert = p.getByText('Case number is required', { exact: true });
+      if (!(await alert.count())) { console.log('  (skipped: submit was not refused)'); return; }
+      await shot(page, 'new-case-field-error');
+      await dlg.getByLabel('Case Number').fill(CASE_NUMBER);
+      await page.waitForTimeout(300);
+      await shot(page, 'new-case-field-error-cleared');
+      // Leave the modal as the next step expects to find it.
+      await dlg.getByLabel('Case Number').fill('');
+    } catch (e) {
+      console.log(`  (skipped: ${e.message.split('\n')[0]})`);
+    }
+  });
+
   await step('fill + submit New Case', async () => {
     const dlg = p.getByRole('dialog', { name: 'New Case' });
     await dlg.getByLabel('Case Number').fill(CASE_NUMBER);

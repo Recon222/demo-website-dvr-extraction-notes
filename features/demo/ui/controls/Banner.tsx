@@ -111,12 +111,56 @@ const SEVERITY_ICON: Record<StatusSeverity, JSX.Element> = {
   ),
 }
 
+/**
+ * The severity glyph, in the shell phone `:70-80` draws it in — 20px (`Layout.iconSize.sm`),
+ * `fill="none"`, stroke 2, round caps, `flexShrink: 0`, and `aria-hidden` because the message
+ * already carries the meaning (`:76-77`).
+ *
+ * Exported for `_pane-chrome.tsx`'s `PaneNote`, which renders the phone's `Banner` RECIPE
+ * without its live-region SEMANTICS (see that file's docblock, and `pane-chrome.test.tsx`'s
+ * drift guard). Extracting the glyph is what keeps the two from drawing different icons for the
+ * same severity; it is not a widening of `Banner`'s own contract — there is still no `icon`
+ * prop, and `color` is not a caller choice at either site, it is the `*OnLight` foreground the
+ * severity already fixes.
+ */
+export function BannerIcon({ severity, color }: { severity: StatusSeverity; color: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={iconSize.sm}
+      height={iconSize.sm}
+      viewBox="0 0 24 24"
+      fill="none"
+      // Phone `:74` — the icon takes the FOREGROUND, never `colors[severity]`.
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      {SEVERITY_ICON[severity]}
+    </svg>
+  )
+}
+
 export interface BannerProps {
   severity: StatusSeverity
   /** The callout copy. Single paragraph — a status line, not a layout slot (phone `:39`). */
   message: string
   /** Caller LAYOUT only (margins, alignment). Never a fill: the opacity rule above is the point. */
   style?: CSSProperties
+  /**
+   * A DOM id, so a blocked control can point `aria-describedby` at this banner as its reason
+   * (D10 / review F39: `aria-disabled` announces a STATE and carries none).
+   *
+   * Added by U6.4b for `CompletionScreen`'s blocked `Complete & Save`. It is not a widening of
+   * the severity contract — it adds no colour, no glyph and no semantics — and this module's own
+   * docblock named its absence as one of the three reasons `_pane-chrome`'s `PaneNote` could not
+   * adopt the component ("has no `id`", so R-6's three `aria-describedby` targets would break).
+   * That reason is now retired; the other two (six static notes announcing on mount, two polite
+   * regions turning assertive) stand, so U6.2's deferral is unaffected.
+   */
+  id?: string
   /** Rendered as `data-testid`, the demo's idiom for the phone's `testID`. */
   testId?: string
 }
@@ -154,12 +198,13 @@ const messageStyle = {
   lineHeight: '21px',
 } as const satisfies CSSProperties
 
-export function Banner({ severity, message, style, testId }: BannerProps) {
+export function Banner({ severity, message, style, id, testId }: BannerProps) {
   // SEAM(U3.2). One call, no private derivation — see the docblock and W2 F26.
   const tone = severityTone(severity)
 
   return (
     <div
+      id={id}
       data-testid={testId}
       role="alert"
       // Phone `:63` — the accessible name carries the severity, which the colour cannot.
@@ -184,23 +229,11 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
         ...style,
       }}
     >
-      <svg
-        // Phone `:76-77` — `accessibilityElementsHidden` + `importantForAccessibility="no"`:
-        // the message already carries the meaning, so the icon is decorative.
-        aria-hidden="true"
-        width={iconSize.sm}
-        height={iconSize.sm}
-        viewBox="0 0 24 24"
-        fill="none"
-        // Phone `:74` — the icon takes the FOREGROUND, never `colors[severity]`.
-        stroke={tone.color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
-      >
-        {SEVERITY_ICON[severity]}
-      </svg>
+      {/* Phone `:76-77` — `accessibilityElementsHidden` + `importantForAccessibility="no"`:
+          the message already carries the meaning, so the icon is decorative. The glyph lives in
+          `BannerIcon` (U6.2) so `PaneNote` draws the same one; the colour it takes is the seam's
+          `*OnLight` foreground (W2 F26), never a privately derived one. */}
+      <BannerIcon severity={severity} color={tone.color} />
       <div style={{ ...messageStyle, color: tone.color }}>{message}</div>
     </div>
   )

@@ -3,6 +3,7 @@
 import { useId } from 'react'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import {
   ENCRYPTION_STRENGTH_OPTIONS,
   PROMPT_MODE_OPTIONS,
@@ -125,7 +126,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
           </PaneGroup>
 
           <PaneGroup label="Default Password">
-            <div data-testid="export-security-password-status" style={{ fontSize: 13, color: '#99badd' }}>
+            <div data-testid="export-security-password-status" style={{ fontSize: 14, color: colors.textSecondary }}>
               No default password set
             </div>
             <button
@@ -147,7 +148,7 @@ export function ExportSecurityPane({ settings, onChange }: SettingsPaneProps) {
                 borderRadius: 10,
                 border: GLASS.borderBtn,
                 background: 'transparent',
-                color: '#7a9fc4',
+                color: colors.textTertiary,
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'not-allowed',

@@ -8,6 +8,8 @@ import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { Field, MODAL_LAYER, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The User Profile editor — the demo's port of the phone's `UserProfileModal`
@@ -42,8 +44,9 @@ export interface UserProfileModalProps {
   onClose(): void
 }
 
-const labelLine: CSSProperties = { fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }
-const durationLine: CSSProperties = { fontSize: 12.5, color: '#7a9fc4', marginTop: 6 }
+// `labelLine` was here: an eighth byte-identical copy of A72's label, at the retired
+// `13 / 500 / #cdd9e6 / 6`. It is `fieldLabelStyle` now, read directly at its one call site.
+const durationLine: CSSProperties = { fontSize: 12.5, color: colors.textTertiary, marginTop: 6 }
 
 /**
  * One `mode="date"` career-start field: label, the date button, and the computed span below it
@@ -69,7 +72,7 @@ function CareerDateField({
   const duration = computeCareerDuration(value, () => today)
   return (
     <div data-testid={testId} style={{ marginBottom: 14 }}>
-      <div style={labelLine}>{label}</div>
+      <div style={fieldLabelStyle}>{label}</div>
       <div role="group" aria-label={label}>
         {/* The phone's empty-value literal for a date-mode picker, not the demo's em-dash. */}
         <DateField value={value} onChange={onChange} emptyLabel="No date" />

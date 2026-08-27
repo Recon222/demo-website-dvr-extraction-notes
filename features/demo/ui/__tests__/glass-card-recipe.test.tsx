@@ -462,7 +462,11 @@ describe('the nested tier reaches every adopted site (U1.3 / A33, A34, A35, A55)
     const rows = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
       (el) => el.style.backgroundImage === NESTED_GRADIENT,
     )
-    expect(rows).toHaveLength(1)
+    // TWO since U6.4b: the per-scope row, and the Total DVR Retention box it joined. That box
+    // was a private `rgba(43,140,193,0.08)` wash under the `elevated` border — an accent fill
+    // at 0.08 beneath an accent border at 0.25, a pairing no tier spells. The phone has both on
+    // `nestedCard` (`dvr-information.tsx:401` and `:429`), which is what makes them one family.
+    expect(rows).toHaveLength(2)
     rows.forEach(expectNestedTier)
   })
 
@@ -489,7 +493,22 @@ describe('the nested tier reaches every adopted site (U1.3 / A33, A34, A35, A55)
 })
 
 describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
-  it('CompletionScreen — the OCC summary card paints gradientPanel, not a private 0.9/0.96', () => {
+  /**
+   * U6.4b / M1(a) — this case's SUBJECT moved, and its GUARANTEE did not.
+   *
+   * U1.3 left a `SEAM(U6.4b)` note here saying the glow assertion below should be deleted when
+   * the glow went, and that "the gradient assertion above must survive untouched". Refuted at
+   * source: M1(a) drops the tier as well as the glow. Matrix row 46, verbatim — *"M1(a): the
+   * summary card DROPS `techGlow` + `elevated` to a plain nested glass card"* — and the phone's
+   * own card is `<Card glass glassVariant="nestedCard">` with `techGlow` never passed
+   * (`app/(form)/completion.tsx:532-536`). The plan row abbreviates M1(a) to just the glow,
+   * which is what U1.3's note was written against.
+   *
+   * So the case is re-pointed rather than deleted: U1.3's real guarantee is that the private
+   * `0.9/0.96` near-miss cannot come back, and that is asserted here in the form it now takes —
+   * this screen holds NO elevated panel at all, and the summary card is the nested tier.
+   */
+  it('CompletionScreen — the OCC summary card took the nested tier, near-miss and glow both gone', () => {
     const { container } = render(
       <CompletionScreen
         summary={completionSummary}
@@ -511,16 +530,20 @@ describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
         {...nav}
       />,
     )
+    // No elevated panel survives on this screen — M1(a) took the only one.
     const panels = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
       (el) => el.style.backgroundImage === PANEL_GRADIENT,
     )
-    expect(panels).toHaveLength(1)
-    // The accent border is the SAME tier's border since U1.3 — the pair is the point.
-    expect(panels[0].style.borderRightColor).toBe(normColor(tier.elevated.border))
-    // SEAM(U6.4b): the techGlow on this element is M1(a)'s to remove, and is still here.
-    // When it goes, this line is the one that must be deleted rather than "fixed" — and the
-    // gradient assertion above must survive untouched.
-    expect(panels[0].style.boxShadow).toBe('0 0 22px rgba(43,140,193,0.12)')
+    expect(panels).toHaveLength(0)
+    // ...and the near-miss it absorbed is not back either. This is the assertion U1.3 actually
+    // needed: a source-independent ban on the private 0.9/0.96 pair, which no tier spells.
+    const nearMiss = Array.from(container.querySelectorAll<HTMLElement>('*')).filter((el) =>
+      /rgba\([^)]*,\s*0\.9\)[\s\S]*rgba\([^)]*,\s*0\.96\)/.test(el.style.backgroundImage),
+    )
+    expect(nearMiss).toHaveLength(0)
+    // The summary card is the NESTED tier now, glow included — `expectNestedTier` asserts
+    // `boxShadow` is the tier's inset ALONE, so a returning `0 0 22px` accent bloom reds here.
+    expectNestedTier(screen.getByText(/^OCC #/).parentElement as HTMLElement)
   })
 
   it('GLASS.borderAccent and GLASS.gradientPanel are the same tier (A36)', () => {

@@ -1,17 +1,26 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { ExportCaseCard, type ExportCaseCardProps } from '@/features/demo/ui/screens/export/ExportCaseCard'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius, spacing } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
 function jsdomColor(value: string): string {
   const probe = document.createElement('div')
   probe.style.color = value
   return probe.style.color
+}
+
+/** The same for a border SHORTHAND — jsdom re-spaces the `rgba()` inside it too, so comparing
+ *  a rendered `borderTop` against the token byte-for-byte fails on whitespace alone. */
+function jsdomBorder(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.borderTop = value
+  return probe.style.borderTop
 }
 
 const location = {
@@ -113,5 +122,102 @@ describe('ExportLocationRow — the circular row mark (A75)', () => {
     expect(el.style.marginRight).toBe(`${spacing.base}px`)
     expect(el.style.width).toBe('22px')
     expect(el.style.borderWidth).toBe('2px')
+  })
+})
+
+/**
+ * The row CHROME, as distinct from the mark inside it — phone `styles.row` (`:104-111`).
+ *
+ * `touchTarget.medium` (46) and not `min` (44) is the whole reason this pin reads a NUMBER.
+ * The U6.3 plan row says "`minHeight:44` becomes `touchTarget.min`"; `ExportLocationRow.tsx:107`
+ * says `Layout.touchTarget.medium`. Both names are on the scale, both are plausible in a diff,
+ * and the demo's pre-port literal was `44` — so the WRONG token renders as a faithful rename
+ * with no observable difference. Only the value tells them apart.
+ */
+describe('ExportLocationRow — the ledger row itself (A49 / A7)', () => {
+  const row = () => {
+    const { container } = render(
+      <ExportLocationRow row={location} selected={false} disabled={false} onToggle={vi.fn()} />,
+    )
+    return container.firstElementChild as HTMLElement
+  }
+
+  it('stands at `touchTarget.medium` (46), not the 44 the plan row names', () => {
+    const el = row()
+    expect(el.style.minHeight).toBe(`${touchTarget.medium}px`)
+    expect(el.style.minHeight).not.toBe(`${touchTarget.min}px`)
+    // phone `:108` — `paddingVertical: Layout.spacing.sm`, horizontal none.
+    expect(el.style.paddingTop).toBe(`${spacing.sm}px`)
+    expect(el.style.paddingLeft).toBe('0px')
+  })
+
+  it('separates on `colors.border`, not the pre-A7 navy wash', () => {
+    const el = row()
+    // Per-SIDE, because a `borderBottom` shorthand is what the component writes and jsdom
+    // expands it; reading `.border` here comes back empty and would pass vacuously.
+    expect(el.style.borderBottomColor).toBe(jsdomColor(colors.border))
+    expect(el.style.borderBottomWidth).toBe('1px')
+    // `rgba(30,58,95,0.6)` was a near-miss on TWO axes at once — a pre-A7 navy at an alpha
+    // `borderSoft` does not spell (0.5) — which is why neither A7's re-base (it sweeps by hex,
+    // and this form carries none) nor U1.1's tier derivation could reach it, and why it
+    // survived two sweep packages.
+    expect(el.style.borderBottomColor).not.toBe(jsdomColor('rgba(30,58,95,0.6)'))
+  })
+})
+
+/**
+ * A30 / A44 — the CARD's own chrome, as opposed to the marks and the rows inside it.
+ *
+ * The load-bearing distinction is that this card carries TWO hairlines with two different
+ * jobs, and the phone gives them two different tokens: the expanded body's division is
+ * `glass.card.border` (the card tier's washed edge, `styles.locationsContainer:337-338`) and a
+ * location row's separator is the flat `colors.border` (`ExportLocationRow.tsx:110`). The demo
+ * painted both as `colors.border`, one of them through a contentless `height: 1` spacer div.
+ */
+describe('ExportCaseCard — the card`s own chrome (A30 / A44)', () => {
+  const expandedCard = () => {
+    const { container } = render(<ExportCaseCard {...props} expanded />)
+    const row = screen.getByRole('checkbox', { name: `Select ${location.locationName}` })
+    return {
+      card: container.firstElementChild as HTMLElement,
+      body: row.parentElement as HTMLElement,
+      row,
+    }
+  }
+
+  it('rules the expanded body on the CARD TIER, not on the flat border its rows use', () => {
+    const { body, row } = expandedCard()
+    expect(body.style.borderTopColor).toBe(jsdomColor('rgba(28,78,132,0.5)'))
+    expect(body.style.borderTopWidth).toBe('1px')
+    // phone `:336` — `paddingTop: Layout.spacing.xs`, i.e. the 4px sits BELOW the line.
+    expect(body.style.paddingTop).toBe(`${spacing.xs}px`)
+    // Two hairlines, two tokens, deliberately. If a later sweep collapses them onto one value
+    // the card's division silently stops carrying the tier — which is how it read before U6.3.
+    expect(body.style.borderTopColor).not.toBe(row.style.borderBottomColor)
+  })
+
+  it('carries that rule on the body itself, not on a 1px spacer sibling', () => {
+    const { body } = expandedCard()
+    // The node this replaces was `<div style={{height:1, background: colors.border}} />` — a
+    // contentless sibling that any later `gap`/`flex` change could separate from the rows it
+    // divides, with nothing observing the drift.
+    expect(body.style.borderTop).toBe(jsdomBorder(GLASS.borderSoft))
+    expect(body.querySelector(':scope > div[style*="height: 1px"]')).toBeNull()
+  })
+
+  it('sets the location count on `textSecondary`, one rung up from where it sat', () => {
+    render(<ExportCaseCard {...props} />)
+    const count = screen.getByText(caseCard.locationCountLabel)
+    // phone `styles.locationCount:316-320`. `#7a9fc4` (= `textTertiary`) was a VALUE drift, not
+    // a spelling — the same call D-1 made for the recorder's six `#5a7a9a` sites.
+    expect(count.style.color).toBe(jsdomColor(colors.textSecondary))
+    expect(count.style.color).not.toBe(jsdomColor(colors.textTertiary))
+  })
+
+  it('spaces cards at `spacing.md`, the gap the hub`s list actually spends', () => {
+    const { card } = expandedCard()
+    // phone `ExportHub.tsx:310-312` — `cardWrapper.marginBottom: Layout.spacing.md`. The demo's
+    // 14 was a prototype value two short of the scale it sat beside.
+    expect(card.style.marginBottom).toBe(`${spacing.md}px`)
   })
 })

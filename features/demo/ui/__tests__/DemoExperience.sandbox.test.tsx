@@ -252,8 +252,18 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       store.getState().createCase({ caseNumber: 'PR25-NOLOC2', displayName: 'No Loc 2', unit: 'Robbery' })
       store.getState().setView('completion')
     })
+    // R-35's exemption is INTACT and is about the form, not the attribute: Completion still
+    // renders its review form rather than being replaced by the "No location open" notice, so
+    // its export and PDF actions stay reachable. What changed in U6.4b is how the blocked CTA
+    // says so — `aria-disabled` plus an `aria-describedby` pointing at the Banner that explains
+    // (D10 / F39). The "+ hint" half of R-35's treatment is now IN the accessibility tree
+    // instead of in a `title` tooltip a keyboard visitor never receives.
     expect(screen.queryByText(/No location open/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Complete & Save' })).toBeDisabled()
+    const cta = screen.getByRole('button', { name: 'Complete & Save' })
+    expect(cta).toHaveAttribute('aria-disabled', 'true')
+    expect(document.getElementById(cta.getAttribute('aria-describedby') ?? '')?.textContent).toMatch(
+      /No Case Selected/,
+    )
   })
 
   it('R-19 (mandated regression): create A + L1, create B, rail-jump to Completion — the tap can never green the unrelated case', () => {
@@ -270,7 +280,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     // createCase(B) cleared the location half of the pair, so Complete & Save is DISABLED —
     // it neither greens B (the old wrong-case bug) nor dead-taps.
     const btn = screen.getByRole('button', { name: 'Complete & Save' })
-    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-disabled', 'true')
+    // The click still has to be a no-op, and under `aria-disabled` that is the HANDLER's job
+    // rather than the browser's — which is exactly why R-19 asserts the store below and not
+    // just the attribute.
     fireEvent.click(btn)
     expect(store.getState().cases.find((c) => c.id === caseB)?.status).toBe('draft')
     expect(store.getState().cases.find((c) => c.id === caseA)?.status).toBe('draft')
