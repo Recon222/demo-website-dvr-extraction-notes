@@ -17,7 +17,7 @@ const FIELDS = {
 
 export function Filled() {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
       <SubmissionScreen
         occNumber="PR-2026-0114-2287"
         fields={FIELDS}
@@ -33,7 +33,7 @@ export function Filled() {
 
 export function Empty() {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, fontFamily: 'system-ui', overflow: 'hidden' }}>
       <SubmissionScreen
         occNumber="PR-2026-0114-2287"
         fields={{ requesterName: '', requesterBadge: '', requesterUnit: '', requesterPhone: '', requesterEmail: '', businessName: '', streetAddress: '', city: '', locationContact: '', locationPhone: '' }}

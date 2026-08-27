@@ -4,7 +4,7 @@ import { TypewriterText } from 'open-pro-next'
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 360, padding: 24, fontFamily: 'system-ui' }}>
+    <div data-demo-root style={{ background: '#002853', width: 360, padding: 24, fontFamily: 'system-ui' }}>
       {children}
     </div>
   )

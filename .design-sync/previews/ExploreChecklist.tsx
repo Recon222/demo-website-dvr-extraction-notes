@@ -4,7 +4,7 @@ import { ExploreChecklist } from 'open-pro-next'
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 340, padding: 22, fontFamily: 'system-ui' }}>
+    <div data-demo-root style={{ background: '#002853', width: 340, padding: 22, fontFamily: 'system-ui' }}>
       {children}
     </div>
   )

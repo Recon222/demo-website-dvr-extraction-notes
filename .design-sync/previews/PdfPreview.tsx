@@ -6,7 +6,7 @@ function Phone({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', background: '#0d1b2a', width: 378, height: 760, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', background: '#002853', width: 378, height: 760, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       {children}
     </div>

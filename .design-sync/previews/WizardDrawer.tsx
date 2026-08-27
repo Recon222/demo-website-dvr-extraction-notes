@@ -18,7 +18,7 @@ export function Open() {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', background: '#0d1b2a', width: 378, height: 720, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', background: '#002853', width: 378, height: 720, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       <WizardDrawer open items={ITEMS} onClose={() => {}} onNavigate={() => {}} onBackToCases={() => {}} />
     </div>

@@ -6,7 +6,7 @@ import { OcrCaptureScreen } from 'open-pro-next'
 // Overlay is absolute inset:0 — needs a positioned, height-bearing ancestor to fill.
 function PhoneOverlay({ children }: { children: React.ReactNode }) {
   return (
-    <div data-demo-root style={{ background: '#0d1b2a', width: 378, height: 786, position: 'relative', fontFamily: 'system-ui', overflow: 'hidden' }}>
+    <div data-demo-root style={{ background: '#002853', width: 378, height: 786, position: 'relative', fontFamily: 'system-ui', overflow: 'hidden' }}>
       {children}
     </div>
   )

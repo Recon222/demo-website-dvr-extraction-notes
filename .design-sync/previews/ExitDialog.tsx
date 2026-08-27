@@ -8,7 +8,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', transform: 'translateZ(0)', background: '#0d1b2a', width: 460, height: 520, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', transform: 'translateZ(0)', background: '#002853', width: 460, height: 520, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       {children}
     </div>

@@ -7,7 +7,7 @@ function Phone({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-demo-root
-      style={{ position: 'relative', background: '#0d1b2a', width: 378, height: 480, overflow: 'hidden', fontFamily: 'system-ui' }}
+      style={{ position: 'relative', background: '#002853', width: 378, height: 480, overflow: 'hidden', fontFamily: 'system-ui' }}
     >
       {children}
     </div>
@@ -27,8 +27,8 @@ function OptionRow({ label, selected }: { label: string; selected: boolean }) {
         padding: '13px 14px',
         marginBottom: 6,
         borderRadius: 10,
-        border: `1px solid ${selected ? 'rgba(43,140,193,0.55)' : '#1e3a5f'}`,
-        background: selected ? 'rgba(43,140,193,0.12)' : '#0d1b2a',
+        border: `1px solid ${selected ? 'rgba(43,140,193,0.55)' : '#1c4e84'}`,
+        background: selected ? 'rgba(43,140,193,0.12)' : '#002853',
         color: selected ? '#e8f0f8' : '#cdd9e6',
         fontSize: 15,
         fontWeight: selected ? 600 : 500,
@@ -36,7 +36,7 @@ function OptionRow({ label, selected }: { label: string; selected: boolean }) {
     >
       <span>{label}</span>
       {selected && (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#35A0D6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F6B99" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 6L9 17l-5-5" />
         </svg>
       )}
@@ -47,7 +47,7 @@ function OptionRow({ label, selected }: { label: string; selected: boolean }) {
 const DONE = (
   <button
     type="button"
-    style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#35A0D6,#2580AD)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+    style={{ width: '100%', padding: 13, borderRadius: 10, border: 'none', background: 'linear-gradient(180deg,#1F6B99,#17527A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
   >
     Done
   </button>
