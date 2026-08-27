@@ -110,14 +110,17 @@ it is proven.
 it. New items take the next number even when the grouping looks untidy. This binds finding IDs, ledger
 sections, and runbook sections alike.
 
-**Deferrals go to `docs/code-reviews/deferred.md`** in house format — numbered §, Source / What / Why
-deferred / concrete un-defer **Trigger** — using ONLY the § range your brief reserved for you. A
-deferral without a concrete trigger is a dropped finding and will be flagged as one. Never edit the
-plan or the runbook yourself; report what you believe belongs there.
+**You do not write `docs/code-reviews/deferred.md`. You PROPOSE.** Put the deferral you believe is
+warranted in your report, in house format — Source / What / Why deferred / concrete un-defer
+**Trigger** — and the `dt-review-aggregator` decides and writes the numbered § row. It is the sole
+writer of that file. A proposed deferral without a concrete trigger is a dropped finding and will be
+flagged as one. Never edit the plan or the runbook yourself either; report what you believe belongs
+there.
 
-**Exactly one ledger writer per round.** Reserved § ranges prevent numbering collisions but not *file*
-collisions — two agents editing the ledger in one round still conflict at merge. Generalised: any
-single shared file edited by multiple concurrent agents needs a named owner for the round.
+**Exactly one writer per shared file per round.** The ledger's case is settled — one writer, no
+reserved ranges. The general rule still binds everywhere else: any single shared file edited by
+multiple concurrent agents needs a named owner for the round, because reserved ranges prevent
+numbering collisions but never *file* collisions.
 
 **Commit trailers carry your own model name** and the `Claude-Session:` link from your brief. Fix
 yours if you slip.

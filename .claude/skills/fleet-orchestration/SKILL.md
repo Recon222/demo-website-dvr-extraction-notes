@@ -13,6 +13,34 @@ The operating theory behind the Dreamteam. The two orchestrator agents
 - `reviewer-contract.md` — the base contract every review lane reads
 - `hazard-playbook.md` — the non-negotiables every repo-writing agent reads
 
+## Mapping to THIS repo
+
+This kit came from another project and names artifacts that do not exist here. Everything below is
+generic; read it through this table. Where a name in the left column appears anywhere in this skill or
+in `hazard-playbook.md`, it means the thing on the right.
+
+| The kit says | Here it is |
+|---|---|
+| `docs/current-implementation/<slug>/STATE.md` (the runbook/pointer) | `docs/planning/demo-phone-ui-parity/HANDOFF.md` |
+| `GATES.md` | `docs/planning/demo-phone-ui-parity/GATES.md` |
+| `AGENTS-LOG.md` (append-only roster) | HANDOFF.md **§6 Agent roster & continuity handles** — treat it as append-only: a retired agent's row is marked retired, never deleted |
+| the plan set (`plan/`) | `docs/planning/demo-phone-ui-parity/00-ui-parity-matrix.md` + `01-master-ui-parity-plan.md` |
+| `reviews/` | `docs/code-reviews/ui-parity/u<N>/` — one directory per phase, lane files plus the vetted doc |
+| the deferral ledger | `docs/code-reviews/deferred.md` — **global, and its sole writer is `dt-review-aggregator`** |
+| `dt-plan-orchestrator` / `dt-build-orchestrator` | **the main session.** There are no orchestrator agents here; the orchestrator is the top-level instance, and every rule addressed to "the orchestrator" addresses it |
+| `dt-init` / `dt-start` | no command — the campaign directory and this mapping already exist |
+| `dt-handoff` | the orchestrator edits HANDOFF.md §5 and re-stamps its `state-as-of:` line by hand |
+| `dt-address-review` | the implementer that owns the fix commits posts the **commit→finding table as a PR comment**; that comment is the fix-delta authority (`reviewer-contract.md` §7) |
+| `dt-plan-review` / `dt-code-review` | the `/plan-review` and `/demo-code-review` skills, and the `demo-phase-review` workflow at phase boundaries |
+| `dt-git-guard` | `.claude/hooks/dt-git-guard.sh` (PreToolUse:Bash) — it blocks the work-destroying git shapes mechanically |
+| `planning-doc-house-style` | no such skill here; the house style is the v1 plan set at `docs/planning/demo-phone-parity/` — match it |
+| `docs/templates/` | no templates directory; copy the shape of the v1 documents |
+
+Live seats: `opus-implementer` / `-high` / `-max`, the five code lanes (`typescript-reviewer`,
+`web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer`), the three plan
+lanes (`plan-architect-reviewer`, `plan-quality-checker`, `plan-reality-checker`),
+`dt-review-aggregator` (Fable), `dt-integrator`, and one warm `dt-partner`.
+
 ---
 
 ## 0. The one idea
@@ -59,8 +87,10 @@ again in every subsequent turn.
 4. **Deferral ledger (`docs/code-reviews/deferred.md`)** — one living document of deliberate
    non-fixes, numbered, append-only, every entry carrying a concrete un-defer Trigger. **This is the
    system's only suppression mechanism.** Reviewer personas carry no "do not flag" lists, because a
-   suppression that cannot expire eventually suppresses a real finding. Reserve § ranges per agent in
-   every brief — parallel agents claiming "next free §" collide at merge.
+   suppression that cannot expire eventually suppresses a real finding. **Implementers and review lanes PROPOSE deferrals in their reports; the
+   `dt-review-aggregator` decides and writes the rows.** It is the sole writer of the file. Nobody
+   reserves § ranges and nobody claims "next free §" — the reserved-range protocol existed only to
+   manage concurrent writers, and removing the concurrency removes the collision class outright.
 5. **Agent contracts** — `.claude/agents/dt-*.md`. Personas carry the standing rules; briefs carry
    only package specifics.
 
@@ -72,8 +102,7 @@ executes that decision and only revisits it if reality diverges — in which cas
 divergence in DECISIONS.md.
 
 **Parallel wave:** one worktree per agent, branched off the phase branch. Per worktree: install
-dependencies, copy env files, confirm the baseline is green *before* its agent starts. Reserve ledger
-§ ranges per agent. Map seams — shared capabilities where the first builder ships it as its own commit
+dependencies, copy env files, confirm the baseline is green *before* its agent starts. Map seams — shared capabilities where the first builder ships it as its own commit
 and the sibling consumes, files two packages both touch with explicit ownership notes, and planned
 schema collisions where both sides are briefed that the collision is expected.
 
@@ -82,10 +111,13 @@ your own checkout stays free for independent inspection and gate-running. Packag
 order, each gated before the next dispatch. Consecutive same-tier packages resume the same implementer
 warm. No blind seams exist, and the integrator has nothing to harmonise.
 
-**Parallelism has a fixed tax.** Every side worktree costs roughly ten minutes before any work happens
-— dependency install plus cold compile — plus a merge. Parallelise only when a lane's work comfortably
-exceeds that: roughly M-sized or larger. S-sized items belong in a warm agent's existing worktree. The
-plan states this tax explicitly so the mode call is auditable rather than instinctive.
+**Parallelism has a tax — but in THIS repo it is not the setup cost.** `pnpm`'s content-addressed
+shared store makes a side worktree roughly a two-second `pnpm install --prefer-offline` plus a merge,
+not the ten-minute install-and-cold-compile this rule was written against. So the mode call here turns
+on **file contention and seam risk**, not on amortising setup: parallelise packages that touch
+disjoint files, and serialise packages that fight over the same ones however large they are. S-sized
+items still belong in a warm agent's existing worktree — for continuity, not for cost. The plan states
+its reasoning explicitly so the mode call is auditable rather than instinctive.
 
 **Tiering is fixed at spawn, so keep a tier idle until its work appears.** Effort is a property of the
 agent, not the task, and warm resumption means the tier chosen at first dispatch governs every package
