@@ -3,7 +3,13 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import type { CSSProperties } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
-import { CentredDialog, DIALOG_SHADOW, dialogScrim, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
+import {
+  CentredDialog,
+  DIALOG_SHADOW,
+  DIALOG_SHADOWS,
+  dialogScrim,
+  dialogSurface,
+} from '@/features/demo/ui/controls/CentredDialog'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
@@ -585,5 +591,56 @@ describe('the alert action button — F47, the recipe is the only source', () =>
     // pointer. Two of the four genuinely differ, so this is not a tautology.
     expect(ok.style.fontSize).not.toBe('14.5px')
     expect(ok.style.padding).not.toBe('12px')
+  })
+})
+
+/**
+ * W2 F34' + F38' — the two rider pins.
+ *
+ * F34': `DIALOG_SHADOW` was a lone DARK literal. On D2's flip day every centred dialog would
+ * have cast a pure-black 40px shadow onto a pale surface. Both halves now ship as a record read
+ * through `[scheme]`, the shape `SHEET_SHADOWS` established in the same wave.
+ *
+ * F38': `dialogSurface` and `dialogScrim` were `: CSSProperties`-annotated and MUTABLE. The
+ * falsifiable pin is a COMPILE-TIME one — `@ts-expect-error` on an assignment, which goes unused
+ * (and therefore reds `tsc`) the moment either `as const` is dropped. jsdom cannot see readonly.
+ */
+describe('DIALOG_SHADOWS — F34′, both halves of Layout.shadow.dialog', () => {
+  it('ships light as well as dark, and the demo consumes the scheme half', () => {
+    expect(DIALOG_SHADOW).toBe(DIALOG_SHADOWS[scheme])
+    // `Layout.ts:158-163` — `rgba(30, 58, 138, 0.15)` / offset `0 8` / opacity 1 / radius 28.
+    expect(DIALOG_SHADOWS.light).toBe('0 8px 28px rgba(30, 58, 138, 0.15)')
+    expect(DIALOG_SHADOWS.dark).toBe('0 8px 40px rgba(0,0,0,0.5)')
+    expect(DIALOG_SHADOWS.light).not.toBe(DIALOG_SHADOWS.dark)
+    // The whole finding: neither half casts a pure black onto the other's ground.
+    expect(DIALOG_SHADOWS.light).not.toContain('rgba(0,0,0')
+  })
+
+  it('casts DOWNWARD in both halves — the sheet tier is the inverted one', () => {
+    // A45/A46, phone §1.5's shipped bug: Phase 5 put `sheet` on a dialog and inverted its cast.
+    // `SHEET_SHADOWS` is `0 -8px`; a dialog is `0 8px` in BOTH schemes.
+    expect(DIALOG_SHADOWS.dark).not.toContain('-8px')
+    expect(DIALOG_SHADOWS.light).not.toContain('-8px')
+  })
+})
+
+describe('the fragments are readonly — F38′', () => {
+  it('rejects a write to dialogSurface and dialogScrim at COMPILE time', () => {
+    // Each `@ts-expect-error` IS the assertion, and it is a COMPILE-time one: `as const`
+    // constrains the type, not the runtime object. So the writes live in a function that is
+    // never called - the repo's own idiom (`ExportModal.test.tsx`'s R-17 pin) - because
+    // executing them would really mutate a module-level fragment and leak into every later case
+    // in this file. Drop either `as const satisfies CSSProperties` and the errors disappear, the
+    // directives go unused, and `tsc --noEmit` fails. That is the only place this is observable.
+    const reject = () => {
+      // @ts-expect-error dialogSurface is readonly
+      dialogSurface.padding = 99
+      // @ts-expect-error dialogScrim is readonly
+      dialogScrim.background = 'red'
+    }
+    expect(typeof reject).toBe('function')
+    // ...and the fragments still hold what the recipe wrote.
+    expect(dialogSurface.padding).toBe(spacing.md)
+    expect(dialogScrim.background).toBe(colors.overlay)
   })
 })
