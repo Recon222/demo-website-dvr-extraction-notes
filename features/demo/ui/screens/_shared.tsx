@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { Children, useEffect, useId, useState } from 'react'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
@@ -574,11 +574,68 @@ export function WizardNext({ label, onClick }: { label: string; onClick(): void 
   )
 }
 
-/** A titled form section card. */
+/**
+ * A titled form section card — the phone's `FormSection` (`src/components/form/FormSection.tsx`
+ * at `dd5551ec`) in its GLASS branch, which is the only branch the demo renders: all five
+ * consumers (`CompletionScreen`, `DvrInfoScreen`, `ExportInfoScreen`, `SubmissionScreen`,
+ * `TimeOffsetScreen`) are glass sections. Matrix A77.
+ *
+ * ## Three RN nodes collapse to one web node
+ *
+ * The phone paints the glass branch with a stack (`:126-139`): an `overflow:'hidden'` wrapper
+ * carrying `Layout.shadow.card`, an absolutely positioned 1px `highlight` View, and the
+ * `LinearGradient` that carries the border and the padding. On the web `glassCard` already
+ * spells all four parts of the tier in ONE declaration — the gradient, the three side border
+ * longhands plus the lit `borderTopColor` (A31), the inner shadow and `GLASS.shadowCard` (A44)
+ * — so the wrapper and the highlight strip have nothing left to do. `overflow: 'hidden'` is
+ * kept from the wrapper (`:159`): it is what clips a child to the card's corner, which the
+ * radius alone does only for the background.
+ *
+ * ## The header's bottom margin is the phone's TWO values, summed
+ *
+ * The phone puts `marginBottom: Layout.spacing.md` (16) on the header (`:182`) and
+ * `marginTop: Layout.spacing.sm` (8) on a content wrapper (`:198`) — 24 between the title rule
+ * and the first field, because RN does not collapse margins. CSS does: two adjacent siblings'
+ * facing margins collapse to the LARGER, so spelling the pair verbatim would render 16 and
+ * silently lose 8px. The sum is written on the header instead, and the content wrapper is not
+ * created — same rendered 24, one node rather than two. (The one case that diverges is a first
+ * child carrying its own `marginTop`, which would collapse into this 24 instead of adding to
+ * it. No consumer has one: `Field`, `SelectField` and `DateTimeField` all lead with
+ * `marginBottom`.)
+ */
 export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+  // Phone `:114-120`, load-bearing: a section whose every field is gated off by Form
+  // Customization renders NOTHING, not an empty titled box. `Children.toArray` drops
+  // false/null/undefined and flattens fragments, so an all-`{show && <Field/>}` section
+  // resolves to []. Two consumers rely on it today by hoisting the same test to the call site
+  // (`DvrInfoScreen.tsx:84-86`, `SubmissionScreen`'s `showRequester`); with the guard in the
+  // recipe a third consumer cannot forget it.
+  if (Children.toArray(children).length === 0) return null
   return (
-    <div style={{ marginBottom: 18, ...glassCard, padding: 16 }}>
-      <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8', paddingBottom: 10, marginBottom: 14, borderBottom: GLASS.border }}>{title}</div>
+    <div style={{ marginBottom: spacing.lg, ...glassCard, overflow: 'hidden', padding: spacing.md }}>
+      <div
+        style={{
+          // Phone `:184-187` — `Typography.fontSize.lg` / `fontWeight.semibold`. 17 -> 18 is a
+          // step on plan §4.9's ladder, not a re-tune.
+          fontSize: 18,
+          fontWeight: 600,
+          color: colors.text,
+          // Phone `:180` — `paddingBottom: Layout.spacing.sm` (was 10).
+          paddingBottom: spacing.sm,
+          // Phone `:182` + `:198`, summed — see the docblock (was 14).
+          marginBottom: spacing.md + spacing.sm,
+          // Phone `:181` + `:75`: the rule is 1px and TRANSPARENT under glass. It holds its
+          // 1px of layout and paints nothing; the demo used to draw `GLASS.border` here.
+          // Three longhands rather than the `borderBottom` shorthand the demo had, so the
+          // width and the colour are separately readable — jsdom does not decompose a
+          // shorthand into the sides a pin needs (HANDOFF §4, measured by U3.3).
+          borderBottomWidth: 1,
+          borderBottomStyle: 'solid',
+          borderBottomColor: 'transparent',
+        }}
+      >
+        {title}
+      </div>
       {children}
     </div>
   )
