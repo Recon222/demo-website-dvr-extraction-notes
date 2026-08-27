@@ -586,18 +586,18 @@ it. A lane that believes a ledgered Trigger has fired says so as a `TRIGGER-LAPS
 | **W2** | U4 | U4.2 ModalShell + Settings copy | ✅ | #42 | |
 | **W2** | U4 | U4.3 centred dialog | ✅ | #42 | |
 | **W2** | U4 | U4.4 scrim family | ✅ | #42 | |
-| **W3** | U5 | U5.1 map token re-base | ✅ | (W3 open) | |
-| **W3** | U5 | U5.2 collapsed search bar | ✅ | (W3 open) | |
-| **W3** | U5 | U5.3 MapFiltersSheet (NEW) | ✅ | (W3 open) | |
-| **W3** | U5 | U5.4 map sheet surfaces | ✅ | (W3 open) | |
-| **W3** | U6 | U6.1 _shared wizard chrome | ✅ | (W3 open) | |
-| **W3** | U6 | U6.2 settings package | ✅ | (W3 open) | |
-| **W3** | U6 | U6.3 export surfaces | ✅ | (W3 open) | |
-| **W3** | U6 | U6.4a wizard screens + modals (adoption) | ✅ | (W3 open) | |
-| **W3** | U6 | U6.4b the four named-recipe screens | ⬜ | | |
-| **W3** | U7 | U7.1 terminal palette | ✅ | (W3 open) | |
-| **W3** | U7 | U7.2 OverlayHeader + media/audio | ✅ | (W3 open) | |
-| **W3** | U7 | U7.3 OCR, copy, mono policy | ⬜ | | |
+| **W3** | U5 | U5.1 map token re-base | ✅ | #43 | |
+| **W3** | U5 | U5.2 collapsed search bar | ✅ | #43 | |
+| **W3** | U5 | U5.3 MapFiltersSheet (NEW) | ✅ | #43 | |
+| **W3** | U5 | U5.4 map sheet surfaces | ✅ | #43 | |
+| **W3** | U6 | U6.1 _shared wizard chrome | ✅ | #43 | |
+| **W3** | U6 | U6.2 settings package | ✅ | #43 | |
+| **W3** | U6 | U6.3 export surfaces | ✅ | #43 | |
+| **W3** | U6 | U6.4a wizard screens + modals (adoption) | ✅ | #43 | |
+| **W3** | U6 | U6.4b the four named-recipe screens | ✅ | #43 | |
+| **W3** | U7 | U7.1 terminal palette | ✅ | #43 | |
+| **W3** | U7 | U7.2 OverlayHeader + media/audio | ✅ | #43 | |
+| **W3** | U7 | U7.3 OCR, copy, mono policy | ✅ | #43 | |
 | **W4** | U8 | U8.1 scanner HUD + boot ground | ⬜ | | |
 | **W4** | U8 | U8.2 grid, sweep, teal purge | ⬜ | | |
 | **W4** | U8 | U8.3 tab bar | ⬜ | | |

@@ -1,6 +1,6 @@
 # HANDOFF — Demo↔Phone UI Parity (v2) Orchestration Runbook
 
-state-as-of: 479f813+W3-review-r1
+state-as-of: 85e7f87
 last-full-plan-read: 479f813 (2026-08-27, post-compaction, before U6.4b/W3-assembly)
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
