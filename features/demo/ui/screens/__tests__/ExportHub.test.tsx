@@ -11,10 +11,20 @@ vi.mock('motion/react', async (orig) => ({
   useReducedMotion: () => motionState.reduce,
 }))
 import { resolveExportPlan, type ExportSelection } from '@/features/demo/engine/logic/export'
+import { glassHeaderBar, glassHeaderFooterBar } from '@/features/demo/ui/controls/header-chrome'
 import { ExportHub, type ExportHubProps } from '@/features/demo/ui/screens/export/ExportHub'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import { severityTone } from '@/features/demo/ui/tokens/status'
+
+/** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
+function jsdomColor(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.color = value
+  return probe.style.color
+}
 
 /**
  * P5.2 — the Export tab's hub (matrix rows 7/24, ui-mapping 04). Behavioural coverage of the
@@ -299,6 +309,61 @@ describe('ExportHub — pre-flight footer', () => {
     } finally {
       motionState.reduce = false
     }
+  })
+
+  /**
+   * A37 — the bar is a HEADER-TIER surface, and it is a COMPOSITION of the two header exports
+   * rather than either one whole. The phone's two below-content bars disagree about stop order
+   * (`CustomDrawerContent.tsx:437` reverses, `ExportHub.tsx:231` does not), so "it is on the
+   * header tier" is not a pin — it passes on the flipped ground too.
+   *
+   * Both halves resolve through `GLASS_TIER[scheme].header`, so this is also the anti-drift
+   * link: a phone-side re-tint moves this bar with `WizardHeader`, the drawer and the picker.
+   * It is deliberately NOT added to `controls/__tests__/header-chrome.test.tsx`'s `BARS` list,
+   * which asserts `decl(glassHeaderBar)` WHOLE — this bar carries the header ground with a TOP
+   * hairline, so it would fail that fragment's `borderBottom` half for the right reason.
+   */
+  describe('the pre-flight bar is a header-tier surface (A37)', () => {
+    const mountFooter = () => {
+      const selection = selectionOf('c1', ['l1'])
+      renderHub({ selection, footer: footerFor(cardA, selection) })
+      return document.querySelector('[data-export-footer]') as HTMLElement
+    }
+
+    it('paints the header ground UNFLIPPED — not the drawer footer`s reversal', () => {
+      expect(mountFooter()).toHaveStyle({ background: glassHeaderBar.background })
+      // Guards that the assertion above still DISCRIMINATES. If the two exports ever converge
+      // on one ground, `toHaveStyle` would pass on either and this pin would quietly stop
+      // observing the choice that phone `ExportHub.tsx:231` vs `:437` actually makes.
+      expect(glassHeaderFooterBar.background).not.toBe(glassHeaderBar.background)
+    })
+
+    it('hangs its hairline on the TOP edge only, in the tier`s border colour', () => {
+      const el = mountFooter()
+      // Read from the TIER, not from the fragment this bar spreads — otherwise the pin moves
+      // with whatever `header-chrome.ts` happens to say rather than with the phone's `Colors.ts`.
+      expect(el.style.borderTopColor).toBe(jsdomColor(GLASS_TIER[scheme].header.border))
+      // Phone `styles.footer:317-318` sets `borderTopWidth` and nothing else. A second hairline
+      // underneath would land on the tab-bar seam this screen is deliberately flush against.
+      expect(el.style.borderBottomWidth).toBe('')
+    })
+
+    it('gives Clear the ghost recipe at the 44px floor, not a 6px-padded text link', () => {
+      mountFooter()
+      const clear = screen.getByRole('button', { name: 'Clear' })
+      // Phone `:242-249` (`variant="ghost" size="small"`) + `:358-360`, whose comment at
+      // `:354-357` is explicit that overriding `minHeight`/`paddingVertical` here shrinks the
+      // real target below the 44 floor. The demo's `padding: '6px 10px'` did exactly that.
+      expect(clear).toHaveStyle({
+        minHeight: '44px',
+        paddingLeft: `${spacing.sm}px`,
+        paddingRight: `${spacing.sm}px`,
+        color: colors.link,
+      })
+      // The VERTICAL padding must survive the horizontal override — a `padding:` shorthand
+      // written after the recipe instead of the two longhands would silently take it to 0.
+      expect(clear.style.paddingTop).toBe(`${spacing.sm}px`)
+    })
   })
 
   it('hands the CTA and Clear presses straight out', () => {

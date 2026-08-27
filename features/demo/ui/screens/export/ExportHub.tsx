@@ -5,11 +5,12 @@ import type { CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { caseCheckboxState, type ExportSelection, type ExportSelectionPlan } from '@/features/demo/engine/logic/export'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { glassHeaderBar, glassHeaderFooterBar } from '@/features/demo/ui/controls/header-chrome'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportCaseCard } from '@/features/demo/ui/screens/export/ExportCaseCard'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The Export tab's screen — port of the phone's `ExportHub`
@@ -86,11 +87,36 @@ const emptyArea: CSSProperties = {
   textAlign: 'center',
 }
 
+/**
+ * The pre-flight bar is a HEADER-TIER surface (A37), not the `elevated` panel it painted before
+ * — phone `export-hub/components/ExportHub.tsx:230-234` (the `LinearGradient`) over `:316-322`
+ * (`styles.footer`).
+ *
+ * COMPOSED FROM BOTH header exports rather than taken whole from either, because the phone is
+ * not consistent about this and the inconsistency is visible:
+ *
+ *   drawer footer  `CustomDrawerContent.tsx:437`  `colors={[...gradient].reverse()}`  FLIPPED
+ *   export footer  `ExportHub.tsx:231`            `colors={[...glass.header.gradient]}`  NOT
+ *
+ * Both bars sit BELOW their content and both hang their hairline on the top edge, but only the
+ * drawer's flips its stops. `glassHeaderFooterBar` transcribes the drawer, so taking it whole
+ * here would invert this bar's light source against its own phone counterpart. It therefore
+ * takes `glassHeaderBar`'s unflipped ground and `glassHeaderFooterBar`'s top edge — the two
+ * halves the phone actually spells — and both still resolve through `GLASS_TIER[scheme].header`,
+ * so a phone-side re-tint moves this bar with every other one.
+ *
+ * `footerWrap`'s opaque `colors.background` (phone `:313-315`) is deliberately NOT ported. It
+ * backs an `Animated.View` that floats over a `FlatList`; the demo's footer is a `flex: 0 0 auto`
+ * sibling of its own scroll container, so nothing passes behind it for the tier's 0.95/0.98
+ * alphas to reveal. Porting it would paint a ground no other demo bar carries.
+ */
 const footerStyle: CSSProperties = {
   flex: '0 0 auto',
-  background: GLASS.gradientPanel,
-  borderTop: GLASS.border,
-  padding: '12px 16px 14px',
+  background: glassHeaderBar.background,
+  borderTop: glassHeaderFooterBar.borderTop,
+  // phone `:319-321` — `paddingHorizontal: md`, `paddingTop: base`, `paddingBottom: md`. The
+  // demo's closing `14` was a prototype value with no phone counterpart.
+  padding: `${spacing.base}px ${spacing.md}px ${spacing.md}px`,
 }
 
 /** Stable empty set for every card that isn't the armed one (one-case rule). */
@@ -211,7 +237,8 @@ export function ExportHub({
               fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace",
               fontSize: 11,
               letterSpacing: 0.6,
-              marginBottom: 6,
+              // phone `:327` — `marginBottom: Layout.spacing.xs`.
+              marginBottom: spacing.xs,
               color: ARTIFACT_COLOR[footer.plan.kind],
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -220,23 +247,27 @@ export function ExportHub({
           >
             {footer.plan.artifactLine}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8' }}>{footer.caseNumber}</span>
-            <span style={{ flex: 1, fontSize: 11, color: '#99badd' }}>{footer.plan.detailLine}</span>
+          {/* phone `:338-343` — `gap` and `marginBottom` are both `Layout.spacing.sm`. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+            {/* phone `:344-353` — `colors.text` on the case number, `colors.textSecondary` on
+                the detail line. Both were the same values spelled as bare hex. */}
+            <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{footer.caseNumber}</span>
+            <span style={{ flex: 1, fontSize: 11, color: colors.textSecondary }}>{footer.plan.detailLine}</span>
             {/* Deliberately NOT gated on `isExporting` — the phone leaves Clear enabled while
                 every other control locks (ui-mapping 04 records it as observed behaviour). */}
             <button
               type="button"
               onClick={onClearSelection}
               style={{
-                padding: '6px 10px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 8,
-                color: '#99badd',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
+                // phone `:242-249` — `<Button variant="ghost" size="small">`, through THE recipe.
+                ...buttonStyle({ variant: 'ghost', size: 'small' }),
+                // phone `:358-360` — `paddingHorizontal: Layout.spacing.sm`, and ONLY that. Its
+                // comment at `:354-357` is explicit that overriding `minHeight`/`paddingVertical`
+                // shrinks the real target below `touchTarget.min`, the HIG 44pt and the Android
+                // 48dp floor — which is exactly what this button's `padding: '6px 10px'` did.
+                // Longhands AFTER the recipe's `padding` shorthand: the safe direction (§4.3).
+                paddingLeft: spacing.sm,
+                paddingRight: spacing.sm,
               }}
             >
               Clear
