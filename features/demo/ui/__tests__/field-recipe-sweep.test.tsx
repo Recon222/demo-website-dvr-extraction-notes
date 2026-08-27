@@ -418,4 +418,64 @@ describe('validation lines carry severity on the glyph, never as red text (§C.3
     expectSeverityOnGlyph(screen.getByRole('alert'), 'Field')
   })
 
+  it('no swept file re-inlines an error red', () => {
+    // Every site above spelled `#ff6b78`, one of the six reds §C.3 rule 1 names BY VALUE, and
+    // `NewCaseModal`'s submit banner spelled it a sixth time. Scoped to the swept set for the
+    // same reason the label scan is: the family survives in files other packages own
+    // (`inputs/CameraGpsCapture`, `inputs/GpsCaptureControl` — unowned, see the report;
+    // `controls/AlertDialog` — U4.3's; the `#ff8a93` / `#ff7a85` audio/OCR families — U7's).
+    const offenders: string[] = []
+    for (const { rel, src } of sweptSources()) {
+      for (const hex of src.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []) {
+        if (hex.toLowerCase() === '#ff6b78') offenders.push(`${rel}: ${hex}`)
+      }
+    }
+    expect(
+      offenders,
+      'a validation line was painted red again. §C.3 rule 1 (adjudicated-closed `P8-DEF-A`): ' +
+        'the answer is not a better red — severity on the icon, text in `colors.text`. Render ' +
+        '`FieldError` for a field message, or `<Banner severity="error">` for a callout.',
+    ).toEqual([])
+    // The scan reads a live value, not an empty haystack: two of the swept files DO still
+    // spell a hex, so a reader that matched nothing would fail here rather than pass above.
+    expect(sweptSources().some(({ src }) => /#[0-9a-fA-F]{3,8}\b/.test(src))).toBe(true)
+  })
+})
+
+describe('A71 — the submit-failure callout is the shared Banner (D19 hand-back)', () => {
+  afterEach(cleanup)
+
+  it('`NewCaseModal` renders `<Banner>`, not a sixth local notice recipe', () => {
+    render(
+      <NewCaseModal
+        form={{ ...blankCaseForm, caseNumber: 'OCC2025-001', unit: 'FVU' }}
+        onChange={vi.fn()}
+        onSubmit={() => {
+          throw new Error('Case number already exists')
+        }}
+        onCancel={vi.fn()}
+      />,
+    )
+    // Create mode raises the immutable-number confirmation first; only its own "Create Case"
+    // arm performs the submit, so the throw needs BOTH presses.
+    fireEvent.click(screen.getByRole('button', { name: 'Create Case' }))
+    const confirm = screen.getAllByRole('button', { name: 'Create Case' })
+    fireEvent.click(confirm[confirm.length - 1])
+
+    const banner = screen.getByTestId('new-case-submit-error')
+    expect(banner.textContent).toContain('Case number already exists')
+    // A71's single most portable rule: the fill is OPAQUE `errorLight`, never a translucent
+    // wash — a wash composites over an unknown parent and the ratio becomes unmeasurable. The
+    // demo's retired recipe was `rgba(255,71,87,0.08)`, so this is the assertion that fails if
+    // anyone re-rolls it locally.
+    expect(banner.style.backgroundColor).toBe(probeColor(colors.errorLight))
+    expect(banner.style.backgroundColor).not.toContain('rgba')
+    // `Banner` paints the foreground on its MESSAGE node, not the container — the icon takes
+    // the same value from the same source, which is A71's point.
+    const message = banner.querySelector('div')
+    expect((message as HTMLElement).style.color).toBe(probeColor(colors.errorOnLight))
+    // ...and it is the component, not a copy of its values: `Banner` owns the glyph, and no
+    // local recipe in this file ever had one.
+    expect(banner.querySelector('svg')).not.toBeNull()
+  })
 })

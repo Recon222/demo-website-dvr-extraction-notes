@@ -8,8 +8,9 @@ import { parseCoordinate, formatCoordinate, type CoordKind } from '@/features/de
 import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-number'
 import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 // The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
 // re-exported here so the modal stays the import site its consumers already use.
@@ -208,14 +209,27 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
       closeAccessibilityLabel={isEdit ? 'Close edit case' : 'Close new case'}
       onClose={handleShellClose}
     >
-      {/* Render order #1 on the phone: the submit-failure banner sits above every field. */}
+      {/* Render order #1 on the phone: the submit-failure banner sits above every field.
+
+          A71/U3.3, handed back to U6.4a by D19 because this lane opens the file. The phone's
+          own line, `NewCaseModal.tsx:271`:
+            `<Banner severity="error" message={submitError} style={styles.errorBanner} />`
+          and `styles.errorBanner:467-469` is `{ marginBottom: Layout.spacing.md }` — 14 -> 16
+          is that value, not a tidy. Its comment (`:464-466`) names what went: "one of five
+          byte-identical local recipes whose text was the saturated `colors.error` on a
+          `colors.error + '20'` fill." The demo's copy was that recipe with the alpha spelled
+          `rgba(255,71,87,0.08)` and the text one shade off, and it is gone with it.
+
+          The fill is now OPAQUE `errorLight`, which is A71's single most portable rule: a
+          translucent wash composites over whatever the parent happens to be and the ratio
+          becomes unmeasurable. */}
       {submitError && (
-        <div
-          role="alert"
-          style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 14, fontSize: 13, fontWeight: 500, color: '#ff6b78' }}
-        >
-          {submitError}
-        </div>
+        <Banner
+          severity="error"
+          message={submitError}
+          testId="new-case-submit-error"
+          style={{ marginBottom: spacing.md }}
+        />
       )}
       {/* Read-only in edit mode, and read FROM the case: the number names the evidence
           folder, which is fixed at creation (phone `NewCaseModal.tsx:296-316`). */}
