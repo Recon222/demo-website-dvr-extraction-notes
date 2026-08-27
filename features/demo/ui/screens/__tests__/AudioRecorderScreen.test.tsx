@@ -12,6 +12,17 @@ import {
   type AudioRecorderScreenProps,
 } from '@/features/demo/ui/screens/AudioRecorderScreen'
 import { RESTING_METER } from '@/features/demo/ui/inputs/useAudioAnalyser'
+import { glassCard } from '@/features/demo/ui/glass-tokens'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { radius, touchTarget } from '@/features/demo/ui/tokens/scale'
+
+/** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
+ *  hazards) — compare through the same normalisation rather than by hex. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = (hex.replace('#', '').match(/../g) as string[]).map((p) => parseInt(p, 16))
+  return `rgb(${r}, ${g}, ${b})`
+}
 
 /**
  * The recorder screen (matrix rows 67-68), rendered from props alone — which is why every
@@ -289,5 +300,72 @@ describe('AudioRecorderScreen — failures', () => {
   it('renders no alert region when there is nothing wrong', () => {
     render(<AudioRecorderScreen {...props()} />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('AudioRecorderScreen — U7.2 chrome (matrix rows 67-69, A43, A61, D-1)', () => {
+  /**
+   * MUTATION: put `borderRadius: 16` back on either card object.
+   *
+   * `partner-legwork-w3.md` W3-C7 found two `{ ...glassCard, …, borderRadius: 16 }` spread
+   * overrides that A43's radius sweep could not see because they are not literals in a card
+   * const. Deleting them is the whole change — `glassCard`'s own radius is `lg`, and the phone
+   * agrees on both surfaces: `TimerCard` is `<Card glass>` (matrix rows 67-69, `xl` -> `lg`) and
+   * `SpectrumVisualizer.tsx:361` is `Layout.borderRadius.lg`.
+   */
+  it('drops both glass cards to radius lg — the two surviving radius-16 overrides are gone', () => {
+    render(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.4) })} />)
+    const timer = screen.getByTestId('recording-duration').closest('div[style]')?.parentElement
+      ?.parentElement as HTMLElement
+    const waveformPanel = screen.getByTestId('waveform-bars').parentElement as HTMLElement
+
+    expect(timer.style.borderRadius).toBe(`${radius.lg}px`)
+    expect(waveformPanel.style.borderRadius).toBe(`${radius.lg}px`)
+    // `shadow.card` arrives fused into `glassCard`'s boxShadow beside the tier inset (A44/A32),
+    // so an override of that key would silently drop the inset — pin that it was not written.
+    expect(timer.style.boxShadow).toBe(glassCard.boxShadow)
+  })
+
+  /**
+   * MUTATION: restore `const MUTED = '#5a7a9a'` and point any one label back at it.
+   *
+   * D-1 is binding (matrix rows 67-69): the phone's six `#5a7a9a` sites took `textSecondary`,
+   * NOT `textTertiary` (2.32:1). Verified at `dd5551ec` on every counterpart —
+   * `RecorderScreen.tsx:297` (badge), `SpectrumVisualizer.tsx:314,348` (panel + scale),
+   * `LevelMeter.tsx:168` (LEVEL), `TimerCard.tsx:151` (the meta row), `RecorderScreen.tsx:252`
+   * (the denied view's icon).
+   */
+  it('paints every mono label textSecondary — D-1, not the retired slate and not textTertiary', () => {
+    render(<AudioRecorderScreen {...props({ phase: 'recording', canStop: true, meter: liveMeter(0.4) })} />)
+    const expected = hexToRgb(colors.textSecondary)
+
+    for (const label of ['AUDIO CAPTURE', 'WAVEFORM MONITOR', 'LEVEL', RECORDER_SCALE_LABELS[0]]) {
+      expect(screen.getByText(label).style.color, `${label} is not textSecondary`).toBe(expected)
+    }
+    // The timer card's format row, which reads the shared `monoLabel` fragment.
+    expect(screen.getByText('OPUS').style.color).toBe(expected)
+    expect(hexToRgb(colors.textSecondary)).not.toBe(hexToRgb(colors.textTertiary))
+  })
+
+  it('paints the denied view’s mic glyph textSecondary too (RecorderScreen.tsx:252)', () => {
+    const { container } = render(<AudioRecorderScreen {...props({ mode: 'denied' })} />)
+    const glyph = container.querySelector('svg[width="64"]')
+    expect(glyph?.getAttribute('stroke')).toBe(colors.textSecondary)
+  })
+
+  /**
+   * MUTATION: hand `variant="cameraScrim"` to the header, or drop back to the pre-U7.2 inline
+   * 40x40 pill. The phone grew this control to `Layout.touchTarget.min`
+   * (`RecorderScreen.tsx:281-282`) and filled it from the glass CARD's top stop (`:78-79`).
+   */
+  it('adopts OverlayHeader’s glass variant — 44x44 on the card tier, badge in the trailing slot', () => {
+    render(<AudioRecorderScreen {...props()} />)
+    const close = screen.getByRole('button', { name: 'Cancel recording' })
+    expect(close).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
+    expect(close.style.background.replace(/\s+/g, '')).toBe(GLASS_TIER[scheme].card.gradient[0].replace(/\s+/g, ''))
+    // The badge is the header's `trailing`, so it is a SIBLING of the control, not a child.
+    const row = close.parentElement as HTMLElement
+    expect(row).toHaveTextContent('AUDIO CAPTURE')
+    expect(row.children[0]).toBe(close)
   })
 })
