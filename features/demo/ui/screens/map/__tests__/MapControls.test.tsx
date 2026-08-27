@@ -243,9 +243,40 @@ describe('MapControls — proximity summary chip', () => {
         filteredCount={5}
       />,
     )
-    expect(screen.getByTestId('proximity-chip-announcement')).toHaveTextContent(
-      'Proximity filter on, 2 km showing 5 of 9',
+    // `.textContent).toBe(...)`, not `toHaveTextContent`: that matcher is a SUBSTRING test, so it
+    // stayed green over the pre-F77 string that appended "showing 5 of 9". An announced string is
+    // exactly what it says and nothing more.
+    expect(screen.getByTestId('proximity-chip-announcement').textContent).toBe(
+      'Proximity filter on, 2 km',
     )
+  })
+
+  it('says NOTHING about the counts, so typing cannot make it chatter (F77)', () => {
+    // The region shares a component with the search field. A string carrying "N of M"
+    // re-announces on every keystroke that changes the match count — chatter on the one field a
+    // screen-reader user needs quiet. The sibling sheet may carry its counts because its scrim
+    // covers the search field (`MapFiltersSheet.tsx:249-262` argues exactly that); this region
+    // has no such protection.
+    const { rerender } = renderControls({ proximityActive: true, locationCount: 9, filteredCount: 5 })
+    const before = screen.getByTestId('proximity-chip-announcement').textContent
+
+    // Same radius, different counts — i.e. one keystroke in the search field.
+    rerender(
+      <MapControls
+        filters={{ statuses: [], searchText: 'dock' }}
+        onSearchChange={vi.fn()}
+        onOpenFilters={vi.fn()}
+        filterBadgeCount={1}
+        proximityActive
+        proximityRadius={1}
+        onProximityDeactivate={vi.fn()}
+        locationCount={9}
+        filteredCount={1}
+      />,
+    )
+    expect(screen.getByTestId('proximity-chip-announcement').textContent).toBe(before)
+    // …while the VISIBLE chip still tracks them, which is where the counts belong.
+    expect(screen.getByTestId('proximity-chip')).toHaveTextContent('1 km · 1 of 9')
   })
 
   it('empties the region again on deactivation, so the next activation still announces', () => {
