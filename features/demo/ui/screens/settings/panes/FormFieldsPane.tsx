@@ -233,8 +233,7 @@ function ScreenRow({
           hideLabel
           label={step.label}
           on={locked ? true : visible}
-          disabled={locked}
-          describedBy={lockId(step.id)}
+          disabled={locked ? { reasonId: lockId(step.id) } : undefined}
           onClick={() => onToggleStep(step.id, !visible)}
           testId={`fc-screen-toggle-${step.id}`}
         />
@@ -260,8 +259,7 @@ function ScreenRow({
                     hideLabel
                     label={f.label}
                     on={fieldLocked ? true : on}
-                    disabled={fieldLocked}
-                    describedBy={lockId(f.id)}
+                    disabled={fieldLocked ? { reasonId: lockId(f.id) } : undefined}
                     onClick={() => onToggleField(f.id, !on)}
                     testId={`fc-toggle-${f.id}`}
                   />

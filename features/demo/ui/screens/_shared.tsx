@@ -650,8 +650,7 @@ export function Toggle({
   label,
   on,
   onClick,
-  disabled = false,
-  describedBy,
+  disabled,
   disclosure,
   hideLabel = false,
   testId,
@@ -660,28 +659,30 @@ export function Toggle({
   on: boolean
   onClick(): void
   /**
-   * The switch states its value but refuses to change it (P7.1). `aria-disabled` + an inert
-   * handler, never the `disabled` attribute — this is a `role="switch"` div, and the house rule
-   * (`ModalActions.submitBlocked`, the GPS capture button's §45a precedent) is that a control
-   * stays focusable so a keyboard visitor can reach it and hear WHY it is unavailable from the
-   * copy beside it.
-   */
-  disabled?: boolean
-  /**
-   * Id of the element carrying that WHY — required in practice whenever `disabled` is set
-   * (R-6).
+   * Present ⇒ the switch states its value but refuses to change it (P7.1), and `reasonId` is the
+   * id of the element saying WHY. `aria-disabled` + an inert handler, never the `disabled`
+   * attribute — this is a `role="switch"` div, and the house rule (`ModalActions.submitBlocked`,
+   * the GPS capture button's §45a precedent) is that a control stays focusable so a keyboard
+   * visitor can reach it and hear why it is unavailable.
    *
-   * The rule this control cites has two halves and P7.1 shipped one. `aria-disabled` announces
-   * a STATE ("dimmed"); it carries no reason, and in focus mode a screen reader reads only the
-   * focused node's name/role/state — never an unlabelled sibling. So "hear WHY from the copy
-   * beside it" was true of the pixels and false of the accessibility tree, and a visitor could
-   * not tell "deliberately locked" from "broken". The cited precedent does both halves
-   * (`ModalActions` at :346-347), as does every other inert control in this feature
-   * (`DuplicateLocationModal.tsx:95`, `OcrCaptureScreen.tsx:445`, `MediaCaptureScreen.tsx:737`).
+   * ONE member carrying both facts, not a `disabled` boolean beside a `describedBy` string
+   * (review F39, and the same FD-4 move `disclosure` makes below). The rule has two halves and
+   * P7.1 shipped one: `aria-disabled` announces a STATE ("dimmed") and carries no reason, and in
+   * focus mode a screen reader reads only the focused node's name/role/state — never an
+   * unlabelled sibling. So "hear why from the copy beside it" was true of the pixels and false of
+   * the accessibility tree, and a visitor could not tell "deliberately locked" from "broken". The
+   * cited precedent does both halves (`ModalActions` at :346-347), as does every other inert
+   * control in this feature (`DuplicateLocationModal.tsx:95`, `OcrCaptureScreen.tsx:445`,
+   * `MediaCaptureScreen.tsx:737`).
    *
-   * Applied only while `disabled`: an enabled switch has no reason to point at.
+   * The split pair let the type permit exactly the defect its own docblock narrated — an inert
+   * switch with nothing to point at, and (the mirror) a reason id on a live switch that would
+   * never be applied. This is the demo's ONLY switch renderer and `one-switch-renderer.test.ts`
+   * concentrates every future inert switch on it, so the guarantee belongs in the type rather
+   * than in four call sites' good manners. Pinned at compile time in
+   * `screens/__tests__/Toggle.test.tsx`.
    */
-  describedBy?: string
+  disabled?: { reasonId: string }
   /**
    * This switch reveals a block (R-34): the id it reveals, and whether it is revealed right now.
    * Flipping a settings switch that inserts a whole configuration block announced "on" and
@@ -716,8 +717,8 @@ export function Toggle({
   const switchProps = {
     role: 'switch',
     'aria-checked': on,
-    'aria-disabled': disabled || undefined,
-    'aria-describedby': disabled ? describedBy : undefined,
+    'aria-disabled': disabled ? true : undefined,
+    'aria-describedby': disabled?.reasonId,
     'aria-controls': disclosure?.controls,
     'aria-expanded': disclosure?.expanded,
     'aria-label': label,
