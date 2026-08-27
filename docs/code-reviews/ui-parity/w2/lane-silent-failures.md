@@ -1,5 +1,169 @@
 # Lane: silent-failures — Wave 2 (U2 + U3 + U4), PR #42
 
+## Round 1 (fix delta)
+
+Head: `feat/uiparity-w2` @ `250e12f` (branch is one docs-only commit further on, `c1892d1`).
+Delta read: `git diff addd03f..250e12f`, scoped to my two fix commits and the lines they touch,
+per contract §7 — warm seat, judgement carried, evidence re-read from disk at the current SHA.
+Authority: the "W2 review round 1 — fix mapping" comment on PR #42, plus `VETTED-r1.md:65,188,200`
+for the routing of my second HIGH.
+
+Probe worktree `probe-w2d-sfh-scans` off `250e12f` (install 10.4 s). Baseline before any mutation:
+`choice-controls.test.tsx` + `glass-tokens.test.ts` = **2 files / 22 passed, exit 0**; full suite at
+the merged head **290 files / 3,899 passed | 4 todo (3,903), exit 0**, matching the mapping
+comment's figure exactly. **0 skipped** in either scan file. Motion mode: **motion-ON** (the
+`vitest.setup.ts` stub's hard-coded `matches: false`); both subjects are source scans with no
+motion-gated branch. Teardown quoted at the end.
+
+### Per-finding status
+
+**My r1 HIGH #1 (exemption keyed by file, not role) — FIXED, and it is the fix I asked for.**
+`choice-controls.test.tsx` now keys `EXEMPT` as `` `${Role}:${string}` `` — a TEMPLATE-LITERAL key
+type, so `checkbox:screens/DvrInfoScreen.tsx` is checked by `tsc`, not by convention — and
+`offenders(role)` looks up `` `${role}:${rel}` ``. Both entries carry their `checkbox:` prefix,
+which is the ruling their reason strings always argued for.
+
+```
+MUTATION PROBE: re-plant the r1 survivor, verbatim, in the still-exempt file
+Provenance: canonical source, probe worktree probe-w2d-sfh-scans at 250e12f (no mirrored copy)
+Mutation: append the same hand-rolled `<button role="radio">` + 20px ring to
+  features/demo/ui/screens/DvrInfoScreen.tsx, existing `role="checkbox"` left intact
+At 00a96c7: SURVIVED — scan exit 0, FULL SUITE exit 0 (290 files / 3,881 passed)
+At 250e12f: **EXIT 1 — KILLED**, and it names the file:
+  "import RadioOption from ui/controls/choice-controls instead of re-inlining the ring:
+   expected [ 'screens/DvrInfoScreen.tsx' ] to deeply equal []"  (1 failed | 14 passed)
+Restore: verified byte-identical (git checkout --; git status --porcelain empty)
+```
+
+**My r1 HIGH #2 (the dead-exemption backstop could never fire, so u2.4's D-1 close condition was
+false) — FIXED at BOTH ends, and the second end is the part I did not prescribe.**
+The aggregator merged my two HIGHs into F32 and demoted to MEDIUM (`VETTED-r1.md:188`), on the
+ground that the aggravator — a ledger row entering with an unenforceable trigger — was *prevented at
+the desk*: §100 is written with a corrected close condition ("hand-delete the exemption; the
+dead-exemption test enforces it only after F32", `:238`). **I do not contest the demotion**, and I
+checked the claim rather than accepting it: `deferred.md:6454` is §100 and it carries that wording.
+The code half went further than the ledger wording needed — the predicate is now *"would this file
+be reported were the entry removed?"*, and one `reported(role, text)` serves the scan and the
+backstop so the two can no longer disagree, which was the root of my finding.
+
+```
+MUTATION PROBE: the exact case the OLD predicate could never see — an ADOPTION
+Provenance: canonical source, probe worktree probe-w2d-sfh-scans at 250e12f
+Mutation: make `DvrInfoScreen.tsx` render `<CheckboxBox` while KEEPING `role="checkbox"` on its
+  pressable — i.e. U6.4b's actual close move, spelled the way `ExportCaseCard.tsx:144,161`
+  already spells it. Under the r1 predicate (`!includes(role) && !includes(role)`) this is
+  invisible forever; it is the whole of my r1 HIGH #2.
+Result: **EXIT 1 — KILLED**, naming the ROLE-SCOPED key:
+  "this entry excuses nothing — the file would not be reported. Drop it.:
+   expected [ Array(1) ] to deeply equal []"  +  "checkbox:screens/DvrInfoScreen.tsx"
+Restore: verified byte-identical (porcelain empty)
+```
+§100's close condition is now enforceable by the mechanism it names. Both ends closed.
+
+**My r1 MEDIUM (the record-arm skip was a whole-LINE drop) — FIXED, and by a better fix than the
+one I prescribed.** I asked for "strip the arm's KEY, scan the remainder, exempt the matching half
+only". F33 does that and one thing more that I missed: it splits the two forms onto **two different
+inputs**. `SCHEME_HALF.memberAccess` runs against `maskOwnHalfArms(src)`; `SCHEME_HALF.destructure`
+runs against the RAW source. My prescription would have left the destructure form reading a
+pre-processed copy, and the commit's reasoning is right that no single pre-processed input can serve
+both readings — `dark: tier,` in a destructure and `dark: palette.dark.x,` in a record literal are
+textually identical. That ambiguity is real and I did not see it. Refutation accepted on the merits.
+
+```
+MUTATION PROBE: all three r1 arms, re-run, plus the two the fix could have broken
+Provenance: canonical source, probe worktree probe-w2d-sfh-scans at 250e12f
+(a) r1 survivor (a) — SHIPPED wrong-half typo inside an arm:
+    button-recipe.ts:100  `light: palette.light.errorDark,` -> `light: palette.dark.errorDark,`
+    At 00a96c7: SURVIVED (scan exit 0).  At 250e12f: **EXIT 1 — KILLED**
+    ("expected [ 'controls/button-recipe.ts' ] to deeply equal []")
+(c) r1 survivor (c) — the NEXT two-half record, no per-constant pin behind it:
+    a new `{ light: GLASS_TIER.dark.sheet.border, dark: ... }` in controls/sheet-chrome.ts
+    At 00a96c7: SURVIVED the FULL SUITE (exit 0, 290 files / 3,881).
+    At 250e12f: **EXIT 1 — KILLED**, naming the file
+NEGATIVE CONTROL (the false-positive direction, which a mask is the one place to get wrong):
+    the untouched tree — `DangerFill`'s RIGHT-half arms, `PrimaryButtonGradient`, `ElevatedEdges`,
+    `SHADOW_CARD`, `glass-tiers.ts`'s two multi-line arms — **exit 0, 7 passed**. No false red.
+BLAST RADIUS (fix-introduced regression hunt): does the destructure form still bite MULTI-LINE,
+    i.e. is W1/F23's closure intact after the input split? A `const {\n  dark: probeTier,\n } =
+    GLASS_TIER` in sheet-chrome.ts -> **EXIT 1 — KILLED**. It is intact, and this is precisely
+    what the whole-line filter had silently re-opened — the fix closes a second hole I did not file.
+Restore: verified byte-identical after every arm (git checkout --; porcelain empty)
+```
+
+### Disclosed deviation, judged on the merits — and probed
+
+F33 discloses a ceiling: the mask is line-anchored, so an arm whose value **wraps** onto the next
+line (`light:` alone, then `  palette.light.x`) is not masked, and the commit claims that spelling
+"raises a FALSE RED, which is loud and fixable, never a silent miss". A claim of the form "the
+failure mode is loud" is exactly the claim this lane must not take on faith, because the whole
+finding class is claims like it being false.
+
+```
+MUTATION PROBE: is the disclosed ceiling loud or silent?
+Mutation: a wrapped-arm record in controls/sheet-chrome.ts — `light:` / newline /
+  `  GLASS_TIER.light.sheet.border,` (a CORRECT own-half read, wrapped)
+Result: **EXIT 1** — a false red, naming the file. The disclosure is accurate: the ceiling fails
+  CLOSED. Zero occurrences of the wrapped spelling under `ui/` today, so it costs nothing now,
+  and when it arrives it arrives as a red a maintainer must answer, not as silence.
+Restore: verified byte-identical (porcelain empty)
+```
+
+### Fix-introduced regressions in the blast radius — none found
+
+- **No swallow, no downgrade, anywhere in the fix round.** Across all eleven fix branches'
+  production files, `git diff addd03f..250e12f` deletes **zero** `console.warn` / `console.error` /
+  `console.log` lines and adds **zero** `catch` / `void fn()` / bare `.then()` / `Promise.all`.
+- **The honesty machinery is untouched by the fix round.** `run-import.ts`, `importResultData.ts`,
+  `extract-client.ts`, `geocode.ts` and `app/api/extract/route.ts` appear in no fix commit, and
+  D12's amber survives verbatim — both `#ffd07a` blocks still in `ImportModal.tsx`. F26 moving
+  `Banner` onto `severityTone` does not touch it: the fallback notice was never a Banner (D12), and
+  F26 only replaces Banner's private token trio with the shared recipe.
+- **F31's distinctness guard is real, not decoration.** It is the fix to a partial-collapse
+  survivor, and the shape is right — `expect(new Set([rec.dot, paused.dot, ready.dot]).size).toBe(3)`
+  beside the three equalities, with a comment naming why the equalities alone stay green under a
+  two-arm collapse. That is the count-it-and-assert-it treatment this lane asks for.
+- **F45 closes my r1 dropped observation as a bonus.** `SIZES` is now
+  `as const satisfies Record<ButtonSize, ...>` (`button-recipe.ts:148`). I had traced the
+  `SIZES[size]` silent-empty-spread in r1 and DROPPED it at the pre-report gate for want of a
+  reachable input; the closer makes a missing size a compile error, which is the completeness half
+  of that concern, landed by another lane on its own reasoning.
+- Full suite at the merged head after every restore: **290 files / 3,899 passed | 4 todo, exit 0**.
+
+### Round 1 Summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 — **no new findings**
+Prior-round dispositions: **F32 FIXED** (both of my r1 HIGHs — the survivor re-planted and KILLED,
+and the backstop now fires on the adoption case it structurally could not see) · **F33 FIXED**
+(all three r1 arms re-probed, two of them former survivors, all KILLED; no false red; W1/F23's
+multi-line destructure closure restored as a side effect). **3 of 3 closed, 0 PARTIAL, 0 UNFIXED.**
+Verdict: **APPROVE**
+
+Fallback honesty: **yes** — untouched by the fix round; D12's amber verified verbatim at both sites.
+Failure-cause distinctions preserved: **yes**, and improved — F33 now distinguishes an own-half arm
+read from a cross-half one, where r1 collapsed both into "skipped"; F31 adds a distinctness assert.
+Partial results flagged (not silently short): **YES — the r1 answer was NO, and both scans are now
+honest.** Neither of my two survivors survives at `250e12f`.
+Async cancellation / stale-write safety: **n/a** — no async or store write in the fix delta.
+Operator breadcrumbs intact: **yes** — zero `console.*` removals across the whole fix round.
+Probes: **7 run this round** — 6 KILLED (2 re-runs of r1 survivors, the adoption case, the
+multi-line destructure blast-radius check, the wrapped-arm ceiling, and the F32 re-plant), 1 clean
+negative control (the untouched tree, exit 0, no false red). **0 SURVIVED.** Every restore proven
+byte-identical; teardown verified — `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 ·
+exit 0.
+
+Out-of-lane observations:
+- Worth recording for the campaign: F33 is the first fix in this campaign to close a hole the
+  reviewer did NOT file (the multi-line destructure, re-opened by r1's whole-line filter and shut
+  again by the input split). Splitting a scan's forms onto their own inputs, rather than
+  pre-processing one shared copy, is the generalisable lesson.
+- The carve-out class is now four rounds old (W0/F2, W1/F16, W1/F23, W2/F32-F33) and F32 is the
+  first entry to make its exemption key TYPE-CHECKED (`` `${Role}:${string}` ``). That, plus
+  `one-switch-renderer.test.ts`'s no-list-at-all shape, is the pair worth writing into the plan.
+- No foreign content was found in my lane file, and I wrote no other path.
+
+---
+
+## Round 0 (initial review, retained)
+
 Mode: code review (fresh seat; predecessor retired, judgement carried from `w0/` + `w1/`).
 Single question: **where in this change does a real failure become invisible to the visitor, the
 operator, or the next maintainer?**

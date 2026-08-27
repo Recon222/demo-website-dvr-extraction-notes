@@ -1,3 +1,146 @@
+# Lane: typescript — W2 (PR #42)
+
+## Round 1 (fix delta)
+
+Head `250e12f` (fix-merge). Delta read: `git diff addd03f..250e12f -- . ':(exclude)docs'` — 34
+files. Authority: the round-1 mapping comment on PR #42. Warm seat — I re-read only the fix
+commits' lines plus what they now depend on; `Banner.tsx` and `_shared.tsx`'s `Toggle` were
+**restructured**, so those two were re-read in full.
+
+Gates re-run cold in my own probe worktree (`probe-w2d-typescript-f26` off `250e12f`, solo):
+`rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` -> **exit 0** ·
+`node .design-sync/check-rn-parity.mjs` -> **exit 0, 135/135** ·
+`pnpm test --silent` -> **290 files / 3,899 passed / 4 todo, exit 0**.
+
+### Per-finding status
+
+| # (r0) | Aggregator | Status | Evidence |
+|---|---|---|---|
+| HIGH — Banner builds the trio privately | **F26** (`7cf2caa`) | **FIXED** | probes r1-A / r1-B below |
+| MEDIUM — `CheckboxBox` glyph cast | F45 (`44abc84`) | **FIXED** | cast gone, table closed |
+| MEDIUM — five orphaned imports | F36 (`4391f77`) | **FIXED** | all five gone |
+| LOW — dead style keys in `AlertDialog` | F47 (`0ed7b19`) | **FIXED** | only `flex: 1` left |
+
+---
+
+**F26 — FIXED.** `Banner.tsx:155` is now `const tone = severityTone(severity)`; the three private
+palette reads are deleted and the fill / border / foreground all spend `tone.background`,
+`tone.borderColor` and `tone.color` (`:179-183`, `:196`, `:204`). `BannerSeverity` is **deleted**,
+not aliased — `grep -rn "BannerSeverity" features/demo app components lib` returns one hit, the
+tombstone comment at `Banner.tsx:76` — and `SEVERITY_ICON` / `BannerProps.severity` now key on
+`StatusSeverity`. My finding's third touch-point is closed too: `banner.test.tsx:8` imports
+`SEVERITIES` from the seam instead of re-typing the four locally.
+
+Re-probe at the merged head, both directions:
+
+```
+MUTATION PROBE (r1-A): the r0 survivor, re-run verbatim
+Target: features/demo/ui/tokens/status.ts:121 -- severityTone().background
+Claimed pin: features/demo/ui/controls/__tests__/banner.test.tsx (24 cases)
+Mutation applied: background reads the *Light token -> reads the *Dark token
+Result: SURVIVED       (from exit code 0) -- and this is now CORRECT, not a defect.
+  The fix made the pin RELATIVE: banner.test.tsx:8 reads its expectation off severityTone as
+  well, so component and oracle move together under this mutation. It is no longer a falsifying
+  mutation for that suite. The seam's VALUES stay pinned where they belong -- same mutation,
+  same run: tokens/__tests__/status.test.ts + screens/__tests__/status-owners.test.tsx
+  = 4 FAILED / 21, unchanged from r0. So the mutation is still shipped, non-equivalent,
+  covered, and observable on an arm that executed -- all four control clauses.
+
+MUTATION PROBE (r1-B): the direction that now matters -- the F26 defect itself
+Target: features/demo/ui/controls/Banner.tsx:155
+Mutation applied: resurrect the private trio verbatim (three palette reads for fill / border /
+  foreground, replacing the severityTone call), PLUS the r1-A seam re-point -- i.e. exactly the
+  real-world scenario F26 named: the seam is re-tinted and Banner does not follow.
+Result: KILLED       (from exit code 1)
+  5 FAILED, e.g. "expected 'rgb(46, 95, 151)' to be 'rgb(122, 159, 196)'", across all four
+  severities plus the fill case. This is the mapping's "probe B: 4 failed on the old shape",
+  reproduced independently. The failure mode I filed is now caught.
+Provenance: canonical source in probe worktree probe-w2d-typescript-f26 off 250e12f; no mirrored
+  copy involved. Motion mode: default (motion-ON, vitest.setup.ts matchMedia stub) -- irrelevant
+  to this target, stated per contract.
+Restore: verified byte-identical (git checkout -- on both files, git diff --quiet clean;
+  banner + status + status-owners 45/45 green). Worktree torn down with tools/worktree-remove.ps1
+  -- "unlinked 549 junction(s) in 2 pass(es)", .pnpm 240 -> 240, exit 0.
+```
+
+**Disclosed residual, not a finding.** Resurrecting the private trio *without* moving the seam is
+invisible to any value pin, because the two produce byte-identical output — the defect was a
+COUPLING defect, and a behaviourally-inert regression cannot be caught by a rendered-value
+assertion. The relative pin catches the only version of it that can hurt anyone. I checked for a
+source-text coupling pin and there is none; I am **not** asking for one — that is the
+`mutation-testing` SKILL's string-presence trap, and it would stay green over a dead import.
+
+**MEDIUM (glyph cast) — FIXED**, and better than I proposed. `choice-controls.tsx:236` now reads
+the table through a template-literal index with no cast, and the table itself is closed by
+`as const satisfies Record<...CheckboxChecked expansion..., ReactNode>`. Keying the record off the
+union's own expansion makes widening `CheckboxChecked` a compile error at the DECLARATION rather
+than at the read — strictly stronger than the ternary I suggested, and it matches the
+"COMPILE ERROR rather than a runtime `undefined`" discipline in `status.ts:36-38` that I cited as
+the in-repo contrast.
+
+**MEDIUM (orphaned imports) — FIXED.** All five bindings I cited are gone (`AlertDialog.tsx`
+`GLASS`; `ExportModal.tsx` `GLASS` and the `ExportModalMode` type; `_pane-chrome.tsx` `colors`;
+`palette-contrast.test.ts` `GLASS`), verified by grep on the import blocks at `250e12f`. The
+mapping discloses that 11 `TS6133` remain repo-wide with `noUnusedLocals` ledgered and its trigger
+answered "not yet"; I re-ran `tsc --noUnusedLocals` and confirm **11**, and confirm **none of them
+land on the five files I cited**. That residual is the integrator's disclosed scope with a ledger
+entry — not re-filed.
+
+**LOW (dead style keys) — FIXED.** `AlertDialog.tsx`'s action button now writes `flex: 1` and
+nothing else before the `buttonStyle` spread; `padding: 12`, `fontSize: 14.5`, `fontWeight: 600`
+and `cursor: 'pointer'` are gone.
+
+### Fix fallout in my territory — checked, clean
+
+- **F39 `disabled?: { reasonId: string }` (`_shared.tsx`, `18654fd`) — shipped shape is correct,
+  and the `aria-disabled` friction the diagnostics stream showed is resolved.** The hazard in an
+  object-valued flag is writing it straight through: `aria-disabled={disabled || undefined}` would
+  emit the OBJECT. The shipped lines are `'aria-disabled': disabled ? true : undefined` and
+  `'aria-describedby': disabled?.reasonId`, so the attribute is a real boolean and the reason can
+  no longer be set on an enabled switch. `activate` still gates on `!disabled` (object
+  truthiness), and `cursor` / `opacity` read it the same way. All eleven call sites pass the
+  object form or omit it (`AppearancePane.tsx:43`, `CloudSyncPane.tsx:57`,
+  `FormFieldsPane.tsx:239,265`; the rest omit) — tsc exit 0 is the proof the migration is
+  exhaustive. This is a genuine invalid-state fix: the old `disabled: boolean` +
+  `describedBy?: string` pair made "disabled with no reason" representable; one member carrying
+  both facts does not.
+- **F44/F45 `satisfies` closers — no widening, no fallout.** Twelve `as const satisfies` closers
+  added across `button-recipe.ts`, `sheet-chrome.ts` and `choice-controls.tsx`, including `SIZES`
+  (`Record<ButtonSize, Pick<CSSProperties, 'padding' | 'minHeight' | 'fontSize'>>`, which an
+  annotation had left MUTABLE), `PrimaryButtonGradient` / `ElevatedEdges` / `DangerFill`
+  (`Record<ColorScheme, ...>`) and the ten `sheet-chrome` fragments (`CSSProperties`).
+  `as const satisfies` rather than a bare annotation throughout, so no literal type was lost and
+  no consumer's inferred type moved — tsc exit 0 over the whole tree confirms it.
+- **Regression sweeps re-run at `250e12f`.** Zero new `any` / `as any` / `Date.now()` /
+  `Math.random()` / `key={index}` / Tailwind `className` in the fix diff. Scripted
+  border-shorthand-after-spread sweep across every `buttonStyle`, `glassWell`, `sheetSurface`,
+  `dialogSurface` and `severityTone` spread consumer: zero code hits (the only three matches are
+  the docblock prose at `glass-tokens.ts:304` that *documents* the forbidden shapes). Store bridge
+  (`useStore` in `DemoExperience.tsx` only), engine purity, single barrel and marketing/demo
+  isolation are all unmoved by the fix round; the only non-`features/` files the fix touches are
+  `.design-sync/check-rn-parity.mjs` and `vitest.setup.ts`, neither an import edge.
+
+### Round 1 summary
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 — **all four r0 findings FIXED, zero new**.
+
+Store-bridge integrity: preserved
+Engine purity: preserved
+Barrel + marketing/demo isolation: preserved
+Determinism seam: preserved
+
+**Verdict: APPROVE**
+
+Notes: F26's fix converts a value pin into a relative one, which is the right shape — the r0
+survivor now survives *by construction*, and the mutation that reproduces the real failure mode
+(seam re-tinted, Banner stale) KILLS with 5 reds. F39's object-valued `disabled` is the strongest
+change in the round: it makes "disabled with no stated reason" unrepresentable rather than merely
+discouraged.
+
+Out-of-lane observations: none new.
+
+---
+
 # Lane: typescript — W2 (PR #42, `feat/uiparity-w2` @ `7bcb553` vs `master` @ `43ccbad`)
 
 Mode: code review. Fresh seat; w0/w1 lane files and vetted docs read as inherited precedent, not

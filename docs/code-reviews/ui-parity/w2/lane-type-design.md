@@ -1,5 +1,280 @@
 # Lane: type-design — Wave 2 (U2 + U3 + U4), PR #42
 
+## Round 1 (fix delta)
+
+Warm, scoped. Phase branch `feat/uiparity-w2` @ `250e12f`, delta `addd03f..250e12f`. Authority:
+the round-1 fix-mapping comment on PR #42. Read the delta only, plus the lines each fix now
+depends on. Probes ran in `probe/w2d-types-scan` (own worktree off `250e12f`), torn down via
+`tools/worktree-remove.ps1` — **"unlinked 549 junction(s) in 2 pass(es)"**, `.pnpm` 240 → 240,
+exit 0; branch deleted.
+
+Baseline at `250e12f` in the probe tree, BEFORE any mutation:
+`rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` → **EXIT 0**;
+`glass-tokens.test.ts` → **7 passed, exit 0**. That green run is itself the F33 negative control:
+the CORRECT `DangerFill` (`light: palette.light.errorDark` / `dark: palette.dark.errorLight`) is
+live in a scanned file and the new mask still exempts it.
+
+### My findings, per the mapping
+
+| F-ID | My r0 finding | Status |
+|---|---|---|
+| F33 | record-arm skip re-opens two forms (my HIGH; aggregator DEMOTED to MEDIUM) | **FIXED** |
+| F26 | `Banner` re-declares `StatusSeverity` and re-derives the trio (my M2) | **FIXED** |
+| F38 | 22 mutable `: CSSProperties` fragments (my M1) | **PARTIAL** — 14 of 22, see below |
+| F39 | `Toggle`'s `disabled`/`describedBy` split pair (my M3) | **FIXED** |
+| F44 | `GLYPH` indexed through an `as` cast (my L2) | **FIXED** |
+| F45 | the three two-half records do not name `ColorScheme` (my L1) | **FIXED** |
+| F49 | — | **NOT MINE** — the vetted doc attributes it to the tests lane (`### F49 … Lanes: tests`). The coordinator's brief listed it in my set; I neither confirm nor disclaim it (contract §7) |
+
+I accept the F33 demotion. The aggregator's stated ground — consistency with F18/F23/F24, same
+scan, same use-day, and a scheduled check on the flip day — is the right frame, and it is the
+frame my own W1 round-1 MEDIUM used for the identical class.
+
+---
+
+### F33 — FIXED. Both of my round-1 survivors now KILL, and so does the mirror I did not file.
+
+`a064b06` does not narrow the pre-processing; it gives the two forms **different inputs**, which
+is the resolution of the record-arm / destructure-rename ambiguity I flagged as the difficulty
+and left to the fix author. `glass-tokens.test.ts:345-349`:
+
+```
+SCHEME_HALF.destructure.test(src) || SCHEME_HALF.memberAccess.test(maskOwnHalfArms(src))
+```
+
+`maskOwnHalfArms` (`:171-177`) blanks the arm's key and its OWN-half reads and **leaves the rest
+of the line standing**, so a cross-half read inside an arm still reaches `memberAccess`. That is
+half 2 of my prescription, and it is the half I marked PRESCRIPTION-UNVERIFIED; the author solved
+it a different way than my sketch (mask-the-own-half rather than skip-the-arm) and their way is
+better, because it keeps the arm's other content under the scan instead of dropping it.
+
+Three probes, one mutation each, all against the CANONICAL production files:
+
+```
+r0, 7bcb553   light: palette.light.errorDark -> palette.dark.errorDark   SURVIVED  exit 0
+r1, 250e12f   the SAME mutation                                          KILLED    exit 1
+              AssertionError: expected [ 'controls/button-recipe.ts' ] to deeply equal []
+
+r0, 7bcb553   4-line destructure of GLASS_TIER at header-chrome.ts:72    SURVIVED  exit 0
+r1, 250e12f   the SAME mutation                                          KILLED    exit 1
+              AssertionError: expected [ 'controls/header-chrome.ts' ] to deeply equal []
+
+NEW, r1       MIRROR ARM: dark: palette.dark.errorLight -> palette.light.errorLight
+                                                                         KILLED    exit 1
+              AssertionError: expected [ 'controls/button-recipe.ts' ] to deeply equal []
+```
+
+The mirror is the one I did not file and the fix's own new risk surface — the mask is built
+per-half, so `light` working proves nothing about `dark`. It works. Restores proved after each:
+`git checkout --`, `git status --short` and `git diff --stat` both empty, suite green again 7/7.
+
+#### The literal-regex "fail-open" rationale — the DECISION is right, the stated direction is backwards
+
+`glass-tokens.test.ts:161-170` justifies writing `OWN_HALF_READ` as two literal regexes rather
+than `new RegExp` built from a template: *"one lost backslash turns the pattern into
+`(.s*|[s*['"])light`, which masks nothing, and the only symptom is an exemption that silently
+stops exempting. A mask is the one place a regex failing OPEN is invisible."*
+
+**Measured, not reasoned.** PROBE D, canonical `glass-tokens.test.ts`: replace
+`light: /(\.\s*|\[\s*['"])light\b/g` with `light: /ZZNEVERMATCHZZ/g` — a mask that masks nothing.
+
+```
+Result: KILLED, exit 1 — "AssertionError: expected [ 'controls/button-recipe.ts' ]
+                          to deeply equal []"   Tests 1 failed | 6 passed (7)
+Restore: verified byte-identical.
+```
+
+A mask that stops masking produces a **FALSE RED that names the file** — loud, immediate, and
+the safe direction. It is the mirror case (a mask that masks MORE) that could hide something, and
+that direction cannot: `OWN_HALF_READ[half]` only ever over-masks the half it is already licensed
+to exempt, so a broken `light` pattern still cannot conceal a `dark` read inside a `light:` arm.
+
+So: keep the literal regexes — the choice costs nothing and removes a real escaping-bug class —
+but the docblock's failure analysis is inverted, and it is the kind of comment a later reader will
+act on. **One caveat that IS true and is worth writing instead:** the loudness is contingent on a
+live arm existing to red. `DangerFill` is the only two-half record whose arms contain an own-half
+READ (`PrimaryButtonGradient` and `ElevatedEdges` hold literals). Delete or re-literal that one
+record and the mask has nothing to exempt, at which point a broken pattern IS silent. Not a
+finding — a one-line correction to `:161-170`, and the accurate version of the claim it makes.
+
+---
+
+### F26 — FIXED, all three touch-points
+
+`Banner.tsx:6` now imports `severityTone` and `StatusSeverity` from the seam; `:115`
+`severity: StatusSeverity`; `:87` `SEVERITY_ICON: Record<StatusSeverity, JSX.Element>`; `:159`
+`const tone = severityTone(severity)` replaces the two private `colors[...]` template reads.
+`BannerSeverity` is **deleted**, with a tombstone at `:76-77` naming what it duplicated and why —
+which is the right disposition for a re-declaration, better than an alias. The third touch-point
+is closed too: `banner.test.tsx:8` imports the seam's `SEVERITIES` and `:32` records the rule
+("not a local re-type"), and `:113`/`:131`/`:217` read expectations off `severityTone` rather than
+re-deriving from `palette`, so mutating the seam now reds the Banner suite. `status.ts:113`'s
+claim that "every badge, chip, pill, note **and banner** … resolves here" is true as of this
+commit.
+
+### F39 — FIXED, and pinned harder than I asked
+
+`18654fd` ships `disabled?: { reasonId: string }` (`_shared.tsx:685`) — one of the two forms I
+named — and closes the MIRROR direction I only mentioned in passing: a reason id on a live switch
+is now unrepresentable as well. Both consumers derive from the one member
+(`'aria-disabled': disabled ? true : undefined`, `'aria-describedby': disabled?.reasonId`). All
+four call sites migrated, including the two conditional ones —
+`FormFieldsPane.tsx:239` and `:265` are now `disabled={locked ? { reasonId: lockId(step.id) } : undefined}`.
+
+The pin is the part I did not prescribe and it is the better half:
+`Toggle.test.tsx:150-170` is a **compile-time** `@ts-expect-error` probe on the props type, in the
+repo's own idiom (it cites `store/__tests__/crud-actions.test.ts:80-96`), covering both rejected
+shapes plus the one accepted shape.
+
+**Probed the pin rather than reading it.** Mutation: revert `_shared.tsx:685` to
+`disabled?: boolean`.
+
+```
+Result: KILLED, tsc EXIT 2 — and the load-bearing line is
+  Toggle.test.tsx(162,7): error TS2578: Unused '@ts-expect-error' directive.
+  (plus TS2322 at :72, :88, :168 from the call sites)
+Restore: verified byte-identical, tsc back to EXIT 0.
+```
+
+TS2578 is what makes the pin falsifiable rather than decorative: the moment the type stops
+rejecting the bad shape, the directive that asserts the rejection becomes an error itself.
+
+### F44 — FIXED, in the exact idiom, and the round-1 survivor now KILLS at compile time
+
+`choice-controls.tsx:194` is now
+`} as const satisfies Record<`${CheckboxChecked}`, ReactNode>`, and `:236` is `GLYPH[`${checked}`]`
+with the `as keyof typeof GLYPH` cast **removed** — so the index is checked rather than asserted.
+
+```
+r0, 7bcb553   CheckboxChecked += | 'pending'    SURVIVED  tsc EXIT 0
+r1, 250e12f   the SAME mutation                 KILLED    tsc EXIT 2, in BOTH places:
+  choice-controls.tsx(194,12): TS1360: … 'pending' is missing in type
+                               'Record<"true" | "false" | "mixed" | "pending", ReactNode>'
+  choice-controls.tsx(236,8):  TS7053: Element implicitly has an 'any' type …
+Restore: verified byte-identical.
+```
+
+Two errors rather than one is the point: the table and the read are now independently anchored to
+the union.
+
+### F45 — FIXED, and the kill moved from the test file to the constant
+
+`44abc84` puts `satisfies Record<ColorScheme, …>` on all three
+(`button-recipe.ts:81`, `:95`, `:111`) and imports `ColorScheme` at `:4`. `SIZES` came with it
+(`:144-148`, `as const satisfies Record<ButtonSize, Pick<CSSProperties, …>>`) — F38's
+`button-recipe.ts` touch-point, landed by this seat.
+
+```
+r0, 7bcb553   delete ElevatedEdges' `light:` arm   KILLED, but only at
+                button-recipe.test.tsx(51,26): TS2339 — production module compiled clean
+r1, 250e12f   the SAME mutation                    KILLED at the CONSTANT:
+                button-recipe.ts(94,12): TS1360: … Property 'light' is missing in type …
+                but required in type 'Record<"light" | "dark", { top: string; bottom: string; }>'
+                (the test-file TS2339 still fires too — belt and braces)
+Restore: verified byte-identical.
+```
+
+That is precisely the gap the finding named: a half-drop was a test-file failure and is now a
+type failure at the declaration. The mapping notes the seat "refuted two 'uncaught direction'
+claims by tsc probes" — those were construction sites I listed and did not probe, and the fix
+lands regardless, so there is nothing for me to contest.
+
+---
+
+## F38 — PARTIAL
+
+The fix plan in the vetted doc split the 22 sites across six seats. **Two landed, four did not.**
+
+```
+[MEDIUM] F38 is 14 of 22 — `sheet-chrome.ts` and `SIZES` are closed; `dialogSurface`,
+         `modalSheet`/`modalScrim`/`modalHeaderBar`, the Banner fragments and the whole of
+         `EmptyState.tsx` are still mutable. Two of the three exported surfaces I named as
+         "spread by every sheet, dialog and modal" are unchanged.
+File: DONE — controls/sheet-chrome.ts (13 sites, all now `as const satisfies CSSProperties`);
+      controls/button-recipe.ts:144 (`SIZES`).
+      NOT DONE — controls/CentredDialog.tsx:76 (`dialogSurface`), :114 (`dialogScrim`);
+      screens/_shared.tsx:97 (`modalScrim`), :108 (`modalSheet`), :137 (`modalSheetEnter`),
+      :174 (`modalHeaderBar`), :55 (`grid`), :200 (`modalHeaderIconBtn`);
+      controls/Banner.tsx:125, :145; controls/EmptyState.tsx:56, :65, :77.
+      (`_shared.tsx:552`, `:730` and `choice-controls.tsx:217` are function-locals and were
+      correctly never in scope.)
+Evidence — the round-0 probe re-run at `250e12f`, same five-assignment file, same compiler run:
+      sheetSurface.background = 'red'   TS2540 read-only   <- NOW CLOSED
+      dialogSurface.padding = 999       COMPILES           <- still open
+      modalSheet.top = 0                COMPILES           <- still open
+      modalHeaderBar.padding = 1        COMPILES           <- still open
+  Probe file created and deleted inside the probe worktree; `git status --short` empty after.
+  Per the vetted doc's own assignment table the outstanding seats are U4.3 (`CentredDialog.tsx`,
+  which shipped F41/F43 in `236d83d`/`5c07ed5`/`0ed7b19` without it), U4.2 (`_shared.tsx`, which
+  shipped F30 in `6b5e8f3` without it) and U3.3 (`Banner.tsx`, which shipped F26 in
+  `7cf2caa`/`194d0cd` without it, plus the `EmptyState.tsx` rider it had declared).
+Fix: unchanged — `} as const satisfies CSSProperties` on the thirteen remaining module-level
+  fragments. `sheet-chrome.ts` is now the in-repo worked example for the other three files, and
+  its conversion caused no consumer breakage (tsc EXIT 0, `sheet-chrome.test.tsx` green), which
+  removes the only reason a seat might have hesitated.
+```
+
+This is PARTIAL and not UNFIXED because the largest and highest-traffic file (13 of 22 sites,
+including `sheetSurface` — the fragment every sheet in the demo spreads) is done and done
+correctly, and because the remainder is a mechanical one-token change per site with a proven-safe
+precedent now sitting beside it.
+
+---
+
+## Regression sweep over the fix commits' blast radius
+
+- **The scan's rewrite touches every file under `ui/`** — the mask now runs on ~138 non-test
+  modules where the old line filter did. No new offender and no false red: `glass-tokens.test.ts`
+  7/7 at the fix head, and the mask's disclosed limitation (an arm whose value wraps to the next
+  line raises a FALSE RED) is measured at zero occurrences and fails in the loud direction. The
+  `SCHEME_HALF` array became a named object — `memberAccess` / `destructure` — which is a
+  readability gain and, more usefully, makes "which form ran against which input" visible at the
+  call site rather than inferable from ordering.
+- **`sheet-chrome.ts`'s 13 fragments became `as const`** and are now readonly. No consumer broke:
+  `GlassBottomSheet.tsx:334` spreads `sheetSurface` into a fresh `panel` object, which is
+  assignment-free. `tsc` EXIT 0; `sheet-chrome.test.tsx` and `GlassBottomSheet.test.tsx` green.
+- **`Banner.tsx` lost its private trio** and gained a `severityTone` dependency. `Banner` is
+  rendered by four screens (`DateDisambiguationWarning`, `EditIncidentLocationModal`,
+  `ExtractedScopeScreen`, `import/PickerStage`); all four suites are in the delta and green.
+- **`Toggle`'s props became a union-free but object-carrying shape.** `one-switch-renderer.test.ts`
+  still passes, so no fourth switch renderer appeared under cover of the migration.
+- **`button-recipe.ts` gained a `type ColorScheme` import**, joining `colors`/`palette`/`scheme`
+  from the same module. No cycle (`palette.ts` imports nothing); `tsc` EXIT 0.
+- Blast-radius suites at the fix head, in one run: `glass-tokens` + `button-recipe` + `banner` +
+  `Toggle` + `choice-controls` + `sheet-chrome` → **6 files, 106 passed, exit 0**.
+  `tsc --noEmit --incremental false` → **EXIT 0** (cold, `tsconfig.tsbuildinfo` deleted first).
+
+**No fix-introduced regressions found in my lane.**
+
+---
+
+## Type Design Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 · LOW: 0
+Prior-round findings: F33 **FIXED** · F26 **FIXED** · F39 **FIXED** · F44 **FIXED** ·
+F45 **FIXED** · F38 **PARTIAL** (0 UNFIXED)
+Verdict: **APPROVE with comments**
+
+| Check | Result |
+|---|---|
+| Fixes address the finding, not the symptom | **yes** — F33 solved the ambiguity by giving the two forms different inputs rather than by narrowing one filter, which is a better answer than my sketch; F39 and F44 each closed a mirror direction I had not asked for |
+| Fix-introduced regressions in blast radius | **none** |
+| Prescriptions superseded on evidence | **one** — my "narrow the arm skip to the arm's own half" became "mask the arm's own-half READS and leave the rest of the line under the scan", which keeps coverage my version would have dropped |
+| Claims checked rather than read | **four** — the F33 mask (3 probes incl. the mirror arm I never filed), the F39 `@ts-expect-error` pin (TS2578), the F44 template-index (TS1360 + TS7053), the F45 constant-level kill (TS1360) |
+| The literal-regex fail-open rationale (coordinator's question) | **decision sound, stated direction backwards** — PROBE D shows a neutered mask REDS loudly and names the file; the true caveat is that this loudness is contingent on `DangerFill` remaining the one live arm with an own-half read. One-line docblock correction, not a finding |
+| Mutation probes this round | **6 run — 6 KILLED, 0 SURVIVED**, plus the clean-tree negative control (correct `DangerFill` still exempt) and the F38 re-probe with its in-run `sheetSurface` control. All restores proved byte-identical (`git status --short` and `git diff --stat` empty); worktree torn down with the script's proof line |
+
+Out-of-lane observations:
+- F49 was routed to me by the coordinator's brief but the vetted doc attributes it to the tests
+  lane. Not judged here — flagging the misroute so it does not fall between two seats.
+- F38's four unlanded touch-points sit in three seats' files that each shipped OTHER findings this
+  round, so the omission looks like per-seat scope rather than disagreement. If any of the three
+  refuted it, I saw no such note in the mapping comment.
+
+---
+
+## Round 0 (initial review) — retained below
+
+
 Mode: **code review**, round 1. Fresh seat; the predecessor's `w0/lane-type-design.md` and
 `w1/lane-type-design.md` were read in full and their rulings are treated as settled precedent.
 Branch `feat/uiparity-w2` @ `7bcb553` vs `master` @ `43ccbad`; diff

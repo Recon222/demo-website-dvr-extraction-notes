@@ -1,5 +1,237 @@
 # Lane: web — W2 (phases U2 + U3 + U4), PR #42
 
+## Round 1 (fix delta)
+
+Head reviewed: `feat/uiparity-w2` @ `250e12f` (repo HEAD `c1892d1`, one docs-only commit past it).
+Fix diff `addd03f..250e12f`. Shared worktree `worktrees/w2-wave`, read-only. Authority: the
+**fix-mapping comment on PR #42**, which names all four of my findings —
+**F27** (`uiparity/w2-fix-pickers`), **F34** + **F35** + **F46** (`uiparity/w2-fix-sheet`).
+
+Read this round, and nothing more: the mapping comment; `VETTED-r1.md`'s F27/F29/F34/F35/F41/F43/F46
+entries; the seven fix commits below in full including their bodies; the four changed sources at the
+current SHA; and `u4.3-implementation-report.md:700-713`, which a changed line now depends on.
+
+**Rendered evidence, because the re-cut captures had not landed.** `_captures/w2/` at read time holds
+`after/` (still `7bcb553`), a `control-7bcb553/` noise-floor run and `DIFF.md` — **no `after-fixed/`**.
+So I drove a real browser at the fix head instead: probe worktree `probe-w2d-web-rendered` @ `250e12f`
+(cut + installed 3.8 s), `pnpm dev --port 3011`, and the repo's own Playwright harness
+(`docs/planning/demo-phone-ui-parity/verification/lib.js` + `flows.js`, run from `worktrees/_pw`) at
+the verification seat's own settings — **1440×1000, deviceScaleFactor 2, `reducedMotion: 'reduce'`**,
+so `usePhoneScale()` pins to 1.0 and the phone renders 1:1. Chromium 1.60, real layout, real
+compositing. Two drivers, one jsdom probe file, one build. Probe tree `git status --short` empty at
+teardown; removed with `tools/worktree-remove.ps1` — *"unlinked 549 junction(s) in 2 pass(es) ·
+.pnpm 240 → 240 · OK"*, exit 0; branch deleted; the two driver scripts deleted from `_pw`.
+
+---
+
+### F27 [HIGH, mine] — **FIXED.** Re-sampled from real pixels: 1.33:1 → **5.31:1**
+
+`4b03874` exports `UNCHECKED_MARK_EDGE = colors.textTertiary` (`choice-controls.tsx:69`) and both
+controls read it — the ring at `:116`, the box at `:224`. That is the root-cause shape my finding
+asked for: one constant, four consumers, one edit.
+
+Measured at `250e12f` on the live Export Hub, same scan line as round 0, same card ground pixel:
+
+```
+x=155..175  card          rgb(13,55,99)      <- identical to the round-0 sample
+x=176..179  box border    rgb(122,159,196)   <- #7a9fc4, 4 device px = 2 CSS px
+x=180..219  box fill      rgb(0,40,83)
+x=220..223  box border    rgb(122,159,196)
+```
+
+| | border vs card | border vs its own fill | best carrier | floor |
+|---|---|---|---|---|
+| `7bcb553` (round 0) | 1.18 | 1.33 | **1.33 FAIL** | 3.0 |
+| `250e12f` (this round) | **4.35** | **5.31** | **5.31 PASS** | 3.0 |
+
+`getComputedStyle` at the element agrees: `borderTopColor rgb(122, 159, 196)`, `borderTopWidth 2px`,
+`backgroundColor rgb(0, 40, 83)`, `aria-checked="false"`. The opaque fill is deliberately kept, and
+it no longer has to carry the boundary alone.
+
+**The refutation I asked for is answered better than I asked.** I offered `textTertiary` as "the
+smallest change"; the commit takes it and adds the reason I did not have — lifting further would
+make an UNSELECTED option louder than the `link` edge of the selected one (6.83). And the pin moved
+the way the finding required: `palette-contrast.test.ts` now bounds the RATIO at
+`UNCHECKED_MARK_EDGE` against `DARK_GROUNDS`/`LIGHT_GROUNDS`, not the hex. The author then found,
+with probe W-F27b, that a constant-composed equality pin moves with the control and **SURVIVED** a
+revert to `colors.border` — and shipped `f2303ed` to name the failing value explicitly
+(`expect(...).not.toBe(jsdomColor(colors.border))`). That is the same class of self-catch my probe 4
+reported, found independently and closed. Divergence from the phone is recorded at the site with
+both citations (C.3 rule 4, D5's `primaryDark` precedent) and a phone-side follow-up named for §8.
+
+### F34 [MEDIUM, mine] — **PARTIAL.** Three of four touch-points; `DIALOG_SHADOW` is still a lone dark literal
+
+`18a7033` fixes the three in `sheet-chrome.ts`, exactly as the finding prescribed. Read at the
+current SHA and probed:
+
+```
+SHEET_SHADOWS.dark   = 0 -8px 40px rgba(0,0,0,0.5)              (unchanged)
+SHEET_SHADOWS.light  = 0 -8px 28px rgba(30, 58, 138, 0.15)      (Layout.ts:176-182, folded 0.15 x 1)
+SHEET_SHADOW         = SHEET_SHADOWS[scheme]                     (:85 — consumed, not spelled)
+accentDot.boxShadow  = scheme === 'dark' ? 0 0 4px rgba(43,140,193,0.4) : undefined   (:227)
+title.textShadow     = scheme === 'dark' ? 0 1px 2px rgba(0,0,0,0.3)    : undefined   (:242)
+DIALOG_SHADOW        = 0 8px 40px rgba(0,0,0,0.5)                <- STILL A SINGLE DARK LITERAL
+```
+
+Nothing the demo renders today moved — every dark value is byte-identical, which is the fix's own
+claim and it holds.
+
+**The fourth touch-point is open, and it is a dispatch gap rather than a silent miss.**
+`VETTED-r1.md`'s F34 Owner line assigns it explicitly: *"the `DIALOG_SHADOW` touch-point lands with
+`aacd7de1d0b63642a` (U4.3 seat, same one-line shape, its file)"*. That seat shipped F41/F43/F47 and
+says so in its own report (`u4.3-implementation-report.md:707-713`): *"my dispatch named F41/F43/F47
+only. `DIALOG_SHADOW` is the half I own if it comes back … it wants to land in the same commit as
+F34's `Record<ColorScheme, …>` rework, which is also not mine."* I accept that as honest disclosure
+and hold no fault against either seat — but the value is unfixed and nothing covers it: ledger §95's
+row is discharged by **F42**'s guard exclusion (`dd680f6`), which is the ANCHOR, not the missing
+light half. `Layout.ts:157-163` supplies it: `0 8px 28px rgba(30, 58, 138, 0.15)`.
+
+I also accept the disclosed **non-kill** on the two `scheme === 'dark' ?` gates. H2/H3 SURVIVED
+because the demo renders `dark`, so the gated and bare expressions are identical until a scheme flip
+— the same class U1.4 (P10) and U4.1 (P2) already recorded. The light-half value pin (H1) is real and
+KILLED. Deleting the deliberately-not-shipped `rgba(0,0,0` blanket scan was the right call for the
+reason given: it cannot tell a hard-coded half from one correctly resolved through `SHEET_SHADOWS[scheme]`.
+
+### F35 [MEDIUM, mine] — **FIXED.** Probed in both arms at the fix head
+
+`b9c14f6` takes the exact shape the finding named — `useReducedMotion()` from
+`@/lib/hooks/use-reduced-motion`, `animation: reducedMotion ? undefined : 'screenIn 0.3s ease'`
+(`PdfPreview.tsx:29,138`). Re-probed at `250e12f`, `matchMedia` stubbed to `matches: true`, one run,
+five components:
+
+```
+CentredDialog ""  ·  sheet panel ""  ·  sheet scrim ""  ·  ModalShell ""  ·  PdfPreview ""
+```
+
+That is the last cell of the table filled in — the same table that read `"screenIn 0.3s ease"` in
+round 0. The commit also ships the motion-ON arm positively beside the negative one, citing the
+`ExportModal.reduced-motion.test.tsx:44-46` precedent where a negative-only pin stayed green through
+a `spin 3s` mutation. Correct, and a stronger pin than the finding asked for.
+
+### F46 [LOW, mine] — **FIXED**, and my suggested alternative is correctly REFUTED
+
+`36a8438` makes the role, the tab stop and the key handler arrive together, all three gated on
+`closeLabel` (`GlassBottomSheet.tsx:404-419`): `tabIndex={closeLabel ? 0 : undefined}` and an inlined
+Enter/Space handler with `preventDefault()`.
+
+I offered two remedies; the author took the second and rejected the first on evidence I did not have:
+`ModalShell` and `CentredDialog` each render a labelled close button elsewhere, so a bare scrim costs
+them nothing, whereas **A82's map-filters sheet renders no close control of its own** — for that
+caller the scrim IS the announced exit, and dropping the role would have been a loss, not parity.
+That is right and I withdraw the alternative. Inlining `switchKeyDown` rather than importing it is
+also correct: `controls/` importing `screens/` would close a cycle, since `_shared.tsx` already
+imports `controls/header-chrome` — verified at head. No double-fire: a `div` is not a native button,
+so Enter/Space reach only the explicit handler, and `preventDefault()` stops Space scrolling.
+
+---
+
+## Coordinator-assigned rendered checks on three findings that are not mine
+
+### F43 [MEDIUM] — **FIXED**, rendered
+
+Live `ExportModal` validation prompt at the fix head, `getComputedStyle` on the shell's own nodes:
+
+```
+[data-dialog-scrim]  backgroundColor  rgba(0, 40, 83, 0.9)     <- colors.overlay; was rgba(4,8,14,0.66)
+[data-dialog-panel]  role alertdialog · padding 16px · borderRadius 12px
+                     boxShadow  rgba(0,0,0,0.25) 0 1px 0 inset,  rgba(0,0,0,0.5) 0 8px 40px
+allScrims on screen  exactly one, and it is the dialog's
+```
+
+`CentredDialog.tsx:117` reads `background: colors.overlay` at head, so all three centred dialogs move
+together. The near-black behind them is now the demo's deep navy, as the finding ruled and as the
+phone paints (`DeleteConfirmationModal.tsx:229`, `export/ExportModal.tsx:325,360`).
+
+### F41 [MEDIUM] — **FIXED**, rendered
+
+Same dialog, same read: the action row is `display: flex`, **`gap: 16px`** (`spacing.md`), two
+buttons — `Cancel` / `Export Anyway`. Was 8. The phone's value, at the rendered element.
+
+### F29 [HIGH] — **PARTIAL, and this is the round's one open regression.** The 3-up group still overflows, and the third chip is still clipped
+
+`dff6ce2` lands `minWidth: 0` and it is live — `getComputedStyle` on every label reads
+`min-width: 0px`, `flex-shrink: 1`. It halved the overflow. **It did not close it.** Measured on the
+real Form Fields pane, 378-frame at scale 1.0:
+
+```
+pane   settings-pane-form-customization   clientW 342   scrollW 363   contentRight 413
+group  role=radiogroup                    clientW 342   scrollW 363   right       413
+
+option              width   right    label scrollW/clientW   label height
+fc-profile-forensic 120.3   191.3    58 / 58                 24.5   (selected)
+fc-profile-limited  114.9   314.2    53 / 53                 24.5
+fc-profile-canvas   111.6   433.8    50 / 50                 24.5   <- 20.8px PAST the pane
+```
+
+`scrollW − clientW = 21px` on both the group and the pane, and the screenshot confirms it visually:
+**the "Canvas" chip's right border is cut off at the phone frame edge.**
+
+The labels are no longer the constraint — each renders at its natural width on one line
+(`scrollW == clientW`, height 24.5), so `minWidth: 0` did release the label floor. What still does not
+fit is the BUTTON's own automatic minimum: each option carries `padding: 8px 16px` (32) + a 20px ring
++ 8px ring margin = 60px of fixed chrome before any text, so three options plus two 8px gaps need
+≈ 60×3 + 58 + 53 + 50 + 16 = **357** against 342 available. `min-width: 0` on the label does not
+lower the `<button>` flex item's own `min-width: auto`.
+
+The docblocks now assert the fix works — `choice-controls.tsx:100-108` (*"`minWidth: 0` is what
+releases that floor"*) and `FormFieldsPane.tsx:152-157` (*"this row shipped ~42px past the pane's
+right padding"*, past tense). At the fix head it ships ~21px past, so both comments are now half
+true in the same way the pre-fix ones were: a comment describing the right idiom over code shipping
+part of it. **F29 should not be closed on this evidence.**
+
+Remedies, cheapest first — all one line, none of them a restyle: `minWidth: 0` on the `<button>` too
+(the option is itself a flex item of the radiogroup, and that is the floor actually binding); or drop
+the ring's 8px `marginRight` to `spacing.xs` at 3-up; or let the row wrap, which the component's own
+docblock already says the phone does (*"a controlled two-line wrap"*, `RadioGroup.tsx:184-187`) — the
+demo row sets no `flexWrap`, so today it cannot. The two-up and column consumers are unaffected by
+any of the three.
+
+---
+
+## Fix-introduced regressions in the blast radii — none found
+
+| Check | Result at `250e12f` |
+|---|---|
+| Lit-edge scan (comment/string-stripped, all non-test files under `features/demo/ui`) | 16 hits, the **same set** as round 0 — `choice-controls` moved 94 → 131 only because the new constant and docblock sit above it. No new post-spread border shorthand from any of the eleven fix branches. |
+| `vitest run` a11y + `controls/__tests__` + `palette-contrast` + `PdfPreview` + `screens/settings` | 20 files, **395 passed / 4 todo, 0 failed** |
+| `pnpm build` | exit 0 · `/demo` **107 kB** · `/` 121 · `/beta` 111 · `/features` 110 · `/features/[slug]` 120 · shared 106 — every route identical to round 0 and to `43ccbad` |
+| Marketing↔demo wall | fix diff touches no `components/`, `lib/` or `app/` file |
+| New listeners / timers | one: F46's `onKeyDown` on the sheet scrim, a React prop on a mounted node — no manual teardown owed |
+| F46's new tab stop | first focusable inside the sheet, which is where a close affordance belongs; it does not shadow the panel, which has no `tabIndex` |
+
+---
+
+## Web Summary (Round 1 — fix delta)
+
+CRITICAL: 0 · HIGH: 0 new · MEDIUM: 0 new · LOW: 0 new
+My round-0 findings: **F27 FIXED** (measured 1.33 → 5.31 on real pixels) · **F34 PARTIAL** (3/4;
+`DIALOG_SHADOW` open, disclosed) · **F35 FIXED** (probed both arms) · **F46 FIXED** (my alternative
+refuted on the merits, withdrawn)
+Coordinator-assigned rendered checks: **F43 FIXED** · **F41 FIXED** · **F29 PARTIAL — still ~21px of
+overflow, third chip clipped at the frame edge**
+
+Verdict: **REVISE** — on F29's residual and F34's fourth touch-point, both one-liners; nothing new
+and nothing regressed.
+
+Marketing<->demo isolation: **preserved.**
+Bundle impact: **none** — build exit 0, every route byte-identical to round 0.
+Browser-resource cleanup: **complete** — no new listener, timer or observer owes a teardown.
+Accessibility: **F27's regression closed and re-measured on pixels; F46 now operable from a keyboard.**
+F29's clipped chip remains a rendered defect (a control partly off-frame), not a contrast one.
+Style-convention adherence: **correct half; lifted rules intact; lit-edge rule unchanged.**
+
+Out-of-lane observations:
+- `_captures/w2/after-fixed/` still did not exist when I read; `after/` is `7bcb553`. Every rendered
+  figure above is my own browser run at `250e12f`, and F29's overflow is exactly the kind of thing the
+  re-cut is for — the verification seat should be able to reproduce the clipped "Canvas" chip directly.
+- `tools/worktree-remove.ps1` printed `failed to delete '.git/worktrees/probe-u6.2-redgreen': Directory
+  not empty` during MY teardown's `git worktree prune`. That is a **foreign, pre-existing** stale
+  admin entry, not mine; my own tree unlinked 549 junctions cleanly and the store stayed 240 → 240.
+  Someone should run the script against `probe-u6.2-redgreen`.
+
+---
+## Round 0 (initial review)
+
 Head reviewed: `feat/uiparity-w2` @ `00a96c7` (assembly head `7bcb553` + one docs-only commit).
 Base: `master` @ `43ccbad`, confirmed an ancestor of HEAD. Diff `43ccbad...HEAD` excluding `docs/`
 = **129 files, +9,149 / −1,359**, entirely under `features/demo/` plus `.design-sync/check-rn-parity.mjs`.

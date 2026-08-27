@@ -1,4 +1,283 @@
-# Lane: tests — W2 (PR #42, `feat/uiparity-w2` @ `7bcb553` vs `master` @ `43ccbad`)
+# Lane: tests — W2
+
+## Round 1 (fix delta)
+
+PR #42 `feat/uiparity-w2` @ **`250e12f`** · fix diff `addd03f..250e12f` · authority = the fix-mapping
+comment on the PR. Warm seat: I re-read only the mapping, my own findings' entries in it, the fix
+commits' lines and the code a changed line now depends on. Nothing below is confirmed from memory —
+every disposition carries a probe run at `250e12f`.
+
+**My findings in the mapping: F28, F30, F31, F32, F40, F48, F49. All seven FIXED.** No
+fix-introduced regression found in their blast radius.
+
+### Probe environment
+
+Probe worktree `worktrees/probe-w2d-tests-scans` at **`250e12f`**, cut fresh; the shared `w2-wave`
+tree was never mutated. **Which copy was mutated: the canonical source in the probe worktree**, in
+every case. Baseline before any mutation: `pnpm test --silent` → **290 files / 3,899 passed | 4 todo
+(3,903), exit 0** — matches the mapping comment's cold figure. Motion mode: default **motion-ON**;
+no probe below sits on either side of the motion gate. Verdicts from the runner's **exit code**,
+read from the child process return code — never from a report file. Every probe restored, restore
+proven per probe (`git diff --stat` empty **and** `git status --porcelain` empty); tree clean before
+teardown.
+
+**Teardown, verified** (`tools/worktree-remove.ps1`): `unlinked 549 junction(s) in 2 pass(es)` ·
+`node_modules/.pnpm entries BEFORE: 240` / `AFTER : 240` ·
+`OK -- worktree removed, main checkout's .pnpm store intact (240 entries).` Branch
+`probe/w2d-tests-scans` deleted; the directory is gone. Three `probe-*` worktrees remain registered
+(`probe-u6.2-redgreen`, `probe-w2d-types-scan`, `probe-w2d-web-rendered`) — **not mine**, sibling
+lanes'.
+
+**17 mutations · 0 invalid · 17 KILLED · 0 SURVIVED.**
+
+---
+
+### F28 [HIGH] — five sheet fragments pinned on the rendered element · **FIXED**
+
+Fix: `GlassBottomSheet.test.tsx` gains a `missing(el, fragment)` helper that renders the fragment
+onto a reference div and reports which of ITS declarations the real element's `cssText` lacks, then
+one case checking all five spread points at once (`:495-509`), a composition case
+(`:511-524`), and `data-sheet-header` added to the header node. `sheet-chrome.test.tsx:369-383` now
+renders `PickerSheet` first in the A46 case.
+
+**All five of my surviving mutations now KILL**, each restored and proven:
+
+| probe | mutation (canonical source) | r0 | r1 |
+|---|---|---|---|
+| F28-surface | delete `...sheetSurface,` from `panel` (`GlassBottomSheet.tsx:334`) | SURVIVED full suite | **KILLED** exit 1 — 2 files failed, 3 tests / 88 |
+| F28-scrim | `:420` `...sheetScrim` -> bare position/inset | SURVIVED | **KILLED** exit 1 — 1 / 108 |
+| F28-header | `:371` `sheetHeaderBand` -> layout keys only | SURVIVED | **KILLED** exit 1 — 1 / 104 |
+| F28-handle | `:367` `sheetHandle` -> width/height only | SURVIVED | **KILLED** exit 1 — 1 / 59 |
+| F28-strip | `:382` `sheetAccentStrip` -> height only | SURVIVED | **KILLED** exit 1 — 1 / 104 |
+
+**The picker-sheet half is real, not a title edit.** `F28-surface` reds **two** files — the new
+case in `GlassBottomSheet.test.tsx` and the A46 case in `sheet-chrome.test.tsx`, which now reaches
+the shadow only through `GlassBottomSheet`'s spread. The title's third sheet is now rendered and
+load-bearing.
+
+**One probe of my own against the new helper, because `missing()` matches by substring**
+(`have.includes(d)`, so a needle like `width: 40px` can be satisfied by `max-width: 40px`), and
+because whole-fragment deletion is the easy half:
+
+```
+MUTATION PROBE: partial erosion of the surface, not deletion
+Target:      features/demo/ui/controls/GlassBottomSheet.tsx:334 - `panel`
+Claimed pin: GlassBottomSheet.test.tsx:495 "paints panel, scrim, header band, handle and
+             accent strip from the seam"
+Mutation:    keep `...sheetSurface` and add `borderTopWidth: 1` immediately after it
+             (the 2px lit edge silently becomes 1px - the fragment is still spread)
+Result:      KILLED  (from exit code 1) - 1 failed / 77, GlassBottomSheet.test.tsx
+Restore:     verified byte-identical (git diff --stat empty; git status --porcelain empty)
+```
+
+The subset check therefore catches erosion as well as deletion. Disposition **FIXED**.
+
+---
+
+### F30 [MEDIUM] — the scrim's `+ elevation` · **FIXED**
+
+Fix: `UserProfilePane.test.tsx:329-345` reads the editor's OWN scrim as
+`dialog.previousElementSibling` (not "whichever `[data-modal-scrim]` comes first"), asserts
+`MODAL_SCRIM_Z + MODAL_LAYER.overSheet`, and then asserts the ORDERING on both sides —
+`> SETTINGS_SHEET_Z` and `< dialog.zIndex`. That is the shape I asked for, plus the sibling-node
+disambiguation I did not.
+
+```
+MUTATION PROBE: re-run the r0 survivor
+Target:      features/demo/ui/screens/_shared.tsx:277
+Mutation:    `zIndex: MODAL_SCRIM_Z + elevation` -> `zIndex: MODAL_SCRIM_Z`
+Result:      KILLED  (from exit code 1) - 1 failed / 70   [r0: SURVIVED, full suite exit 0]
+Restore:     verified byte-identical
+```
+
+---
+
+### F31 [MEDIUM] — recorder tones pinned where they render · **FIXED**
+
+Fix: `AudioRecorderScreen.test.tsx:49-86` renders all three phases, reads the dot's `background`
+and the label's `color` off the DOM, composes every expectation from `colors.*`, and adds the
+distinctness guard. `status-owners.test.tsx:11-21` now names `AudioRecorderScreen.test.tsx` and
+states explicitly that `audio-levels.test.ts` covers the tone vocabulary and sees no colour — the
+false claim is corrected, not merely softened.
+
+| probe | mutation | result |
+|---|---|---|
+| F31-collapse | all three tones -> `colors.textSecondary` (the r0 survivor) | **KILLED** exit 1 — 1 / 29 |
+| F31-partial | `warning: colors.warning` -> `colors.error` (PAUSED reads as REC) | **KILLED** exit 1 — 1 / 23 |
+
+**Tautology check on the fourth assertion, as asked.** `expect(new Set([rec.dot, paused.dot,
+ready.dot]).size).toBe(3)` is *implied* by the three `toEqual`s above it **given distinct tokens** —
+any collapse of the lookup reds an equality first (F31-partial confirms: the partial collapse is
+caught, and the Set line is not what catches it). It is therefore redundant for lookup mutations
+but **not vacuous**: its one independent bit is that `colors.error`, `colors.warning` and
+`colors.textSecondary` are themselves three different values, which no other assertion in that file
+states. Harmless and cheap; I would keep it. Not a finding.
+
+---
+
+### F32 [MEDIUM] — exemptions keyed `<role>:<path>`, dead-exemption predicate inverted · **FIXED**
+
+Fix: `choice-controls.test.tsx:185-200` keys `EXEMPT` by `` `${Role}:${string}` ``, a single
+`reported(role, text)` predicate now serves both the scan and the backstop (`:243-260`,
+`:326-338`), and the dead-exemption question became *"would this file be reported were the entry
+removed?"* — exactly the inversion I proposed. The fix round also found the **worse** half I had
+only noted in passing: the file-keyed exemption excused those files from the RADIO scan too.
+
+| probe | mutation | result |
+|---|---|---|
+| F32-radio | plant a hand-rolled `<button role="radio">` in the exempt `DvrInfoScreen.tsx` | **KILLED** exit 1 — 1 / 15 |
+| F32-dead | `DvrInfoScreen.tsx` adopts `<CheckboxBox` while KEEPING its exemption (my r0 survivor) | **KILLED** exit 1 — 1 / 15 |
+
+Deferral §100's close condition now rests on a test that actually fires.
+
+---
+
+### F40 [MEDIUM] — `deltaE` throws instead of returning NaN · **FIXED**
+
+Fix: `glass-well-recipe.test.tsx:189-197` throws from `lab()` when any channel is non-finite —
+inside the helper, so a future caller cannot undo it, which is what I asked for. `:212-221` also
+asserts finiteness and length BEFORE the band filter, closing the "`.toEqual([])` over an empty
+input" shape.
+
+```
+MUTATION PROBE: re-run the r0 survivor
+Target:      features/demo/ui/__tests__/glass-well-recipe.test.tsx:185 (the disclosed hex ground)
+Mutation:    `const PANEL = normColor(colors.backgroundSecondary)` -> `= colors.backgroundSecondary`
+Result:      KILLED  (from exit code 1) - 1 failed / 9   [r0: SURVIVED, 9 passed]
+Restore:     verified byte-identical
+```
+
+---
+
+### F48 / F49 [LOW] — **FIXED**
+
+- `banner.test.tsx:252` now reads *"SIX entries over SEVEN files"* with the pairing explained, and
+  `:302`'s title carries no number. The loop was always derived; the prose no longer misdirects.
+- `check-rn-parity.mjs:287` now reads *"41 palette keys / 65 anchor keys / 135 rows, MEASURED"*.
+  Verified by importing the module at `250e12f`: `PALETTE_KEYS.length` = **41**, derived rows =
+  **135**.
+
+---
+
+## Sampled probes of OTHER lanes' fixes
+
+Not my findings; probed because a new pin that cannot fail is the fix round's characteristic
+failure mode.
+
+### F27 — the unchecked-mark ratio bounded AT the constant
+
+`UNCHECKED_MARK_EDGE` is exported from `choice-controls.tsx:69` and consumed by both controls
+(`:116`, `:224`); `choice-controls.test.tsx` composes its expectations from it AND names the
+rejected value explicitly (`not.toBe(jsdomColor(colors.border))`, `:65-68`) — the anti-tautology
+shape, and the file says why (a composed-only pin moves both sides).
+
+```
+MUTATION PROBE: the control revert
+Target:      features/demo/ui/controls/choice-controls.tsx:69
+Mutation:    `UNCHECKED_MARK_EDGE = colors.textTertiary` -> `= colors.border` (the shipped
+             1.33:1 value the finding measured)
+Result:      KILLED  (from exit code 1) - 2 files failed, 2 tests / 44
+             (choice-controls.test.tsx AND palette-contrast.test.ts - the value pin and the
+             RATIO bound fire independently, which is the point of bounding at the constant)
+Restore:     verified byte-identical
+```
+
+### F47 — the resurrection pin pair
+
+```
+MUTATION PROBE 1: resurrect the four dead keys AFTER the spread
+Target:      features/demo/ui/controls/AlertDialog.tsx:117-118
+Mutation:    re-insert padding 12 / fontSize 14.5 / fontWeight 600 / cursor after
+             `...buttonStyle(...)` - the exact regression the pin names
+Result:      KILLED  (from exit code 1) - 1 failed / 45
+```
+
+```
+MUTATION PROBE 2 (anti-tautology control): move the RECIPE instead
+Target:      features/demo/ui/controls/button-recipe.ts:137 - SIZES.medium
+Mutation:    `fontSize: 16` -> `fontSize: 14.5`
+Result:      KILLED  (from exit code 1) - 3 failed / 53, across CentredDialog.test.tsx AND
+             button-recipe.test.tsx
+Reading:     the pin composes its expectation from `buttonStyle()`, so this control matters -
+             it fires only because the file also names the rejected literals
+             (`not.toBe('14.5px')`, `not.toBe('12px')`). Composed pin + named literal: sound.
+Restore:     both verified byte-identical
+```
+
+### F37 vs the U6.1 mechanism — the refutation holds under measurement
+
+The fix refutes the tripwire half of my sibling-lane concern and replaces it with a border-VALUE
+pin (`field-input-recipe.test.tsx:132-158`), claiming React logs nothing at all for this defect
+shape. **Measured, and it is correct:**
+
+```
+MUTATION PROBE: re-apply the border split the W1 fix removed
+Target:      features/demo/ui/tokens/field-input.ts:72
+Mutation:    `border: \`${error ? 2 : 1}px solid ${borderColor}\`` -> error branch declaring
+             borderWidth/borderStyle/borderColor, non-error branch keeping the shorthand
+Result:      KILLED  (from exit code 1) - 1 failed / 19 across field-input-recipe + shared
+             AssertionError: expected '' to be '2px solid rgb(255, 71, 87)'
+             at field-input-recipe.test.tsx:152 - i.e. the BORDER VALUE, on the rerender.
+             The trailing `expect(conflictingStyleWarnings).toEqual([])` never ran and the
+             setup's afterEach did not throw: React logged nothing.
+Restore:     verified byte-identical
+```
+
+So `vitest.setup.ts:41-67`'s rewritten docblock is accurate: for this shape the hook does not
+merely go undriven, it never fires. Both branches (U2.1's and U6.1's) assert the same contract by
+the same mechanism, so the W3 merge has no conflicting claim to reconcile.
+
+**One thing I checked because it would have made F37's fix vacuous:** the pin imports
+`conflictingStyleWarnings` from `@/vitest.setup` — the only test in the repo that imports the setup
+module. If Vite loaded that as a second instance, the imported array would not be the one the
+`afterEach` inspects and the assertion would be decoration.
+
+```
+MUTATION PROBE: module identity
+Mutation:    push a sentinel into the IMPORTED array inside that test
+Result:      KILLED (exit 1) - the SETUP's afterEach threw on the sentinel, so the test file and
+             the setup hold the SAME array instance. The assertion is live.
+Restore:     verified byte-identical
+```
+
+---
+
+## Fix-introduced regressions
+
+**None found in the blast radius of the fixes I own or sampled.** Checked specifically:
+
+- The full suite at `250e12f` is green — 290 files / **3,899 passed | 4 todo**, exit 0. Todo count
+  unchanged at 4; no `.skip`/`xit` introduced.
+- `missing()` renders an extra reference div per call (five per case). RTL's `cleanup()` in
+  `vitest.setup.ts` unmounts them; `panel()` still resolves a single `dialog`. No leakage.
+- `sheet-chrome.test.tsx:107-112`'s two new `@ts-expect-error` directives are load-bearing rather
+  than suppressive: F38 narrowed `sheetSurface` with `as const satisfies`, so re-adding either
+  bottom-radius key makes the directive unused and reds `tsc --noEmit`, which is in the gate set.
+- No new inline fixture displaced a canonical factory; no clock or entropy entered a test; no
+  snapshot introduced.
+
+## Tests Summary (Round 1 — fix delta)
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+Verdict: **APPROVE**
+
+Per finding: **F28 FIXED · F30 FIXED · F31 FIXED · F32 FIXED · F40 FIXED · F48 FIXED · F49 FIXED.**
+Sampled: F27 pin has teeth (constant bound + control revert both red) · F47 pin pair has teeth and
+survives its anti-tautology control · F37's refutation is measurement-backed and its mechanism
+matches U6.1's.
+
+Probes: **17 applied · 0 invalid · 17 KILLED · 0 SURVIVED** · restores proven per probe · teardown
+verified (`unlinked 549 junction(s) in 2 pass(es)`, `.pnpm` 240 -> 240).
+
+Out-of-lane observations: none new.
+
+**Pipeline note (contract §6):** while staging this section I briefly created
+`docs/code-reviews/ui-parity/w2/lane-tests.new.md` in the review directory — a second path, which
+the output contract forbids. I deleted it within the same minute, re-staged outside the repository,
+and no sibling lane's file was touched. Reporting it because a shared review directory with no lock
+is exactly where that mistake compounds.
+
+---
 
 Seat: fresh `test-analyzer` (predecessor retired; its W0/W1 lane files read for precedent).
 Mode: code review. Single question: **would these tests catch a realistic regression, or do they
