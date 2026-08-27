@@ -24,7 +24,14 @@ export const T = {
   border: colors.border,
   // text
   text: colors.text,
-  textDim: '#cdd9e6',
+  // `textDim` was here and is DELETED, not re-pointed (A72/U6.4a) — the same treatment A22
+  // gave `scrim` below, and for a sharper reason. It was the ONE key in `T` that was not an
+  // alias of a palette token: a bare dark value with no light sibling, so every surface
+  // reading it was invisible to `palette[scheme]` and the one-line light flip (plan §9
+  // clause 12) would have left all of them on the dark half. Its two readers here and its six
+  // hand-spelled copies elsewhere were all the SAME recipe — a form-field label — which now
+  // lives once, as `fieldLabelStyle` in `tokens/field-input.ts`. Reach for that; a surface
+  // that re-grows a private label tone is a compile error now rather than a review finding.
   textMute: colors.textSecondary,
   textFaint: colors.textTertiary,
   // accents

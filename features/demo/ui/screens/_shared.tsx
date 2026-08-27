@@ -13,7 +13,7 @@ import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { fieldErrorStyle, fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
 export function switchKeyDown(activate: () => void) {
@@ -338,6 +338,83 @@ export function ModalShell({
   return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }
 
+/**
+ * SEAM(U6.4a): the ONE validation-message line — A72's error half, composed.
+ *
+ * `styles.errorContainer` + `styles.errorText` (`TextInput.tsx:181-186`) supply the geometry
+ * (`tokens/field-input.ts`'s `fieldErrorStyle`); this adds the severity glyph and lets the
+ * caller own the live-region semantics.
+ *
+ * ## The colour is a deliberate divergence from the phone, and it is the campaign's ruling
+ *
+ * The phone paints `color: colors.error` (`:128`). Matrix §C.3 rule 1 — adjudicated-closed as
+ * `P8-DEF-A` and called *"the single most portable recipe in the whole ledger"* — forbids
+ * exactly that:
+ *
+ *   "Stop using red as text. […] The answer is not a better red — it is severity on the icon
+ *    (3:1 non-text floor), text in `colors.text`."
+ *
+ * It names `#ff6b78` — the value four of this component's five call sites used to carry —
+ * among the six error-text reds *"doing exactly what this rule forbids"*. Measured by U6.1 on
+ * the dark glass grounds `ui/__tests__/palette-contrast.test.ts` composites (background + both
+ * `card` stops + both `nestedCard` stops): `#ff6b78` **3.84** worst / 5.34 best, the phone's
+ * `colors.error` **3.16** / 4.40 — so porting the phone's token verbatim would have LOWERED
+ * these lines, and neither red clears AA's 4.5 at any size. Severity moves to the glyph, which
+ * is a non-text mark and needs only 1.4.11's 3.0 (3.16 clears it); the message takes
+ * `colors.text` at **9.56** worst.
+ *
+ * ## Why the semantics are the CALLER's and not baked in
+ *
+ * `role="alert"` is right for a message raised by a deliberate act — a refused submit, a blur
+ * that failed to parse — and it is what `Field` and both `CoordinateField`s pass. It is WRONG
+ * for the two blocked-reason lines (`NewLocationModal`, `DuplicateLocationModal`), which sit
+ * INSIDE an unconditionally-rendered `role="status"` region: that region exists before it has
+ * content on purpose (a region created together with its text is not reliably announced), and
+ * nesting an assertive `role="alert"` inside a polite `role="status"` is the exact defect U6.2
+ * refused when it declined to fold `PaneNote` onto `Banner`. So `role` is optional and the two
+ * blocked lines omit it — they are already inside their region.
+ *
+ * ## The glyph
+ *
+ * `Banner`'s `error` alert-circle — the mark the demo already reads as "error" at
+ * `PickerStage`, `ImportModal` and `DemoErrorBoundary` — at `iconSize.xs` beside 14px text
+ * rather than `BannerIcon`'s `iconSize.sm`, which is sized for a callout. `aria-hidden`,
+ * because the message beside it already carries the severity in words.
+ */
+export function FieldError({
+  id,
+  role,
+  style,
+  children,
+}: {
+  id?: string
+  /** `'alert'` where this line IS the live region. Omitted where the caller already is one. */
+  role?: 'alert'
+  /** Caller LAYOUT only (margins). Never a colour: the ruling above is the point. */
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  return (
+    <div id={id} role={role} style={style ? { ...fieldErrorStyle, ...style } : fieldErrorStyle}>
+      <svg
+        aria-hidden="true"
+        width={iconSize.xs}
+        height={iconSize.xs}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={colors.error}
+        strokeWidth="2"
+        strokeLinecap="round"
+        style={{ flexShrink: 0 }}
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8v5M12 16h.01" />
+      </svg>
+      {children}
+    </div>
+  )
+}
+
 /** A labelled text input (or textarea when `multiline`), lifted from the prototype's form styling. */
 export function Field({
   label,
@@ -419,10 +496,10 @@ export function Field({
     // The block's own rhythm is the phone's `styles.container` (`TextInput.tsx:151-153`):
     // `marginBottom: Layout.spacing.md` (was 14).
     <div style={{ marginBottom: spacing.md }}>
-      {/* `styles.labelContainer:155-157` + `styles.label:158-161` — `spacing.xs` above the box,
-          `fontSize.sm` / `fontWeight.medium`, and `:105` paints it `colors.text`. The demo's
-          `#cdd9e6` was not a palette token at all. */}
-      <div style={{ fontSize: 14, fontWeight: 500, color: colors.text, marginBottom: spacing.xs }}>
+      {/* U6.4a: `styles.labelContainer:155-157` + `styles.label:158-161` are the SEAM now
+          (`tokens/field-input.ts`), because seven other surfaces were hand-rolling the same
+          four keys. Read the seam's docblock before changing anything here. */}
+      <div style={fieldLabelStyle}>
         {label}
         {/* `:110` — `styles.required` in `colors.error`. Same hex, now the token. */}
         {required && <span style={{ color: colors.error }}> *</span>}
@@ -464,51 +541,10 @@ export function Field({
         />
       )}
       {error ? (
-        /**
-         * `styles.errorContainer` + `styles.errorText` (`TextInput.tsx:181-186`): `spacing.xs`
-         * above, `fontSize.sm`. The COLOUR is a deliberate divergence from the phone's `:128`
-         * `color: colors.error`, and the divergence is the campaign's own ruling rather than a
-         * preference — matrix §C.3 rule 1, adjudicated-closed as `P8-DEF-A` and called "the
-         * single most portable recipe in the whole ledger":
-         *
-         *   "Stop using red as text. […] The answer is not a better red — it is severity on
-         *    the icon (3:1 non-text floor), text in `colors.text`."
-         *
-         * It names `#ff6b78` — the value this line used to carry — among the six error-text
-         * reds "doing exactly what this rule forbids". Measured on the dark glass grounds
-         * `ui/__tests__/palette-contrast.test.ts` composites (background + both `card` stops +
-         * both `nestedCard` stops): `#ff6b78` 3.84 worst / 5.34 best, `colors.error` 3.16 /
-         * 4.40 — so porting the phone's token verbatim would have LOWERED this line's
-         * contrast, and neither clears AA's 4.5. Severity moves to the glyph, which is a
-         * non-text mark and needs only 1.4.11's 3.0 (3.16 clears it); the message takes
-         * `colors.text` at 9.56 worst.
-         *
-         * The glyph is `Banner`'s `error` icon — the alert-circle the demo already reads as
-         * "error" at `PickerStage`, `ImportModal` and `DemoErrorBoundary` — so a field error
-         * and a callout error are the same mark. `aria-hidden` because the message inside the
-         * same `role="alert"` already says it.
-         */
-        <div
-          id={errorId}
-          role="alert"
-          style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.xs, fontSize: 14, color: colors.text, marginTop: spacing.xs }}
-        >
-          <svg
-            aria-hidden="true"
-            width={iconSize.xs}
-            height={iconSize.xs}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={colors.error}
-            strokeWidth="2"
-            strokeLinecap="round"
-            style={{ flexShrink: 0 }}
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v5M12 16h.01" />
-          </svg>
+        /* The recipe is `FieldError`'s — see its docblock, and do not re-derive it here. */
+        <FieldError id={errorId} role="alert">
           {error}
-        </div>
+        </FieldError>
       ) : (
         /* `styles.helperContainer` + `styles.helperText` (`:181-186`) — `spacing.xs`,
            `fontSize.sm`; `:133` paints `colors.textSecondary`. The demo's `#7a9fc4` is
@@ -523,7 +559,10 @@ export function Field({
 export function Accordion({ title, children }: { title: string; children: ReactNode }) {
   return (
     <details className="demo-accordion" style={{ marginBottom: 14, borderRadius: 10, border: GLASS.border, background: 'rgba(13,27,42,0.4)', overflow: 'hidden' }}>
-      <summary style={{ cursor: 'pointer', padding: '12px 14px', fontSize: 14, fontWeight: 600, color: '#cdd9e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* U6.4a: the summary is a HEADING, not a field label, so it keeps its own 14/600 —
+          only the tone moves. It read the retired form-label hex; every heading in this port
+          is `colors.text`. */}
+      <summary style={{ cursor: 'pointer', padding: '12px 14px', fontSize: 14, fontWeight: 600, color: colors.text, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>{title}</span>
         <svg aria-hidden="true" className="demo-accordion-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a9fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }}>
           <path d="M6 9l6 6 6-6" />

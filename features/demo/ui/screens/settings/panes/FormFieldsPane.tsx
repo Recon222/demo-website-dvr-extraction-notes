@@ -263,7 +263,10 @@ function ScreenRow({
               const on = isFieldVisible(f.id)
               return (
                 <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#cdd9e6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {/* U6.4a: this names a FORM FIELD beside its switch, so it followed the
+                      form-label family off the retired tone onto `colors.text`. The 13 and the
+                      truncation trio are the grid's own and are unchanged (D3). */}
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: colors.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {f.label}
                   </span>
                   {fieldLocked && <LockPill id={lockId(f.id)} testId={`fc-field-lock-${f.id}`} />}

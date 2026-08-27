@@ -10,7 +10,8 @@ import {
   type SearchBoxSuggestionResponse,
   type SearchBoxRetrieveResponse,
 } from '@mapbox/search-js-core'
-import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
+import { fieldInputStyle, fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 type AddressSession = SearchSession<SearchBoxOptions, SearchBoxSuggestion, SearchBoxSuggestionResponse, SearchBoxRetrieveResponse>
 
@@ -158,9 +159,10 @@ export function AddressAutocomplete({
 
   return (
     <div ref={boxRef} style={{ marginBottom: 14, position: 'relative' }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
+      <div style={fieldLabelStyle}>
         {label}
-        {required && <span style={{ color: '#ff4757' }}> *</span>}
+        {/* `TextInput.tsx:110` — `styles.required` in `colors.error`. Same hex, now the token. */}
+        {required && <span style={{ color: colors.error }}> *</span>}
       </div>
       <input
         value={value}

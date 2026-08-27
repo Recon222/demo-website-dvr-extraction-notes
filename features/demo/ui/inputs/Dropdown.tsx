@@ -6,6 +6,7 @@ import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { glassWell } from '@/features/demo/ui/glass-tokens'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
+import { fieldLabelStyle } from '@/features/demo/ui/tokens/field-input'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 
@@ -117,7 +118,7 @@ export function Dropdown({
   return (
     <div style={{ marginBottom: 14 }}>
       {label && (
-        <div id={labelId} style={{ fontSize: 13, fontWeight: 500, color: T.textDim, marginBottom: 6 }}>{label}</div>
+        <div id={labelId} style={fieldLabelStyle}>{label}</div>
       )}
 
       {/* Selector */}
