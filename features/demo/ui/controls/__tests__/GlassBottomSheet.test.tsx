@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { act, cleanup, render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
@@ -10,7 +10,17 @@ import {
   shouldDismissSheet,
 } from '@/features/demo/ui/controls/GlassBottomSheet'
 import { PhoneOverlayContext } from '@/features/demo/ui/phone-overlay'
-import { SCRIM_FADE_KEYFRAME, SHEET_ENTER_MS, SHEET_EXIT_MS, SHEET_SLIDE_KEYFRAME } from '@/features/demo/ui/controls/sheet-chrome'
+import {
+  SCRIM_FADE_KEYFRAME,
+  SHEET_ENTER_MS,
+  SHEET_EXIT_MS,
+  SHEET_SLIDE_KEYFRAME,
+  sheetAccentStrip,
+  sheetHandle,
+  sheetHeaderBand,
+  sheetScrim,
+  sheetSurface,
+} from '@/features/demo/ui/controls/sheet-chrome'
 
 /**
  * SEAM(U4.1b) — matrix A58.
@@ -57,6 +67,38 @@ function mount(props: Partial<Parameters<typeof GlassBottomSheet>[0]> = {}) {
 const panel = () => screen.getByRole('dialog')
 const scrim = () => document.querySelector<HTMLElement>('[data-sheet-scrim]')!
 const grab = () => document.querySelector<HTMLElement>('[data-sheet-grab]')!
+const header = () => document.querySelector<HTMLElement>('[data-sheet-header]')!
+const handle = () => document.querySelector<HTMLElement>('[data-sheet-handle]')!
+const strip = () => document.querySelector<HTMLElement>('[data-sheet-accent-strip]')!
+
+/**
+ * Which of a fragment's declarations the rendered element is NOT carrying.
+ *
+ * W2/F28: this file had 45 cases and zero paint reads, so deleting `...sheetSurface` from the
+ * panel survived all 3,881 tests — the gradient, the four border longhands, radius 22,
+ * `SHEET_SHADOW` and `overflow: hidden` all vanished unobserved. `sheet-chrome.test.tsx` pins
+ * the fragments and this file pins the behaviour; nothing joined the two. This is the join.
+ *
+ * Compared against what REACT makes of the fragment (a bare div carrying it) rather than a
+ * hand-listed set of declarations — the idiom `SettingsModal.test.tsx:232-246` established, and
+ * for its reason: `toHaveStyle` does not px-suffix a numeric value, so an object comparison
+ * silently passes over half the keys. Reading `cssText` also means the per-side longhand rule
+ * is satisfied for free: jsdom never synthesizes `border-color`, so whatever the fragment
+ * declares is exactly what is compared.
+ *
+ * SUBSET, not equality: every element here composes its fragment with its own layout, z and
+ * animation. What must hold is that none of the fragment's declarations went missing.
+ */
+function missing(el: HTMLElement, fragment: CSSProperties): string[] {
+  const { container } = render(<div data-fragment-ref style={fragment} />)
+  const reference = container.querySelector<HTMLElement>('[data-fragment-ref]')!
+  const have = el.style.cssText
+  return reference.style.cssText
+    .split(';')
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .filter((d) => !have.includes(d))
+}
 const body = () => document.querySelector<HTMLElement>('[data-sheet-body]')!
 
 /**
@@ -449,6 +491,37 @@ describe('GlassBottomSheet — layering', () => {
 // ---------------------------------------------------------------------------------------
 // Chrome and slots.
 // ---------------------------------------------------------------------------------------
+
+describe('GlassBottomSheet — the five sheet-chrome fragments reach the DOM (W2/F28)', () => {
+  it('paints panel, scrim, header band, handle and accent strip from the seam', () => {
+    // One case, five spread points. Deleting any `...fragment` in `GlassBottomSheet.tsx` leaves
+    // that key's declarations missing here and names which ones — the five mutations that
+    // previously SURVIVED the full suite.
+    mount({ visible: true })
+    expect({
+      panel: missing(panel(), sheetSurface),
+      scrim: missing(scrim(), sheetScrim),
+      header: missing(header(), sheetHeaderBand),
+      handle: missing(handle(), sheetHandle),
+      strip: missing(strip(), sheetAccentStrip),
+    }).toEqual({ panel: [], scrim: [], header: [], handle: [], strip: [] })
+  })
+
+  it('composes the panel ON TOP of the fragment, never instead of it', () => {
+    // The subset check above cannot see a panel that re-declares a fragment key with a
+    // different value (the declaration would simply differ and be reported), but it also
+    // cannot see WHICH layer won. These four are the ones the shell adds around the fragment,
+    // and the sheet tier's ground and lit edge must survive underneath them.
+    mount({ visible: true })
+    const el = panel()
+    expect(el.style.position).toBe('absolute')
+    expect(el.style.zIndex).toBe(String(PICKER_SHEET_Z + 1))
+    expect(el.style.maxHeight).toBe('90%')
+    expect(el.style.overflow).toBe('hidden')
+    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
+    expect(el.style.borderRightColor).toBe('rgba(28, 78, 132, 0.6)')
+  })
+})
 
 describe('GlassBottomSheet — chrome', () => {
   it('names the dialog by its title and shows a subtitle only when given one', () => {

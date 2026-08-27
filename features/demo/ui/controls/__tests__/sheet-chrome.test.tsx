@@ -24,6 +24,7 @@ import {
 import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { ExportActionSheet } from '@/features/demo/ui/screens/ExportActionSheet'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
+import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
@@ -343,6 +344,18 @@ describe('A46 — one upward cast, three sheets', () => {
     // take it here; the fourth is `TabBar.tsx:80`, which is A63's flat bar and U8.3's row.
     // Relational on purpose: each assertion reads `SHEET_SHADOW`, so re-hardcoding any one of
     // them reds, and moving the recipe moves all three together.
+    //
+    // W2/F28: the title named the picker sheet and the body rendered only the other two. It is
+    // the sheet that reaches the recipe through `GlassBottomSheet`'s `...sheetSurface` rather
+    // than a `boxShadow` of its own, so it was the one worth rendering and the one missing.
+    render(
+      <PickerSheet title="Select Date" onClose={() => {}}>
+        <div />
+      </PickerSheet>,
+    )
+    expect(screen.getByRole('dialog').style.boxShadow).toBe(SHEET_SHADOW)
+    cleanup()
+
     render(
       <ExportActionSheet
         options={[{ id: 'case', label: 'Export Case' }]}

@@ -368,7 +368,7 @@ export function GlassBottomSheet({
         </div>
       )}
 
-      <div style={sheetHeaderBand}>
+      <div data-sheet-header style={sheetHeaderBand}>
         <div style={sheetHeaderTitleRow}>
           <div style={sheetAccentDot} />
           <div style={{ flex: 1, minWidth: 0 }}>
