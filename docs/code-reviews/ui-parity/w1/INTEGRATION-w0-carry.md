@@ -275,4 +275,8 @@ trigger U7.2; A's PR-1 → trigger U2.2) are unaffected and still stand. The thi
 
 ---
 
+**Next merge on this branch:** `INTEGRATION-u1-assembly.md` — U1.2/U1.3 (`28e7993`).
+
+---
+
 *Integrator: `dt-integrator` (Opus 5, xhigh). Gates quoted from a cold cache at `b56b358`.*
