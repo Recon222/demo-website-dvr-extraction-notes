@@ -101,6 +101,27 @@ describe('region() — what the slice actually contains', () => {
   })
 })
 
+// F21. Runs WITHOUT the sibling repo — it pins the reader, not an anchor. `readStop` used to
+// match an unbounded tuple, so `['a','b','c']` read as `['a','b']` and the row reported OK
+// against a gradient the demo has no way to render. Truncation was the only malformed shape the
+// reader accepted silently; every other one already threw.
+describe('readStop — the tuple reader the 48 gradient rows go through', () => {
+  it('reads both stops of a two-element tuple', () => {
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 1)).toBe('rgba(1,2,3,0.5)')
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 2)).toBe('rgba(4,5,6,0.5)')
+  })
+
+  it('REFUSES a longer tuple instead of silently comparing its first two stops', () => {
+    // The whole point: a THREE-stop phone gradient must become a PARSE-FAILED row that someone
+    // repoints, never an OK row hiding a stop the web side cannot express.
+    expect(() => readStop("gradient: ['a', 'b', 'c']", 'gradient', 1)).toThrow(/tuple stops not found/)
+  })
+
+  it('still refuses a one-element tuple', () => {
+    expect(() => readStop("gradient: ['a']", 'gradient', 1)).toThrow(/tuple stops not found/)
+  })
+})
+
 describe('RN <-> Web token parity (design-system drift guard)', () => {
   it.skipIf(!rnAvailable())(`no anchor has drifted from the RN app (${RN_ROOT})`, () => {
     const { drift } = checkParity()

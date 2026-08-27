@@ -212,9 +212,15 @@ function readConst(text, name, opts = {}) {
  * ONE stop per call, on purpose: an anchor ROW is the unit of PARSE-FAILED isolation, so the
  * two stops of a gradient must be able to fail independently. Both go through `value`, so a
  * stop that is an identifier reference resolves like any other field.
+ *
+ * The pattern is CLOSED on the right (`\\s*\\]`) and that is the whole of review F21: without it a
+ * three-stop tuple matched, the reader silently compared only the first two, and the row
+ * reported OK against a gradient the demo cannot render. Truncation was the one malformed
+ * shape this reader accepted quietly; now it lands as PARSE-FAILED like every other one. A
+ * one-stop tuple already threw. Both callers pass 2-tuples, so nothing legitimate is lost.
  */
 export function readStop(text, key, i, opts = {}) {
-  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
+  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})\\s*\\]`))
   if (!m) throw new Error(`tuple stops not found: ${key}`)
   return value(m[i], opts.resolve)
 }
