@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 
 import { Banner } from '@/features/demo/ui/controls/Banner'
 import {
+  PANE_VALUE_TINT,
   PaneDescription,
   PaneGroup,
   PaneNote,
@@ -55,14 +56,20 @@ describe('PaneGroup (phone `settingGroup` / `settingHeader` / `settingLabel` / `
     })
   })
 
-  it('renders the live value at fontSize.base / bold / colors.primary', () => {
-    // The phone spends `colors.primary` here and only here in the section (`:166`); it is the
-    // one place in a pane where the accent is a NUMERAL rather than prose.
+  it('renders the live value at fontSize.base / bold on PANE_VALUE_TINT, NOT the phone`s primary', () => {
+    // F52 / ledger §89. The phone spends `colors.primary` here (`:166`) — the one place in a
+    // pane where the accent is a NUMERAL rather than prose — and on the app background that
+    // measures 3.94:1 at 16px/700, under the 4.5 floor. `link` measures 9.60. Read off the
+    // EXPORTED constant, not off `palette.link`: a pin against the palette stays green through
+    // exactly the edit it exists to catch (the `MAP_FILTER_BADGE_FILL` shape). The RATIO is
+    // bounded at the same constant in `palette-contrast.test.ts`.
     renderGroup()
+    expect(PANE_VALUE_TINT).toBe(colors.link)
+    expect(PANE_VALUE_TINT).not.toBe(colors.primary)
     expect(screen.getByText('90%')).toHaveStyle({
       fontSize: '16px',
       fontWeight: '700',
-      color: colors.primary,
+      color: PANE_VALUE_TINT,
     })
   })
 
@@ -148,7 +155,11 @@ describe('PaneNote IS Banner’s recipe — the drift guard for a ruled duplicat
     for (const severity of ['info', 'warning', 'success'] as const) {
       const { container: bannerHost, unmount: a } = render(<Banner severity={severity} message="Body" />)
       const { container: noteHost, unmount: b } = render(<PaneNote tone={severity}>Body</PaneNote>)
-      expect(noteHost.querySelector('svg')?.innerHTML).toBe(bannerHost.querySelector('svg')?.innerHTML)
+      // F71: `!`, not `?.`. Optional-chaining BOTH sides makes `undefined === undefined`
+      // pass, so the assertion survived the case where BOTH glyphs vanish - which is the
+      // shared-`BannerIcon` break this case exists for. The `!` idiom is the one the two
+      // blocks above already use.
+      expect(noteHost.querySelector('svg')!.innerHTML).toBe(bannerHost.querySelector('svg')!.innerHTML)
       a()
       b()
     }

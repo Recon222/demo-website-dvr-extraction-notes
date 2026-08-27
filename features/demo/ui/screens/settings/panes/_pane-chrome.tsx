@@ -72,7 +72,7 @@ export function PaneDescription({ children }: { children: ReactNode }) {
  * settingGroup   gap Layout.spacing.xs (4)                     was: margins, per child
  * settingHeader  row · space-between · center                  was: the same, plus a gap: 10
  * settingLabel   fontSize.base 16 / semibold / colors.text     was: 15 / 600 / the hex
- * settingValue   fontSize.base 16 / bold / colors.primary      was: 15 / 700 / the hex
+ * settingValue   fontSize.base 16 / bold / PANE_VALUE_TINT     was: 15 / 700 / the hex
  * settingHelp    fontSize.sm 14 / lineHeight 14x1.5 = 21 /
  *                colors.textSecondary / marginBottom xs (4)    was: 12.5 / 1.45 / textTertiary
  * ```
@@ -95,6 +95,33 @@ export function PaneDescription({ children }: { children: ReactNode }) {
  * here because the demo's panes are hand-written `<div>`s with no shared wrapper to hang it on.
  * `PaneDescription`'s docblock carries the other half of that arithmetic.
  */
+/**
+ * The live-value readout's tint — the `85%` beside "Photo Quality", the pane's one numeral.
+ *
+ * **A DELIBERATE DIVERGENCE FROM THE PHONE, and the same one `SettingsNavBar`'s `BACK_TINT`
+ * records.** Phone `MediaCaptureSettingsSection.tsx:166` paints `styles.settingValue` in
+ * `colors.primary`. On the app background that measures **3.94:1** — §C.3 rule 1's
+ * accent-as-text pairing, and ledger §89's own headline number. At 16px/700 the floor is 4.5:1
+ * (large text starts at 18.66px bold, and this readout is 16). `colors.link` (A27) measures
+ * **9.60** on the same ground, which is §89's own figure for the replacement.
+ *
+ * **Ledger §89's un-defer condition, MET — this is F52.** §89's trigger is *"the U6 adoption
+ * re-measure these fourteen sites as their closing act"*, and its text sets the severity
+ * itself: *"any site still measuring < 4.5 after U6 merges reopens this at HIGH"*. U6.2 closed
+ * without the re-measure and this was one of the four `color:` sites §89's grep still returned.
+ * Re-measured and re-pointed here rather than re-deferred. (§89's other residue is ruled
+ * elsewhere: `StoryRail:75` is D12-frozen, `SplashScreen` ×3 re-cut to U8.1.)
+ *
+ * EXPORTED so `palette-contrast.test.ts` bounds the RATIO **at the constant the component
+ * paints**, not at `palette.link`: a pin against the palette stays green through exactly the
+ * edit it exists to catch. The `MAP_FILTER_BADGE_FILL` / `MEDIA_CLOSE_CHIP` /
+ * `MAP_FILTER_SECTION_LABEL` precedent, and U0.5's `SwipeDeleteAction` lesson.
+ *
+ * (Typed `string`, not the literal, for the same reason those three are: the pin has to be able
+ * to compare it against a DIFFERENT token without TS narrowing the comparison to `never`.)
+ */
+export const PANE_VALUE_TINT: string = colors.link
+
 export function PaneGroup({
   label,
   help,
@@ -114,7 +141,9 @@ export function PaneGroup({
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: colors.text }}>{label}</div>
-        {value !== undefined && <div style={{ fontSize: 16, fontWeight: 700, color: colors.primary }}>{value}</div>}
+        {value !== undefined && (
+          <div style={{ fontSize: 16, fontWeight: 700, color: PANE_VALUE_TINT }}>{value}</div>
+        )}
       </div>
       {help && (
         <div style={{ fontSize: 14, lineHeight: '21px', color: colors.textSecondary, marginBottom: spacing.xs }}>

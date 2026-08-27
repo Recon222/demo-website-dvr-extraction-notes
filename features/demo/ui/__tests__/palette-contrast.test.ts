@@ -16,6 +16,7 @@ import {
 } from '@/features/demo/ui/screens/map/MapFiltersSheet'
 import { MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { PANE_VALUE_TINT } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { MAP_GLASS_COLORS } from '@/features/demo/ui/screens/map/mapTokens'
 import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
@@ -946,6 +947,25 @@ describe('map chrome contrast floors', () => {
     // The value the phone paints here, and the number that made it a finding.
     expect(round(worst(palette[scheme].textTertiary, SHEET_GROUNDS))).toBeLessThan(AA_TEXT)
     expect(MAP_FILTER_HINT_TEXT.color).not.toBe(palette[scheme].textTertiary)
+  })
+})
+
+describe('the settings pane`s live-value readout (U6.2 / F52, ledger §89)', () => {
+  it('clears AA at the constant the pane paints, and the phone`s own pairing is why', () => {
+    // §89's un-defer condition, met: `_pane-chrome`'s `settingValue` was one of the four
+    // `color:` sites its grep still returned after U6 merged. The phone paints `colors.primary`
+    // (`MediaCaptureSettingsSection.tsx:166`) at 16px/700 — normal-size text, floor 4.5.
+    //
+    // AT THE CONSTANT, per U0.5's rule and the `MAP_FILTER_BADGE_FILL` precedent directly
+    // above: a pin against `palette.link` would stay green through a re-point of the readout,
+    // which is exactly the edit this row exists to catch.
+    expect(PANE_VALUE_TINT).toBe(palette[scheme].link)
+    expect(round(worst(PANE_VALUE_TINT, DARK_GROUNDS))).toBeGreaterThanOrEqual(AA_TEXT)
+
+    // …and the divergence is bounded from the other side. 3.94 is not a rounding artefact of
+    // the line above; it is a different, worse colour, and it is §89's headline number.
+    expect(round(contrast(palette.dark.primary, DARK_BG))).toBe(3.94)
+    expect(round(contrast(PANE_VALUE_TINT, DARK_BG))).toBe(9.6)
   })
 })
 

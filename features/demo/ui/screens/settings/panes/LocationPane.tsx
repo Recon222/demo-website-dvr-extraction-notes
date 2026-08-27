@@ -4,8 +4,6 @@ import { Toggle } from '@/features/demo/ui/screens/_shared'
 import {
   GPS_ACCURACY_OPTIONS,
   GPS_TIMEOUT_OPTIONS,
-  type GpsAccuracyMode,
-  type GpsTimeoutOption,
 } from '@/features/demo/engine/content/settings-values'
 import {
   PaneDescription,

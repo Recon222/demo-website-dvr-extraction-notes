@@ -1,6 +1,6 @@
 'use client'
 
-import { NTP_REGION_OPTIONS, type NtpRegion } from '@/features/demo/engine/content/settings-values'
+import { NTP_REGION_OPTIONS } from '@/features/demo/engine/content/settings-values'
 import {
   PaneDescription,
   PaneGroup,
