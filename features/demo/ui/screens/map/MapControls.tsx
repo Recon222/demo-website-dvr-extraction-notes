@@ -116,7 +116,7 @@ export const MAP_FILTER_BADGE_FILL: string = colors.primaryDark
  */
 const DEMO_STATUS_BAR = 50
 
-const outerContainer: CSSProperties = {
+const outerContainer = {
   position: 'absolute',
   top: 0,
   left: 0,
@@ -129,31 +129,31 @@ const outerContainer: CSSProperties = {
   // `box-none` on the phone: map drags must pass BETWEEN the controls. Each painted surface
   // restores `auto`.
   pointerEvents: 'none',
-}
+} as const satisfies CSSProperties
 
-const innerPadding: CSSProperties = {
+const innerPadding = {
   paddingLeft: 12,
   paddingRight: 12,
   paddingTop: DEMO_STATUS_BAR + spacing.sm,
   display: 'flex',
   flexDirection: 'column',
   gap: spacing.sm,
-}
+} as const satisfies CSSProperties
 
-const row: CSSProperties = { display: 'flex', alignItems: 'center', gap: spacing.sm }
+const row = { display: 'flex', alignItems: 'center', gap: spacing.sm } as const satisfies CSSProperties
 
 /** `0 1px 4px` — the CSS spelling of the phone's iOS shadow (offset 0/1, opacity 1, radius 4). */
 const surfaceShadow = `0 1px 4px ${MAP_GLASS_COLORS.shadow}`
 
 /** One fill for every floating surface. `inputBg` was deleted with the redesign — do not add a second. */
-const surface: CSSProperties = {
+const surface = {
   background: MAP_GLASS_COLORS.containerBg,
   border: `1px solid ${MAP_GLASS_COLORS.border}`,
   boxShadow: surfaceShadow,
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
-const closeButton: CSSProperties = {
+const closeButton = {
   ...surface,
   width: touchTarget.min,
   height: touchTarget.min,
@@ -165,9 +165,9 @@ const closeButton: CSSProperties = {
   color: MAP_GLASS_COLORS.text,
   cursor: 'pointer',
   padding: 0,
-}
+} as const satisfies CSSProperties
 
-const searchPill: CSSProperties = {
+const searchPill = {
   ...surface,
   flex: 1,
   minWidth: 0,
@@ -176,9 +176,9 @@ const searchPill: CSSProperties = {
   paddingLeft: 12,
   borderRadius: radius.full,
   height: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
-const searchInput: CSSProperties = {
+const searchInput = {
   flex: 1,
   minWidth: 0,
   height: '100%',
@@ -188,14 +188,14 @@ const searchInput: CSSProperties = {
   color: MAP_GLASS_COLORS.text,
   fontSize: 14,
   fontFamily: 'inherit',
-}
+} as const satisfies CSSProperties
 
 /**
  * The inline icon buttons inside the pill. Full pill height and ≥44 wide — real touch targets,
  * for the phone's own stated reason: hitSlop outside a tightly-wrapped parent is not dispatched
  * on Android, and the web has no hitSlop at all (DEF-UI-019).
  */
-const inlineButton: CSSProperties = {
+const inlineButton = {
   position: 'relative',
   height: '100%',
   minWidth: touchTarget.min,
@@ -207,16 +207,16 @@ const inlineButton: CSSProperties = {
   padding: 0,
   cursor: 'pointer',
   color: MAP_GLASS_COLORS.text,
-}
+} as const satisfies CSSProperties
 
-const filterDivider: CSSProperties = {
+const filterDivider = {
   width: 1,
   height: 22,
   flex: '0 0 auto',
   background: MAP_GLASS_COLORS.border,
-}
+} as const satisfies CSSProperties
 
-const badge: CSSProperties = {
+const badge = {
   position: 'absolute',
   top: 6,
   right: 4,
@@ -233,15 +233,15 @@ const badge: CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   lineHeight: 1,
-}
+} as const satisfies CSSProperties
 
-const chip: CSSProperties = {
+const chip = {
   ...surface,
   display: 'inline-flex',
   alignItems: 'center',
   borderRadius: radius.full,
   height: touchTarget.min,
-}
+} as const satisfies CSSProperties
 
 /**
  * F72: the `padding` shorthand is the ONLY padding declaration here. A `paddingLeft: 12` used to
@@ -250,7 +250,7 @@ const chip: CSSProperties = {
  * UPDATE, so a static object hides the conflict until the day one branch makes this padding
  * state-dependent, at which point the shorthand silently clobbers the longhand.
  */
-const chipBody: CSSProperties = {
+const chipBody = {
   display: 'flex',
   alignItems: 'center',
   gap: spacing.xsm,
@@ -260,9 +260,9 @@ const chipBody: CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'inherit',
   padding: '0 0 0 12px',
-}
+} as const satisfies CSSProperties
 
-const chipText: CSSProperties = { fontSize: 12, fontWeight: 600, color: MAP_GLASS_COLORS.text, whiteSpace: 'nowrap' }
+const chipText = { fontSize: 12, fontWeight: 600, color: MAP_GLASS_COLORS.text, whiteSpace: 'nowrap' } as const satisfies CSSProperties
 
 // --- icons: the demo's inline-SVG idiom (24 viewBox, currentColor, aria-hidden) ---------------
 
