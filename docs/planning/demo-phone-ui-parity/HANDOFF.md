@@ -67,7 +67,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Role | Handle | Model | Status |
 |---|---|---|---|
 | Phone UI-delta inventory | `recon-phone-delta` | Opus | done (resumable to settle inventory contradictions) |
-| Matrix + master plan writer | `matrix-plan-writer` | Opus | done; WARM — resume it to write the owner's rulings into matrix §OWNER RATIFICATION + plan §3 |
+| Matrix + master plan writer | `matrix-plan-writer` | Opus | **RETIRED at its context wall (2026-08-27)** — successor note at `reports/plan-writer-successor-note.md`; plan/matrix edits are the orchestrator's from here (legwork via the Opus partner) |
 | Plan-review r1 lanes architect / quality / reality | `planrev-architect` / `planrev-quality` / `planrev-reality` | Opus | done (r1 + two deltas, all APPROVE); retire-eligible |
 | Plan-review r1 aggregator v1 | `planrev-aggregator` | Opus | RECOVERED after two API cutoffs and completed VETTED.md; warm but fix-delta aggregation goes to a fresh FABLE seat per §2 |
 | Plan-review r1 aggregator v2 | `planrev-aggregator-v2` | Opus | STOPPED (redundant) — never resume |
