@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, within } from '@testing-library/react'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 
 import { Banner, type BannerSeverity } from '@/features/demo/ui/controls/Banner'
 import { colors, palette } from '@/features/demo/ui/tokens/palette'
@@ -186,5 +188,93 @@ describe('Banner — the caller seams', () => {
   it('emits `testId` as `data-testid`, and omits the attribute otherwise', () => {
     expect(mount({ testId: 'import-picker-error' }).box).toHaveAttribute('data-testid', 'import-picker-error')
     expect(mount().box).not.toHaveAttribute('data-testid')
+  })
+})
+
+/**
+ * SEAM(U3.3) — THE ADOPTION MAP. This is where U6.2 / U6.4a / U6.4b / U7.2 / U7.3 find their
+ * hand-backs, and it is a tripwire rather than a note.
+ *
+ * D19 re-cut A71: U3.3 builds `Banner` and adopts it ONLY where no other lane touches the file;
+ * the six cross-lane adoptions move to the phases that already open those files. The brief asked
+ * for a `SEAM(U3.3)` comment inside each of those six. **That was not done, deliberately** —
+ * plan §6.1's "U2 ∥ U3 shared set" row is exactly those seven files, and D19's whole purpose is
+ * that U3.3 does not open them. Writing a comment into all seven re-creates, for an inert
+ * marker, the contention the re-cut removed (`_pane-chrome.tsx` is the sharpest: U2.4 holds
+ * `:164-233` and U3.2 holds `:69-73`, both live this wave).
+ *
+ * So the map lives in ONE file U3.3 owns, it is still grep-able (`grep -rn "SEAM(U3.3)"`), and
+ * unlike a comment it FAILS when it goes stale: the day a hand-back adopts `Banner`, this block
+ * reds and names the package that owes the row an update.
+ */
+describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
+  /** Every `ui/**` non-test file that renders `<Banner>` today. Paths relative to `ui/`. */
+  const ADOPTED = [
+    'screens/DateDisambiguationWarning.tsx',
+    'screens/EditIncidentLocationModal.tsx',
+    'screens/ExtractedScopeScreen.tsx',
+    'screens/import/PickerStage.tsx',
+  ]
+
+  /**
+   * The six D19 hand-backs, with the package that owes each one. When you adopt, DELETE your row
+   * here and add the file to `ADOPTED` above — do not edit a count, there isn't one.
+   * `ImportModal.tsx` is deliberately absent from BOTH lists: see the refutation in
+   * `docs/planning/demo-phone-ui-parity/reports/u3.3-implementation-report.md` (D12 defends the
+   * FallbackMode amber; the `FailuresCard` is a list, not a status line).
+   */
+  const HANDED_BACK: Readonly<Record<string, string>> = {
+    'screens/TimeOffsetScreen.tsx': 'U6.4b — the dashed amber advisory (:129-136)',
+    'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
+    'screens/NewCaseModal.tsx': 'U6.4a — the submit-error banner (:201-208)',
+    'screens/settings/panes/_pane-chrome.tsx': 'U6.2 — PaneNote, 3 tones, 8 sites (:75-118)',
+    'screens/AudioRecorderScreen.tsx': 'U7.2 — the notice + error pair (:252-264)',
+    'screens/AudioPreviewScreen.tsx': 'U7.2 — the notice + error pair (:207-215)',
+    'screens/OcrCaptureScreen.tsx': 'U7.3 — the error and assumed-date callouts (:389-423, :476-479)',
+  }
+
+  const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
+
+  function sourceFiles(dir: string): string[] {
+    const out: string[] = []
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__') out.push(...sourceFiles(full))
+      } else if (entry.name.endsWith('.tsx')) {
+        out.push(full)
+      }
+    }
+    return out
+  }
+
+  /** Comments stripped first — same reason as the italic census: a docblock naming the import
+   *  would otherwise count as an adoption. Block then line, as `empty-state.test.tsx` does. */
+  const importsBanner = (file: string): boolean =>
+    /from\s+'@\/features\/demo\/ui\/controls\/Banner'/.test(
+      readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, ''),
+    )
+
+  it('has exactly the four own-lane adoptions D19 left to U3.3', () => {
+    const found = sourceFiles(UI_ROOT)
+      .filter(importsBanner)
+      .map((f) => relative(UI_ROOT, f).split(sep).join('/'))
+      .sort()
+    expect(found, 'a Banner adoption landed or vanished — update ADOPTED and say why').toEqual(ADOPTED)
+  })
+
+  it('leaves all six hand-back sites unadopted, each still owned by its own package', () => {
+    for (const [file, owner] of Object.entries(HANDED_BACK)) {
+      const full = join(UI_ROOT, ...file.split('/'))
+      // The file must still EXIST: a rename would silently empty this guard, which is the
+      // failure mode a path-keyed list has and a count-keyed one does not even notice.
+      expect(existsSync(full), `${file} moved — re-anchor this row (${owner})`).toBe(true)
+      expect(
+        importsBanner(full),
+        `${file} adopted Banner: that is ${owner}'s row — move it into ADOPTED above and delete this line`,
+      ).toBe(false)
+    }
   })
 })
