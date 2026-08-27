@@ -564,39 +564,39 @@ it. A lane that believes a ledgered Trigger has fired says so as a `TRIGGER-LAPS
 | Wave | Phase | Package | Status | PR | Notes |
 |---|---|---|---|---|---|
 | **—** | — | **BASELINE at `master` 5cf88fe** | **RED** | — | **266 files / 3,481 tests / 3,480 pass / 1 FAIL** (`rn-token-parity.test.ts` — the guard throws). Deterministic. Gates: install 5.3s · cold `tsc` 10s · test 60s · build 75s · `/demo` First Load **107 kB**. |
-| **W0** | U0 | U0.0 un-red the suite | (pending) | | **First commit of the port.** |
-| **W0** | U0 | U0.1 palette module | ⬜ | | |
-| **W0** | U0 | U0.2 scales module | ⬜ | | |
-| **W0** | U0 | U0.3 primary gradient | ⬜ | | |
-| **W0** | U0 | U0.4 drift guard + first anchor stage | ⬜ | | |
-| **W0** | U0 | U0.5 contrast test + literal guard | ⬜ | | |
-| **W1** | U1 | U1.1 six-tier glass module | ⬜ | | |
-| **W1** | U1 | U1.2 card recipe | ⬜ | | |
-| **W1** | U1 | U1.3 nested + elevated adoption | ⬜ | | |
-| **W1** | U1 | U1.4 header tier | ⬜ | | |
-| **W2** | U2 | U2.1 fieldInput export | ⬜ | | |
-| **W2** | U2 | U2.2 Button variants | ⬜ | | |
-| **W2** | U2 | U2.3 switch collapse | ⬜ | | |
-| **W2** | U2 | U2.4 pickers + recessed well | ⬜ | | |
-| **W1** | U3 | U3.1 status token family | ⬜ | | |
-| **W2** | U3 | U3.2 status severity + badge | ⬜ | | |
-| **W2** | U3 | U3.3 Banner | ⬜ | | |
-| **W2** | U3 | U3.4 empty states + header geometry | ⬜ | | |
-| **W2** | U4 | U4.1 sheet tier + recipe | ⬜ | | |
-| **W2** | U4 | U4.2 ModalShell + Settings copy | ⬜ | | |
-| **W2** | U4 | U4.3 centred dialog | ⬜ | | |
-| **W2** | U4 | U4.4 scrim family | ⬜ | | |
-| **W3** | U5 | U5.1 map token re-base | ⬜ | | |
-| **W3** | U5 | U5.2 collapsed search bar | ⬜ | | |
-| **W3** | U5 | U5.3 MapFiltersSheet (NEW) | ⬜ | | |
-| **W3** | U5 | U5.4 map sheet surfaces | ⬜ | | |
-| **W3** | U6 | U6.1 _shared wizard chrome | ⬜ | | |
-| **W3** | U6 | U6.2 settings package | ⬜ | | |
-| **W3** | U6 | U6.3 export surfaces | ⬜ | | |
-| **W3** | U6 | U6.4a wizard screens + modals (adoption) | ⬜ | | |
+| **W0** | U0 | U0.0 un-red the suite | ✅ | #39 | **First commit of the port.** |
+| **W0** | U0 | U0.1 palette module | ✅ | #39 | |
+| **W0** | U0 | U0.2 scales module | ✅ | #39 | |
+| **W0** | U0 | U0.3 primary gradient | ✅ | #39 | |
+| **W0** | U0 | U0.4 drift guard + first anchor stage | ✅ | #39 | |
+| **W0** | U0 | U0.5 contrast test + literal guard | ✅ | #39 | |
+| **W1** | U1 | U1.1 six-tier glass module | ✅ | #41 | |
+| **W1** | U1 | U1.2 card recipe | ✅ | #41 | |
+| **W1** | U1 | U1.3 nested + elevated adoption | ✅ | #41 | |
+| **W1** | U1 | U1.4 header tier | ✅ | #41 | |
+| **W2** | U2 | U2.1 fieldInput export | ✅ | #42 | |
+| **W2** | U2 | U2.2 Button variants | ✅ | #42 | |
+| **W2** | U2 | U2.3 switch collapse | ✅ | #42 | |
+| **W2** | U2 | U2.4 pickers + recessed well | ✅ | #42 | |
+| **W1** | U3 | U3.1 status token family | ✅ | #41 | |
+| **W2** | U3 | U3.2 status severity + badge | ✅ | #42 | |
+| **W2** | U3 | U3.3 Banner | ✅ | #42 | |
+| **W2** | U3 | U3.4 empty states + header geometry | ✅ | #42 | |
+| **W2** | U4 | U4.1 sheet tier + recipe | ✅ | #42 | |
+| **W2** | U4 | U4.2 ModalShell + Settings copy | ✅ | #42 | |
+| **W2** | U4 | U4.3 centred dialog | ✅ | #42 | |
+| **W2** | U4 | U4.4 scrim family | ✅ | #42 | |
+| **W3** | U5 | U5.1 map token re-base | ✅ | (W3 open) | |
+| **W3** | U5 | U5.2 collapsed search bar | ✅ | (W3 open) | |
+| **W3** | U5 | U5.3 MapFiltersSheet (NEW) | ✅ | (W3 open) | |
+| **W3** | U5 | U5.4 map sheet surfaces | ✅ | (W3 open) | |
+| **W3** | U6 | U6.1 _shared wizard chrome | ✅ | (W3 open) | |
+| **W3** | U6 | U6.2 settings package | ✅ | (W3 open) | |
+| **W3** | U6 | U6.3 export surfaces | ✅ | (W3 open) | |
+| **W3** | U6 | U6.4a wizard screens + modals (adoption) | ✅ | (W3 open) | |
 | **W3** | U6 | U6.4b the four named-recipe screens | ⬜ | | |
-| **W3** | U7 | U7.1 terminal palette | ⬜ | | |
-| **W3** | U7 | U7.2 OverlayHeader + media/audio | ⬜ | | |
+| **W3** | U7 | U7.1 terminal palette | ✅ | (W3 open) | |
+| **W3** | U7 | U7.2 OverlayHeader + media/audio | ✅ | (W3 open) | |
 | **W3** | U7 | U7.3 OCR, copy, mono policy | ⬜ | | |
 | **W4** | U8 | U8.1 scanner HUD + boot ground | ⬜ | | |
 | **W4** | U8 | U8.2 grid, sweep, teal purge | ⬜ | | |
