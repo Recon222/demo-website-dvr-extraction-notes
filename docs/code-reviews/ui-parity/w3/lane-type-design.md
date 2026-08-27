@@ -1,5 +1,296 @@
 # Lane: type-design — Wave 3 (U5 map + U6 wizard/settings + U7 import/OCR/media)
 
+## Round 1 (fix delta)
+
+Warm, scoped. Phase branch `feat/uiparity-w3` @ `eb98295`, fix-merge `3dc8676`, delta
+`7d0bf57..3dc8676`. Authority: the round-1 fix-mapping comment on PR #43. Read the delta only,
+plus the lines each fix now depends on. Probes ran in `probe-w3d-td-census` (own worktree off
+`3dc8676`), torn down via `tools/worktree-remove.ps1` — **"unlinked 549 junction(s) in 2
+pass(es)"**, `.pnpm` 240 to 240, exit 0; branch deleted. Restores proven byte-identical
+(`git status --short` and `git diff --stat` both empty).
+
+Baseline at `3dc8676` BEFORE any mutation: `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit
+--incremental false` -> **EXIT 0**.
+
+**My findings per the mapping: F51 (co-owned with silent-failures), F61, F62, F68, F75.** The
+coordinator also asked me to judge **F74** (web / typescript lanes) and **F65**'s type shape
+(aggregator), since both are type-design questions, and to verify U7.2's **Q9/Q10r** probe
+disclosures. Judged below, marked as not-mine.
+
+---
+
+### F51 [HIGH] — **FIXED, and stronger than prescribed**
+
+Consumer side `176f0d6` + `88587e3`, seam-side docblock `552ec8b`. Re-ran my round-0 census at
+the merged head:
+
+```
+grep -rn "sample-badge" features/   ->  ImportResultAccordion:6 · OcrCaptureScreen:8
+                                        MediaLibrarySheet:28 · MediaCaptureScreen:24
+                                        AudioPreviewScreen:15         (5 of 5 consumers)
+grep -rni "rgba(255,\s*200,\s*90,\s*0\.12)" features/  ->  sample-badge.ts:60 ONLY (1 hit)
+```
+
+All three orphans route through the seam; zero rendered bytes moved (checked value by value at
+`MediaCaptureScreen.tsx:902-907`, `AudioPreviewScreen.tsx:202`, `MediaLibrarySheet.tsx:930-940`).
+`MediaLibrarySheet`'s `sampleBadge` also became `as const satisfies CSSProperties`, closing an F61
+site in the same edit.
+
+**Three things go beyond what I asked for:**
+
+1. **The docblock census is corrected as a TABLE**, not a number — five rows, each naming its
+   owner and marking the three ORPHANs. It opens: "This docblock previously said 'Two surfaces
+   paint it… One owner, one pin.' **That was false when it was written.**" That is the honest
+   form; a corrected count would have left the next reader no way to check it.
+2. **A new ownership ratchet**, `screens/__tests__/sample-badge-consumers.test.ts`, which is the
+   mechanism my finding said was missing (the value pins cannot see a re-inline at the identical
+   value). It carries a live-read control (`:94-99`: length floor, import, and `SAMPLE_BADGE.`
+   usage), which is F67's lesson applied.
+3. **The scan's CLAIM is narrowed to what its pattern can carry, and the narrowing is asserted
+   rather than described** (`:101-109`): `OWNED` is pinned to `['background']`, and both
+   exclusions are proven live in the scanned file. Its docblock states the reason — "The honest
+   response is to shrink the CLAIM to the pattern, not to widen the pattern until it lies."
+   Given this round's own theme, that is the right call and I endorse it over a wider regex.
+
+**My scope note confirmed, as the coordinator asked.** The looser amber family is untouched and
+correctly so: `PdfPreview.tsx:170`, `ImportModal.tsx:278,294` (0.1 / 0.28),
+`MediaLibrarySheet.tsx:585` (0.06 / 0.25), `MediaCaptureScreen.tsx:891-892` (the sample-data CARD
+at 0.3 / 0.08, the chip's wrapper, which my finding excluded by name), plus bare `#ffd07a`
+advisory text at five sites. None is the defended trio; F51 excluded them and U7.2 left them.
+
+One imprecision, **not filed** (prose, and it errs safe): the scan's docblock at `:67` says the
+fill "has exactly ONE occurrence in the whole of features/demo/ outside sample-badge.ts".
+Measured, there are **zero** outside — which is what makes the scan a working ratchet rather than
+a pre-broken one. The sentence understates its own guarantee.
+
+---
+
+### F61 [MEDIUM] — **FIXED. The census is closed, and the round went past it.**
+
+Eight commits across seven seats. Re-ran my full 35-site census by mutation, not by grep.
+
+**PROBE P2 — the three EXPORTED fragments plus the two records, one throwaway
+`features/demo/ui/zz-probe-w3d.tsx`, one compiler run:**
+
+```
+CONTROL.glass.size = 999                 -> TS2540 read-only   (round 0: SURVIVED)
+MAP_FILTER_SECTION_LABEL.color = 'red'   -> TS2540 read-only   (round 0: SURVIVED)
+fieldLabelStyle.fontSize = 999           -> TS2540 read-only   (round 0: SURVIVED)
+fieldErrorStyle.color = 'red'            -> TS2540 read-only   (round 0: SURVIVED)
+sampleBadge.fontSize = 99                -> TS2540 read-only   (F51's edit, bonus closure)
+```
+
+**PROBE P3 — all 30 located module-LOCAL sites, assignments appended in-file across 10 files,
+one compiler run:**
+
+```
+TS2540 (readonly refusal)                            : 10
+TS2339 whose REPORTED TYPE is spelled "readonly …"   : 20
+TS2339 whose reported type is NOT readonly           :  0   <- a survivor would appear here
+any other diagnostic on the whole tree               :  0
+```
+
+The split is an artefact of my probe key (`color`), not of the fix: tables carrying a `color` key
+refuse the write (TS2540); tables that do not report their narrowed literal type first — and
+**every one of those 20 types is printed with the `readonly` modifier**, e.g.
+`MapControls.tsx(527,18)`: "Property 'color' does not exist on type '{ readonly position:
+"absolute"; readonly top: 0; … }'". Both forms prove `as const` landed. **Zero survivors.**
+
+The 35th site is accounted for: `MapFiltersSheet`'s `hintText` was renamed and exported by F60's
+fix as `MAP_FILTER_HINT_TEXT` (`:218-226`), and it ships
+`} as const satisfies CSSProperties & { color: string }`.
+
+**35 of 35 CLOSED.** The seats also went well beyond my census — measured across the fix diff,
+**71** `as const satisfies (CSSProperties|Record<…>)` closers were added, against the ~50 claimed:
+`MapControls` now carries 14 where I named 10, `LocationDetailCard` 11 where I named 2,
+`SheetHandle` 6 where I named 1. Pre-existing siblings in the same files were closed alongside the
+new ones, which is the right unit of work and is why the file counts exceed the finding.
+
+**`CONTROL` took the strictly better shape**, with the reason written down
+(`OverlayHeader.tsx:141-143`): `as const satisfies Record<…>` rather than the annotation, because
+"satisfies keeps the literal types (so a missing variant is still a compile error, which is what
+this table is for) while as const makes it readonly. An annotation alone widens every value to
+string." Correct, and it is the F44/F45 idiom.
+
+**Q9 / Q10r — the disclosure verified, both directions.** `3ea5d31` discloses that the two
+`@ts-expect-error` readonly pins cannot distinguish `as const satisfies X` from `satisfies X`
+alone. I reproduced it rather than accepting it:
+
+```
+PROBE P5   previewActionFace: "} as const satisfies CSSProperties" -> "} satisfies CSSProperties"
+             tsc EXIT 0 · MediaLibrarySheet.test.tsx 54 passed       SURVIVED  (as disclosed)
+PROBE P5b  previewActionFace: -> "const previewActionFace: CSSProperties = { … }"  (F61's shape)
+             MediaLibrarySheet.test.tsx(732,7) TS2578 Unused '@ts-expect-error'   KILLED
+```
+
+Their explanation is also right: `satisfies` already pins a fresh literal's type, so the
+assignment errors either way and no `@ts-expect-error` can separate a readonly refusal from a
+literal-type mismatch. **So the pins guard exactly the regression F61 names and nothing wider, and
+the comment now says so.** Writing that down instead of widening the pin until it lied is the
+correct disposition, and the second time this round a seat chose the honest claim over the
+impressive one.
+
+---
+
+### F62 [MEDIUM] — **FIXED. Disclosed deviation, accepted on the merits.**
+
+`64af690`. My finding offered two shapes and asked the author to say which; they took the cheap one
+and said which, with a refutation of the union that I accept:
+
+```
+const proximityFiltering = proximityResult !== null      // MapScreen.tsx (F62)
+MapControls  proximityActive={proximityFiltering}        // the chip: what is RUNNING
+MapFiltersSheet  proximityActive={proximityActive}       // the switch: what was ASKED FOR
+```
+
+"Both values already exist, so a union would re-encode a derivation rather than remove one." That
+is correct, and it is the repo's own derived-not-stored precedent (`ScopeRetention` omits
+`status`): `proximityFiltering` is a pure function of `proximityResult`, so there is no second
+source of truth to drift. Keeping the SWITCH on `proximityActive` is right too, and the reason is
+better than mine — gating a toggle on the result springs it back under the visitor's finger.
+`MapControls`'s prop docblock ("True while the proximity ring is active") is true again.
+
+The window was unobservable in jsdom, which is how it shipped; the fix adds
+`MapScreen.proximity-window.test.tsx` with a **never-settling** module mock to hold it open, plus
+an anti-vacuity control (two of three cases assert `aria-checked="true"`, so a mock that degraded
+into a rejecting one would red). Mutation-verified by the author, and the failure text quoted is
+the right one.
+
+---
+
+### F68 [LOW] — **FIXED**
+
+`5d31381`. The ladder now carries
+`U5.1 (LANDED) +2 map-glass keys x 2, +4 always-dark map-chrome rows = +8 rows -> 143`, and the
+MEASURED line reads `41 palette keys / 67 anchor keys / 143 rows`. Arithmetic re-checked
+independently: 41x2 + 24x2 + 2x2 + 1 + 3 + 4 CTA stops + touchFloor = **143**; anchor keys
+41 + 24 + 2 = **67**. Both correct, and the anchor-key figure was corrected too (65 -> 67), which
+I did not ask for.
+
+### F75 [LOW] — **FIXED**
+
+`ed59934`. `terminal-palette.ts:79-82` now ends `} as const satisfies Record<ColorScheme, string>`,
+with a comment naming F45 and pointing at `mapTokens.ts:96` as the sibling. `ColorScheme` was
+already imported.
+
+---
+
+## Not my findings — judged at the coordinator's request
+
+### F74 [LOW] (web · typescript) — **FIXED, and it is the F39 shape exactly**
+
+`6259114`. `OverlayHeaderProps` is now `OverlayHeaderBase & OverlayHeaderControl`, where
+`OverlayHeaderControl` is the pair `{ onBack(): void; backLabel: string }` union
+`{ onBack?: undefined; backLabel?: undefined }`. The `onBack?: undefined` arm is the load-bearing
+half, and the docblock knows it: "without it, { onBack: fn } alone still matches the no-control arm
+by width subtyping." That is the trap this shape usually falls into, named and avoided.
+
+**PROBE P1 — four JSX call sites, one compiler run, canonical source:**
+
+```
+OverlayHeader variant="glass" onBack={fn}                     -> TS2322   KILLED
+OverlayHeader variant="glass" backLabel="Close"               -> TS2322   KILLED
+OverlayHeader variant="glass" onBack={fn} backLabel="Close"   -> no error  <- CONTROL, compiles
+OverlayHeader variant="cameraScrim" title="x"                 -> no error  <- CONTROL, compiles
+```
+
+Both illegal shapes red, both legal shapes compile — so the pair is exhaustive rather than merely
+over-strict. This is W2/F39's `disabled?: { reasonId }` ruling applied to a second seam, and it
+cites `SettingsNavBarProps` as the in-wave precedent.
+
+### F65 [MEDIUM] (aggregator) — **type shape FIXED; one defect, filed LOW below**
+
+`c43ddd6`. The engine's `getConfidenceLevel` now returns `{ level, message }` — matching the
+phone's own `timestamp-parser.ts:339-342` — with `ConfidenceLevel` a named union, and the colour
+maps in the UI. That is the right split: presentation left `engine/`, the layer
+`features/demo/CLAUDE.md` keeps pure, and the orphan `#ff7a45` collapsed onto `warningDark` with a
+stated reason rather than being tokenised into a fifth hue nobody owns.
+
+**One-sided-key-proof, as asked. PROBE P6 — canonical source:** adding a fifth member to
+`ConfidenceLevel` in `engine/logic/ocr.ts` gives
+`OcrCaptureScreen.tsx(132,7): error TS2741: Property 'zzFifth' is missing in type` … `but required
+in type 'Record<ConfidenceLevel, string>'` — **KILLED at the declaration.** The commit's claim
+("a fifth band is a compile error rather than an undefined that paints currentColor") holds in the
+missing-key direction, and an excess key is rejected too by excess-property checking on the
+annotated literal. The U0.1 standard is met.
+
+---
+
+## New finding (fix-introduced)
+
+```
+[LOW] The F65 fix lands the ONE new mutable module-level table of the round — F61's own shape,
+      two commits after the same round closed it 35 times
+Type: CONFIDENCE_COLOR at features/demo/ui/screens/OcrCaptureScreen.tsx:132
+Issue: "const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = { … }" is the bare-annotation
+  form. Measured across the whole fix diff, it is the ONLY new module-level annotated table the
+  round introduced (git diff 7d0bf57..3dc8676, grepped for added const-colon-CSSProperties-or-
+  Record declarations -> one hit), against 71 "as const satisfies" closers landed in the same
+  range. The annotation also widens every value to string, which is the exact cost
+  OverlayHeader.tsx:141-143 documents two commits earlier in this round while taking the other
+  shape.
+MUTATION PROBE P4 — canonical source, one compiler run:
+    CONFIDENCE_COLOR.high = 'zz'
+    CONFIDENCE_COLOR.fail = 'zz'
+      -> no diagnostic anywhere on the tree                SURVIVED
+  (Negative controls for the same run are P2's five TS2540s and P6's TS2741 on this very table, so
+  the compiler run is live and this table's exhaustiveness half is intact.)
+Downstream consequence: bounded and small — module-local, one file, four values, and the
+  exhaustiveness guarantee the commit message advertises is unaffected. Filed because it is the
+  seed of the fourth recurrence of the F20/F38/F61 class, and because the ledger will otherwise
+  record F61 as closed while a new instance ships in the same merge.
+Fix: "} as const satisfies Record<ConfidenceLevel, string>" — one token, the shape CONTROL took in
+  commit 6259114 of this same round, and it keeps the four literal types the UI paints.
+```
+
+---
+
+## Regression sweep over the fix commits' blast radius
+
+- **71 declarations changed from a mutable annotation to a readonly literal type.** The only
+  consumers that could break are those indexing a key absent from the narrowed type; cold
+  `tsc --noEmit --incremental false` at `3dc8676` is **EXIT 0**, and my P3 run produced **zero**
+  diagnostics outside the ones my own probe caused.
+- **`CONTROL` and `sampleBadge` became EXPORTED** where they were module-local. Both are exported
+  for their own pins (`overlay-header.test.tsx`, `MediaLibrarySheet.test.tsx`), both are readonly,
+  so the widened surface carries no mutation hazard. No finding.
+- **F65 removed `color` from a section-2-protected engine type.** It reddened four fixtures and the
+  engine test at COMPILE time (quoted in the commit) — the right kind of red — and all were updated
+  rather than weakened. `OcrResult.confidence` carries `level` now; the two UI readers and
+  `DemoExperience.tsx` were updated in the same commit.
+- **F62 changed which boolean `MapControls` receives.** Sibling readers checked: the sheet's
+  `Toggle` and the radius chips still take `proximityActive` (deliberate, documented), and
+  `proximityResult` is the only input to `proximityFiltering`, so nothing else moved.
+- **F74's discriminated pair reached all four call sites** without a cast — tsc EXIT 0 is the
+  proof, and P1's two negative controls show the legal shapes still compile.
+
+**No fix-introduced regressions in my lane beyond the LOW above.**
+
+---
+
+## Type Design Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 1 (new, fix-introduced)
+Prior-round findings: **F51, F61, F62, F68, F75 — 5 of 5 FIXED.** 0 PARTIAL, 0 UNFIXED.
+Judged at request (not mine): **F74 FIXED** · **F65 type shape FIXED** (its LOW is the finding above).
+Verdict: **APPROVE with comments**
+
+| Check | Result |
+|---|---|
+| Does the fix round reach my full F61 census? | **yes** — 35/35; P2 five at TS2540, P3 ten at TS2540 plus twenty reporting `readonly` types, zero survivors, zero stray diagnostics. 71 closers landed, past my census into pre-existing siblings |
+| F51's orphans actually route through the seam | **yes** — 5/5 consumers import; the defended fill has exactly one occurrence repo-wide, in the seam. The looser 0.06-0.28 family correctly untouched, per my own scope note |
+| Q9/Q10r disclosure accurate | **yes, both directions** — P5 SURVIVED (dropping `as const`), P5b KILLED (bare annotation, TS2578). The pins guard exactly F61's shape; the comment now says which mutation kills and which does not |
+| F74's pair exhaustive, not merely additive | **yes** — P1: both illegal shapes TS2322, both legal shapes compile. The `onBack?: undefined` arm defeats width subtyping |
+| F65 one-sided-key-proof (U0.1 standard) | **yes** — P6: TS2741 at the declaration on a fifth band. Mutability is the separate LOW |
+| Fixes address the finding, not the symptom | **yes** — F51 corrected the census as a checkable table and added the ownership mechanism I said was missing; F61 closed pre-existing siblings in the same files |
+| Fix-introduced regressions in blast radius | **one**, filed LOW — `CONFIDENCE_COLOR`, the round's only new annotated table |
+| Mutation probes this round | **7 run — 5 KILLED (P1 x2, P2/P3's TS2540s, P5b, P6), 2 SURVIVED (P4, the new LOW; P5, the disclosed and explained TypeScript property)**, with four in-run negative controls (P1c, P1d, and P2/P6 on the same tables as P4). Restores proven byte-identical; worktree torn down with the script's proof line |
+
+Out-of-lane observations:
+- The three round-0 observations are resolved or absorbed: the u7.3 report's "TWO files" census is superseded by the corrected table in `sample-badge.ts`, and `MediaLibrarySheet.tsx`'s "shared in appearance" docblock now states the F51 history and imports the seam. The `NotesScreen.test.tsx:75-80` tautology was not in scope this round and I did not re-check it — it remains the tests lane's.
+
+---
+# Lane: type-design — Wave 3 (U5 map + U6 wizard/settings + U7 import/OCR/media)
+
 **Mode:** code review (round 1) · **Tree:** `worktrees/w3-wave` @ `13827de`, read-only ·
 **Scope:** `git diff master...13827de` — 81 non-test `.ts`/`.tsx` files, 5 of them new
 (`chrome/OverlayHeader.tsx`, `controls/sample-badge.ts`, `screens/camera-chrome.ts`,

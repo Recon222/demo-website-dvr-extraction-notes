@@ -1,4 +1,244 @@
-# Lane — silent failures (W3: U5 map · U6 wizard/settings · U7 import/OCR/media)
+# Lane — silent failures (W3)
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w3` @ `eb98295` (fix-merge `3dc8676`) · **Fix diff read:** `7d0bf57..3dc8676`
+**Authority:** the fix-mapping comment on PR #43. My r1 findings map to **F51 (HIGH)**, **F56**, **F57**,
+**F58** (MEDIUM) and **F66** (LOW); F64 checked on request.
+**Probe worktree:** `C:\Users\kriss\AppData\Local\Temp\claude\probe-w3d-sfh-fixes`, cut at `eb98295`,
+detached, own `pnpm install`. **Torn down and verified:** `unlinked 549 junction(s) in 2 pass(es)` ·
+main checkout `.pnpm` 240 → 240 · exit 0. Tree restored between every probe; `git status` and
+`git diff` both empty before teardown. Regression sweep at the fixed head, post-restore:
+**148 files / 2,092 passed + 2 todo, 0 failed.**
+
+Warm seat: I re-read only the fix diff for these five files plus `primitives/useOpenerFocusReturn.ts`
+(new), not the r1 artefact. Nothing was confirmed from memory — every verdict below is a probe or a
+line I opened at the current SHA.
+
+| Finding | r1 severity | Status | Evidence |
+|---|---|---|---|
+| **F51** — D12 badge defence vacuous | HIGH | **FIXED — better than prescribed** | Both r1 survivors now KILL; every numeric claim in the rewrite re-measured and exact |
+| **F56** — stripConsoleCalls fails open on an unbalanced paren | MEDIUM | **FIXED** | r1 escape KILLED |
+| **F57** — FROZEN exemption applied per LINE | MEDIUM | **FIXED** | r1 escape KILLED |
+| **F58** — token-less mount promises a map that is not there | MEDIUM | **FIXED — refutation accepted** | Both halves probed; the refutation is correct at source |
+| **F66** — settings ALLOWED keyed by hex | LOW | **FIXED** | r1 escape KILLED, now names the file |
+
+---
+
+### F51 — FIXED, and the fix corrects a false claim rather than only the metric
+
+**Probes re-run verbatim on the canonical source (`features/demo/ui/controls/sample-badge.ts`),
+one mutation each, tree restored between:**
+
+| r1 probe | Mutation | r1 | Now |
+|---|---|---|---|
+| **B** | `background: 'rgba(125,95,16,0.12)'` — warningLight at the badge own alpha | SURVIVED | **KILLED** — *"SAMPLE_BADGE.background is `warningLight` under an alpha — D12 freezes it as its own value: expected [125,95,16] to not deeply equal [125,95,16]"* |
+| **C** | `background: 'rgba(0,0,0,0)'` — the fill deleted | SURVIVED | **KILLED** — *"expected 0 to be greater than 5"* (the new presence floor) |
+
+Two new cases carry them, and they are the right two: an **RGB identity check under the alpha**
+(the only thing that can see probe B form, since a translucent warning token passes every perceptual
+bound) and a **two-sided presence floor** against the bare card (probe C form). The bound is now
+two-sided in plan §9 clause 2 own shape — far from the warning surface *and* near enough to nothing —
+with the tautology control written out explicitly (`a fill that paints nothing must FAIL`).
+
+**On the honesty question the coordinator raises — is the new docblock claim true?** Yes, and I
+measured all of it rather than reading it. From the module own helpers at the fixed head:
+
+```
+MATCHED-ALPHA (docblock claims 3.6-6.2):  warning 3.92 · warningDark 3.56 · warningLight 6.16 · warningAccent 3.56
+AS-RENDERED fill vs a warning surface:    65.31   (bound > 10)
+PRESENCE, badge vs bare card:             14.90   (bound > 5)
+severityTone(warning).background:         #7d5f10 (opaque, as the docblock says)
+```
+
+So the rewrite is right on both counts, and this is the part worth recording: **D12 own prediction
+was wrong and the fix says so out loud.** D12 asserts the two "will not collide" because they are
+"a fill and a foreground of different families"; at matched alpha they are ΔE 3.56–6.16 apart — one
+hue family. The fix does not paper over that. It re-states the real separation (a translucent tint
+under an amber label vs an opaque ground under a near-white `warningOnLight` label), pins the pair
+**as rendered**, and adds the identity check for the hue underneath the alpha. That is a correction to
+a ruling stated rationale, evidenced, in the docblock — the right way to close a finding of this
+class, not the easy way.
+
+The comparison target also moved from the raw `palette.dark.warningLight` to
+`severityTone(warning).background`, which is what a Banner actually paints. Correct, and it is the
+seam-consuming form W2/F26 asks for.
+
+I withdraw my r1 "pin error/info too" suggestion: measured, the badge sits ΔE 20.0 from an info
+surface, 48.6 from success and 77.2 from error. D12 scopes the constraint to the warning family and
+there is no near miss elsewhere to guard.
+
+**Consumer side (the second F51 commit) — verified, not taken on trust.** All five sites now import
+`SAMPLE_BADGE`: `ImportResultAccordion`, `OcrCaptureScreen`, `MediaLibrarySheet`, `MediaCaptureScreen`,
+`AudioPreviewScreen`. Zero surviving byte-copies of the trio. The docblock also corrects its own
+"two surfaces" census to five and marks it as having been false when written.
+
+**Bounded residual (recorded, not filed).** The identity check is exact-RGB, so
+`rgba(126,95,16,0.12)` — warningLight with one channel moved by 1 — SURVIVES all six D12 cases
+(probed). Not worth a row: the realistic drift vector is `withAlpha(colors.warningX, alpha)`, which is
+exact identity and now reds, and nobody hand-types a one-off warning hex. Noted so a later reader does
+not rediscover it as a hole.
+
+---
+
+### F56 — FIXED
+
+`stripConsoleCalls` now tracks quote state and backslash escapes, so parens inside a string literal
+are data and cannot move `depth`. My r1 escape re-run verbatim on
+`features/demo/ui/screens/map/MapScreen.tsx` — the planted em-dash violation plus an unbalanced open
+paren in the console string above it — is **KILLED** (`+ "file": "screens/map/MapScreen.tsx"`,
+1 failed / 6 passed). Two regression cases shipped with it, including the escaped-quote arm, which is
+the second door into the same fail-open and was not in my prescription.
+
+I probed the new scanner for a fresh escape and found none worth filing: comments are stripped before
+it runs, so neither comment form can open a phantom quote; an apostrophe inside a double-quoted
+argument and a double quote inside a template literal are both correctly ignored; and an unterminated
+quote (the only way the quote state could stay open to EOF) is a compile error the pre-flight catches.
+
+---
+
+### F57 — FIXED
+
+The frozen exemption is now checked at the OCCURRENCE via `coversOccurrence`, which walks every
+instance of the frozen string on the line rather than the first. My r1 escape re-run verbatim on
+`features/demo/ui/screens/import/PickerStage.tsx:31` — a second, demo-originated em-dashed string
+appended to the frozen line — is **KILLED** (`+ "file": "screens/import/PickerStage.tsx"`). The
+committed unit case pins both directions (the frozen dash covered, its line-mate not), and the comment
+names the class lineage (F32 file-for-role, F33 line-for-arm, F57 line-for-string) so the next scan
+author inherits it.
+
+---
+
+### F58 — FIXED, and the refutation of my option 2 is correct at source
+
+The fix took option (a) — a required `canPlaceRing` prop driving **both** the sheet hint and the
+anchor notice — and explicitly refused my option (b) (discriminate on whether `getCenter()` returned).
+**The refutation holds, and it is a better answer than mine.** Verified at source:
+
+- `MapCanvas.tsx:335` opens the map with `center: [DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1]]` —
+  the same frozen constant the anchor chain falls through to. So when a token exists,
+  `DEFAULT_MAP_CENTER` genuinely **is** the current view, and "centred on the current view" is true.
+- `mapRef.current` is assigned inside an async IIFE after two dynamic imports (`MapCanvas.tsx:315-338`),
+  so `getCenter()` is null for the first frames of **every** mount, token or not. My option (b) would
+  have told a visitor with a working map that the map was unavailable, in precisely the window they
+  are most likely to be pressing things. That is a new lie in place of the old one.
+
+**Probe, both halves, at the fixed head (jsdom render, canonical sources):**
+
+- **Token-less** — `[data-map-fallback]` present; `filter-hint` reads *"The live map is unavailable,
+  so the proximity ring cannot be moved."*; the long-press sentence **absent**; the toggle fires
+  *"Nothing is plotted and the live map is unavailable, so proximity is centred on the demo default
+  location."*; the "current view" sentence **absent**.
+- **With `NEXT_PUBLIC_MAPBOX_TOKEN` stubbed** — the phone hint and the "current view" notice both
+  come back.
+
+**2 passed.** Three anchor provenances now produce three outcomes, which is what the finding asked
+for: a plotted row is silent, a real map says "current view", the constant says it is a constant.
+`canPlaceRing` is read inside the component from the same expression `MapCanvas` decides on, not
+captured at module scope — which is why the honest branch is testable at all.
+
+**Fix-introduced regression check on the same commit (F62, not my finding but in the blast radius).**
+`MapControls` now receives `proximityActive={proximityFiltering}` (`proximityResult !== null`) instead
+of the raw request, so the on-map chip no longer claims a filtered count while the Turf chunk is still
+loading. That is a real silent-failure fix in my lane and I confirm it is sound. One consequence,
+traced and accepted: during a hung (not failed) chunk load the chip and its dismiss control do not
+render, so the on-map escape hatch is briefly absent — but the sheet Toggle deliberately keeps reading
+the request (`proximityActive`), so there is always a route to turn it off, and the failure path still
+reverts the toggle and fires `PROXIMITY_UNAVAILABLE`. No finding.
+
+**Residual (recorded, not filed).** `canPlaceRing` is token *presence*, not map *health*. With a token
+and a terminal map failure, the hint still names a long-press. Reaching it requires the sheet to be
+open already, because the error overlay (z 25) covers the filters button (z 15) — and that overlay is
+an alert region that names the failure, so the visitor is not misled about the map itself.
+
+---
+
+### F66 — FIXED
+
+`ALLOWED` is re-keyed as `file:hex` with a template-literal `Site` type, so the path is inside what
+tsc checks and inside what the inventory case compares. My r1 escape — `#5d7a9a` planted in
+`settings/SettingsNavBar.tsx` — is **KILLED**, and the failure message names the new file
+(`+ "SettingsNavBar.tsx:#5d7a9a"`) plus the reason (*"an exemption granted to one file no longer
+excuses the same hex in another (F66)"*). This is W2/F32 remedy with the axes swapped, and the comment
+says so.
+
+---
+
+### F64 (`useOpenerFocusReturn`) — error paths checked, sound
+
+Not my finding; checked on request. The paths that could swallow:
+
+- `canTakeFocus` returns false for a disconnected or disabled opener and the cleanup then leaves focus
+  where it is rather than forcing it somewhere arbitrary. That is the correct call, and the docblock
+  says why — a destructive action legitimately removes its own opener.
+- The captured origin is connectivity-checked **twice** (at mount and at restore), so a stale
+  `activationOrigin` left by an earlier gesture cannot become this overlay opener.
+- The failure mode I went looking for — an always-mounted, `visible`-gated sheet where the hook would
+  capture an opener at mount, focus nothing, and never hand back on close — **does not exist here**.
+  All four call sites (`CentredDialog`, `ExportActionSheet`, `MediaLibrarySheet`, `PdfPreview`) are
+  conditionally mounted by their hosts, so mount is open and unmount is close. The `enabled` gate is
+  unused at every site and defaults true, which is consistent.
+- The three sites that pass a `focusRef` all put `tabIndex={-1}` on the target element, so
+  `focusRef.current.focus()` is not a silent no-op. `PdfPreview` deliberately passes no ref
+  (restore-only), which the docblock justifies.
+- `trackDialogActivationOrigin()` is idempotent, guards for a missing `document`, and its listeners are
+  intentionally permanent. No finding.
+
+---
+
+### New finding
+
+#### [MEDIUM] The FallbackMode notice — the other half of the demo provenance machinery — carries the D12 amber by hand at two sites, guarded by nothing
+
+**File:** `features/demo/ui/screens/ImportModal.tsx:278` and `:294` (also `chrome/PdfPreview.tsx:170`,
+`screens/MediaLibrarySheet.tsx:585`, `screens/MediaCaptureScreen.tsx:891-892` — same hue, three
+further alphas)
+
+**Code:**
+```tsx
+{result.notice && (
+  <div style={{ fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', ... }}>{result.notice}</div>
+)}
+```
+
+**Issue.** `result.notice` is `fallbackNotice(res.fallbackMode)` — *"Live model not configured.
+Imported the sample request instead."* It is the same provenance claim the Sample data badge makes,
+on the surface that matters more, and it is the one D12 own ruling names first. The F51 fix gave the
+badge chip a module, a role-based rationale and a two-sided measured pin; these sites got none of it.
+They spell `#ffd07a` on `rgba(255,200,90,0.1)` inline, at an alpha that matches no other site, and
+**no test pins either value** (grepped: zero hits for `255,200,90,0.1` and `,0.28` across every
+`*.test.ts` / `*.test.tsx`). `banner.test.tsx` deliberately excludes `ImportModal.tsx` from both
+`ADOPTED` and `HANDED_BACK` on the U3.3 refutation that "D12 defends the FallbackMode amber" — but
+nothing subsequently *built* that defence, so the exclusion currently points at an empty room.
+
+**Adversarial input / sequence.** The same one F51 was filed for, one surface over: a later package
+re-derives this notice from the ported warning family (or a designer nudges the amber), and a
+"we substituted sample data for your document" banner becomes indistinguishable from an ordinary
+warning. Every guard in the repo stays green.
+
+**Why now and not in r1.** The fix commit own corrected census (five byte-identical badge sites) is
+accurate as scoped to the chip trio; these four are the same hue at different alphas, so they fell
+outside it. The finding is that F51 built exactly the mechanism these sites need and stopped at the
+chip — a blast-radius observation about this fix round, not a re-open of F51.
+
+**Fix.** Cheapest correct version: add a second frozen block beside `SAMPLE_BADGE` (a `SAMPLE_NOTICE`,
+or a second key on the same module) for the notice alphas, point the two `ImportModal` sites at it,
+and extend the existing D12 describe with the same three cases the badge now has (as-rendered
+separation, presence floor, hue identity). The other three amber surfaces are a different question
+(they are not provenance claims) and can be left alone or handed to U8.2.
+
+---
+
+### Round 1 summary
+Findings re-judged: F51 **FIXED** · F56 **FIXED** · F57 **FIXED** · F58 **FIXED** · F66 **FIXED** — 5/5, zero PARTIAL, zero UNFIXED.
+New findings: **1 MEDIUM** (FallbackMode notice amber, the unguarded twin of F51).
+Fix-introduced regressions: **none.** Regression sweep 148 files / 2,092 passed, 0 failed at the fixed head after restore.
+Probes this round: 8 (F51 x3, F56 x1, F57 x1, F58 x2, F66 x1) — 5 KILLED as intended, 1 SURVIVED (the recorded exact-RGB residual), 2 confirmatory renders.
+Verdict: **APPROVE with comments** (the one new MEDIUM is the aggregator to place).
+
+---
+---
+## Round 0 (initial review) — silent failures (W3: U5 map · U6 wizard/settings · U7 import/OCR/media)
 
 **Agent:** `silent-failure-hunter` · **Mode:** code review (round 1)
 **Scope:** `git diff master...13827de` in `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\w3-wave`

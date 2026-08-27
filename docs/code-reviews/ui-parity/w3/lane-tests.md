@@ -1,4 +1,102 @@
-# Lane: tests — W3 (U5 + U6 + U7), `feat/uiparity-w3` @ `13827de` vs `master` @ `6764a28`
+# Lane: tests — W3
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w3` @ `eb98295` (fix-merge `3dc8676`) · **Fix diff read:** `7d0bf57..3dc8676`
+· **Authority:** the fix-mapping comment on PR #43. My findings appear there as **F53** (HIGH),
+**F54**, **F55**, **F66**, **F67**, **F69**, **F70** — all seven present in the mapping, none
+confirmed from memory.
+
+**Cold gate, my own probe worktree** (`probe-w3d-tests` @ `eb98295`, install 2.6 s):
+`pnpm exec vitest run --silent=true` → **307 files / 4,235 passed | 2 todo (4,237), exit 0.**
+(r0 was 305 / 4,194 / 2.) Motion mode **motion-ON**, `navigator.mediaDevices` undefined, as in r0.
+Every mutation on the canonical source in my own worktree; verdicts from exit codes; restore proven
+after each probe and at the end (`git diff eb98295 --stat` empty, suite re-green at 4,235).
+
+### Per-finding status
+
+| F | r1 sev | Status | Evidence |
+|---|---|---|---|
+| **F53** | HIGH | **FIXED** | Fix `c6a6f6d` adds five render pins, one per unobserved surface, in the shape I prescribed (`OcrCaptureScreen.test.tsx:67-72` — scanner var present AND evidentiary var absent). **All three of my probes re-run VERBATIM at the merged head, all three now KILL**, each naming the right file: MONO1 (`TerminalLine.tsx`, all five `fontFamily: stmono` consumers → `'inherit'`, const left in place) → 1 failed, `TerminalLine.test.tsx`. MONO2 (`StoryRail.tsx`, both sites) → 1 failed, `StoryRail.test.tsx` (a new file). MONO3 (`SplashScreen.tsx:23`, the `status` HUD recipe drops its `fontFamily`) → 1 failed, `SplashScreen.test.tsx`. The integrator spot-checked MONO1 only; MONO2 and MONO3 are confirmed here for the first time. The commit's own disclosure that the `BootSequence` pin needed `video={VIDEO}` — and that writing it against `video={null}` produced `expected 'inherit' to contain '--font-stmono'` — is the RED half done properly on a pin that would otherwise have passed on arrival. |
+| **F54** | MEDIUM | **FIXED — 4-of-4** | Fix replaces the `\{[^{}]*\}` slicer with a genuine brace-balanced `literals()` walker and widens the token pattern to `(?:colors\|palette\|c)` with `[A-Za-z]*` suffixes plus the computed template-key form; the planted control at the same case now carries all four shipped spellings keyed by name. **All four of my form mutations re-run VERBATIM**, each planted in `screens/CompletionScreen.tsx` (an `OWNED` file), scope `status-owners.test.tsx` (13 cases): flat (negative control) **KILLED**, nested **KILLED**, `*Light` **KILLED**, computed template-key **KILLED** — 1 failed / 12 passed on every one. Was 1-of-4; now 4-of-4. I took the verdicts from exit codes with the control green, per the round's own voided-verdict lesson, and did not rely on the integrator's re-verification. |
+| **F55** | MEDIUM | **FIXED — 4-of-4** | `field-recipe-sweep.test.tsx` and `status-owners.test.tsx` now read the seam in their POSITIVE assertions and keep the palette token in the NEGATIVE ones — exactly the split I prescribed and the integrator's own `CompletionScreen.tsx:103` ruling. **My seam re-point probe re-run** (`status.ts` `background` → `c.backgroundTertiary`) now reds **only** `tokens/__tests__/status.test.ts` (the seam's own oracle) and `__tests__/palette-contrast.test.ts` (a ratio oracle that legitimately measures the fill). `field-recipe-sweep.test.tsx` and `status-owners.test.tsx` are green through it — the exact signature I predicted for a complete fix. |
+| **F66** | LOW | **FIXED** | `ALLOWED` re-keyed `path:hex`. **SP2 re-run verbatim** (the exempt `#5d7a9a` planted in `panes/SecurityPane.tsx`, i.e. a non-`FormFieldsPane` file): **KILLED**, 1 failed / 2 passed — was SURVIVED. **SP1 negative control re-run** (`#f0f4f8` in the same file): still **KILLED**, 2 failed / 1 passed. |
+| **F67** | LOW | **FIXED — stronger than prescribed** | Split into two honestly-named halves: `norm() folds every spelling a re-inline arrives in` (what the old case actually tested) plus a real control over the real haystack (`text.length > 10_000`, the module import, a `CAMERA_CHROME.` use, per `SCREENS`). The docblock now says plainly that the old label "was not one". Its named mutation (`SCREENS_DIR` re-pointed) does not produce a clean assertion failure in my run — it errors the file at import, because module-scope `MODULE_SOURCE` reads through the same constant — so the mutation is blunter than the comment implies, but the outcome is still non-green and the substantive half (the scan reads the real screens) is now genuinely asserted. No re-file. |
+| **F69** | LOW | **FIXED** | "a FOUR-entry list" → "a fixed, non-empty list". Count-free, which is the F48 rule the same docblock cites. |
+| **F70** | LOW | **FIXED** | `modals.test.tsx:232`'s fixture now carries the shipped post-A93 string. |
+
+**Seven of seven FIXED. Zero PARTIAL, zero UNFIXED, zero of my findings refuted.**
+
+### Fix-introduced regressions and tautology sampling in the blast radius
+
+**None found.** Sampled the round's four biggest new pin sets, one probe each:
+
+| Sampled | Probe | Verdict |
+|---|---|---|
+| **u54's two-sided §C.1 rows** (F52) — do they agree with themselves through a re-tint? | `LocationDetailCard.tsx:121` `color: colors.link` reverted to `colors.primary` | **KILLED** — 2 files (`palette-contrast.test.ts`, `LocationDetailCard.test.tsx`). Not tautological: each row asserts the new value clears AA **and** that the value it replaced does NOT (`worst(palette[scheme].primary, …) < AA_TEXT`, `textTertiary < AA_TEXT`), **and** pins identity at the exported constant. A revert reds on two independent halves. |
+| **u53's never-settling chunk mock** (F62) — does it actually observe the window? | `MapScreen.tsx` `proximityActive={proximityFiltering}` reverted to `{proximityActive}` | **KILLED** — 1 failed, `MapScreen.proximity-window.test.tsx`. **Yes, it observes it.** `vi.mock(…, () => new Promise<never>(() => {}))` genuinely holds the import open, and the absence assertions are not vacuous because each case pairs them with a POSITIVE half on the same render (`aria-checked === 'true'`, `filter-radius-1` present) — so "no chip" is proven to mean "request committed, filter withheld", not "nothing rendered". |
+| **u72's new `sample-badge-consumers.test.ts`** (F51 ownership half) | `MediaCaptureScreen.tsx`'s `SAMPLE_BADGE.background` re-inlined at its **identical** value, in the *spaced* spelling the source does not use | **KILLED** — 1 failed / 6 passed. `norm()` is doing real work. A first probe against `SAMPLE_BADGE.foreground` SURVIVED, and that is **disclosed, asserted behaviour, not a defect**: `OWNED = ['background']` is pinned by its own case (`expect(OWNED).toEqual(['background'])`) and both exclusions are proven live-for-other-reasons in the scanned file. This file is the round's best artefact — it applies F67's lesson by name and shrinks the CLAIM to the pattern instead of widening the pattern until it lies. |
+| **F71** (another lane's finding on a pin I praised in r0) | read at source | The `?.` → `!` change is right: optional-chaining both sides of the glyph `toBe` made `undefined === undefined` pass, so my r0 endorsement of `pane-chrome.test.tsx:146-155` was one assertion too generous. Recorded rather than defended — the block's other two cases (whole-declaration-set equality) were and remain sound. |
+
+**F53 residual, recorded as a note and deliberately NOT filed as a finding.** The fix pins one
+representative node per surface, which is exactly what I prescribed. Per-*site* granularity within a
+fixed file is therefore still open: `TerminalLine.tsx`'s `blockTextStyle` + `discloseStyle` losing the
+face (**SURVIVED**, 4,235 green) and `ImportTerminalProgress.tsx`'s jump-pill `latest` label losing it
+(**SURVIVED**). Both are inside files whose surface-level pin now kills. Pinning every site would be a
+change-detector per declaration, which is what I argued against in r0; naming it here so the aggregator
+can see the boundary rather than discover it later.
+
+### Ledger §119 — `--noUnusedLocals`, measured at `eb98295`
+
+`rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false --noUnusedLocals` → **exit 2**,
+**4 × TS6133** (+ 2 × TS6196), down from **11** at W2's `250e12f`:
+
+```
+features/demo/ui/controls/__tests__/banner.test.tsx(8,41)      TS6133 'StatusSeverity'
+features/demo/ui/controls/__tests__/banner.test.tsx(107,18)    TS6133 'icon'
+features/demo/ui/controls/__tests__/header-chrome.test.tsx(45,7)   TS6133 '_f20'
+features/demo/ui/screens/__tests__/CaseActionsSheet.test.tsx(5,1) TS6133 'blankLocationForm'
+features/demo/engine/logic/__tests__/boot.test.ts(28,6)        TS6196 '_PosterAloneIsNotAVideo'
+features/demo/engine/store/create-store.ts(20,3)               TS6196 'MediaKind'
+```
+
+The flag **cannot flip yet**. §119's trigger is "each W3+ package clears the TS6133s in files it
+opens", and **two of the four are in `banner.test.tsx` — a file this wave opened twice** (the U6/U7
+`ADOPTED` union at merge, and F69's prose fix in this very round), so that arm of the trigger fired and
+was not honoured. The other two files are untouched by W3 and carry no obligation. `_f20` is
+underscore-prefixed by convention; `noUnusedLocals` does not honour that for locals, which is worth one
+sentence in the row when the flag is finally flipped. Reporting the count only — the ledger is the
+aggregator's to write.
+
+### Verdict
+
+**Round 1 (fix delta): APPROVE.** 7/7 of my findings FIXED, verified by re-running **every** probe that
+produced them (11 verbatim re-runs: MONO1/2/3, the four F54 forms, the F55 seam re-point, SP1, SP2 —
+all now with the outcome the fix claims), plus 4 fresh probes in the blast radius, none of which found a
+regression or a tautology. No new findings.
+
+**Probes this round: 13 runs · 13 valid · 11 KILLED · 2 SURVIVED (both the disclosed F53 per-site
+residual above) · 1 disclosed-behaviour non-defect (`SAMPLE_BADGE.foreground`, re-probed correctly
+against the owned member and killed).** Restore proven after each and at the end. Teardown:
+
+```
+node_modules/.pnpm entries BEFORE: 240
+unlinked 549 junction(s) in 2 pass(es)
+node_modules/.pnpm entries AFTER : 240
+OK -- worktree removed, main checkout's .pnpm store intact (240 entries).
+```
+
+branch `probe-w3d-tests` deleted · no `probe-*` row in `git worktree list`.
+
+## Tests Summary (Round 1 fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 — prior findings F53/F54/F55/F66/F67/F69/F70 all **FIXED**
+Verdict: **APPROVE**
+Out-of-lane observations: the wave's r0 theme ("source-scan guards whose pattern is narrower than the claim written beside them") was absorbed rather than patched — `sample-badge-consumers.test.ts` and the rewritten `camera-chrome.test.ts` both shrink the claim to the pattern and assert their own scope. That is the durable fix for a class this campaign has now filed in four consecutive waves.
+
+---
+
+# Round 0 (initial review) — retained below
+
 
 **Mode:** code review · **Lane question:** are the wave's new pins behaviourally meaningful, do they
 pin what they claim, and would they catch a realistic regression?

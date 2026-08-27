@@ -1,4 +1,177 @@
-# Lane: typescript — W3 (U5 map + U6 wizard/settings + U7 import/OCR/media)
+# Lane: typescript — W3
+
+## Round 1 (fix delta)
+
+**Head:** `feat/uiparity-w3` @ `eb98295` · fix-merge `3dc8676` · fix diff `7d0bf57..3dc8676`.
+**Authority:** the fix-mapping comment on PR #43. My two IDs appear there: **F55** (`w3-fix-u64a`
+"pins → `severityTone`, split opacity half" + `w3-fix-u64b` "F55 lines") and **F71** (`w3-fix-u62`).
+**Mode:** warm — delta only. Nothing re-read in full; no fix confirmed from memory, every one probed
+or read at the current SHA.
+**Probe worktree:** `probe-w3d-ts-f55` @ `3dc8676`, own install, all mutations restored with
+`git status` proven empty, torn down (549 junctions unlinked, main `.pnpm` store intact, branch
+deleted). Provenance: canonical source in every probe.
+
+**Cold gates at `3dc8676`, reproduced in my own tree:**
+
+| Gate | Exit | Result |
+|---|---|---|
+| `npx tsc --noEmit --incremental false` | **0** | clean |
+| `npx vitest run` | **0** | **307 files, 4,235 passed + 2 todo** |
+
+---
+
+### Prior findings — status
+
+| F | r1 sev | Commit | Status | Evidence |
+|---|---|---|---|---|
+| **F55** | MEDIUM | `121a82c` (u6.4a) + `d7f6a06` (u6.4b) | **FIXED** | probe below — census 4 files → 2 |
+| **F71** | LOW | `6fddebf` (u6.2) | **FIXED** | probe below — r1's SURVIVED mutation now KILLS |
+
+#### F55 — FIXED (probed, not read)
+
+Re-ran **the identical r1 mutation** on the canonical source: `features/demo/ui/tokens/status.ts:121`,
+`severityTone`'s `background` re-pointed to the literal `'#101820'`. Full suite:
+
+```
+r1 (13827de)                                    r1-fix (3dc8676)
+FAIL tokens/__tests__/status.test.ts            FAIL tokens/__tests__/status.test.ts
+FAIL __tests__/palette-contrast.test.ts         FAIL __tests__/palette-contrast.test.ts
+FAIL __tests__/field-recipe-sweep.test.tsx      -- follows the seam --
+FAIL screens/__tests__/status-owners.test.tsx   -- follows the seam --
+Tests  6 failed | 4188 passed                   Tests  4 failed | 4231 passed
+```
+
+Both of my touch-points dropped out of the absolute-anchor set; the only two files left holding an
+absolute value for this seam are the two that should (`status.test.ts`, `palette-contrast.test.ts`).
+That is exactly the end state my Fix line prescribed.
+
+**And the fix did not trade protection away** — I probed the half that the palette spelling used to
+carry. `_pane-chrome.tsx:249` `backgroundColor: t.background` → `withAlpha(colors.warning, 0.09)`
+(the retired translucent recipe): **3 tests failed across `status-owners.test.tsx` and
+`pane-chrome.test.tsx`. KILLED.** The "split opacity half" the mapping claims is real — `d7f6a06`
+added a standalone `expect(box().getAttribute('style')).not.toContain('rgba')` so the anti-wash
+guarantee now has its own line instead of riding on the fill pin.
+
+**The integrator's positive/negative split held the merge**, checked at source in both files: POSITIVE
+assertions read `severityTone(...)` (`field-recipe-sweep.test.tsx:471,481`; `status-owners.test.tsx:95,251,253`);
+NEGATIVE assertions stay in palette terms and say why (`status-owners.test.tsx:92` "a seam re-point
+must not silently redefine what *wrong* means"); the opacity assertions are palette-independent.
+My r1 second-order point is also addressed rather than dropped — `field-recipe-sweep.test.tsx:473-477`
+now credits the `not.toContain('rgba')` line as the anti-wash guard, which is what my finding said the
+old comment had mis-attributed to its neighbour.
+
+#### F71 — FIXED (probed)
+
+`pane-chrome.test.tsx:158-162` now reads `querySelector('svg')!.innerHTML` on both sides, with the
+reason recorded. Re-ran **the identical r1 mutation** — `Banner.tsx:126` `BannerIcon` returns `null`,
+so both glyphs vanish:
+
+- r1: `1 passed` — **SURVIVED**
+- r1-fix: `1 failed` — **KILLED**
+
+The one direction the pin was blind in is now covered, and the isolating direction (only `PaneNote`
+loses its glyph) still kills, as it did in r1.
+
+---
+
+### Type fallout in the fixes' blast radius (coordinator's four asks)
+
+**F65 — engine `ConfidenceLevel` signature. Clean, zero remaining `color: string` consumers.**
+`engine/logic/ocr.ts` dropped `color` from `getConfidenceLevel`'s return, moving a presentation
+decision out of the engine (correct direction for engine purity). I swept every consumer:
+`DemoExperience.tsx:2002`, `OcrCaptureScreen.tsx:13,30,132`, plus three test files — **no `.color`
+read survives anywhere** (`grep` for `getConfidenceLevel(...).color` / `conf.color` / `confidence.color`
+returns nothing), and cold `tsc` is exit 0, so no consumer reads a property the type no longer has.
+The band→colour map now lives at `OcrCaptureScreen.tsx:132` as
+`CONFIDENCE_COLOR: Record<ConfidenceLevel, string>` — an annotated `Record`, so a fifth band is a
+`TS2741` at the table. Five fixtures updated consistently; `ocr.test.ts:90` and
+`OcrCaptureScreen.test.tsx:142` both pin `Object.keys(...).sort()` to `['level','message']`, which is
+what stops the colour creeping back in.
+
+**F61 — ~50 new closers. All correct; readonly is self-verifying.**
+72 `as const satisfies` added across non-test source in the fix range, and **zero** bare `satisfies`
+without `as const` (the five diff hits matching that pattern are all comment prose, checked line by
+line). The one shape that needed care is `OverlayHeader.tsx:142-145`, where an annotated
+`Record<OverlayHeaderVariant, {...}>` became a Record-FORM closer — it kept exhaustiveness
+(`as const satisfies Record<OverlayHeaderVariant, {...}>`), so a missing variant is still a compile
+error, and gained readonly. No probe needed for the readonly half: `overlay-header.test.tsx:207-208`
+already carries `@ts-expect-error CONTROL is readonly`, so dropping `as const` would turn that into an
+unused `@ts-expect-error` (`TS2578`) and red the typecheck — and cold `tsc` is exit 0.
+
+**F74 — discriminated pair. Correct shape, and it bites. Probed.**
+`OverlayHeaderProps` is now `OverlayHeaderBase & OverlayHeaderControl` with
+`{ onBack(): void; backLabel: string } | { onBack?: undefined; backLabel?: undefined }`. The
+`onBack?: undefined` arm is the part that makes it **exhaustive rather than merely additive** —
+without it `{ onBack: fn }` still matches the no-control arm by width subtyping, and the docblock
+says so. Probe: deleted `backLabel` from `MediaCaptureScreen.tsx:520-524`, a caller that passes
+`onBack` → **`TS2322` at `:521`. KILLED.** This closes the exact latent hole I filed as an r1
+out-of-lane observation (an icon-only button with `aria-label={undefined}` — no accessible name),
+so that observation is discharged, not carried.
+
+**§119 — cold `tsc --noEmit --noUnusedLocals` at `3dc8676`: 6 diagnostics. All pre-existing; 0 fix-introduced.**
+
+| File:line | Code | Symbol | Provenance |
+|---|---|---|---|
+| `engine/store/create-store.ts:20` | TS6196 | `MediaKind` | `9f4810f`, 2026-06-27 (file still at `lib/demo/store/`) |
+| `engine/logic/__tests__/boot.test.ts:28` | TS6196 | `_PosterAloneIsNotAVideo` | untouched in fix range |
+| `ui/controls/__tests__/banner.test.tsx:8` | TS6133 | `StatusSeverity` | `7cf2caa` — **W2's own F26 fix**, on master |
+| `ui/controls/__tests__/banner.test.tsx:107` | TS6133 | `icon` | `cb6e606` |
+| `ui/controls/__tests__/header-chrome.test.tsx:45` | TS6133 | `_f20` | untouched in fix range |
+| `ui/screens/__tests__/CaseActionsSheet.test.tsx:5` | TS6133 | `blankLocationForm` | untouched in fix range |
+
+Blamed each line individually rather than inferring from the diff. Five of six are in `__tests__`; the
+only source hit is a two-month-old unused type import. The single fix-range commit touching
+`banner.test.tsx` is `209648d` (F69 docblock prose) and it introduced neither of that file's two.
+Two are `_`-prefixed deliberate placeholders, which `noUnusedLocals` does not exempt without
+`noUnusedParameters` conventions — worth knowing before anyone proposes turning the flag on.
+
+---
+
+### Fix-introduced regressions in my lane: none found
+
+- **Architecture, re-swept at `3dc8676`** (not carried from r1): `useStore` outside `DemoExperience`
+  **0** · React / `'use client'` under `engine/` **0** · `features/demo/index.ts` +
+  `engine/index.ts` diff vs `master` **0 lines** (public barrel still unwidened after ~50 fix commits)
+  · demo imports in `components/` + `app/(default)/` + `lib/` **0** (the two `grep` hits are a
+  docblock reference and the guard test's own title, neither an import).
+- **New smells in the fix range** (non-test source): zero `as any`, `@ts-ignore`, `Date.now()`,
+  `Math.random()`, `console.log`, `forEach(async)`.
+- **F64's new `useOpenerFocusReturn`** (`ui/primitives/useOpenerFocusReturn.ts`) is new shared logic in
+  the blast radius, so I read it in full. It is sound: the module-scope tracker is SSR-guarded
+  (`typeof document === 'undefined'`) and idempotent (`tracking` latch), so it installs exactly two
+  capture listeners for the app's lifetime rather than leaking per mount; the stale-singleton risk is
+  closed at both ends (`activationOrigin?.isConnected` at capture-read AND `canTakeFocus` at restore);
+  the `[focusRef, enabled]` deps are justified at the site and `focusRef` is a stable ref object; the
+  one cast, `(el as Partial<HTMLButtonElement>).disabled`, is a legal overlap narrowing that yields
+  `boolean | undefined`, not an `any` escape. No finding.
+- **F73** touches `MapControls`' proximity live region, not `MapFiltersSheet`'s `useEffect` that I
+  cleared in r1; the change is the same mount-before-change idiom I approved there. No regression.
+
+### New findings this round
+
+None.
+
+---
+
+## TypeScript Lane Summary (Round 1 — fix delta)
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0 (new)
+Prior: **F55 FIXED · F71 FIXED** — 2 of 2, both proven by re-running the r1 mutation.
+Verdict: **APPROVE**
+
+Store-bridge integrity: preserved · Engine purity: preserved (F65 moved a colour OUT of the engine)
+Barrel + marketing/demo isolation: preserved · Determinism seam: preserved
+
+§119 cold `tsc --noUnusedLocals`: **6** — all pre-existing, 0 fix-introduced (table above).
+Probes this round: 4 — F55 seam re-tint (census 4→2), F55 anti-wash re-roll (KILLED), F71
+`BannerIcon`→null (SURVIVED in r1 → **KILLED** now), F74 dropped `backLabel` (**KILLED**, TS2322).
+All restored, `git status` proven empty; worktree torn down.
+Ledger rows proposed: none.
+Out-of-lane observations: **r1's OverlayHeader `backLabel` observation is DISCHARGED by F74.** The
+`CompletionScreen.tsx:203-205` Export-Zip `title`-only reason remains open and is web's, not mine.
+
+---
+
+## Round 0 (initial review) — retained for reference
 
 **Scope:** `git diff master...13827de` — 167 files, +16,514/−1,582, 12 packages.
 **Mode:** code review. **Base contract:** `.claude/skills/fleet-orchestration/reviewer-contract.md`.
@@ -215,3 +388,9 @@ mirrored copies. The one invalid probe introduced an undefined identifier rather
 change and was discarded, not reported.
 Ledger rows proposed: none.
 Out-of-lane observations: 2 (listed above).
+
+---
+
+**END OF FILE.** The operative verdict for this round is the **Round 1 (fix delta)** summary above
+(line ~156): F55 FIXED, F71 FIXED, 0 new findings, **APPROVE**. Everything from "Round 0" down is the
+initial review, retained unaltered as the evidence base for those two findings.

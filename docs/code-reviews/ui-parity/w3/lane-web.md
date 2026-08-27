@@ -1,3 +1,179 @@
+# Lane: web — W3
+
+## Round 1 (fix delta)
+
+**Seat:** `web-reviewer` (warm) · **PR #43** · **Range read:** `git diff 7d0bf57..3dc8676`, head `eb98295`
+(fix-merge `3dc8676`), worktree `w3-wave`, READ-ONLY. **Authority:** the fix-mapping comment on PR #43.
+**Mine per that mapping:** F52 (HIGH), F59, F60, F72, F73, F74. Blast-radius sweep: F64, and F58/F62
+because they land in my surfaces.
+
+**Diagnostics:** `npx vitest run --silent=true features/demo/ui/screens/{map,settings} features/demo/ui/__tests__ features/demo/ui/{chrome,controls}` → **92 files / 1280 passed + 2 todo, exit 0.**
+All ratios below re-measured at the merged head with the same calibrated helper as round 0 (it
+reproduces the repo's own published figures to ±0.02).
+
+### Per-finding status
+
+| ID | Status | Evidence |
+|---|---|---|
+| **F52** [HIGH] | **FIXED** | all three sites re-measured at head — table below |
+| **F59** [MEDIUM] | **FIXED** (4/4, incl. the site I missed) | table below |
+| **F60** [MEDIUM] | **FIXED**, and F58's refutation verified at source | below |
+| **F72** [LOW] | **FIXED** | `MapControls.tsx` — the dead `paddingLeft: 12` is gone; `chipBody`'s new docblock names the tripwire class and cites `vitest.setup.ts:27-69`, which is more than the fix needed to do |
+| **F73** [LOW] | **FIXED**, with one regression | NEW-1 below |
+| **F74** [LOW] | **FIXED** | `OverlayHeader.tsx` — the discriminated pair, exactly the shape proposed, and the `onBack?: undefined` arm is present, which is what stops width subtyping from re-opening the hole |
+
+**F52 — FIXED, all three, and the split is right.** Re-measured on the grounds each site paints on:
+
+| Site | Was | Now | Constant |
+|---|---|---|---|
+| `LocationDetailCard.tsx` contact rows (nested tier over the map sheet's two opaque stops) | **2.88** | **7.02** | `MAP_CONTACT_ROW` |
+| `CaseMapPicker.tsx` selected title (nested tier over `background`) | **3.09** | **7.54** | `MAP_PICKER_SELECTED_TITLE` |
+| `_pane-chrome.tsx:117` readout (`modalSheet` = `colors.background`) | **3.94** | **9.60** (6.90 worst across `DARK_GROUNDS`) | `PANE_VALUE_TINT` |
+
+The **text-vs-border split is correct**, not a half-fix. `CaseMapPicker`'s selected row keeps
+`colors.primary` on its 2px border: a border is a non-text mark, so 1.4.11's 3:1 governs (measured
+**3.09** dark, **8.29** light) rather than 1.4.3's 4.5, and D4's *"selection is the border's weight and
+colour, evenly"* is a geometry ruling the fix correctly declined to disturb. The weight change
+(1px to 2px) is also an independent non-chromatic carrier, so 1.4.1 holds on its own.
+`CaseMapPicker.tsx:91-104`'s new docblock states that reasoning rather than leaving it inferable.
+
+**The §C.1 rows bound it two-sided, at the constant.** `palette-contrast.test.ts` rows 46/47 assert
+`worst(...) >= AA_TEXT` AND `MAP_CONTACT_ROW.color === palette[scheme].link` /
+`MAP_PICKER_SELECTED_TITLE === palette[scheme].link` AND the negative
+`worst(palette[scheme].primary, SHEET_NESTED_GROUNDS) < AA_TEXT`. The pane row does the same plus two
+exact figures (`contrast(primary, DARK_BG) === 3.94`, `contrast(PANE_VALUE_TINT, DARK_BG) === 9.6`).
+That is W2/F27's shape discharged properly: the ratio bound alone would have stayed green through a
+re-point back to `primary` — the identity lines are what red on that edit. I checked the grounds are
+built from `palette[scheme]` / `GLASS_TIER[scheme]` rather than a named half, so the rows survive D2's
+light flip, and `SHEET_NESTED_GROUNDS` is derived correctly from U5.1's R1 ruling (the map sheet's
+opaque stops, not a glass tier).
+
+Ledger **§89's residue** is ruled at the aggregator's desk (StoryRail D12-frozen, SplashScreen x3 to
+U8.1) rather than left open, which is the disposition the trigger needed. `_pane-chrome.tsx:98-112`
+writes the §89 citation and the met condition into the constant's docblock, so the next reader finds
+the ruling at the code.
+
+**F59 — FIXED, four of four.** Every name now contains its visible text:
+
+| Site | Visible | Name now |
+|---|---|---|
+| `MapFiltersSheet.tsx` Done | `Done` | `Done, apply filters and close` OK |
+| `MapFiltersSheet.tsx` radius chips | `0.5 km` | `0.5 km radius` OK |
+| `MapControls.tsx` chip body | `2 km · 5 of 9` | `Proximity filter, 2 km, showing 5 of 9 locations` OK (both tokens present; the separator is outside 2.5.3 per F96) |
+| `MapFiltersSheet.tsx` proximity `Toggle` | `Filter by radius` | `Filter by radius` OK |
+
+The fourth is one **I missed in round 0** — I read the `label={active ? 'Deactivate…' : 'Activate…'}`
+ternary, accepted its "the name carries the DIRECTION" docblock, and never checked it against the
+visible `<span>Filter by radius</span>` beside it. U5.3 found it, and the fix is better than
+name-matching: the direction duplicated what `role="switch"` + `aria-checked` already announces
+(`_shared.tsx:869-877`), so removing it drops a redundant state-baked accname rather than losing
+information. Pinned relationally (`toHaveAttribute('aria-label', span.textContent)`), which is stronger
+than a literal.
+
+**F60 — FIXED, and the F58 refutation checks out at source.** `MAP_FILTER_HINT_TEXT` is exported on
+`colors.textSecondary` — **5.82** worst on `SHEET_GROUNDS`, up from 4.23 — bounded two-sided (row 45b
+asserts `>= AA_TEXT`, `worst(textTertiary) < AA_TEXT`, and `not.toBe(textTertiary)`).
+
+I sanity-checked the F58 refutation as instructed and **all four clauses hold at source**:
+`MapCanvas.tsx:273` is `const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN` and `:616-626` returns
+`[data-map-fallback]` from that same expression, so `canPlaceRing` reads the identical fact rather than
+a proxy; `getCenter()` (`:303-306`) is `mapRef.current?.getCenter?.()`, null while the ref is unset;
+`mapRef.current = map` (`:337`) is assigned AFTER `await Promise.all([import('mapbox-gl'), import('…/mapCluster')])` inside `void (async () => {…})`, so it is genuinely null for the first frames
+of EVERY mount, token or not — discriminating on it would have told a visitor with a working map that
+the map was unavailable; and `new mapboxgl.Map({ center: [DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1]] })` (`:331-336`) reads the same constant from the same module, so in that window the
+default centre really IS the current view. Reading the env var inside the component rather than at
+module scope is right for the reason stated — `vi.stubEnv` drives the token-less path, and a
+module-level capture would freeze it. One fact, two consumers, which is what stops hint and notice
+disagreeing.
+
+### New findings in the fix's blast radius
+
+[MEDIUM] F73's hoisted live region now announces on every search keystroke that changes the count
+File: `features/demo/ui/screens/map/MapControls.tsx:233-252` (`ProximityAnnouncement`), with `features/demo/ui/screens/map/MapScreen.tsx:246-247`
+
+Issue: F73 correctly moved the region out of the `proximityActive &&` gate so it is always mounted and
+empty when off — that fixes the never-announces bug, and doing it without state or an effect is better
+than the sibling idiom. But its content is `Proximity filter on, ${summary}`, and `summary` embeds
+`${filteredCount} of ${locationCount}`. Both counts derive from `applyMapFilters(mapData, filters)`,
+and `filters.searchText` is edited by the search input IN THIS SAME COMPONENT, three nodes above the
+region. So with proximity running, typing `m` then `ma` then `mac` mutates a polite live region on
+every keystroke that changes the match count, queueing an announcement each time. Before the fix the
+region announced nothing ever; after it, it announces during text entry — the live-region-chatter
+anti-pattern, on the one field where a screen-reader user most needs quiet.
+
+Evidence: the sibling region two files away is structurally protected from exactly this and says so —
+`MapFiltersSheet.tsx:250-256`: *"while it is open it is the ONLY place a filter can be changed — the
+scrim covers the search field — so its subtitle reflects every reachable change."* `MapControls`'
+region has no scrim and shares its component with the search input, so that argument does not
+transfer. The flow is `MapScreen.tsx:246-247` (`locationCount` from `countLocations(filtered.items)`)
+into `summary` at `MapControls.tsx:334`.
+
+Fix: announce the fact this region exists for and drop the volatile half — the activation and the
+radius (`Proximity filter on, ${proximityRadius} km`), which change only on a deliberate toggle,
+long-press or chip tap. The counts are already in the visible chip, and `MapFiltersSheet`'s subtitle
+owns count announcements while it is open. One string change, no state.
+
+---
+
+[LOW] F52's own 1.4.11 claim is the one value the fix left unmeasured — the selection border sits 0.09 above the floor
+File: `features/demo/ui/screens/map/CaseMapPicker.tsx:91-104` and `:196-203`
+
+Issue: the fix's new docblock asserts *"a border is a non-text mark, so §C.3 rule 2's carve-out and
+1.4.11's 3:1 govern it"* — a claim about a ratio — and then does not measure it, in the same commit
+that exported three neighbouring constants precisely so their ratios could be bounded. Measured:
+`colors.primary` on the nested tier over `background` is **3.09** dark (8.29 light), 0.09 above
+1.4.11's 3.0. `CaseMapPicker.test.tsx:112-114` pins the border's VALUE (`toBe(colors.primary)`) but no
+`palette-contrast.test.ts` row bounds its RATIO, so a re-tint of `nestedCard`'s stops or of `primary`
+walks the picker's colour cue below the floor with every suite green. Not urgent — the 2px weight is an
+independent carrier and I can name no scheduled re-tint (U8.1 re-bases the SPLASH ground, not this one)
+— but it is the last unbounded number on the surface this finding opened.
+
+Evidence: the same file's `MAP_PICKER_SELECTED_TITLE` docblock states the rule the border needs
+(*"EXPORTED so §C.1 pins the ratio at the constant this component paints"*), and
+`palette-contrast.test.ts:376-390` is the in-repo precedent for bounding a selection mark at
+`AA_NON_TEXT` — `UNCHECKED_MARK_EDGE`, whose docblock reads *"an unchecked box has no fill, no glyph
+and no label: the ring IS the control."*
+
+Fix: one row beside 46/47 — export the border tint as `MAP_PICKER_SELECTED_BORDER` and assert
+`worst(..., nestedCard-over-background) >= AA_NON_TEXT`.
+
+---
+
+[LOW] F64's `activationOrigin` is module-global and its staleness guard is weaker than its own docblock
+File: `features/demo/ui/primitives/useOpenerFocusReturn.ts:42, 96-98`
+
+Issue: the hook's comment says *"The captured value is connectivity-checked HERE as well as at restore
+time, so a stale origin left by an earlier interaction can never become this one's opener."* The check
+is `activationOrigin?.isConnected`, which establishes only that the element still exists — not that the
+gesture raised THIS overlay. An overlay opened without a gesture (a finished pipeline, a store change)
+inherits the last-clicked control as its opener and hands focus back there on close, which is exactly
+the case the `document.activeElement` fallback below it was written to serve. The consequence is mild —
+focus lands on a still-present control rather than staying put — but the comment claims an invariant
+the code does not hold, which is the comment-over-half-an-idiom class.
+
+Evidence: `:96-98` is the whole guard, and `:57-66` never clears `activationOrigin` after a consumer
+reads it, so one gesture can seed any number of later mounts.
+
+Fix: null `activationOrigin` after the mount effect captures it (one line at `:96`) so a second
+non-gesture overlay falls through to the `activeElement` branch the docblock already describes; or
+soften the comment to what `isConnected` actually proves.
+
+NOT a leak: the two capture-phase `document` listeners installed at module load (`:76`) are
+process-lifetime by design, idempotent behind `tracking`, SSR-guarded by
+`typeof document === 'undefined'`, and match `CentredDialog`'s original shape.
+
+### Round 1 summary
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 · LOW: 2
+Prior findings: **F52 FIXED · F59 FIXED (4/4) · F60 FIXED · F72 FIXED · F73 FIXED (one regression, NEW-1) · F74 FIXED**
+Verdict: **APPROVE with comments**
+
+Marketing-to-demo isolation: preserved · Bundle impact: none · Browser-resource cleanup: complete (F64's module listeners are deliberate and guarded) · Accessibility: the three F52 sites and all four F59 names now clear their floors; one new chatter regression (NEW-1) · Style-convention adherence: correct half
+
+Out-of-lane observations: F62's `proximityActive={proximityFiltering}` split means the on-map chip no longer appears during the Turf chunk-load window while the sheet's switch still reflects the tap. I read both call sites (`MapScreen.tsx:104-120`) and the split is coherent and honest; whether two booleans beat a three-state union is `typescript-reviewer`'s call.
+
+---
+
 # Lane: web — W3 (U5 map + U6 wizard/settings + U7 import/OCR/media)
 
 **Seat:** `web-reviewer` · **Mode:** code review · **Scope:** `git diff master...13827de` (167 files) in
