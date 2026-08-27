@@ -275,7 +275,116 @@ trigger U7.2; A's PR-1 → trigger U2.2) are unaffected and still stand. The thi
 
 ---
 
-**Next merge on this branch:** `INTEGRATION-u1-assembly.md` — U1.2/U1.3 (`28e7993`).
+---
+
+# § master carry (W0 r2)
+
+**Merge commit:** `044578a` — `origin/master` @ `79bd6f1` into `feat/uiparity-w1` @ `9b39e99`
+**Merge base:** `15e5a6f` · **Seat:** `dt-integrator` (Opus 5, xhigh)
+
+Fourth integration pass on this branch. The wave head carries W1 + W1 fix round 1 (cards
+F14/F15/F19, headers F18/F20/F22, tiers F16/F17/F21). `master` now carries W0 **including fix
+round 2** — F11 (`c93c05d`), F12 and F13 (test/scale only).
+
+## m.1 One conflict, three hunks — union, and one relocation the markers did not ask for
+
+`features/demo/ui/inputs/__tests__/rn-token-parity.test.ts` is the only file both sides touched.
+Two review rounds restructured it a week apart, and the interesting part is that **they found the
+same defect in two different pins**.
+
+**F11's finding:** the palette MEMBERSHIP pin — the one assertion in the file that compares the
+guard's hand-maintained key list to something *outside itself* — sat inside an
+`it.skipIf(!rnAvailable())`. On any box without the sibling phone repo, a `'link'` → `'card'` swap
+**SURVIVED**: 5 passed | 6 skipped, exit 0. Both sides of that comparison are local (a `.mjs`
+array and a TS module in this repo), so the gate was never justified. F11 moved it into an ungated
+`describe("the guard's local invariants — nothing here reads the phone repo")`.
+
+**W1's F16** had meanwhile added the exactly analogous **tier** membership pins — `TIER_KEYS` vs
+`Object.keys(GLASS_TIER.dark)`, and the `UNANCHORED = ['innerShadow']` parts pin — and left them
+inside the gated tier case. Same two-local-lists shape, same gate, same hole.
+
+So the union is not textual. **F16's two tier pins move to F11's ungated describe**, as a new
+`it('anchors exactly the six glass tiers and every part of one')`. Applying F11's fix only to the
+pin F11 happened to name would have shipped half of it.
+
+| Hunk | Resolution |
+|------|------------|
+| 1 — imports | **Both.** `GLASS_TIER` (F16's pin) and `palette, type PaletteToken` (F11). |
+| 2 — the palette + tier cases | **Union + relocation.** The gated palette case keeps ONLY the derived cardinality, now spanning both key lists: `PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 3` = **115**. Master's `* 2 + 3` predates U1.1's 48 tier rows and would have understated the table by 48 while staying green. |
+| 3 — the stuck-reader case | **F17 wins.** `stuck` is computed inside `checkParity()` and asserted off the guard's own result, so the standalone CLI fails on a stuck reader too; master's side re-derived the check from `anchors`, leaving the CLI printing *"all 115 anchor rows match"* over a reader stuck on the light half. Taking F17 also retires the local `at()` helper master's loop needed — nothing else referenced it, so no orphan. |
+
+**`SCHEME_INVARIANT` now has exactly one definition:** the guard's export (F17), which is what
+actually excludes, inside `checkParity()`. F11's *typing* is preserved where it can still bind
+across an untyped `.mjs` import — on the pin's **expected** side:
+
+```ts
+const INVARIANT: readonly PaletteToken[] = ['onError', 'onPrimary']
+expect([...SCHEME_INVARIANT].sort(), 'the only by-design scheme-invariant keys').toEqual([...INVARIANT])
+```
+
+Master's local `Set<PaletteToken>` is gone — it would have shadowed the import, which is the
+two-definitions outcome this merge exists to prevent. Note the honest limit: assigning the
+imported array to a typed alias would prove nothing (the `.mjs` import is `any`), so the type sits
+on the literal, where a typo really is a compile error.
+
+## m.2 Probes — 4/4 KILLED
+
+Fix committed first (`044578a`); probes in `worktrees/probe-w0r2` at `044578a`, `node_modules`
+junctioned from `w1-wave`, junction removed with `cmd /c rmdir` **before** `git worktree remove`
+(33 entries before and after). Every mutation asserted its own pattern matched; both mutated files
+restored **byte-identically**.
+
+"Phone ABSENT" is simulated by pointing the guard's `RN` const at a non-existent directory, which
+is precisely what `rnAvailable()` reads — the same condition as a box without the sibling repo. No
+repository was moved or renamed.
+
+| Probe | Origin | Mutation | vitest | guard | Evidence |
+|-------|--------|----------|--------|-------|----------|
+| **F11** | W0 r2 | phone ABSENT + `PALETTE_KEYS` `'link'` → `'card'` | **1 · KILLED** | 0 | `1 failed \| 9 passed \| 8 skipped` — `the guard must anchor exactly the palette tokens` |
+| **F16a** | W1 r1 | phone ABSENT + a **seventh** tier in `GLASS_TIER.dark` | **1 · KILLED** | 0 | `1 failed \| 9 passed \| 8 skipped` — `the guard must anchor exactly the six glass tiers` |
+| **F16b** | W1 r1 | phone ABSENT + a fifth tier part `outerGlow` | **1 · KILLED** | 0 | `1 failed \| 9 passed \| 8 skipped` — `every part of a tier is either anchored or named unanchored` |
+| **F17** | W1 r1 | web LIGHT region markers flattened onto the DARK block | **1 · KILLED** | **1** | `2 failed \| 16 passed` — the drift list plus the `stuck` list, and **the CLI exits 1** |
+
+Three things these prove that neither branch could prove alone:
+
+1. **`8 skipped` in the first three rows is the point.** The pin reddens with the phone repo
+   absent — F11's fix — and F16's tier pins now inherit that property, which they did **not** have
+   on the W1 branch. On W1 they would have been three green skips.
+2. **F17's `stuck` covers the CLI**, not just the test: `guard EXIT 1`. That is the arm master's
+   version left uncovered, and it survives the merge.
+3. `guard EXIT 0` on the first three is correct, not a miss: a hand-maintained-list defect is
+   invisible to a guard that iterates that list. The test is the only thing that can see it, which
+   is why gating it was the defect.
+
+## m.3 Gates — cold cache at `044578a`
+
+`tsconfig.tsbuildinfo`, `.next/`, `node_modules/.vite`, `node_modules/.cache` deleted first.
+
+| Gate | Exit | Result |
+|------|------|--------|
+| `pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `pnpm test --silent` | **0** | 272 files · **3575 passed \| 10 todo (3585)** |
+| `node .design-sync/check-rn-parity.mjs` | **0** | **115/115** anchor rows |
+| `pnpm build` | **0** | **`/demo` First Load 107 kB** ✓ |
+| `rn-token-parity.test.ts` alone | **0** | **18 passed, 0 skipped** — the gated cases really ran |
+
+Counts reconcile with `28e7993` (272 / 3562 / 10): W0 r2's F12/F13 add assertions, and the
+relocation splits one gated case into one gated + one ungated.
+
+## m.4 Residual risk
+
+1. **The ungated describe is now the load-bearing half of this file.** Four of its cases are the
+   only ones that run on a box without the phone repo, and two of them (both membership pins) are
+   the only non-tautological assertions about the guard's key lists. A future package adding a
+   third hand-maintained list to the guard — U3.1's status keys, U8.2's `gridSubtle` — must put
+   its membership pin *there*, not in a `skipIf` case. That is the rule F11 established and F16
+   independently rediscovered; it is worth stating in the file rather than learning a third time.
+2. **`UNANCHORED` is a plain `string[]`.** A part named there that does not exist on the tier is
+   caught (the `toEqual` reds), but the array itself is untyped — the same class F11 typed away
+   for `SCHEME_INVARIANT`. One line, and the trigger is the first package that adds a second
+   unanchored part.
+
+**Also on this branch:** `INTEGRATION-u1-assembly.md` — U1.2/U1.3 (`28e7993`).
 
 ---
 
