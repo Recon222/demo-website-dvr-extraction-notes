@@ -73,6 +73,11 @@ export const CAMERA_CHROME = {
   /**
    * The mask outside the OCR guide box. Demo-only COLOUR — see the docblock; the phone washes
    * its app background at this same 0.6.
+   *
+   * SEAM(U7.3): U7.3 opens `OcrCaptureScreen` for the confirm-stage tiers, the assumed-date
+   * Banner, D13's mono split and A93's copy sweep. It should NOT change this value — D17 froze
+   * it and U7.2 deliberately left it — but it is the package standing next to the deferral, so
+   * the marker lives here.
    */
   guideMask: 'rgba(0,0,0,0.6)',
   /**
