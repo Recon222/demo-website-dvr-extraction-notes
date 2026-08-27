@@ -146,9 +146,23 @@ function stripConsoleCalls(text: string): string {
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
     let depth = 0
+    let quote: string | null = null
     for (let i = m.index + m[0].length - 1; i < chars.length; i++) {
-      if (chars[i] === '(') depth++
-      else if (chars[i] === ')') {
+      const c = chars[i]
+      if (quote !== null) {
+        // Inside a string: only an unescaped matching quote ends it, and a backslash eats the
+        // next unit. Parens in here are DATA and must not move `depth`.
+        if (c === '\\') {
+          if (chars[i] !== '\n') chars[i] = ' '
+          i++
+          if (i < chars.length && chars[i] !== '\n') chars[i] = ' '
+          continue
+        }
+        if (c === quote) quote = null
+      } else if (c === "'" || c === '"' || c === '`') {
+        quote = c
+      } else if (c === '(') depth++
+      else if (c === ')') {
         depth--
         if (depth === 0) break
       }
@@ -169,6 +183,18 @@ const isDataGlyph = (line: string, index: number): boolean => {
   return (before === "'" || before === '"' || before === '`') && before === after
 }
 
+/**
+ * Does a FROZEN string's span cover the em dash at `at`? Every occurrence is checked, because a
+ * frozen string can legitimately appear twice on one line and only one of them may be the one
+ * carrying this dash.
+ */
+function coversOccurrence(line: string, text: string, at: number): boolean {
+  for (let s = line.indexOf(text); s !== -1; s = line.indexOf(text, s + 1)) {
+    if (at >= s && at < s + text.length) return true
+  }
+  return false
+}
+
 interface Offender {
   file: string
   line: number
@@ -184,7 +210,12 @@ function scan(): Offender[] {
     cleaned.split('\n').forEach((line, i) => {
       for (let at = line.indexOf(EM_DASH); at !== -1; at = line.indexOf(EM_DASH, at + 1)) {
         if (isDataGlyph(line, at)) continue
-        if (frozen.some(([text]) => line.includes(text))) continue
+        // F57 — the exemption is keyed by STRING, so it must be checked at the OCCURRENCE, not
+        // at the line. `line.includes(text)` excused every em dash sharing a line with a frozen
+        // one, which is the third recurrence of the exemption-broader-than-its-reason class
+        // (F32 file-for-role, F33 line-for-arm, this line-for-string). The dash must fall INSIDE
+        // the frozen string's own span to be covered by it.
+        if (frozen.some(([text]) => coversOccurrence(line, text, at))) continue
         out.push({ file, line: i + 1, text: line.trim() })
       }
     })
@@ -232,5 +263,37 @@ describe('A93 — no em dashes in user-facing copy', () => {
     expect(cleaned).toContain(`e ${EM_DASH} f`)
     // Line numbers survive, so an offender's reported line is the real one.
     expect(cleaned.split('\n')).toHaveLength(5)
+  })
+
+  /**
+   * F56 — the guard used to FAIL OPEN on one unbalanced paren inside a console string. A
+   * paren-depth counter that cannot see quotes never closes on `'oops ('`, so it blanked to the
+   * next stray `)` (or to end-of-file) and every rendered string after it was silently exempt.
+   * Latent when it was found — no such string existed — which is exactly the shape that ships.
+   */
+  it('treats a paren INSIDE a console string as data, so later rendered copy is still scanned', () => {
+    const src = [`console.warn('unbalanced ( inside a string')`, `const shown = 'x ${EM_DASH} y'`].join('\n')
+    const cleaned = stripConsoleCalls(src)
+    expect(cleaned).not.toContain('unbalanced')
+    expect(cleaned, 'the blanker ran past its own call and exempted the rest of the file').toContain(`x ${EM_DASH} y`)
+  })
+
+  it('honours backslash escapes, so an escaped quote does not end the string early', () => {
+    // Without the escape arm, `\'` closes the run, the following `(` counts as structure, and
+    // the blanker overshoots again — the same fail-open by a different door.
+    const src = [`console.warn('it\\'s ( fine')`, `const shown = 'p ${EM_DASH} q'`].join('\n')
+    const cleaned = stripConsoleCalls(src)
+    expect(cleaned).toContain(`p ${EM_DASH} q`)
+  })
+
+  /**
+   * F57 — the FROZEN exemption is keyed by STRING and must be checked at the OCCURRENCE. Applied
+   * per LINE it excused any NEW violation that happened to share a line with a frozen one.
+   */
+  it('covers only the em dash inside a frozen string, not its line-mates', () => {
+    const frozen = `Auto-generation is off ${EM_DASH} restore anytime`
+    const line = `  const a = '${frozen}', b = 'brand new ${EM_DASH} violation'`
+    expect(coversOccurrence(line, frozen, line.indexOf(EM_DASH))).toBe(true)
+    expect(coversOccurrence(line, frozen, line.lastIndexOf(EM_DASH))).toBe(false)
   })
 })
