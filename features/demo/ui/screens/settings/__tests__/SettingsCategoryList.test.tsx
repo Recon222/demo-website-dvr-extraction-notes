@@ -182,3 +182,33 @@ describe('A79 — the group card and its chrome', () => {
     expect(footer).toHaveStyle({ fontSize: '12px', color: colors.textTertiary, paddingTop: `${spacing.xs}px` })
   })
 })
+
+describe('the version line is ONE colour across the two chromes that render it', () => {
+  it('the drawer footer and the settings footer agree', async () => {
+    // `DEMO_VERSION_LINE` renders in exactly two places (`app-info.ts`'s two readers). Both
+    // were `#46607e`; matrix rows 83 and 93 send that value — which is on no ramp in this
+    // palette — to `textTertiary`. Sweeping only the settings one would ship the same string
+    // in two colours, so this asserts the pair rather than the site.
+    const { WizardDrawer } = await import('@/features/demo/ui/controls/WizardDrawer')
+    renderList()
+    const settingsFooter = screen.getByText(DEMO_VERSION_LINE)
+    expect(settingsFooter).toHaveStyle({ color: colors.textTertiary })
+
+    render(
+      <WizardDrawer
+        open
+        items={[]}
+        mediaTools={{ mediaCapture: false, audioRecording: false }}
+        saveStatus={null}
+        onCaptureMedia={vi.fn()}
+        onRecordAudio={vi.fn()}
+        onOpenMediaLibrary={vi.fn()}
+        onClose={vi.fn()}
+        onNavigate={vi.fn()}
+        onBackToCases={vi.fn()}
+      />,
+    )
+    const drawerFooter = screen.getAllByText(DEMO_VERSION_LINE).find((el) => el !== settingsFooter)!
+    expect(drawerFooter).toHaveStyle({ color: colors.textTertiary })
+  })
+})

@@ -434,7 +434,13 @@ export function WizardDrawer({
                   a bare "v1.0.0" in a browser would imply otherwise. Both literals moved to
                   `engine/content/app-info.ts` at P7.1, when the About pane became a second
                   reader — see that module's note. */}
-              <div style={{ fontSize: 11, color: '#46607e', marginTop: 3 }}>{DEMO_VERSION_LINE}</div>
+              {/* U6.2: `colors.textTertiary`, which is where matrix rows 83 and 93 send
+                  `#46607e` — a value on no ramp in this palette at all. Moved here too because
+                  this line and `SettingsCategoryList`'s footer render the SAME
+                  `DEMO_VERSION_LINE`; leaving one behind is two colours for one string in one
+                  app, which is the per-file drift the campaign exists to delete. The neighbouring
+                  `#5d7a9a` is NOT swept: it has no palette sibling and no matrix row. */}
+              <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 3 }}>{DEMO_VERSION_LINE}</div>
             </div>
           </motion.div>
         )}
