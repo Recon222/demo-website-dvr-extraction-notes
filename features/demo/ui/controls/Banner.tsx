@@ -122,7 +122,7 @@ export interface BannerProps {
 }
 
 /** Phone `:85-93`. The scheme-dependent fill and border are composed per render, below. */
-const banner: CSSProperties = {
+const banner = {
   display: 'flex',
   // phone `:87` — `alignItems: 'flex-start'`, so a wrapped message keeps the icon on line one.
   alignItems: 'flex-start',
@@ -139,10 +139,10 @@ const banner: CSSProperties = {
   borderStyle: 'solid',
   // phone `:92` — `Layout.spacing.base`.
   padding: spacing.base,
-}
+} as const satisfies CSSProperties
 
 /** Phone `:94-98`. `color` is the scheme-dependent foreground, applied per render. */
-const messageStyle: CSSProperties = {
+const messageStyle = {
   flex: 1,
   // phone `:96` — `Typography.fontSize.sm`. On plan §4.9's ladder (12/14/16/18/20/24/30/36), so
   // a commented literal rather than an invented step; `tokens/scale.ts` carries no type scale
@@ -152,7 +152,7 @@ const messageStyle: CSSProperties = {
   // needs the unit, so the PRODUCT is spelled here rather than a unitless 1.5 multiplier, which
   // would silently re-derive from whatever `fontSize` a caller's `style` happened to set.
   lineHeight: '21px',
-}
+} as const satisfies CSSProperties
 
 export function Banner({ severity, message, style, testId }: BannerProps) {
   // SEAM(U3.2). One call, no private derivation — see the docblock and W2 F26.
@@ -205,3 +205,4 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
     </div>
   )
 }
+
