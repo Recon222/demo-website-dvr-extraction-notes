@@ -3,7 +3,6 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
-import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import {
   CAMERA_MARKER,
   CLUSTER_COLORS,
@@ -168,12 +167,10 @@ describe('SHEET_COLORS (A84 — the map bottom sheet)', () => {
     expect(SHEET_COLORS.text).toBe(colors.text)
     expect(SHEET_COLORS.text).toBe(MAP_GLASS_COLORS.text)
     expect(SHEET_COLORS.textDim).toBe(colors.textSecondary)
-    expect(SHEET_COLORS.textFaint).toBe(colors.textTertiary)
     const src = source()
     for (const [key, token] of [
       ['text', 'text'],
       ['textDim', 'textSecondary'],
-      ['textFaint', 'textTertiary'],
       // A19's binding rider. This key's ONE reader is `MapCanvas`'s retry button, a FILLED
       // control, so it pairs with the DEEP shade: `onPrimary` on `primary` measures 3.73,
       // on `primaryDark` 5.80. It was `#1a8fc2` — an accent on no ramp in the palette.
@@ -215,19 +212,26 @@ describe('SHEET_COLORS (A84 — the map bottom sheet)', () => {
     expect(SHEET_COLORS.handle).toBe(withAlpha(colors.text, 0.2))
   })
 
-  it('paints sheet rows on the CARD tier and info cards on the NESTED tier', () => {
-    // REFUTES matrix A84's "`rowBg`/`rowBorder` -> nestedCard (A33/A34)". The phone's
-    // `LocationRow.tsx:70` reads `GlassColors[colorScheme].card` — its docblock at `:5` says
-    // "Renders as a glass card: `GlassColors[scheme].card` gradient" — and matrix row 18
-    // ("Phone rebuilt it on `GlassColors[scheme].card`") agrees with the phone against A84.
-    // The nested tier belongs to `LocationDetailCard`'s four info cards, which the phone moved
-    // to `<Card glass glassVariant="nestedCard">`; that is where A84's reference belongs.
-    expect(SHEET_COLORS.rowBg).toBe(GLASS.gradientCard)
-    expect(SHEET_COLORS.rowBorder).toBe(GLASS_TIER[scheme].card.border)
-    expect(SHEET_COLORS.infoBg).toBe(glassCardNested.background)
-    // The two tiers must not collapse into one — that is what makes a row read as sitting on
-    // the sheet and an info card as sitting IN the row.
-    expect(SHEET_COLORS.rowBg).not.toBe(SHEET_COLORS.infoBg)
+  it('carries no surface projection keys — the fragments are the recipe (U5.4)', () => {
+    // U5.1's R2 refuted matrix A84's "`rowBg`/`rowBorder` -> nestedCard" and held the ruling
+    // here as three projection keys so U5.4 could paint from them. U5.4 adopted the FRAGMENTS
+    // instead (`glassCard` on the row, `glassCardNested` on the info cards), which is what
+    // "the same recipe `Card.tsx` paints" (phone `LocationRow.tsx:5-7`) means on the web and
+    // which carries the lit edge and the tier inset a flat colour key cannot.
+    //
+    // This pin is the ANTI-REGROWTH half: re-adding a surface key here is how the map island
+    // grew its own parallel tier vocabulary the first time. The tier ruling itself is pinned
+    // where it renders — `LocationRow.test.tsx` ("draws four sides on the card tier") and
+    // `LocationDetailCard.test.tsx` ("paints every info card on the nested tier"), the latter
+    // asserting the two tiers do not collapse into one another.
+    for (const key of ['rowBg', 'rowBorder', 'infoBg', 'textFaint']) {
+      expect(SHEET_COLORS, `SHEET_COLORS.${key} has no reader`).not.toHaveProperty(key)
+    }
+    // Positive control: the keys that DO have readers are still here, so an empty record or a
+    // renamed export cannot pass this as a clean read.
+    for (const key of ['backgroundGradient', 'border', 'handle', 'divider', 'text', 'textDim', 'accent']) {
+      expect(SHEET_COLORS).toHaveProperty(key)
+    }
   })
 })
 
