@@ -2,7 +2,7 @@
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-26 — milestone: MATRIX + PLAN DRAFTED (`3365e3e`): matrix 699 lines = 97 Tier-A rows (5 COMPLETE / 44 DRIFTED / 21 MISSING-SEAM / 22 MISSING) + 72 Tier-B (56 DRIFTED / 3 MISSING) + 15 inert + 14 demo-only, decisions D1–D17; plan 465 lines = U0 tokens → U1 glass/cards → U2 controls ∥ U3 status/badges → U4 sheets/dialogs → U5 map ∥ U6 wizard/settings/export → U7 import/OCR/audio/media → U8 splash/shell/design-sync (~4–5 wks two-lane). **PLAN-REVIEW r1 LANES DONE** — architect BLOCK 1B/6M/6m (ARCH-1: the 22-anchor guard as a per-phase gate deadlocks after U0 — anchors land in U3/U8) · quality BLOCK 1B/7M/15m (QUAL-1: U7.2 `OverlayHeader` pointer resolves to #125's experimental floating header that D15 defers) · reality REVISE 0B/5M/9m, ~280 claims verified true (REAL-1: A65–67 cite phone-INVENTORY line numbers as Button.tsx lines). **AGGREGATOR IN FLIGHT** → `plan-review/r1/VETTED.md`. Nothing merged to master yet.
+**Last updated:** 2026-08-26 — milestone: MATRIX + PLAN DRAFTED (`3365e3e`): matrix 699 lines = 97 Tier-A rows (5 COMPLETE / 44 DRIFTED / 21 MISSING-SEAM / 22 MISSING) + 72 Tier-B (56 DRIFTED / 3 MISSING) + 15 inert + 14 demo-only, decisions D1–D17; plan 465 lines = U0 tokens → U1 glass/cards → U2 controls ∥ U3 status/badges → U4 sheets/dialogs → U5 map ∥ U6 wizard/settings/export → U7 import/OCR/audio/media → U8 splash/shell/design-sync (~4–5 wks two-lane). **PLAN-REVIEW r1 LANES DONE** — architect BLOCK 1B/6M/6m (ARCH-1: the 22-anchor guard as a per-phase gate deadlocks after U0 — anchors land in U3/U8) · quality BLOCK 1B/7M/15m (QUAL-1: U7.2 `OverlayHeader` pointer resolves to #125's experimental floating header that D15 defers) · reality REVISE 0B/5M/9m, ~280 claims verified true (REAL-1: A65–67 cite phone-INVENTORY line numbers as Button.tsx lines). **VETTED (`c29f979`): BLOCK — 2B/16M/27m, 1 refuted; 17-item U0-blocking subset (§7); adds D18–D20 (partial-ship/master policy, lane structure, six packages' buildability) to the ratification gate.** **WRITER FIX ROUND 1 IN FLIGHT** (`matrix-plan-writer`, warm, by path) → then fix-delta by the three warm lanes + a fresh FABLE aggregator → owner ratifies D1–D20. Nothing merged to master yet.
 
 ## 1. Mission & role
 
@@ -59,8 +59,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Phone UI-delta inventory | `recon-phone-delta` | Opus | done (resumable to settle inventory contradictions) |
 | Matrix + master plan writer | `matrix-plan-writer` | Opus | done; WARM — fix rounds go to it by path |
 | Plan-review r1 lanes architect / quality / reality | `planrev-architect` / `planrev-quality` / `planrev-reality` | Opus | done; WARM — fix-delta resumes THESE |
-| Plan-review r1 aggregator v1 | `planrev-aggregator` | Opus | DEAD — API error mid-response twice, wrote nothing; do not resume |
-| Plan-review r1 aggregator **v2** | `planrev-aggregator-v2` | Opus | in flight (write-as-you-go brief); WARM for fix-delta aggregation |
+| Plan-review r1 aggregator v1 | `planrev-aggregator` | Opus | RECOVERED after two API cutoffs and completed VETTED.md; warm but fix-delta aggregation goes to a fresh FABLE seat per §2 |
+| Plan-review r1 aggregator v2 | `planrev-aggregator-v2` | Opus | STOPPED (redundant) — never resume |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
