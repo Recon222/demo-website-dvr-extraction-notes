@@ -237,6 +237,25 @@ describe('palette contrast contract', () => {
     expect(() => parse('linear-gradient(180deg,#1F6B99,#17527A)')).toThrow(/cannot parse/)
     expect(() => parse('#fff')).toThrow(/cannot parse/)
 
+    // …and the rejection must survive the trip THROUGH `flatten`, with the bad colour BURIED
+    // rather than on top. This is the whole reason `flatten` opens with `stack.forEach(parse)`:
+    // `flattenOver` returns its `top` argument UNCHANGED when ANY layer is unparseable, so
+    // `flatten(['<good>', '<nonsense>', '<good>'])` comes back as the perfectly parseable
+    // top colour and this file reports a confident, wrong ratio for a stack it never composited.
+    //
+    // THE POSITION IS LOAD-BEARING and this pin was wrong once for exactly that reason: when the
+    // nonsense sits at the TOP of the stack, `flattenOver` hands it straight back and the
+    // trailing `parse` throws on its own, so the guard line can be deleted and the assertion
+    // still passes. Measured: probe 4b, guard deleted, top-position input, EXIT 0 — SURVIVED.
+    // Keep the bad layer in the middle.
+    expect(() =>
+      contrast('#ffffff', [
+        'rgba(255, 255, 255, 0.5)',
+        'color-mix(in srgb, #ffffff 50%, #000000)',
+        '#000000',
+      ]),
+    ).toThrow(/cannot parse/)
+
     // CIE76 dE. Black to white is the L* axis end to end: 100, by definition.
     expect(round(deltaE(parse('#000000'), parse('#ffffff')))).toBe(100)
     expect(deltaE(parse('#1c4e84'), parse('#1c4e84'))).toBe(0)
