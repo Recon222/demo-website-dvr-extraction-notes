@@ -83,9 +83,46 @@ const infoCard: CSSProperties = { ...card, marginBottom: spacing.mdlg }
  */
 const cardLabel: CSSProperties = { fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textSecondary, marginBottom: spacing.sm }
 const rowText: CSSProperties = { fontSize: 14, fontWeight: 500, color: SHEET_COLORS.text, padding: '6px 0' }
-// phone `:713-716` / `:735-738` / `:786-789` — `colors.primary`. It was `MAP_PIN_COLORS.working`
-// (#00BFFF), a mark meant for satellite tiles.
-const tapRow: CSSProperties = { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 0', color: colors.primary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }
+/**
+ * The tap-to-call / tap-to-email rows — this card's ONLY affordance for reaching a requester or
+ * a site contact, and the one place on it where colour carries a control.
+ *
+ * ## A DELIBERATE DIVERGENCE FROM THE PHONE (review W3/F52)
+ *
+ * The phone paints these `colors.primary` (`:713-716`, `:735-738`, `:786-789`) and U5.4 ported
+ * that verbatim. Measured on the ground these actually sit on — the `nestedCard` tier over the
+ * map sheet's opaque stops — `primary` is **2.88:1**, against WCAG 1.4.3's 4.5 floor for text.
+ * That is worse than the `#00BFFF` it replaced (5.07), so the port made this row LESS legible
+ * while moving it onto a token. §C.3 rule 2's "non-text marks" carve-out does not reach it: it
+ * is a phone number, read and dialled.
+ *
+ * `colors.link` is the token the repo already uses for exactly this — a tinted control label
+ * that must clear AA — and `button-recipe.ts:190-192` states the same rule for the `outline`
+ * variant in the same words: *"`link` and not `primary`: the 1px outline is the ONLY mark of a
+ * control here, so 1.4.11's 3:1 bites, and `primary` measured 2.81 on the glass these sit on."*
+ * The house rule is stated three more times inside this wave (`SettingsNavBar`'s `BACK_TINT`,
+ * `CompletionScreen`'s CTA, and D5's `MAP_FILTER_BADGE_FILL` one file away).
+ *
+ * The phone-side follow-up belongs in plan §8 — the phone has the same 2.88 against its own
+ * sheet, and the demo is not the place to fix it.
+ *
+ * EXPORTED so §C.1 pins the RATIO at the constant this component paints rather than at
+ * `palette.link` (W2/F27's shape; the `MAP_FILTER_BADGE_FILL` / `MAP_FILTER_SECTION_LABEL`
+ * precedent). A pin against the palette stays green through exactly the edit it exists to
+ * catch — re-pointing this row back at `primary`.
+ */
+export const MAP_CONTACT_ROW = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  background: 'transparent',
+  border: 'none',
+  padding: '8px 0',
+  color: colors.link,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+} as const satisfies CSSProperties
 /**
  * Both CTAs — phone `:367-375` and `:797-808`, each a `<Button variant="primary" fullWidth>`.
  *
@@ -332,12 +369,12 @@ export function LocationDetailCard({
           {reqNameBadge && <div style={rowText}>{reqNameBadge}</div>}
           {item.requesterUnit && <div style={rowText}>{item.requesterUnit}</div>}
           {item.requesterPhone && (
-            <button type="button" style={tapRow} onClick={() => onCall(item.requesterPhone)}>
+            <button type="button" style={MAP_CONTACT_ROW} onClick={() => onCall(item.requesterPhone)}>
               {item.requesterPhone}
             </button>
           )}
           {item.requesterEmail && (
-            <button type="button" style={tapRow} onClick={() => onEmail(item.requesterEmail)}>
+            <button type="button" style={MAP_CONTACT_ROW} onClick={() => onEmail(item.requesterEmail)}>
               {item.requesterEmail}
             </button>
           )}
@@ -349,7 +386,7 @@ export function LocationDetailCard({
           <div style={cardLabel}>Contact</div>
           {item.locationContact && <div style={rowText}>{item.locationContact}</div>}
           {item.locationPhone && (
-            <button type="button" style={tapRow} onClick={() => onCall(item.locationPhone)}>
+            <button type="button" style={MAP_CONTACT_ROW} onClick={() => onCall(item.locationPhone)}>
               {item.locationPhone}
             </button>
           )}

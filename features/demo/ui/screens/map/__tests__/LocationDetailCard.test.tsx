@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { LocationDetailCard, cameraCountLabel } from '@/features/demo/ui/screens/map/LocationDetailCard'
+import { LocationDetailCard, cameraCountLabel, MAP_CONTACT_ROW } from '@/features/demo/ui/screens/map/LocationDetailCard'
 import { cameraMarker, sheetIncident, sheetLocation } from '@/features/demo/ui/screens/map/__tests__/test-utils'
 import { glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
@@ -250,13 +250,20 @@ describe('LocationDetailCard — surfaces', () => {
     expect(on.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
   })
 
-  // Phone `:713-716`, `:735-738`, `:786-789` — the tappable contact rows are `colors.primary`,
-  // never `PIN_COLORS.working` (#00BFFF), which is a mark for satellite tiles.
-  it('paints the tap-to-call/email rows from the palette accent', () => {
+  // The tappable contact rows. NOT `PIN_COLORS.working` (#00BFFF, a satellite-tile mark) and
+  // NOT the phone's own `colors.primary` (`:713-716`, `:735-738`, `:786-789`) — W3/F52 measured
+  // that at 2.88:1 on this ground, below WCAG 1.4.3's 4.5 and below even the #00BFFF it
+  // replaced. See `MAP_CONTACT_ROW`'s docblock for the divergence.
+  //
+  // The RENDER half of the two-sided pin: this ties the DOM to the constant, and
+  // `palette-contrast.test.ts`'s rows 46+47 tie the constant to the ratio. Neither alone
+  // survives the edit it exists to catch (W2/F27).
+  it('paints the tap-to-call/email rows from the exported contact-row constant', () => {
     render(<LocationDetailCard item={fullLoc} {...cb()} />)
     const phone = screen.getByText('905-555-1234')
-    expect(phone.style.color).toBe(hexToJsdomRgb(colors.primary))
+    expect(phone.style.color).toBe(hexToJsdomRgb(MAP_CONTACT_ROW.color))
     expect(phone.style.color).not.toBe(hexToJsdomRgb(MAP_PIN_COLORS.working))
+    expect(phone.style.color).not.toBe(hexToJsdomRgb(colors.primary))
   })
 
   // Phone `:987-996`: "Uppercase micro-label ... On `textSecondary`, not `textTertiary`: the

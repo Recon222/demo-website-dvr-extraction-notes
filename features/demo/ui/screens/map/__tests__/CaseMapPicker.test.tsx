@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { CaseMapPicker } from '@/features/demo/ui/screens/map/CaseMapPicker'
+import { CaseMapPicker, MAP_PICKER_SELECTED_TITLE } from '@/features/demo/ui/screens/map/CaseMapPicker'
 import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -92,12 +92,26 @@ describe('CaseMapPicker (full-screen)', () => {
   })
 
   // Matrix row 18: "`accent = '#4ba3d4'` (`:28`) is `MAP_GLASS_COLORS.primaryLight` un-imported."
-  // The phone tints the selected title with `colors.primary` (`MapPicker.tsx:163`), not with the
-  // light shade — so the fix is the phone's token, not an import of the demo's literal.
-  it('tints the selected case number with the palette accent, not a bare literal', () => {
+  // Not a bare literal, and not the phone's `colors.primary` either (`MapPicker.tsx:163`):
+  // W3/F52 measured that at 3.09:1 here, taking a text ratio DOWN through 4.5. The RENDER half
+  // of the two-sided pin — `palette-contrast.test.ts`'s rows 46+47 bound the ratio at the
+  // constant this reads.
+  it('tints the selected case number from the exported selected-title constant', () => {
     renderPicker({ preselectedId: 'c2' })
-    expect(screen.getByText('PR25-2').style.color).toBe(hexToJsdomRgb(colors.primary))
+    expect(screen.getByText('PR25-2').style.color).toBe(hexToJsdomRgb(MAP_PICKER_SELECTED_TITLE))
+    expect(screen.getByText('PR25-2').style.color).not.toBe(hexToJsdomRgb(colors.primary))
     expect(screen.getByText('PR25-1').style.color).toBe(hexToJsdomRgb(colors.text))
+  })
+
+  // ...and the BORDER does not move with it. A 1px/2px selection edge is a non-text mark, so
+  // §C.3 rule 2's carve-out and 1.4.11's 3:1 govern it; D4's "selection is the border's weight
+  // and colour, evenly" is a geometry ruling F52 must not disturb.
+  it('leaves the selection BORDER on colors.primary — F52 moves the label only', () => {
+    renderPicker({ preselectedId: 'c2' })
+    const selected = screen.getByTestId('case-row-c2')
+    expect(selected.style.borderTopColor).toBe(hexToJsdomRgb(colors.primary))
+    expect(selected.style.borderLeftColor).toBe(hexToJsdomRgb(colors.primary))
+    expect(selected.style.borderWidth).toBe('2px')
   })
 
   // Deferral D-2's trigger: the last retired-ramp `rgba()` inside `screens/map/`. A hex sweep
