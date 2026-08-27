@@ -30,6 +30,20 @@ const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
  * also closes a latent hole in what this replaced: the old check skipped by BASENAME, so ANY
  * file called `glass-tokens.ts` at any depth under `ui/` was exempt.
  */
+/**
+ * Both sides of every literal scan go through this. Lower-case because §4.7 says every hex
+ * sweep is case-insensitive and the demo mixes spellings for one colour; whitespace-STRIPPED
+ * because the demo and the phone spell `rgba()` differently (`rgba(28,78,132,0.5)` here,
+ * `rgba(28, 78, 132, 0.5)` there) and the ban has to survive the round trip. Same treatment
+ * the drift guard's own `norm` applies for the same reason.
+ *
+ * Review r1 F3: without the whitespace strip, re-inlining `'1px solid rgba(28, 78, 132, 0.5)'`
+ * walked straight past this guard while the unspaced spelling was caught, and U1.1's 24 tier
+ * values are all spaced rgba transcribed from `Colors.ts`. Do NOT "fix" that by re-spacing
+ * the demo's literals instead: several are pinned byte-exactly below.
+ */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
 const TOKEN_MODULES: ReadonlySet<string> = new Set([
   'glass-tokens.ts', // P0.5 extraction — the original owner of the gradients and borders
   'tokens/palette.ts', // U0.1 (SEAM) — the two-scheme phone palette; every bare hex below lives here
@@ -125,13 +139,9 @@ describe('glass tokens (P0.5 / G6)', () => {
   it('keeps the raw tokenized literals out of UI source (import the token instead)', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
-      // Case-INSENSITIVE on both sides (§4.7): the demo mixes spellings for the same colour,
-      // and a case-sensitive `includes` let `linear-gradient(180deg,#1f6b99,#17527a)` through
-      // an entry written `#1F6B99`. Lowering the needle too is what keeps the mixed-case
-      // entries above matching at all.
-      const text = readFileSync(file, 'utf8').toLowerCase()
+      const text = norm(readFileSync(file, 'utf8'))
       for (const [name, literal] of BANNED) {
-        if (text.includes(literal.toLowerCase())) {
+        if (text.includes(norm(literal))) {
           offenders.push(`${relative(UI_ROOT, file).split(sep).join('/')} re-inlines the ${name} (${literal})`)
         }
       }
