@@ -243,11 +243,17 @@ const chip: CSSProperties = {
   height: touchTarget.min,
 }
 
+/**
+ * F72: the `padding` shorthand is the ONLY padding declaration here. A `paddingLeft: 12` used to
+ * sit above it — dead, because the shorthand that follows already spells it — and it was the
+ * §4.3 trap the repo-wide tripwire (`vitest.setup.ts:27-69`) exists for: React only warns on an
+ * UPDATE, so a static object hides the conflict until the day one branch makes this padding
+ * state-dependent, at which point the shorthand silently clobbers the longhand.
+ */
 const chipBody: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: spacing.xsm,
-  paddingLeft: 12,
   height: '100%',
   border: 'none',
   background: 'transparent',
