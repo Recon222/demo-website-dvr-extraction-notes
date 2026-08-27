@@ -681,6 +681,13 @@ rewrite of conditional styles or a judgment call about near-miss gradient varian
 variants into the token set then, with a side-by-side check; or a review pass that decides the
 two bare-colour conditionals deserve dedicated colour tokens.
 
+**✅ PARTIALLY RESOLVED — PR #39 (W0 / U0.1, aggregator r1):** the two bare-colour conditionals are
+gone — `SyncStatusCard.tsx:49` now reads `colors.borderLight`, `CaseMapPicker.tsx:133` reads
+`colors.border`. The near-miss-gradient bullet is NOT resolved: its normalisation is exactly the
+port's **U1.1** (`GLASS_TIER`) / **U1.2** (card recipe) rows, so the trigger above is re-pointed
+there — un-defer at U1.1's closing act; a U1 review that finds a near-miss variant surviving files
+it against that package.
+
 ---
 
 ## 32. First client-shipped zod — the persistence shape guard's bundle trade (R-9)
@@ -6238,3 +6245,124 @@ file to tune it against: the numbers would be guesses twice over.
 
 **Trigger:** the owner's D7 drop-in. The instruction is written beside the drop-in procedure in
 §87d, not only here, so the fixer on that day meets it without reading this ledger.
+
+---
+
+## 89. W0 (PR #39) — `#2B8CC1` as TEXT on `colors.background` crossed the AA line when the ground lightened (4.66 → 3.94), 14 sites
+
+**Source:** PR #39 review r1, web lane MEDIUM; aggregator ruling in `docs/code-reviews/ui-parity/w0/VETTED-r1.md`.
+
+**What:** fourteen sites spend `#2B8CC1` (`colors.primary`, a FILL token under DEF-UI-018) as text
+directly on the app background — worst-lit: `SplashScreen.tsx:61,63,96` ("TAP TO SCAN"),
+`settings/SettingsNavBar.tsx:93` (16px/500 nav label), `settings/SettingsCategoryList.tsx:112`,
+`StoryRail.tsx:75`; plus `AboutPane.tsx:88`, `_pane-chrome.tsx:56`, `FormFieldsPane.tsx:228`,
+`ExportCaseCard.tsx:161`, `ExportLocationRow.tsx:74`. U0.1's re-base of `background`
+(`#0d1b2a → #002853`) took the measured ratio from **4.66 to 3.94** (AA text floor 4.5) —
+independently reproduced by the aggregator. On the glass stops it was already a documented ceiling
+(4.35 → 4.25; DEF-UI-018 / D5).
+
+**Why deferred:** D3 confines W0 to seams plus values that CHANGED; `#2B8CC1` did not change. Matrix
+A27 and A66 assign the accent-as-text adoption (`colors.link`, 9.60 on `background`) to **U2** (A66,
+outline/ghost buttons) and **U6**. Sweeping fourteen literals from W0 would be doing those rows early
+into files those packages open. The number is recorded here so the later package inherits it instead
+of re-deriving it.
+
+**Trigger:** the package that lands matrix row **A66 (U2)** and the **U6** adoption re-measure these
+fourteen sites as their closing act. Any site still measuring < 4.5 after U6 merges reopens this at
+HIGH — observable as `grep -rn "#2B8CC1" features/demo/ui --include=*.tsx` returning a `color:` site
+outside the token modules.
+
+---
+
+## 90. W0 (PR #39) — the demo's CTA accent pair is DARK-ONLY (`ACCENT_FROM`/`ACCENT_TO`); `PrimaryButtonGradient.light` has no owning package (D2-amended violation)
+
+**Source:** U0.4 report §7 P-2; U0.5 report §7 P-1; PR #39 type-design lane (disclosed, not
+re-filed); aggregator ruling W0 r1.
+
+**What:** `features/demo/ui/glass-tokens.ts:34-35` hold the phone's `PrimaryButtonGradient.dark`
+(`[Colors.dark.primaryDark, '#17527A']`) as two module consts. The phone's light pair
+(`['#2563eb','#1d3584']`) has no web token; contrast rows 12L/13L in `palette-contrast.test.ts` are
+`it.todo` titled UNOWNED; the drift guard's `gradientTop`/`gradientBot` rows are dark-only where every
+palette key is pinned in both halves. D2-amended reads: *"Nothing hard-codes a dark value that has a
+light sibling."* This is the one place the "flipping the consumed scheme is a one-site change" claim
+is structurally false.
+
+**Why deferred:** no light surface renders; the two consts must stay `readConst`-readable literals
+because the guard reads them by name; giving them a `{ light, dark }` shape reddens
+`glass-tokens.test.ts`'s shape pin and `app/demo/__tests__/error.test.tsx:75`'s ban list — a
+token-shape change, not a one-liner, and W0 r1 F7 (`satisfies typeof colors.primaryDark`) closes the
+dark half's drift hole now.
+
+**Trigger:** **U2.2** — it ports the phone's other two per-scheme recipes that live outside `Colors`
+(`ElevatedEdges`, `DangerFill`); its closing act adds the light pair, the two light gradient anchors
+to `check-rn-parity.mjs`, and un-todos rows 12L/13L. Earlier if U1.1 reshapes `glass-tokens.ts` to
+`{ light, dark }` anyway. Hard stop: plan §9 clause 12's light-mode flip at U8 exit cannot be
+one-site while these are dark-only. Orchestrator: add to U2.2's row.
+
+---
+
+## 91. W0 (PR #39) — the drift gate is `it.skipIf(!rnAvailable())`: without the sibling phone repo the suite is green regardless of drift, and nothing enforces that the gate RAN
+
+**Source:** U0.4 report §7 P-4; PR #39 body; matrix A96 ("record that ..."); silent-failures lane
+out-of-lane; aggregator ruling W0 r1.
+
+**What:** every parity case in `features/demo/ui/inputs/__tests__/rn-token-parity.test.ts` skips when
+`../../extraction_case_notes_react_native_expo/src/constants/Colors.ts` is absent; Vitest reports a
+skipped case inside a green run at exit 0. The standalone `node .design-sync/check-rn-parity.mjs`
+prints `skip:` and exits 0 too. The test header documents it; no `package.json` script or CI invokes
+the standalone. As of U0.4 that is 33 anchor rows (67 once W0 r1 F2 lands) resting on a skip.
+
+**Why deferred:** this repo has **no `.github/` directory and no CI** (verified at `7099e54`). A hard
+throw when the repo is absent breaks every contributor without the phone checkout — which is why the
+skip exists. Enforcement needs somewhere to attach (an env flag or a workflow).
+
+**Trigger:** **the first CI workflow that runs `pnpm test`** — `.github/workflows/*.yml` appearing in
+the tree. That workflow must either check out the sibling repo or set `REQUIRE_RN_PARITY=1`, and the
+guard must fail hard under that flag. Until then every wave's verification seat states in its report
+that the guard RAN (the resolved RN root printed in the test title), as W0's did.
+
+---
+
+## 92. W0 (PR #39) — the exported Case Map HTML (`engine/logic/case-map/template.ts`) keeps the pre-port palette
+
+**Source:** W0 verification seat `_captures/w0/DIFF.md` §4.3; U0 foundation report §7 P-4; plan §2
+(v1 §6.4 exclusion); aggregator ruling W0 r1.
+
+**What:** `features/demo/engine/logic/case-map/template.ts` hard-codes `--navy-800: #0d1b2a`,
+`--navy-700: #132236`, `--border: #1e3a5f` in the exported document's own CSS, with comments naming
+them as `Colors.dark.background` / `backgroundSecondary`. The app renders `#002853`; the artefact it
+exports renders the retired navy (the two downloaded artefacts before/after W0 are byte-identical
+except `generatedAt`). No matrix row names the file; `palette.test.ts`'s `RETIRED` sweep is rooted at
+`features/demo/ui` and does not see it.
+
+**Why deferred:** plan §2 excludes *"the case-map HTML export's own design system"* by name — a scope
+boundary, not an oversight. It is a standalone generated document, not an app surface, and re-basing
+it needs the tier/status vocabulary that only exists after U1–U3.
+
+**Trigger:** **U8.4 (design-sync)** — its closing census must either re-base the template or record
+an owner ruling that the export deliberately keeps its own palette. Earlier if any package's diff
+touches `template.ts` for another reason, or the owner rules the artefact must track the app.
+Orchestrator: add to U8.4's row.
+
+---
+
+## 93. W0 (PR #39) — the eight UNCHANGED high-frequency hexes are neither banned nor swept; a ban lands in the commit that changes the value
+
+**Source:** U0 foundation report §7 P-1 / P-2; U0.5 report §7 P-3 (the explicit exclusion answering
+P-1's trigger); D3; aggregator ruling W0 r1.
+
+**What:** `#4BA3D4` (`primaryLight` — 41 bare sites across 19 files, 4 lowercase, plus a second keyed
+definition at `screens/map/mapTokens.ts:58`), `#2B8CC1` (26 files), `#f0f4f8` (50), `#7a9fc4` (44),
+`#99badd` (25), `#ff4757` (16), `#10d177` (15), `#ffd93d` (15) are all defined in
+`ui/tokens/palette.ts` AND still spelled bare across `ui/`. `glass-tokens.test.ts`'s `BANNED` carries
+only the fifteen values U0.1/U0.3 CREATED. Consequence recorded in W0 r1 F5: the `T`-alias test cannot
+catch a de-alias on the five of these that `T` re-exports.
+
+**Why deferred:** their values did not move, so a bare copy is de-duplication debt, not drift; banning
+them forces the 1,144-literal sweep D3 ruled against, from a test package into files U2/U5/U6/U8 own.
+
+**Trigger:** **the commit that CHANGES any of these values bans it in the same commit and sweeps its
+sites** (the standing rule: a token's ban lands with its value change). Named fallbacks: **U5.1**
+re-points `mapTokens.ts:58` to `colors.primaryLight` and owns the `#4BA3D4` sweep if nothing changes
+the value first; **U3.2** for the status quartet. Observable violation: a diff to one of these lines in
+`palette.ts` without a matching `BANNED` entry.

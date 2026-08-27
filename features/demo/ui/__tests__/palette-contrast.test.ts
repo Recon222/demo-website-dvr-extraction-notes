@@ -88,18 +88,40 @@ function luminance([r, g, b]: Rgba): number {
  * copy here would leave the helper every later recipe composites with unexercised by any gate,
  * which is the same tautology the deep-import rule above exists to avoid.
  *
- * Two seams between the two implementations, both deliberate:
+ * Three seams between the two implementations, all deliberate:
  *  - `flattenOver` ROUNDS each channel at every fold step; the phone's `over` keeps floats.
  *    Rounding is what a screen actually does, and the drift is under 1/255 per channel
  *    (< 0.01 on a ratio). The three sanity pairs below composite nothing, so they are exact.
  *  - `flattenOver` returns its input UNCHANGED when a layer is unparseable — a silent
  *    pass-through that would hand this file a plausible ratio for a nonsense colour. So every
  *    layer goes through `parse` FIRST, which throws. Do not remove that line.
+ *  - `flattenOver` treats its LAST ground as the painted surface and DISCARDS that ground's
+ *    alpha. A translucent bottom therefore composites against nothing and returns a plausible
+ *    WRONG answer rather than an error. `parse` cannot see it — the layer is valid — so the
+ *    invariant is asserted here instead of left in prose (review r1 F6 clause 2). The comment
+ *    on the ground stacks below already forbids bottoming out on a glass stop; this is what
+ *    makes that a rule instead of a hope, and U1.1 is the package that will first test it.
  */
 function flatten(stack: string[]): Rgba {
-  stack.forEach(parse)
-  const [top, ...grounds] = stack
-  return parse(flattenOver(top, ...grounds))
+  // EVERY layer is parsed, not just the ones composited: a buried unparseable layer would
+  // otherwise reach `flattenOver` and come back as `top`, uncomposited (F3-era guard). The
+  // parsed alphas are then reused for the bottom check rather than parsed a second time.
+  const parsed = stack.map(parse)
+  // W0-F6 clause (2): the bottom ground is the painted surface and `flattenOver` discards its
+  // alpha, so a translucent bottom composites against nothing and returns a plausible WRONG
+  // answer. `parse` cannot see it — the layer is valid — so it is asserted here.
+  const bottom = parsed[parsed.length - 1]
+  if (bottom[3] !== 1) {
+    throw new Error(
+      `palette-contrast: the bottom ground must be opaque, got ${stack[stack.length - 1]}`,
+    )
+  }
+  // W0-F6 clause (1) is the other half: `flattenOver` requires a ground BY SIGNATURE now, so
+  // `flattenOver(top, ...grounds)` no longer type-checks (TS2556). A one-entry stack is
+  // already flat and is returned as parsed — the "nothing to composite" case must not be
+  // mistaken for a composite.
+  const [top, ground, ...rest] = stack
+  return ground === undefined ? parsed[0] : parse(flattenOver(top, ground, ...rest))
 }
 
 /**
@@ -258,6 +280,13 @@ describe('palette contrast contract', () => {
         '#000000',
       ]),
     ).toThrow(/cannot parse/)
+
+    // …and the BOTTOM of a stack must be opaque. `flattenOver` treats its last ground as the
+    // painted surface and DISCARDS its alpha, so a translucent one yields a plausible wrong
+    // answer instead of an error: `contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])` measured
+    // 21.00 — identical to pure black — for a wash that is 90% transparent. `parse` cannot
+    // catch this one; the layer parses perfectly well. Review r1 F6 clause (2).
+    expect(() => contrast('#ffffff', ['rgba(0, 0, 0, 0.1)'])).toThrow(/bottom ground must be opaque/)
 
     // CIE76 dE. Black to white is the L* axis end to end: 100, by definition.
     expect(round(deltaE(parse('#000000'), parse('#ffffff')))).toBe(100)

@@ -614,3 +614,177 @@ camera's own black/blue family (`#05080d`, `#007AFF`, the four black scrims) rat
 background bleeding through a radial gradient. **If the reviewer or the owner reads D17 the other way,
 these two revert to `#0d1b2a` and matrix A1's site list drops from 13 to 11.** I would rather be told
 than guess quietly.
+
+---
+
+# Fix round 1 — W0 VETTED-r1 (REVISE)
+
+**Branch:** `uiparity/u0-fix-foundation` off `origin/feat/uiparity-u0` (`10553c8`)
+**Head:** `92eb61e` · 6 commits, one per finding
+**Owner seat:** `ae5f52b4da850cd08` (U0 implementer A) — F1, F6, F7, F8, F9, F10
+
+## Commit → finding
+
+| Commit | F-ID | Sev | What landed |
+|---|---|---|---|
+| `8f876b9` | **F1** | HIGH | Six accent-as-mark sites re-pointed `GLASS.accentFrom` → `colors.link`; the `ExportCaseCard` glow hoisted to a module const and kept derived; two pins moved |
+| `7c245fe` | **F6** | MED | `flattenOver` requires a ground (compile error, not a wrong answer) · dev-warns on both pass-through arms · rgb regex anchored · `#rgba`/`#rrggbbaa` parse |
+| `627ac63` | **F7** | MED | `ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark` |
+| `824df2a` | **F8** | LOW | `T.borderSoft` + `T.radius` deleted (0 readers); the false "CSS has no alpha-on-hex" comment replaced with the real schedule + hazard |
+| `9dbca61` | **F9** | LOW | `rowH: touchTarget.min`; my U0.4 deferral proposal withdrawn |
+| `92eb61e` | **F10** | LOW | Marketing shell docblock scoped to GEOMETRY; colour declared marketing's own |
+
+## Gates (exit codes, cold, from this worktree at `92eb61e`)
+
+| Gate | Exit | Result |
+|---|---|---|
+| `pnpm test --silent` | **0** | 269 files / **3,518 passed \| 15 todo** (was 3,517 \| 15 at the phase head) |
+| `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `node .design-sync/check-rn-parity.mjs` | **0** | all 33 anchor rows match |
+| `pnpm build` | **0** | `/demo` First Load JS **107 kB — unchanged** |
+
+## Mutation probes — 8 applied, 8 KILLED
+
+Own worktree (`worktrees/probe-u0fix`), cut at `92eb61e`, restored byte-identically
+(`git status --porcelain` empty), torn down with the script: *unlinked 549 junction(s) in 2 pass(es)
+· `.pnpm` 240 → 240 · exit 0*.
+
+```
+A  F7  palette.ts primaryDark #1F6B99 -> #1F6B9A
+      KILLED (exit 2)  glass-tokens.ts(42,31): error TS1360:
+      Type '"#1F6B99"' does not satisfy the expected type '"#1F6B9A"'.
+      — the identity the lane probed as SURVIVING now holds.
+
+B  F9  input-theme.ts  rowH: touchTarget.min -> 44
+      KILLED (exit 1)  T.rowH must alias touchTarget.min, not re-type 44:
+      expected 'import { GLASS } from …' to match /\browH:\s*touchTarget\.min\b/
+
+C  F6(1)  add flattenOver('#002853') — a zero-ground call
+      KILLED (exit 2)  scale.test.ts(136,16): error TS2555:
+      Expected at least 2 arguments, but got 1.
+      (Run first WITH @ts-expect-error: exit 0 — the directive was consumed, which is the
+       same proof inverted. Re-run without suppression so the error is visible.)
+
+D  F6(4)  un-anchor the rgb regex (drop the trailing $)
+      KILLED (exit 1)  expected 'rgba(1, 2, 3, 0.5)' to be 'rgb(1, 2, 3) and then some'
+
+E  F6(3)  delete the withAlpha dev-warn
+      KILLED (exit 1)  expected "warn" to be called 1 times, but got 0 times
+
+F  F6(3)  make the withAlpha dev-warn UNCONDITIONAL (the noise regression, the other side)
+      KILLED (exit 1)  expected "warn" to not be called at all, but actually been called 1 times
+
+G  F6(4)  drop {4}/{8} from the hex alternation
+      KILLED (exit 1)  expected '#2B8CC125' to be 'rgba(43, 140, 193, 0.5)'
+                       expected '#ffffff80' to be 'rgb(128, 128, 128)'
+
+H  F1   ExportModal spinner arc colors.link -> GLASS.accentFrom
+      KILLED (exit 1)  ExportModal.reduced-motion > keeps the ring itself
+```
+
+## Refutations — evidence, not disagreement with the findings
+
+**All six findings are accepted and fixed.** Three corrections to the supporting material; none
+changes a verdict, an owner, or a fix.
+
+### FR-1 — F1's three "before" ratios are measured against the PRE-U0.1 ground, so they overstate the fall
+
+F1 reads *"active tab label on `colors.background` **5.92 → 2.54**; badge numeral **4.83 → 2.06**;
+spinner arc vs its own track **4.21 → 1.81**"*. Recomputed independently (WCAG 2.1 relative
+luminance, my own implementation), the **after** figures and every other token in the finding
+reproduce exactly — `#7a9fc4` 5.31, `link` 9.60, `primaryLight` 5.24, and 2.54 / 2.05 / 1.81. The
+three **before** figures do not, and they miss by a consistent amount:
+
+| surface | F1 says | same-ground at HEAD | reproduced against `#0d1b2a` |
+|---|---|---|---|
+| tab label | 5.92 | **5.01** | 5.923 ✓ |
+| badge numeral | 4.83 | **4.06** | 4.832 ✓ |
+| spinner arc vs track | 4.21 | **3.58** | 4.221 ✓ |
+
+Each "before" was measured on the OLD `#0d1b2a` background (and, for the badge and the arc, on that
+old ground composited under the wash), while each "after" used the new `#002853`. U0.1 moved that
+ground one commit before U0.3 moved the token, so the honest same-ground comparison is 5.01 → 2.54,
+4.06 → 2.05, 3.58 → 1.81.
+
+**This strengthens the finding rather than weakening it.** The corrected numbers show the inversion
+was *already latent*: at 5.01 the active tab label was below the inactive tabs' 5.31 before U0.3 ran
+at all. U0.3 turned a marginal inversion into a two-and-a-half-fold one. Every "after" figure still
+fails its floor by the margin F1 states.
+
+### FR-2 — `primaryLight` is not a usable alternative, on F1's own arithmetic
+
+F1 offers `colors.primaryLight` (#4BA3D4) "if the design wants a saturated mark". Refused: it
+measures **5.24** on `colors.background`, **below** the inactive tabs' **5.31**. It would leave the
+selected tab the least legible thing in the control, which is the visible half of the finding. All
+six sites take `colors.link` — also the token `palette.ts:91-94` names for this job (the phone's
+DEF-UI-018 split), and one accent across one control family rather than two.
+
+### FR-3 — F10's docblock did not claim the colours were copied
+
+F10 says the shell *"claims to COPY the demo shell's constants"*. The docblock's words were
+**"Pixel constants are COPIED … 404 frame · 378×786 screen"** — it enumerated geometry and said
+nothing about colour. What made it misleading is placement, not wording: `background: "#0d1b2a"`
+sits inside the same hoisted `screenStyle` object as the copied `378×786`, under a comment reading
+*"these are the prototype-verbatim pixel values"*. The ambiguity is real and is what the fix closes.
+
+I took the **second** of F10's two remedies (state the boundary) rather than the first (re-point the
+literal), because the same VETTED doc rules exactly that one row later for
+`app/css/style.css:27 --color-input` — *"marketing is not a parity target — leave it"* — and plan §2
+scopes this port to `features/demo/`. Marketing also cannot import the token (the demo barrel drags
+mapbox-gl/pdfjs-dist/motion; guarded CRITICAL at `phone-frame.test.tsx:56-70`), so a "sync" could
+only ever be a second hand-typed copy — the same defect with a fresher value.
+
+## Touched outside my territory, and why
+
+**`features/demo/ui/__tests__/palette-contrast.test.ts` (U0.5 seat's file) — 4 lines, unavoidable.**
+F6 clause (1) makes `flattenOver`'s second parameter required, and `flatten()` called
+`flattenOver(top, ...grounds)`, which stops type-checking the moment a ground is required:
+
+```
+features/demo/ui/__tests__/palette-contrast.test.ts(101,33): error TS2556: A spread argument
+must either have a tuple type or be passed to a rest parameter.
+```
+
+So the call site had to move with the signature. What is there is the destructure plus a
+one-entry-stack arm — `worst('#ffffff', [['#000000'], ['#ffffff']])` passes single-element stacks and
+a one-entry stack is already flat, so it returns `parse(top)` rather than pretending to composite.
+
+**F6 clause (2) is NOT here.** I had originally landed it; the coordinator re-routed it to the U0.5
+seat mid-round and the commit was amended to drop it before any push. It lands on
+`uiparity/u0-fix-contrast`. A comment at that exact spot in `flatten()` names the clause and the
+branch, so the two edits meet inside one function rather than in two places.
+
+**Nothing else.** `glass-tokens.test.ts` and `palette.test.ts` (F3/F5) were left untouched — see the
+two proposals below, both of which would otherwise have landed in them.
+
+## Proposals for the concurrent seats and the ledger
+
+**PR-1 → the F3 seat (`glass-tokens.test.ts`).** F1 leaves `GLASS.accentFrom` with **zero** foreground
+consumers, which is what makes U0.3's measurement true again — but nothing keeps it that way. A
+source pin ("`GLASS.accentFrom` / `ACCENT_FROM` appears only in `gradientAccent` and `T`") belongs in
+that file, which F3 already opens this round. F1's own fix note declines to prescribe one; I am
+flagging it rather than taking it, to keep one writer per file.
+*Trigger if deferred:* the next package that spends `GLASS.accentFrom` outside a fill — U2.2 rewrites
+every button variant and is the first candidate.
+
+**PR-2 → the F3 seat.** F8's optional relation pin
+(`GLASS.borderSoft === '1px solid ' + withAlpha(colors.border, 0.5)`) cannot be written as stated:
+`withAlpha` emits the SPACED `rgba(28, 78, 132, 0.5)` and `GLASS.borderSoft` is the compact form,
+pinned byte-exactly. It needs exactly the whitespace normalisation F3 is adding, in the file F3 owns.
+
+**PR-3 → coverage gap, no owner yet.** Probe H had to use `ExportModal` because **none of
+`MediaLibrarySheet.tsx:225, 226, 245, 576` has a style pin** — four of F1's six sites, including both
+that carry TEXT. A re-point back to a fill shade there is invisible to the suite today.
+*Trigger:* U7.2, which rewrites the whole file and will be the first package able to pin the tabs
+behaviourally without inventing a fixture for them.
+
+## Process note worth carrying forward
+
+The F9 regex shipped **literal BACKSPACE bytes** into the test file on two consecutive scripted
+edits: `\b` collapsed through the shell/Python layering into `\x08`, so the pin could never match and
+its red read like an ordinary failing assertion. The playbook's *"every scripted edit asserts its own
+pattern matched"* did not catch it, because the assertion covered the **search** string, not the
+**replacement**. Third attempt asserted both (no `\x08` survives; the replacement is present) and
+built the pattern from `chr(92)` instead of escaped backslashes. **Rule to add: when a scripted edit
+writes a REGEX or any escape-bearing literal, assert the replacement landed byte-correct, not just
+that the search hit.**

@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { spacing, radius, touchTarget, iconSize, withAlpha, flattenOver } from '@/features/demo/ui/tokens/scale'
+import { T } from '@/features/demo/ui/inputs/input-theme'
 import { glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the U0.2 scale seam (matrix A41, A42, A49, A53).
@@ -27,6 +30,15 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
   it('pins the touch-target and icon scales', () => {
     expect(touchTarget).toEqual({ min: 44, medium: 46, comfortable: 48, large: 56 })
     expect(iconSize).toEqual({ xs: 16, sm: 20, md: 24, lg: 32, xl: 40 })
+  })
+
+  it('routes the picker row height through the touch floor, in SOURCE and in value (W0-F9)', () => {
+    // Value alone cannot tell an alias from a re-typed `44`, and a source match alone stays
+    // green over a wrong import — so both. (The drift guard reads `scale.ts` directly for
+    // `touchFloor`, so nothing here duplicates it; this pins the DEMO-side hop.)
+    const src = readFileSync(join(process.cwd(), 'features', 'demo', 'ui', 'inputs', 'input-theme.ts'), 'utf8')
+    expect(src, 'T.rowH must alias touchTarget.min, not re-type 44').toMatch(/\browH:\s*touchTarget\.min\b/)
+    expect(T.rowH).toBe(touchTarget.min)
   })
 
   it('routes the glass fragments through the radius ladder (A42/A43 depth rule)', () => {
@@ -60,6 +72,35 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
       expect(withAlpha('currentColor', 0.5)).toBe('currentColor')
     })
 
+    it('parses 8-digit hex and lets the REQUESTED alpha win (W0-F6)', () => {
+      // The demo already renders four #rrggbbaa values (map/LocationDetailCard.tsx:43,
+      // map/LocationRow.tsx:22,23,26) that U5.4 routes through here. Before this fix the
+      // input came back unchanged, i.e. at ITS OWN alpha (0x25/255 = 0.145) — the exact
+      // "requested alpha silently ignored" class the docblock claims the port fixed.
+      expect(withAlpha('#2B8CC125', 0.5)).toBe('rgba(43, 140, 193, 0.5)')
+      expect(withAlpha('#fff8', 0.2)).toBe('rgba(255, 255, 255, 0.2)')
+    })
+
+    it('does not read a colour out of a longer string (the rgb regex is anchored)', () => {
+      expect(withAlpha('rgb(1, 2, 3) and then some', 0.5)).toBe('rgb(1, 2, 3) and then some')
+    })
+
+    it('dev-warns instead of silently returning a colour-shaped input unchanged (W0-F6)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        expect(withAlpha('#12345', 0.5)).toBe('#12345')
+        expect(warn).toHaveBeenCalledTimes(1)
+        expect(String(warn.mock.calls[0][0])).toContain('withAlpha')
+        // Named colours are a DOCUMENTED safe input — warning on them is the noise that
+        // gets a warning muted, and then the real one is missed.
+        warn.mockClear()
+        withAlpha('transparent', 0.5)
+        expect(warn).not.toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
     it('round-trips through jsdom (assert through the helper — jsdom RE-SPACES)', () => {
       expect(jsdomColor(withAlpha('#2B8CC1', 0.08))).toBe('rgba(43, 140, 193, 0.08)')
     })
@@ -84,9 +125,23 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
       expect(flattenOver('rgba(255, 255, 255, 0.5)', 'rgba(0, 0, 0, 0.25)')).toBe('rgb(128, 128, 128)')
     })
 
-    it('with no grounds, and with an unparseable layer, returns the top unchanged', () => {
-      expect(flattenOver('#002853')).toBe('#002853')
-      expect(flattenOver('rgba(255, 255, 255, 0.5)', 'transparent')).toBe('rgba(255, 255, 255, 0.5)')
+    it('with an unparseable layer, returns the top unchanged AND dev-warns (W0-F6)', () => {
+      // `flattenOver()` with no grounds at all is a COMPILE error now — the second parameter
+      // is required — so the arm that used to hand back an uncomposited colour cannot be
+      // reached from TypeScript at all. Nothing is a safe layer here, unlike `withAlpha`:
+      // every argument must be a real colour, so this arm warns unconditionally.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        expect(flattenOver('rgba(255, 255, 255, 0.5)', 'transparent')).toBe('rgba(255, 255, 255, 0.5)')
+        expect(warn).toHaveBeenCalledTimes(1)
+        expect(String(warn.mock.calls[0][0])).toContain('flattenOver')
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('composites an 8-digit hex top the same as its rgba() spelling', () => {
+      expect(flattenOver('#ffffff80', '#000000')).toBe(flattenOver('rgba(255, 255, 255, 0.50196)', '#000000'))
     })
 
     it('does NOT discard alpha the way withAlpha(token, 1) would', () => {

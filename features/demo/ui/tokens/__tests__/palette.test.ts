@@ -33,6 +33,17 @@ function sourceFiles(dir: string): string[] {
 }
 
 /**
+ * Both sides of the sweep go through this — lower-cased (§4.7) and whitespace-STRIPPED, the
+ * same treatment `glass-tokens.test.ts`'s BANNED scan and the drift guard's `norm` apply.
+ *
+ * Review r1 F3: the needle used to be compared RAW, so the list below worked only by author
+ * discipline — an entry written `'#35A0D6'` matched nothing, silently, and every later
+ * package is instructed to append to this list. The whitespace strip is for the entries that
+ * are coming: a retired `rgba(19,34,54,0.85)` must also catch `rgba(19, 34, 54, 0.85)`.
+ */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
+/**
  * Hexes the phone RETIRED in its P0 re-base. No file under ui/ may carry one — including
  * the token modules, because there is nothing left for them to define. Matched
  * case-insensitively: the demo mixes spellings for the same colour, and a case-sensitive
@@ -138,9 +149,9 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
   it('keeps the retired navy ramp out of every UI source file', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
-      const text = readFileSync(file, 'utf8').toLowerCase()
+      const text = norm(readFileSync(file, 'utf8'))
       for (const [name, hex, replacement] of RETIRED) {
-        if (text.includes(hex)) {
+        if (text.includes(norm(hex))) {
           offenders.push(`${relative(UI_ROOT, file).split(sep).join('/')} still carries the retired ${name} ${hex} — use ${replacement}`)
         }
       }
@@ -160,8 +171,28 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       error: 'error',
     } as const satisfies Record<string, PaletteToken>
 
+    // Review r1 F5: `toBe(colors[key])` compares two STRINGS, so it cannot tell an alias from
+    // a re-typed literal — de-aliasing `input-theme.ts`'s `textMute` to '#99badd' passed all
+    // 20 cases across the three token suites. The control de-alias on `bg` only died because
+    // `#002853` is BANNED, and the five keys below (`text`, `textMute`, `textFaint`, `primary`,
+    // `error`) are exactly the unchanged high-frequency hexes U0.5 left deliberately un-banned,
+    // so nothing at all caught those. Pin the SOURCE structurally as well as the value — the
+    // repo's sanctioned idiom where the source text IS the invariant.
+    // Line comments are STRIPPED first, and that is not tidiness: without it a leftover
+    // `// was textMute: colors.textSecondary` above a re-typed literal satisfies the regex
+    // and the pin passes over the exact edit it exists to catch (probed: SURVIVED). Same
+    // defect class as review r1 F4 on the drift guard's `region()`, same one-line remedy.
+    const themeSrc = readFileSync(join(UI_ROOT, 'inputs', 'input-theme.ts'), 'utf8').replace(
+      /\/\/[^\n]*/g,
+      '',
+    )
+
     for (const [tKey, paletteKey] of Object.entries(ALIASES) as [keyof typeof ALIASES, PaletteToken][]) {
       expect(T[tKey], `T.${tKey} must alias palette.${paletteKey}`).toBe(colors[paletteKey])
+      expect(
+        new RegExp(`\\b${tKey}:\\s*colors\\.${paletteKey}\\b`).test(themeSrc),
+        `input-theme.ts must SOURCE ${tKey} from colors.${paletteKey}, not re-type its value`,
+      ).toBe(true)
     }
   })
 })

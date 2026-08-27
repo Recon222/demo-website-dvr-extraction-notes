@@ -14,6 +14,7 @@ import {
 } from '@/features/demo/engine/logic/export'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * ExportModal — the unified export progress / validation overlay (parity P5.3, matrix row 25).
@@ -154,7 +155,11 @@ function ProgressContent({
             height: 40,
             borderRadius: 20,
             border: '3px solid rgba(43,140,193,0.25)',
-            borderTopColor: GLASS.accentFrom,
+            // The arc is a non-text MARK read against its own track (WCAG 1.4.11, 3.0), not a
+            // fill: `GLASS.accentFrom` measures 1.81 against `rgba(43,140,193,0.25)`, `link`
+            // 6.86. Under reduced motion the ring does not rotate, so that separation IS the
+            // affordance.
+            borderTopColor: colors.link,
             // R-18: an infinite spin is exactly what `prefers-reduced-motion` is for, and the
             // repo gates every other one (ScreenStage, DashboardScreen, MediaCaptureScreen,
             // this PR's own ExportHub). Reduced motion keeps the ring — it is the only static

@@ -117,7 +117,17 @@ function attempt(src, read) {
  * The first marker must therefore be `'export const GlassColors'`, not `'GlassColors'`.
  */
 function region(text, { after, before } = {}) {
-  let out = text
+  // Strip line comments FIRST. `readField` takes the first `key: <value>` in the slice and has
+  // no idea whether it is code, so a refactor that leaves `// was text: '#f0f4f8'` above the
+  // changed value makes the guard read the COMMENT and report zero drift (review W0/F4;
+  // probed, it SURVIVED). The inverse — a `// TODO: text: '#ffffff'` — is a false red. Both
+  // repos' constant files are comment-dense, and `Colors.ts` is where U1.1's tier reads land.
+  //
+  // Line comments only, and that is enough: every field the guard reads sits on its own line,
+  // and none of the five files sliced here contains `//` inside a string (no URLs — checked).
+  // A block-comment stripper would need to respect string literals to stay correct, and there
+  // is nothing yet for it to catch.
+  let out = text.replace(/\/\/[^\n]*/g, '')
   const markers = after == null ? [] : Array.isArray(after) ? after : [after]
   for (const marker of markers) {
     const i = out.indexOf(marker)
@@ -126,7 +136,11 @@ function region(text, { after, before } = {}) {
   }
   if (before) {
     const j = out.indexOf(before)
-    if (j !== -1) out = out.slice(0, j)
+    // A missed `before` used to fall through and widen the slice to EOF, so a key absent from
+    // its intended block but present in a LATER one was read from the wrong literal instead of
+    // reported. Now it degrades like a missed `after` does — to a PARSE-FAILED row.
+    if (j === -1) throw new Error(`region end marker not found: ${before}`)
+    out = out.slice(0, j)
   }
   return out
 }
@@ -235,43 +249,87 @@ export const webTierScope = (scheme, tier) => ({
 })
 
 /**
- * The palette keys anchored at THIS stage of the port.
+ * EVERY key in the demo's palette, anchored in both scheme halves.
  *
- * The rule, from the master plan (§6.6 gate 1): the anchor set is what the port has TOKENISED
- * so far, and **adding an anchor is the closing act of the package that creates its web-side
- * token.** A phase is never gated on an anchor whose web token does not exist yet. So the set
- * grows with the phases and only with them:
+ * This list is a hand-maintained mirror of `tokens/palette.ts`'s key set, because the guard is
+ * plain `.mjs` and cannot import the TypeScript module it checks. Deriving it by parsing that
+ * file would be self-referential — a key deleted from the demo would silently delete its own
+ * anchor. So the list is explicit, and MEMBERSHIP is pinned from the test, which CAN import the
+ * palette: `rn-token-parity.test.ts` asserts this array equals `Object.keys(palette.dark)`.
+ * Adding a palette token without an anchor is a red test, not a quiet coverage hole.
  *
- *   U0.4              the 15 palette keys U0.1 created and the plan's U0.4 row names
- *   U1.1  (LANDED)    +24 glass-tier keys — see TIER_KEYS/TIER_PARTS below
- *   U3.1              +4 status keys (success, successLight, warning, warningLight)
- *   U8.2              +gridSubtle
- *   -> ~44 keys at the end, each pinned in both halves
+ * REVIEW W0/F2 changed the shape of this list. It used to carry 15 keys — the subset the plan's
+ * U0.4 row names — leaving 17 of the palette's 32 unanchored with no future package owning them
+ * (the plan's ~44-key arithmetic never reaches `borderLight`, `borderDark`, `onPrimary`,
+ * `card`, `overlay`, `disabled`, …), i.e. the port's mechanical gate was true of 53% of the
+ * palette. Anchoring the rest is a green no-op: 32 keys x 2 halves = 64 rows, 0 drift.
  *
- * `success` and `warning` DO already exist in `tokens/palette.ts` and are still deliberately
- * absent here: U3.1's row claims all four status anchors as its own closing act, and taking
- * them early would leave that package with nothing to close.
+ * The staging rule it looked like it was obeying (plan §6.6 gate 1: never anchor a token whose
+ * WEB SIDE does not exist yet) does not apply here — U0.1 created all 32 web tokens. The rule
+ * still binds anything the demo has not tokenised: `successLight`/`warningLight` (U3.1) and
+ * `gridSubtle` (U8.2) stay out until their package creates them. The six glass tiers were on
+ * that list until U1.1 LANDED and created `tokens/glass-tiers.ts`; their 24 keys are anchored
+ * below.
  *
- * Both halves are pinned — decision D2 as amended by the owner on 2026-08-27. 15 keys x
- * { light, dark } = 30 rows. The demo renders only `dark`, but a light half that silently
- * diverges is drift the moment `palette.ts`'s one-site scheme switch is flipped.
+ * SCHEDULE, corrected — this supersedes the plan's stage figures:
+ *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
+ *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
+ *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
+ *                -> 115 rows / 56 keys HERE, which is what this table produces today
+ *   U3.1         +successLight, +warningLight x 2                        =  +4 rows
+ *                (`success`/`warning`/`successDark`/`warningDark` are ALREADY HERE — U0.1
+ *                 created them, so U3.1 adds two keys, not the four its row claims)
+ *   U8.2         +gridSubtle x 2                                         =  +4 rows
+ *   -> 59 keys / 123 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *
+ * Both halves are pinned per decision D2 as amended by the owner on 2026-08-27. The demo renders
+ * only `dark`, but a light half that silently diverges is drift the moment `palette.ts`'s
+ * one-site scheme switch is flipped.
  */
 export const PALETTE_KEYS = [
+  // primary ramp
   'primary',
   'primaryLight',
   'primaryDark',
+  // surface ramp
   'background',
   'backgroundSecondary',
   'backgroundTertiary',
+  // text ramp
   'text',
   'textSecondary',
   'textTertiary',
   'textInverse',
+  // borders
   'border',
+  'borderLight',
+  'borderDark',
+  // status
+  'success',
+  'successDark',
   'error',
   'errorLight',
   'errorDark',
+  'warning',
+  'warningDark',
+  'info',
+  'infoDark',
+  // foregrounds for filled surfaces — the only two keys that are scheme-INVARIANT (#ffffff in
+  // both halves), which is why the light-vs-dark structural pin excludes them by name.
+  'onPrimary',
+  'onError',
+  // accent-as-text
   'link',
+  'linkHover',
+  // surfaces
+  'card',
+  'modal',
+  // overlays — the first anchors that are not bare hexes
+  'overlay',
+  'overlayLight',
+  // disabled
+  'disabled',
+  'disabledText',
 ]
 
 /**
@@ -302,7 +360,7 @@ export function checkParity() {
   // U0.1 made `tokens/palette.ts` the demo's palette and turned `inputs/input-theme.ts`'s `T`
   // into a re-export of it. The guard reads the DEFINITION, not the re-export: `T`'s aliases
   // are pinned at RUNTIME by tokens/__tests__/palette.test.ts:144-158, which is a stronger
-  // check than parsing source text, and `T` only carries 8 of this stage's 15 keys anyway.
+  // check than parsing source text, and `T` only carries 8 of the 32 anyway.
   const paletteSrc = source('web tokens/palette.ts', join(WEB, 'features/demo/ui/tokens/palette.ts'))
   // U0.2's scale seam. `touchFloor` used to read `T.rowH`, a literal that U0.0 deliberately
   // left in place because it was the guard's ONLY resolving anchor at the time.
@@ -339,7 +397,7 @@ export function checkParity() {
 
   // Every read is wrapped by `attempt`: the readers throw on a miss, and one miss must never
   // disable the rest of the table. That is U0.0's degrade, and this table is where it earns
-  // its keep — 35 rows, each independently resolvable.
+  // its keep — 115 rows, each independently resolvable.
   const anchors = []
   for (const scheme of SCHEMES) {
     for (const key of PALETTE_KEYS) {
@@ -435,9 +493,9 @@ if (invokedDirectly) {
     console.error('the touch floor and the accent stops) to match the phone, or vice-versa.')
     process.exit(1)
   }
-  const keys = new Set(anchors.map((a) => a.key))
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
-      `(${keys.size} keys x both scheme halves, minus the light gradient the demo has no token for)`,
+      `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +
+      `each x both halves, + the 2 dark CTA gradient stops and the touch floor)`,
   )
 }
