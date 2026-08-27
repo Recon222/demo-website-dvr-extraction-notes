@@ -1,0 +1,465 @@
+# Demo ↔ Phone **UI** Parity — Master Execution Plan (v2)
+
+**Date:** 2026-08-26
+**Status:** **PENDING RATIFICATION** — §3's decision gate is unruled. Execution does not start until the owner rules on D1–D17.
+**Goal:** bring `features/demo/` to **UI parity with the phone's refactored UI** — the UI-consistency campaign (PRs #110–#124), post-campaign triage (#125) and the map-chrome redesign (#127). **A token / recipe / style port. Logic parity was completed by v1 and is not in scope again.**
+**Executor model:** one Opus agent per work package, dispatched per phase, with the five-lane review pipeline as the safety net. This document is the contract each agent reads first.
+
+---
+
+## 1. Source-of-truth documents
+
+| Doc | Where | Role |
+|---|---|---|
+| `00-ui-parity-matrix.md` | this directory | **The authoritative gap list.** 97 Tier-A token/recipe rows + 57 changed Tier-B surface rows + 15 inert + 2 new + 14 demo-only. Every package below cites its matrix rows; the row's Delta column **is** the spec. |
+| `phone-ui-delta-inventory.md` | this directory | The phone side, 18,613 lines. **§2.A–§2.G hold every recipe verbatim with `file:line` at `main`.** An implementer consults its rows' §2 subsection **before** writing a value. Cited as "phone §N". |
+| `demo-ui-inventory.md` | this directory | The demo side, 2,480 lines. §0 binding constraints, §1 token modules, §2 census, §3 per-component map, §4 leverage points + consumer lists, §5 drift guard, §6 the ~95 style-pinning assertions, §7 boundaries, §8 design-sync. Cited as "demo §N". |
+| `census.mjs` | this directory | Re-runnable, zero-dependency literal census. **Run it at the start of a sweep package and again at the end** — the delta is the package's own evidence. `node docs/planning/demo-phone-ui-parity/census.mjs .` |
+| `features/demo/CLAUDE.md` | demo repo | The demo architecture contract. **Binding.** Read in full before writing code. |
+| `docs/code-reviews/deferred.md` | demo repo | The living deferral ledger, 88 sections. **Next free section is §89.** Deferral **§31 names "any actual demo restyle" as its un-defer trigger — this port IS that trigger.** |
+| `verification/` | this directory | v1's drive harness. §2 (Playwright, the demo) runs on Windows; §1 (Maestro / simctl / Vision OCR, the phone) does **not** — see §6.5. |
+| `docs/planning/demo-phone-parity/` | demo repo | v1's matrix + plan + HANDOFF. **Row IDs and machinery only** — its Status column is stale (demo §7.3). |
+
+Both repos must be available:
+- **Demo** (all work happens here): `D:\Work Coding Projects\CCTV Recovery Notes App\demo-website-dvr-extraction-notes\demo-website-dvr-extraction-notes` (branch `master`).
+- **Phone** (read-only spec source): `D:\Work Coding Projects\CCTV Recovery Notes App\extraction_case_notes_react_native_expo` @ `main`. **STRICTLY READ-ONLY — no edit, no commit, no stash, no checkout, no install. No exceptions.**
+
+## 2. Scope
+
+**In:** every DRIFTED, MISSING-SEAM and MISSING row in the matrix — the dark palette re-base, the six-tier glass system, the scales, the three new exported recipes, the shared component recipes, the map-chrome redesign including the new `MapFiltersSheet`, and the surface-specific residuals in Tier B.
+
+**Out (do not re-litigate):**
+- **Logic.** No behaviour change. No new store subscriptions, no new engine functions, no changed flow. If a package thinks it needs one, it is mis-scoped — stop and raise it.
+- **The light theme** (pending D2). Every light-half row in phone §1.1 / §1.3.2 and every light-only ratio in phone §7.3 is skipped.
+- **Phone-only mechanics** (phone §6.1): `expo-image`, `@expo/vector-icons` import plumbing, haptics, reanimated/gesture-handler APIs, safe-area insets as a library, native config, VisionCamera, biometrics, SQLite. **The motion VALUES port; the APIs do not.**
+- **Performance work** (phone §6.2), tooling and tests-as-tests (§6.3).
+- **v1's excluded areas** (§6.4): agency cloud, Supabase sync, the Developer pane, real biometrics, the case-map HTML export's own design system, the print documents.
+- **The five z-index schemes** (A95 / D14) — logged as deferral §89 with a trigger.
+
+**What "parity" means, per tier:**
+- **Tier A parity** = the demo's token module or shared recipe holds the same **value** the phone holds at `main`, and the 22-anchor drift guard proves it mechanically.
+- **Tier B parity** = the surface consumes the Tier-A recipes and carries any surface-specific delta the phone inventory records. A Tier-B row whose delta column is empty is COMPLETE the moment its Tier-A rows land.
+- **Neither means pixel-identity.** The demo renders in a 378px web frame with inline `CSSProperties`; the phone renders in RN with `StyleSheet`. Where a value cannot be expressed (platform switch, `hitSlop`, native shadows), the plan says so and records the divergence.
+
+**Direction of parity:** phone is source of truth **except** where the matrix marks DEMO-BETTER or a deliberate divergence — v1 rows 33 (the clock-injected pickers), 41 (`RetentionView`), `MetadataForm`'s real error message, `motion.ts` as the RN port template, and the D6/D11/D13 divergences. **Never regress those toward the phone.**
+
+## 3. Decision gate — **PENDING RATIFICATION**
+
+Mirrors `00-ui-parity-matrix.md` §DECISIONS. **No package that depends on an unruled decision starts.** The dependency column says which.
+
+| ID | Question | Recommendation | Blocks |
+|---|---|---|---|
+| **D1** | Phone-side verification on Windows (no iOS sim, no Android SDK) | Computed contrast test + 22-anchor guard as the standing gate; owner device pass at **three** checkpoints (after U1, U4, U5) where the phone's own device pass found ΔE-shaped defects a ratio is blind to. Do **not** attempt Expo web — the phone repo explicitly rejected `react-native-web`. | §6.5, the U1/U4/U5 exits |
+| **D2** | Does the demo stay dark-only? | **Stay dark-only.** Port dark values only. | U0.1, and the shape of every package |
+| **D3** | Tokenization depth: full 1,144-literal sweep vs seams-only | **Seams-only + a value-changed sweep + a guard.** Build the demo §4.7 seams; sweep only the ~120 literals whose *value* changed; leave unique unchanged literals alone; extend the drift guard to 22 anchors and add the banned-literal guard. | U0.5, U2.1, and every sweep package's size |
+| **D4** | The superseded rulings D3(a) and D1(a) | **Follow the code, not the rulings doc.** No second always-dark map palette; **delete the 4px left accent** and draw uniform four-sided borders; keep "selection ADDS, never swaps". | U5.2, U5.4 |
+| **D5** | Inherit the documented contrast ceilings (M2b 3.79, DEF-062 1.77, DEF-UI-025 1.26, DEF-UI-001 3.73)? | **Inherit all four explicitly**, and write each into the demo's ledger as §89. Do not "fix" them unilaterally. Rider: do not *add* new `textTertiary` text. | U0.5, U2.4, U5.1 |
+| **D6** | The tab-bar height mismatch (demo pins 50; the phone never sets one) | **Keep 50** as a permanent documented divergence; port the colours and `paddingTop: 6`. | U8.3 |
+| **D7** | Design-sync bundle regeneration timing | **One closing package (U8.4)**, not per-phase. All 33 previews hardcode `#0d1b2a` and go stale with A1. | U8.4 |
+| **D8** | Splash `#000314` → `#002853` and its test pins | **Port the value; update `SplashScreen.test.tsx` in the same commit; re-measure the disclosure alpha against the new ground.** | U8.1 |
+| **D9** | `demo.css`'s "do not restyle the lifted rules" vs the grid values | **Freeze the `demo.css` page backdrop and all 17 keyframes; move `GLASS.gridOverlay` (TypeScript) to `0.11`.** | U8.2 |
+| **D10** | Disabled: the demo's opacity idiom vs the phone's `disabled` token | **Keep opacity + `aria-disabled`; add the two tokens; use them only where the phone paints a fill (Button).** Never fade a label that carries data. | U2.2 |
+| **D11** | `gradientCardDiag` (135°) — a demo-only variant | **Keep it, re-based.** The phone has no diagonal gradient anywhere. | U1.1 |
+| **D12** | Demo-only surfaces: follow the palette, freeze, or defend | **Three-way split.** Follow: inside the frame. Freeze: `StoryRail`, `ExploreChecklist`, `ExitDialog`, the page backdrop (their teal stays). Freeze **and defend**: the "Sample data" amber — a correctness constraint, not a preference. | U8.2, U7.3 |
+| **D13** | Two mono families vs the phone's one | **Keep both; codify the split** (Share Tech Mono = scanner/terminal/HUD; JetBrains Mono = evidentiary values) as a deliberate divergence. | U7.3 |
+| **D14** | The five z-index schemes | **OUT-OF-SCOPE.** Log as deferral §89 with the trigger "the next package that adds an overlay, or any change to `MODAL_SCRIM_Z`/`PICKER_SHEET_Z`/the drawer's 41-42". | (nothing — it is the absence of a package) |
+| **D15** | PR #125's floating header | **Port the geometry (92→64pt, first card +108→+80); defer the scroll-materialising blur** (EXPERIMENTAL, carries the open U1 contrast item). | U3.4 |
+| **D16** | The armed-case echo row (deleted by owner ruling on the phone) | **Delete it** from `ExportHub.tsx:153-164`; note its source citation is now stale. | U6.3 |
+| **D17** | The camera chrome's separate palette | **Freeze it.** Port only `#007AFF` → `primaryDark` and the `CameraControls` scrim → `overlay` (90%); tokenise the four black-scrim alphas into one named block. | U7.2 |
+
+## 4. Binding conventions for every execution agent
+
+### 4.1 v1's conventions that still hold, verbatim
+
+1. **`ui/DemoExperience.tsx` is the ONLY store-touching component.** Screens/modals/controls are presentational: props in, callbacks out. Never import `engine/store/*` from a screen. **A restyle is a pure-props change everywhere below the bridge** — if a port needs new visual state, it arrives as a prop threaded from `DemoExperience`, never as a new store subscription. `DemoExperience` is 3,141 lines and holds **six** `style={{` blocks; it is not a styling surface.
+2. **`engine/` is pure TS** — no React, no `'use client'`. **Exception the port must respect:** status colours partly live in the engine (`recorderStatusColor` / `levelFillColor` in `engine/logic/media`, pinned by `audio-levels.test.ts`), and **the 80% engine coverage gate applies there**.
+3. **Inline `CSSProperties`, not Tailwind**, inside `features/demo/`. `ui/demo.css` holds only globals + keyframes. **Do not Tailwind-ify and do not "tidy" the lifted pixel values.**
+4. **No `Date.now()` / `Math.random()` / argless `new Date()`.** Use the store's `seq`/`nextId` counters and the injectable `clock` seam. **A restyle must not introduce a render-time clock read** for, say, a relative timestamp.
+5. **Overlays must portal** through `PhoneOverlayPortal`. Rendering inline re-introduces the scroll-lift bug. **The one deliberate exception is `ExitDialog` (`position:fixed, zIndex:100`) — do not "fix" it into the portal.**
+6. Marketing code must never import `@/features/demo`.
+7. **Copy & pixel fidelity:** when the matrix or the phone inventory quotes exact copy, colours, sizes or option lists, **lift them verbatim**. Every recipe you cite must come from phone §2 with its `file:line`.
+8. **The honesty rule:** anything the browser cannot truly do gets an explicit honest treatment. Follow the existing `FallbackMode` / "Sample data" patterns — **and D12 makes those badges a correctness constraint, not a style preference.**
+
+### 4.2 The demo's restyle constraints (demo §0) — the "may not change" list
+
+| Frozen | Where | Why |
+|---|---|---|
+| `404 / 378 / 786 / 812 / 13` | `PhoneFrame.tsx:42,43,55,56`, `usePhoneScale.ts:8` | Prototype-lifted device geometry. **404 = 378 + 13×2.** |
+| `box-sizing: border-box` scope | `demo.css:14-17` | Every pixel dimension depends on it |
+| `demo.css`'s lifted rules + all 17 keyframes | `demo.css` (144 lines) | CLAUDE.md; and the reduced-motion tests pin the motion |
+| The store-bridge boundary | `DemoExperience.tsx` only | The one architectural rule |
+| Portal-or-fixed overlay placement | `phone-overlay.tsx`, `ExitDialog.tsx:47` | Scroll-lift regression |
+| `SHEET_HEIGHTS = [116,340,560]`, `DRAG_THRESHOLD = 40` | `MapBottomSheet.tsx:43-44` | Tuned to the 786px viewport |
+| `STRIP_TOP` / `STRIP_SIDE` | `OcrCaptureScreen.tsx:103-104` | Derived from the engine's real crop fractions — the box must show the actual crop |
+| `LONG_PRESS_MS = 500` | `useLongPress.ts:80` | "THE one definition"; matches the phone's beat |
+| `TAB_BAR_HEIGHT = 50` | `TabBar.tsx:10` | Single source; three overlays sit flush above it (D6) |
+
+Also: **jsdom renders no CSS.** Every style assertion in demo §6 reads the **inline** `element.style`, so **a value moved out of an inline object into a class or a CSS variable silently un-pins its test** — which is worse than a red test. If a package moves a value out of an inline style, it must say so and add a replacement assertion.
+
+### 4.3 The phone campaign's case law this port inherits
+
+Five rules, stated the way the campaign states them. Every reviewer is briefed on them.
+
+- **Mutate the recipe, never the consumer.** If a value appears in more than two consumers, the fix is upstream. This is what MISSING-SEAM rows mean.
+- **Deleting a wrapper deletes behavior.** `Card` forwards `gap`, `borderColor`, `borderWidth`, `borderRadius`, `flex` and the whole padding family to the surface that paints — DEF-UI-013 shipped a **visible regression** (an icon flush against its label) because `gap` landed on an inert wrapper. In the demo's inline-style world the equivalent is spreading a fragment and then overriding one key: **check what the override lands on.**
+- **A citation is a claim — open it.** Every `file:line` in a brief, a PR body or a review finding was opened at `main`. Where a plan or report line no longer matches, cite reality and record the disagreement. The phone campaign refuted its **own** plan at source eight separate times and was right to.
+- **Silence is not conflict.** A ruling that is silent on your case does not authorise your case. M2(b) accepts the *dark* `textTertiary` ceiling and is **silent on light** — that silence became DEF-UI-002 and then DEF-063, not permission.
+- **Verify a deferral's trigger, not just its premise.** Four DEF-UI rows had **dead triggers** (they named an event that had already happened, or a phase that then refused the change). A deferral whose trigger cannot fire is not deferred, it is dropped.
+
+Plus one copy rule, standing and campaign-wide: **no em dashes in any user-facing string** (data-glyph placeholders exempt). The demo's copy is phone-verbatim, so it inherits this. Applies to strings the demo renders, **not** to planning docs or code comments.
+
+### 4.4 RED / GREEN discipline for a style port
+
+The demo has **~95 style-pinning assertions across 22 test files** (demo §6). A style port reddens them **by design** — that is the point of having them.
+
+**The rule: for every assertion a package reddens, the package updates it in the SAME commit as the value change, and the commit body records the observed red line verbatim.**
+
+```
+fix(tokens): re-base the border token to the phone's badge-blue ramp
+
+A7 — Colors.dark.border #1e3a5f -> #1c4e84 (phone Colors.ts:153).
+
+RED (observed before the fix):
+  FAIL  features/demo/ui/__tests__/glass-tokens.test.ts > GLASS.border
+    expected '1px solid #1c4e84' to be '1px solid #1e3a5f'
+
+GREEN after: 3,478 passed.
+```
+
+**Why the body, not just the diff:** a reviewer cannot tell a *deliberately* updated pin from a *silently weakened* one by reading the diff. The recorded red line is the proof the assertion was failing for the right reason. This is non-negotiable and every review lane checks it.
+
+**Three specific traps:**
+1. **`glass-tokens.test.ts` fails TWICE on a token change** (demo §0.9) — once on the changed value, once if the new literal now appears in a consumer. Budget for both.
+2. **A relational pin survives a restyle** and must not be "updated". `AlertDialog.test.tsx:168` asserts destructive ≠ cancel, not a value. Leave it.
+3. **Three tests pin the modal-over-modal z ordering** (`UserProfilePane.test.tsx:306,315,316`). D14 says do not renumber — so if one of these reddens, **something is wrong**, not something to update.
+
+### 4.5 Git & review
+
+- Branch per package: `feat/uiparity-u<N>-<slug>` off `master`. One PR per phase (or per package for L-sized packages — the orchestrator's call).
+- **Granular commits, red + green together.** One commit per matrix row where the row is meaningful alone; otherwise one per package slice. **Each fix commit maps to a review finding**, and the commit→finding table is posted as a PR comment after each fix round.
+- Every commit body ends with `Co-Authored-By: <the agent's own model name> <noreply@anthropic.com>` and a `Claude-Session:` link.
+- **Merges are merge commits** (`gh pr merge N --merge --delete-branch`). **Never squash, never rebase.**
+- PR bodies are written for the review fan-out: scope, the matrix rows closed, evidence (before/after captures from the Playwright harness), deviations-with-justification, and a "deliberate choices — don't re-flag" section.
+- After each phase the **orchestrator** updates §7 here and the Status column of touched matrix rows. **Agents do not edit the plan, the matrix or the HANDOFF.** Agents **do** append to `deferred.md` at the next free § — check first.
+
+### 4.6 Verification per package
+
+`pnpm test --silent` green → `pnpm exec tsc --noEmit --incremental false` from a **cold** cache on the merged head → `node .design-sync/check-rn-parity.mjs` green → the ported contrast test green → `pnpm dev` and a Playwright capture of the touched surface. **Quote a gate only from a cold cache on the merged head** — `tsc` with `incremental: true` can return exit 0 from a stale `tsbuildinfo` against a broken tree, and branch-level gates never prove the combined tree.
+
+### 4.7 Standing operational rules (inherited, all still binding)
+
+- **NEVER `git stash`** in any form — the stash stack is shared across all worktrees of a repo; two agents collided on it in v1.
+- **Foreground commands only.** Raise timeouts; never background a watcher for an install or a build.
+- **Re-run flaky-looking failures before concluding** — parallel-agent CPU contention produces load-induced flakes that pass clean solo.
+- **Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.** A v1 lane destroyed a sibling's uncommitted probe edit this way.
+- **Mutation-probing lanes get their own worktree**, or serialise full-suite runs. A green count from a shared worktree is trustworthy only if the runner proves no source file moved mid-run.
+- **Agent context rotation:** the `subagent_tokens` figure in each notification is CUMULATIVE. At **~700k**, retire the agent and brief a fresh one from its final report, its commit list and the package specs.
+- **Windows specifics:** never `rm -rf` anything that might be a junction. `pnpm install --prefer-offline` in a worktree is fine (shared pnpm store). **Do not re-type `census.mjs` into `node -e '…'` under Git Bash** — Git Bash eats a backslash, so `"\\s"` reaches JS as literal `s` and the check silently passes wrong. Run the file.
+- No `.env.local` exists in the demo repo — map/AI degrade gracefully by design. **Never fabricate tokens.**
+
+---
+
+## 5. Phases
+
+**Dependency shape:** `U0 → U1 → (U2 ∥ U3) → U4 → (U5 ∥ U6) → U7 → U8`.
+
+U0 is the token layer and blocks everything — nothing else starts until the drift guard is green at 22 anchors and the contrast test is ported. U1 builds the surface tiers every later phase paints with. U2 and U3 are independent lanes (controls vs status/notices). U4 needs U1's `sheet` tier. U5 and U6 are independent of each other. U8 closes with design-sync.
+
+**SEAM contracts.** When a package creates something a later package consumes, it lands as a **grep-able `SEAM(Ux.y)` comment** at the definition, exactly as v1 did:
+
+```ts
+// SEAM(U1.1): the six glass tiers. U1.2/U1.3/U4.1/U5.1 index into this.
+export const GLASS_TIER = { … } as const
+```
+
+A consuming package's brief names the seam by id; a reviewer greps `SEAM(U1.1)` to find every consumer. **A package that needs a seam that does not exist yet is mis-ordered — stop and raise it, do not build a private copy.**
+
+**Model tiers** (`.claude/agents/`): `opus-implementer-high` = S-sized mechanical · `opus-implementer` = M-sized standard · `opus-implementer-max` = subtle packages whose failure modes reviews catch late.
+
+---
+
+### U0 — The token layer (~3–4 days) — the foundation; blocks everything
+
+Mirrors the phone's own P0. **Exit criterion is mechanical: `check-rn-parity.mjs` must FAIL before this phase and PASS at 22 anchors after it. That is U0's RED/GREEN.**
+
+| Pkg | Scope | Matrix rows | Files (file:line) | Recipes: before → after | Tests to update / add | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U0.1** **The palette module** | Re-base `T` and add every missing dark token. Create the demo's single palette module (extend `input-theme.ts`, or a new `ui/tokens/palette.ts` that `T` re-exports — implementer's call, but **`T`'s existing 7 importers must not break**). | A1–A9, A19, A28 | `ui/inputs/input-theme.ts:14-36`; `ui/glass-tokens.ts:23-44`; the 13 bare `#0d1b2a` and 15 bare `#1e3a5f` sites listed in matrix A1/A7 | `bg #0d1b2a→#002853` · `border #1e3a5f→#1c4e84` · **ADD** `raised #0e3965` (replacing `#0f2035`), `raisedHigh #17416e`, `modal #17416e`, `borderLight #2e5f97` (replacing `#2a4a6f`), `borderDark #063d72`, `textInverse #002853`, `onPrimary #ffffff`, `onError #ffffff`, `primaryDark #1F6B99`, `errorLight #b72136`, `successDark #0faa5e`, `infoDark #7a9fc4`, `disabled #2e5f97`, `disabledText #6b7f95` | **UPDATE:** `glass-tokens.test.ts` (the `border`/`borderSoft`/`borderBtn` shape pins + the ten banned literals); `rn-token-parity.test.ts`. **ADD:** a pin that `T.bg === '#002853'` and that no bare `#0d1b2a`/`#1e3a5f` survives under `ui/**` | **M** · `opus-implementer` · — |
+| **U0.2** **The scales module** | Introduce `spacing`, `radius`, `iconSize`, `touchTarget` as real token objects, plus `withAlpha` / `flattenOver`. **Per D3, this package does NOT sweep** — it creates the seam and uses it only in the values U0.1 touched. | A41, A42, A47, A49, A53 | new `ui/tokens/scale.ts`; `ui/glass-tokens.ts` (radius 12/10 route through it) | `spacing xxs2·xs4·xsm6·sm8·base12·md16·mdlg20·lg24·xl32·xxl48` · `radius none0·sm4·md8·control10·lg12·xl16·sheet22·full9999` · `touchTarget 44/46/48/56` · `iconSize 16/20/24/32/40` · `withAlpha(hex, a) → color-mix(in srgb, <hex> <a*100>%, transparent)` | **ADD:** unit tests for `withAlpha` (incl. the `rgba()` input case the phone's own util once got wrong by dropping the alpha channel) and `flattenOver`; a pin that `999` and `9999` have collapsed to one spelling | **S** · `opus-implementer-high` · U0.1 |
+| **U0.3** **The primary gradient** | Re-base the accent gradient and its three `@theme` mirrors together. **This is one commit or the suite fails twice.** | A50 | `ui/glass-tokens.ts:23-24,34`; `app/css/style.css:41-48`; `app/demo/error.tsx:29,37,45` | `ACCENT_FROM #35A0D6 → #1F6B99` · `ACCENT_TO #2580AD → #17527A` · `gradientAccent linear-gradient(180deg,#1F6B99,#17527A)` · `--color-demo-accent-from: #1f6b99` · `--color-demo-accent-to: #17527a` | **UPDATE:** `glass-tokens.test.ts` R-25/R-34 (the `@theme` mirror pins) and its `gradientAccent` shape pin; `ExportModal.reduced-motion.test.tsx:45,52` (`#35A0D6` spinner); `ExportHub.test.tsx:116-118,117` (`rgb(53,160,214)` lit border + shadow). **Contrast target: `onPrimary` on both stops ≥ 4.5 (5.80 / 8.32).** | **S** · `opus-implementer-high` · U0.1 |
+| **U0.4** **Drift guard repair + 22 anchors** | Fix the three defects, then extend. **The parse-failure fix is the important one** — a renamed phone constant must degrade to one `PARSE-FAILED` anchor, never a throw that disables the other eight. | A96 | `.design-sync/check-rn-parity.mjs:28,54-56,74-75`; `ui/inputs/__tests__/rn-token-parity.test.ts:10-15` | (1) read `PrimaryButtonGradient` from `src/constants/Colors.ts:471`, not `PRIMARY_GRADIENT` from `Button.tsx`. (2) a ~6-line one-level identifier resolver (`Colors.dark.primaryDark` → look `primaryDark` up in the `dark:` region). (3) **per-anchor `try/catch` → a `PARSE-FAILED` drift row.** (4) +13 anchors: `backgroundSecondary`, `backgroundTertiary`, `borderLight`, `textTertiary`, `textInverse`, `success`, `successLight`, `warning`, `warningLight`, `errorLight`, `primaryLight`, `primaryDark`, `gridSubtle` | **UPDATE:** `rn-token-parity.test.ts` to assert an empty `drift` **and** an empty `parseFailed`. **ADD:** a test that a deliberately-broken anchor reports `PARSE-FAILED` and the other 21 still resolve — the mutation probe for defect (3). **Record that `it.skipIf(!rnAvailable())` means CI without the sibling repo is green regardless.** | **M** · `opus-implementer-max` · U0.1, U0.3 |
+| **U0.5** **Contrast test + banned-literal guard** | Port `palette-contrast.test.ts` (dark half) and widen `glass-tokens.test.ts`'s banned-literal mechanism. | A97, matrix §C.4 | new `ui/__tests__/palette-contrast.test.ts`; `ui/__tests__/glass-tokens.test.ts` | Port the WCAG 2.1 luminance helper, `flattenOver`, the `DARK_GROUNDS` stack, the CIE76 ΔE helper, and matrix §C.1 rows 1–5, 8, 10, 12, 13, 16, 18, 21, 22–25, 30, 31, 33, 34, 36–40. **Two structural pins to copy, not just numbers: pin the ratio AT the constant; bound `recessed` two-sided and per-stop.** Then ban the top ~10 palette hexes from `ui/**` outside the token modules. | The three helper sanity checks must reproduce **21.00**, **4.54**, **3.34** exactly. **Rows 31/33 will not pass until U1 lands the tiers — land them `it.todo` and un-todo in U1.1.** | **M** · `opus-implementer-max` · U0.1, D5 |
+
+**Exit:** `node .design-sync/check-rn-parity.mjs` exits 0 with 22 anchors resolved and zero drift · the contrast test is green (minus the U1-gated todos) · `pnpm test` green · cold `tsc` green · census re-run shows the `#0d1b2a`/`#1e3a5f`/`#2a4a6f` counts at their token-definition lines only.
+
+---
+
+### U1 — Glass tiers and the card family (~4–5 days)
+
+Builds the surface system every later phase paints with. **This is the phase where the demo visibly stops looking a generation old.**
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U1.1** **The six-tier glass module** | The port's central new seam. Six tiers × four parts, dark only. `GLASS.gradientCard`/`gradientPanel`/`borderSoft`/`borderAccent` become *derived* from it so the existing ~40 importers keep working. **Keep `gradientCardDiag` (D11), re-based.** | A29–A39, A40, D11 | new `ui/tokens/glass-tiers.ts` (**`SEAM(U1.1)`**); `ui/glass-tokens.ts:26-44` | `card ['rgba(14,57,101,0.85)','rgba(23,65,110,0.92)'] / border rgba(28,78,132,0.5) / highlightTop rgba(184,212,240,0.08) / innerShadow rgba(0,0,0,0.2)` · `nestedCard ['rgba(23,65,110,0.7)','rgba(14,57,101,0.6)']` **(stops swapped)** `/ rgba(43,140,193,0.45) / rgba(184,212,240,0.2) / rgba(0,0,0,0.15)` · `elevated ['rgba(23,65,110,0.88)','rgba(14,57,101,0.95)'] / rgba(43,140,193,0.25) / rgba(184,212,240,0.12) / rgba(0,0,0,0.25)` · `header ['rgba(0,38,80,0.95)','rgba(2,46,89,0.98)'] / rgba(28,78,132,0.6) / rgba(153,186,221,0.1) / rgba(0,0,0,0.15)` · `sheet ['rgba(0,40,83,0.98)','rgba(14,57,101,1)'] / rgba(28,78,132,0.6) / rgba(184,212,240,0.14) / rgba(0,0,0,0.3)` · `recessed ['rgba(0,24,50,0.6)','rgba(0,32,64,0.5)'] / rgba(0,14,30,0.75) / rgba(0,12,26,0.55) / rgba(0,0,0,0.45)` | **UPDATE:** `glass-tokens.test.ts` shape pins for all four gradients + five border shorthands. **UN-TODO:** contrast rows 31 (nestedCard border ≥1.25) and 33 (recessed ΔE 3–12 per stop). **ADD:** a pin that `nestedCard`'s stops are the swap of `card`'s, not a new pair | **M** · `opus-implementer-max` · U0 |
+| **U1.2** **The card recipe** | Give `glassCard` the missing two parts and the depth rule. **Adding a 1px highlight edge to every card is the single most visible change in the port** — capture before/after. | A31, A32, A43, A44, A54 | `ui/glass-tokens.ts:47-51`; the ~9 `glassCard` consumers (demo §1.1) | `glassCard` before `{borderRadius:12, border: GLASS.borderSoft, background: GLASS.gradientCard}` → after `{borderRadius:12, border:'1px solid <card.border>', borderTopColor:'<card.highlightTop>', background:'<card.gradient>', boxShadow:'inset 0 1px 0 <card.innerShadow>, 0 4px 8px rgba(0,0,0,0.15)'}`. **Depth rule (A43): cards `12`, nested ROWS `8`, sheets `22`, controls `10`.** Move the four `borderRadius:16` card sites to 12. | **UPDATE:** any test reading a card's `border`/`background`. **ADD:** a pin that a card's `borderTopColor` differs from its `borderColor` (the highlight edge is rendering — the phone shipped one at 0.06 that was **not rendering at all**) | **M** · `opus-implementer` · U1.1 |
+| **U1.3** **Nested + elevated adoption** | Build the nested-card recipe and adopt all five hand-rolled re-derivations; re-base `gradientPanel`'s consumers. | A33–A36, A55, A56 | `ImportResultBody.tsx:6-13`, `ImportModal.tsx:181-185`, `CaseActionsSheet.tsx:175-189`, `DvrInfoScreen.tsx:192-200`, `ExportModal.tsx:291-303`; `CompletionScreen.tsx:94-106` | Five near-miss gradients (`0.6/0.7`, `0.45`, `rgba(13,27,42,0.6)`, `0.9/0.96`) → **one `nestedCard` tier**. `GLASS.borderAccent` `rgba(43,140,193,0.3)` → **`0.25`**. **Closes deferral §31's named near-miss list.** | **UPDATE:** none expected — these are un-pinned surfaces. **ADD:** one behavioural test per adopted site that it renders the nested tier, not a private gradient | **M** · `opus-implementer` · U1.1, U1.2 |
+| **U1.4** **The header tier** | Five hand-rolled header gradients → one. | A37 | `_shared.tsx:418` (`WizardHeader`), `TabBar.tsx:62`, `SettingsNavBar.tsx:22-32`, `CaseMapPicker.tsx:30-34`, `WizardDrawer.tsx:333-341,389` | `#1b2e48→#15273b`, `#1e3450→#16283c`, `gradientPanel`, `#13243a→#0e1d30`, and the two drawer fades → **`['rgba(0,38,80,0.95)','rgba(2,46,89,0.98)']`** with `borderBottom: 1px solid rgba(28,78,132,0.6)`. **TabBar is a flat `card` fill, not a gradient — it leaves this set in U8.3.** | **UPDATE:** none expected. **ADD:** a pin that `WizardHeader` and `SettingsNavBar` render the same background | **M** · `opus-implementer` · U1.1 |
+
+**Exit:** every glass surface in the demo paints from one tier module · the depth rule holds (no card at radius 16) · contrast rows 31 and 33 are green · **owner device-pass checkpoint 1 (D1)** — the "cards on cards read flat" class of defect is exactly what PR #125's device pass caught, and it is invisible to a contrast ratio.
+
+---
+
+### U2 — Control primitives (~1 week) — lane A, parallel with U3
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U2.1** **Export `fieldInput`, delete four copies** | demo §4.7's **#1 leverage point**: a ~20-line diff over the most-touched surface in the product. | A72 | `_shared.tsx:186-195` (export it, **`SEAM(U2.1)`**); delete `AddressAutocomplete.tsx:35-44`, `IncidentLocationFields.tsx:87-96`, `NewCaseModal.tsx:52-61`; fix `SubmissionScreen.tsx:147` | `{borderRadius:8, border:'1px solid #1c4e84', background:'#002853', color:'#f0f4f8', fontSize:15, padding:'11px 12px'}` → **`{borderRadius:8, border:'1px solid <border>', background:'<bg>', color:'<text>', fontSize:16, padding:'16px', minHeight:44}`**. Border precedence **disabled → error → focused(`primary`) → `border`**. Placeholder `textTertiary`. **Disabled text is `textSecondary`, NOT `disabledText`** (2.54/3.57 vs 4.83/7.30). `SubmissionScreen`'s read-only field takes the real disabled path, **not `opacity:0.6` on the wrapper** — that faded the label too. **DEF-UI-011: do NOT make the fill `backgroundSecondary`** (1.04/1.09 vs 1.20/1.37). | **ADD:** a pin that the four former copies import the shared const (a probe deleting the export must fail the suite) | **M** · `opus-implementer` · U0, U1 |
+| **U2.2** **Button variants** | All five variants, the two edge tokens and the danger fill. | A51, A52, A64–A68, A23, D10 | `ui/glass-tokens.ts:54-67`; the six hand-rolled outline sites (matrix A66); `DeleteConfirmationModal.tsx:202`, `RowActions.tsx:106-108` | **primary:** gradient `#1F6B99→#17527A`, `borderWidth:1` with `borderTopColor: rgba(255,255,255,0.14)` / `borderBottomColor: rgba(0,0,0,0.3)` / left+right transparent, label `#ffffff`, `boxShadow: 0 6px 20px rgba(0,0,0,0.45)`, `textShadow: 0 1px 1px rgba(255,255,255,0.06)`. **secondary:** `background #0e3965`, `border #1c4e84`, label **`#f0f4f8`** (was `#99badd`). **outline/ghost:** border AND label **`#b8d4f0`** — six sites, and every one currently pairs `#2B8CC1` border with `#4BA3D4` text. **danger:** fill+border **`#b72136`**, label `#ffffff`. **sizes:** small `16/8`+44, **medium (default) `24/16`+48/16px**, large `32/24`+56. **No `size="large"` in map-view.** Disabled per D10. | **ADD:** contrast assertions for outline label ≥4.5 and outline border ≥3.0 against every dark tier. **UPDATE:** any test reading a glass-button colour | **L** · `opus-implementer-max` · U0.3, U1 |
+| **U2.3** **Collapse the four switch renderers** | Add `hideLabel` to `Toggle`; delete `RowSwitch`; adopt at the other two sites. | A76, A49 | `_shared.tsx:479-557` (**`SEAM(U2.3)`**); delete `FormFieldsPane.tsx:151-198`; `TimeOffsetScreen.tsx:111-124`; `GpsCaptureControl.tsx:179` | Track `46×28 r14`: on **`#2B8CC1`** (unchanged), off **`#1e3a5f` → `#1c4e84`**. Thumb `22×22 r11`: on `#fff`, off **`#7a9fc4`**. **Note the phone's thumb is `colors.background` = `#002853`** — see the divergence note; the demo's white-on/faint-off pair is a web-legibility choice and stays, **recorded**. Row `space-between`, label `16/500 #f0f4f8`. **`FormFieldsPane`'s rationale for `RowSwitch` (a grid row that draws its own label) is exactly what `hideLabel` solves.** | **UPDATE:** any `FormFieldsPane` test asserting `RowSwitch`'s DOM. **ADD:** a pin that `hideLabel` renders no inline label and keeps `role="switch"` + its `aria-label` | **M** · `opus-implementer` · U0 |
+| **U2.4** **Pickers, radios, checkboxes, the recessed well** | The picker library, plus the tier the phone added specifically for it. | A23, A39, A59, A73, A74, A75 | `inputs/TimeWheel.tsx:103-139`, `Dropdown.tsx:68-159`, `Calendar.tsx:86-97`, `DateField.tsx:64-92`, `TimeField.tsx:39-57`; `_pane-chrome.tsx:163-232`; `RequestedScopeScreen.tsx:19-29`; `ExportCaseCard.tsx:68-82`, `ExportLocationRow.tsx:42-79` | **Recessed well** on the drum, the option list **and the calendar (which has no core at all today)**: `background: linear-gradient(180deg,rgba(0,24,50,0.6),rgba(0,32,64,0.5))`, `border 1px solid rgba(0,14,30,0.75)`, `borderTopColor rgba(0,12,26,0.55)`, `boxShadow inset 0 1px 0 rgba(0,0,0,0.45)`. **Radio selected: border, circle, dot AND label all `#b8d4f0`**; fill `rgba(75,163,212,0.08)` (**note the hue change** from `rgba(43,140,193,0.08)`); row `minHeight 44`. **Checkbox 24×24 r4 bw2**, mark `#ffffff`, glyphs `−`/`✓` at 16/700. Route `Dropdown`'s four accent alphas through `withAlpha`. Picker footers → shared Button. **The calendar's accent strip stops rendering; its 1px header border stays.** | **UPDATE:** `CoordinateDisplay.test.tsx:23-24` if the tone triple moves. **ADD:** the `recessed`-vs-`sheet` ΔE assertion per stop (contrast row 33) | **L** · `opus-implementer-max` · U1.1, U2.2 |
+
+**Exit:** one input recipe, one switch, one radio, one checkbox · every picker core is a `recessed` well · no accent-as-text survives on a button or a radio · contrast §C.2's Button/Radio/TimePicker/Calendar rows measurably met.
+
+---
+
+### U3 — Status, notices, badges (~4–5 days) — lane B, parallel with U2
+
+The phase that collapses **eight** independent status-colour owners into two lookups and one badge.
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U3.1** **The status token family** | The `*Light` / `*OnLight` / `*Accent` additions D8(a) created. | A14–A18 | `ui/tokens/palette.ts` (from U0.1) | **ADD** `successLight #0f6b42` · `warningLight #7d5f10` · `errorLight #b72136` · `infoLight #2e5f97` · `warningAccent #ffc62b` · all four `*OnLight = #f0f4f8`. **Note 2 from phone §1.2 is the one every consumer gets wrong once: in DARK the `*Light` names mean the DARK background tone the `*OnLight` foreground sits on.** Put that sentence in the module docblock. | **ADD:** the four `*OnLight`-on-`*Light` pairs at ≥4.5 (measured 5.94 / 5.40 / 5.93 / 5.79) | **S** · `opus-implementer-high` · U0.1 |
+| **U3.2** **Status severity + the one badge** | Two lookups replacing eight owners. **The single most important colour package in the port.** | A69, A70 | new `ui/tokens/status.ts` (**`SEAM(U3.2)`**); `screenData.ts:17-43`; `DvrInfoScreen.tsx:20-26`; `ExportHub.tsx:98-102`; `_pane-chrome.tsx:68-72`; `CoordinateDisplay.tsx:23-27`; `WizardDrawer.tsx:77-94`; `engine/logic/media` | **`STATUS_SEVERITY`** `started→warning · working→info · complete→success · incident→error`. **`STATUS_ACCENT`** `started→#ffc62b · working→#7a9fc4 · complete→#0faa5e · incident→#ff4757`. **The usage contract: a badge/chip (fill + text) takes SEVERITY's trio; a bare dot takes ACCENT directly.** Badge recipe: fill `*Light`, `borderWidth:1` border `*`, text `*OnLight`, **`borderRadius 12`**, sizes `2/6@12 · 4/8@14 · 6/12@16`, `fontWeight 600`, **no uppercase, no letter-spacing**. Archived → neutral (`withAlpha(textSecondary,0.15)` / `border` / `text`). **`MAP_PIN_COLORS` stays exactly as it is** — it paints marks onto satellite tiles. **Two greens and four ambers collapse.** | **UPDATE:** `screenData.test.ts` (incl. the `locationStatusTheme === MAP_PIN_COLORS` pin — **that pin must now assert the opposite: the sheet-side theme is NO LONGER `PIN_COLORS`**, which is the whole point; rewrite it as a pin that pin colours are unchanged AND sheet colours route through `STATUS_SEVERITY`); `audio-levels.test.ts` (**inside the 80% engine coverage gate**); `ExportHub.test.tsx:220,223`; `marquee.test.tsx`; `OcrCaptureScreen.live.test.tsx`. **ADD:** contrast rows 22–25 (≥3.0) **and row 30 (four distinct values)** | **L** · `opus-implementer-max` · U3.1 |
+| **U3.3** **`Banner`** | One notice recipe absorbing ~12 local ones. | A71 | new `ui/controls/Banner.tsx` (**`SEAM(U3.3)`**); the 12 sites in matrix A71 | `{display:flex, alignItems:'flex-start', gap:8, borderRadius:8, border:'1px solid <sev>', background:'<sevLight>', padding:12}`, message `{flex:1, fontSize:14, lineHeight:'21px', color:'<sevOnLight>'}`, icon `20px` **also `<sevOnLight>`**. **The fill is OPAQUE, never a glass gradient** — a translucent gradient composites over an unknown parent and the ratio becomes unmeasurable. **No `icon` prop** — severity picks the glyph. a11y: `role="alert"`, an accessible name of `` `${severity}: ${message}` ``, and the container must be its own accessibility element. **`DateDisambiguationWarning` is the cleanest adoption**: the phone deleted the bespoke callout entirely and folded three strings into one message without changing any of the three. | **ADD:** per-severity contrast pins; a pin that the fill has no alpha; a pin that the icon takes the foreground, not the accent (**the accent as an icon measures 1.92–2.24 in three of four severities**) | **L** · `opus-implementer` · U3.1 |
+| **U3.4** **Empty states, nested rows, header geometry** | The small consistent stuff, plus D15's geometry half. | A57, A80, D15 | the ~10 inline empty states (matrix A80); `CasesScreen.tsx:239-250`, `DashboardScreen.tsx:195-207`, `LocationRow.tsx:13-25`; `CasesScreen.tsx:69-81`, `DashboardScreen.tsx:50-58` | **Empty state:** `paddingVertical 48`, message **18px `#99badd`** centred, `marginBottom 24`, optional primary Button `minWidth 200`. **No italic, no glass, no border.** **Nested rows** at radius **8** (nested *cards* stay 12). **Header geometry (D15): the Cases/Dashboard header block 92pt → 64pt (−30%), first card offset +108 → +80.** Device-approved on the phone; the floating blur is deferred. | **ADD:** a pin that an empty state renders no italic and no border | **M** · `opus-implementer` · U0, U1.2 |
+
+**Exit:** two status lookups, one badge, one Banner · `census.mjs` shows the green count down from six distinct to two (`#10d177` + `MAP_PIN_COLORS.complete`) and the amber count from four to two (`warning` + the demo-only sample amber) · contrast rows 22–25 and 30 green.
+
+---
+
+### U4 — Sheets and dialogs (~1 week)
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U4.1** **The sheet tier + the sheet recipe** | Three competing sheet grounds → one, exactly as the phone did. | A38, A46, A58 | new `ui/controls/sheet-chrome.ts` (**`SEAM(U4.1)`**); `PickerSheet.tsx:25-85`; `ExportActionSheet.tsx:161-179`; `MapBottomSheet.tsx:116-132` | Ground `linear-gradient(180deg,rgba(0,40,83,0.98),rgba(14,57,101,1))` replacing `#0f2035` / `rgb(10,22,36)` / `#0d1b2a`. `borderTopLeftRadius/RightRadius **22**`, `borderWidth 1` + **`borderTopWidth 2`** in `rgba(184,212,240,0.14)`, border `rgba(28,78,132,0.6)`, `boxShadow 0 -8px 40px rgba(0,0,0,0.5)`. Handle **40×4 at radius 9999**, `rgba(153,186,221,0.25)`. Header band on the **header** tier: `padding 16/8/12`, `gap 8`; title **14/700/ls .3/UPPERCASE**; subtitle **12/400/mt 2**; 6px accent dot at `#2B8CC1` with a 4px glow; footer `paddingBottom 12`. Motion **260ms in / 200ms out**, and **the scrim FADES** — it must not translate with the sheet. `padding-bottom: env(safe-area-inset-bottom)`. **`SHEET_HEIGHTS` and `DRAG_THRESHOLD` are frozen.** | **UPDATE:** any `PickerSheet` test reading its panel background. **ADD:** a pin that the scrim's opacity animates independently of the sheet's transform | **L** · `opus-implementer-max` · U1.1 |
+| **U4.2** **`ModalShell` + the Settings copy** | Collapse the byte-identical second copy and re-base the header. | A60, B.2 rows 16/81 | `_shared.tsx:64-184`; `settings/SettingsModal.tsx:64-96` | Sheet ground → **A38's tier**; header row → `elevated` tier with **`padding 24`** (was 18), `gap 8`; title **24/700** (was 22); close glyph **24px** with an effective 52×52 target (was a 26×26 SVG); **`closeAccessibilityLabel` becomes required, not defaulted** — five sheets announcing "Close" is the DEF-UI-006 regression. **`SettingsModal` stops hand-rolling and consumes `ModalShell`** (or, if the two header variants genuinely block that, it consumes the *scrim + sheet* seam and keeps only its own nav bar — record which, with the reason the demo's `:17-25` docblock gives). | **UPDATE:** `UserProfilePane.test.tsx:306` reads the computed editor z — **it must still pass; if it reddens, the collapse changed layering and that is a defect, not a pin to update** | **M** · `opus-implementer` · U4.1 |
+| **U4.3** **Extract the centred dialog** | demo §4.7's **#3 leverage point**: three byte-identical copies and two hand-rolled focus traps. | A45, B.2 rows 15/25, `AlertDialog` | new `ui/controls/CentredDialog.tsx` (**`SEAM(U4.3)`**); `AlertDialog.tsx:130-186`; `DeleteConfirmationModal.tsx:93-206`; `ExportModal.tsx:79-361` | Shell: `position:absolute, left/right:24, top:'50%', transform:translateY(-50%), borderRadius:16, border:'1px solid <elevated.border>', background:'<elevated.gradient>', boxShadow:'0 8px 40px rgba(0,0,0,0.5)'` (was `0 24px 60px rgba(0,0,0,0.55)`), `padding:'20px 20px 16px'`, `animation:'screenIn 0.2s ease'`. **One focus trap, not three.** Keep each caller's differences: `AlertDialog`'s scrim does **not** dismiss (blocking semantics); `DeleteConfirmationModal`'s does not either; `ExportModal`'s is gated on `!isExporting`. **Do not unify dismissal behaviour — only the shell.** | **UPDATE:** `AlertDialog.test.tsx:22` (`whiteSpace:'pre-line'`), `:178,181` (the >2-action column). **Leave `:168` alone — it is relational.** **ADD:** a pin that all three callers render the same shell element shape | **L** · `opus-implementer-max` · U1.3, U4.1 |
+| **U4.4** **The scrim family** | Three darknesses → one, minus the two deliberate exceptions. | A20, A21, A22, A90 | `input-theme.ts:31`; `AlertDialog.tsx:131`, `DeleteConfirmationModal.tsx:95`, `ExportModal.tsx:80`, `ExitDialog.tsx:47`, `ExportActionSheet.tsx:91`, `SettingsModal.tsx:68`, `WizardDrawer.tsx:308`, `_shared.tsx:110`, `BootSequence.tsx:37`, `CallConfirmSheet.tsx:15`; `MediaLibrarySheet.tsx:336-404`; `PdfPreview.tsx` | `rgba(4,8,14,0.55)` / `0.66` / `0.72` → **one `scrim = rgba(0,40,83,0.32)`**. `overlay → rgba(0,40,83,0.9)`, `overlayLight → rgba(0,40,83,0.7)`. **Two consumers must NOT follow scrim** (PR #127 `3893169e`): the fullscreen media close chip and the PDF loading scrim both take **`rgba(0,40,83,0.9)`** as their own named constants. **A spinner on 0.32 measures 2.54 and fails while its label passes at 8.59 — that is exactly how the bug shipped.** | **ADD:** contrast rows 36–40. **A pin that `scrim !== overlay`** — the phone's docblock says "do NOT resync the two", so pin the difference | **M** · `opus-implementer` · U0.1 |
+
+**Exit:** one sheet ground, one dialog shell, one scrim (plus two named exceptions) · `PickerSheet`/`ExportActionSheet`/`MapBottomSheet`/`ModalShell`/`SettingsModal` all paint from two seams · **owner device-pass checkpoint 2 (D1)** — the `recessed`/sheet relationship is ΔE-shaped and the phone found its defect on a device.
+
+---
+
+### U5 — Map chrome (~1 week) — the redesign; independent of U6
+
+The only phase with two genuinely **MISSING** surfaces. **`mapTokens.ts` is currently the demo's cleanest, most disciplined module** (every value carries a phone citation) — that is an asset here, not an obstacle.
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U5.1** **Map token re-base** | Re-base `mapTokens.ts` and delete what the phone deleted. | A83, A84, D5 | `screens/map/mapTokens.ts:44-61,134-152` | `MAP_GLASS_COLORS.containerBg rgba(13,27,42,0.65)` → **`rgba(0,40,83,0.82)`** · `border rgba(30,58,95,0.35)` → **`rgba(28,78,132,0.45)`** · **DELETE `inputBg`** (the new chrome paints one surface) · `MAP_SURFACE_COLORS.overlayMedium rgba(13,27,42,0.85)` → **`rgba(0,40,83,0.85)`**. `SHEET_COLORS`: `background → sheet` gradient · `text #e7eef6 → #f0f4f8` (**killing the split-brain**) · `textDim #9fb6d0 → #99badd` · `border/divider/rowBorder → #1c4e84` family · `rowBg → nestedCard`. **`MAP_PIN_COLORS` and `CAMERA_MARKER` are UNCHANGED** — theme-invariant marks on tiles. **Inherit DEF-062 per D5: port 0.82, do not "improve" it, and record that the 1.77:1 shortfall was closed as accepted, not fixed.** | **UPDATE:** none expected (`MapCanvas.test.tsx` and `mapCluster.test.ts` pin pin-colours, which do not move). **ADD:** a pin that `SHEET_COLORS.text === palette.text` — the split-brain must not regrow | **M** · `opus-implementer` · U0.1, U1.1, U4.1 |
+| **U5.2** **The collapsed search bar** | Rewrite the floating chrome from three rows to one. **This deletes ~9 pills including the count pill whose text carried the 1.12:1 cell.** | A81, D4 | `screens/map/MapControls.tsx` (286 lines, full rewrite); `screens/map/MapScreen.tsx:90-103` (**delete the "Change Case" pill**) | One row: `[← close] [🔍 search … ✕ │ ⚙filters ●]` + a conditional proximity chip. Outer `zIndex 1020` (**within the demo's own scheme — do not import the phone's 1000-series; see D14**), `padding-x 12 / padding-top 8 / gap 8` (**the stale `paddingTop: 28` is gone**). Close **44×44 circle r9999**. Search pill `flex:1, height 44, r9999, bw1, paddingLeft 12`; leading `search` 16px `#99badd` `mr 6`; input `flex:1, height:100%, fontSize 14`; clear `close-circle` 18px in a **44-min-width** button; divider **1×22**; filters `options-outline` 20px. Badge `16×16 min, r9999, top 6/right 4, px 4`, fill `#2B8CC1`, **10/700 `#ffffff`**. Chip `height 44`, `gap 6, paddingLeft 12`, **12/600**, `locate-outline` 15px. **NO collapse/expand animation and NO collapsed-icon state — do not build a tap-to-expand affordance.** Port the a11y strings verbatim (close = "Change case" / "Returns to the case picker"). | **UPDATE:** every `MapControls` test asserting a status/clear/proximity pill — most will be **deleted**, not updated, because the surfaces are gone. **The package must state the deleted-test count and why in its PR body.** **ADD:** tests for the two conditional states (empty vs typed search) and the badge | **L** · `opus-implementer-max` · U5.1, U2.2 |
+| **U5.3** **`MapFiltersSheet`** — **NEW SURFACE** | The destination for everything U5.2 deleted. | A82 | new `screens/map/MapFiltersSheet.tsx`; `screens/map/MapScreen.tsx` (host state, `filtersVisible`) | Full spec in matrix A82. `GlassBottomSheet` (U4.1) titled `Map Filters`, subtitle `N locations` / `N of M locations shown`, `closeLabel="Close map filters"`, no header ✕. Body `padding 16/16/8`; section labels **12/700/UPPERCASE/ls .5/mb 8** `#99badd`; chip rows `flexWrap, gap 8, mb 24`; chips `r9999, bw1, minHeight 44, px 12, gap 4`, dot **7×7**, text **14/600**; status chips from `STATUS_SEVERITY` (U3.2); a `Toggle` row "Filter by radius"; four radius chips **`0.5 km / 1 km / 2 km / 5 km`** (**space before "km"**) on the `info` pair; hint `Long-press the map to place or move the proximity ring.` in `#7a9fc4`; footer two `flex:1` **medium** Buttons — `outline` **Clear All**, `primary` **Done** — `gap 8, px 16`. **Four close routes, one handler.** **Logic constraint: filter state stays exactly where it is today. This package moves the CONTROLS, not the state.** | **ADD:** the whole suite — open/close via all four routes, multi-select status emitting the full array, radius row hidden when proximity is off, the subtitle's two forms, the badge count agreeing with the sheet | **L** · `opus-implementer-max` · U5.1, U5.2, U4.1, U3.2, U2.3 |
+| **U5.4** **Map sheet surfaces** | The rows and cards inside the sheet, plus D4's border reversal. | A57, A70, A84, D4, B.3 rows 18/20/21/22 | `map/LocationRow.tsx`, `LocationDetailCard.tsx`, `SheetHandle.tsx`, `LocationList.tsx`, `CaseMapPicker.tsx:130-134` | **D4: delete the `borderLeft:'4px solid accent'` on selection at `CaseMapPicker.tsx:132` and the equivalent in `LocationRow`; draw uniform four-sided borders.** Keep **"selection ADDS, never swaps"** — the fill stays, the border tints. Status dots → **`STATUS_ACCENT`** (this is the `working #2B8CC1 at 2.87:1 in DARK` bug "reported by nobody"). Status chips → the badge recipe. Info cards → **nested tier at radius 12**. The `${color}25`/`${color}50`/`${color}14`/`${color}88` hex-alpha idiom → `withAlpha`. **De-duplicate the export CTA gradient** `#1a8fc2→#0f6f9e` + `0 4px 16px rgba(26,143,194,0.35)` (verbatim in two files) into one const. All three map CTAs drop from `size="large"` to **medium**. | **UPDATE:** none of the pinned map tests read these (they pin pin-colours and cluster geometry). **ADD:** a pin that an unselected row draws four borders, not three | **M** · `opus-implementer` · U5.1, U3.2, U2.2 |
+
+**Exit:** the demo's map chrome matches the #127 redesign · `MapFiltersSheet` exists and is reachable · no accent bar survives on a map card · **owner device-pass checkpoint 3 (D1)** — this is the one area with a shipped, accepted contrast failure, and the owner should see it before it is called done.
+
+---
+
+### U6 — Wizard, settings and export surfaces (~1 week) — independent of U5
+
+The widest phase by row count, but almost all of it is *adoption* — the recipes already exist by now.
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U6.1** **`_shared` wizard chrome** | The 10-screen chrome. demo §4.1 calls this file "the single most valuable file in the port". | A77, B.5 `_shared` row | `_shared.tsx:394-428` (`WizardHeader`, `WizardNext`, `SectionCard`), `:560-566` (`AddRowButton`), `:198-310` (`Field`) | **`SectionCard`** → `FormSection`'s recipe: `marginBottom **24**` (was 18), glass container radius 12 + `overflow:hidden` + shadow + the 1px highlight edge, gradient `padding 16 / bw1`, header `paddingBottom **8** / marginBottom **16** / bw1` with **`borderBottomColor: transparent` when glass**, title **18/600** (was 17). **Empty-section collapse stays.** **`WizardNext`**'s `boxShadow` is hand-duplicated at `CompletionScreen.tsx:147` — de-duplicate. **`AddRowButton`** `1px dashed #2a4a6f` → `#2e5f97`, label `#4BA3D4` → **`#b8d4f0`** (A66). **`Field`**'s error line `#ff6b78` and hint `#7a9fc4` route through the palette. **DEF-UI-012: never nest a glass section inside a glass section.** | **ADD:** a pin that a `SectionCard` with zero visible children renders nothing | **M** · `opus-implementer` · U1.2, U2.1 |
+| **U6.2** **The settings package** | `_pane-chrome` is demo §4.7's **#5 leverage point** — 10 panes change from one file, and *"it is already the right shape; it just needs to source from `T`/`GLASS` instead of bare hexes."* | A48, A62, A75, A78, A79, B.7 rows 82–93, A1, A2 | `settings/panes/_pane-chrome.tsx` (326 lines); `settings/SettingsCategoryList.tsx:23-160`; `settings/SettingsNavBar.tsx:22-113`; `settings/panes/*.tsx`; `WizardDrawer.tsx` | **`_pane-chrome`:** import the palette; `NOTE_TONE` → `Banner`'s severity pairs (U3.3); `PaneGroup`'s value colour, `PaneSlider`'s `accentColor`, `radioOption`/`PaneRadioGroup`'s ring+dot → the tokens; **`PaneRadioGroup` adopts `RadioGroup`'s selected treatment (`link`)**. **Row (A78):** `px 14→16`, `gap 14→16`, chip radius `9→10`, title `15→16`, preview `13→14`, pressed wash `link@0.06`, **`SEPARATOR_INSET` re-derived from the new arithmetic (64 → 58)**. **Card (A79):** radius `16→12` + shadow + highlight; `sectionLabel 11.5→12`. **NavBar:** header tier (U1.4); back label `#2B8CC1` → **`#b8d4f0`**; **`width:92` is hand-balanced — retune it if the label's type size moves, or the centred title goes off-centre.** **Drawer:** header/footer gradients → header tier; **re-raise deferral §23** (dots distinguished by colour only) without changing it — the owner ruled once already. **`PaneStubNote` stays demo-only (D12).** | **UPDATE:** `UserProfilePane.test.tsx:315,316` pin `PICKER_SHEET_Z` — **must still pass** | **L** · `opus-implementer` · U2.4, U3.3, U1.4 |
+| **U6.3** **Export surfaces** | Hub, card, row. | A69, A75, D16, B.4 rows 24 + the two components | `screens/export/ExportHub.tsx:87-246`, `ExportCaseCard.tsx:47-211`, `ExportLocationRow.tsx:27-101` | Footer bar → **header tier**. `ARTIFACT_COLOR` → the status seam. **D16: DELETE the armed-case echo row (`:153-164`)** and note its phone citation is stale. **`ExportCaseCard`:** radius `16→12`; lit border + `boxShadow rgba(53,160,214,0.35)` move with A50 (**both test-pinned**); the checkbox → U2.4's recipe; **keep the shadow-on-the-wrapper structure but record that the iOS `masksToBounds` reason does NOT apply on the web** — CSS `box-shadow` survives `overflow:hidden`. **`ExportLocationRow`** is fully hardcoded: adopt `fieldInput`-adjacent tokens, the badge, the checkbox; its `rgba(30,58,95,0.6)` separator → the border token; **`minHeight:44` becomes `touchTarget.min`**. | **UPDATE:** `ExportHub.test.tsx:116-118,117,220,223,230,237` — **the first three move with A50/A69; `:230,237` (the reduced-motion footer animation) must NOT move** | **M** · `opus-implementer` · U0.3, U1.2, U3.2, U2.4 |
+| **U6.4** **Wizard screens + case modals** | The surface-specific residuals after U6.1. | B.5 rows 11/12, 13, 14, 23, 29, 31, 34, 35, 41, 43, 46 | `SubmissionScreen`, `NewCaseModal`, `NewLocationModal`, `DuplicateLocationModal`, `EditIncidentLocationModal`, `RequestedScopeScreen`, `ExtractedScopeScreen`, `TimeOffsetScreen`, `SyncStatusCard`, `DvrInfoScreen`, `CompletionScreen` | Mostly adoption. Named residuals: **`TimeOffsetScreen`** takes DEF-UI-012's resolved hierarchy (`sectionHeader` base/semibold, `scopeTitle` sm/semibold under an lg/semibold parent — **monotone descending**) and its dashed-amber advisory becomes a `Banner`. **`SyncStatusCard`** takes the campaign's standing answer to saturated-accent-as-text: **severity on the icon, text in `colors.text`** (`colors.error` at 14–16px measures 3.51 dark) — and its `#2a4a6f` bare site (deferral §31) closes here. **`CompletionScreen`** drops `techGlow` (`boxShadow 0 0 22px rgba(43,140,193,0.12)`) per **M1(a)**, both error cards become Banners, both sections become glass, and the `disabled` vs `aria-disabled` inconsistency is resolved toward `aria-disabled`. **`DvrInfoScreen`**'s local `STATUS` map dies into U3.2. | **ADD:** a pin on the time-offset heading hierarchy (each level's computed weight ≤ its parent's) | **M** · `opus-implementer` · U6.1, U3.2, U3.3 |
+
+**Exit:** one wizard section recipe · settings changes from one file · no local status map survives outside `ui/tokens/status.ts` · `census.mjs` shows the settings package's bare-hex count at zero.
+
+---
+
+### U7 — Import, OCR, audio, media (~1 week)
+
+The always-dark subtrees and the copy rules. **A91 is the governing constraint: these palettes are named constant blocks, NOT theme tokens — do not tokenise them to the app ground.**
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U7.1** **The terminal palette** | Four parallel palettes → one owned module, and three foregrounds raised to AA. | A85, A86, A91, B.6 rows 74, 45 | new `ui/screens/import/terminal-palette.ts` (**`SEAM(U7.1)`**); `ImportTerminalProgress.tsx:179-199`; `TerminalLine.tsx:39-60`; `NotesScreen.tsx:49-55` | **Three raises:** `titleText #55606b → #78838f` (2.99→4.97) · `titleMeta #4a7c76 → #5b8f85` (4.05→5.22) · `time #3a475a → #74818f` (2.10→4.98). **One accent change:** `verbose #4ECDC4 → #7a9fc4` (a teal-purge site). **Unchanged and already correct:** `screen.dark #060a12`, `bar #0a0f18`, `border #141c28`, `dot #242a31`, `body #c6d2df`, `blockBg #080b11`, `blockBorder #1c2733`, `blockText #6f8296`, `accent.file #e0a878` (a deliberate off-system colour, measured 9.47:1 — **keep it and name it**). `TERMINAL_FONT_SIZE = {detail 9, meta 9.5, row 10, cursor 11}`. **`NotesScreen`'s forced-dark palette sources from `screen.light`/`screen.dark`** — the phone keeps a `light` key **only** for this component. **The terminal ground stays far darker than the app ground.** | **UPDATE (six pins, all in the same commits as their values):** `TerminalLine.test.tsx:47` (level accents), `:54,56` (`TERM_ROW.body`/`.error`), `:63-66` (gutter/tag geometry — **should NOT move**), `:90-92` (block bg + border). `ImportTerminalProgress.test.tsx:443,444,466-467,485,501,522`. **The memo boundary at `TerminalLine.tsx:17-18` is load-bearing — a non-stable style object in the row props breaks append-only render discipline.** | **M** · `opus-implementer-max` · U0.1 |
+| **U7.2** **`OverlayHeader` + media/audio chrome** | One full-bleed overlay header, four adopters; plus the recorder and library. | A61, A91, B.6 rows 49–55, 57–66, 67–69 | new `ui/chrome/OverlayHeader.tsx` (**`SEAM(U7.2)`**); `AudioPreviewScreen.tsx:107-123`, `AudioRecorderScreen.tsx:141-156`, `MediaCaptureScreen.tsx:98-123`, `OcrCaptureScreen.tsx:350`; `MediaLibrarySheet.tsx` | Header recipe from phone §2.B. **Recorder:** the close pill becomes **44×44** (it grew on the phone); `TimerCard`'s hand-rolled glass → the card recipe at radius **`lg` 12** (was `xl` 16) + `shadow.card`; **M3(b): `fontSize: 46` stays a commented literal**; **D-1 is binding — the `#5a7a9a` sites take `textSecondary`, NOT `textTertiary`** (which measured 2.32:1). **DEF-UI-008 carve-out: the waveform and the pill button KEEP their own gradients** — the phone's `Card` could not host `flex:1` or a pill radius, and neither can a card fragment. **Library:** fold onto the sheet seam (U4.1) as the phone folded it onto `GlassBottomSheet`; **`MEDIA_CLOSE_CHIP = rgba(0,40,83,0.9)`, NOT scrim** (U4.4); its 32×32 preview buttons need **real padding to 44×44** (the web has no `hitSlop`); its 3D-glass edges already match `ElevatedEdges` — import them. **D17: the camera chrome is frozen** except the invented-system-blue site and the `CameraControls` scrim → `overlay` at 90% (2.17→10.04); tokenise the four black-scrim alphas into one named block. | **UPDATE:** `AudioRecorderScreen.test.tsx:169,172` (level fill `#ff4757`/`#2B8CC1` — moves with U3.2's engine map), `:147,186-189,195-197,205-207` (**geometry and reduced-motion — must NOT move**). `MediaLibrarySheet.test.tsx:588` (`minHeight:'16px'` — must not move) | **L** · `opus-implementer` · U4.1, U3.2, U2.2 |
+| **U7.3** **OCR, copy rules, mono policy** | The last surface-specific residuals plus the two standing rules. | A93, A94, B.6 rows 37, 71/72, 73, 79; D12, D13, D17 | `OcrCaptureScreen.tsx`; `PickerStage.tsx:317-323`; `ImportModal.tsx`; `ImportResultBody.tsx`, `ImportResultAccordion.tsx`; every user-facing string in `ui/**` | **A93:** sweep user-facing strings for em dashes; port `Captured image unavailable — retry capture.` → **`Captured image unavailable. Retry capture.`**; **do not replicate** the phone's new violation at `VisionCameraScreen.tsx:679`. **A94/D13:** codify the two-mono split in a docblock and make it consistent — Share Tech Mono for scanner/terminal/HUD/OCR captions, JetBrains Mono for evidentiary values. **Import:** `PickerStage`'s error banner → `Banner` (**the phone's own verdict is that this is the ONLY rendered change in a 440-line diffstat** — do that and stop); `ImportModal`'s four glass tiers per depth (`elevated` ×4, the nested warnings card `nestedCard`); `ImportResultBody`'s `0.6/0.7` card → the nested tier (**deferral §31's named site**); `#7fe3b4`/`#7fe6b6` → the success token. **OCR:** `STRIP_TOP`/`STRIP_SIDE` are **frozen**; the confirm-stage cards adopt the tiers; the assumed-date warning → `Banner`; **`infoRow`'s flat wash measured 1.03 — do not ship one**. **D12: the "Sample data" amber is frozen and defended** — a test must prove it stays visually distinct from the ported warning family. | **UPDATE:** `PickerStage.test.tsx:40` and `PasteStage.test.tsx:34-37` are behavioural and must **NOT** move. **ADD:** a repo-wide test that no user-facing string under `ui/**` contains an em dash (with an explicit allow-list for data-glyph placeholders); a pin that the sample-badge amber differs from `warningLight` | **M** · `opus-implementer` · U3.3, U1.3 |
+
+**Exit:** one terminal palette · one overlay header · zero em dashes in rendered copy · the mono split is documented and consistent · the sample-data badges are provably distinct.
+
+---
+
+### U8 — Splash, boot, shell, and design-sync (~3–4 days) — the closing phase
+
+| Pkg | Scope | Matrix rows | Files | Recipes: before → after | Tests | Effort · Tier · Deps |
+|---|---|---|---|---|---|---|
+| **U8.1** **Scanner HUD + boot ground** | The demo's one full outlier: `SplashScreen` has **zero shared tokens**. | A87, D8, B.1 rows 1, 2 | `screens/SplashScreen.tsx:22,61-78,91-112,133-144`; `screens/BootSequence.tsx:28-43,258-278` | `SCANNER_COLORS` as a named always-dark block: `initializing/scanning` `#2B8CC1` + `rgba(43,140,193,0.25/0.35)` + `#99badd` · `failed` `#ff4757` + `rgba(255,71,87,0.3)` + `#f0f4f8` · **`authorized` `#10d177` + `rgba(16,209,119,0.35)` + `#10d177`** (the demo's `#30D158`, a fifth green, dies). **D8: boot ground `#000314` → `#002853`.** **Do NOT port `FRAME_SIZE`/`CORNER_SIZE`/`ICON_SIZE`** — the demo's frame is 378px, not 280. The skip pill's `rgba(4,8,14,0.55)` → the scrim token. **The standing "simulated scan" disclosure line is load-bearing for the honesty rule — do not restyle it out of legibility.** | **UPDATE (same commit):** `SplashScreen.test.tsx:45` (the disclosure alpha — **re-measure against `#002853` and keep ≥ the 5.27:1 v1 recorded**) and its `#000314` pin. `BootSequence.test.tsx:105-126,393` are **opacity/motion pins and must NOT move** | **M** · `opus-implementer` · U0.1, U3.1 |
+| **U8.2** **Grid, scan sweep, teal purge** | The ambient layer and the last teal. | A10–A12, A88, A89, D9, D12 | `ui/glass-tokens.ts:36-37`; `PhoneFrame.tsx:64-77`; `TerminalLine.tsx:44` (done in U7.1); `DashboardScreen.tsx:157` | **`GLASS.gridOverlay` `rgba(153,186,221,0.05)` → `0.11`** (`gridSubtle`), pitch stays 40px. **`PhoneFrame`'s scan sweep `rgba(78,205,196,0.35)` + `boxShadow 0 0 12px rgba(78,205,196,0.6)` → `rgba(43,140,193,0.3)` + `0 0 12px #2B8CC1`.** **D9: `demo.css`'s page backdrop (`:29-50`) and all 17 keyframes are FROZEN.** **D12: the teal survives in `StoryRail`, `ExploreChecklist` and `ExitDialog`** — they sit outside the frame and are the Case-File site's voice, not the app's. `DashboardScreen.tsx:157`'s single teal site follows the palette (it is inside the frame). | **UPDATE:** `glass-tokens.test.ts`'s `gridOverlay` shape pin. **`fonts.test.ts` must NOT move.** **ADD:** a pin that no `#4ecdc4`/`rgba(78,205,196` survives inside `ui/screens/**` or `ui/PhoneFrame.tsx` (the allow-list is the three rail/dialog files) | **S** · `opus-implementer-high` · U0.1, U7.1 |
+| **U8.3** **Tab bar** | The last piece of chrome. | A63, D6, B.1 row 7 | `controls/TabBar.tsx:10-97` | Bar `linear-gradient(180deg,#1e3450,#16283c)` → **flat `#0e3965`**; `borderTop '1px solid #28456b'` → **`1px solid #1c4e84`**; `paddingTop 6`; active icon `#4BA3D4` → **`#2B8CC1`**, inactive `#5d7a9a` → **`#99badd`**; icon size → **24**. **D6: `TAB_BAR_HEIGHT = 50` STAYS** — the phone has no number to match, and three overlays bottom-align against it. Keep `aria-current="page"` (the WCAG 1.4.1 fix). | **UPDATE:** `controls.test.tsx`'s `#4BA3D4`/`#5d7a9a` active/inactive pins — **in the same commit**, with the red lines recorded | **S** · `opus-implementer-high` · U0.1 |
+| **U8.4** **Design-sync regeneration** | D7's closing package. **Nothing merges after this without re-checking it.** | D7, demo §8 | `.design-sync/config.json`, `previews/*`, `NOTES.md:66,158` | `grep -l '#0d1b2a' .design-sync/previews/` → update every preview's hardcoded backdrop to **`#002853`** (all 33 wrap in `<div data-demo-root>` with a navy background because `demo.css` scopes `box-sizing` to it). Add the new components (`Banner`, `CentredDialog`, `MapFiltersSheet`, `OverlayHeader`) to `componentSrcMap` with `{cardMode:'column'}` and author a preview each. Run **`gen-dts-props.mjs`** (new props: `Toggle`'s `hideLabel`, `ModalShell`'s required close label) **then `gen-entry.mjs`** — *"ALWAYS after config edits"*; a component added without it is **bundled-but-unreachable and fails at runtime, not build time**. Then the three-command re-sync with `NODE_PATH=.ds-sync/node_modules`. **Before any re-sync, `get_project` on the pinned id — if it 404s, check `list_projects` owner first; do not recreate blindly.** Correct the two stale `NOTES.md` lines about the Google-Fonts `@import` that no longer exists. | — (tooling; no product tests) | **M** · `opus-implementer` · **every other phase** |
+
+**Exit:** the boot sequence and the ambient layer are on the new palette · the tab bar matches · the design bundle renders the ported palette · the census's teal count is 9 (all demo-only, all deliberate).
+
+---
+
+## 6. Parallelization, contention and execution model
+
+### 6.1 Shared hotspots
+
+Seven files are touched by nearly every package. **Within a phase, land the hotspot change first as its own small commit; across lanes, give each agent its own worktree and merge in the fixed order below.**
+
+| File | Touched by | Contention note |
+|---|---|---|
+| `ui/glass-tokens.ts` | U0.1, U0.2, U0.3, U1.1, U1.2, U2.2, U8.2 | **The hottest file in the port.** Every U0 and U1 package writes it. Serialise: U0.1 → U0.2 → U0.3 → U1.1 → U1.2. |
+| `ui/inputs/input-theme.ts` (`T`) | U0.1, U3.1, U4.4 | Only 7 importers, all in `inputs/` — but they are the picker library, so U2.4 reads it constantly. |
+| `ui/screens/_shared.tsx` | U2.1, U2.3, U4.2, U4.3, U6.1 | 566 lines, ~12 exports, consumers across 25 screens. **U2 and U6 both want it** — U2.1/U2.3 take `fieldInput` and `Toggle`; U6.1 takes `WizardHeader`/`SectionCard`/`AddRowButton`. Different exports, but the same file: **coordinate at the orchestrator, not by rebasing.** |
+| `ui/demo.css` | U8.2 only (and only the non-frozen part) | Frozen by D9 apart from nothing, in practice. If a package thinks it needs to touch it, that is a scope error. |
+| `ui/DemoExperience.tsx` | in principle none | **A restyle should not touch the bridge at all.** Six `style={{` blocks, all trivial. If a package edits it beyond those six, raise it. |
+| `ui/screens/map/mapTokens.ts` | U5.1, U5.2, U5.4 | Serialised inside U5 anyway. |
+| `ui/screens/settings/panes/_pane-chrome.tsx` | U6.2 only | Single-owner by construction. Good. |
+
+### 6.2 Fixed merge order
+
+Within a phase, the orchestrator merges package branches into the phase branch in **package-id order** (U*x*.1 → U*x*.2 → …), resolves conflicts, runs the full suite on the merged head from a **cold cache**, then opens the phase PR. Across phases, the dependency shape in §5 is the merge order. **A branch-level green never proves the combined tree** — union-widening and `assertNever` interactions only show up on the merged head.
+
+### 6.3 Worktree model
+
+Parallel agents each get their own `git worktree` (created by the orchestrator) on their own `feat/uiparity-*` branch. They `pnpm install --prefer-offline` there (shared pnpm store, ~2s), copy `.env.local` from the main checkout if one exists (**there is none — map/AI degrade by design**), push their branch, and **never touch `master`**. **Never `rm -rf` a worktree's `node_modules` on Windows without checking it is not a junction.**
+
+### 6.4 Agent briefing template
+
+Every implementer brief must contain, in this order:
+
+1. **§4 of this file in full** — conventions, the demo's frozen list, the campaign's case law, RED/GREEN discipline, git and review, the standing operational rules.
+2. **The package's row from §5**, verbatim, including its Effort, Tier, Deps and SEAM contracts.
+3. **Its matrix rows** — Tier A and Tier B — pasted with their **full Delta text**. Not a reference: the text.
+4. **The phone §2 subsection(s) its recipes live in**, with the instruction: *"consult §2 per row via grep or a line range; every recipe you write must come from there with its `file:line`."*
+5. **The demo §3/§4 blocks for every file it touches**, with the §3 caveat attached (*those line ranges are high-confidence anchors, not byte-exact pins — open the file*).
+6. **The exact list of tests it is expected to redden** (from demo §6), with the RED/GREEN rule restated: *update in the same commit, record the observed red line in the body.*
+7. **Its contrast targets** from matrix §C, with the provenance rule (COMPUTED unless stated).
+8. **Which decisions (D1–D17) govern it**, and the instruction to stop if one it depends on is unruled.
+9. The instruction to commit granularly with its own model name in the trailer, and to **log deliberate deferrals in `deferred.md` at the next free § (check first — §89 is next) before finishing**.
+10. **"You do not edit the plan, the matrix or the HANDOFF."**
+
+### 6.5 Review mechanics
+
+Unchanged from v1 except that **every agent runs on Opus** (owner directive, 2026-08-26) — implementers, lanes **and** the aggregator.
+
+- At each phase boundary, **five parallel Opus lane reviewers** (`typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer`) write FULL findings to disk under `docs/code-reviews/ui-parity/<phase>/lane-*.md`.
+- An **Opus aggregator** dedupes cross-lane duplicates, settles conflicts against the binding contracts, spot-checks every blocker, and writes the single vetted `<phase>-review.md` with per-finding suggested owners. **Only that doc plus verdict counts enters the orchestrator's context.**
+- **Fix rounds are run by the ORIGINAL authoring agents, resumed warm.** Fresh reviewers per phase; warm within a phase.
+- **Fix-delta re-reviews RESUME the same reviewers** via their stored agent IDs, so each judges the fixes to *its own* findings.
+- Decision: any CRITICAL → BLOCK · any HIGH → REVISE · otherwise APPROVE.
+- **Brief every reviewer with the phase's package scope**, so they do not flag surfaces scheduled for a later phase. For this port, add three specific briefing lines:
+  - *"This is a STYLE port. A finding that asks for a logic change is out of scope unless the style change broke behaviour."*
+  - *"Reddened style assertions are expected. Check that each was updated in the SAME commit as its value and that the commit body records the observed red line. A pin updated in a later commit, or without the red line, is a HIGH."*
+  - *"The demo has documented, owner-accepted contrast ceilings (matrix §C, D5). Do not file a finding that a ceiling was not fixed."*
+
+### 6.6 The verification lane
+
+**Mechanical gate (every phase, non-negotiable):**
+1. `node .design-sync/check-rn-parity.mjs` — 22 anchors, zero drift, zero `PARSE-FAILED`.
+2. The ported `palette-contrast.test.ts` — green.
+3. `pnpm test --silent` — green, quoted from a full run on the merged head.
+4. `pnpm exec tsc --noEmit --incremental false` — green from a cold cache on the merged head.
+5. `census.mjs` before and after — the delta is the package's own evidence, and a **rising** distinct-value count in a category the package touched is a finding.
+
+**Playwright captures (the demo side of v1's harness — this half runs on Windows):**
+
+`verification/lib.js` + the numbered drivers are directly reusable. Notes for this port:
+- `open()` defaults to `reducedMotion: 'reduce'`, which makes the boot gate **instant-complete**. For U8.1's captures, pass `{ motion: 'no-preference', gotoDemo: false }` and **sample reduced motion AFTER the tap** — before the tap the gate legitimately sits at `TAP TO SCAN` in both modes.
+- The settings round-trip has two traps that cost 30s each: **the gear is on the Dashboard/Cases headers only** (there is none inside the wizard), and **a detail pane has no close button** — the nav bar swaps it for "Back to settings", so click `settings-back-button` first, then `settings-close-button`.
+- Date pickers: confirm with an **exact** `Done`; `/Set/i` also matches the "Set date" trigger and re-opens the picker, blocking every later click.
+- The camera/mic shims in `lib.js` **must not be removed**: in headless Chromium any `getUserMedia` request that includes audio **never settles** (it does not reject, it hangs), and the built-in fake camera is a colour pattern that the OCR surface honestly reports as unreadable. `mky4m.swift` generates the DVR-clock `.y4m` — **that is a macOS-only tool; on Windows, either check in a pre-generated `dvrclock.y4m` or skip the live-OCR capture** and rely on the sample path, which is the tested contract anyway.
+
+**What does NOT run here:** `look.sh`, `tap.sh`, `ftap.sh`, `lpress.sh`, `swipe.sh`, `mrun.sh`, `ocr.swift`, `mky4m.swift` and every `simctl`/Maestro/Java prerequisite in `verification/README.md` §1. **There is no iOS simulator and no Android SDK on this box.** The phone-side runtime is D1's open question; the recommendation is an **owner device pass at three checkpoints (after U1, U4, U5)**, not a harness.
+
+**Design-sync** closes the port as U8.4, per D7.
+
+---
+
+## 7. Progress tracker (the orchestrator updates this at each merge)
+
+| Phase | Package | Status | PR | Notes |
+|---|---|---|---|---|
+| U0 | U0.1 palette module | ⬜ | | |
+| U0 | U0.2 scales module | ⬜ | | |
+| U0 | U0.3 primary gradient | ⬜ | | |
+| U0 | U0.4 drift guard + 22 anchors | ⬜ | | |
+| U0 | U0.5 contrast test + literal guard | ⬜ | | |
+| U1 | U1.1 six-tier glass module | ⬜ | | |
+| U1 | U1.2 card recipe | ⬜ | | |
+| U1 | U1.3 nested + elevated adoption | ⬜ | | |
+| U1 | U1.4 header tier | ⬜ | | |
+| U2 | U2.1 fieldInput export | ⬜ | | |
+| U2 | U2.2 Button variants | ⬜ | | |
+| U2 | U2.3 switch collapse | ⬜ | | |
+| U2 | U2.4 pickers + recessed well | ⬜ | | |
+| U3 | U3.1 status token family | ⬜ | | |
+| U3 | U3.2 status severity + badge | ⬜ | | |
+| U3 | U3.3 Banner | ⬜ | | |
+| U3 | U3.4 empty states + header geometry | ⬜ | | |
+| U4 | U4.1 sheet tier + recipe | ⬜ | | |
+| U4 | U4.2 ModalShell + Settings copy | ⬜ | | |
+| U4 | U4.3 centred dialog | ⬜ | | |
+| U4 | U4.4 scrim family | ⬜ | | |
+| U5 | U5.1 map token re-base | ⬜ | | |
+| U5 | U5.2 collapsed search bar | ⬜ | | |
+| U5 | U5.3 MapFiltersSheet (NEW) | ⬜ | | |
+| U5 | U5.4 map sheet surfaces | ⬜ | | |
+| U6 | U6.1 _shared wizard chrome | ⬜ | | |
+| U6 | U6.2 settings package | ⬜ | | |
+| U6 | U6.3 export surfaces | ⬜ | | |
+| U6 | U6.4 wizard screens + modals | ⬜ | | |
+| U7 | U7.1 terminal palette | ⬜ | | |
+| U7 | U7.2 OverlayHeader + media/audio | ⬜ | | |
+| U7 | U7.3 OCR, copy, mono policy | ⬜ | | |
+| U8 | U8.1 scanner HUD + boot ground | ⬜ | | |
+| U8 | U8.2 grid, sweep, teal purge | ⬜ | | |
+| U8 | U8.3 tab bar | ⬜ | | |
+| U8 | U8.4 design-sync regeneration | ⬜ | | |
+
+**36 packages across 9 phases.** By effort: **S 5 · M 21 · L 10 · XL 0.**
+By model tier: `opus-implementer-high` **5** (U0.2, U0.3, U3.1, U8.2, U8.3) · `opus-implementer` **20** · `opus-implementer-max` **11** (U0.4, U0.5, U1.1, U2.2, U2.4, U3.2, U4.1, U4.3, U5.2, U5.3, U7.1).
+
+---
+
+## 8. Phone-repo follow-ups — **candidates, NOT fixes**
+
+Found by the two recon inventories. **File these against the phone repo separately; this effort does not touch it.** Every one is a documentation or hygiene defect, not a rendering bug.
+
+| # | Item | Where | Evidence |
+|---|---|---|---|
+| **F1** | **`.design-sync/tokens.css` is a full campaign stale.** Generated 2026-07-16, committed 2026-08-23 (`9b0d43ee`) **without regeneration**. Its dark half matches the palette at the BASELINE `d9606460` exactly. 25 dark values wrong, 17 tokens missing, 8 stale (deleted from source, still exported). | phone §1.8 / §1.Y.4 | Verified by re-deriving the CSS from `Colors.ts` at `main` with the generator's own mapping rules and diffing property by property. **Fix = run `node .design-sync/gen-tokens.mjs`.** `NOTES.md` predicted this failure in its own words. |
+| **F2** | **`conventions.md` and `ds-bundle/README.md` are actively wrong.** Both carry a "Gotchas — Dark-only tokens" section instructing the consumer to write `var(--color-accent, var(--color-warning))`. **All eight of those tokens were deleted by DEF-UI-010.** A design agent following them emits CSS that resolves to nothing. | phone §1.Y.4 | `NOTES.md` also predicted this: *"Renaming or removing a token makes the header lie, and the design agent will trust it."* |
+| **F3** | **`src/constants/README.md` documents the pre-recolor palette** — `:107` still says the dark backgrounds are `#0d1b2a`/`#132236`/`#1a2d44`, `:111` the grid is `0.08`, `:127` the glass gradient is `rgba(19,34,54,0.85)`. **And that file is what `ds-bundle/guidelines/` ships to a design agent.** | phone §0.6 item 3, §1.Y.4 | Docs are wrong at three levels (bundle copy, live README, generated CSS). |
+| **F4** | **The owner-rulings doc was never updated after PR #127.** `1740f226` supersedes **D3(a)** (the map is now theme-aware throughout) and `7df5148b` reverses **D1(a)**'s 4px-accent mechanism. Both rulings still read as binding. | phone §0.6 item 4, §5.1 | A future reader following the doc ships the three-sided-border artefact the phone spent a commit removing. |
+| **F5** | **`Colors.ts:451-453`'s docblock names two consumers of `PrimaryButtonGradient`; there is one.** `GpsCaptureControl.tsx:25` imports `ElevatedEdges` + `GlassColors` and paints `elevated`. Phase 9 deviation D8. The remediation plan's correction block repeats the same false claim. | phone §1.4 | Verified at source by a repo-wide grep. |
+| **F6** | **`with-alpha.ts:70`'s comment quotes a stale `recessed` value** (`rgba(6,12,22,0.65)`) that PR #125 already replaced. | phone §4.3 | One-line comment fix. |
+| **F7** | **`src/DOCUMENTATION-PLAN.md:934` still says "Background: #000314 (near black)".** There is **zero live `#000314`** anywhere in `src/`, `app/` or `app.config.js` at `main`. Explicitly adjudicated as "not a deferral" in PR #120 — but it is a live doc-mining hazard for exactly this kind of port. | phone §1.7, §5.5 | This port very nearly inherited it (D8). |
+| **F8** | **`npx expo prebuild` is still outstanding for ruling D5(a).** Until it runs, the **old `#000314` native splash hands off to the new `#002853` JS surface on every cold start** — the exact artifact the ruling exists to prevent. | phone §0.6 item 6, §7.5 | Recorded in PR #125's `DEVICE-PASS.md` as a build prerequisite. |
+| **F9** | **DEF-062 was closed as ACCEPTED with no reopen trigger**, and the 1.70:1 / 1.77:1 map-pill shortfall was never re-measured after the opacity raise to 0.82/0.92. The ledger says so honestly; a re-measurement would either close it properly or reopen it. | phone §5.3, §7.2 | Not a bug — an open question the ledger deliberately leaves open. |
+| **F10** | **DEF-UI-022 is OPEN and structural:** `CameraPermissions.tsx` renders a bare full-screen `View` with no header and no `GridBackground`, and `CameraScreen.tsx:272` early-returns the permission UI **above** the branch that renders the close control — **so the ungranted state has no exit affordance**, saved only by a drawer swipe gesture. **No phase owns `ocr-time-capture`'s layout shell.** | phone §5.2 | Directly relevant if the demo ever builds a camera-permission step — the web has no drawer swipe to fall back on. |
+| **F11** | **`MediaLibrarySheet` has no `onDismiss`** (v1 back-port B6, still open): iOS pageSheet swipe-to-dismiss never calls `handleClose()`, so the sheet disappears but `showMediaLibrary` is never cleared and the drawer never re-opens. | v1 matrix §4 | Carried forward from v1 unresolved. |
+| **F12** | **DEF-064 is OPEN:** the ambient `@expo/vector-icons` shim types `name` as `string`, shadowing a ~1,500-member literal union across ~60 call sites. **A typo'd icon name compiles clean and renders a blank glyph**, and `SyncStatusCard`/`Banner` are information-carrying status indicators that would render blank rather than wrong. | phone §5.3 | The demo's analog is worth building correctly the first time: type icon names as a literal union. |
+
+## 9. Definition of done
+
+The port is complete when **all** of the following hold on `master`:
+
+1. **`node .design-sync/check-rn-parity.mjs` exits 0 with 22 anchors resolved, zero drift and zero `PARSE-FAILED`** — and a deliberately-broken anchor is proven to report `PARSE-FAILED` rather than throw.
+2. **The ported `palette-contrast.test.ts` is green**, including the four ΔE-bounded rows the contrast ratio is blind to (`nestedCard` border ≥1.25; `recessed` ΔE 3–12 **per stop, two-sided**).
+3. **Every Tier-A row reads COMPLETE** in `00-ui-parity-matrix.md`, or carries an owner-accepted documented divergence (currently: D6 the tab-bar height, D11 `gradientCardDiag`, D13 the two mono families, D14 the z-index schemes, and the D12 frozen demo-only surfaces).
+4. **Every Tier-B row reads COMPLETE or ratified OUT-OF-SCOPE.** The 14 demo-only N/A rows carry D12's three-way ruling.
+5. **`pnpm test` green** and **`pnpm exec tsc --noEmit --incremental false` green from a cold cache on the merged head.**
+6. **`/demo` First Load is unchanged** — v1 held **107 kB** through nine phases including a lazy Tesseract. A style port has no excuse to move it; if it does, that is a finding.
+7. **`census.mjs` shows the intended shape**, not merely a smaller number: two greens (not six), two ambers (not four, and the second is the deliberately-defended sample amber), one scrim (plus two named exceptions), one sheet ground (not three), one header gradient (not five), one input recipe (not four), one switch renderer (not four), one danger button (not two), one centred dialog (not three), zero bare `#0d1b2a`/`#1e3a5f`/`#2a4a6f` outside the token modules.
+8. **The design-sync bundle is regenerated** (U8.4) and the two stale `NOTES.md` lines are corrected.
+9. **`docs/code-reviews/deferred.md` reflects every deliberate deferral**, each with a real reason to wait **and a concrete un-defer trigger** — including the four inherited contrast ceilings (D5), the z-index schemes (D14), the PR #125 floating header (D15), and any package residual. **Deferral §31 is struck through and marked `✅ RESOLVED — PR #<N>`**, because this port was its trigger.
+10. **Every phase merged via a merge commit** with its review artifacts committed under `docs/code-reviews/ui-parity/`.
+11. **The demo and the phone, side by side at the owner's three checkpoints (D1), read as the same product** — which is the only test that actually matters and the only one no script can run.
