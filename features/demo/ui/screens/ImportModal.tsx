@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { PickerStage } from '@/features/demo/ui/screens/import/PickerStage'
 import { PasteStage, PASTE_COPY } from '@/features/demo/ui/screens/import/PasteStage'
@@ -18,7 +19,7 @@ import type {
 } from '@/features/demo/ui/import/run-import'
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
-import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportFailure {
   filename: string
@@ -130,8 +131,8 @@ export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutc
 }
 
 // Shared result-action button styles (override padding/width per use).
-const secondaryBtn: CSSProperties = { ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
-const primaryBtn: CSSProperties = { ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }
+const secondaryBtn: CSSProperties = { ...buttonStyle({ variant: 'secondary' }) }
+const primaryBtn: CSSProperties = { ...buttonStyle() }
 
 const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
 
@@ -212,6 +213,9 @@ export function ImportModal(props: ImportModalProps) {
       title={stage === 'paste' ? PASTE_COPY.title : 'Import Recovery Request'}
       onBack={stage === 'paste' ? props.onBack : undefined}
       backLabel={PASTE_COPY.backLabel}
+      // Verbatim, phone `ImportPickerModal.tsx:680` and `:778` - the modal this surface ports,
+      // which spells the same label at both of its close controls.
+      closeAccessibilityLabel="Close import picker"
       onClose={props.onCancel}
     >
       {stage === 'picker' && (

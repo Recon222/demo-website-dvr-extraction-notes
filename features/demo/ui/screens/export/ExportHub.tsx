@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { caseCheckboxState, type ExportSelection, type ExportSelectionPlan } from '@/features/demo/engine/logic/export'
-import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { TAB_BAR_HEIGHT } from '@/features/demo/ui/controls/TabBar'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportCaseCard } from '@/features/demo/ui/screens/export/ExportCaseCard'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The Export tab's screen — port of the phone's `ExportHub`
@@ -94,11 +96,23 @@ const footerStyle: CSSProperties = {
 /** Stable empty set for every card that isn't the armed one (one-case rule). */
 const EMPTY_IDS: ReadonlySet<string> = new Set<string>()
 
-/** Artifact-line colour, keyed off the decision the engine already made (phone :139-143). */
+/**
+ * Artifact-line colour, keyed off the decision the engine already made (phone
+ * `export-hub/components/ExportHub.tsx:133-137`, styles `:329-337`).
+ *
+ * **NOT a `STATUS_SEVERITY` consumer, and not a badge.** The phone spells these as three direct
+ * token reads on a bare mono line — `colors.success` / `colors.textSecondary` / `colors.warning`
+ * — and all three demo values already matched byte for byte, so this is a pure tokenisation:
+ * A69 counts it among the eight owners, but the two lookups are not what it collapses INTO.
+ * Routing it through the badge trio would repaint a line of text with a fill tone.
+ *
+ * `textSecondary` and not a severity for `single-location`: one location is not a lesser
+ * outcome, it is a neutral fact about the plan.
+ */
 const ARTIFACT_COLOR = {
-  'full-case': '#10d177',
-  'single-location': '#99badd',
-  subset: '#ffd93d',
+  'full-case': colors.success,
+  'single-location': colors.textSecondary,
+  subset: colors.warning,
 } as const
 
 export function ExportHub({
@@ -233,13 +247,8 @@ export function ExportHub({
             onClick={onExportPress}
             disabled={isExporting}
             style={{
-              ...glassBtnPrimary,
               width: '100%',
-              padding: 12,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: isExporting ? 'default' : 'pointer',
-              opacity: isExporting ? 0.6 : 1,
+              ...buttonStyle({ disabled: isExporting }),
             }}
           >
             {footer.plan.ctaLabel}

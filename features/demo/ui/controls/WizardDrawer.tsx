@@ -11,6 +11,8 @@ import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
 import { glassHeaderBar, glassHeaderFooterBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -76,9 +78,25 @@ const itemButton: CSSProperties = {
 // complete/partial distinction is colour-only by design choice (see deferred.md).
 const STATUS_LABEL: Record<'complete' | 'partial', string> = { complete: 'complete', partial: 'partially complete' }
 const dotBase: CSSProperties = { flex: '0 0 auto', width: 11, height: 11, borderRadius: 6 }
+
+/** Phone `GlassDot.tsx:39` — `withAlpha(tint, colorScheme === 'dark' ? 0.35 : 0.4)`, dark branch. */
+const DOT_GLOW_ALPHA = 0.35
+
+/**
+ * Phone `components/common/GlassDot.tsx:32` — `variant === 'partial' ? colors.warning :
+ * colors.success`, and its own comment records that those two tokens replaced "eight hand-mixed
+ * hexes and four glow rgbas across two themes".
+ *
+ * **NOT `STATUS_ACCENT`.** The completion bead's id space is `complete | partial`, not
+ * `LocationStatus`, and the phone resolves it from the plain severity tokens rather than the
+ * bare-mark accents. Both values already matched, so this is a tokenisation; the GLOW is the
+ * one number that moves, from a hand-typed 0.55/0.6 to the phone's `withAlpha(tint, 0.35)`
+ * (`GlassDot.tsx:39`, the dark branch). The blur stays the demo's 7px: the phone's is a native
+ * `shadowRadius`, which is not the same unit as a CSS blur (plan §2, the platform carve-out).
+ */
 const DOT: Record<'complete' | 'partial', CSSProperties> = {
-  complete: { background: '#10d177', boxShadow: '0 0 7px rgba(16,209,119,0.6)' },
-  partial: { background: '#ffd93d', boxShadow: '0 0 7px rgba(255,217,61,0.55)' },
+  complete: { background: colors.success, boxShadow: `0 0 7px ${withAlpha(colors.success, DOT_GLOW_ALPHA)}` },
+  partial: { background: colors.warning, boxShadow: `0 0 7px ${withAlpha(colors.warning, DOT_GLOW_ALPHA)}` },
 }
 
 // ---- Footer chrome --------------------------------------------------------
@@ -88,10 +106,20 @@ const DOT: Record<'complete' | 'partial', CSSProperties> = {
  * this is emphasis, never the carrier — the same rule the completion dots' `aria-label` obeys.
  */
 const SAVE_STATUS_COLOR: Record<SaveStateKind, string> = {
-  saved: '#5d7a9a',
-  pending: '#5d7a9a',
-  unavailable: '#c9a227',
-  failed: '#c9a227',
+  // No phone counterpart — session persistence is demo-only, so D12's "follow the palette
+  // inside the frame" applies rather than a lift. The two tokens are the phone's own vocabulary
+  // for exactly these two meanings: `textSecondary` is what `TimerCard.getStatusColor:137` and
+  // `dvr-information.tsx:176`'s Unknown branch both spend for "no severity", and `warning` is
+  // the advisory amber. `#5d7a9a` and `#c9a227` were the last two members of the four-amber /
+  // stray-slate families the U3 exit criterion collapses.
+  //
+  // NOT `colors.error` for `failed`: this is 11px text, and §C.3 rule 1 is that red stops being
+  // a text colour. The wording already says which state it is; this is emphasis, never the
+  // carrier — the same rule the completion dots' `aria-label` obeys.
+  saved: colors.textSecondary,
+  pending: colors.textSecondary,
+  unavailable: colors.warning,
+  failed: colors.warning,
 }
 
 // ---- Media accordion ------------------------------------------------------
@@ -306,7 +334,8 @@ export function WizardDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={fade}
-            style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }}
+            data-scrim
+            style={{ position: 'absolute', inset: 0, zIndex: 41, background: colors.scrim, pointerEvents: 'auto' }}
           />
         )}
         {open && (

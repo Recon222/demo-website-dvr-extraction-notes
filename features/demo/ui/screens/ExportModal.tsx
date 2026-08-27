@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useReducedMotion } from 'motion/react'
 import {
@@ -8,13 +8,15 @@ import {
   describeValidationPrompt,
   missingFieldLine,
   type CasePdfValidationResult,
-  type ExportModalMode,
   type ExportStage,
   type ProgressInfo,
 } from '@/features/demo/engine/logic/export'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * ExportModal — the unified export progress / validation overlay (parity P5.3, matrix row 25).
@@ -77,11 +79,28 @@ const srOnly: CSSProperties = {
   border: 0,
 }
 
+/**
+ * Scrim z for BOTH modes; the surface above it paints on 41.
+ *
+ * D14 — this package does not renumber. 40/41 rather than the alert's 60/61 is what lets an
+ * `AlertDialog` be raised OVER an export overlay, which `exportNotices.ts` does (matrix B.4
+ * row 28).
+ */
+const EXPORT_MODAL_Z = 40
+
+/**
+ * The progress mode's backdrop. The validation mode's is `CentredDialog`'s.
+ *
+ * A22, RULED (W2 F43): `colors.overlay`, the same value the centred dialogs take, because it is
+ * the same overlay behind the same export flow - the phone's own progress overlay is
+ * `backgroundColor: colors.overlay` at `export/ExportModal.tsx:325`. NOT `colors.scrim`, which
+ * is the sheet family's. Was `rgba(4,8,14,0.66)`, a literal matching neither token.
+ */
 const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  zIndex: 40,
-  background: 'rgba(4,8,14,0.66)',
+  zIndex: EXPORT_MODAL_Z,
+  background: colors.overlay,
   pointerEvents: 'auto',
 }
 
@@ -139,7 +158,7 @@ function ProgressContent({
         style={{
           position: 'absolute',
           inset: 0,
-          zIndex: 41,
+          zIndex: EXPORT_MODAL_Z + 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -189,10 +208,12 @@ function ProgressContent({
 /**
  * The pre-export validation prompt (phone `ValidationContent`, `ExportModal.tsx:138-253`).
  *
- * Escape and the scrim both mean Cancel — and both are gated on `!isExporting`, the phone's own
- * rule (`:152-156`, `:289`). Focus moves to the dialog on mount and returns to the opener on
- * unmount: the AlertDialog idiom, so a screen reader hears the title and the summary rather
- * than landing on the first button.
+ * SEAM(U4.3): the panel, the scrim, the z pair, Escape and the focus hand-back are
+ * `CentredDialog`'s. This is the third and last of the demo's centred-dialog copies.
+ *
+ * Escape and the scrim both mean Cancel, and both are gated on `!isExporting` - the phone's own
+ * rule (`:152-156`, `:289`), threaded as `dismissOnEscape` / `dismissOnScrim` rather than
+ * re-checked inside a handler.
  */
 function ValidationContent({
   validationResult,
@@ -208,7 +229,6 @@ function ValidationContent({
   const uid = useId()
   const titleId = `${uid}-title`
   const bodyId = `${uid}-body`
-  const dialogRef = useRef<HTMLDivElement | null>(null)
   const prompt = describeValidationPrompt(validationResult)
 
   // Live regions only announce content that CHANGES after they mount, so the announcement is
@@ -219,59 +239,22 @@ function ValidationContent({
     setAnnouncement(prompt.announcement)
   }, [prompt.announcement])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isExporting) onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [isExporting, onCancel])
-
-  useEffect(() => {
-    const opener = document.activeElement
-    dialogRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
-
   return (
-    <>
-      <div
-        data-export-scrim
-        onClick={() => {
-          if (!isExporting) onCancel()
-        }}
-        style={scrim}
-      />
+    <CentredDialog
+      z={EXPORT_MODAL_Z}
+      labelledBy={titleId}
+      describedBy={bodyId}
+      onDismiss={onCancel}
+      dismissOnScrim={!isExporting}
+      dismissOnEscape={!isExporting}
+      testId="export-validation-modal"
+    >
+      {/* Inside the panel, not beside it: `aria-modal="true"` prunes everything outside the
+          dialog from the accessibility tree, which is the same trap `MediaFullscreen`'s
+          docblock names. A live region out there announces to nobody. */}
       <div data-testid="export-validation-announcement" role="status" aria-live="assertive" style={srOnly}>
         {announcement}
       </div>
-      <div
-        ref={dialogRef}
-        data-testid="export-validation-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={bodyId}
-        tabIndex={-1}
-        style={{
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 41,
-          borderRadius: 16,
-          border: GLASS.borderSoft,
-          background: GLASS.gradientPanel,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
-          padding: '20px 18px 16px',
-          outline: 'none',
-          pointerEvents: 'auto',
-          animation: 'screenIn 0.2s ease',
-        }}
-      >
         {/* The phone's 48px Ionicon: `alert-circle` in the error colour when nothing can
             produce a PDF, `warning` in the warning colour otherwise (`:171-178`). */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -327,7 +310,8 @@ function ValidationContent({
         >
           {prompt.summary}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Phone `export/ExportModal.tsx:441`: `gap: Layout.spacing.md` (W2 F41). */}
+        <div style={{ display: 'flex', gap: spacing.md }}>
           <button
             type="button"
             onClick={onCancel}
@@ -335,12 +319,7 @@ function ValidationContent({
             aria-label="Cancel export"
             style={{
               flex: 1,
-              padding: 12,
-              fontSize: 14.5,
-              fontWeight: 600,
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1,
-              ...glassBtnSecondary,
+              ...buttonStyle({ variant: 'secondary', disabled: isExporting }),
             }}
           >
             {prompt.cancelLabel}
@@ -352,19 +331,13 @@ function ValidationContent({
             aria-label="Continue with export"
             style={{
               flex: 1,
-              padding: 12,
-              fontSize: 14.5,
-              fontWeight: 600,
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1,
-              ...glassBtnPrimary,
+              ...buttonStyle({ disabled: isExporting }),
             }}
           >
             {prompt.continueLabel}
           </button>
         </div>
-      </div>
-    </>
+    </CentredDialog>
   )
 }
 
@@ -373,22 +346,25 @@ export function ExportModal(props: ExportModalProps) {
   // no result" state the old guard existed to survive is now unrepresentable, so the invisible
   // modal it would have rendered cannot be constructed.
   if (props.mode === 'hidden') return null
-  return (
-    <PhoneOverlayPortal>
-      {props.mode === 'progress' ? (
+  if (props.mode === 'progress') {
+    return (
+      <PhoneOverlayPortal>
         <ProgressContent
           stage={props.stage ?? 'idle'}
           progress={props.progress}
           currentLocationName={props.currentLocationName}
         />
-      ) : (
-        <ValidationContent
-          validationResult={props.validationResult}
-          isExporting={props.isExporting ?? false}
-          onContinue={props.onContinueAnyway}
-          onCancel={props.onCancel}
-        />
-      )}
-    </PhoneOverlayPortal>
+      </PhoneOverlayPortal>
+    )
+  }
+  // The validation prompt portals through `CentredDialog`; wrapping it again would put two
+  // portals into the same overlay root for one dialog.
+  return (
+    <ValidationContent
+      validationResult={props.validationResult}
+      isExporting={props.isExporting ?? false}
+      onContinue={props.onContinueAnyway}
+      onCancel={props.onCancel}
+    />
   )
 }

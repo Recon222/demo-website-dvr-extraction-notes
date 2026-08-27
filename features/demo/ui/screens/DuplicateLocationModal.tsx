@@ -2,8 +2,9 @@
 
 import { useId } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { Field, ModalShell } from '@/features/demo/ui/screens/_shared'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { NEW_LOCATION_BLOCK_MESSAGES, newLocationBlock } from '@/features/demo/engine/logic/new-location-gate'
 import type { DuplicateMode } from '@/features/demo/engine/types'
 
@@ -46,14 +47,8 @@ export interface DuplicateLocationModalProps {
   onExportGeoJSON?(): void
 }
 
-const actionButton: CSSProperties = {
-  width: '100%',
-  textAlign: 'center',
-  padding: 13,
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: 'pointer',
-}
+/** Layout only; the paint is `buttonStyle()`, spread after. */
+const actionButton: CSSProperties = { width: '100%' }
 
 const sectionCaption: CSSProperties = {
   fontSize: 13,
@@ -96,9 +91,11 @@ function ActionButton({
       onClick={onClick}
       style={{
         ...actionButton,
-        ...(variant === 'primary' ? glassBtnPrimary : glassBtnSecondary),
-        ...(blocked ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
         marginBottom: 10,
+        // `blocked` is the disabled PAINT without the disabled ATTRIBUTE (same shape as
+        // `ModalActions.submitBlocked`): `aria-disabled` keeps the control reachable so the
+        // `describedBy` reason can be heard. D10 replaces the `opacity: 0.45` with the tokens.
+        ...buttonStyle({ variant, disabled: blocked }),
       }}
     >
       {label}
@@ -142,7 +139,7 @@ export function DuplicateLocationModal({
   }
 
   return (
-    <ModalShell title="Duplicate Location" onClose={onClose}>
+    <ModalShell title="Duplicate Location" closeAccessibilityLabel="Close duplicate location" onClose={onClose}>
       <div style={{ fontSize: 13, color: '#99badd', marginTop: -4, marginBottom: 16 }}>
         Enter a name for the duplicate location.
       </div>

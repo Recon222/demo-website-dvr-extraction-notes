@@ -268,18 +268,84 @@ export const glassCardNested = {
   boxShadow: `inset 0 1px 0 ${tier.nestedCard.innerShadow}`,
 } as const satisfies CSSProperties
 
-/** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
-export const glassBtnPrimary = {
-  borderRadius: radius.control,
-  border: 'none',
-  background: GLASS.gradientAccent,
-  color: '#fff',
+/**
+ * The RECESSED WELL — `GLASS_TIER[scheme].recessed`, the sixth tier and its first consumer
+ * (matrix A39, A59; phone `Colors.ts:433-438`).
+ *
+ * A hole punched into the surface that hosts it, not a raised surface. Three phone components
+ * paint it and all three spell the same four parts, so this is a transcription of their
+ * agreement rather than a reading of one of them:
+ *
+ * ```
+ * Picker.tsx:183-186          the dropdown's option list  (drumPanel)
+ * TimePicker.styles.ts:240-242 the time drum              (pickerContainer)
+ * DateTimePicker.tsx:293-296   the calendar's well        (calendarWell)
+ * ```
+ *
+ * ## BOTH lips are dark, and that is the tier, not a typo
+ *
+ * All three set `borderTopColor` AND `borderBottomColor` to `recessed.highlightTop`
+ * (`rgba(0,12,26,0.55)`) — a DARK value on a key named "highlight". The well's light model is
+ * INVERTED (`Colors.ts:406-409`): a lip that is cut INTO a surface casts a shadow at the top
+ * and at the bottom instead of catching light at the top. That is the whole difference between
+ * this fragment and `glassCard`, and it is why the plan's U2.4 row naming only `borderTopColor`
+ * is incomplete — see the implementation report's refutations.
+ *
+ * ## The shape: LONGHANDS ONLY (the lit-edge ruling)
+ *
+ * No `border`, no `borderColor`, no `borderTop` key — four colour longhands plus
+ * `borderStyle`/`borderWidth`. `partner-lit-edge-ruling.md` §1 measured all five candidate
+ * shapes in jsdom AND Chromium across three paints: this is the only one where a consumer that
+ * breaks the rule fails on the FIRST paint (where the demo's ~95 style pins read) rather than
+ * on an update, and the only one where the conditional-longhand pattern a consumer actually
+ * writes self-heals instead of wiping the sides to `currentColor`.
+ *
+ * **Consumers may write colour LONGHANDS after the spread and nothing else.**
+ * `{ ...glassWell, border: 'X' }` and `{ ...glassWell, borderColor: 'X' }` both erase both lips
+ * silently; `ui/__tests__/glass-well-recipe.test.tsx` renders both as negative controls.
+ *
+ * `glassCard` / `glassCardNested` above still carry a `border` SHORTHAND — that is W1's shape
+ * and the ruling's §4 item 1 assigns changing it to that seat, not to this one. The two shapes
+ * live side by side here on purpose; do not "harmonise" this one downward.
+ *
+ * ## What is deliberately NOT here
+ *
+ * - **`overflow: 'hidden'`**, which all three phone sites set. It is layout, not paint: the
+ *   four-part composition A40 publishes is gradient + border + lip + inset, and neither card
+ *   fragment carries a layout key either. `TimeWheel`'s drum keeps its own (it has columns to
+ *   clip); the other two have nothing to clip.
+ * - **The drum's drop shadow** (`TimePicker.styles.ts:243-250`, dark `rgba(0,0,0,0.5)` at
+ *   offset 8 / radius 32). It belongs to ONE of the three sites, and RN's five shadow props do
+ *   not carry to CSS at a fixed ratio — porting it would be an invention, not a transcription.
+ * - **`padding`**. 5 on the option list (`Picker.tsx:363`), `10` horizontal on the drum
+ *   (`TimePicker.styles.ts:233`), `8/4` on the calendar (`DateTimePicker.tsx:521-522`). Three
+ *   different values; each consumer spells its own before the spread.
+ */
+export const glassWell = {
+  borderRadius: radius.lg,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.recessed.border,
+  borderLeftColor: tier.recessed.border,
+  borderTopColor: tier.recessed.highlightTop,
+  borderBottomColor: tier.recessed.highlightTop,
+  background: `linear-gradient(180deg,${tier.recessed.gradient[0]},${tier.recessed.gradient[1]})`,
+  boxShadow: `inset 0 1px 0 ${tier.recessed.innerShadow}`,
 } as const satisfies CSSProperties
 
-/** Secondary button base: radius `control` · button border · raised fill · muted text. */
-export const glassBtnSecondary = {
-  borderRadius: radius.control,
-  border: GLASS.borderBtn,
-  background: colors.backgroundSecondary,
-  color: colors.textSecondary,
-} as const satisfies CSSProperties
+/*
+ * `glassBtnPrimary` / `glassBtnSecondary` LIVED HERE until U2.2 (A64/A65/A68). They were a
+ * four-key colour fragment each — radius, border, background, label — and every one of their
+ * ~45 call sites then re-derived padding, label size, min-height and a disabled treatment by
+ * hand. `ui/controls/button-recipe.ts`'s `buttonStyle()` is the whole recipe instead: five
+ * variants x three sizes x enabled/disabled, in both scheme halves.
+ *
+ * They are DELETED rather than kept as thin aliases. An alias would have carried the recipe's
+ * padding and min-height into every un-migrated site (the spread wins over a `padding:` written
+ * before it) while leaving that site's `fontSize:` — written AFTER the spread — at the demo's
+ * old 13/14/15. Half-ported is worse than either end, and §9 clause 7's census wants ONE button
+ * recipe, not two spellings of one.
+ *
+ * `GLASS.gradientAccent` stays: it is `ACCENT_FROM`/`ACCENT_TO` under a name the drift guard and
+ * `input-theme.ts` both read, and `PrimaryButtonGradient.dark` points at those same two consts.
+ */

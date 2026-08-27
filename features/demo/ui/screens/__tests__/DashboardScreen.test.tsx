@@ -2,6 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { DashboardScreen, DASHBOARD_CASE_LIMIT } from '@/features/demo/ui/screens/DashboardScreen'
 import { caseStatusTheme, locationStatusTheme, type CaseCard, type CaseLocationRow } from '@/features/demo/ui/screens/screenData'
+import { severityTone } from '@/features/demo/ui/tokens/status'
+
+/** jsdom rewrites an inline hex to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project hazards). */
+const hexToRgb = (hex: string) =>
+  `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
 
 const loc = (n: number): CaseLocationRow => ({
   id: `l${n}`,
@@ -23,6 +28,9 @@ const card = (over: Partial<CaseCard> = {}): CaseCard => ({
 })
 
 const base = { onOpenLocation: vi.fn(), onCaseActions: vi.fn(), onSettings: vi.fn() }
+
+const badge = (label: string) => screen.getByText(label).closest('span') as HTMLElement
+
 
 afterEach(() => {
   vi.useRealTimers()
@@ -177,5 +185,51 @@ describe('DashboardScreen — Case Actions entry points (the phone long-press)',
     unmount()
     act(() => void vi.advanceTimersByTime(1000))
     expect(onCaseActions).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A69/A70 at the surface that carries all THREE status treatments at once: a pill (fill + text),
+ * a timeline bead and a location-pill dot (both bare marks). The recipe's own wiring is pinned
+ * in `tokens/__tests__/status.test.ts`; these assert the SITES spend the right one, which is the
+ * half a token test structurally cannot see.
+ */
+describe('status treatments (A69 / A70)', () => {
+  it('renders the case pill from THE recipe at `small`, with no shouting', () => {
+    render(<DashboardScreen {...base} cases={[card()]} />)
+    const pill = badge('Active')
+    // `small` = 2/6 @12 (phone `CaseStatusBadge.tsx:32-42`, `DashboardCaseCard.tsx:164`).
+    expect(pill).toHaveStyle({ padding: '2px 6px', fontSize: '12px', borderRadius: '12px' })
+    // The border is the SECOND carrier — in dark every `*OnLight` is `#f0f4f8`, so dropping it
+    // makes Active, Complete and Archived the same near-white word on four different fills.
+    expect(pill).toHaveStyle({ borderWidth: '1px', borderStyle: 'solid' })
+    expect(pill.style.borderColor).not.toBe('')
+    expect(pill.style.textTransform).toBe('')
+    expect(pill.style.letterSpacing).toBe('')
+  })
+
+  it('paints the pill`s text with the *OnLight foreground, never the accent', () => {
+    render(<DashboardScreen {...base} cases={[card()]} />)
+    const tone = severityTone('warning')
+    expect(badge('Active')).toHaveStyle({ color: tone.color, background: tone.background })
+    expect(badge('Active')).not.toHaveStyle({ color: tone.accent })
+  })
+
+  it('paints both BARE MARKS with the accent — the tone`s foreground would grey them out', () => {
+    // A COMPLETE location deliberately: `started` and the case's `draft` both resolve to
+    // `warningAccent`, so a fixture using the default `started` row would let the timeline
+    // bead's colour satisfy the location dot's assertion and vice versa.
+    const done = { ...loc(1), status: locationStatusTheme('complete') }
+    const { container } = render(<DashboardScreen {...base} cases={[card({ locations: [done] })]} />)
+    const marks = Array.from(container.querySelectorAll('div')).map((el) => (el as HTMLElement).style.background)
+
+    // The 16px timeline glow (the case's severity) and the 7px pill dot (the location's).
+    expect(marks).toContain(hexToRgb(caseStatusTheme('draft').accent))
+    expect(marks).toContain(hexToRgb(locationStatusTheme('complete').accent))
+    expect(caseStatusTheme('draft').accent).not.toBe(locationStatusTheme('complete').accent)
+
+    // The specific regression: a mark painted with a badge FOREGROUND. In dark all four
+    // `*OnLight` tokens are `#f0f4f8`, so every bead on the rail would read identical.
+    expect(marks).not.toContain(hexToRgb(locationStatusTheme('complete').color))
   })
 })

@@ -5,6 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { SHEET_SHADOW } from '@/features/demo/ui/controls/sheet-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -89,7 +90,7 @@ const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
   zIndex: 30,
-  background: 'rgba(4,8,14,0.55)',
+  background: colors.scrim,
   pointerEvents: 'auto',
 }
 
@@ -169,7 +170,9 @@ export function ExportActionSheet({
           borderRadius: 16,
           border: GLASS.borderSoft,
           background: GLASS.gradientPanel,
-          boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+          // A46 — the one upward cast. This was `0 -10px 40px rgba(0,0,0,0.5)`, one of the
+          // four near-misses of `Layout.shadow.sheet` the matrix row names.
+          boxShadow: SHEET_SHADOW,
           overflow: 'hidden',
           pointerEvents: 'auto',
           animation: 'sheetUp 0.28s ease',

@@ -280,13 +280,34 @@ export const webTierScope = (scheme, tier) => ({
  * SCHEDULE, corrected — this supersedes the plan's stage figures:
  *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
  *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
- *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
- *                -> 115 rows / 56 keys HERE, which is what this table produces today
- *   U3.1         +successLight, +warningLight x 2                        =  +4 rows
- *                (`success`/`warning`/`successDark`/`warningDark` are ALREADY HERE — U0.1
- *                 created them, so U3.1 adds two keys, not the four its row claims)
+ *   U2.2 (LANDED) +PrimaryButtonGradient's 2 LIGHT stops                  =  +2 rows -> 69
+ *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows -> 117
+ *   U3.1 (LANDED) +8 palette keys x 2                                     = +16 rows -> 133
+ *   U4.4 (LANDED) +scrim x 2                                              =  +2 rows -> 135
+ *                -> 41 palette keys / 65 anchor keys / 135 rows, MEASURED, which is what this
+ *                   table produces today
  *   U8.2         +gridSubtle x 2                                         =  +4 rows
- *   -> 59 keys / 123 rows at the end, not the plan's ~44 keys / ~88 rows.
+ *
+ * W2/F49 corrected three figures here, not one: the missing `scrim` line, and two intermediate
+ * totals that were already wrong before it (U1.1's said 115 for 117, U3.1's said 131 for 133 —
+ * both dropped the two LIGHT gradient stops U2.2 added on the line above them). The final total
+ * is deliberately no longer stated: it depends on what U8.2 actually lands, and a hand-typed
+ * end figure is exactly what drifted twice.
+ *
+ * DO NOT TREAT THESE NUMBERS AS A GATE. They are a reading aid. The gate is
+ * `rn-token-parity.test.ts:211-214`, whose expectation is DERIVED
+ * (`PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5`) precisely so no one can reach
+ * green by editing a literal here — W0/F2 removed the last hand-typed total for that reason.
+ * If this comment and that assertion ever disagree again, the assertion is right.
+ *
+ * U3.1's count corrects BOTH earlier figures. The plan's U3.1 row says "the four status
+ * anchors (`success`, `successLight`, `warning`, `warningLight`)"; U0.4's schedule above said
+ * two, on the grounds that `success`/`warning`/`successDark`/`warningDark` were already here.
+ * Both undercount, and the reason is structural rather than arithmetic: this list is not a
+ * chosen subset any more. Since W0/F2 it is pinned by MEMBERSHIP — `rn-token-parity.test.ts`
+ * asserts it equals `Object.keys(palette.dark)` — so a package that creates N palette tokens
+ * anchors N keys or reds that pin. U3.1 created eight (`successLight`, `warningLight`,
+ * `infoLight`, `warningAccent`, and the four `*OnLight`), so eight is not a choice it made.
  *
  * Both halves are pinned per decision D2 as amended by the owner on 2026-08-27. The demo renders
  * only `dark`, but a light half that silently diverges is drift the moment `palette.ts`'s
@@ -310,16 +331,29 @@ export const PALETTE_KEYS = [
   'border',
   'borderLight',
   'borderDark',
-  // status
+  // status. U3.1 added the eight the demo had no web-side token for; `warningAccent` is a
+  // SEPARATE key from `warningDark` even though dark spells them the same hex (light does not),
+  // so it gets its own row and a re-point of either side fails alone.
   'success',
+  'successLight',
   'successDark',
   'error',
   'errorLight',
   'errorDark',
   'warning',
+  'warningLight',
   'warningDark',
+  'warningAccent',
   'info',
+  'infoLight',
   'infoDark',
+  // status foregrounds. All four are `#f0f4f8` in DARK and four different hexes in light, which
+  // is exactly why they are anchored: a light half that quietly re-tints them is invisible to
+  // every other gate in this repo.
+  'infoOnLight',
+  'warningOnLight',
+  'successOnLight',
+  'errorOnLight',
   // foregrounds for filled surfaces — the only two keys that are scheme-INVARIANT (#ffffff in
   // both halves), which is why the light-vs-dark structural pin excludes them by name.
   'onPrimary',
@@ -333,6 +367,10 @@ export const PALETTE_KEYS = [
   // overlays — the first anchors that are not bare hexes
   'overlay',
   'overlayLight',
+  // the sheet/modal backdrop (A22, U4.4). Anchored SEPARATELY from `overlay` on purpose: the
+  // two are the same value in light and deliberately different in dark, so one anchor could
+  // not express both halves and a "resync" of the dark half would pass unnoticed.
+  'scrim',
   // disabled
   'disabled',
   'disabledText',
@@ -349,6 +387,41 @@ export const PALETTE_KEYS = [
  * `features/demo/ui/tokens/__tests__/glass-tiers.test.ts`, which is the ONLY gate on them; if
  * that file is ever thinned, they lose their last guard. (Plan §5, U1.1 row, states the
  * exclusion; this says what covers the gap.)
+ *
+ * ## THE SHADOW EXCLUSION IS NOW ALL THREE TIERS — ledger §95, discharged by W2/F42
+ *
+ * `innerShadow` was the first case of a general shape, and U2/U4 landed the other two:
+ *
+ *   Layout.shadow.card    -> `GLASS.shadowCard`                (U1.2)
+ *   Layout.shadow.sheet   -> `sheet-chrome.ts`'s `SHEET_SHADOWS`   (U4.1)
+ *   Layout.shadow.dialog  -> `CentredDialog.tsx`'s `DIALOG_SHADOW` (U4.3)
+ *
+ * §95's trigger was "U4 landing `shadow.dialog`/`shadow.sheet` — that package adds the
+ * composing reader to the guard or records the gap once for all three". This is the second
+ * option, taken deliberately, and here is the reasoning so the next reader does not have to
+ * re-derive it.
+ *
+ * RN spends FIVE props on what CSS spends one: `shadowColor`, `shadowOffset {width,height}`,
+ * `shadowOpacity`, `shadowRadius` (plus Android's `elevation`, which has no CSS counterpart at
+ * all). A composing reader would have to fold `shadowColor`'s own alpha into `shadowOpacity`
+ * (`rgba(30,58,138,0.15)` x 1 -> 0.15, the mapping `button-recipe.ts:167-174` documents),
+ * carry the sign of a negative `height` for the upward sheet cast, and drop `elevation` — i.e.
+ * re-implement, in this file, the same hand-derivation the web recipes already perform. Two
+ * hand-derivations agreeing is not a contract; it is the "equal by transcription" failure the
+ * `innerShadow` paragraph above rejects, one layer further out.
+ *
+ * WHAT COVERS THE GAP INSTEAD, per tier — each is a literal shape pin over the composed CSS
+ * string, in the recipe's own suite, and each is the ONLY gate on its values:
+ *
+ *   card    `ui/__tests__/glass-tokens.test.ts`      (`GLASS.shadowCard`)
+ *   sheet   `ui/controls/__tests__/sheet-chrome.test.tsx` (`SHEET_SHADOWS`, both halves)
+ *   dialog  `ui/controls/__tests__/CentredDialog.test.tsx` (`DIALOG_SHADOW`)
+ *
+ * WHAT WOULD REOPEN IT: a phone-side change to any `Layout.shadow.*` value. Nothing here will
+ * see it — the three pins above compare the web string to itself, so they catch a demo-side
+ * regression and not drift. That is the accepted cost, and it is accepted because the
+ * alternative catches drift only if the reader's arithmetic is itself correct and maintained.
+ * Revisit if a shadow value ever moves on the phone, or if a fourth tier lands.
  *
  * The two gradient stops are separate KEYS, not one, for the reason `readStop` takes an index:
  * an anchor row is the unit of PARSE-FAILED isolation, so a gradient whose second stop moves
@@ -381,6 +454,13 @@ export function checkParity() {
   const scaleSrc = source('web tokens/scale.ts', join(WEB, 'features/demo/ui/tokens/scale.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
+  // U2.2's button recipe. It is the only place the demo carries the LIGHT CTA pair, and it holds
+  // the dark pair as a REFERENCE to the two consts above rather than a copy, so the two rows
+  // below read light here and the two dark rows keep reading `glass`.
+  const buttonRecipe = source(
+    'web controls/button-recipe.ts',
+    join(WEB, 'features/demo/ui/controls/button-recipe.ts'),
+  )
   // U1.1's tier seam. The four `GLASS.*` composites derived from it are NOT read here: they are
   // template literals, so their text holds `${tier.card.gradient[0]}` and not a colour. Reading
   // the definition is also the right side to read — a derived key that stopped deriving would
@@ -459,19 +539,33 @@ export function checkParity() {
   // `[Colors.dark.primaryDark, '#17527A']` — one literal and one reference, which is why
   // reading it at all needs the resolver. `Button.tsx` is no longer read.
   //
-  // DARK ONLY, and that is not an oversight: the phone's light pair (`['#2563eb','#1d3584']`)
-  // has NO web-side token. U0.3 kept the demo's stops as the two module consts below, which
-  // are the dark pair only. Anchoring light here would gate the phase on a token that does
-  // not exist — the one thing §6.6 gate 1 forbids. Whichever package gives the demo a light
-  // accent pair adds these two rows as its closing act.
+  // BOTH HALVES since U2.2 — this was DARK ONLY, and the comment here used to say why: the
+  // phone's light pair (`['#2563eb','#1d3584']`) had no web-side token, U0.3 having re-based
+  // the dark stops alone, and anchoring a token that does not exist is the one thing §6.6
+  // gate 1 forbids. It said "whichever package gives the demo a light accent pair adds these
+  // two rows as its closing act". U2.2 is that package: `PrimaryButtonGradient` in
+  // `ui/controls/button-recipe.ts` carries both halves, so the light rows are here now and
+  // deferral §90's second clause is closed.
+  //
+  // The two sides are read from DIFFERENT web files on purpose. Dark lives in `glass-tokens.ts`
+  // as `ACCENT_FROM`/`ACCENT_TO`, spelled as literals because `readConst` matches literals and
+  // not identifier references; `PrimaryButtonGradient.dark` points AT those two consts, so
+  // reading it here instead would only prove the reference resolves. Light has no such const
+  // and is read from the record itself.
   const gradOpts = {
     after: 'export const PrimaryButtonGradient = {',
     before: '} as const',
     resolve: rnRef('dark'),
   }
+  const gradOptsLight = { ...gradOpts, resolve: rnRef('light') }
+  // The web-side record ends `} as const satisfies Record<...>`, which `'} as const'` still
+  // bounds — it is a substring cut, not a parse.
+  const webGradOpts = { after: 'export const PrimaryButtonGradient = {', before: '} as const' }
   anchors.push(
     { key: 'gradientTop', scheme: 'dark', label: 'gradientTop.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
     { key: 'gradientBot', scheme: 'dark', label: 'gradientBot.dark', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)), web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
+    { key: 'gradientTop', scheme: 'light', label: 'gradientTop.light', rn: attempt(colors, (t) => readStop(t, 'light', 1, gradOptsLight)), web: attempt(buttonRecipe, (t) => readStop(t, 'light', 1, webGradOpts)) },
+    { key: 'gradientBot', scheme: 'light', label: 'gradientBot.light', rn: attempt(colors, (t) => readStop(t, 'light', 2, gradOptsLight)), web: attempt(buttonRecipe, (t) => readStop(t, 'light', 2, webGradOpts)) },
     // Scheme-invariant: a touch floor is a geometry constant, and neither repo branches it.
     { key: 'touchFloor', scheme: 'any', label: 'touchFloor', rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(scaleSrc, (t) => readField(t, 'min', { after: 'export const touchTarget = {', before: '}' })) },
   )
@@ -544,6 +638,6 @@ if (invokedDirectly) {
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
       `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +
-      `each x both halves, + the 2 dark CTA gradient stops and the touch floor)`,
+      `each x both halves, + the 4 CTA gradient stops (both halves too) and the touch floor)`,
   )
 }

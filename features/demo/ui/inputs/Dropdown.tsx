@@ -3,8 +3,25 @@
 import { useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
+import { glassWell } from '@/features/demo/ui/glass-tokens'
 import { T } from '@/features/demo/ui/inputs/input-theme'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
+import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
+
+/**
+ * A73 / A53 — the picker's accent washes, routed through `withAlpha` instead of spelled.
+ *
+ * The phone keeps exactly these two helpers for exactly this reason (`Picker.tsx:57-64`): the
+ * `token + '15'` concat idiom they replaced appended two hex digits to whatever string it was
+ * handed, so it produced an unparseable colour on any rgba token and its `?:` guard could never
+ * be false. Both are byte-identical to the literals the demo spelled before.
+ *
+ * `inkTint` is `colors.text`, not white. The demo's divider was `rgba(255,255,255,0.04)`; the
+ * phone's is a 4% wash of the TEXT token, which in dark is `#f0f4f8`.
+ */
+const accentTint = (alpha: number) => withAlpha(colors.primary, alpha)
+const inkTint = (alpha: number) => withAlpha(colors.text, alpha)
 
 export interface DropdownProps {
   label?: string
@@ -65,18 +82,37 @@ export function Dropdown({
     setOpen(false)
   }
 
-  const optionRow = (o: PickerOption): CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    padding: '11px 12px',
-    borderRadius: 10,
-    border: '1px solid transparent',
-    background: o.value === value ? 'rgba(43,140,193,0.08)' : 'transparent',
-    cursor: 'pointer',
-    marginBottom: 2,
-  })
+  /**
+   * `Picker.tsx:371-380` + `:202-209`. `padding: '11px 12px'` is already the phone's
+   * (`paddingVertical: 11`, `paddingHorizontal: Layout.spacing.base`) and stays.
+   *
+   * The selected row is LIT, not merely washed: a 18% side border and a 22% top edge. All four
+   * colour longhands are written on every row — transparent when unselected — rather than being
+   * added and removed with the selection. That is the lit-edge ruling's `removeSides` cell: a
+   * longhand that appears and disappears across renders is the one shape that can leave a side
+   * reading `currentColor`, and writing all four unconditionally makes the hazard
+   * unrepresentable rather than merely avoided.
+   */
+  const optionRow = (o: PickerOption): CSSProperties => {
+    const selected = o.value === value
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+      padding: '11px 12px',
+      borderRadius: radius.control,
+      borderStyle: 'solid',
+      borderWidth: 1,
+      borderRightColor: selected ? accentTint(0.18) : 'transparent',
+      borderLeftColor: selected ? accentTint(0.18) : 'transparent',
+      borderBottomColor: selected ? accentTint(0.18) : 'transparent',
+      borderTopColor: selected ? accentTint(0.22) : 'transparent',
+      background: selected ? accentTint(0.08) : 'transparent',
+      cursor: 'pointer',
+      marginBottom: 2,
+    }
+  }
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -104,17 +140,23 @@ export function Dropdown({
           padding: 0,
         }}
       >
-        <span id={valueId} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '11px 12px', fontSize: 14, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {/* `selectorText`, phone `Picker.tsx:337-342`: `spacing.md` on both axes and
+            `fontSize.base`. The same 16/16/44 geometry U2.1 gave every text input — a picker
+            trigger and a field sit in the same column and used to differ by ~10px of height. */}
+        <span id={valueId} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: spacing.md, fontSize: 16, color: value ? T.text : T.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {selectedLabel || placeholder}
         </span>
         <span
+          data-indicator-zone
           style={{
             width: 40,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderLeft: `1px solid rgba(255,255,255,0.04)`,
-            background: 'rgba(43,140,193,0.06)',
+            borderLeftStyle: 'solid',
+            borderLeftWidth: 1,
+            borderLeftColor: inkTint(0.04),
+            background: accentTint(0.06),
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMute} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,34 +168,54 @@ export function Dropdown({
       {/* Bottom sheet (shared chrome with the date/time pickers) */}
       {open && (
         <PickerSheet title={sheetName} onClose={() => setOpen(false)}>
-          <div role="menu" aria-label={sheetName}>
+          {/* A39/A59/A73 — the option list is a `recessed` well punched into the sheet, the
+              same tier as the drum and the calendar next door, so all three pickers present
+              one surface rather than three (phone `Picker.tsx:179-188`, `drumPanel`). The
+              phone's `margin: 10` is absent because `PickerSheet`'s body already pads 16;
+              `padding: 5` is the phone's (`Picker.tsx:363`). */}
+          <div role="menu" aria-label={sheetName} style={{ padding: 5, ...glassWell }}>
             {opts.map((o) => {
               const selected = o.value === value
               return (
                 <button key={o.value} type="button" role="menuitemradio" aria-checked={selected} onClick={() => select(o.value)} style={optionRow(o)}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span
+                      data-option-dot
                       style={{
                         width: 8,
                         height: 8,
                         borderRadius: 4,
                         background: selected ? T.primary : 'transparent',
-                        border: selected ? 'none' : '1.5px solid rgba(153,186,221,0.2)',
+                        border: selected ? 'none' : `1.5px solid ${withAlpha(T.textMute, 0.2)}`,
                         boxShadow: selected ? `0 0 5px ${T.primary}` : 'none',
                       }}
                     />
-                    <span style={{ fontSize: 13, color: selected ? T.text : 'rgba(153,186,221,0.7)', fontWeight: selected ? 600 : 400 }}>
+                    {/* `fontSize.base`, and the FLAT token when unselected. Both are the phone's
+                        own corrections in this file: `Picker.tsx:392-397` ("the open state
+                        rendering one point smaller was drift, not design") and `:257-264`, where
+                        the 70%-alpha copy of `textSecondary` measured 5.00 on this recessed drum
+                        against the flat token's 9.03. */}
+                    <span style={{ fontSize: 16, color: selected ? T.text : T.textMute, fontWeight: selected ? 600 : 400 }}>
                       {o.label}
                     </span>
                   </span>
                   {selected && (
                     <span
+                      data-check-pill
                       style={{
                         width: 22,
                         height: 22,
-                        borderRadius: 6,
-                        border: '1px solid rgba(43,140,193,0.2)',
-                        background: 'rgba(43,140,193,0.15)',
+                        // `checkPill`, phone `Picker.tsx:398-405` + `:287-289`. Radius `md`,
+                        // and a lit top edge at 28% over the 20% sides — the pill is a glass
+                        // chip, so it carries the same lip the wells and cards do.
+                        borderRadius: radius.md,
+                        borderStyle: 'solid',
+                        borderWidth: 1,
+                        borderRightColor: accentTint(0.2),
+                        borderLeftColor: accentTint(0.2),
+                        borderBottomColor: accentTint(0.2),
+                        borderTopColor: accentTint(0.28),
+                        background: accentTint(0.15),
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',

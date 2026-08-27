@@ -15,7 +15,8 @@ import {
   type CapturedMedia,
   type CapturePermission,
 } from '@/features/demo/engine/logic/media'
-import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import type { FrameGrabOptions } from '@/features/demo/ui/inputs/capture-media'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
 import { useMediaCapture, type UseMediaCaptureOptions } from '@/features/demo/ui/inputs/useMediaCapture'
@@ -737,12 +738,7 @@ function PermissionStage({
             aria-disabled={isOpening}
             aria-describedby={isOpening ? openingId : undefined}
             style={{
-              ...glassBtnPrimary,
-              padding: '8px 16px',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: isOpening ? 'not-allowed' : 'pointer',
-              opacity: isOpening ? 0.6 : 1,
+              ...buttonStyle({ disabled: isOpening }),
             }}
           >
             {isOpening ? 'Opening…' : permission === 'denied' ? 'Try again' : 'Grant'}
@@ -919,7 +915,7 @@ function ReviewStage({
           type="button"
           aria-label={isPhoto ? 'Retake image' : 'Record again'}
           onClick={onRetake}
-          style={{ flex: 1, padding: 14, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+          style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}
         >
           {isPhoto ? 'Retake' : 'Record Again'}
         </button>
@@ -937,12 +933,7 @@ function ReviewStage({
           }}
           style={{
             flex: 1,
-            padding: 14,
-            ...glassBtnPrimary,
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: canSave ? 'pointer' : 'default',
-            opacity: canSave ? 1 : 0.5,
+            ...buttonStyle({ disabled: !canSave }),
           }}
         >
           {isPhoto ? 'Save Image' : 'Save Video'}

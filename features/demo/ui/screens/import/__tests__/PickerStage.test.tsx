@@ -1,6 +1,27 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { PickerStage, PICKER_COPY, BATCH_SIZE_WARNING_THRESHOLD } from '@/features/demo/ui/screens/import/PickerStage'
+import { severityTone } from '@/features/demo/ui/tokens/status'
+
+/** jsdom rewrites inline hex to `rgb()`; pins compare against the token, never a retyped literal. */
+const rgb = (hex: string): string => {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
+
+/**
+ * The four `border*Color` longhands. Banner writes the accent as longhands, never the
+ * `borderColor` shorthand (`reports/partner-lit-edge-ruling.md` §1) — and **jsdom does not
+ * synthesize the shorthand back from them**: `el.style.borderColor` reads `''` under the ruled
+ * form, measured. So every border-colour pin in this repo has to read the four longhands, which
+ * is the stronger assertion anyway: it catches a partial re-tint the shorthand read cannot see.
+ */
+const sides = (el: HTMLElement): string[] => [
+  el.style.borderTopColor,
+  el.style.borderRightColor,
+  el.style.borderBottomColor,
+  el.style.borderLeftColor,
+]
 
 const pdf = (name = 'request.pdf', type = 'application/pdf') => new File(['%PDF'], name, { type })
 const txt = (name = 'notes.txt') => new File(['hello'], name, { type: 'text/plain' })
@@ -77,6 +98,24 @@ describe('PickerStage (P1.2, matrix row 71)', () => {
     fireEvent.change(fileInput(), { target: { files: [txt()] } })
     expect(screen.getByRole('alert')).toHaveTextContent('Unsupported file type. Please select PDF files.')
     expect(props.onPdfFilesSelected).not.toHaveBeenCalled()
+  })
+
+  it('renders that error through the SHARED Banner, not a private recipe (A71/U3.3)', () => {
+    // The phone routes this banner through `<Banner severity="error">` at
+    // `ImportPickerModal.tsx:718`/`:790`. Every assertion above passes over a re-inlined local
+    // recipe — they read role and text only — so this is the one that reds if the shared
+    // component is unwired. Values are read off the tokens, never retyped.
+    const { fileInput } = renderStage()
+    fireEvent.change(fileInput(), { target: { files: [txt()] } })
+    const alert = screen.getByTestId('import-picker-error') // phone's own testID, lifted
+    // The SEAM, not a re-derivation from `palette` — W2 F26: a pin that computes the trio
+    // itself agrees with a component that computes it itself, straight through a re-tint.
+    const tone = severityTone('error')
+    expect(alert.style.backgroundColor).toBe(rgb(tone.background))
+    expect(sides(alert)).toEqual(Array(4).fill(rgb(tone.borderColor)))
+    expect(alert.style.borderRadius).toBe('8px') // radius.md, not the old local 10
+    expect((alert.lastElementChild as HTMLElement).style.color).toBe(rgb(tone.color))
+    expect(alert).toHaveAttribute('aria-live', 'assertive')
   })
 
   it('a mixed PDF + non-PDF selection is also rejected as unsupported (D5: PDF is the only file path)', () => {

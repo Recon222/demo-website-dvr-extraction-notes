@@ -3,43 +3,54 @@ import { formatAddress } from '@/features/demo/engine/logic/address-format'
 import { caseStatusSheetLabel } from '@/features/demo/engine/logic/case-actions'
 import { formatCoordinate, hasCapturedCoordinates } from '@/features/demo/engine/logic/coordinates'
 import { selectLocationMapStatus, type LocationMapStatus } from '@/features/demo/engine/store/selectors'
+import { STATUS_LABEL } from '@/features/demo/ui/screens/map/mapTokens'
+import { STATUS_SEVERITY, neutralTone, severityTone, type SeverityTone } from '@/features/demo/ui/tokens/status'
 
 /** UI-data mappers: shape the store's cases/locations into the display rows the dumb screens
  *  render. Lives in the UI layer (not the engine) so screens stay presentational. */
 
-export interface StatusTheme {
+/**
+ * A resolved status: the severity recipe's four parts plus the word that names it.
+ *
+ * `color` is the `*OnLight` FOREGROUND, not the accent — spending it as a bare dot is the
+ * defect `tokens/status.ts` documents. A dot takes `.accent`.
+ */
+export interface StatusTheme extends SeverityTone {
   label: string
-  color: string
-  bg: string
-  border: string
 }
 
+/**
+ * Phone `CaseStatusBadge.getStatusConfig` (`:140-167`), the CaseStatus half.
+ *
+ * DRAFT displays as **"Active"** — the phone renames it in the badge and defers the enum rename
+ * (`CaseStatusBadge.tsx:142-144`), and `case-modal.tsx:134` performs the same rename. ARCHIVED
+ * is the neutral, which is the ABSENCE of a severity rather than a fifth one.
+ */
 export function caseStatusTheme(status: DemoCase['status']): StatusTheme {
   switch (status) {
     case 'complete':
-      return { label: 'Complete', color: '#10d177', bg: 'rgba(16,209,119,0.12)', border: 'rgba(16,209,119,0.3)' }
+      return { label: 'Complete', ...severityTone('success') }
     case 'archived':
-      return { label: 'Archived', color: '#7a9fc4', bg: 'rgba(122,159,196,0.12)', border: 'rgba(122,159,196,0.3)' }
+      return { label: 'Archived', ...neutralTone() }
     default:
-      return { label: 'Draft', color: '#ffd93d', bg: 'rgba(255,217,61,0.12)', border: 'rgba(255,217,61,0.3)' }
+      return { label: 'Active', ...severityTone('warning') }
   }
 }
 
 /**
  * Truthful per-location status (G3): the same started/working/complete the map derives from
- * per-screen completion. Colors match `MAP_PIN_COLORS` (ui/screens/map/mapTokens.ts) — the
- * phone's map-view status palette — so a location reads identically on the Cases list and the
- * map legend. Parity is pinned by test against mapTokens; don't retheme one without the other.
+ * per-screen completion.
+ *
+ * **These are NO LONGER `MAP_PIN_COLORS`, and that is the whole point of A70.** `PIN_COLORS`
+ * stays theme-invariant because it paints marks ONTO satellite tiles; a badge inside a
+ * theme-aware surface is not on a tile, and routing one through the other is what the phone
+ * measured at 1.26:1 (phone `status-severity.ts:37-52`). The pins now assert the split: the pin
+ * colours are unchanged, and these route through `STATUS_SEVERITY`.
+ *
+ * The LABELS are still shared with the map legend — one vocabulary, two palettes.
  */
 export function locationStatusTheme(status: LocationMapStatus): StatusTheme {
-  switch (status) {
-    case 'complete':
-      return { label: 'Complete', color: '#34C759', bg: 'rgba(52,199,89,0.12)', border: 'rgba(52,199,89,0.3)' }
-    case 'working':
-      return { label: 'Working', color: '#00BFFF', bg: 'rgba(0,191,255,0.12)', border: 'rgba(0,191,255,0.3)' }
-    case 'started':
-      return { label: 'Started', color: '#FF9500', bg: 'rgba(255,149,0,0.12)', border: 'rgba(255,149,0,0.3)' }
-  }
+  return { label: STATUS_LABEL[status], ...severityTone(STATUS_SEVERITY[status]) }
 }
 
 export interface Personnel {

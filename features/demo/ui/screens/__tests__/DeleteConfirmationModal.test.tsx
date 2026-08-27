@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DeleteConfirmationModal, type DeleteTarget } from '@/features/demo/ui/screens/DeleteConfirmationModal'
+import { DangerFill } from '@/features/demo/ui/controls/button-recipe'
+import { palette } from '@/features/demo/ui/tokens/palette'
 
 /** P3.1 / matrix row 15 — the phone's 2-arm delete confirmation (ui-mapping 11). */
 
@@ -75,6 +77,20 @@ describe('DeleteConfirmationModal — case variant (phone "Variation A")', () =>
     expect(list).toHaveStyle({ maxHeight: '150px', overflowY: 'auto' })
   })
 
+  it('fills the confirm button with the DEEP danger red, not the flat error mid-tone (A52/A67)', () => {
+    // The third ADOPTION pin, and the one with a named history: the phone's `SwipeDeleteAction`
+    // suite compared its rendered fill against `DangerFill` ITSELF, so it moved WITH the constant
+    // and stayed 32/32 green through a mutation back to the failing flat pair. This asserts the
+    // rendered value against the DEEP red by name AND asserts it is not `error`, which is the
+    // mutation that pin could not see. Phone `Button.tsx:159-160` + `:234`.
+    renderModal(locationTarget())
+    const confirm = screen.getByTestId('delete-modal-confirm')
+    expect(confirm).toHaveStyle({ background: DangerFill.dark, color: palette.dark.onError })
+    expect(confirm.style.backgroundColor).not.toBe(hexToJsdomRgb(palette.dark.error))
+    // ...and the border matches the fill, so the control reads as one solid block.
+    expect(confirm).toHaveStyle({ borderTopColor: DangerFill.dark, borderBottomColor: DangerFill.dark })
+  })
+
   it('skips the warning lead-in and the list for a case with no locations', () => {
     renderModal(caseTarget([]))
     expect(screen.queryByText('WARNING: This will also delete these locations:')).not.toBeInTheDocument()
@@ -112,4 +128,40 @@ describe('DeleteConfirmationModal — dismissal', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onConfirm).not.toHaveBeenCalled()
   })
+
+  /**
+   * U4.3. This dialog used to read `document.activeElement` in its mount effect — the path
+   * `CentredDialog.tsx` documents as broken, and the reason the three focus blocks could not
+   * be consolidated onto the majority. A row action that disables itself while the confirm is
+   * up (the swipe-delete belt) is non-focusable by the time React runs passive effects, so the
+   * old read captured `<body>` and cancelling dropped a keyboard visitor at document start.
+   *
+   * The shell's capture-phase tracker reads the opener at GESTURE time instead. If this ever
+   * goes green through `document.activeElement` again, focus restore has silently regressed
+   * for exactly the openers that need it most.
+   */
+  it('restores focus to the row action that was pressed, even after it disabled itself', () => {
+    const opener = document.createElement('button')
+    opener.textContent = 'Delete'
+    document.body.appendChild(opener)
+    opener.focus()
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    opener.disabled = true
+    expect(document.activeElement).toBe(document.body)
+
+    const { unmount } = render(
+      <DeleteConfirmationModal target={caseTarget()} onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    opener.disabled = false
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
 })
+
+/** jsdom normalizes hex inline colours to rgb(r, g, b). Same helper as `TerminalLine.test.tsx:116`. */
+function hexToJsdomRgb(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}

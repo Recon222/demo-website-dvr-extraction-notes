@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface CallConfirmSheetProps {
   number: string
@@ -12,7 +13,7 @@ const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
   zIndex: 48,
-  background: 'rgba(4,8,14,0.55)',
+  background: colors.scrim,
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'flex-end',

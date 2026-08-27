@@ -3,11 +3,12 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
-import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
+import { MODAL_LAYER, MODAL_SCRIM_Z } from '@/features/demo/ui/screens/_shared'
 import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
 import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
 import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
+import { palette } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The User Profile pane + its editor (P7.2, matrix rows 85/86).
@@ -80,6 +81,25 @@ describe('the pane — configured', () => {
     expect(screen.getByTestId('user-profile-section-unit')).toHaveTextContent('Unit: Forensic Video Unit')
     expect(screen.getByTestId('user-profile-section-edit-button')).toHaveTextContent('Edit Profile')
     expect(screen.queryByTestId('user-profile-section-empty')).not.toBeInTheDocument()
+  })
+
+  it('paints its edit button with the shared outline recipe, not a hand-rolled accent pair (A66)', () => {
+    // demo §3.5 flags this site explicitly, and it is the ONE A66 site where the phone names a
+    // size: `src/features/settings/user-profile/components/UserProfileSection.tsx:95-102`,
+    // `variant="outline" size="small"`.
+    //
+    // This is the ADOPTION pin. `controls/__tests__/button-recipe.test.tsx` proves the recipe
+    // holds the phone's values; nothing there can fail if the seam is never CALLED, which is the
+    // dead-import failure a seam-only suite is blind to by construction. One real surface reading
+    // it closes that, and this is the only A66 site with a test file to put it in.
+    renderPane(FULL)
+    expect(screen.getByTestId('user-profile-section-edit-button')).toHaveStyle({
+      color: palette.dark.link, // was `#4BA3D4` — 2.81:1 as 16px semibold on the pane's glass
+      borderTopColor: palette.dark.link, // was `#2B8CC1`; the recipe emits four side longhands
+      borderRadius: '10px', // was a hand-rolled 8; A68 makes the corner one value
+      minHeight: '44px', // `touchTarget.min` — the demo had no min-height on any button
+      padding: '8px 16px', // `spacing.sm` / `spacing.md`; was '9px 16px'
+    })
   })
 
   it('drops only the lines that are empty — a name with no badge keeps the rest', () => {
@@ -184,7 +204,7 @@ describe('the editor — what it renders', () => {
   it('has NO Cancel button — the header × is the only cancel path (phone parity)', () => {
     const { dialog } = openEditor(FULL)
     expect(within(dialog).queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Close user profile' })).toBeInTheDocument()
     expect(within(dialog).getByTestId('user-profile-save-button')).toHaveTextContent('Save Profile')
   })
 
@@ -262,7 +282,7 @@ describe('the editor — save and discard', () => {
   it('discards the draft on × — nothing is committed', () => {
     const { onSave, dialog } = openEditor(FULL)
     fireEvent.change(within(dialog).getByLabelText('Full Name'), { target: { value: 'Someone Else' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close user profile' }))
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'User Profile' })).not.toBeInTheDocument()
@@ -273,7 +293,7 @@ describe('the editor — save and discard', () => {
   it('reopens on the STORED values, not the discarded draft', () => {
     const { dialog } = openEditor(FULL)
     fireEvent.change(within(dialog).getByLabelText('Full Name'), { target: { value: 'Someone Else' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close user profile' }))
 
     fireEvent.click(screen.getByTestId('user-profile-section-edit-button'))
     expect(screen.getByLabelText('Full Name')).toHaveValue('K. Vasilyev')
@@ -304,6 +324,23 @@ describe('the editor’s layer (R-29 / FD-2)', () => {
   it('renders on exactly that layer', () => {
     openEditor(FULL)
     expect(screen.getByRole('dialog', { name: 'User Profile' }).style.zIndex).toBe(String(editorZ))
+  })
+
+  it('dims on the layer under itself — the SCRIM carries the same elevation offset (F30)', () => {
+    openEditor(FULL)
+    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
+    // The shell renders scrim then panel as siblings, so this is the editor's OWN scrim rather
+    // than whichever `[data-modal-scrim]` happens to come first in the document.
+    const scrim = dialog.previousElementSibling as HTMLElement
+    expect(scrim).toHaveAttribute('data-modal-scrim')
+    expect(scrim.style.zIndex).toBe(String(MODAL_SCRIM_Z + MODAL_LAYER.overSheet))
+    // W2 review F30: the panel's half of this was pinned and the scrim's was not, so dropping
+    // `+ elevation` from the scrim survived the whole suite. The consequence is not cosmetic —
+    // the dim would paint at 21, UNDER the Settings sheet at 22, leaving that sheet's controls
+    // hit-testable behind a dialog that claims `aria-modal="true"`. Asserted as the ORDERING it
+    // is, on both sides, and read from the surfaces that own the neighbours.
+    expect(Number(scrim.style.zIndex)).toBeGreaterThan(SETTINGS_SHEET_Z)
+    expect(Number(scrim.style.zIndex)).toBeLessThan(Number(dialog.style.zIndex))
   })
 
   it('is the layer the Settings sheet and the pickers actually paint on', () => {

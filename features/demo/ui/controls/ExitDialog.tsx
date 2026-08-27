@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
@@ -78,7 +79,7 @@ export function ExitDialog({ open, unseen, leaveHref, onStay }: ExitDialogProps)
             type="button"
             autoFocus
             onClick={onStay}
-            style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            style={{ flex: 1, ...buttonStyle() }}
           >
             Keep exploring
           </button>

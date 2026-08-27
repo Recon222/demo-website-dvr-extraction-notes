@@ -6272,9 +6272,13 @@ fourteen sites as their closing act. Any site still measuring < 4.5 after U6 mer
 HIGH — observable as `grep -rn "#2B8CC1" features/demo/ui --include=*.tsx` returning a `color:` site
 outside the token modules.
 
+**Annotation (PR #42, W2 r1):** the U2/A66 button half is CLOSED — U2.2 re-pointed the four true outline sites, the three tinted-fill sites and the three `CaseActionsSheet` sites at `colors.link` (measured 7.65 on card). The **U6 adoption clause stays open**; the 14-site list above is unchanged for the non-button sites.
+
 ---
 
-## 90. W0 (PR #39) — the demo's CTA accent pair is DARK-ONLY (`ACCENT_FROM`/`ACCENT_TO`); `PrimaryButtonGradient.light` has no owning package (D2-amended violation)
+## 90. ~~W0 (PR #39) — the demo's CTA accent pair is DARK-ONLY; `PrimaryButtonGradient.light` has no owning package~~ — ✅ RESOLVED — PR #42
+
+**RESOLVED (U2.2, W2):** all three trigger clauses landed — `PrimaryButtonGradient` ships both halves in `controls/button-recipe.ts:69-72` (`b6fe7ee`), contrast rows 12L/13L are live, and the two light gradient anchors are in `check-rn-parity.mjs` (`4b1ffb7`; the ts lane's `gradientTop.light` mutation probe KILLED at W2 r1). Original entry below for history.
 
 **Source:** U0.4 report §7 P-2; U0.5 report §7 P-1; PR #39 type-design lane (disclosed, not
 re-filed); aggregator ruling W0 r1.
@@ -6369,7 +6373,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 94. W1 (PR #40) — `colors.modal` (`#17416e`) has no consumer and no adopting row; the demo's form-modal shells still paint the flat app ground
+## 94. ~~W1 (PR #40) — `colors.modal` (`#17416e`) has no consumer and no adopting row~~ — ✅ RESOLVED — PR #42 (trigger satisfied; refuted at phone source)
+
+**RESOLVED (U4.2 R-2, W2):** the trigger's "or records why the demo's modal stays at ground" arm was satisfied — at phone `dd5551ec`, **ten of ten** page sheets paint `colors.background` behind `GridBackground`, and `Colors.dark.modal` has **zero consumers in the phone repo** (`grep colors\.modal src/` → one `zIndex.modal` hit). The demo's flat modal ground IS parity; the ground now carries a pin (`dbe422b`) and the ruling is written at `_shared.tsx:81-88`. Corroborated on-screen by `_captures/w2/DIFF.md` §5.2. Matrix A5's Delta owes the correction (orchestrator). Original entry below for history.
 
 **Source:** W1 verification seat `_captures/w1/DIFF.md` §4.2; matrix A5 ("add the token, use it nowhere yet"); aggregator W1 r1.
 
@@ -6381,7 +6387,9 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 ---
 
-## 95. W1 (PR #40) — the hand-ported SHADOW values have no drift anchor on either side; only literal shape pins hold them
+## 95. ~~W1 (PR #40) — the hand-ported SHADOW values have no drift anchor on either side~~ — ✅ RESOLVED — PR #42 fix round (F42)
+
+**RESOLVED (W2 F42, `dd680f6`):** the trigger's second option taken — the guard's shadow exclusion now names all three tiers (`card`/`sheet`/`dialog`) with the full reasoning (a composing reader would be "equal by transcription"), names the literal shape pin covering each, and states what would reopen it: a phone-side `Layout.shadow.*` change, or a fourth tier. Original entry below for history.
 
 **Source:** U1.1 report §7 D-3 (`innerShadow`); U1.2/U1.3 report §7 D-3 (`Layout.shadow.card`); `check-rn-parity.mjs:336-344` (the documented exclusion); W1 review r1 F19 (the D2 half is fixed in code; this row is the anchor half).
 
@@ -6390,6 +6398,8 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** the guard's `PARSE-FAILED` degrade exists precisely to avoid anchors that pass by transcription; a real anchor needs either a composed value on the phone side or a small `shadowFor(tier)` reader that composes the five RN props into one CSS string (a real contract). One hand-ported shadow is a different risk from three.
 
 **Trigger:** **U4 landing the second and third shadow tiers** (A45 `shadow.dialog`, A46 `shadow.sheet`) — that package adds the composing reader to the guard or records the gap once for all three. Fires earlier if the phone publishes a `boxShadow` string for any of these in `conventions.md`, or on the first observed `innerShadow` / shadow drift between the repos.
+
+**TRIGGER LAPSED (PR #42, W2 r1) → finding F42** (`docs/code-reviews/ui-parity/w2/VETTED-r1.md`): U4 landed `SHEET_SHADOW` and `DIALOG_SHADOW` with neither the composing anchor nor the recorded ruling. This row closes when F42's fix lands (either the composed per-scheme anchors or the guard's documented three-tier exclusion).
 
 ---
 
@@ -6401,7 +6411,7 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 
 **Why deferred:** building `glassCardDiag` is four lines; adopting it is not — three of the eight are nested ROWS at `radius.md` that a blind spread would flatten against A43, and four of the files are held open by U3.4 (`CasesScreen`, `DashboardScreen`), U5.4 (`GpsCaptureControl`) and U3.3 (`DemoErrorBoundary`, whose row already says "card re-base"). Doing it from a wave-1 package opens five files three later packages own.
 
-**Trigger:** **U3.3's `DemoErrorBoundary` card re-base** — it builds `glassCardDiag` and takes the four true top-level cards (`DemoErrorBoundary`, `CasesScreen:143`, `DashboardScreen:120`, `CameraGpsCapture`), leaving the three nested rows explicitly named as rows. Backstop: **the owner's D1 device-pass checkpoint 1** (`w1/after/01-wizard/06-case-card-expanded.png`) — "cards on the entry screens read flat" is what that pass exists to catch. Orchestrator: add to U3.3's row.
+**Trigger (AMENDED, PR #42, W2 r1):** the original trigger named U3.3, whose plan row was refuted at source (u3.3 R-3/R-6: the phone's `RouteErrorFallback` has no Banner and the card half is glass-tier work in `ui/glass-tokens.ts`, another package's file). New trigger: **the next package that opens `ui/glass-tokens.ts` or `chrome/DemoErrorBoundary.tsx` — U8.1 is the first scheduled** — builds `glassCardDiag` and takes the four true top-level cards (`DemoErrorBoundary`, `CasesScreen:143`, `DashboardScreen:120`, `CameraGpsCapture`), leaving the three nested rows explicitly named as rows. Backstop unchanged: **the owner's D1 device-pass checkpoint 1** (`w1/after/01-wizard/06-case-card-expanded.png`) — "cards on the entry screens read flat" is what that pass exists to catch. Orchestrator: add to U3.3's row.
 
 ---
 
@@ -6426,3 +6436,257 @@ the value first; **U3.2** for the status quartet. Observable violation: a diff t
 **Why deferred:** the seam is a deliberate U0.2/U0.5 decision — the contrast contract composites through the PRODUCTION helper so the helper every recipe uses is exercised by a gate; a private float copy would un-exercise it. Every affected row passes with real margin today.
 
 **Trigger:** **any `palette-contrast.test.ts` row that fails, or lands within 0.35 ΔE / 0.03 ratio of its bound, where the float computation would pass** — or **U2.4** landing the recessed well on the picker surfaces (its row carries the per-stop `recessed`-vs-`sheet` ΔE assertion, the tightest bound in the file). Then either give `flattenOver` an opt-in unrounded mode or restate the bound with the seam's error budget written into it.
+
+**Annotation (PR #42, W2 r1):** the U2.4 arm fired — the recessed rows landed and sit mid-band (3–12 ΔE, real margin; the helper's NaN hardening is W2 finding F40). No bound needed restating. The numeric arm (any row within 0.35 ΔE / 0.03 ratio of its bound) remains the live trigger.
+
+---
+
+## 99. W2 (PR #42) — behavioural pins cannot see scheme-half hard-coding while `scheme === 'dark'`; every seam module built on the two-scheme records shares the hole
+
+**Source:** U1.4 probe P10; U4.1 probe P2; U4.2 probe P2; U4.3 probe P13 (all SURVIVED); u3.3 D-3 (Banner's light render); tests lane W2 r1 (`buttonStyle` reads the module-level `scheme` and takes no parameter, so its light branches are unreachable from any test); aggregator consolidation of five identical proposals, W2 r1.
+
+**What:** while the demo renders `dark`, `GLASS_TIER.dark` / `palette.dark` and their `[scheme]` forms are the same object, so no behavioural pin can distinguish them. The clause-12 source scan is the only mechanism (W1 F18/F23/F24; its current gap is W2 F33). Files on the hole: `glass-tokens.ts`, `header-chrome.ts`, `sheet-chrome.ts`, `_shared.tsx` (`modalHeaderBar`), `CentredDialog.tsx`, `Banner`'s light render, `button-recipe.ts`'s per-scheme branches. The per-scheme CONSTANTS are pinned in both halves throughout; what cannot be observed is the *consumption*.
+
+**Why deferred:** the only honest kill is rendering a light surface, which plan §9 clause 12 already schedules; a source-text assertion beyond the existing scan would be the string-presence anti-pattern.
+
+**Trigger:** **§9 clause 12's scratch-worktree scheme flip at U8 exit** — if any surface does not turn light with the rest, this row is why. Earlier if any package ships a light surface. One row for the class; do not re-propose per file.
+
+---
+
+## 100. W2 (PR #42) — `DvrInfoScreen`'s recording-schedule checkbox pill is still hand-rolled, exempted by name from the adoption scan
+
+**Source:** u2.4 report §9 D-1; matrix A75 / B.5 row 41; phone `app/(form)/dvr-information.tsx:318-329`.
+
+**What:** a 16×16 box inside a 2-up pill where the phone renders two stacked full-width `Checkbox` rows with labels. A LAYOUT port, not a recipe adoption; `choice-controls.test.tsx` `EXEMPT` names it with U6.4b as owner.
+
+**Why deferred:** the file is not in U2.4's Files column; B.5 row 41 assigns it to U6.4b; U3.2 edited the same file this wave.
+
+**Trigger:** **U6.4b.** Close condition (corrected from the proposal): U6.4b adopts the layout **and hand-deletes the `EXEMPT` entry** — the "carries no dead exemptions" test enforces this only once W2 finding F32's fix lands (the proposal's original sentence claimed an enforcement that did not exist).
+
+---
+
+## 101. W2 (PR #42) — the button recipe's ~45 adoptions have no general scan; the residual guard is per-screen render pins
+
+**Source:** integration I-4 (probe U2.2-out SURVIVED, later withdrawn); u2.4 report §4 + §9 D-2 (measured: 179 `<button>` sites vs 61 `buttonStyle(` calls; the only selecting predicate needs a ~118-entry allowlist — a change-detector, not a pin).
+
+**What:** a consumer that reverts to the PRE-port literals (`#2B8CC1` + `#4BA3D4`, both BANNED-exempt as too common) at a screen with no render test is invisible. `TimeOffsetScreen` — the one measured site — now has a render pin.
+
+**Why deferred:** the general scan shape is a change-detector; the real fix is per-screen render pins, owned by the packages that open those screens.
+
+**Trigger:** **U6.4a/U6.4b** (the bulk wizard-screen packages) add a `buttonStyle`-composed render pin per screen they open — or, sooner, the first review finding reporting a button off the recipe.
+
+---
+
+## 102. W2 (PR #42) — the `T.textDim` form-label family (13/500/`#cdd9e6`) vs the phone's 14/500/`colors.text`
+
+**Source:** u2.4 report §9 D-3; phone `Picker.tsx:314-317`, `:102`.
+
+**What:** every demo form label shares one demo-only recipe across `Dropdown`, `DateTimeField`, `RequestedScopeScreen`, `DvrInfoScreen`; `#cdd9e6` is not a palette token. Changing one file's label forks it from its neighbours in the same form.
+
+**Why deferred:** a four-package sweep A73's Delta does not name.
+
+**Trigger:** **U6.4a**, which adopts the field recipe across the wizard screens and opens every one of these files.
+
+---
+
+## 103. W2 (PR #42) — the focus-restore family: five mount-time `document.activeElement` blocks remain, and both shells promise `aria-modal` with no focus handling
+
+**Source:** u4.3 report §10 deferrals 1–4 (consolidated); u4.1 §9 item 4; partner legwork C6; `CentredDialog.tsx:239-262` (the one correct mechanism, private).
+
+**What:** `MediaLibrarySheet.tsx:346-352` (fullscreen), `ExportActionSheet.tsx:124-130`, `PdfPreview.tsx:129` still restore focus with the mount-time read U4.3 removed from the dialogs (the `<body>` regression class — the latter two are opened by self-disabling controls, the likeliest reproducers); `GlassBottomSheet` and `ModalShell` claim `aria-modal="true"` and neither traps nor restores. Two stale citations name `AlertDialog.tsx:55-61` as their source — lines that no longer hold the mechanism.
+
+**Why deferred:** the fix is one hook (`useOpenerFocusReturn(ref)`) extracted from `CentredDialog` — extracting it with zero callers is speculative; the file owners (U4.4-region, U7.2) were live when U4.3 closed. Note u4.3-d2's original "U4.4 opening either file" trigger technically fired in-wave, but the prescribed action depended on the not-yet-existing hook — re-cut, not evaded.
+
+**Trigger:** **the first of:** U5.3 mounting `GlassBottomSheet` for `MapFiltersSheet`, or U7.2 opening `MediaLibrarySheet`. The mover extracts the hook from `CentredDialog.tsx` (tracker + `canTakeFocus` + the mount effect minus the `openDialogs` push/pop), adopts it at its own surface, fixes the stale citations, and the remaining sites follow one line each.
+
+---
+
+## 104. W2 (PR #42) — `ExportActionSheet` still has its own sheet implementation; U4.2 declined the fold, so it needs an explicit package
+
+**Source:** u4.1 §9 proposal 3; u4.2 §9 proposal 4 (the recorded decline); matrix B.4 row 27.
+
+**What:** a bespoke inset sheet (`left/right/bottom: 12`, radius 16, `GLASS.gradientPanel`) with `role="menu"` roving focus, not a `GlassBottomSheet` consumer. The phone deleted its equivalent and rebuilt on the shell (+133/−234). Row 27 also carries U2-family geometry (`minHeight 60 → touchTarget.large`, press alpha).
+
+**Why deferred:** not in any remaining package's row; the fold changes geometry and the keyboard model together.
+
+**Trigger:** **an explicit U4.5, cut by the orchestrator before U8 exit.** §9 clause 7's census ("one sheet ground") is the acceptance criterion; it must not reach U8 exit unfolded.
+
+---
+
+## 105. W2 (PR #42) — `ModalShell` has no leading-icon slot; A60's icon clause is unclosed for the one honest caller
+
+**Source:** u4.2 report §9 proposal 2 / R-4; matrix A60; phone `ModalHeader.tsx:29,62`.
+
+**What:** the profile editor's phone header shows `person-circle-outline` + title; the demo's shows the title. The other seven `ModalShell` callers port page sheets with no glyph and are already correct. A required prop with one liftable value and seven invented ones was rightly not built.
+
+**Why deferred:** one honest caller; `ModalHeader`'s other phone consumers are agency-cloud (out of scope, plan §2).
+
+**Trigger:** **U6.1 or U6.2 opening `settings/UserProfileModal.tsx`** — an optional `icon?: ReactNode` before the title stack plus one SVG. **Hard stop: U8 exit** — A60 is Tier-A and must be COMPLETE or carry a ratified divergence (§9 clause 3).
+
+---
+
+## 106. W2 (PR #42) — `useReducedMotion` returns `false` for the first paint, so every gated animation plays one frame under `prefers-reduced-motion: reduce`
+
+**Source:** u4.2 report §9 proposal 3; `lib/hooks/use-reduced-motion.ts:13-23`.
+
+**What:** the hook corrects from an effect, so all nine page sheets, the three bottom sheets, `ExportModal`'s spinner, `WizardDrawer` and `BootSequence` apply their entrance for one paint. The hook's shape, not any consumer's.
+
+**Why deferred:** the fix (`useSyncExternalStore` with a `getServerSnapshot` of `false`, ~10 lines) touches a `lib/hooks` module shared beyond the demo — outside a UI-parity package's blast radius and not a phone-parity question.
+
+**Trigger:** **any package that opens `lib/hooks/use-reduced-motion.ts`, or U8's closing motion pass.** The four existing reduced-motion test files are the regression net.
+
+---
+
+## 107. W2 (PR #42) — the pickers get the sheet's enter but not its exit; and shell adoption added swipe-dismiss + a 92%→90% cap the pickers' rows never named
+
+**Source:** u4.1 §9 proposal 2 (re-cut); `inputs/PickerSheet.tsx:69-74`; typescript lane W2 r1 out-of-lane (the behaviour deltas).
+
+**What:** `DateField.tsx`, `TimeField.tsx`, `Dropdown.tsx` render `{open && <PickerSheet …>}`, so the 200ms exit never plays (matches master; the phone animates out). Shell adoption also gave the pickers swipe-to-dismiss (default on) and moved the height cap 92%→90% — phone-shell behaviour, disclosed here so it has a written home.
+
+**Why deferred:** the original trigger named U2.4, which opened the files but held no behaviour authority over sheet dismissal (D20) — the trigger named the wrong actor and is re-cut, not evaded. The change is `visible={open}` plus lifting three guards.
+
+**Trigger:** **the next package with behaviour authority over these files** — U6.4a's field-adoption pass or the first U7.x package that opens them; U5.3 is the model consumer (mounts the shell with real `visible` state).
+
+---
+
+## 108. W2 (PR #42) — three empty-state strings still carry em dashes, against the standing campaign copy rule
+
+**Source:** u3.1-u3.4 report §5 D-1; plan §4.3 (no em dashes in user-facing strings).
+
+**What:** `CasesScreen` ("No cases yet — …"), `CamerasScreen`, `ArrivalDepartureScreen`. U3.4 fixed only `ExportCaseCard`'s (it was rewriting that string anyway).
+
+**Why deferred:** §6.1 assigns the user-facing string sweep to U7.3/A93, bounded per file.
+
+**Trigger:** **U7.3's A93 sweep**; if descoped, the next package that opens any of the three files takes its own string.
+
+---
+
+## 109. W2 (PR #42) — the Cases/Dashboard header icon controls are ~24×24 against A49's 44 floor the header's own 44pt row assumes
+
+**Source:** u3.1-u3.4 report §5 D-2; phone `MainHeader.tsx:150-164` (PR #125 gave both controls real 44×44 boxes).
+
+**What:** the demo's New-Case button is a bare 24px SVG with `padding: 0`; `SettingsGearButton` comparable. The demo carries the phone's row floor without the targets it assumes.
+
+**Why deferred:** A49 owns touch targets across the demo and has no single implementing package; growing the boxes changes header balance.
+
+**Trigger:** **A49's implementing package, or any package that changes either control** — cite this row's measurement rather than re-deriving.
+
+---
+
+## 110. W2 (PR #42) — `ImportModal`'s three notice blocks are off-tier and stay off-tier; `:285` is cited by no row at all
+
+**Source:** u3.3 report §8 D-1; D12; matrix line 364.
+
+**What:** `FailuresCard` (a per-file failure LIST — `Banner.message: string` cannot carry it) keeps `borderRadius: 10` + translucent red; the two `result.notice` blocks (`:269`, `:285`) keep the D12-defended FallbackMode amber and must never become Banners. One file, three notice recipes the port does not unify.
+
+**Why deferred:** the amber's guard is explicitly U7.3's ("a test must prove it stays visually distinct from the ported warning family"); `FailuresCard`'s residual belongs to U7.3's ImportModal glass-tier pass.
+
+**Trigger:** **U7.3** (its row opens the file for both jobs). Whatever cites `:266`/`:269` must add the `:285` sibling.
+
+---
+
+## 111. W2 (PR #42) — the `rgba(4,8,14,*)` scrim-family ban cannot land until U8.1; the exemption list is now ruled
+
+**Source:** u4.4 report §9 deferral 2 (re-cut); W2 finding F43's ruling.
+
+**What:** the RETIRED-style ban on `rgba(4,8,14,*)` under `ui/`. Post-F43 the surviving spellings are: `_shared.modalScrim` 0.55 (RULED a demo-only stand-in — phone page sheets are native `pageSheet` presentations with an OS dim, no phone token exists), `ExitDialog` 0.72 (D12-frozen, permanent), `BootSequence.tsx` 0.55 (the SKIP pill's fill, U8.1's file).
+
+**Why deferred:** the ban reddens U8.1's file until that re-base lands, and it needs the final exemption list to be stable.
+
+**Trigger:** **U8.1's `BootSequence` re-base** — the ban ships in the same PR naming exactly two permanent exemptions (`modalScrim`, `ExitDialog`); same discipline as §97.
+
+---
+
+## 112. W2 (PR #42) — the engine's OCR confidence tiers still return hex colours, including `#ff7a45`, a fifth accent hue named nowhere
+
+**Source:** u3.2 report §7 D-1 + D-2 (one row for the pair); `engine/logic/ocr.ts:275-280`.
+
+**What:** `getConfidenceLevel` returns `color: string` on a public engine type with pinned shape; `#ff7a45` belongs to no palette token and no matrix row. The engine purity gain of U3.2 (bands/tones in the engine, paint in the UI) stops at this file.
+
+**Why deferred:** the only consumer is `OcrCaptureScreen` (U7.3's whole file), and `ConfidenceTier` is a §2-protected engine signature.
+
+**Trigger:** **U7.3 opening `OcrCaptureScreen.tsx`** — return an enum, map in the UI, and RULE on the fifth hue (name it or collapse to four bands) rather than leave it unnamed. If U7.3 is descoped, the next package that moves any OCR confidence colour.
+
+---
+
+## 113. W2 (PR #42) — the red-as-text family (~20 sites, six distinct reds) has no owning package; C.3 rule 1 is the campaign's most portable recipe and nothing schedules it
+
+**Source:** u3.2 report §7 D-3; u2.2 §7 D2 residual (`AlertDialog`'s `destructiveTint` label `#ff6b7a` — kept through the U4.3 rewrite with its relational pin); `CoordinateDisplay.tsx:196` (demo-originated; the phone uses a toast); matrix C.3 rule 1 (4.40 dark).
+
+**What:** error text painted in saturated reds across ~20 sites. Fixing piecemeal from whichever package opens a file is how a value ends up half-swept.
+
+**Why deferred:** no row assigns the sweep; several sites need rulings (demo-originated surfaces), not lifts.
+
+**Trigger:** **the package that takes the C.3 rule-1 sweep, or the U8 exit review ruling it out.** U7.3's A93 pass is the last package that opens most of the files.
+
+---
+
+## 114. W2 (PR #42) — `MediaLibrarySheet.tsx:723-724` hand-rolls `ElevatedEdges` byte-identically (rgba spacing aside)
+
+**Source:** u2.2 report §7 D3; matrix A51.
+
+**What:** `previewActionButton` spells the two edge values inline; the seam exists with consumers.
+
+**Why deferred:** re-pointing buys zero visual change and the file is serialised U4.4 → U7.2 (§6.1).
+
+**Trigger:** **U7.2**, which rewrites `MediaLibrarySheet.tsx` whole — import `ElevatedEdges` there.
+
+---
+
+## 115. W2 (PR #42) — `ModalActions.submitBlocked` has no test; the paint was silently dropped once already and restored by audit, not by a red
+
+**Source:** u2.2 report §7 D4.
+
+**What:** the blocked-submit paint in `_shared.tsx` is uncovered; the mechanical adoption pass dropped it and an audit caught it.
+
+**Why deferred:** `ModalActions` is `_shared.tsx` territory that four packages open; the test belongs with the export's owner.
+
+**Trigger:** **U6.1** (which takes the neighbouring `_shared.tsx` exports) — or the next review round that touches `ModalActions`.
+
+---
+
+## 116. W2 (PR #42) — text-input placeholders still render the browser default; `::placeholder` cannot be an inline style and jsdom cannot observe it
+
+**Source:** u2.1 report §8 D-1; phone `TextInput.tsx:121` (`placeholderTextColor={colors.textTertiary}`).
+
+**What:** no placeholder rule exists anywhere in the demo; the phone paints `textTertiary`.
+
+**Why deferred:** the only stylesheet is `demo.css`, assigned to U8.2 alone (§6.1); the value is unpinnable from vitest.
+
+**Trigger:** **U8.2, at the moment it opens `ui/demo.css`** — add the scoped `::placeholder` rule and assert it from the Playwright harness (§6.6), not vitest. The token carries the inherited M2b ceiling; inherit, do not fix.
+
+---
+
+## 117. W2 (PR #42) — `Field`'s textarea keeps `minHeight: 76`; the phone's multiline box is 100 with `paddingTop: 16`
+
+**Source:** u2.1 report §8 D-2; phone `TextInput.tsx:176-180`.
+
+**What:** 24px shorter than the phone's, named by neither the U2.1 row nor A72's Delta.
+
+**Why deferred:** `Field`'s block (`_shared.tsx:198-310`) is U6.1's; two packages on the same lines of the port's hottest file is what §6.1 exists to prevent.
+
+**Trigger:** **U6.1** — take `minHeight: 100` + `paddingTop: 16` with the rest of `Field`'s geometry, or record a measured divergence (`rows={3}` in a 378px frame).
+
+---
+
+## 118. W2 (PR #42) — the input-boundary contrast family: focus ring 2.87 and resting border 1.26/1.44 against the card tier, both phone-verbatim (C.3 rule 4's named case)
+
+**Source:** u2.1 report §8 D-3 + D-4 (one row for the family); matrix C.3 rule 4 (verbatim: "a sole-boundary input border at 1.26 is not [correct]"); W2 finding **F27** adjudicates the sibling case (the selection mark) and cross-references here.
+
+**What:** the focus border (`colors.primary`, phone `TextInput.tsx:73`) measures 3.94 on its own fill and 2.87 against the card's lower stop; the resting border (`colors.border`) 1.44/1.26 against the card stops, with the fill separated from its ground by only ~1.2 (DEF-UI-011). Every value is the phone's, ported under D2/D3; the phone campaign adjudicated its own copies.
+
+**Why deferred:** raising either token forks the palette the whole port is built on and breaks the drift guard's anchors — a palette/owner decision, not an implementer's. Strictly better than master (which had NO focus indicator, an outright 2.4.7 failure).
+
+**Trigger:** **the D1 owner checkpoint where demo and phone are read side by side** (checkpoint-2 list item 4 shows the focus ring), or U0.5's contrast contract gaining a 1.4.11 row for input boundaries — whichever first. If the owner accepts, these become documented D5-family ceilings with a re-measure note; if not, the fix is palette work with this row's measurements attached.
+
+---
+
+## 119. W2 (PR #42 fix round) — enable `noUnusedLocals` once the remaining TS6133s clear (F36's root cause)
+
+**Source:** W2 review r1 F36; integration report I-5 + § fix round 1 (proposal); measured: 15 `TS6133` across 13 files at `addd03f`, 5 fixed by F36, **11 remaining at `250e12f`** (re-measured by the typescript lane, none in F36's five files).
+
+**What:** the repo has no gate for an unused binding — no `noUnusedLocals`, no ESLint in the gate set. The merge-orphaned-import class has now cost a finding twice (I-5, F36), and grep censuses cannot see a binding whose only "reference" is a comment.
+
+**Why deferred:** the flag is repo-wide and one line, but flipping it reds files owned by other seats; the proposal's own "flip at the W2 fix-merge if clean" trigger fired and the answer was NOT clean (11 remain).
+
+**Trigger (re-cut by the aggregator):** each W3+ package clears the `TS6133`s in files it opens (its report says so); **the flag flips at the first wave boundary where `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false --noUnusedLocals` exits 0** — hard stop **U8.4** (the design-sync closing census runs the command and flips it or records why not).

@@ -3,11 +3,13 @@
 import type { CSSProperties } from 'react'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { CaseCheckboxState } from '@/features/demo/engine/logic/export'
+import { CheckboxBox } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
+import { statusBadgeStyle } from '@/features/demo/ui/tokens/status'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -71,22 +73,19 @@ const headerBtn: CSSProperties = {
   color: 'inherit',
 }
 
-/** 20px rounded square — the case-level control, visually distinct from the round row marks. */
-const boxBase: CSSProperties = {
-  flex: '0 0 auto',
-  width: 20,
-  height: 20,
-  borderRadius: 5,
-  borderWidth: 2,
-  borderStyle: 'solid',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 12,
-  fontWeight: 700,
-  lineHeight: '14px',
-  color: '#fff',
-}
+/*
+ * `boxBase` LIVED HERE until U2.4 (A75). It was a 20x20 / radius 5 / 12px-glyph square with
+ * `#2B8CC1` and `#7a9fc4` written into the three consumer branches beside it, and the phone
+ * renders this same control through its shared `Checkbox`
+ * (`ExportCaseCard.tsx:22`, `:159-165`). `ui/controls/choice-controls.tsx`'s `CheckboxBox` is
+ * the canonical recipe: 24x24, radius `sm`, `borderWidth 2`, `colors.primary` fill, an
+ * `onPrimary` mark at 16/700 and — the visible change on this card — an OPAQUE
+ * `colors.background` when unchecked instead of a transparent hole.
+ *
+ * `ariaChecked` below is unchanged and now feeds BOTH the attribute and the paint, so the
+ * `assertNever` that closes it covers the visual state too: a 4th `CaseCheckboxState` can no
+ * longer paint "unchecked" while announcing something else.
+ */
 
 /**
  * `aria-checked` for a tri-state control: `'mixed'` is the web's indeterminate.
@@ -154,20 +153,12 @@ export function ExportCaseCard({
             background: 'transparent',
             border: 'none',
             cursor: checkboxDisabled ? 'default' : 'pointer',
-            opacity: checkboxDisabled ? 0.4 : 1,
+            // 0.5, not the demo's own 0.4 — phone `Checkbox.tsx:106-108`, `:118-120`. D10
+            // keeps the opacity idiom; only the value is the phone's.
+            opacity: checkboxDisabled ? 0.5 : 1,
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              ...boxBase,
-              background: checkbox === 'all' ? '#2B8CC1' : 'transparent',
-              borderColor: checkbox === 'none' ? '#7a9fc4' : '#2B8CC1',
-              color: checkbox === 'all' ? '#fff' : '#2B8CC1',
-            }}
-          >
-            {checkbox === 'all' ? '✓' : checkbox === 'some' ? '–' : null}
-          </span>
+          <CheckboxBox checked={ariaChecked(checkbox)} />
         </button>
         <button
           type="button"
@@ -193,9 +184,9 @@ export function ExportCaseCard({
             )}
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <span style={{ padding: '3px 9px', borderRadius: 20, border: `1px solid ${card.status.border}`, background: card.status.bg }}>
-              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: card.status.color }}>{card.status.label}</span>
-            </span>
+            {/* `medium`, matching phone `export-hub/ExportCaseCard.tsx:182` — the one site that
+                renders the badge at its default size alongside a location count. */}
+            <span style={statusBadgeStyle(card.status)}>{card.status.label}</span>
             <span style={{ fontSize: 11, color: '#7a9fc4' }}>{card.locationCountLabel}</span>
           </span>
           {/* Plain glyphs, exactly as the phone renders them (:173) — not an icon component. */}
@@ -219,9 +210,18 @@ export function ExportCaseCard({
               />
             ))
           ) : (
-            // Verbatim (phone :195) — an empty case is a real state, not an error.
-            <div style={{ fontSize: 13, fontStyle: 'italic', color: '#7a9fc4', textAlign: 'center', padding: '12px 0' }}>
-              No locations — nothing exportable
+            // An empty case is a real state, not an error. In-card empty LINE, so it is NOT
+            // A80's screen-level `EmptyState` — phone
+            // `case-management/export-hub/components/ExportCaseCard.tsx:340-346`:
+            // `fontSize.sm` (14), italic KEPT, `colors.textTertiary`, centred,
+            // `paddingVertical: Layout.spacing.md` (16).
+            //
+            // The copy is now the phone's, verbatim from its `:218`. It read
+            // "No locations — nothing exportable" with an em dash, above a comment claiming
+            // "Verbatim (phone :195)" — the phone spells it with a COMMA, at `:218`, and the
+            // standing campaign copy rule (plan §4.3) bans em dashes in user-facing strings.
+            <div style={{ fontSize: 14, fontStyle: 'italic', color: colors.textTertiary, textAlign: 'center', padding: '16px 0' }}>
+              No locations, nothing exportable
             </div>
           )}
         </div>

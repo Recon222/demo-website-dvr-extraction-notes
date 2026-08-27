@@ -4,9 +4,8 @@ import type { CSSProperties } from 'react'
 
 import { buildGpsConfig, formatSampleProgress, type GpsConfig, type GpsFix } from '@/features/demo/engine/logic/gps'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { switchKeyDown } from '@/features/demo/ui/screens/_shared'
+import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { useGpsCapture, type UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
-import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * "Use Current Location" — the demo's port of the phone's `GpsCaptureControl`
@@ -170,17 +169,14 @@ export function GpsCaptureControl({
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, color: '#7a9fc4' }}>
             {GPS_CONTROL_LABELS.geocodeToggle}
           </span>
-          <div
-            role="switch"
-            aria-checked={geocodeEnabled}
-            aria-label="Reverse-geocode captured coordinates into an address"
-            tabIndex={0}
+          {/* U2.3: was a verbatim re-implementation of `Toggle`'s track (demo §4.7 #4).
+              `hideLabel` because the uppercase caption above already names it on screen. */}
+          <Toggle
+            hideLabel
+            label="Reverse-geocode captured coordinates into an address"
+            on={geocodeEnabled}
             onClick={() => onToggleGeocode(!geocodeEnabled)}
-            onKeyDown={switchKeyDown(() => onToggleGeocode(!geocodeEnabled))}
-            style={{ width: 46, height: 28, borderRadius: 14, background: geocodeEnabled ? '#2B8CC1' : colors.border, position: 'relative', cursor: 'pointer' }}
-          >
-            <div style={{ position: 'absolute', top: 3, [geocodeEnabled ? 'right' : 'left']: 3, width: 22, height: 22, borderRadius: 11, background: geocodeEnabled ? '#fff' : '#7a9fc4' }} />
-          </div>
+          />
         </div>
       </div>
 

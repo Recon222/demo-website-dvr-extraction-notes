@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { DvrInformation, FormFieldId } from '@/features/demo/engine/types'
 import { getRetentionStatus, type RetentionStatus, type RetentionView } from '@/features/demo/engine/logic/retention'
 import { Field, SectionCard, SelectField, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
@@ -17,14 +18,69 @@ import {
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
+import { severityTone, type StatusSeverity } from '@/features/demo/ui/tokens/status'
 
-const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
-const STATUS: Record<RetentionStatus, { label: string; color: string; bg: string; border: string }> = {
-  SAFE: { label: 'Safe', color: '#10d177', bg: 'rgba(16,209,119,0.12)', border: 'rgba(16,209,119,0.3)' },
-  WARNING: { label: 'Warning', color: '#ffd93d', bg: 'rgba(255,217,61,0.12)', border: 'rgba(255,217,61,0.3)' },
-  CRITICAL: { label: 'Critical', ...danger },
-  OVERWRITTEN: { label: 'Overwritten', ...danger },
+/**
+ * `RetentionStatus` -> severity, the phone's `RETENTION_SEVERITY`
+ * (`src/lib/utils/retention-calculation.ts:34-38`).
+ *
+ * `OVERWRITTEN` is `error` and NOT a neutral: on the phone it had been the neutral fallback
+ * since the screen was written, so the one TERMINAL state — the footage is already gone — was
+ * the only one of the four painted as if it carried no severity, while the strictly-less-bad
+ * `CRITICAL` got full red. The demo already mapped both to its `danger` triple, so this is a
+ * re-point rather than a re-ruling. `CRITICAL` and `OVERWRITTEN` deliberately share the red
+ * pair (owner ruling): both mean "the evidence is at risk", and their labels say which.
+ */
+const RETENTION_SEVERITY = {
+  SAFE: 'success',
+  WARNING: 'warning',
+  CRITICAL: 'error',
+  OVERWRITTEN: 'error',
+} as const satisfies Record<RetentionStatus, StatusSeverity>
+
+const RETENTION_LABEL: Record<RetentionStatus, string> = {
+  SAFE: 'Safe',
+  WARNING: 'Warning',
+  CRITICAL: 'Critical',
+  OVERWRITTEN: 'Overwritten',
 }
+
+/** Phone `dvr-information.tsx:438` — `withAlpha(statusDetails.accent, 0.15)`. */
+const RETENTION_TINT_ALPHA = 0.15
+
+/**
+ * The retention pill is NOT A69's `statusBadgeStyle`, and that is the phone's own split, not an
+ * oversight here: `dvr-information.tsx:547-556` gives this badge `borderRadius.sm` (4) and a
+ * **15% tint of the saturated severity** as its fill, where `CaseStatusBadge` takes
+ * `borderRadius.lg` (12) and the OPAQUE `*Light` tone. Only the foreground rule is shared —
+ * `*OnLight`, never the accent, which is what put the evidence-overwrite warning at 1.95:1
+ * (WARNING) and 2.25:1 (SAFE) in light mode (`dvr-information.tsx:160-165`).
+ *
+ * Was: `#ff7a85` / `#10d177` / `#ffd93d` text on a 12-14% tint of its own hue — the accent AS
+ * text, which §C.3 rule 1 bans.
+ */
+function retentionBadge(status: RetentionStatus): CSSProperties {
+  const tone = severityTone(RETENTION_SEVERITY[status])
+  return {
+    color: tone.color,
+    background: withAlpha(tone.borderColor, RETENTION_TINT_ALPHA),
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: tone.borderColor,
+    borderRadius: radius.sm,
+    padding: `${spacing.xs}px ${spacing.sm}px`,
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    // The phone renders the raw `RetentionStatus` enum member, which is already upper case
+    // (`dvr-information.tsx:177`, `label: status`). The demo carries Title Case labels and
+    // uppercases them in CSS — same glyphs on screen. NOT the `textTransform` A69 deleted from
+    // the case pills: there the phone genuinely stopped shouting.
+    textTransform: 'uppercase',
+  }
+}
+
 
 export interface DvrInfoScreenProps {
   dvr: DvrInformation
@@ -188,7 +244,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#cdd9e6', marginBottom: 8 }}>Retention status by scope</div>
                   {retention.scopes.map((s) => {
-                    const st = STATUS[getRetentionStatus(s.daysUntilOverwritten)]
+                    const status = getRetentionStatus(s.daysUntilOverwritten)
                     return (
                       // A33/A55 (U1.3) - the nested tier; was `rgba(13,27,42,0.6)` on the
                       // card hairline. Lifted `borderRadius: 10` kept (demo §0.4).
@@ -199,7 +255,7 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                             {s.daysUntilOverwritten === 0 ? 'Already overwritten' : `${s.daysUntilOverwritten} days until overwritten · ${s.overwrittenDate}`}
                           </div>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>{st.label}</span>
+                        <span style={retentionBadge(status)}>{RETENTION_LABEL[status]}</span>
                       </div>
                     )
                   })}

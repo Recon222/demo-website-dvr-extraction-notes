@@ -1,7 +1,7 @@
 'use client'
 
 import type { Ref } from 'react'
-import { GLASS, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 
 /**
  * The web equivalent of the phone's swipe-to-reveal row action (`SwipeDeleteAction`, revealed
@@ -34,10 +34,6 @@ export interface RowAction {
   /** 'danger' takes the phone's error fill; anything else reads as a secondary button. */
   tone?: 'danger'
 }
-
-/** Phone `colors.error` (dark theme, `src/constants/Colors.ts:98`) — the same red
- *  `GLASS.borderError` is built from. */
-const ERROR = '#ff4757'
 
 export function RowActionsTrigger({
   label,
@@ -95,17 +91,14 @@ export function RowActionsTray({ actions, label }: { actions: readonly RowAction
           onClick={a.onSelect}
           style={{
             flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             gap: 6,
-            padding: '9px 12px',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            ...(a.tone === 'danger'
-              ? { borderRadius: 10, border: 'none', background: ERROR, color: '#fff' }
-              : { ...glassBtnSecondary, border: GLASS.borderBtn }),
+            // A52/A67 and A65. The danger arm leaves the flat `error` fill for `DangerFill`
+            // (3.34 -> 6.39 under white); the other arm was `{ ...glassBtnSecondary, border:
+            // GLASS.borderBtn }` — one of the two live instances §4.3 names of a `border`
+            // SHORTHAND written after a spread. It is gone rather than rewritten: the override
+            // only re-asserted the border the fragment already carried, and the recipe emits
+            // four side longhands so there is no shorthand left to lose to.
+            ...buttonStyle({ variant: a.tone === 'danger' ? 'danger' : 'secondary', size: 'small' }),
           }}
         >
           {a.tone === 'danger' && (

@@ -21,6 +21,7 @@ import {
   type ImportErrorDetails,
   type ImportPartialData,
 } from '@/features/demo/ui/import/run-import'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { buildGeocodeQuery, forwardGeocode } from '@/features/demo/ui/import/geocode'
 import { blankLocationForm } from '@/features/demo/engine/content/seed'
 import { PhoneFrame } from '@/features/demo/ui/PhoneFrame'
@@ -149,7 +150,7 @@ import { generateCaseNotesDoc } from '@/features/demo/engine/logic/pdf/case-note
 import { generateTimeOffsetDoc } from '@/features/demo/engine/logic/pdf/time-offset'
 import { assembleNotesString, buildNotesSectionMeta } from '@/features/demo/engine/logic/notes'
 import { buildRetentionView, type RetentionView } from '@/features/demo/engine/logic/retention'
-import { glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+
 import { importLogBus, type ImportLogEmitter } from '@/features/demo/engine/logic/import-log'
 import { clock } from '@/features/demo/ui/inputs/clock'
 import { saveTextFile } from '@/features/demo/ui/inputs/download-file'
@@ -348,7 +349,6 @@ const dropGateErrors = (prev: readonly string[]): readonly string[] => (prev.len
 // Monotonic ids for UI-created scope/visit rows.
 let uiSeq = 0
 
-
 /** `window.sessionStorage`, or null when unavailable (SSR, storage disabled) — never throws. */
 function sessionStorageOrNull(): StorageLike | null {
   try {
@@ -396,7 +396,7 @@ const placeholder = (view: string) => (
 const noLocationNotice = (onGoToCases: () => void) => (
   <div style={{ minHeight: 786, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', color: '#5d7a9a', fontSize: 14, lineHeight: 1.6 }}>
     <div style={{ marginBottom: 18 }}>No location open — the wizard documents one recovery location at a time.</div>
-    <button type="button" onClick={onGoToCases} style={{ padding: '12px 22px', ...glassBtnSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+    <button type="button" onClick={onGoToCases} style={{ ...buttonStyle({ variant: 'secondary' }) }}>
       Open one from Cases
     </button>
   </div>

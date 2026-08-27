@@ -4,10 +4,10 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { UserProfile } from '@/features/demo/engine/types'
 import { computeCareerDuration, trimProfile } from '@/features/demo/engine/logic/user-profile'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { Field, MODAL_LAYER, ModalShell } from '@/features/demo/ui/screens/_shared'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { clock } from '@/features/demo/ui/inputs/clock'
-import { glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
 
 /**
  * The User Profile editor — the demo's port of the phone's `UserProfileModal`
@@ -95,6 +95,8 @@ export function UserProfileModal({ profile, onSave, onClose }: UserProfileModalP
   return (
     <ModalShell
       title="User Profile"
+      // Verbatim, phone `UserProfileModal.tsx:141`.
+      closeAccessibilityLabel="Close user profile"
       onClose={onClose}
       // Opens over the Settings sheet — the demo's one modal-over-modal (see `MODAL_LAYER`).
       elevation={MODAL_LAYER.overSheet}
@@ -103,7 +105,7 @@ export function UserProfileModal({ profile, onSave, onClose }: UserProfileModalP
           type="button"
           data-testid="user-profile-save-button"
           onClick={() => onSave(trimProfile(draft))}
-          style={{ width: '100%', textAlign: 'center', padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+          style={{ width: '100%', ...buttonStyle() }}
         >
           Save Profile
         </button>

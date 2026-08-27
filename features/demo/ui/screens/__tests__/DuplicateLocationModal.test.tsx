@@ -104,7 +104,7 @@ describe('DuplicateLocationModal', () => {
     render(<DuplicateLocationModal {...p} />)
 
     fireEvent.click(btn('Cancel'))
-    fireEvent.click(btn('Close'))
+    fireEvent.click(btn('Close duplicate location'))
     expect(p.onClose).toHaveBeenCalledTimes(2)
   })
 

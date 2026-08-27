@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import {
+  DangerFill,
+  PrimaryButtonGradient,
+  SAMPLE_TINT,
+} from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
+import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
+import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -217,6 +224,13 @@ const LIGHT_GROUNDS: string[][] = [
   ...stops(GLASS_TIER.light.recessed, [GLASS_TIER.light.sheet.gradient[0]]),
 ]
 
+/**
+ * Both halves, in report order — the rows that assert per scheme iterate this rather than
+ * spelling `['light', 'dark'] as const` at each site (phone `:283`, `:382`).
+ */
+const SCHEMES = ['light', 'dark'] as const
+type GlassScheme = (typeof SCHEMES)[number]
+
 /** Every ground `fg` can land on in that scheme, worst first. Phone `:161-165`. */
 function worst(fg: string, grounds: string[][]): number {
   return Math.min(...grounds.map((g) => contrast(fg, g)))
@@ -342,6 +356,34 @@ describe('palette contrast contract', () => {
   })
 
   // Row 10, DEF-UI-018 — the port's single highest-value contrast row (A66/A27). Phone `:209-224`.
+  // W2 F27 — WCAG 1.4.11, the row this contract did not have.
+  //
+  // PINNED AT THE CONTROL'S OWN CONSTANT, not at a palette token, and that is the whole point:
+  // `UNCHECKED_MARK_EDGE` is the single value the checkbox's ring and the radio's ring + row
+  // border resolve through, so reverting the control to `colors.border` reds THIS line. Row 8
+  // below bounds `palette.dark.textTertiary` on the same grounds and would stay green through
+  // that revert, because its subject is the token and not the control.
+  //
+  // What it caught: the port shipped `colors.border` here, phone-verbatim
+  // (`Checkbox.tsx:61`, `RadioGroup.tsx:68`/`:97`), and it measures **1.33:1** against a 3.0
+  // floor — a PASS -> FAIL regression from master's `#7a9fc4`. An unchecked box has no fill, no
+  // glyph and (on the export card's "Select all") no label: the ring IS the control. Matrix
+  // C.3 rule 4 governs — "a sole-boundary input border at 1.26 is not [decorative]" — and D5's
+  // amendment is the house precedent for declining a phone value that fails the contract.
+  it('clears the 1.4.11 non-text floor for the unchecked selection mark (W2 F27)', () => {
+    expect(
+      offenders(
+        [
+          ['dark unchecked mark edge', UNCHECKED_MARK_EDGE, DARK_GROUNDS],
+          // The light half is the flip day's; the constant itself resolves through `scheme`
+          // (ledger §99's class), so the light value is named directly here.
+          ['light unchecked mark edge', palette.light.textTertiary, LIGHT_GROUNDS],
+        ],
+        AA_NON_TEXT,
+      ),
+    ).toEqual([])
+  })
+
   it('clears AA for `link`, the accent-as-text token, on every glass tier (row 10)', () => {
     // DEF-UI-018, the port's single highest-value contrast row (A66/A27). Phone `:209-224`:
     // outline and ghost buttons label and outline with this token across 39 call sites, and
@@ -358,36 +400,63 @@ describe('palette contrast contract', () => {
     ).toEqual([])
   })
 
-  it('clears AA for the primary CTA label on BOTH stops of its gradient (rows 12-13, dark)', () => {
-    // Phone `:225-244`, dark half. On a blue gradient the two candidate label colours move in
-    // OPPOSITE directions, so there is no stop where both clear 4.5:1 and the pair cannot be
-    // tuned independently. The demo's old dark recipe `['#35A0D6','#2580AD']` measured 3.34
-    // with `textInverse` and 2.94 with `onPrimary`; U0.3 re-based it to 5.80 / 8.32.
-    //
-    // Read off GLASS, never retyped: these two stops ARE the demo's `PrimaryButtonGradient.dark`
-    // (`glass-tokens.ts:34-35`, kept as module consts because the drift guard's anchors 7/8
-    // read them by name). Measured on the FLAT stop, not on a ground stack — a CTA fill is
-    // opaque.
+  // DEMO-SIDE ADDITION (U2.2). Two grounds the port CREATES that no phone row covers, each a
+  // button label on a fill the contract's tier stacks do not contain.
+  //
+  // The plan's U2.2 Tests column also asks for an outline BORDER floor at >= 3.0 "against every
+  // dark tier". That is strictly implied by row 10 above — same token, same grounds, a 4.5 bound
+  // — so writing it out would assert nothing row 10 does not already. The genuinely unmeasured
+  // grounds are these.
+  it('clears AA for the two button labels the port puts on grounds the contract has never seen', () => {
     expect(
-      (
+      offenders(
         [
-          ['dark upper', palette.dark.onPrimary, GLASS.accentFrom],
-          ['dark lower', palette.dark.onPrimary, GLASS.accentTo],
-        ] as [string, string, string][]
-      )
-        .map(([name, fg, bg]) => ({ name, ratio: round(contrast(fg, [bg])) }))
-        .filter(({ ratio }) => ratio < AA_TEXT),
+          // (a) `secondary`: `colors.text` on the FLAT `backgroundSecondary` fill (phone `:143`,
+          //     `:216`). Row 4 measures `text` on the glass TIERS; an opaque flat fill is not one,
+          //     and this is the label the port lifts from `textSecondary`.
+          ['dark secondary label', palette.dark.text, [[palette.dark.backgroundSecondary]]],
+          ['light secondary label', palette.light.text, [[palette.light.backgroundSecondary]]],
+          // (b) `outline` under the demo-only 14% `primary` wash (D12) that the three
+          //     sample/fallback buttons paint over whatever tier hosts them. `link` clears 6.86 on
+          //     bare glass (row 10); what this answers is whether a wash the phone has never seen
+          //     eats that headroom. Dark only — the wash has no light surface in the demo.
+          [
+            'dark outline label under SAMPLE_TINT',
+            palette.dark.link,
+            DARK_GROUNDS.map((ground) => [SAMPLE_TINT, ...ground]),
+          ],
+        ],
+        AA_TEXT,
+      ),
     ).toEqual([])
   })
 
-  // Rows 12-13, light half. `PrimaryButtonGradient.light = ['#2563eb', '#1d3584']`
-  // (phone `Colors.ts:471-474`) has NO demo counterpart and NO owning package: U0.3 re-based
-  // the dark pair only, and the plan never assigns the light pair to anyone. Typing the two
-  // hexes in here instead would be the exact anti-pattern the deep-import rule forbids. See
-  // the U0.5 report's deferral proposal.
-  it.todo(
-    'rows 12-13 (UNOWNED, proposed U2.2): clears AA for the LIGHT primary CTA label on both stops — needs PrimaryButtonGradient.light',
-  )
+  it('clears AA for the primary CTA label on both stops of its gradient, both schemes (rows 12-13)', () => {
+    // Phone `:225-244`. On a blue gradient the two candidate label colours move in OPPOSITE
+    // directions, so there is no stop where both clear 4.5:1 and the pair cannot be tuned
+    // independently. The demo's old dark recipe `['#35A0D6','#2580AD']` measured 3.34 with
+    // `textInverse` and 2.94 with `onPrimary`; U0.3 re-based it to 5.80 / 8.32.
+    //
+    // Read off `PrimaryButtonGradient` (`SEAM(U2.2)`), never retyped — and off THAT record rather
+    // than off `GLASS.accentFrom`/`accentTo`, because the record is what `buttonStyle` actually
+    // paints and it is the only place the LIGHT pair exists at all. Its dark half still points at
+    // those two consts, which the drift guard reads by literal. Measured on the FLAT stop, not on
+    // a ground stack — a CTA fill is opaque.
+    //
+    // The light half was `it.todo` ("UNOWNED, proposed U2.2") until this package created
+    // `PrimaryButtonGradient.light` (phone `Colors.ts:472`). Typing its two hexes in here instead
+    // would have been the exact anti-pattern the deep-import rule forbids.
+    expect(
+      (['light', 'dark'] as const)
+        .flatMap((scheme) =>
+          PrimaryButtonGradient[scheme].map((stop, index) => ({
+            name: `${scheme} stop ${index}`,
+            ratio: round(contrast(palette[scheme].onPrimary, [stop])),
+          })),
+        )
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
 
   it('clears AA for `onPrimary` and `onError` on the deep fills (rows 16, 18, both schemes)', () => {
     // Phone `:245-276`, the ratio half. DEF-UI-001: NEITHER token clears on the flat mid-tone
@@ -411,6 +480,56 @@ describe('palette contrast contract', () => {
     ).toEqual([])
   })
 
+  /**
+   * A19's binding rider, in THE BADGE's own terms (matrix A19, §C.3 rule 2, D5's amendment).
+   *
+   * Rows 16/18 above pin `onPrimary` / `onError` AT THE CONSTANTS. This row pins the pairing
+   * the status recipe actually MANUFACTURES: `severityTone()` is what every badge, chip and
+   * note in the demo spends, so a re-point of any `*Light` / `*OnLight` token — or a wiring
+   * swap inside the recipe, fill against foreground — reds here rather than in a screen test
+   * that reads the value back out of the same object it just put in.
+   *
+   * It is also the plan's U3.1 "ADD: the four `*OnLight`-on-`*Light` pairs at >= 4.5", which
+   * U3.1 did not land (its report §2.2 lists rows 22-25 and 30 only). Measured: dark
+   * info 5.94 / warning 5.40 / success 5.93 / error 5.79.
+   *
+   * **4.5 and not 3.0**, because a badge renders a WORD: §C.3 rule 2's carve-out is "non-text
+   * marks", and that same reading is why D5's amendment refuses `primary #2B8CC1` (3.73) under
+   * the map's filter-count NUMERAL and takes `primaryDark #1F6B99` (5.80) instead.
+   *
+   * The four severity fills are OPAQUE, so they are measured flat — one ground, no stack; a
+   * ground stack under an opaque fill would be measuring layers that cannot show through. The
+   * neutral is the exception, and that is why it is a second arm: its fill is a 15% tint, so it
+   * is composited over every ground a badge can land on and taken at the worst.
+   */
+  it('clears AA for every text-on-fill pairing the status recipe can produce (A19s rider)', () => {
+    for (const s of SCHEMES) {
+      expect(
+        offenders(
+          SEVERITIES.map((severity) => {
+            const tone = severityTone(severity, s)
+            return [`${s} ${severity} badge`, tone.color, [[tone.background]]] as [string, string, string[][]]
+          }),
+          AA_TEXT,
+        ),
+      ).toEqual([])
+
+      const neutral = neutralTone(s)
+      expect(
+        offenders(
+          [
+            [
+              `${s} neutral badge`,
+              neutral.color,
+              (s === 'dark' ? DARK_GROUNDS : LIGHT_GROUNDS).map((ground) => [neutral.background, ...ground]),
+            ],
+          ],
+          AA_TEXT,
+        ),
+      ).toEqual([])
+    }
+  })
+
   // Row 21, phone `:265-274`. The ratios above are only true of the SHIPPED UI if the shared
   // danger recipe actually points at those two tokens, and nothing asserts that link. The
   // phone's `SwipeDeleteAction.test.tsx` compared the rendered value against `DangerFill`
@@ -418,9 +537,16 @@ describe('palette contrast contract', () => {
   // to the flat failing pair left that suite 32/32 green. PIN THE RATIO AT THE CONSTANT —
   // `expect(DangerFill.light).toBe(palette.light.errorDark)` and the dark mirror — or the
   // tautology just moves up one level.
-  it.todo(
-    'row 21 (U2.2): maps DangerFill to errorLight (dark) / errorDark (light), at the constant — needs DangerFill',
-  )
+  it('maps the danger fill to the deep red in both schemes, AT the constant (row 21)', () => {
+    // The link that makes row 18 a statement about the shipped UI rather than about two palette
+    // entries nothing paints together.
+    expect(DangerFill.dark).toBe(palette.dark.errorLight)
+    expect(DangerFill.light).toBe(palette.light.errorDark)
+    // ...and NOT the flat mid-tone a future "resync" would reach for, which is the mutation the
+    // phone's consumer-side pin could not see: `error` measures 3.34 dark / 3.76 light.
+    expect(DangerFill.dark).not.toBe(palette.dark.error)
+    expect(DangerFill.light).not.toBe(palette.light.error)
+  })
 
   // Rows 22-25. Phone `:277-304`, over a per-scheme `barGrounds(scheme)` = both `card` stops
   // plus both `sheet` stops. Needs `warningAccent` (`#ffc62b` dark / `#b45309` light, phone
@@ -430,9 +556,40 @@ describe('palette contrast contract', () => {
   // stops) is now writable. The ONLY remaining missing input is `warningAccent`, so this row
   // is U3.1's alone from here — the U0.5 docblock above listed it among U1.1's un-todos, which
   // its own title refutes.
-  it.todo(
-    'rows 22-25 (U3.1): clears the 1.4.11 non-text floor for the four status accents, both themes — needs warningAccent',
-  )
+  it('clears the 1.4.11 non-text floor for the four status accents, both themes (rows 22-25)', () => {
+    // DEF-UI-017's acceptance bar, verbatim from phone `:277-304`: every severity at or above
+    // 3:1 against both `card` gradient stops AND both `sheet` stops, in BOTH themes. The dark
+    // `working` cell is the one the row recorded failing at 2.87 before the re-base, with no
+    // light mode involved.
+    //
+    // A NARROWER GROUND STACK THAN `DARK_GROUNDS`, and that is the phone's contract, not a
+    // weakening: `barGrounds` omits `nestedCard` and `recessed`. These four are read as MARKS
+    // on a status bar, a badge rail and a map sheet — surfaces that sit on `card` and `sheet` —
+    // and widening the stack here would silently re-scope a ported row into a new one.
+    const barGrounds = (s: GlassScheme): string[][] =>
+      s === 'dark'
+        ? [...stops(GLASS_TIER.dark.card, DARK_BG), ...stops(GLASS_TIER.dark.sheet, DARK_BG)]
+        : [...stops(GLASS_TIER.light.card), ...stops(GLASS_TIER.light.sheet)]
+
+    // The four tokens are named, never re-typed — `warningAccent` is U3.1's whole reason for
+    // existing and `palette.ts` carries `warningDark` at the same DARK hex. Reading the
+    // constant is what makes a re-point of either one visible here; a literal `'#ffc62b'`
+    // would stay green through exactly the edit this row exists to catch.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        offenders(
+          [
+            [`${s} started`, c.warningAccent, barGrounds(s)],
+            [`${s} working`, c.infoDark, barGrounds(s)],
+            [`${s} complete`, c.successDark, barGrounds(s)],
+            [`${s} incident`, c.error, barGrounds(s)],
+          ],
+          AA_NON_TEXT,
+        ),
+      ).toEqual([])
+    }
+  })
 
   // Row 31. Phone `:305-342`. Two channels, because only one is available in each theme: light
   // separates on the FILL, dark cannot (dark `textTertiary` sits exactly on its 3.79 floor on
@@ -512,9 +669,20 @@ describe('palette contrast contract', () => {
   // by collapsing to one colour passes the number and fails the user. `warningOnLight` clears
   // easily and is `#f0f4f8` in dark, so reassigning `started` to it would make three of the
   // four the same near-white. Needs `warningAccent` (U3.1).
-  it.todo(
-    'row 30 (U3.1): keeps the four status accents four distinguishable hues — needs warningAccent',
-  )
+  it('keeps the four status accents four distinguishable hues (row 30)', () => {
+    // Phone `:377-388`. Half the acceptance bar is a NUMBER and half is this: a palette that
+    // clears 3:1 by collapsing to one colour passes rows 22-25 and fails the user. The trap is
+    // concrete — `warningOnLight` clears easily and is `#f0f4f8` in dark, so reassigning
+    // `started` to it would make three of the four the same near-white and rows 22-25 would
+    // not notice.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        new Set([c.warningAccent, c.infoDark, c.successDark, c.error]).size,
+        `${s}: the four status accents collapsed`,
+      ).toBe(4)
+    }
+  })
 })
 
 describe('scrim opacity', () => {
@@ -522,14 +690,29 @@ describe('scrim opacity', () => {
   // behind an open sheet instead of dimming it; 0.32 matches the common dim across the
   // platforms surveyed. Light has always been 0.5 and reads correctly.
   //
-  // `colors.scrim` does not exist in the demo yet — matrix A22, U4.4's row ("the scrim
-  // family"). The demo currently carries THREE competing darknesses (`T.scrim`
-  // `rgba(4,8,14,0.55)` plus a 0.66 and a 0.72), which is what U4.4 collapses. When it lands,
-  // the pin is `alphaOf(palette.dark.scrim) === 0.32` and `alphaOf(palette.light.scrim) === 0.5`
-  // with `alphaOf = (rgba: string) => Number(rgba.match(/([\d.]+)\s*\)$/)![1])`.
-  it.todo(
-    'row 34 (U4.4): dims the app behind a sheet without blacking it out, in both themes — needs colors.scrim',
-  )
+  // U4.4 landed `colors.scrim`. The three competing darknesses it collapsed were
+  // `rgba(4,8,14,0.55)` (8 sites), `rgba(4,8,14,0.66)` (3) and `rgba(4,8,14,0.72)` (1, and
+  // FROZEN by D12 — `ExitDialog` sits outside the phone frame).
+  const alphaOf = (rgba: string) => Number(rgba.match(/([\d.]+)\s*\)$/)![1])
+
+  it('row 34: dims the app behind a sheet without blacking it out, in both themes', () => {
+    expect(alphaOf(palette.dark.scrim)).toBe(0.32)
+    expect(alphaOf(palette.light.scrim)).toBe(0.5)
+  })
+
+  it('row 34b: keeps scrim and overlay APART in dark, and together in light', () => {
+    // Phone `Colors.ts:222-226`: *"NOT the same value as `overlay` any more (light still is):
+    // 0.9 blacked the app out behind an open sheet instead of dimming it, so the dark half
+    // moved to 0.32 while `overlay` stayed put. Deliberate — do NOT 'resync' the two."*
+    // The dark half is the whole finding, so it is asserted as a DIFFERENCE rather than as two
+    // values: a re-sync to 0.9 is the exact edit this row exists to catch, and it would pass a
+    // pair of value pins written independently.
+    expect(palette.dark.scrim).not.toBe(palette.dark.overlay)
+    expect(alphaOf(palette.dark.overlay)).toBe(0.9)
+    // …and light genuinely IS the same value, so pinning "they differ" unconditionally would
+    // be wrong rather than merely stricter.
+    expect(palette.light.scrim).toBe(palette.light.overlay)
+  })
 
   // Rows 36-37, phone `:409-429`. The alpha pin above is necessary and NOT sufficient, and this
   // pair is why: the phone's 0.9 -> 0.32 move shipped green because nothing re-checked the
@@ -542,18 +725,48 @@ describe('scrim opacity', () => {
   // 4.5:1 and not the 3:1 of 1.4.11: a 24px glyph read as a symbol, and the chip is the
   // fullscreen viewer's only exit. Measured over a WHITE and a BLACK frame — exterior daylight
   // CCTV stills make pure white the real worst case, not a pessimistic one.
-  it.todo(
-    'rows 36-37 (U4.4): keeps the fullscreen media close glyph legible over the brightest still — needs MEDIA_CLOSE_CHIP',
-  )
+  it('rows 36-37: keeps the fullscreen media close glyph legible over the brightest still', () => {
+    // Measured over a WHITE and a BLACK frame — exterior daylight CCTV stills make pure white
+    // the real worst case, not a pessimistic one. `MEDIA_CLOSE_CHIP` is imported from the
+    // module that PAINTS it, so a retune fails here rather than being restated as a literal
+    // that no longer describes the UI.
+    expect(
+      [
+        ['close glyph over a white frame', '#ffffff'],
+        ['close glyph over a black frame', '#000000'],
+      ]
+        .map(([label, frame]) => [label, round(contrast(palette.dark.text, [MEDIA_CLOSE_CHIP, frame]))] as const)
+        .filter(([, ratio]) => ratio < 4.5),
+    ).toEqual([])
+  })
 
-  // Rows 38-40, phone `:430-464`. DEF-UI-005: both preview modals lay their loading plate over
-  // the viewer's own chrome, so `PDF_VIEWER_CHROME` is the real ground, not the app background.
-  // The spinner is the only cue the preview is still working, and the LABEL can pass while it
-  // does not — which is exactly what happened at 0.32 (label 8.59, spinner 2.54). Row 40 is the
-  // value pin `PDF_LOADING_SCRIM === 'rgba(0, 40, 83, 0.9)'`, which is what stops a future
-  // "resync" from silently pointing it back at `scrim`.
+  it('rows 36-37b: and the chip is NOT the backdrop token', () => {
+    // The whole reason it carries its own constant. At `colors.scrim`'s 0.32 the chip
+    // composites to a pale grey over a bright still and the glyph drops under any floor —
+    // which is the PR #127 `3893169e` regression this pin exists to stop coming back.
+    expect(MEDIA_CLOSE_CHIP).not.toBe(palette.dark.scrim)
+    expect(round(contrast(palette.dark.text, [palette.dark.scrim, '#ffffff']))).toBeLessThan(4.5)
+  })
+
+  // Rows 38-40, phone `:430-464`. STILL TODO after U4.4, and the reason is a refuted premise
+  // rather than unfinished work: matrix A90 says the demo's analog is *"`PdfPreview`'s loading
+  // state"*, and there is no such state. `ui/chrome/PdfPreview.tsx` (176 lines) holds exactly
+  // one `useState` — `printNotice`, for a blocked print dialog — no spinner, no `onLoad`, no
+  // loading plate; it renders the document straight into an `iframe srcDoc`. So there is no
+  // surface for `PDF_LOADING_SCRIM` to ground and no spinner whose ratio could be measured.
+  //
+  // DEF-UI-005 is "the loading MESSAGE is invisible". The demo shows no message, so it does not
+  // have the defect, and creating a loading overlay to satisfy a contrast row would be building
+  // UI to make a test pass. `PDF_VIEWER_CHROME` is deliberately not created either: the phone's
+  // `#525659` is the colour Chrome's and WebKit's own PDF viewers paint, matched so a `WebView`
+  // does not flash — the demo paints its own surround (`PdfPreview.tsx:151`, `#3a3f47`) and has
+  // no native viewer to match, so porting the constant would cargo-cult a platform fact into a
+  // place where no platform paints it.
+  //
+  // U4.4's report proposes this as a deferral. Un-todo it the day `PdfPreview` grows a real
+  // loading affordance, and not before.
   it.todo(
-    'rows 38-40 (U4.4): keeps the PDF preview spinner (>= 3.0) and label (>= 4.5) legible on the viewer chrome, and pins PDF_LOADING_SCRIM — needs PDF_LOADING_SCRIM + PDF_VIEWER_CHROME',
+    'rows 38-40 (deferred, see U4.4 report): PdfPreview has no loading state to ground PDF_LOADING_SCRIM',
   )
 })
 

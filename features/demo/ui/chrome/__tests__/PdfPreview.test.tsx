@@ -309,4 +309,33 @@ describe('PdfPreview', () => {
       expect(document.activeElement).not.toBe(opener)
     })
   })
+
+  it('drops the entrance translate under reduced motion (W2/F35)', () => {
+    // `screenIn` translates 8px (`demo.css:92-95`); `demo.css` has no reduced-motion block and
+    // the marketing one cannot reach inline styles, so the gate has to be here. This was the
+    // demo's LAST ungated `screenIn` entrance after U4.2/U4.3 swept the four shells — it fell
+    // in the gap between two packages that each pointed at the other.
+    const real = window.matchMedia
+    window.matchMedia = ((q: string) => ({
+      matches: q.includes('prefers-reduced-motion'),
+      media: q,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+    try {
+      render(<PdfPreview title="Case Notes" html="<p>x</p>" onClose={vi.fn()} />)
+      expect(screen.getByRole('dialog').style.animation).toBe('')
+    } finally {
+      window.matchMedia = real
+    }
+  })
+
+  it('keeps it when motion is allowed', () => {
+    render(<PdfPreview title="Case Notes" html="<p>x</p>" onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').style.animation).toBe('screenIn 0.3s ease')
+  })
 })

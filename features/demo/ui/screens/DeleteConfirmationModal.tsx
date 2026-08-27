@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useId, useRef } from 'react'
+import { useId } from 'react'
 import type { CSSProperties } from 'react'
-import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The phone's `DeleteConfirmationModal` (ui-mapping 11 § DeleteConfirmationModal;
@@ -13,21 +14,24 @@ import { colors } from '@/features/demo/ui/tokens/palette'
  * than one of this feature's bottom-sheet `ModalShell` modals, exactly as on the phone
  * (`<Modal transparent animationType="fade">` + a `Card`, NOT a pageSheet).
  *
- * WHY NOT `AlertDialog` (the demo's existing blocking-dialog primitive, P2.4). It was
- * considered first, per the plan's "build once, consume" note on the blocking-dialog
- * primitive, and it does not fit this surface's shape:
+ * SEAM(U4.3): the panel, the scrim, the z pair, Escape and the focus hand-back are
+ * `CentredDialog`'s. This file keeps only what is this dialog's own.
+ *
+ * WHY NOT `AlertDialog` (the demo's blocking-ALERT primitive, P2.4). It was considered first
+ * and it does not fit this surface's shape — which is why U4.3 extracted the shared SHELL from
+ * both rather than folding one into the other:
  *  - `AlertDialog`'s body is ONE string. This dialog's content is structured — a 48px trash
  *    glyph, `Label:` / `value` detail rows, a warning-coloured lead-in, and an italic
  *    error-coloured warning line — and the case arm additionally needs a SCROLLABLE
  *    `maxHeight: 150` bullet list of the locations that will go with the case. Flattened into
  *    a `\n`-joined string, a case with twenty locations pushes its own buttons off the screen;
  *    that cap is a real requirement, not decoration.
- *  - The scrims disagree, deliberately. `AlertDialog` mirrors an OS alert, whose scrim does
- *    NOT dismiss (a decision the phone forces). This modal's scrim DOES dismiss
- *    (`handleOverlayPress`, ui-mapping 11 § Conditional Behavior) — cancelling a delete by
- *    tapping away is the safe direction, and it is what the phone does.
- * What IS shared is the proven overlay mechanics: portal to the phone screen, Escape to
- * dismiss, focus moved onto the dialog on mount and handed back to the opener on unmount.
+ *  - The scrims disagree, deliberately, and the shell PRESERVES that difference rather than
+ *    unifying it. `AlertDialog` mirrors an OS alert, whose scrim does NOT dismiss (a decision
+ *    the phone forces), so it passes `dismissOnScrim={false}`. This modal's scrim DOES
+ *    dismiss — the phone's `handleOverlayPress` (`DeleteConfirmationModal.tsx:43-47`,
+ *    ui-mapping 11 § Conditional Behavior) — because cancelling a delete by tapping away is
+ *    the safe direction. So it passes `dismissOnScrim`.
  *
  * NOT PORTED — `isDeleting`. On the phone, delete is an async SQLite + filesystem operation,
  * so the component carries a pending flag (disabled buttons, spinner, backdrop no-op) and
@@ -66,60 +70,24 @@ const detailValue: CSSProperties = { fontSize: 14.5, color: '#f0f4f8', marginTop
 const ERROR = '#ff4757'
 const WARNING = '#ffd93d'
 
+/** Scrim z; the panel paints on 61. D14 — this package does not renumber. */
+const DELETE_MODAL_Z = 60
+
 export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteConfirmationModalProps) {
   const uid = useId()
   const titleId = `${uid}-title`
-  const dialogRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
-
-  useEffect(() => {
-    const opener = document.activeElement
-    dialogRef.current?.focus()
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    }
-  }, [])
-
   const isCase = target.type === 'case'
-  const content = (
-    <>
-      {/* Dismissive, unlike AlertDialog's inert scrim — the phone's handleOverlayPress. */}
-      <div
-        data-testid="delete-modal-overlay"
-        onClick={onCancel}
-        style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(4,8,14,0.66)', pointerEvents: 'auto' }}
-      />
-      <div
-        ref={dialogRef}
-        data-testid="delete-modal-content"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        style={{
-          position: 'absolute',
-          left: 24,
-          right: 24,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 61,
-          borderRadius: 16,
-          border: GLASS.borderSoft,
-          background: GLASS.gradientPanel,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
-          padding: '20px 20px 16px',
-          outline: 'none',
-          pointerEvents: 'auto',
-          animation: 'screenIn 0.2s ease',
-        }}
-      >
+
+  return (
+    <CentredDialog
+      z={DELETE_MODAL_Z}
+      labelledBy={titleId}
+      onDismiss={onCancel}
+      dismissOnScrim
+      dismissOnEscape
+      testId="delete-modal-content"
+      scrimTestId="delete-modal-overlay"
+    >
         {/* Variation B (location) opens with the trash glyph; Variation A (case) has none. */}
         {!isCase && (
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -187,12 +155,23 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Phone `src/features/case-management/components/DeleteConfirmationModal.tsx:76-98`,
+            testIDs included: cancel is `variant="secondary"`, confirm is `variant="danger"`,
+            both default size. A67/A52 — the fill leaves the flat `error` red (3.34:1 under
+            white) for `DangerFill.dark`, which is `errorLight` (6.39:1), and the label leaves
+            `#fff` for `colors.onError`. The hexes are deliberately NOT written out here:
+            `glass-tokens.test.ts`'s banned-literal scan reads SOURCE TEXT and does not know a
+            comment from a style value — it caught this docblock on the first run.
+            `ERROR` above KEEPS its other two consumers untouched: the 48px
+            icon at `:126` and the italic warning line at `:183` are not buttons, and
+            re-pointing the const wholesale would recolour both. */}
+        {/* Phone `DeleteConfirmationModal.tsx:315`: `gap: Layout.spacing.md` (W2 F41). */}
+        <div style={{ display: 'flex', gap: spacing.md }}>
           <button
             type="button"
             data-testid="delete-modal-cancel"
             onClick={onCancel}
-            style={{ flex: 1, padding: 12, fontSize: 14.5, fontWeight: 600, cursor: 'pointer', ...glassBtnSecondary }}
+            style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}
           >
             Cancel
           </button>
@@ -200,13 +179,11 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
             type="button"
             data-testid="delete-modal-confirm"
             onClick={onConfirm}
-            style={{ flex: 1, padding: 12, fontSize: 14.5, fontWeight: 600, cursor: 'pointer', borderRadius: 10, border: 'none', background: ERROR, color: '#fff' }}
+            style={{ flex: 1, ...buttonStyle({ variant: 'danger' }) }}
           >
             {isCase ? 'Delete Case' : 'Delete'}
           </button>
         </div>
-      </div>
-    </>
+    </CentredDialog>
   )
-  return <PhoneOverlayPortal>{content}</PhoneOverlayPortal>
 }

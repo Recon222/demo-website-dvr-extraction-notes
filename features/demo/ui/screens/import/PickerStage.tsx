@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, ReactNode, Ref } from 'react'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 
 /**
  * Import picker — step 1 of the phone's ImportPickerModal, ported for P1.2 (matrix row 71).
@@ -279,7 +281,7 @@ export function PickerStage(props: PickerStageProps) {
             <button
               type="button"
               onClick={() => setPendingFiles(null)}
-              style={{ flex: 1, padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, ...buttonStyle({ variant: 'secondary' }) }}
             >
               {PICKER_COPY.cancel}
             </button>
@@ -290,7 +292,7 @@ export function PickerStage(props: PickerStageProps) {
                 setPendingFiles(null)
                 void startPdfImport(files)
               }}
-              style={{ flex: 1, padding: 13, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, ...buttonStyle() }}
             >
               {PICKER_COPY.largeBatchContinue}
             </button>
@@ -313,15 +315,12 @@ export function PickerStage(props: PickerStageProps) {
         ref={fileInputRef}
       />
 
-      {error && (
-        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px' }}>
-          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff4757" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v5M12 16h.01" />
-          </svg>
-          <div style={{ fontSize: 13, color: '#ff8a93', lineHeight: 1.45, textAlign: 'left' }}>{error}</div>
-        </div>
-      )}
+      {/* A71/U3.3. The phone routes this exact banner through `<Banner severity="error">` at
+          `ImportPickerModal.tsx:718` and `:790`, testID and all; PR #117 measured the win as
+          light 3.08 -> 6.80, dark 1.92 -> 5.79. The local recipe it replaces was the family
+          Banner exists to absorb: a translucent `rgba(255,71,87,0.08)` fill with the saturated
+          accent family as its text, which is unmeasurable by construction. */}
+      {error && <Banner severity="error" message={error} testId="import-picker-error" />}
 
       <ActionCard
         icon={
@@ -374,7 +373,7 @@ export function PickerStage(props: PickerStageProps) {
       <button
         type="button"
         onClick={props.onCancel}
-        style={{ width: '100%', padding: 13, ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+        style={{ width: '100%', ...buttonStyle({ variant: 'secondary' }) }}
       >
         {PICKER_COPY.cancel}
       </button>

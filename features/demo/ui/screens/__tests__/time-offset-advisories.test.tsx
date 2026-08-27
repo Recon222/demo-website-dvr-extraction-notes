@@ -4,6 +4,14 @@ import { TimeOffsetScreen, type TimeOffsetScreenProps } from '@/features/demo/ui
 import { DemoExperience } from '@/features/demo/ui/DemoExperience'
 import { createDemoStore } from '@/features/demo/engine/store/create-store'
 import { clock } from '@/features/demo/ui/inputs/clock'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+
+/** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
+function jsdomColor(value: string): string {
+  const probe = document.createElement('div')
+  probe.style.color = value
+  return probe.style.color
+}
 
 const base: TimeOffsetScreenProps = {
   dvrDateTime: '2026-06-01 12:05:30',
@@ -132,7 +140,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     // AlertDialog's scrim is inert by design (a native alert is answered by choosing a
     // button) — clicking it must NOT let a visitor skip the decision the phone forces.
     fireEvent.click(screen.getByText('Calculate'))
-    fireEvent.click(document.querySelector('[data-alert-scrim]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-dialog-scrim]') as HTMLElement)
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
 
     expect(onCalculate).not.toHaveBeenCalled()
@@ -246,5 +254,47 @@ describe('DemoExperience — DST advisory wiring', () => {
 
     fireEvent.click(screen.getByText('Calculate'))
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Recalculate Time Offset?')
+  })
+})
+
+/**
+ * W2 integration finding I-4, closed where it was measured.
+ *
+ * The integrator's probe U2.2-out reverted `TimeOffsetScreen`'s outline button to the exact
+ * literal U2.2 deleted (`border: '1px solid #2B8CC1'`, `color: '#4BA3D4'`) and the whole suite
+ * stayed green — 754 passed. Two reasons, both still true: the banned-literal scan deliberately
+ * exempts those two hexes as too common (`glass-tokens.test.ts:166-168`), and this file, the
+ * only one that mounts this screen, carried zero style assertions.
+ *
+ * This is the second half. It is a RENDER pin, not a source scan, because the observable is
+ * what the button paints — and the mutation it must catch is precisely "stop calling
+ * `buttonStyle`", which any re-inlined literal fails.
+ *
+ * See the U2.4 report for why the GENERAL `buttonStyle` adoption scan was declined: 179
+ * `<button>` elements under `ui/` against 61 `buttonStyle(` call sites, and the predicate the
+ * integrator proposed (`border` + `background: 'transparent'` on a `<button>`) selects 8 sites
+ * of which NONE is an outline CTA.
+ */
+describe('the outline buttons still come from the shared recipe (I-4)', () => {
+  it('paints `link`, not the pre-port accent pair, on both outline buttons', () => {
+    render(<TimeOffsetScreen {...base} />)
+    const outline = buttonStyle({ variant: 'outline' })
+    for (const name of ['Use Current Time', 'Capture from DVR']) {
+      const el = screen.getByRole('button', { name })
+      expect(el.style.color, name).toBe(jsdomColor(String(outline.color)))
+      expect(el.style.borderTopColor, name).toBe(jsdomColor(String(outline.borderTopColor)))
+      // The literal the probe reverted to. Named explicitly so a reviewer can see the pin is
+      // about THIS regression and not about the token happening to match.
+      expect(el.style.color, name).not.toBe(jsdomColor('#4BA3D4'))
+      expect(el.style.borderTopColor, name).not.toBe(jsdomColor('#2B8CC1'))
+    }
+  })
+
+  it('keeps the recipe geometry the six hand-rolled outline sites used to re-derive', () => {
+    render(<TimeOffsetScreen {...base} />)
+    const outline = buttonStyle({ variant: 'outline' })
+    const el = screen.getByRole('button', { name: 'Use Current Time' })
+    expect(el.style.minHeight).toBe(`${outline.minHeight}px`)
+    expect(el.style.fontSize).toBe(`${outline.fontSize}px`)
   })
 })

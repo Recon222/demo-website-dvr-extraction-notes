@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { GLASS, glassCard, glassCardNested, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the P0.5 glass-token extraction (matrix G6).
 //
@@ -129,12 +129,54 @@ const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\/|\/\
  * scheme-INDEPENDENT reference that must keep compiling after the flip. A regex cannot parse a
  * type position; `typeof` is the one marker that reliably identifies it here.
  */
-const SCHEME_HALF: readonly RegExp[] = [
-  // member access, dot or bracket
-  /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
-  // destructure: `const { dark } = X`, `const { dark: tier } = X`
-  /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
-]
+const SCHEME_HALF = {
+  /** `X.dark` / `X['dark']` — run against ARM-MASKED source (see `maskOwnHalfArms`). */
+  memberAccess: /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/,
+  /**
+   * `const { dark } = X` / `const { dark: tier } = X`, over one line or five.
+   *
+   * Runs against the RAW source — never a masked or filtered copy (review r2 F33). `[^}]`
+   * matches newlines, so this form is multi-line-capable BY CONSTRUCTION; what broke it was
+   * pre-processing that deleted a binding line before it ever ran. Giving the two forms
+   * DIFFERENT INPUTS is what resolves the record-arm / destructure-rename ambiguity td flagged:
+   * `dark: tier,` inside a destructure and `dark: palette.dark.x,` inside a record literal are
+   * textually identical, and no single pre-processed input can serve both readings.
+   */
+  destructure: /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/,
+} as const
+
+/**
+ * A record ARM may name its OWN half and nothing else.
+ *
+ * `{ light: palette.light.errorDark, dark: palette.dark.errorLight } as const` indexed by
+ * `[scheme]` is the shape clause 12 WANTS, and naming both halves is the only way to write one —
+ * `DangerFill` (`controls/button-recipe.ts:99-102`) must, because the `*Light`/`*Dark` names
+ * INVERT between schemes. So arms need an exemption.
+ *
+ * They got a whole-LINE drop, which exempted the one mistake a two-half record actually makes:
+ * `light: palette.dark.errorDark`, a cross-half read wearing an arm's clothes (review r2 F33,
+ * two lanes, both SURVIVED). This masks the arm's key and its OWN-half reads, and leaves the
+ * rest of the line standing — so the wrong half still reds while the right one stays silent.
+ *
+ * Line-anchored, and therefore blind to an arm whose value wraps onto the next line
+ * (`light:` then `  palette.light.x`). That spelling raises a FALSE RED, which is loud and
+ * fixable, never a silent miss; measured zero occurrences under `ui/`.
+ */
+const OWN_HALF_READ = {
+  // LITERAL regexes, not `new RegExp` built from a template. Measured while writing this: one
+  // lost backslash turns the pattern into `(.s*|[s*['"])light`, which masks nothing, and the
+  // only symptom is an exemption that silently stops exempting. A mask is the one place a
+  // regex failing OPEN is invisible, so it does not get to depend on escaping.
+  light: /(\.\s*|\[\s*['"])light\b/g,
+  dark: /(\.\s*|\[\s*['"])dark\b/g,
+} as const
+
+const maskOwnHalfArms = (src: string): string =>
+  src.replace(
+    /^([ \t]*)(light|dark)([ \t]*:.*)$/gm,
+    (_m, indent: string, half: 'light' | 'dark', rest: string) =>
+      indent + rest.replace(OWN_HALF_READ[half], '$1OWN_HALF'),
+  )
 
 /**
  * The exact literals the tokens replaced (closing parens kept so 0.5 ≠ 0.55 etc.).
@@ -176,12 +218,10 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // straight over every one of them because the alphas differ. Banning the stop itself is what
   // stops U1.3/U1.4/U2.4/U4.1 pasting the NEW values back in the same way.
   // Measured before landing: all twelve have ZERO occurrences under `ui/`, so this costs no sweep.
-  // KNOWN LIMIT, not this package's to fix: the scan below is WHITESPACE-sensitive, so these
-  // twelve catch `rgba(23,65,110,0.7)` and miss `rgba(23, 65, 110, 0.7)` — which is the spelling
-  // `Colors.ts` uses and therefore the one a paste out of the phone arrives in. W0's review
-  // raised it as a HIGH against `:132-134` with a SURVIVED probe; the fix is one `replace(/\s+/g,'')`
-  // on both sides of the comparison and it belongs to that round, not here. Until it lands these
-  // entries bite only on the unspaced form.
+  // The whitespace limit this block used to record is CLOSED, and the note is corrected here
+  // rather than left to mislead a later package (U2.4): `norm()` above strips whitespace on
+  // BOTH sides of the comparison since review r1 F3, so these twelve catch the spaced
+  // `rgba(23, 65, 110, 0.7)` a paste out of `Colors.ts` arrives in as well as the unspaced form.
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
@@ -228,6 +268,21 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // landing or drag a sweep into another package's file. U8.1 can add it for free.
   ['nestedCard highlight edge', 'rgba(184,212,240,0.2)'],
   ['nestedCard inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.15)'],
+  // --- the recessed tier's other two parts (U2.4): reach for `glassWell` ------------------
+  // The condition the U1.1 block above names, met: A39/A59 wire `recessed.border`,
+  // `recessed.highlightTop` and `recessed.innerShadow` into `glassWell`, which is what makes
+  // them re-inlinable CSS for the first time. All three measured ZERO live occurrences under
+  // `ui/` before landing, in BOTH spacings.
+  //
+  // `border` and `highlightTop` are banned BARE, unlike the card tier's, because neither is a
+  // generic value a future site could reach for innocently: `rgba(0,14,30,0.75)` and
+  // `rgba(0,12,26,0.55)` are near-black navies that exist nowhere else in the palette. The
+  // inner shadow follows the card/nested precedent and is banned COMPOSED — bare
+  // `rgba(0,0,0,0.45)` is an ordinary 45% drop shadow and banning it would misfile the next
+  // one as tier re-drift.
+  ['recessed well border', 'rgba(0,14,30,0.75)'],
+  ['recessed well lip', 'rgba(0,12,26,0.55)'],
+  ['recessed well inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.45)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
@@ -246,6 +301,15 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['errorDark', '#ee2f44'],
   ['successDark', '#0faa5e'],
   ['warningDark', '#ffc62b'],
+  // U3.1's closing act (the docblock above names it). Only the two hexes the status family
+  // CREATED are added: `infoLight` is `#2e5f97`, already banned two lines up as
+  // `borderLight / disabled`, and `warningAccent` is `#ffc62b`, already banned as
+  // `warningDark` — a second entry for either would report one file twice. The four dark
+  // `*OnLight` are `#f0f4f8` (= `text`), which is live in 50 files and deliberately unbanned
+  // for the reason the docblock gives. Measured before landing: both have ZERO occurrences
+  // under `ui/` outside the token modules, so this costs no sweep.
+  ['successLight', '#0f6b42'],
+  ['warningLight', '#7d5f10'],
   ['link', '#b8d4f0'],
   ['linkHover', '#d0e4f7'],
   ['disabledText', '#6b7f95'],
@@ -274,8 +338,20 @@ describe('glass tokens (P0.5 / G6)', () => {
     // (review r2 F24 — `tokens/palette.ts` holds the one-site switch itself).
     const offenders = sourceFiles(UI_ROOT, new Set())
       .filter((full) => {
+        // TWO FORMS, TWO INPUTS (review r2 F33). The arm exemption is a MASK applied to the
+        // member-access pass only; the destructure pass reads the source untouched. The previous
+        // shape ran both over one whole-line-filtered copy and re-opened two forms at once — a
+        // cross-half read inside an arm, and the multi-line destructure W1/F23 had closed.
+        //
+        // A record built from arms is inert until something READS a half, so masking the arms
+        // costs no coverage: `X.dark` anywhere else is still a member access and still an
+        // offender. Found at merge (W1 -> U2): F24 emptied the skip set on a tree where no
+        // production module declared both halves; U2.2 added the first one that does.
         const src = stripComments(readFileSync(full, 'utf8'))
-        return SCHEME_HALF.some((form) => form.test(src))
+        return (
+          SCHEME_HALF.destructure.test(src) ||
+          SCHEME_HALF.memberAccess.test(maskOwnHalfArms(src))
+        )
       })
       .map((full) => relative(UI_ROOT, full).split(sep).join('/'))
     expect(offenders).toEqual([])
@@ -366,18 +442,12 @@ describe('glass tokens (P0.5 / G6)', () => {
       background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
     })
-    expect(glassBtnPrimary).toEqual({
-      borderRadius: 10,
-      border: 'none',
-      background: 'linear-gradient(180deg,#1F6B99,#17527A)',
-      color: '#fff',
-    })
-    expect(glassBtnSecondary).toEqual({
-      borderRadius: 10,
-      border: '1px solid #2e5f97',
-      background: '#0e3965',
-      color: '#99badd',
-    })
+    // `glassBtnPrimary` / `glassBtnSecondary` were pinned here until U2.2 deleted them
+    // (A64/A65/A68). Their replacement is pinned as a whole recipe in
+    // `ui/controls/__tests__/button-recipe.test.tsx`, which asserts far more than these four
+    // keys ever could — the two that mattered here were both WRONG against the phone anyway:
+    // the secondary border read `borderLight` where `Button.tsx:144` reads `colors.border`, and
+    // its label read `textSecondary` where `:216` reads `colors.text`.
   })
 
   it('keeps the four legacy composites DERIVED from GLASS_TIER (U1.1)', async () => {

@@ -6,6 +6,7 @@ import type { UserProfile } from '@/features/demo/engine/types'
 import { hasProfileName, hasProfileText } from '@/features/demo/engine/logic/user-profile'
 import { assertNever } from '@/features/demo/engine/logic/assert-never'
 import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PaneStubNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { UserProfileModal } from '@/features/demo/ui/screens/settings/UserProfileModal'
 
@@ -71,16 +72,20 @@ export interface UserProfilePaneProps {
 const line: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#f0f4f8', marginBottom: 6 }
 const emptyLine: CSSProperties = { fontSize: 14, lineHeight: 1.5, color: '#99badd' }
 
+/**
+ * Phone `src/features/settings/user-profile/components/UserProfileSection.tsx:95-102`:
+ * `variant="outline"` `size="small"` — the one A66 site where the phone names a size explicitly
+ * (40 of its 64 explicit `size=` props are `small`).
+ *
+ * The lifted `borderRadius: 8` goes to the recipe's `control` (10): A68 makes the corner one
+ * value across all five variants, and 8 here was never the demo's own geometry, it was a
+ * hand-rolled miss. `alignSelf: 'flex-start'` keeps the button from stretching now that the
+ * recipe brings `display: 'flex'` with it.
+ */
 const editButton: CSSProperties = {
   marginTop: 12,
-  padding: '9px 16px',
-  borderRadius: 8,
-  border: '1px solid #2B8CC1',
-  background: 'transparent',
-  color: '#4BA3D4',
-  fontSize: 13.5,
-  fontWeight: 600,
-  cursor: 'pointer',
+  alignSelf: 'flex-start',
+  ...buttonStyle({ variant: 'outline', size: 'small' }),
 }
 
 /**

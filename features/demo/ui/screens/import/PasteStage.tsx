@@ -1,7 +1,8 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { GLASS, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS } from '@/features/demo/ui/glass-tokens'
 
 /**
  * Paste-text step — step 2 of the phone's ImportPickerModal, ported for P1.2 (matrix row 72).
@@ -79,12 +80,7 @@ export function PasteStage({ text, onTextChange, onRun }: PasteStageProps) {
         disabled={blank}
         style={{
           width: '100%',
-          padding: 13,
-          ...glassBtnPrimary,
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: blank ? 'default' : 'pointer',
-          opacity: blank ? 0.55 : 1,
+          ...buttonStyle({ disabled: blank }),
         }}
       >
         {PASTE_COPY.submit}

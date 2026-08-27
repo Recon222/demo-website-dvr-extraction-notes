@@ -2,7 +2,9 @@
 
 import type { FormFieldId, ScopeEntry } from '@/features/demo/engine/types'
 import { AddRowButton, DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
-import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
+import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
+import { glassCard } from '@/features/demo/ui/glass-tokens'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 export interface RequestedScopeScreenProps {
   scopes: ScopeEntry[]
@@ -16,17 +18,17 @@ export interface RequestedScopeScreenProps {
   onMenu(): void
 }
 
-function TimeTypeButton({ label, active, onClick }: { label: string; active: boolean; onClick(): void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 8, border: active ? 'none' : GLASS.borderBtn, background: active ? '#2B8CC1' : 'transparent', color: active ? '#fff' : '#99badd', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-    >
-      {label}
-    </button>
-  )
-}
+/*
+ * A74 — `TimeTypeButton` is GONE. The phone renders this exact choice through the shared
+ * `RadioGroup` (`app/(form)/requested-scope.tsx:140-149`, a 2-up `direction="row"` group whose
+ * options are `Real Time` / `DVR Time`), and the demo's two segmented pills were a hand-rolled
+ * copy with no `role="radio"` at all: a solid `#2B8CC1` fill with a white label when active,
+ * an accent-as-text `#99badd` when not.
+ *
+ * D20's carve-out covers the composition change — presentational composition, in a package
+ * whose row names this file. What it buys beyond the palette: the pair now announces itself as
+ * one radio group instead of two unrelated buttons.
+ */
 
 /** Requested time ranges (real- or DVR-time) + cameras — the input the time-offset math acts on. */
 export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFieldVisible, onNext, onBack, onMenu }: RequestedScopeScreenProps) {
@@ -50,10 +52,10 @@ export function RequestedScopeScreen({ scopes, onChange, onAdd, onRemove, isFiel
             <DateTimeField label="End Date / Time" value={sc.endDateTime} onChange={(v) => onChange(i, { endDateTime: v })} />
             {showTimeType && (
               <>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Time Entry Type</div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                  <TimeTypeButton label="Real Time" active={sc.isActualTime} onClick={() => onChange(i, { isActualTime: true })} />
-                  <TimeTypeButton label="DVR Time" active={!sc.isActualTime} onClick={() => onChange(i, { isActualTime: false })} />
+                <div id={`scope-${sc.id}-time-type`} style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>Time Entry Type</div>
+                <div role="radiogroup" aria-labelledby={`scope-${sc.id}-time-type`} style={{ display: 'flex', gap: spacing.sm, marginBottom: 14 }}>
+                  <RadioOption label="Real Time" selected={sc.isActualTime} onSelect={() => onChange(i, { isActualTime: true })} />
+                  <RadioOption label="DVR Time" selected={!sc.isActualTime} onSelect={() => onChange(i, { isActualTime: false })} />
                 </div>
               </>
             )}

@@ -50,6 +50,13 @@ type Anchor = { key: string; scheme: string; label: string; rn: string; web: str
 //   U0.4  the readers are repointed at the definitions (`tokens/palette.ts`,
 //         `tokens/scale.ts`, `Colors.ts`'s `PrimaryButtonGradient`), and BOTH lists tighten
 //         to empty. They stay empty: from here on, a non-empty list is a finding.
+//   U2.2  +2 rows: `PrimaryButtonGradient`'s LIGHT stops. They were unanchorable until U2.2
+//         gave the demo a light CTA pair (`ui/controls/button-recipe.ts`) — anchoring a token
+//         with no web side is what §6.6 gate 1 forbids, and the guard's own comment named the
+//         package that would add them. Closes deferral §90's second clause. The two DARK rows
+//         still read `glass-tokens.ts`'s `ACCENT_FROM`/`ACCENT_TO`, not the record: `readConst`
+//         matches literals, and the record points AT those consts, so reading it for dark would
+//         only prove the reference resolves.
 //   U1.1  +48 rows: the six glass tiers x four readable parts x both halves. Before them the
 //         guard read no tier at all, and `ui/__tests__/glass-tokens.test.ts` pins the demo's
 //         glass values TO THEMSELVES — so a phone-side re-tint of any tier was invisible to
@@ -199,12 +206,12 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
     // Cardinality is derived from the two MEMBERSHIP pins, which are UNGATED — see the
     // `local invariants` describe (W0/F11 moved the palette one there; F16's tier ones went
     // with it at the merge, for the same reason). This covers only what membership cannot:
-    // deletion of the three anchors that are NOT keys of either list (both CTA gradient stops
-    // + the touch floor).
+    // deletion of the FIVE anchors that are NOT keys of either list: U2.2 anchored the LIGHT
+    // CTA pair as its closing act, so all four gradient stops + the touch floor.
     expect(
       anchors.length,
-      'every palette key AND every tier key in both halves, + 2 gradient stops + touchFloor',
-    ).toBe(PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 3)
+      'every palette key AND every tier key in both halves, + 4 gradient stops + touchFloor',
+    ).toBe(PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5)
   })
 
   it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
