@@ -205,7 +205,16 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     // probe proved that false: reintroducing the split (error branch declares `borderColor`,
     // the other declares `border`) left the screens and inputs suites entirely green, because
     // NOTHING toggles `error` on a mounted `Field`. This drives that transition in both
-    // directions, which is the only way React's detector can fire.
+    // directions.
+    //
+    // WHAT ACTUALLY KILLS THE MUTANT, measured (probe M15, `probe-u6.1-pins` @ a993ee3):
+    // the BORDER VALUE assertions below, not the tripwire. Re-applying W2's exact split makes
+    // this file exit 1 on `expected '' to be '2px solid rgb(255, 71, 87)'` — jsdom does not
+    // synthesise `style.border` from the three longhands, so the error state reads empty —
+    // while `conflictingStyleWarnings` stays EMPTY and React logs nothing. So I-7 understated
+    // its own case: for this defect shape the tripwire is not merely un-driven, it does not
+    // fire at all, and a VALUE pin is the only guard available. The emptiness assertion below
+    // is kept because it is a true property of this transition, but it is not the catch.
     const { rerender } = render(<Field label="Case Number" value="x" onChange={vi.fn()} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
     expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
@@ -216,8 +225,8 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     rerender(<Field label="Case Number" value="x" onChange={vi.fn()} />)
     expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
 
-    // Asserted HERE as well as in the setup's `afterEach`, so the failure names this
-    // transition rather than arriving detached at the end of the file.
+    // Asserted HERE as well as in the setup's `afterEach`, so a future shape that DOES trip
+    // React names this transition rather than arriving detached at the end of the file.
     expect(conflictingStyleWarnings).toEqual([])
   })
 })
