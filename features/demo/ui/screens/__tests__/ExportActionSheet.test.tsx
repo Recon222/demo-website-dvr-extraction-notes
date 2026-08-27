@@ -5,6 +5,7 @@ import {
   type ExportActionSheetProps,
   type ExportSheetOption,
 } from '@/features/demo/ui/screens/ExportActionSheet'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * P5.3 / matrix row 27 — the ZIP scope chooser (phone
@@ -162,5 +163,10 @@ describe('ExportActionSheet — keyboard traversal', () => {
     renderSheet()
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
     expect(screen.getByTestId('export-option-cancel')).toHaveFocus()
+  })
+
+  it('dims the screen behind it with the ONE backdrop token (A22/U4.4)', () => {
+    renderSheet({})
+    expect(screen.getByTestId('export-sheet-scrim').style.background).toBe(colors.scrim)
   })
 })

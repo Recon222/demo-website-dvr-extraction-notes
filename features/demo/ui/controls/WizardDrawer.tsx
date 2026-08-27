@@ -11,6 +11,7 @@ import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { drawerTransition, DRAWER_W } from '@/features/demo/ui/motion'
 import { glassHeaderBar, glassHeaderFooterBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 export interface DrawerItem {
   id: WizardScreenId
@@ -306,7 +307,8 @@ export function WizardDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={fade}
-            style={{ position: 'absolute', inset: 0, zIndex: 41, background: 'rgba(4,8,14,0.55)', pointerEvents: 'auto' }}
+            data-scrim
+            style={{ position: 'absolute', inset: 0, zIndex: 41, background: colors.scrim, pointerEvents: 'auto' }}
           />
         )}
         {open && (

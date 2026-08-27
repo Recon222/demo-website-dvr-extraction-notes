@@ -95,6 +95,7 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       modal: '#17416e',
       overlay: 'rgba(0, 40, 83, 0.9)',
       overlayLight: 'rgba(0, 40, 83, 0.7)',
+      scrim: 'rgba(0, 40, 83, 0.32)',
       disabled: '#2e5f97',
       disabledText: '#6b7f95',
     })
@@ -132,6 +133,7 @@ describe('palette (U0.1 / A1-A9, A19, A27, A28)', () => {
       modal: '#ffffff',
       overlay: 'rgba(0, 0, 0, 0.5)',
       overlayLight: 'rgba(0, 0, 0, 0.25)',
+      scrim: 'rgba(0, 0, 0, 0.5)',
       disabled: '#d1d5db',
       disabledText: '#9ca3af',
     })

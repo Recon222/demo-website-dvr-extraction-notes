@@ -102,6 +102,7 @@ const dark = {
   // with U4 — do not resync the two.
   overlay: 'rgba(0, 40, 83, 0.9)', // Colors.ts:216
   overlayLight: 'rgba(0, 40, 83, 0.7)', // Colors.ts:217
+  scrim: 'rgba(0, 40, 83, 0.32)', // Colors.ts:231
 
   // Disabled (A23). D10: the demo keeps its `opacity` + `aria-disabled` idiom and spends
   // these only where the phone paints a FILL.
@@ -160,6 +161,7 @@ const light = {
 
   overlay: 'rgba(0, 0, 0, 0.5)', // Colors.ts:116
   overlayLight: 'rgba(0, 0, 0, 0.25)', // Colors.ts:117
+  scrim: 'rgba(0, 0, 0, 0.5)', // Colors.ts:121 — the SAME value as `overlay` in light, and not in dark
 
   disabled: '#d1d5db', // Colors.ts:124 — Gray 300
   disabledText: '#9ca3af', // Colors.ts:125 — Gray 400

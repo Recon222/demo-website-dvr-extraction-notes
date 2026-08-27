@@ -16,6 +16,7 @@ import {
   sheetHandleZone,
   sheetHeaderBand,
   sheetHeaderTitleRow,
+  sheetScrim,
   sheetSubtitle,
   sheetSurface,
   sheetTitle,
@@ -42,11 +43,31 @@ import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
  */
 
 const sheet = GLASS_TIER[scheme].sheet
+/** What the lit edge reads back as once jsdom has normalised it. */
+const LIT = 'rgba(184, 212, 240, 0.14)'
 const header = GLASS_TIER[scheme].header
 
 /** `toHaveStyle` is typed for `Record<string, unknown>`; `CSSProperties` has no index signature. */
 function decl(fragment: CSSProperties): Record<string, unknown> {
   return { ...fragment }
+}
+
+/**
+ * The four border colours as the DOM resolved them.
+ *
+ * Per-side on purpose: jsdom does NOT synthesize the `border-color` shorthand back from four
+ * longhands, so `el.style.borderColor` reads `''` over this fragment — a pin written against the
+ * shorthand would assert over an empty declaration and stay green after the tint is deleted
+ * (plan §4.2's trap). Verified by the negative assertion in the first-paint cell below.
+ * U4.2/U4.3 should read their adopted surfaces the same way.
+ */
+function sides(el: HTMLElement) {
+  return {
+    top: el.style.borderTopColor,
+    right: el.style.borderRightColor,
+    bottom: el.style.borderBottomColor,
+    left: el.style.borderLeftColor,
+  }
 }
 
 /** Render a fragment onto a div and read back what the DOM actually resolved. */
@@ -62,9 +83,11 @@ describe('sheetSurface — the A38 ground', () => {
     )
   })
 
-  it('takes its border and lit edge from the same tier', () => {
-    expect(sheetSurface.borderColor).toBe(sheet.border)
+  it('takes its three side tints and its lit edge from the same tier', () => {
     expect(sheetSurface.borderTopColor).toBe(sheet.highlightTop)
+    expect(sheetSurface.borderRightColor).toBe(sheet.border)
+    expect(sheetSurface.borderBottomColor).toBe(sheet.border)
+    expect(sheetSurface.borderLeftColor).toBe(sheet.border)
   })
 
   it('is 1px on three sides and 2px on the lit top edge (A58)', () => {
@@ -104,48 +127,90 @@ describe('sheetSurface — the A38 ground', () => {
     expect(paint(sheetSurface).style.paddingBottom).toBe('')
   })
 
-  it('renders the lit edge on FIRST PAINT, not the side tint', () => {
+  it('renders the lit edge on FIRST PAINT, not the side tint — on all four sides', () => {
     const el = paint(sheetSurface)
-    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
-    expect(el.style.borderRightColor).toBe('rgba(28, 78, 132, 0.6)')
+    const TINT = 'rgba(28, 78, 132, 0.6)'
+    expect(sides(el)).toEqual({ top: LIT, right: TINT, bottom: TINT, left: TINT })
     expect(el.style.borderTopWidth).toBe('2px')
     expect(el.style.borderRightWidth).toBe('1px')
+    // …and the shorthand is NOT synthesized back from them. This is why every cell in this file
+    // reads per-side: `expect(el.style.borderColor).toBe(TINT)` would assert over nothing.
+    expect(el.style.borderColor).toBe('')
   })
 
-  it('keeps the lit edge when a consumer re-tints the sides — the W1 duplicate-key hazard', () => {
-    // `glass-tokens.ts:129-130`'s documented escape hatch ("set `borderColor` then re-set
-    // `borderTopColor`") is BROKEN over a fragment that already carries `borderTopColor`:
-    // re-assigning a spread key keeps its ORIGINAL position, so `borderColor` lands last and
-    // repaints the top edge. Measured in jsdom: the edge renders `rgb(1, 1, 1)`.
-    //
-    // This fragment defends against it by ordering: `borderColor` is already at index 3, so a
-    // consumer's override holds THAT slot and `borderTopColor` at index 4 still wins.
-    const retinted: CSSProperties = { ...sheetSurface, borderColor: 'rgb(1, 1, 1)' }
-    const el = paint(retinted)
-    expect(el.style.borderRightColor).toBe('rgb(1, 1, 1)')
-    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
+  /**
+   * The consumer cells, from `reports/partner-lit-edge-ruling.md` §3. Every one is measured
+   * across THREE paints, because the defect this fragment exists to avoid is invisible on the
+   * first: React writes only the keys whose value changed, so a fragment carrying any shorthand
+   * slot protects the edge on paint 1 and loses it on paint 2. U4.1's original pin asserted the
+   * paint-1 cell of a form that was broken on update, and its "across an UPDATE" case toggled
+   * `opacity` rather than the tint — so the failing cell was never exercised. These toggle the
+   * tint itself.
+   */
+  const paints = (mk: (tint: string) => CSSProperties) => {
+    const { container, rerender } = render(<div data-paint style={mk('rgb(1, 1, 1)')} />)
+    const top = () => container.querySelector<HTMLElement>('[data-paint]')!.style.borderTopColor
+    const p1 = top()
+    rerender(<div data-paint style={mk('rgb(2, 2, 2)')} />)
+    const p2 = top()
+    rerender(<div data-paint style={mk('rgb(1, 1, 1)')} />)
+    return [p1, p2, top()]
+  }
+
+  it('keeps the lit edge across every paint when a consumer re-tints with COLOUR LONGHANDS', () => {
+    // The sanctioned consumer form, and the only one that holds on an update.
+    expect(
+      paints((tint) => ({
+        ...sheetSurface,
+        borderRightColor: tint,
+        borderBottomColor: tint,
+        borderLeftColor: tint,
+      })),
+    ).toEqual([LIT, LIT, LIT])
   })
 
-  it('keeps the lit edge across an UPDATE, with no shorthand-conflict warning', () => {
-    // React warns (and can drop a declaration) when a style object mixes a shorthand with one
-    // of its longhands ACROSS renders. This fragment is longhands only, so re-rendering it
-    // with a changed sibling key must neither warn nor repaint the edge.
-    const { rerender, container } = render(<div data-paint style={{ ...sheetSurface, opacity: 1 }} />)
-    rerender(<div data-paint style={{ ...sheetSurface, opacity: 0.5 }} />)
-    const el = container.querySelector<HTMLElement>('[data-paint]')!
-    expect(el.style.borderTopColor).toBe('rgba(184, 212, 240, 0.14)')
-    expect(el.style.borderRightColor).toBe('rgba(28, 78, 132, 0.6)')
+  it('self-heals to its own tint when a consumer drops those longhands conditionally', () => {
+    // The benign asymmetry the ruling measured: because the tint lives in longhands here too,
+    // a conditional override that switches OFF restores this fragment's `sheet.border` rather
+    // than collapsing the sides to `currentColor` — which is what every shorthand-carrying
+    // form does in the same cell.
+    const { container, rerender } = render(
+      <div data-paint style={{ ...sheetSurface, borderLeftColor: 'rgb(1, 1, 1)' }} />,
+    )
+    const el = () => container.querySelector<HTMLElement>('[data-paint]')!
+    expect(el().style.borderLeftColor).toBe('rgb(1, 1, 1)')
+    rerender(<div data-paint style={{ ...sheetSurface }} />)
+    expect(el().style.borderLeftColor).toBe('rgba(28, 78, 132, 0.6)')
+    expect(el().style.borderTopColor).toBe(LIT)
   })
 
-  it('spells the border in longhands only — the two shorthands are absent by design', () => {
-    // The structural half of the two pins above: they observe the OUTCOME, this observes the
-    // cause. A refactor back to `{ border, borderTop }` passes both DOM pins and re-opens the
-    // hazard for every consumer.
+  it('fails a `borderColor` override on the FIRST paint — loudly, not on paint two', () => {
+    // NOT a feature request: `borderColor` is a four-side shorthand and is off the consumer
+    // rule. What this pins is that it breaks IMMEDIATELY. The form U4.1 shipped kept the edge
+    // at paint 1 (`rgb(200,200,200)`) and lost it at paint 2 — a trap that passes review.
+    expect(paints((tint) => ({ ...sheetSurface, borderColor: tint }))).toEqual([
+      'rgb(1, 1, 1)',
+      'rgb(2, 2, 2)',
+      'rgb(1, 1, 1)',
+    ])
+  })
+
+  it('carries no shorthand key at all — `border`, `borderTop` and `borderColor` are absent', () => {
+    // The structural half: the cells above observe the OUTCOME, this observes the cause. A
+    // refactor back to any shorthand slot re-opens the trap for every consumer, and
+    // `borderColor` counts — it is a four-side shorthand, which is the half both seats missed.
     expect(sheetSurface).not.toHaveProperty('border')
     expect(sheetSurface).not.toHaveProperty('borderTop')
-    expect(Object.keys(sheetSurface).indexOf('borderColor')).toBeLessThan(
-      Object.keys(sheetSurface).indexOf('borderTopColor'),
-    )
+    expect(sheetSurface).not.toHaveProperty('borderColor')
+  })
+})
+
+describe('sheetScrim — A22, the ONE backdrop token', () => {
+  it('paints colors.scrim and owns no layering of its own', () => {
+    // Was `rgba(4,8,14,0.55)`, carried here by U4.1 with a `SEAM(U4.4)` marker. `zIndex` stays
+    // the shell's (D14 froze the numbers), so this fragment must not grow one.
+    expect(sheetScrim.background).toBe(colors.scrim)
+    expect(sheetScrim).not.toHaveProperty('zIndex')
   })
 })
 

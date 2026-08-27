@@ -90,7 +90,7 @@ const scrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
   zIndex: 30,
-  background: 'rgba(4,8,14,0.55)',
+  background: colors.scrim,
   pointerEvents: 'auto',
 }
 

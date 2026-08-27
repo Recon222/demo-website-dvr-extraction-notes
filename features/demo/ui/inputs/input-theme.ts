@@ -35,7 +35,10 @@ export const T = {
   primaryEdge: 'rgba(43,140,193,0.25)',
   // glass
   topHighlight: 'rgba(184,212,240,0.25)',
-  scrim: 'rgba(4,8,14,0.55)',
+  // `scrim` was here and is DELETED, not re-pointed (A22/U4.4). It had ZERO readers
+  // tree-wide — every site the matrix called a "`T.scrim` consumer" spelled the literal
+  // `rgba(4,8,14,0.55)` itself — so re-pointing it would have created an alias to the new
+  // token that nothing reads. `colors.scrim` is the one backdrop token; import it directly.
   // status
   error: colors.error,
   // dimensions
