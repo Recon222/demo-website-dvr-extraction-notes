@@ -219,19 +219,45 @@ fails the suite if you forget.
   Not reworkable without inventing a difference the component does not paint.
 - `[FONT_REMOTE]` — **no longer fires.** See the corrected fonts entry under "Gotchas".
 
-## The render check is the ONLY guard on preview↔component prop drift
+## Preview↔component prop drift is a COMPILE ERROR now (W4/F82)
 
-Nothing runs `package-validate.mjs` on a component prop change, and previews are not
-typechecked (they import `'open-pro-next'`, which tsc cannot resolve — that is the
-"Cannot find module" diagnostic the calibration notes tell you to ignore). Both halves of
-that are why, by 2026-08-27, **10 of 37 cards had been rendering EMPTY** — `isFieldVisible`,
-`onCoordinates`, `mediaTools`, `saveStatus`, `NotesScreen`'s whole `sections` rewrite and
-`OcrCaptureScreen`'s `resolution.kind` had all arrived without their previews following, and
-the only symptom was a blank card in an artifact nobody rebuilt. U8.4 repaired all ten.
+**`pnpm typecheck` runs two programs**: the app's, then `tsconfig.previews.json`. The second
+puts the 37 demo previews in a program whose `paths` maps `open-pro-next` →
+`.design-sync/ds-entry.ts`, so each preview is typechecked against the REAL component props —
+the same generated entry the bundler builds from. Change a synced component's props without
+updating its preview and the gate reds.
 
-**So: whenever a synced component's props change, rebuild and re-validate.** The suite
-cannot cover this — the check needs Playwright and a full bundle build. Gate on the exit
-code, and read `ds-bundle/.render-check.json` for the per-component `firstErr`.
+**CORRECTED 2026-08-27 (W4/F82).** This section used to say previews "are not typechecked
+(they import `'open-pro-next'`, which tsc cannot resolve)". **That reason was wrong**, and it
+mattered: it made the problem look unfixable and sent U8.4's D-2 ledger proposal after a
+`declare module` shim that would not have load-borne. The real cause was
+`tsconfig.json:26`'s `include`: TypeScript's wildcard expansion **skips directories whose name
+begins with a dot** unless the path names them explicitly, so `**/*.tsx` never reached
+`.design-sync/` and the previews were in NO program at all — `tsc --listFiles` counted **zero**
+of them. `open-pro-next` was never the obstacle; it just needed a `paths` entry.
+
+Measured before the fix: planted drift in a preview survived BOTH `tsc` and the full suite,
+and the clean tree already carried **19 errors across 8 previews** the moment a program saw
+them — including `previews/ModalShell.tsx` passing **no** `closeAccessibilityLabel`, the a11y
+prop `ModalShell` made REQUIRED, on the artifact this file calls the design agent's contract.
+Earlier, by 2026-08-27, **10 of 37 cards had been rendering EMPTY** for the same reason
+(`isFieldVisible`, `onCoordinates`, `mediaTools`, `saveStatus`, `NotesScreen`'s `sections`
+rewrite, `OcrCaptureScreen`'s `resolution.kind`). The render check caught those because they
+THREW; the 8 above painted `undefined` silently, which is why "37/37 render cleanly" and
+"8 previews drifted" were both true at once.
+
+**Two gotchas if you touch `tsconfig.previews.json`:**
+1. **The `react` / `react/jsx-runtime` / `csstype` `paths` entries are load-bearing.** Every
+   checkout symlinks `.design-sync/node_modules` → `.ds-sync/node_modules` (that is what makes
+   ESM resolve `ts-morph`), and `.ds-sync` ships its own `@types/react`. Node resolution walks
+   UP, so without those three entries a preview loads a SECOND React type tree and the program
+   reports ~20 spurious `Property.BorderBlockStyle is not assignable to itself` errors.
+2. **The 21 marketing previews are excluded by name.** `previews/` is shared with
+   `config.marketing.json`, whose previews import through a different bundle global.
+
+**The render check is still worth running** — it catches what types cannot (a component that
+throws at runtime, an empty root, identical variants). Gate on the exit code and read
+`ds-bundle/.render-check.json` for the per-component `firstErr`.
 
 ## Re-sync risks
 

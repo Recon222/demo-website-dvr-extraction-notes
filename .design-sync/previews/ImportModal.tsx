@@ -16,7 +16,12 @@ function Modal({ height, children }: { height: number; children: React.ReactNode
 
 const noop = () => {}
 const callbacks = {
-  onPickPdf: noop,
+  // `onPickPdf` was REPLACED by `onPdfFilesSelected` (it now receives the chosen `File[]`), and
+  // three more required handlers arrived with the terminal-progress rework. None of it was
+  // visible until W4/F82 put the previews in a tsc program.
+  onPdfFilesSelected: noop,
+  onClipboardText: noop,
+  onReviewImport: noop,
   onChoosePaste: noop,
   onTextChange: noop,
   onRun: noop,
@@ -25,6 +30,12 @@ const callbacks = {
   onOpenLocation: noop,
   onCancel: noop,
 }
+
+/* `stages: {label, state}[]` is GONE — the terminal renders from the run log now, and the modal
+   takes two discriminated stage markers instead. `activeStage` is what is running (null when
+   nothing is); `lastRealStage` is the furthest real stage reached, which is what the terminal
+   replays after a failure. */
+const IDLE = { activeStage: null, lastRealStage: null }
 
 const PASTED = `From: Det. M. Okafor <m.okafor@peelpolice.ca>
 Subject: CCTV recovery request — OCC PR-2026-0114-2287
@@ -38,13 +49,6 @@ monitor present. Cameras of interest: Ch1 (counter), Ch3
 (entrance), Ch4 (stockroom).
 
 Time range: 2026-01-12 22:00 to 2026-01-13 02:30 (actual time).`
-
-const STAGES = [
-  { label: 'Reading PDF text', state: 'done' as const },
-  { label: 'Extracting fields with the model', state: 'active' as const },
-  { label: 'Mapping to the case schema', state: 'pending' as const },
-  { label: 'Validating time ranges', state: 'pending' as const },
-]
 
 const RESULT_VIEW = {
   locId: 'loc-northgate',
@@ -92,7 +96,7 @@ const RESULT_VIEW = {
 export function Picker() {
   return (
     <Modal height={720}>
-      <ImportModal stage="picker" text="" stages={[]} result={null} batch={null} {...callbacks} />
+      <ImportModal stage="picker" text="" result={null} batch={null} {...IDLE} {...callbacks} />
     </Modal>
   )
 }
@@ -100,7 +104,7 @@ export function Picker() {
 export function Paste() {
   return (
     <Modal height={720}>
-      <ImportModal stage="paste" text={PASTED} stages={[]} result={null} batch={null} {...callbacks} />
+      <ImportModal stage="paste" text={PASTED} result={null} batch={null} {...IDLE} {...callbacks} />
     </Modal>
   )
 }
@@ -108,7 +112,15 @@ export function Paste() {
 export function Progress() {
   return (
     <Modal height={720}>
-      <ImportModal stage="progress" text="" stages={STAGES} result={null} batch={{ current: 2, total: 3 }} {...callbacks} />
+      <ImportModal
+        stage="progress"
+        text=""
+        result={null}
+        batch={{ current: 2, total: 3 }}
+        activeStage="reading_model"
+        lastRealStage="extracting_text"
+        {...callbacks}
+      />
     </Modal>
   )
 }
@@ -119,7 +131,8 @@ export function Result() {
       <ImportModal
         stage="result"
         text=""
-        stages={[]}
+        activeStage="done"
+        lastRealStage="done"
         result={{ ok: true, locations: [RESULT_VIEW], failures: [] }}
         batch={null}
         {...callbacks}

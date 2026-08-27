@@ -49,7 +49,7 @@ const TIME_OFFSET_HTML = `
 export function CaseNotes() {
   return (
     <Phone>
-      <PdfPreview title="Case Notes" html={CASE_NOTES_HTML} onClose={() => {}} onSave={() => {}} />
+      <PdfPreview title="Case Notes" html={CASE_NOTES_HTML} onClose={() => {}} />
     </Phone>
   )
 }
@@ -57,7 +57,7 @@ export function CaseNotes() {
 export function TimeOffsetReport() {
   return (
     <Phone>
-      <PdfPreview title="Time-Offset Report" html={TIME_OFFSET_HTML} onClose={() => {}} onSave={() => {}} />
+      <PdfPreview title="Time-Offset Report" html={TIME_OFFSET_HTML} onClose={() => {}} />
     </Phone>
   )
 }
