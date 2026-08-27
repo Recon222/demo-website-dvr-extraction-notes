@@ -9,7 +9,7 @@ import { DuplicateCaseNumberError } from '@/features/demo/engine/logic/case-numb
 import type { NewCaseFields } from '@/features/demo/ui/screens/caseFormData'
 import type { DemoCase } from '@/features/demo/engine/types'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 // The form shape and its store mappers live in caseFormData.ts (one round trip, one file);
 // re-exported here so the modal stays the import site its consumers already use.
@@ -50,20 +50,10 @@ const sectionLabel = {
   margin: '2px 0 10px',
 } as const
 
-const coordInput = {
-  width: '100%',
-  borderRadius: 8,
-  border: GLASS.border,
-  background: colors.background,
-  color: '#f0f4f8',
-  fontSize: 15,
-  padding: '11px 12px',
-  outline: 'none',
-} as const
-
 /** A single manual coordinate input with on-blur strict-parse + range validation (engine helper). */
 function CoordinateField({ label, kind, value, onChange }: { label: string; kind: CoordKind; value: string; onChange(v: string): void }) {
   const [error, setError] = useState<string | undefined>(undefined)
+  const [focused, setFocused] = useState(false)
   const validate = () => {
     if (value.trim() === '') {
       setError(undefined)
@@ -78,12 +68,16 @@ function CoordinateField({ label, kind, value, onChange }: { label: string; kind
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={validate}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false)
+          validate()
+        }}
         placeholder={kind === 'lat' ? 'e.g., 43.65' : 'e.g., -79.38'}
         aria-label={label}
         inputMode="text"
         autoComplete="off"
-        style={error ? { ...coordInput, borderColor: '#ff4757' } : coordInput}
+        style={fieldInputStyle({ error: error !== undefined, focused })}
       />
       {error && <div style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>{error}</div>}
     </div>

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
 
+import { AddressAutocomplete } from '@/features/demo/ui/inputs/AddressAutocomplete'
+import { IncidentLocationFields } from '@/features/demo/ui/inputs/IncidentLocationFields'
+import type { IncidentLocationValues } from '@/features/demo/engine/logic/incident-location'
+import { NewCaseModal, type NewCaseFields } from '@/features/demo/ui/screens/NewCaseModal'
 import { Field } from '@/features/demo/ui/screens/_shared'
 import { palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
@@ -23,6 +28,16 @@ import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
  * real declaration rather than a byte comparison (§4.7).
  */
 const c = palette[scheme]
+
+// The Mapbox SDK, mocked to the shape the two existing suites use — this file never exercises
+// suggest/retrieve, it only needs the module to import.
+vi.mock('@mapbox/search-js-core', () => ({
+  SearchBoxCore: class {},
+  SearchSession: class {
+    suggest = vi.fn()
+    retrieve = vi.fn()
+  },
+}))
 
 /** What jsdom stores for a colour written into a `border-color` declaration. */
 function normColor(value: string): string {
@@ -107,5 +122,106 @@ describe('Field — screens/_shared.tsx (U2.1 / A72)', () => {
     expect(box.style.padding).toBe(`${spacing.md}px`)
     expect(box.style.fontSize).toBe('16px')
     expect(normColor(box.style.borderColor)).toBe(BORDER)
+  })
+})
+
+describe('AddressAutocomplete — inputs/AddressAutocomplete.tsx (U2.1 / A72)', () => {
+  const render1 = () =>
+    render(<AddressAutocomplete label="Street Address" value="" onChange={vi.fn()} onPick={vi.fn()} />)
+
+  it('paints the shared recipe instead of its own `inputStyle` copy', () => {
+    render1()
+    const input = screen.getByLabelText('Street Address')
+    expectSharedGeometry(input)
+    expect(input.style.borderWidth).toBe('1px')
+    expect(normColor(input.style.borderColor)).toBe(BORDER)
+  })
+
+  it('takes the focused branch without losing its own suggestion-reopen handler', () => {
+    render1()
+    const input = screen.getByLabelText('Street Address')
+    fireEvent.focus(input)
+    expect(normColor(input.style.borderColor)).toBe(PRIMARY)
+    expect(input).toHaveAttribute('aria-expanded', 'false') // no suggestions loaded -> stays closed
+    fireEvent.blur(input)
+    expect(normColor(input.style.borderColor)).toBe(BORDER)
+  })
+})
+
+const blankIncident: IncidentLocationValues = {
+  businessName: '',
+  streetAddress: '',
+  city: '',
+  latitude: '',
+  longitude: '',
+  coordinateSource: '',
+}
+
+function IncidentHost() {
+  const [values, setValues] = useState(blankIncident)
+  return <IncidentLocationFields values={values} onChange={(p) => setValues((v) => ({ ...v, ...p }))} />
+}
+
+describe('IncidentLocationFields — inputs/IncidentLocationFields.tsx (U2.1 / A72)', () => {
+  it('paints the shared recipe instead of its own `coordInput` copy', () => {
+    render(<IncidentHost />)
+    const lat = screen.getByLabelText('Latitude')
+    expectSharedGeometry(lat)
+    expect(lat.style.borderWidth).toBe('1px')
+    expect(normColor(lat.style.borderColor)).toBe(BORDER)
+  })
+
+  it('reddens and thickens on the blur-time parse failure, and focuses to primary', () => {
+    render(<IncidentHost />)
+    const lat = screen.getByLabelText('Latitude')
+    fireEvent.focus(lat)
+    expect(normColor(lat.style.borderColor)).toBe(PRIMARY)
+    fireEvent.change(lat, { target: { value: 'not a latitude' } })
+    fireEvent.blur(lat)
+    expect(lat.style.borderWidth).toBe('2px')
+    expect(normColor(lat.style.borderColor)).toBe(ERROR)
+  })
+})
+
+const blankCase: NewCaseFields = {
+  caseNumber: '', displayName: '', unit: '', oicName: '', oicBadge: '', vcName: '', vcBadge: '',
+  incidentBusinessName: '', incidentStreetAddress: '', incidentCity: '',
+  incidentLatitude: '', incidentLongitude: '', incidentCoordinateSource: '', notes: '',
+}
+
+/** The modal is fully controlled, and `CoordinateField` validates the value it is HANDED —
+ *  so a stateless `onChange={vi.fn()}` would blur an empty field and clear the error. */
+function CaseHost() {
+  const [form, setForm] = useState(blankCase)
+  return (
+    <NewCaseModal
+      form={form}
+      onChange={(field, value) => setForm((f) => ({ ...f, [field]: value }))}
+      onSubmit={vi.fn()}
+      onCancel={vi.fn()}
+    />
+  )
+}
+
+describe('NewCaseModal — screens/NewCaseModal.tsx (U2.1 / A72)', () => {
+  const renderModal = () => render(<CaseHost />)
+
+  it('paints the shared recipe instead of its own `coordInput` copy', () => {
+    renderModal()
+    const lat = screen.getByLabelText('Latitude')
+    expectSharedGeometry(lat)
+    expect(lat.style.borderWidth).toBe('1px')
+    expect(normColor(lat.style.borderColor)).toBe(BORDER)
+  })
+
+  it('reddens and thickens on its own blur-time validation, and focuses to primary', () => {
+    renderModal()
+    const lat = screen.getByLabelText('Latitude')
+    fireEvent.focus(lat)
+    expect(normColor(lat.style.borderColor)).toBe(PRIMARY)
+    fireEvent.change(lat, { target: { value: 'not a latitude' } })
+    fireEvent.blur(lat)
+    expect(lat.style.borderWidth).toBe('2px')
+    expect(normColor(lat.style.borderColor)).toBe(ERROR)
   })
 })
