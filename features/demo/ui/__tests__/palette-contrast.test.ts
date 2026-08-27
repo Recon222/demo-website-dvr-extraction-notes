@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 
@@ -159,26 +160,9 @@ const DARK_BG = [palette.dark.background] // phone `:137`
 const LIGHT_BG = [palette.light.background] // phone `:138`
 
 /**
- * `DARK_GROUNDS` (phone `:140-151`, NINE stacks) and `LIGHT_GROUNDS` (`:152-159`) are built
- * entirely out of `GlassColors[scheme]`, which is U1.1's `GLASS_TIER` here and does not exist
- * yet. Every row that measures against a tier is therefore `it.todo` below. U1.1's own Tests
- * column says "UN-TODO contrast rows 31 and 33" — it un-todos rows 4, 5, 8, 10, 22-25, 30, 31
- * and 33, in BOTH schemes, and the two stacks land verbatim as:
- *
- *   const DARK_GROUNDS: string[][] = [
- *     DARK_BG,
- *     ...stops(GLASS_TIER.dark.card, DARK_BG),
- *     ...stops(GLASS_TIER.dark.nestedCard, [GLASS_TIER.dark.card.gradient[1], ...DARK_BG]),
- *     ...stops(GLASS_TIER.dark.sheet, DARK_BG),
- *     ...stops(GLASS_TIER.dark.recessed, [GLASS_TIER.dark.sheet.gradient[0], ...DARK_BG]),
- *   ]
- *   const LIGHT_GROUNDS: string[][] = [
- *     LIGHT_BG,
- *     ...stops(GLASS_TIER.light.card),
- *     ...stops(GLASS_TIER.light.nestedCard, [GLASS_TIER.light.card.gradient[1]]),
- *     ...stops(GLASS_TIER.light.sheet),
- *     ...stops(GLASS_TIER.light.recessed, [GLASS_TIER.light.sheet.gradient[0]]),
- *   ]
+ * `DARK_GROUNDS` (phone `:140-151`, NINE stacks) and `LIGHT_GROUNDS` (`:152-159`), landed
+ * verbatim now that U1.1 ships `GLASS_TIER`. Every row that measures against a tier was
+ * `it.todo` until this point.
  *
  * THREE ASYMMETRIES THAT ARE NOT TYPOS, copied exactly from the phone:
  *  - `nestedCard` sits on `card`'s LOWER stop (`gradient[1]`);
@@ -188,9 +172,28 @@ const LIGHT_BG = [palette.light.background] // phone `:138`
  * measures text on those two tiers. Adding them would be an EXTENSION of the contract, not a
  * port — U1.4 puts wizard titles on `header`, so someone has to decide it; see the U0.5 report.
  *
- * `flattenOver`'s last ground is treated as OPAQUE, so both stacks must bottom out at
- * `background` and never at a glass stop.
+ * `flattenOver`'s last ground is treated as OPAQUE, so both stacks bottom out at `background`
+ * and never at a glass stop.
  */
+const DARK_GROUNDS: string[][] = [
+  DARK_BG,
+  ...stops(GLASS_TIER.dark.card, DARK_BG),
+  ...stops(GLASS_TIER.dark.nestedCard, [GLASS_TIER.dark.card.gradient[1], ...DARK_BG]),
+  ...stops(GLASS_TIER.dark.sheet, DARK_BG),
+  // The `recessed` well, on the sheet that hosts it. Text genuinely lands here — the
+  // wheel-picker values, the dropdown's options and the calendar's day numerals all do — and it
+  // was absent from the phone's contract, which is how the dark half of the tier shipped at
+  // near-black `rgb(6, 12, 22)` unmeasured.
+  ...stops(GLASS_TIER.dark.recessed, [GLASS_TIER.dark.sheet.gradient[0], ...DARK_BG]),
+]
+
+const LIGHT_GROUNDS: string[][] = [
+  LIGHT_BG,
+  ...stops(GLASS_TIER.light.card),
+  ...stops(GLASS_TIER.light.nestedCard, [GLASS_TIER.light.card.gradient[1]]),
+  ...stops(GLASS_TIER.light.sheet),
+  ...stops(GLASS_TIER.light.recessed, [GLASS_TIER.light.sheet.gradient[0]]),
+]
 
 /** Every ground `fg` can land on in that scheme, worst first. Phone `:161-165`. */
 function worst(fg: string, grounds: string[][]): number {
@@ -275,24 +278,56 @@ describe('palette contrast contract', () => {
     ])
   })
 
-  // Rows 4/5. Phone `:181-200`.
-  it.todo(
-    'rows 4-5 (U1.1): clears AA for the muted text ramp on every glass tier, both themes — needs GLASS_TIER',
-  )
+  it('clears AA for the muted text ramp on every glass tier, both themes (rows 4-5)', () => {
+    // Phone `:181-200`. `textTertiary` is excluded and carries a documented ceiling instead —
+    // the next case. DEF-063 / DEF-UI-009 / DEF-UI-014: the floors this ramp failed at were
+    // 3.97 (secondary, on the nested tier) and 2.08 (tertiary).
+    expect(
+      offenders(
+        [
+          ['dark text', palette.dark.text, DARK_GROUNDS],
+          ['dark textSecondary', palette.dark.textSecondary, DARK_GROUNDS],
+          ['light text', palette.light.text, LIGHT_GROUNDS],
+          ['light textSecondary', palette.light.textSecondary, LIGHT_GROUNDS],
+        ],
+        AA_TEXT,
+      ),
+    ).toEqual([])
+  })
 
   // Row 8. Phone `:201-208` holds BOTH themes to the DARK number 3.79 and records ~0.08 of
   // unasserted light slack as DEF-063's open owner question. The plan's U0.5 row closes that
   // gap on the demo side: pin light at its OWN 3.87 (DEF-063), dark at 3.79 (M2b). Raising
   // either is fine; dropping either is the regression. Both are CEILINGS under D5, not targets
   // — a port that "fixes" them diverges from the phone.
-  it.todo(
-    'row 8 (U1.1): holds the documented textTertiary ceilings — dark >= 3.79, light >= 3.87 — needs GLASS_TIER',
-  )
+  it('holds the documented textTertiary ceilings (row 8)', () => {
+    // Both are CEILINGS under D5, not targets: raising either is fine, dropping either is the
+    // regression, and a port that "fixes" them diverges from the phone.
+    //
+    // The demo pins LIGHT at its own 3.87 where the phone pins both halves at the DARK number
+    // 3.79 (phone `:205-206`) — the plan's U0.5 row closes that ~0.08 of unasserted slack, which
+    // is the open owner question in DEF-063. Asserted UNROUNDED, as the phone does: `round` is
+    // for reporting, and rounding 3.7949 up to 3.79 would accept a real drop.
+    expect(worst(palette.dark.textTertiary, DARK_GROUNDS)).toBeGreaterThanOrEqual(3.79)
+    expect(worst(palette.light.textTertiary, LIGHT_GROUNDS)).toBeGreaterThanOrEqual(3.87)
+  })
 
   // Row 10, DEF-UI-018 — the port's single highest-value contrast row (A66/A27). Phone `:209-224`.
-  it.todo(
-    'row 10 (U1.1): clears AA for `link`, the accent-as-text token, on every glass tier, both themes — needs GLASS_TIER',
-  )
+  it('clears AA for `link`, the accent-as-text token, on every glass tier (row 10)', () => {
+    // DEF-UI-018, the port's single highest-value contrast row (A66/A27). Phone `:209-224`:
+    // outline and ghost buttons label and outline with this token across 39 call sites, and
+    // `RadioGroup` paints its whole selected state with it. All three used to read
+    // `colors.primary`, a mid-tone FILL, which measures 2.87:1 as text on the dark tiers.
+    expect(
+      offenders(
+        [
+          ['dark link', palette.dark.link, DARK_GROUNDS],
+          ['light link', palette.light.link, LIGHT_GROUNDS],
+        ],
+        AA_TEXT,
+      ),
+    ).toEqual([])
+  })
 
   it('clears AA for the primary CTA label on BOTH stops of its gradient (rows 12-13, dark)', () => {
     // Phone `:225-244`, dark half. On a blue gradient the two candidate label colours move in
@@ -362,8 +397,12 @@ describe('palette contrast contract', () => {
   // plus both `sheet` stops. Needs `warningAccent` (`#ffc62b` dark / `#b45309` light, phone
   // `Colors.ts:180`/`:77`), which is U3.1's — `palette.ts` carries `warningDark` today, and
   // they are NOT the same token even where dark shares a value.
+  // U1.1 landed `GLASS_TIER`, so `barGrounds(scheme)` (both `card` stops plus both `sheet`
+  // stops) is now writable. The ONLY remaining missing input is `warningAccent`, so this row
+  // is U3.1's alone from here — the U0.5 docblock above listed it among U1.1's un-todos, which
+  // its own title refutes.
   it.todo(
-    'rows 22-25 (U1.1 + U3.1): clears the 1.4.11 non-text floor for the four status accents, both themes — needs GLASS_TIER + warningAccent',
+    'rows 22-25 (U3.1): clears the 1.4.11 non-text floor for the four status accents, both themes — needs warningAccent',
   )
 
   // Row 31. Phone `:305-342`. Two channels, because only one is available in each theme: light
@@ -371,9 +410,36 @@ describe('palette contrast contract', () => {
   // this tier, so there is no headroom to lift the fill) and separates on the BORDER instead.
   // Either channel failing is the regression, so both are asserted in both themes at the level
   // each can actually reach: border ratio >= 1.25 both themes, light fill >= 1.05.
-  it.todo(
-    'row 31 (U1.1): keeps the nested tier visually separable from the card it sits on — needs GLASS_TIER',
-  )
+  it('keeps the nested tier visually separable from the card it sits on (row 31)', () => {
+    // Phone `:305-341`. The assertion whose absence let a flat tier ship across 30 phone call
+    // sites: `nestedCard` was `card`'s own gradient at lower alpha, and the surface it
+    // composites over IS `card`, so it resolved to a 1.022:1 luminance ratio against its own
+    // parent in dark. An inner card was delimited by nothing but its border.
+    const parent = (scheme: 'light' | 'dark') =>
+      scheme === 'dark'
+        ? [GLASS_TIER.dark.card.gradient[1], ...DARK_BG]
+        : [GLASS_TIER.light.card.gradient[1]]
+
+    // The border is the delimiter in both themes and is what CARRIES the tier in dark, where
+    // the fill cannot lift at all (`textTertiary` sits exactly on its 3.79 floor here).
+    // Measured against the tier's own fill, worst stop.
+    expect(
+      (['light', 'dark'] as const)
+        .map((scheme) => {
+          const tier: GlassTier = GLASS_TIER[scheme].nestedCard
+          const onFill = tier.gradient.map((stop) => [stop, ...parent(scheme)])
+          return { scheme, ratio: round(Math.min(...onFill.map((g) => contrast(tier.border, g)))) }
+        })
+        .filter(({ ratio }) => ratio < 1.25),
+    ).toEqual([])
+
+    // Light additionally separates on the FILL — the channel dark does not have. The tier must
+    // not resolve to its own parent; `dE 0.00` on the top stop is what shipped.
+    const lightFill = GLASS_TIER.light.nestedCard.gradient.map((stop) =>
+      contrast(stop, parent('light')),
+    )
+    expect(Math.min(...lightFill)).toBeGreaterThanOrEqual(1.05)
+  })
 
   // Row 33. Phone `:343-376` — the ONLY dE-bounded block in the whole file, and the only one
   // that is TWO-SIDED (`.filter(({ dE }) => dE < 3 || dE > 12)`). Too flat and too deep are
@@ -382,9 +448,36 @@ describe('palette contrast contract', () => {
   // reading and passed while the gradient visually went from a well at one end to nothing at
   // the other. Row 31's 1.25 bound is a CONTRAST bound, not dE — the two need different
   // helpers and the plan's §9 clause 2 blurs them.
-  it.todo(
-    'row 33 (U1.1): keeps the recessed well a well — CIE76 dE 3..12, two-sided, PER STOP — needs GLASS_TIER',
-  )
+  it('keeps the recessed well a well — neither flat against its sheet nor a black hole (row 33)', () => {
+    // Phone `:343-374`. TWO-SIDED, unlike row 31, because this tier failed in the other
+    // direction: `rgb(6, 12, 22)` is on no ramp in this app and resolved CIE76 dE 16.65 from
+    // the sheet it sits on, reading as a black slab in the three bottom-sheet pickers. Too flat
+    // and too deep are both bugs.
+    //
+    // Measured in dE, not contrast ratio: the ratio is BLIND to this defect. `rgb(6, 12, 22)`
+    // scored 1.24 against the sheet, which is *healthier* than the perfectly fine light-mode
+    // tier's 1.19 — near-black and navy can share a luminance while being nothing alike.
+    expect(
+      (['light', 'dark'] as const)
+        .map((scheme) => {
+          const sheetTop = GLASS_TIER[scheme].sheet.gradient[0]
+          const under = scheme === 'dark' ? [sheetTop, ...DARK_BG] : [sheetTop]
+          const sheet = flatten(under)
+          // EVERY stop, never `Math.max` of them. Taking the max meant the lower bound only
+          // fired when BOTH stops went flat: an alpha edit touching one stop left the healthy
+          // one reading and passed, while the gradient visually went from a well at one end to
+          // nothing at the other. Each stop is bounded independently.
+          const recessed: GlassTier = GLASS_TIER[scheme].recessed
+          return recessed.gradient.map((stop, index) => ({
+            scheme,
+            stop: index,
+            dE: round(deltaE(flatten([stop, ...under]), sheet)),
+          }))
+        })
+        .flat()
+        .filter(({ dE }) => dE < 3 || dE > 12),
+    ).toEqual([])
+  })
 
   // Row 30, phone `:377-388`. The other half of the DEF-UI-017 bar: a palette that clears 3:1
   // by collapsing to one colour passes the number and fails the user. `warningOnLight` clears
