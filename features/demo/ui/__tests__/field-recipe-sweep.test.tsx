@@ -320,9 +320,6 @@ describe('every form label in the demo renders the shared recipe, not a private 
 // all of them reachable from this row's four modals.
 // ---------------------------------------------------------------------------------------
 
-/** The rendered form of `colors.error`, obtained from jsdom rather than hand-converted. */
-const ERROR_STROKE = () => probeColor(colors.error)
-
 /**
  * A validation line is correct only if BOTH halves of §C.3 rule 1 hold: the message is NOT
  * red, and the severity is carried by a mark that IS. Asserting only the text colour would

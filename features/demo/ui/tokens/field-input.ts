@@ -80,12 +80,18 @@ const c = palette[scheme]
  * take a `required` flag, both already naming `colors.error`; a second export to carry a token
  * both call sites already spell would add a hop and remove no duplication.
  */
-export const fieldLabelStyle: CSSProperties = {
+// F61: `as const satisfies` rather than a `: CSSProperties` annotation. The annotation left
+// this WRITABLE, and it is the widest-reach instance in the census — 12 importers pass it
+// straight through as `style={fieldLabelStyle}`, so one `fieldLabelStyle.color = …` anywhere
+// in the tree would restyle every form label in the product with no test naming the offender.
+// (U6.4a’s own report flagged this shape as its likely defect 2; the census found it.)
+// `satisfies` keeps the shape checked against `CSSProperties`, which the annotation was for.
+export const fieldLabelStyle = {
   fontSize: 14,
   fontWeight: 500,
   color: c.text,
   marginBottom: spacing.xs,
-}
+} as const satisfies CSSProperties
 
 /**
  * A72's ERROR-LINE half — U6.4a, and the row that closes U6.1 deferral proposal 2 for every
@@ -102,14 +108,16 @@ export const fieldLabelStyle: CSSProperties = {
  * token verbatim would have LOWERED this line. Severity moves to the glyph, which is a
  * non-text mark and needs only 1.4.11's 3.0.
  */
-export const fieldErrorStyle: CSSProperties = {
+// F61 — same treatment, same reason. Callers spread it (`{ ...fieldErrorStyle, ...style }`),
+// which is unaffected by the readonly marks; only a WRITE is now a compile error.
+export const fieldErrorStyle = {
   display: 'flex',
   alignItems: 'flex-start',
   gap: spacing.xs,
   fontSize: 14,
   color: c.text,
   marginTop: spacing.xs,
-}
+} as const satisfies CSSProperties
 
 /** The live state a caller has; every flag defaults to false. */
 export interface FieldInputState {
