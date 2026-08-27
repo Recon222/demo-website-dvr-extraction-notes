@@ -4,7 +4,6 @@ import {
   PrimaryButtonGradient,
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'

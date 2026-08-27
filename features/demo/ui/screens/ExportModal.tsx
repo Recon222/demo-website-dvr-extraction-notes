@@ -8,14 +8,13 @@ import {
   describeValidationPrompt,
   missingFieldLine,
   type CasePdfValidationResult,
-  type ExportModalMode,
   type ExportStage,
   type ProgressInfo,
 } from '@/features/demo/engine/logic/export'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
