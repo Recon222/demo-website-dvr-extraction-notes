@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
@@ -172,13 +173,34 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
 
   it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
     const { anchors } = checkParity()
-    expect(TIER_KEYS.length, 'six tiers').toBe(6)
-    // FOUR parts, not five. `innerShadow` is deliberately unanchored — it is not a CSS value on
-    // either side, so an anchor on it would compare two transcriptions rather than a contract.
-    // Its twelve values are pinned by `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE
-    // else; thinning that file silently removes their last guard.
-    expect(TIER_PARTS.length, 'gradient[0], gradient[1], border, highlightTop').toBe(4)
-    expect(TIER_ANCHOR_KEYS.length, '6 tiers x 4 readable parts').toBe(24)
+    // MEMBERSHIP, not cardinality — review F16, and the same reasoning W0/F2 applied to
+    // `PALETTE_KEYS` three cases above. The guard is `.mjs` and cannot import this TS module, so
+    // its two tier lists are hand-maintained; held to nothing but themselves, a SEVENTH tier
+    // lands with the guard unchanged and a SHRINK that drops `recessed` reaches green by editing
+    // one number here. Both shapes SURVIVED the lanes' probes against the old `.toBe(6/4/24)`.
+    // These two assertions are the only ones in this case that compare the lists to something
+    // outside them, which is what makes the loops below non-tautological.
+    expect([...TIER_KEYS].sort(), 'the guard must anchor exactly the six glass tiers').toEqual(
+      Object.keys(GLASS_TIER.dark).sort(),
+    )
+    // `innerShadow` is unanchored BY NAME rather than by being the difference between 4 and 5 —
+    // it is not a CSS value on either side, so an anchor on it would compare two transcriptions
+    // rather than a contract. Its twelve values are pinned by
+    // `ui/tokens/__tests__/glass-tiers.test.ts` and NOWHERE else; thinning that file removes
+    // their last guard. A FIFTH tier part added to the module reds here until someone either
+    // anchors it or names it in `UNANCHORED` with a reason.
+    //
+    // `TIER_PARTS` spells the gradient as two stops (`gradientTop`/`gradientBot`) because each is
+    // its own anchor ROW — the unit of PARSE-FAILED isolation — where the module has one
+    // `gradient` tuple. So the stops fold back to their field name before comparing.
+    const UNANCHORED = ['innerShadow']
+    const anchoredFields = [
+      ...new Set(TIER_PARTS.map((p: string) => (p.startsWith('gradient') ? 'gradient' : p))),
+    ]
+    expect(
+      [...anchoredFields, ...UNANCHORED].sort(),
+      'every part of a tier is either anchored or named unanchored',
+    ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
 
     for (const key of TIER_ANCHOR_KEYS) {
       const schemes = anchors
