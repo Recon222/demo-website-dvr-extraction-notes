@@ -1,5 +1,140 @@
 # Lane — silent failures (W3)
 
+## Round 2 (riders)
+
+**Head:** `feat/uiparity-w3` @ `3084065` · **Rider diff read:** `c304a8c..3084065`
+**Scope:** my item **F76** (`SAMPLE_NOTICE`), plus **F80** (`activationOrigin` consumption) on request.
+**Probe worktree:** `C:\Users\kriss\AppData\Local\Temp\claude\probe-w3r2-sfh`, cut at `3084065`,
+detached, own `pnpm install`. **Torn down and verified:** `unlinked 549 junction(s) in 2 pass(es)` ·
+main checkout `.pnpm` 240 → 240 · exit 0. Tree restored between probes, `git status` empty before
+teardown. Regression sweep at this head, post-restore: **142 files / 1,966 passed + 2 todo, 0 failed.**
+
+| Item | Status | Evidence |
+|---|---|---|
+| **F76** — FallbackMode notice unguarded | **FIXED** | Both notice-family probes KILL on the new member; both `ImportModal` sites import it; badge unregressed |
+| **F80** — single-use gesture origin | **Sound, swallows nothing** | Reverting the one line KILLS 2 of the 3 new cases |
+
+---
+
+### F76 — FIXED
+
+`SAMPLE_NOTICE` landed as a separate member and both `ImportModal` sites (`:279`, `:295`) now import
+it. Values unchanged, so zero rendered bytes moved.
+
+**The separate-member call is right, and for the reason given.** A 9px uppercase chip and a 12.5px
+paragraph are different recipes at different alphas (`0.12`/`0.3` vs `0.1`/`0.28`); collapsing them
+would have moved rendered bytes at four sites for a tidiness D12 never asked for. What D12 constrains
+is the HUE and the ROLE, and both members are now held to the same five cases. The three
+non-provenance ambers (`MediaCaptureScreen`, `MediaLibrarySheet`, `PdfPreview`) are correctly left
+out with a stated reason — they are cautions, not provenance claims, and the freeze-and-defend arm of
+D12 does not reach them. I agree with that line and am not re-filing them.
+
+**Probes — my r1 notice-family pair, run verbatim against BOTH members, one mutation each, tree
+restored between (canonical source `features/demo/ui/controls/sample-badge.ts`):**
+
+| Mutation | Verdict |
+|---|---|
+| `SAMPLE_NOTICE.background = 'rgba(125,95,16,0.1)'` (warningLight at the notice own alpha) | **KILLED** — `SAMPLE_NOTICE: is not a warning token wearing an alpha — the HUE identity` |
+| `SAMPLE_NOTICE.background = 'rgba(0,0,0,0)'` (paints nothing) | **KILLED** — `SAMPLE_NOTICE: PAINTS — the fill is visibly present on its own ground` |
+| `SAMPLE_BADGE.background = 'rgba(125,95,16,0.12)'` (no-regression control) | **KILLED x2** — the original describe and the MARKS row both red |
+| `SAMPLE_BADGE.background = 'rgba(0,0,0,0)'` (no-regression control) | **KILLED x2** — same pair |
+
+The badge keeps its own stricter describe alongside the table (`:1100` and `:1179`), so nothing the
+r1 fix bought was traded away for the generalisation.
+
+**Does the MARKS-table shape keep the defence honest for a third surface?** Structurally yes — the
+row is a `[name, mark, ground]` tuple under `as const`, so a third surface cannot join without naming
+a ground, and all five cases fan out over it via `it.each`. That is the right shape and it is better
+than the two-copy alternative. Two caveats, filed together below.
+
+---
+
+#### [LOW] The MARKS table takes each row ground on trust, and the first row added under it names a tier its component does not render on
+
+**File:** `features/demo/ui/__tests__/palette-contrast.test.ts:1180-1187`
+
+**Code:**
+```ts
+const ELEVATED = [GLASS_TIER.dark.elevated.gradient[0], palette.dark.background]
+const MARKS = [
+  ['SAMPLE_BADGE',  SAMPLE_BADGE,  NESTED],
+  ['SAMPLE_NOTICE', SAMPLE_NOTICE, ELEVATED],
+] as const
+```
+
+**Touch-point 1 — the ground is wrong.** The docblock says *"the notice renders on ModalShell
+elevated tier"*. It does not. `elevated` is the modal HEADER BAR only (`_shared.tsx:180`,
+`modalHeaderBar`); the body the notice renders in is `modalSheet`, whose `background` is
+`colors.background` flat (`_shared.tsx:117`). So all five `SAMPLE_NOTICE` cases composite over a
+stack the component never paints.
+
+Measured both ways at this head:
+
+```
+ASSERTED (elevated):          presence 12.24 (>3) · vs warning 67.18 (>10) · legibility 6.22 (>4.5)
+REAL (colors.background):     presence 13.78 (>3) · vs warning 68.58 (>10) · legibility 8.39 (>4.5)
+```
+
+**No verdict flips, and the error is conservative** — the asserted ground is the stricter of the two
+on all three metrics. That is why this is LOW and not higher: nothing is green today that should be
+red. What is wrong is the shape, and the shape is what the table exists to hand to the next author:
+nothing ties a row ground to the real render, and the very first row added under the new mechanism
+got it wrong while its docblock asserted the opposite. A third surface inherits both the empty slot
+and the wrong precedent.
+
+**Touch-point 2 — the presence floor quietly moved 5 to 3.** The badge-only describe bounds presence
+at `> 5` (`:1136`); the shared table bounds it at `> 3` (`:1198`), with no note saying why. It was
+not needed: measured, `SAMPLE_BADGE` scores **14.90** and `SAMPLE_NOTICE` **12.24** on their own
+grounds, so both clear 5 by more than 2x. The looser bound only ever applies to a future member — at
+`> 3` a third mark could ship the same amber at alpha **0.03** (ΔE 3.78) and pass, where `> 5` stops
+it at 0.04 (5.01). Both are essentially invisible washes, and 3 is above the 2.3 JND so it is
+defensible, but an unexplained loosening in the guard a later surface inherits is the wrong direction
+for a freeze-and-defend arm.
+
+**Fix.** One line each: point the `SAMPLE_NOTICE` row at `[palette.dark.background]` (or import
+`modalSheet.background`, which makes the row red if the shell ground ever moves), and either restore
+the floor to 5 or keep 3 and say why in one sentence. Correcting the docblock sentence about the
+elevated tier goes with it.
+
+---
+
+### F80 — sound; swallows nothing
+
+Consuming the capture (`activationOrigin = null` immediately after the connectivity check) is the
+right guard, and the comment states the real reason correctly: `isConnected` proves the element still
+EXISTS, not that the gesture which set it raised *this* overlay. Traced for swallowing:
+
+- **It cannot consume when it should not.** The `if (!enabled) return` sits above it, so a gated
+  mount neither reads nor clears the origin.
+- **Nothing else reads `activationOrigin`.** The module exports only `trackDialogActivationOrigin`,
+  and consuming does not disarm tracking — the next pointerdown/keydown re-arms it.
+- **No StrictMode double-invoke in this app** (grepped: the only `StrictMode` import under `app/` and
+  `features/demo` is inside one `ExploreChecklist` test), so the mount-cleanup-mount path that would
+  consume the origin before the real mount does not run in production or in the suite.
+- **The one degradation I went looking for is not reachable and is not a lie.** Two overlays mounting
+  in the SAME commit from one gesture would have the child consume and the parent fall back to
+  `document.activeElement`; the parent opener would then likely be disconnected at unmount, and
+  `canTakeFocus` leaves focus where it is. That is the documented non-error outcome, not a wrong
+  jump — and all four call sites (`CentredDialog`, `ExportActionSheet`, `MediaLibrarySheet`,
+  `PdfPreview`) mount from distinct commits, so it does not occur today.
+- **The stacked case the comment claims to fix is real and now correct:** an `AlertDialog` raised over
+  an open `CentredDialog` used to inherit the same button and yank focus out from behind the scrim;
+  it now falls back to the confirmation own panel.
+
+**Probe:** deleting the single `activationOrigin = null` line **KILLS 2 of the 3** new cases (the
+second-overlay case and the live-focus fallback case). The fix is pinned, not merely written.
+
+---
+
+### Round 2 summary
+F76 **FIXED** (4/4 probes KILLED — both members, plus badge no-regression controls) · F80 **sound, nothing swallowed** (revert probe KILLS 2 of 3).
+New findings: **1 LOW**, two touch-points, both in the MARKS table (the `SAMPLE_NOTICE` row ground is `elevated` where the component renders on `colors.background`; presence floor loosened 5 to 3 unremarked). Neither changes a verdict today — measured, the wrong ground is the stricter one.
+Fix-introduced regressions: **none.** 142 files / 1,966 passed, 0 failed at this head after restore.
+Verdict: **APPROVE with comments.**
+
+---
+---
+
 ## Round 1 (fix delta)
 
 **Head:** `feat/uiparity-w3` @ `eb98295` (fix-merge `3dc8676`) · **Fix diff read:** `7d0bf57..3dc8676`

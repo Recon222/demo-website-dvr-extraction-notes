@@ -1,5 +1,100 @@
 # Lane: web — W3
 
+## Round 2 (riders)
+
+**Seat:** `web-reviewer` (warm) · **PR #43** · **Range read:** `git diff c304a8c..3084065`, head `3084065`
+· worktree `w3-wave`, READ-ONLY. **Scope:** my round-1 items only — F77, F79, F80.
+
+**Diagnostics:** `npx vitest run --silent=true features/demo/ui/screens/map features/demo/ui/__tests__ features/demo/ui/primitives features/demo/ui/screens/__tests__` → **129 files / 1727 passed + 2 todo, exit 0.**
+
+### Per-item status
+
+| ID | Status |
+|---|---|
+| **F77** (NEW-1, live-region chatter) | **FIXED** — counts unreachable by construction, both announcement paths still fire |
+| **F79** (border prose claim unmeasured) | **FIXED** — row 48, two-sided, inverse negative; render half reads the constant on all four sides |
+| **F80** (`isConnected` guard weaker than its docblock) | **FIXED** — single-use capture; plain path verified intact, and it turned out to close a live defect |
+
+**F77 — FIXED, and the fix is structural rather than editorial.** `ProximityAnnouncement`'s signature
+went from `{ active, summary }` to `{ active, radiusKm: RadiusPreset }` (`MapControls.tsx:530`), so the
+counts are not merely omitted from the string — **the component can no longer see them**. That is the
+right shape: a later edit cannot re-introduce the chatter by appending to a string, only by adding a
+prop, which is a reviewable act. The counts stay where they are read rather than heard (the visible
+chip, pinned at `MapControls.test.tsx:262` as `1 km · 1 of 9`, and the sheet's subtitle).
+
+Both announcement paths still fire, and both are pinned:
+- **Activation** — `:223` *"announces activation, because the region is EMPTY before it (R-7a, F73)"*, and `:282` empties it on deactivation so the second activation is a change again. The always-mounted-empty design F73 introduced is untouched.
+- **Radius** — covered as a pair rather than a mutation: `:243` asserts `'Proximity filter on, 2 km'` at `proximityRadius={2}` while `renderControls`' default is `1` (`:33`), so a hardcoded radius reds one of the two.
+
+**The byte-identical-across-count-change pin holds, and the matcher upgrade is what makes it hold.**
+`:254` renders at `locationCount 9 / filteredCount 5`, captures `textContent`, re-renders at
+`filteredCount 1` with the **same** radius (default `1` vs the explicit `proximityRadius={1}` — I
+checked, so the comparison isolates the counts and does not accidentally compare two radii), and
+asserts `toBe(before)`. The previous pin used `toHaveTextContent`, which is a **substring** test and
+therefore stayed green over the pre-F77 string that appended `showing 5 of 9`; the rider replaced it
+with `.textContent).toBe(...)`. I did not probe this one: with an exact-equality assertion over two
+renders whose only difference is the count, any string carrying `filteredCount` differs by
+construction, so the kill is analytic rather than empirical.
+
+**F79 — FIXED, and the negative is genuinely the inverse of 46/47's.** `MAP_PICKER_SELECTED_BORDER`
+is exported (`CaseMapPicker.tsx:107-124`) with the measurement written into its docblock, and row 48
+bounds it three ways:
+
+- `worst(MAP_PICKER_SELECTED_BORDER, nestedCard-over-background) >= AA_NON_TEXT` — the ratio, at the constant (3.09 dark / 8.29 light, re-measured here, unchanged by the rider).
+- `toBe(palette[scheme].primary)` — the **inverse** of rows 46/47's negative. Those assert `primary` FAILS as text; this asserts the border must STAY on it, so a well-meaning sweep re-pointing every `primary` in the file onto `link` reds. That is the correct asymmetry for a surface where one token moved and its neighbour deliberately did not.
+- `not.toBe(MAP_PICKER_SELECTED_TITLE)` — the two must stay apart.
+
+**The render half reads the constant on all four sides** (`CaseMapPicker.tsx:200-206`:
+`borderTopColor` / `borderRightColor` / `borderBottomColor` / `borderLeftColor`, all
+`MAP_PICKER_SELECTED_BORDER`), and `CaseMapPicker.test.tsx:109-120` now loops all four rather than
+spot-checking two, with `borderWidth: '2px'` and a `not.toBe(MAP_PICKER_SELECTED_TITLE)` beside it. The
+conditional-longhand form is unchanged, so it is still the lit-edge ruling's self-healing cell on
+deselect.
+
+**F80 — FIXED, and the plain single-overlay path is intact.** `activationOrigin = null` lands
+immediately after the capture into the local `captured` (`useOpenerFocusReturn.ts:112-113`), so the
+guard now matches the docblock instead of overclaiming.
+
+I traced the plain path specifically, since that is what a single-use capture could break:
+pointerdown sets the global → the overlay's mount effect reads it into `captured`, nulls the global,
+and computes `opener` from the **local** → unmount calls `opener.focus()`. Nothing re-reads the global
+between capture and use, so a lone overlay still returns focus to its opener. Pinned at
+`useOpenerFocusReturn.test.tsx:95` (*"still returns focus to an opener that lost it before the layer
+mounted"*), which is the U4.3 self-disabling-opener case the hook exists for. Under React 19
+StrictMode's double-invoke the answer is also unchanged: effect1 nulls the global, cleanup1 focuses the
+opener, effect2 falls back to `document.activeElement` — which cleanup1 just made the opener.
+
+The rider found more than my finding claimed. My LOW called the consequence "mild"; the fix's docblock
+documents a live defect it closes — `DemoExperience` renders `AlertDialog` after every other overlay,
+so an alert raised over an open confirmation used to capture the *same* button, and dismissing the
+alert yanked focus out of the still-open confirmation to a control behind its scrim. Now the alert
+falls back to the confirmation's own panel. `:43` and `:74` pin both halves, and the hook got its first
+direct test file in the process.
+
+### Round 2 summary
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+Prior findings: **F77 FIXED · F79 FIXED · F80 FIXED.** Both round-1 LOWs are closed — the border's
+1.4.11 prose claim is now measured by row 48, and the `isConnected` guard is now single-use.
+No fix-introduced regressions in the blast radius.
+Verdict: **APPROVE**
+
+Two nits, deliberately not filed as findings: row 48's fourth line
+(`expect(AA_NON_TEXT).toBeLessThan(AA_TEXT)`) is a tripwire on the file's own two threshold constants,
+which is fine, but its comment says it *"keeps a later edit from quietly collapsing this row into
+46/47's bound"* — collapsing the row would mean editing the row, not the constants, so the stated
+reason is not what the line protects. And the radius→announcement link is covered by a pair of
+single-value assertions rather than one change-detecting rerender; adequate, since a hardcoded radius
+reds one of them.
+
+Out-of-lane: F76's `SAMPLE_NOTICE` adoption touches two inline-style sites in my territory
+(`ImportModal.tsx:279,295`, `OcrCaptureScreen.tsx:132`). Both write a `border` shorthand into an object
+with no spread and no border longhands, so the lit-edge rule is unaffected.
+
+---
+
+# Lane: web — W3
+
 ## Round 1 (fix delta)
 
 **Seat:** `web-reviewer` (warm) · **PR #43** · **Range read:** `git diff 7d0bf57..3dc8676`, head `eb98295`
