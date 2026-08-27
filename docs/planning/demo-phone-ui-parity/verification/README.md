@@ -351,12 +351,14 @@ HEADED=1 ...                      # watch it run
 | `02-time-offset.js` | requested scope → Time Offset → Use Current Time → Calculate → adjusted ranges → extracted scope → OCR capture |
 | `03-import.js` | **stale** — written against the pre-P1 import UI (`Extract & import`, `Import complete` stages). Superseded by `05-import-p1.js`; keep only as a master-branch reference |
 | `04-map.js` | Map tab case picker → tokenless map fallback → bottom sheet |
+| `04b-detail-card.js` | the map's `LocationDetailCard` — tap-to-call / tap-to-email rows and "Go to Location". Separate from `04-map.js` because that driver's locations are unplotted (no `gps: true` → "0 Locations" → no row to click) **and** the contact rows need `requesterPhone`/`requesterEmail`, which only the wizard can set; its own `map-location-detail` step has therefore always shot nothing |
 | `05-import-p1.js` | the P1 import experience: 3-card picker → paste step → live terminal → dwell → result |
 | `06-p4-media.js` | P4: drawer Media accordion, capture (gate → live → mode pills → review), audio recorder, media library, OCR viewfinder, time-offset |
 | `07-p4-ocr-pdf.js` | P4 surfaces 5 & 6 live-camera: landscape viewfinder with a real stream, then the Time-Offset PDF image-block check LIVE vs SAMPLE |
 | `08-p56-export-map.js` | P5: export hub (accordion, tri-state, footer), validation prompt, progress overlay, D4 terminal; plus the map pass |
 | `09-p56-map-depth.js` | P6 against a REAL Mapbox render: clustering, filters, empty states, proximity presets, long-press placement + right-button negative control, case-map download |
 | `10-p7-settings.js` | P7: settings shell, category order, padlocks, the four spot-checked stub panes, profile save → preview row, form-customization chips |
+| `10b-panes.js` | the settings panes that actually render a `PaneGroup` **value readout** (`media-capture`'s `90%` beside Photo Quality, `location`'s two). None of `10-p7-settings.js`'s four panes shows one by default — time-sync's is a `<select>`, export-security's two sit behind switches that ship OFF |
 | `12-p7-profile-flow.js` | P7: all 7 profile fields incl. real career dates → duration lines, Completion autofill |
 | `13-p7-pdf-and-toggles.js` | P7: Case Notes PDF Completion Information (fills a scope first to pass the gate) |
 | `14-p7-toggles-live.js` | P7: field toggles changing the wizard live, Canvas profile removing a screen from the drawer |
