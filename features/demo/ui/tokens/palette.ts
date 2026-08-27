@@ -260,3 +260,34 @@ export type ColorScheme = keyof typeof palette
  */
 export const scheme = 'dark' satisfies ColorScheme
 export const colors = palette[scheme]
+
+/**
+ * SEAM(W4/F84): `scheme` WIDENED to the union, for `=== 'dark'` gates that must survive the flip.
+ *
+ * The problem this closes. `scheme`'s type is the LITERAL `'dark'` (the `satisfies` above, for the
+ * reason the docblock gives). TypeScript therefore reads `scheme === 'dark'` as a comparison
+ * between `'dark'` and `'dark'` — fine today, and **TS2367 "This comparison appears unintentional
+ * because the types have no overlap" the moment the switch is flipped to `'light'`**. Six sites
+ * carry that shape and every one of them fails the flip's compile leg (W4/F84): four production
+ * (`button-recipe.ts:181,186`, `sheet-chrome.ts:227,242` — the W2/F34 dark-only gates) and two
+ * test (`__tests__/palette-contrast.test.ts`, `controls/__tests__/sheet-chrome.test.tsx`).
+ *
+ * Why widen HERE and not at the export. Annotating `scheme: ColorScheme` would fix all six in one
+ * line, and it compiles — measured, tsc exit 0 at `de1cd33`. It is still the wrong line: it makes
+ * `colors` the UNION `typeof dark | typeof light`, so every consumer's inferred type widens
+ * (`colors.background` becomes `'#002853' | '#ffffff'` rather than `'#002853'`), which is exactly
+ * what the docblock above says `satisfies` was chosen to prevent — *"no consumer's inferred type
+ * moved by a character"*. W4/F84's own prescription is explicit for the same reason: **"widen the
+ * comparison, not the export ... keeping `scheme`'s literal type for the `satisfies typeof`
+ * devices that depend on it."** So the widening gets its own name and stays opt-in.
+ *
+ * A typed `const`, NOT a cast. `(scheme as ColorScheme) === 'dark'` silences the same error, but a
+ * cast is an unchecked claim: if `scheme` ever stopped being a `ColorScheme` the cast would keep
+ * lying, while this binding fails to compile. Same reason `light` is `satisfies
+ * Record<PaletteToken, string>` rather than annotated.
+ *
+ * A gate spelled `activeScheme === 'dark'` reads as *"is the scheme currently dark"* — a runtime
+ * question with two possible answers — which is what these four production sites actually mean:
+ * each paints a shadow the phone ships under `isDark && {...}` and must NOT paint on white.
+ */
+export const activeScheme: ColorScheme = scheme

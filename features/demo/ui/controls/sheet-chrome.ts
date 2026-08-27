@@ -60,7 +60,7 @@
 
 import type { CSSProperties } from 'react'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors, scheme, type ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { glassHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 
@@ -224,7 +224,7 @@ export const sheetAccentDot = {
   flexShrink: 0,
   // DARK-ONLY, like the phone's `isDark && {...}` at `:326-332`. W2/F34: shipping it
   // unconditionally would glow a deep-navy `primary` against white.
-  boxShadow: scheme === 'dark' ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined,
+  boxShadow: activeScheme === 'dark' ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined,
 } as const satisfies CSSProperties
 
 /**
@@ -239,7 +239,7 @@ export const sheetTitle = {
   textTransform: 'uppercase',
   color: colors.text,
   // DARK-ONLY, like the phone's `isDark && {...}` at `:339-343`. W2/F34.
-  textShadow: scheme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined,
+  textShadow: activeScheme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',

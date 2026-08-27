@@ -27,7 +27,7 @@ import { ExportActionSheet } from '@/features/demo/ui/screens/ExportActionSheet'
 import { MapBottomSheet } from '@/features/demo/ui/screens/map/MapBottomSheet'
 import { PickerSheet } from '@/features/demo/ui/inputs/PickerSheet'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -256,7 +256,7 @@ describe('the dark-only treatments (W2/F34)', () => {
     // The phone wraps both in `isDark && {...}` (`GlassBottomSheet.tsx:326-332`, `:339-343`).
     // Shipping them unconditionally would glow a deep-navy `primary` against white and drop a
     // black text shadow under near-black text.
-    const dark = scheme === 'dark'
+    const dark = activeScheme === 'dark'
     expect(sheetAccentDot.boxShadow).toBe(dark ? `0 0 4px ${withAlpha(colors.primary, 0.4)}` : undefined)
     expect(sheetTitle.textShadow).toBe(dark ? '0 1px 2px rgba(0, 0, 0, 0.3)' : undefined)
   })

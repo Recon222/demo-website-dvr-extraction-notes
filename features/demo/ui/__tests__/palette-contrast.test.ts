@@ -5,7 +5,7 @@ import {
   SAMPLE_TINT,
 } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS_TIER, type GlassTier } from '@/features/demo/ui/tokens/glass-tiers'
-import { palette, scheme } from '@/features/demo/ui/tokens/palette'
+import { activeScheme, palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { flattenOver, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
@@ -619,7 +619,7 @@ describe('palette contrast contract', () => {
     // composites over IS `card`, so it resolved to a 1.022:1 luminance ratio against its own
     // parent in dark. An inner card was delimited by nothing but its border.
     const parent = (scheme: 'light' | 'dark') =>
-      scheme === 'dark'
+      activeScheme === 'dark'
         ? [GLASS_TIER.dark.card.gradient[1], ...DARK_BG]
         : [GLASS_TIER.light.card.gradient[1]]
 
@@ -664,7 +664,7 @@ describe('palette contrast contract', () => {
       (['light', 'dark'] as const)
         .map((scheme) => {
           const sheetTop = GLASS_TIER[scheme].sheet.gradient[0]
-          const under = scheme === 'dark' ? [sheetTop, ...DARK_BG] : [sheetTop]
+          const under = activeScheme === 'dark' ? [sheetTop, ...DARK_BG] : [sheetTop]
           const sheet = flatten(under)
           // EVERY stop, never `Math.max` of them. Taking the max meant the lower bound only
           // fired when BOTH stops went flat: an alpha edit touching one stop left the healthy
@@ -813,7 +813,7 @@ describe('map chrome contrast floors', () => {
    * because light's tiers are opaque, exactly as `LIGHT_GROUNDS` does.
    */
   const SHEET_GROUNDS: string[][] =
-    scheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
+    activeScheme === 'dark' ? stops(GLASS_TIER.dark.sheet, DARK_BG) : stops(GLASS_TIER.light.sheet)
   const TILES: ReadonlyArray<readonly [string, string]> = [
     ['a bright daylight tile', '#ffffff'],
     ['a night tile', '#000000'],
