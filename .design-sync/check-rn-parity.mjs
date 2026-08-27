@@ -111,7 +111,17 @@ function attempt(src, read) {
  * The first marker must therefore be `'export const GlassColors'`, not `'GlassColors'`.
  */
 function region(text, { after, before } = {}) {
-  let out = text
+  // Strip line comments FIRST. `readField` takes the first `key: <value>` in the slice and has
+  // no idea whether it is code, so a refactor that leaves `// was text: '#f0f4f8'` above the
+  // changed value makes the guard read the COMMENT and report zero drift (review W0/F4;
+  // probed, it SURVIVED). The inverse — a `// TODO: text: '#ffffff'` — is a false red. Both
+  // repos' constant files are comment-dense, and `Colors.ts` is where U1.1's tier reads land.
+  //
+  // Line comments only, and that is enough: every field the guard reads sits on its own line,
+  // and none of the five files sliced here contains `//` inside a string (no URLs — checked).
+  // A block-comment stripper would need to respect string literals to stay correct, and there
+  // is nothing yet for it to catch.
+  let out = text.replace(/\/\/[^\n]*/g, '')
   const markers = after == null ? [] : Array.isArray(after) ? after : [after]
   for (const marker of markers) {
     const i = out.indexOf(marker)
@@ -120,7 +130,11 @@ function region(text, { after, before } = {}) {
   }
   if (before) {
     const j = out.indexOf(before)
-    if (j !== -1) out = out.slice(0, j)
+    // A missed `before` used to fall through and widen the slice to EOF, so a key absent from
+    // its intended block but present in a LATER one was read from the wrong literal instead of
+    // reported. Now it degrades like a missed `after` does — to a PARSE-FAILED row.
+    if (j === -1) throw new Error(`region end marker not found: ${before}`)
+    out = out.slice(0, j)
   }
   return out
 }

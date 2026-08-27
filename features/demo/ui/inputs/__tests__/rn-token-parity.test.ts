@@ -66,6 +66,29 @@ describe('norm — the compare-time normalisation both sides go through', () => 
   })
 })
 
+// Review W0/F4. Both cases are pure string work — no sibling repo, so they run everywhere,
+// which matters for a guard whose every other case is `skipIf`.
+describe('region() — what the slice actually contains', () => {
+  const DARK = { after: 'const dark = {', before: '} as const' }
+
+  it('does not read a value out of a // comment', () => {
+    // The shape that survived at review time: a refactor leaves the OLD value commented above
+    // the new one, `readField` takes the first match in the slice, and the guard reports the
+    // retired colour as current. Zero drift, fully green, completely wrong.
+    const src = ["const dark = {", "  // was text: '#f0f4f8',", "  text: '#e7eef6',", "} as const"].join('\n')
+    expect(readField(src, 'text', DARK)).toBe('#e7eef6')
+  })
+
+  it('throws when the `before` marker is missing instead of widening to EOF', () => {
+    // `after` always threw (-> PARSE-FAILED). `before` silently fell through, so a key absent
+    // from its intended block and present in a later one was read from the wrong literal.
+    // Reachable at U1.1, where `rnTierScope`'s `before: '}'` is what separates six tiers that
+    // all declare the same four part names.
+    const src = ["const dark = {", "  text: '#f0f4f8',"].join('\n')
+    expect(() => readField(src, 'text', DARK)).toThrow(/region end marker not found: \} as const/)
+  })
+})
+
 describe('RN <-> Web token parity (design-system drift guard)', () => {
   it.skipIf(!rnAvailable())(`no anchor has drifted from the RN app (${RN_ROOT})`, () => {
     const { drift } = checkParity()
