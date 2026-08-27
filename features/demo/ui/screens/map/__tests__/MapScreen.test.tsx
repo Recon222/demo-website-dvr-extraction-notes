@@ -799,6 +799,21 @@ describe('MapScreen — case switch', () => {
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
   })
 
+  it('closes the filters sheet — it must not describe a case whose filters just reset', async () => {
+    // The phone REMOUNTS `MapHost` per viewed case, so its `filtersVisible` is recreated false
+    // with everything else its four hooks own. The demo's `MapScreen` stays mounted and clears
+    // them explicitly; a sheet left open would state the OLD case's counts over the new one.
+    const { rerender } = render(
+      <MapScreen viewerCaseId="a" mapData={buildRichMapData()} onEditIncident={vi.fn()} />,
+    )
+    await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
+    openFilters()
+    expect(screen.getByRole('dialog', { name: 'Map Filters' })).toBeInTheDocument()
+
+    rerender(<MapScreen viewerCaseId="b" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Map Filters' })).not.toBeInTheDocument())
+  })
+
   it('collapses the sheet back to peek and drops the detail card (review R-23)', async () => {
     const { container, rerender } = render(<MapScreen viewerCaseId="a" mapData={buildRichMapData()} onEditIncident={vi.fn()} />)
     await waitFor(() => expect(liveMarkers('location')).toHaveLength(3))
