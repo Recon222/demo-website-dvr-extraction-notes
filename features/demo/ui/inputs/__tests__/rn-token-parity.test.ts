@@ -19,7 +19,10 @@ import { checkParity, norm, rnAvailable, RN_ROOT } from '../../../../../.design-
 // this list collapse to empty. The values themselves are already correct — `background` and
 // `border` are no longer DRIFT, they are unreadable, which the guard treats as drift because
 // an anchor it cannot read has not been proven equal.
-const KNOWN_DRIFT = ['primary', 'background', 'border', 'text', 'textMute', 'error', 'gradientTop', 'gradientBot']
+// U0.4 (1)+(2): the two gradient anchors now read `PrimaryButtonGradient` in `Colors.ts:471`
+// through a one-level reference resolver (`Colors.dark.primaryDark`), so they are OK and drop
+// out of both lists. `Button.tsx` is no longer read at all.
+const KNOWN_DRIFT = ['primary', 'background', 'border', 'text', 'textMute', 'error']
 const KNOWN_PARSE_FAILED = KNOWN_DRIFT
 
 const labels = (rows: ReadonlyArray<{ label: string }>) => rows.map((r) => r.label)

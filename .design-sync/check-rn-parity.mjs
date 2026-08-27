@@ -86,54 +86,101 @@ function attempt(src, read) {
   }
 }
 
-// Pull `key: '#hex'` (or a number) from a specific object-literal region of a source file.
-function readField(text, key, { after, before } = {}) {
-  let region = text
+/** Slice a source file down to one object-literal region. Both markers are plain indexOf. */
+function region(text, { after, before } = {}) {
+  let out = text
   if (after) {
     const i = text.indexOf(after)
     if (i === -1) throw new Error(`region marker not found: ${after}`)
-    region = text.slice(i)
+    out = text.slice(i)
   }
   if (before) {
-    const j = region.indexOf(before)
-    if (j !== -1) region = region.slice(0, j)
+    const j = out.indexOf(before)
+    if (j !== -1) out = out.slice(0, j)
   }
-  const m = region.match(new RegExp(`\\b${key}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|([0-9.]+))`))
-  if (!m) throw new Error(`field not found: ${key}`)
-  return norm(m[1] ?? m[2] ?? m[3])
+  return out
 }
 
-// Pull `const NAME = 'value'`. The accent stops live as module consts in glass-tokens.ts
-// (P0.5 dedup); input-theme's `T` only re-exports them as `accentFrom: GLASS.accentFrom`,
-// which readField cannot see through — it matches literals, not identifier references.
-function readConst(text, name) {
-  const m = text.match(new RegExp(`\\b${name}\\s*=\\s*(?:'([^']*)'|"([^"]*)")`))
+/**
+ * The value forms the guard reads, in match order: a quoted literal, a bare number, or a
+ * dotted identifier reference. Ordered so `min: 44` is always the number and never an
+ * identifier.
+ */
+const VALUE = `'[^']*'|"[^"]*"|[0-9.]+|[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*`
+
+/**
+ * Turn one matched value into a normalized string.
+ *
+ * A quoted literal or a bare number IS the value. Anything else is an identifier reference,
+ * and `resolve` looks its LAST dotted segment up as a field of some region. That is the
+ * one-level resolver both sides need, and it is the same six lines for each:
+ *
+ *   RN   `PrimaryButtonGradient.dark = [Colors.dark.primaryDark, '#17527A']`
+ *          -> `primaryDark` inside Colors.ts's `dark: {` region
+ *   web  `T.bg = colors.background`  (U0.1 made `T` a re-export)
+ *          -> `background` inside palette.ts's `const dark = {` region
+ *
+ * ONE level, enforced structurally rather than by a counter: `resolve` is a `readField` call
+ * that carries no `resolve` of its own, so a reference pointing at another reference throws
+ * and becomes a PARSE-FAILED row. An alias chain is precisely the shape that hides drift —
+ * the guard says "I could not read this" instead of following it.
+ */
+function value(raw, resolve) {
+  const quoted = raw.match(/^'([^']*)'$/) ?? raw.match(/^"([^"]*)"$/)
+  if (quoted) return norm(quoted[1])
+  if (/^[0-9.]+$/.test(raw)) return norm(raw)
+  if (!resolve) throw new Error(`unresolved reference: ${raw}`)
+  return resolve(raw.split('.').pop())
+}
+
+/** Pull `key: <value>` from a specific object-literal region of a source file. */
+function readField(text, key, opts = {}) {
+  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*(${VALUE})`))
+  if (!m) throw new Error(`field not found: ${key}`)
+  return value(m[1], opts.resolve)
+}
+
+/**
+ * Pull `const NAME = <value>`. The demo's accent stops live as module consts in
+ * glass-tokens.ts (P0.5 dedup); `T` only re-exports them as `accentFrom: GLASS.accentFrom`.
+ */
+function readConst(text, name, opts = {}) {
+  const m = region(text, opts).match(new RegExp(`\\b${name}\\s*=\\s*(${VALUE})`))
   if (!m) throw new Error(`const not found: ${name}`)
-  return norm(m[1] ?? m[2])
+  return value(m[1], opts.resolve)
+}
+
+/** Pull stop `i` (1 or 2) of `<scheme>: [a, b]` — the phone's per-scheme gradient pairs. */
+function readStop(text, scheme, i, opts = {}) {
+  const m = region(text, opts).match(new RegExp(`\\b${scheme}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
+  if (!m) throw new Error(`gradient stops not found: ${scheme}`)
+  return value(m[i], opts.resolve)
 }
 
 export function checkParity() {
   const colors = source('RN Colors.ts', join(RN, 'src/constants/Colors.ts'))
   const layout = source('RN Layout.ts', join(RN, 'src/constants/Layout.ts'))
-  const button = source('RN Button.tsx', join(RN, 'src/components/common/Button.tsx'))
   const theme = source('web input-theme.ts', join(WEB, 'features/demo/ui/inputs/input-theme.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
 
   // RN dark palette only — slice from `dark: {` so we don't read the light `primary`.
   const darkOpts = { after: 'dark: {', before: '} as const' }
-  // Button PRIMARY_GRADIENT.dark colors: ['#35A0D6', '#2580AD'].
-  // Stale on the phone since its P9 (renamed to PrimaryButtonGradient and moved into
-  // Colors.ts) — U0.4 repoints it. Until then these two resolve to PARSE-FAILED, which is
-  // the whole point: eight other anchors keep reporting.
-  const gradStop = (i) => (text) => {
-    const m = text.match(/dark:\s*\{\s*colors:\s*\[\s*'([^']+)'\s*,\s*'([^']+)'/)
-    if (!m) throw new Error('Button PRIMARY_GRADIENT.dark not found')
-    return norm(m[i])
+  // One-level resolver for the RN side. `Colors.dark.primaryDark` -> look `primaryDark` up
+  // in the same region. No `resolve` of its own: the chain stops here by construction.
+  const rnDark = (name) => readField(colors.text, name, darkOpts)
+  // The CTA gradient moved on the phone's P9: `PRIMARY_GRADIENT` in `Button.tsx` became
+  // `PrimaryButtonGradient` in `Colors.ts:471`, and its dark stops are now
+  // `[Colors.dark.primaryDark, '#17527A']` — one literal and one reference, which is why
+  // reading it at all needs the resolver above. `Button.tsx` is no longer read.
+  const gradOpts = {
+    after: 'export const PrimaryButtonGradient = {',
+    before: '} as const',
+    resolve: rnDark,
   }
 
-  // Every read is wrapped: `readField` / `readConst` throw on a miss, and one miss must
-  // never disable the rest of the table.
+  // Every read is wrapped: the readers throw on a miss, and one miss must never disable the
+  // rest of the table.
   const anchors = [
     { label: 'primary',     rn: attempt(colors, (t) => readField(t, 'primary', darkOpts)),       web: attempt(theme, (t) => readField(t, 'primary')) },
     { label: 'background',  rn: attempt(colors, (t) => readField(t, 'background', darkOpts)),    web: attempt(theme, (t) => readField(t, 'bg')) },
@@ -141,8 +188,8 @@ export function checkParity() {
     { label: 'text',        rn: attempt(colors, (t) => readField(t, 'text', darkOpts)),          web: attempt(theme, (t) => readField(t, 'text')) },
     { label: 'textMute',    rn: attempt(colors, (t) => readField(t, 'textSecondary', darkOpts)), web: attempt(theme, (t) => readField(t, 'textMute')) },
     { label: 'error',       rn: attempt(colors, (t) => readField(t, 'error', darkOpts)),         web: attempt(theme, (t) => readField(t, 'error')) },
-    { label: 'gradientTop', rn: attempt(button, gradStop(1)),                                    web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
-    { label: 'gradientBot', rn: attempt(button, gradStop(2)),                                    web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
+    { label: 'gradientTop', rn: attempt(colors, (t) => readStop(t, 'dark', 1, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_FROM')) },
+    { label: 'gradientBot', rn: attempt(colors, (t) => readStop(t, 'dark', 2, gradOpts)),        web: attempt(glass, (t) => readConst(t, 'ACCENT_TO')) },
     { label: 'touchFloor',  rn: attempt(layout, (t) => readField(t, 'min', { after: 'touchTarget: {', before: '}' })), web: attempt(theme, (t) => readField(t, 'rowH')) },
   ]
 
