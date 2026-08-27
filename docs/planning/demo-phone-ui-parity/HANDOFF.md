@@ -5,7 +5,7 @@ last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***W1 MERGED TO MASTER — PR #41 @ `43ccbad`*** (glass tiers both halves, card family, header chrome; F14–F25 all fixed/refuted; final gates 3,576+10 · guard 115/115 · 107 kB; captures clean). Carry status: u3 @ `0b35726` + u4 @ `af77ddd` clean (re-gates below); u2 CONFLICTED ×4 (guard test W1-115 vs U2.2-117; Field fix vs U2.1 seam ×3) → INTEGRATOR IN FLIGHT. `w1-wave` worktree torn down via the script. NEXT: finish U2.4, assemble W2 (U2→U3→U4), W2 review with AGGREGATOR v2, open the W2 PR against master. OWNER CHECKPOINT 1 (W1) is LIVE: `worktrees/_captures/w1/DIFF.md` §5 — 8 surfaces to eyeball vs the phone; does not block W2.
+**Last updated:** 2026-08-27 — milestone: ***ALL THREE W2 PHASES COMPLETE — U2 @ `231ccf3` (3,677+8; guard 117; I-4 withdrawn resolved-in-wave; I-7 MEDIUM ledger-proposed → U6.1) · U3 @ `0b35726` (3,644+8) · U4 @ `af77ddd` (3,712+8). W2 WAVE ASSEMBLY IN FLIGHT (integrator: U2→U3→U4 into `feat/uiparity-w2`, worktree `w2-wave`; guard union table expected ~64 keys/~131+ rows).*** Then: W2 verification (BEFORE = `_captures/w1/after-riders` ≈ master@43ccbad; AFTER at the wave head), W2 review — FIVE FRESH lanes (W1 lanes at rotation depth; each fresh lane reads its predecessor's w0+w1 lane files as orientation) + AGGREGATOR v2 (oriented, F26+, §99+), fix rounds by the warm W2 implementers, W2 PR against master. W1 OWNER CHECKPOINT still live: `_captures/w1/DIFF.md` §5.
 
 ## 1. Mission & role
 
