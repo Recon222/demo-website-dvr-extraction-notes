@@ -21,6 +21,7 @@ import {
   TERMINAL_FONT_SIZE,
   TERMINAL_SCHEME,
 } from '@/features/demo/ui/screens/import/terminal-palette'
+import { severityTone } from '@/features/demo/ui/tokens/status'
 import { withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -369,7 +370,12 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
       const batch = outcome.totalFiles > 1
       return {
         icon: <Icon path="M8 12l2.5 2.5L16 9" size={22} color={colors.success} circle />, // checkmark-circle
-        titleColor: colors.successOnLight, // phone :242 (D8a)
+        // F63: through the seam, not a private read of the same token. `severityTone` is
+        // where D8a's `*OnLight` foreground lives (`tokens/status.ts:123`), and its docblock
+        // claims every severity surface resolves through it — three arms here were reading
+        // the palette directly, which is the F26 class in a file outside `status-owners`'
+        // OWNED scope.
+        titleColor: severityTone('success').color, // phone :242 (D8a)
         border: withAlpha(colors.success, 0.32), // phone :243
         bg: withAlpha(colors.success, 0.1), // phone :244
         headline: batch ? 'Batch complete' : 'Import ready for review',
@@ -384,7 +390,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
       const failed = outcome.totalFiles - outcome.successCount
       return {
         icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.warning} circle />, // alert-circle
-        titleColor: colors.warningOnLight, // phone :283 (D8a)
+        titleColor: severityTone('warning').color, // phone :283 (D8a)
         border: withAlpha(colors.warning, 0.36), // phone :284
         bg: withAlpha(colors.warning, 0.1), // phone :285
         headline: 'Batch partially failed',
@@ -396,7 +402,7 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
     case 'failure':
       return {
         icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.error} circle />,
-        titleColor: colors.errorOnLight, // phone :298 (D8a)
+        titleColor: severityTone('error').color, // phone :298 (D8a)
         border: withAlpha(colors.error, 0.32), // phone :299
         bg: withAlpha(colors.error, 0.1), // phone :300
         headline: isBatchRun ? 'Batch failed' : 'Import failed',
