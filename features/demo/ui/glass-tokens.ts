@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Shared glass-aesthetic tokens for the demo UI (parity P0.5 / matrix G6).
@@ -46,24 +47,24 @@ export const GLASS = {
   borderError: '1px solid rgba(255,71,87,0.3)',
 } as const
 
-/** The G6 card-surface triple: radius 12 · soft hairline · vertical card gradient. */
+/** The G6 card-surface triple: radius `lg` · soft hairline · vertical card gradient. */
 export const glassCard = {
-  borderRadius: 12,
+  borderRadius: radius.lg,
   border: GLASS.borderSoft,
   background: GLASS.gradientCard,
 } as const satisfies CSSProperties
 
-/** Primary CTA base: radius 10 · borderless · accent gradient · white text. */
+/** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
 export const glassBtnPrimary = {
-  borderRadius: 10,
+  borderRadius: radius.control,
   border: 'none',
   background: GLASS.gradientAccent,
   color: '#fff',
 } as const satisfies CSSProperties
 
-/** Secondary button base: radius 10 · button border · raised navy fill · muted text. */
+/** Secondary button base: radius `control` · button border · raised fill · muted text. */
 export const glassBtnSecondary = {
-  borderRadius: 10,
+  borderRadius: radius.control,
   border: GLASS.borderBtn,
   background: colors.backgroundSecondary,
   color: colors.textSecondary,
