@@ -13,9 +13,12 @@ import {
   type RecorderStatusTone,
   type RecordingPhase,
 } from '@/features/demo/engine/logic/media'
+import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 import type { AudioMeter } from '@/features/demo/ui/inputs/useAudioAnalyser'
 
 /**
@@ -130,11 +133,10 @@ const LEVEL_BAND_COLOR: Record<LevelFillBand, string> = {
 }
 
 const MONO = "var(--font-jbmono),'JetBrains Mono',monospace"
-const MUTED = '#5a7a9a'
 const BAR_WIDTH = 4
 const BAR_GAP = 3
 
-const monoLabel: CSSProperties = { fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 0.5 }
+const monoLabel: CSSProperties = { fontFamily: MONO, fontSize: 10, color: colors.textSecondary, letterSpacing: 0.5 }
 
 export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
   const { mode, phase, elapsedMs, canStop, meter, format, timeOfDay, failure, notice, reduceMotion } = props
@@ -166,26 +168,32 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
 
   return (
     <Shell>
-      {/* Header — phone RecorderScreen.tsx:246-261 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 8px' }}>
-        <button
-          type="button"
-          aria-label="Cancel recording"
-          onClick={props.onCancel}
-          style={{ width: 40, height: 40, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(19,34,54,0.85)', border: GLASS.borderSoft, cursor: 'pointer' }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 5, height: 5, borderRadius: 2.5, background: '#2B8CC1', opacity: 0.6 }} />
-          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1.5, color: MUTED }}>AUDIO CAPTURE</span>
-        </div>
-      </div>
+      {/* SEAM(U7.2): `OverlayHeader`'s reference adopter (A61) — phone RecorderScreen.tsx:284-302.
+          The close pill GREW to 44x44 on the phone (`Layout.touchTarget.min`, `:281-282`) and
+          took the card tier's top gradient stop as its fill (`:78-79`); both live in the seam.
+          `padding` is the phone's own `paddingHorizontal: mdlg` / `paddingVertical: sm`
+          (`:276-277`), which is also the margin every body block below already uses. */}
+      <OverlayHeader
+        variant="glass"
+        onBack={props.onCancel}
+        backLabel="Cancel recording"
+        style={{ padding: '0 20px 8px' }}
+        trailing={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 5, height: 5, borderRadius: 2.5, background: colors.primary, opacity: 0.6 }} />
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1.5, color: colors.textSecondary }}>AUDIO CAPTURE</span>
+          </div>
+        }
+      />
 
-      {/* Timer card — phone TimerCard.tsx */}
-      <div style={{ ...glassCard, position: 'relative', margin: '0 20px 8px', padding: '20px 20px 14px', borderRadius: 16, overflow: 'hidden' }}>
+      {/* Timer card — phone TimerCard.tsx. The `borderRadius: 16` override that used to sit at
+          the end of this object is DELETED, not re-spelled: matrix row 67-69 is
+          "`TimerCard`'s hand-rolled glass → `<Card glass>`, radius `xl` (16) → `lg` (12)", and
+          U1.2 already put `glassCard` (whose radius IS `lg`) underneath, so the whole change is
+          the removal. `shadow.card` arrives the same way — it is fused into `glassCard`'s
+          `boxShadow` beside the tier inset, which is also why nothing here may override that
+          key (glass-tokens.ts's module header). */}
+      <div style={{ ...glassCard, position: 'relative', margin: '0 20px 8px', padding: '20px 20px 14px', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: 1, background: 'rgba(153,186,221,0.25)' }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div
@@ -230,10 +238,15 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
         </div>
       </div>
 
-      {/* Waveform monitor — phone SpectrumVisualizer.tsx */}
-      <div style={{ ...glassCard, position: 'relative', flex: 1, minHeight: 150, margin: '0 20px', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Waveform monitor — phone SpectrumVisualizer.tsx, whose own container is
+          `borderRadius: Layout.borderRadius.lg` (`:361`) — 12, not 16. Same deletion as the
+          timer card above; `partner-legwork-w3.md` W3-C7 found both spread-overrides and
+          A43's radius-16 card sweep is what they belong to.
+          DEF-UI-008's carve-out is untouched: the panel keeps its own `flex: 1` and the bars
+          keep their gradients — only the corner moves. */}
+      <div style={{ ...glassCard, position: 'relative', flex: 1, minHeight: 150, margin: '0 20px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: MUTED }}>WAVEFORM MONITOR</span>
+          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: colors.textSecondary }}>WAVEFORM MONITOR</span>
           {meter.available ? (
             <span
               data-testid="waveform-live-dot"
@@ -254,7 +267,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
         {/* Decoration, wired to nothing — exactly as on the phone. */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 16px 10px' }} aria-hidden>
           {RECORDER_SCALE_LABELS.map((label) => (
-            <span key={label} style={{ fontFamily: MONO, fontSize: 8, letterSpacing: 1, color: MUTED, opacity: 0.5 }}>
+            <span key={label} style={{ fontFamily: MONO, fontSize: 8, letterSpacing: 1, color: colors.textSecondary, opacity: 0.5 }}>
               {label}
             </span>
           ))}
@@ -264,7 +277,7 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
       {/* Level meter — phone LevelMeter.tsx, visible only while active */}
       {active && (
         <div data-testid="level-meter" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 20px 0' }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1, color: MUTED }}>LEVEL</span>
+          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1, color: colors.textSecondary }}>LEVEL</span>
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(30,58,95,0.5)', overflow: 'hidden' }}>
             <div
               data-testid="level-fill"
@@ -277,16 +290,25 @@ export function AudioRecorderScreen(props: AudioRecorderScreenProps) {
         </div>
       )}
 
-      {notice !== null && (
-        <div role="status" style={{ margin: '12px 20px 0', borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
-          {notice}
-        </div>
-      )}
+      {/* D19 hand-back, the recorder's half: U3.3 built `Banner` and handed this file's PAIR
+          here. A71 — one severity callout, and the fill goes OPAQUE (`*Light`) because that is
+          the only ground the `*OnLight` foregrounds are measured against (`Banner.tsx:11-16`). */}
+      {notice !== null && <Banner severity="info" message={notice} style={{ margin: '12px 20px 0' }} />}
 
       {failure !== null && (
-        <div role="alert" style={{ margin: '12px 20px 0', borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: '12px 14px' }}>
-          <div style={{ fontSize: 12, color: '#ff8a93', lineHeight: 1.5, marginBottom: 8 }}>{failure}</div>
-          <button type="button" onClick={props.onDismissFailure} style={{ background: 'transparent', border: 'none', padding: 0, color: '#9fd4ee', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        /* Dismiss sits BESIDE the Banner, not inside it — a Banner is a status line, not a
+           layout slot, and it has never had a dismiss affordance in any phone revision
+           (`Banner.tsx`'s docblock). The row is the phone's own `errorBannerRow`
+           (`export-hub/ExportHub.tsx:278-282` + `:185-194`): flex row, `alignItems: center`,
+           `gap: Layout.spacing.md`, the Banner at `flex: 1`, and a `secondary`/`small` Button
+           next to it. That also replaces the bare transparent text link this screen had. */
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md, margin: '12px 20px 0' }}>
+          <Banner severity="error" message={failure} style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={props.onDismissFailure}
+            style={buttonStyle({ variant: 'secondary', size: 'small' })}
+          >
             Dismiss
           </button>
         </div>
@@ -569,7 +591,7 @@ function StopIcon() {
 
 function MicOffIcon() {
   return (
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#5a7a9a" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="1.5" strokeLinecap="round" aria-hidden>
       <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6" />
       <path d="M17 16.95A7 7 0 0 1 5 12v-2M19 10v2a7 7 0 0 1-.11 1.23M12 19v3" />
       <path d="M2 2l20 20" />

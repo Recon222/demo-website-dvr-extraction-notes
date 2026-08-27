@@ -230,6 +230,9 @@ describe('Banner — the caller seams', () => {
 describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   /** Every `ui/**` non-test file that renders `<Banner>` today. Paths relative to `ui/`. */
   const ADOPTED = [
+    // U7.2's two hand-backs, moved here from `HANDED_BACK` below as that list instructs.
+    'screens/AudioPreviewScreen.tsx',
+    'screens/AudioRecorderScreen.tsx',
     'screens/DateDisambiguationWarning.tsx',
     'screens/EditIncidentLocationModal.tsx',
     'screens/ExtractedScopeScreen.tsx',
@@ -237,7 +240,8 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
   ]
 
   /**
-   * The six D19 hand-backs, with the package that owes each one. When you adopt, DELETE your row
+   * The D19 hand-backs still outstanding, with the package that owes each one. U7.2 took its
+   * two (`AudioRecorderScreen`, `AudioPreviewScreen`) and moved them into `ADOPTED`. When you adopt, DELETE your row
    * here and add the file to `ADOPTED` above — do not edit a count, there isn't one.
    * `ImportModal.tsx` is deliberately absent from BOTH lists: see the refutation in
    * `docs/planning/demo-phone-ui-parity/reports/u3.3-implementation-report.md` (D12 defends the
@@ -248,8 +252,6 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
     'screens/NewCaseModal.tsx': 'U6.4a — the submit-error banner (:201-208)',
     'screens/settings/panes/_pane-chrome.tsx': 'U6.2 — PaneNote, 3 tones, 8 sites (:75-118)',
-    'screens/AudioRecorderScreen.tsx': 'U7.2 — the notice + error pair (:252-264)',
-    'screens/AudioPreviewScreen.tsx': 'U7.2 — the notice + error pair (:207-215)',
     'screens/OcrCaptureScreen.tsx': 'U7.3 — the error and assumed-date callouts (:389-423, :476-479)',
   }
 
@@ -285,7 +287,7 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     expect(found, 'a Banner adoption landed or vanished — update ADOPTED and say why').toEqual(ADOPTED)
   })
 
-  it('leaves all six hand-back sites unadopted, each still owned by its own package', () => {
+  it('leaves every remaining hand-back site unadopted, each still owned by its own package', () => {
     for (const [file, owner] of Object.entries(HANDED_BACK)) {
       const full = join(UI_ROOT, ...file.split('/'))
       // The file must still EXIST: a rename would silently empty this guard, which is the

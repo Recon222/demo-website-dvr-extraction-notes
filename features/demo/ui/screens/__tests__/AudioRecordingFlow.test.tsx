@@ -417,7 +417,13 @@ describe('AudioRecordingFlow — the 1-hour ceiling', () => {
     })
 
     expect(screen.getByText('Review Audio')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Maximum Duration Reached')
+    // U7.2 / A71 (D19 hand-back): the auto-stop notice is now `<Banner severity="info">`,
+    // which is `role="alert"` with an explicit `aria-live="polite"` — the same politeness the
+    // `role="status"` box carried, plus a severity in the accessible name. The politeness is
+    // asserted here so the swap cannot silently become an assertive interruption.
+    const notice = screen.getByRole('alert')
+    expect(notice).toHaveTextContent('Maximum Duration Reached')
+    expect(notice).toHaveAttribute('aria-live', 'polite')
     // R-21: the auto-stop fires inside useMediaCapture's tick and never passes through
     // `handleStop`, so a release that lived there left the browser's recording indicator
     // asserting a live microphone over a finished take. The release is now a reaction to the

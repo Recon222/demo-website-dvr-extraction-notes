@@ -9,6 +9,8 @@ import {
   mediaFilename,
   type CapturedMedia,
 } from '@/features/demo/engine/logic/media'
+import { OverlayHeader } from '@/features/demo/ui/chrome/OverlayHeader'
+import { Banner } from '@/features/demo/ui/controls/Banner'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { MetadataForm, type MetadataFormValue } from '@/features/demo/ui/inputs/MetadataForm'
@@ -105,23 +107,22 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#05080d', padding: '54px 20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        {/* Phone title verbatim (AudioRecordingFlow.tsx:130). */}
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f0f4f8' }}>Review Audio</div>
-        <button
-          type="button"
-          // The phone's label here is "Exit form" — it names the wizard form this screen sits
-          // inside on the device. The demo reaches the recorder as a launch surface, not a
-          // wizard step, so the label names what leaving actually does.
-          aria-label="Exit audio recording"
-          onClick={onCancel}
-          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+      {/* SEAM(U7.2): one of `OverlayHeader`'s four adopters (A61). The phone paints this exact
+          header through `FormLayout` -> `Header` (`AudioRecordingFlow.tsx:127` —
+          `title="Review Audio" showExit onExit={onCancel}`), which is where the seam's 18/600
+          title and its LEADING exit control come from; the ✕ used to sit trailing here.
+          The shell already insets 20px, so the header supplies only its own bottom gap. */}
+      <OverlayHeader
+        variant="glass"
+        // Phone title verbatim (AudioRecordingFlow.tsx:127).
+        title="Review Audio"
+        onBack={onCancel}
+        // The phone's label here is "Exit form" — it names the wizard form this screen sits
+        // inside on the device. The demo reaches the recorder as a launch surface, not a
+        // wizard step, so the label names what leaving actually does.
+        backLabel="Exit audio recording"
+        style={{ marginBottom: 16 }}
+      />
 
       <div style={{ ...glassCard, padding: '20px 16px 14px', marginBottom: 14 }}>
         <audio
@@ -204,16 +205,25 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
         </div>
       )}
 
-      {notice !== null && (
-        <div role="status" style={{ borderRadius: 12, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.08)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: '#9fd4ee', lineHeight: 1.5 }}>
-          {notice}
-        </div>
-      )}
+      {/* D19 hand-back: U3.3 built `Banner` and handed this screen's PAIR to U7.2, which opens
+          the file anyway. Both were local recipes — a `borderAccent`/8%-wash info box and a
+          `borderError`/6%-wash error box — and A71 is that there is ONE severity callout.
+          The fill goes OPAQUE (`*Light`), which is the point: the phone's own reason
+          (`Banner.tsx:11-16`) is that the `*OnLight` foregrounds are measured against those
+          tones and a translucent wash over an unknown parent cannot be measured at all.
+          `role="status"` becomes Banner's `role="alert" aria-live="polite"` — the same
+          politeness, plus a severity in the accessible name that the colour never carried. */}
+      {notice !== null && <Banner severity="info" message={notice} style={{ marginBottom: 14 }} />}
 
       {playbackBlocked && (
-        <div role="alert" style={{ borderRadius: 12, border: GLASS.borderError, background: 'rgba(255,71,87,0.06)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: '#ff8a93', lineHeight: 1.5 }}>
-          The browser refused to start playback. The recording itself is unaffected — it is still here and still saveable.
-        </div>
+        <Banner
+          severity="error"
+          /* SEAM(U7.3): this string and the sample-note line at `:203` both carry an em dash and
+             are A93's to rewrite — the copy is MOVED here verbatim by U7.2, not authored. Two of
+             the demo's em-dash sites, findable from this marker. */
+          message="The browser refused to start playback. The recording itself is unaffected — it is still here and still saveable."
+          style={{ marginBottom: 14 }}
+        />
       )}
 
       {/* Between the player card and the action row — the phone's content order

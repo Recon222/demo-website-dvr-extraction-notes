@@ -2,7 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
 import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
+
+/** jsdom rewrites `#rrggbb` to `rgb(r, g, b)` on read-back (mutation-testing SKILL, project
+ *  hazards) - compare through the same normalisation rather than by hex. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = (hex.replace('#', '').match(/../g) as string[]).map((p) => parseInt(p, 16))
+  return `rgb(${r}, ${g}, ${b})`
+}
 import type { MediaBuckets } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
 
@@ -59,7 +68,10 @@ describe('the sheet header (P4.2’s title, kept)', () => {
     render(<MediaLibrarySheet {...props({ media: oneOfEach() })} />)
 
     expect(screen.getByRole('dialog', { name: 'Media Library' })).toBeInTheDocument()
-    expect(screen.getByTestId('modal-subtitle')).toHaveTextContent('3 items')
+    // U7.2: the sheet is `GlassBottomSheet` now, whose subtitle carries no test id — and
+    // adding one to production markup for a pin's convenience is what the reviewer contract
+    // flags. The visible text is the contract anyway.
+    expect(screen.getByText('3 items')).toBeInTheDocument()
   })
 
   it('closes through onClose — the only exit, per D-B6', () => {
@@ -643,5 +655,114 @@ describe('the item info panel (row 64)', () => {
     expect(info).toHaveTextContent('Jul 16, 2026')
     // Not the row's `--:--` placeholder — the panel drops the segment (MediaItemInfo.tsx:46-64).
     expect(info).not.toHaveTextContent('--:--')
+  })
+})
+
+describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
+  /**
+   * MUTATION: put `<ModalShell …>` back around the body.
+   *
+   * The phone's `+122/-227` deleted a whole parallel sheet implementation and replaced it with
+   * `<GlassBottomSheet>` (P5's "fold"). The shell is observable through the chrome it owns and
+   * `ModalShell` does not: the sheet scrim, the accent strip, and the absence of a drag handle.
+   */
+  it('is mounted on GlassBottomSheet, not on the page-sheet ModalShell', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+
+    expect(document.querySelector('[data-sheet-scrim]')).not.toBeNull()
+    expect(document.querySelector('[data-sheet-accent-strip]')).not.toBeNull()
+    expect(document.querySelector('[data-modal-header]')).toBeNull()
+    // Phone `:222-224` — the lists own the vertical axis, so no handle and no swipe-to-dismiss.
+    expect(document.querySelector('[data-sheet-handle]')).toBeNull()
+  })
+
+  /**
+   * MUTATION: pass `closeLabel="Close media library"`, i.e. copy the phone's call at `:227`
+   * verbatim. That is the ONE prop this adoption deliberately drops, and the reason is
+   * `GlassBottomSheet`'s own contract: the scrim is announced only when nothing else is.
+   */
+  it('labels exactly ONE dismiss control — the ✕, never the scrim as well', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    expect(screen.getAllByRole('button', { name: 'Close media library' })).toHaveLength(1)
+    expect(document.querySelector('[data-sheet-scrim]')?.getAttribute('aria-label')).toBeNull()
+  })
+
+  /**
+   * MUTATION: drop `hitTarget(...)` from either preview action and paint the disc at 32 again,
+   * or grow the painted disc to 44 instead of padding it.
+   *
+   * A49/DEF-UI-019: the web has no `hitSlop`, and the phone's own ruling
+   * (`MediaPreview.tsx:63-68`) is that the painted circle STAYS 36 because "a 44px disc would
+   * dominate" the row — the minimum is met with slop. On the web the padding IS the slop, and
+   * the equal negative margin hands the 36 box back to the row so the picture does not move.
+   */
+  it.each(['View fullscreen', 'Close preview'])('gives %s a real 44 target around a 36 disc', (name) => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    const button = screen.getByRole('button', { name })
+    const face = button.firstElementChild as HTMLElement
+
+    // 36 + 4 + 4 = 44, and the -4 margin returns the layout box to 36.
+    expect(button).toHaveStyle({ padding: '4px', margin: '-4px' })
+    expect(face).toHaveStyle({ width: '36px', height: '36px' })
+    expect(4 * 2 + 36).toBe(touchTarget.min)
+    // The paint is on the INNER span; a padded button with a background would be a 44 disc.
+    expect(button.style.background).toBe('transparent')
+  })
+
+  /**
+   * MUTATION: re-inline either edge as a literal, or point both at the same value.
+   *
+   * A51: the demo's hand-rolled 3D-glass edges are byte-identical to `ElevatedEdges.dark`
+   * (`button-recipe.ts`'s docblock named this file as the copy and left it to U7.2). They are
+   * imported now, and read through `[scheme]` so the light half arrives with the flip.
+   */
+  it('takes its 3D-glass edges from ElevatedEdges (A51), as longhands', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    const face = screen.getByRole('button', { name: 'Close preview' }).firstElementChild as HTMLElement
+    const norm = (s: string) => s.replace(/\s+/g, '')
+
+    expect(norm(face.style.borderTopColor)).toBe(norm(ElevatedEdges[scheme].top))
+    expect(norm(face.style.borderBottomColor)).toBe(norm(ElevatedEdges[scheme].bottom))
+    // The lit-edge rule: a `border` shorthand here would erase both on the next paint.
+    expect(face.style.borderWidth).toBe('1px')
+    expect(face.style.borderTopColor).not.toBe(face.style.borderRightColor)
+  })
+
+  /**
+   * MUTATION: put the fullscreen chip back to 40 with a 22px glyph.
+   * Phone `MediaPreviewFullscreen.tsx:40-41` — `CLOSE_BUTTON_SIZE = 44`, `CLOSE_ICON_SIZE = 24`.
+   */
+  it('paints the fullscreen close chip at 44 with a 24 glyph (A49)', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item()] }) })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    const close = within(screen.getByTestId('media-fullscreen')).getByRole('button', { name: 'Close fullscreen' })
+
+    expect(close).toHaveStyle({ width: `${touchTarget.min}px`, height: `${touchTarget.min}px` })
+    expect(close.querySelector('svg')?.getAttribute('width')).toBe('24')
+    // A90/U4.4's anti-resync: the ground is the chip, never `colors.scrim`.
+    expect(close.style.background.replace(/\s+/g, '')).toBe(MEDIA_CLOSE_CHIP.replace(/\s+/g, ''))
+  })
+
+  /**
+   * MUTATION: put either line back to its pre-U7.2 value (16 / textTertiary message, 13 / the
+   * one-off dim blue hint).
+   *
+   * Phone `EmptyMediaState.tsx:88-99`: message `fontSize.lg` (18) / `fontWeight.medium`, hint
+   * `fontSize.sm` (14), and BOTH `colors.textSecondary` (`:69`, `:74`). This is NOT A80's
+   * `EmptyState` — the phone keeps a separate component for the media tabs because it carries a
+   * hint line, which is why U3.4's sweep correctly left it alone.
+   */
+  it('brings the empty state to the phone two-line recipe, both lines textSecondary', () => {
+    render(<MediaLibrarySheet {...props({ media: buckets() })} />)
+    const empty = screen.getByTestId('empty-media-state')
+    const [message, hint] = Array.from(empty.children) as HTMLElement[]
+    const expected = hexToRgb(colors.textSecondary)
+
+    expect(message).toHaveStyle({ fontSize: '18px', fontWeight: '500' })
+    expect(message.style.color).toBe(expected)
+    expect(hint).toHaveStyle({ fontSize: '14px', marginTop: '8px' })
+    expect(hint.style.color).toBe(expected)
+    // Phone `:56-59` — one accessible name for the whole state, not two orphaned lines.
+    expect(empty.getAttribute('aria-label')).toBe(`${message.textContent}. ${hint.textContent}`)
   })
 })
