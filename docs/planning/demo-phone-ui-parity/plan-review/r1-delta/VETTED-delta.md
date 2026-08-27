@@ -158,3 +158,31 @@ No severity changed by spot-check. No lane finding refuted.
 **VD-1, VD-2, VD-3, VD-4, VD-5** (fix rows 1, 3, 5, 6, 7, 8, 10, 14, 15, 17). Reason: VD-1/VD-2 are inside U0.1's own row; VD-3 and VD-5 (`:215`) are pasted into every U0 brief via §6.4 items 1–2; VD-4 is the template itself and D18 governs U0.2–U0.5's branch cut; VD-5's `:56`/matrix `:410` and VD-9's `:61` are text the owner ratifies, and ratification precedes U0. **VD-9** should therefore also land before the owner's D1–D20 pass, though it does not touch a U0 brief. VD-6, VD-7, VD-8, VD-10, VD-11 may land in the same round but do not gate U0.
 
 Re-review: fix-delta round 2 should be a **same-lanes resume** confined to the 19 edits above; no fresh full read is warranted.
+
+---
+
+## 6. Closing verdict (r2)
+
+**Verdict: APPROVE** (house rule: no BLOCKER, no MAJOR open). Docs at HEAD `f354a6d` (fix round `1024a0b`), diff `git diff 011b0c8 -- docs/planning/demo-phone-ui-parity/0*.md`. Writer's `FIX-MAPPING-r2.md`: 11/11 FIXED. All three lanes APPROVE; 12/12 lane dispositions FIXED-VERIFIED; 0 new findings.
+
+### Per-VD verification
+
+| VD | Sev | Lane verification (r2) | Aggregator spot-check at HEAD |
+|---|---|---|---|
+| VD-1 | MAJOR (regression) | ARCH-D-1 → FIXED-VERIFIED (`lane-architect-r2.md`) | **Confirmed.** Plan `:219` U0.1 ADD list contains `errorLight #b72136` + *"IS added here — U2.2's danger fill (A52) takes it in phase U2, before U3.1 exists"*. `:265` U3.1 ADD list has no `errorLight`; reads *"already exists from U0.1 (one owner only — and that owner is U0.1 …)"*. `grep errorLight` plan → exactly `:219`, `:265`. |
+| VD-2 | MAJOR | QUAL-D-1 → FIXED-VERIFIED (`lane-quality-r2.md`) | **Confirmed.** `:219` Matrix-rows = **`A1–A9, A19, A27, A28`**; `:225` carries the new *"Each package's Matrix-rows cell lists only ITS OWN rows"* note naming A41/A42/A53 → U0.2, A50 → U0.3, A96 → U0.4, A97 → U0.5, A47 → §4.9. |
+| VD-3 | MAJOR | ARCH-D-2 (§4.5 half) + QUAL-D-2 → FIXED-VERIFIED | Confirmed: `:146` *"cut from the `feat/uiparity` integration branch (§4.8 / D18) — except U0.1's, which is cut from `master`"*; no `off \`master\`` survives in either doc. |
+| VD-4 | MAJOR | QUAL-D-3 → FIXED-VERIFIED | Confirmed: `:380` item 1 now pastes **§2 and §4**; `:387` item 8 reads **D1–D20** + the D20 full-quote rule for the six packages. |
+| VD-5 | MINOR (U0-blocking) | ARCH-D-2 + QUAL-D-4 → FIXED-VERIFIED | Confirmed: `22 anchors`/`22-anchor` → zero in the matrix; one in the plan, `:521`, which is the DoD's own supersession note. |
+| VD-6 | MINOR | ARCH-D-3 → FIXED-VERIFIED (`:365`, `:268`) | Lane-verified; not re-opened. |
+| VD-7 | MINOR | QUAL-D-5(a) → FIXED-VERIFIED | Confirmed: U6.4a Matrix-rows no longer lists 41; states *"Row 41 is U6.4b's in full"*. |
+| VD-8 | MINOR | QUAL-D-5(b) → FIXED-VERIFIED | Confirmed: `### 4.1 … 4.9` now in sequence (`:77`–`:182`). |
+| VD-9 | MINOR (pre-ratification) | REAL-D-1 → FIXED-VERIFIED (`lane-reality-r2.md`) | Lane-verified at `:61`; not re-opened. |
+| VD-10 | MINOR | REAL-D-2 → FIXED-VERIFIED | Confirmed: `demo-ui-inventory.md:2186` → `:52-53` with the `CORRECTED (plan-review r1, V-41)` marker; the stale `:45,52` string is gone. |
+| VD-11 | MINOR | REAL-D-3 → FIXED-VERIFIED | Confirmed: plan `:237` cites `Colors.ts:345-438`. |
+
+**11/11 verified** (each by its originating lane; VD-1..5, 7, 8, 10, 11 additionally re-checked at the doc line by the aggregator). Reality's r2 observation on A80's *"all … italic"* wording (`MapScreen.tsx:105-117` is `#9fb6d0`, non-italic) is recorded as **no-action**: the row enumerates the sites by `file:line`, the implementer opens the file, and D12 governs the treatment either way. Nothing open.
+
+### State of the plan — for the owner's ratification brief
+
+Across two review rounds, 46 round-1 findings (2 BLOCKER / 16 MAJOR / 27 MINOR / 1 refuted) and 11 fix-delta findings (4 MAJOR / 7 MINOR) have been closed and independently re-verified — every `file:line` in both docs resolves at source (~160 citations re-opened across the phone repo and the demo worktree), the matrix's 97 Tier-A rows and 215-row totals are script-derived and reconcile, and the U0 phase (U0.1–U0.5) is buildable from the plan alone: the palette module, its phone naming, the `withAlpha`/`flattenOver` signatures, the staged drift-guard anchor set (~15 → +12 → +4 → +1, ~32 at DoD), the banned-literal guard, the branch model and the briefing template all agree with each other and with the matrix. What is **not** proven and remains owner-gated is §3's decision gate: execution does not start until **D1–D20** are ruled, and three of those — **D18** (integration branch `feat/uiparity`, `master` takes one merge at U8 exit, per-phase `git revert -m 1`), **D19** (re-cut U2 ∥ U3 rather than serialise; two textual collisions survive and are documented in §6.1), and **D20** (the behaviour-change carve-out for six named packages) — are execution-shaped and must be ruled in the same pass, since the U0 briefs paste the branch model and the template quotes D20. The matrix's §OWNER RATIFICATION table carries a one-line recommendation for all twenty; ruling "as recommended" on each is sufficient to unblock U0.1 once the planning bundle is merged to `master` (§5 prerequisite).
