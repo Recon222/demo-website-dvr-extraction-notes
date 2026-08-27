@@ -24,10 +24,16 @@ const rgb = (hex: string) =>
 
 const nav = { onNext: vi.fn(), onBack: vi.fn(), onMenu: vi.fn() }
 
-/** `getRetentionStatus`: <=0 OVERWRITTEN · <=3 CRITICAL · <=7 WARNING · else SAFE. */
-function retentionBadgeFor(daysUntilOverwritten: number): HTMLElement {
+/**
+ * `getRetentionStatus`: <=0 OVERWRITTEN · <=3 CRITICAL · <=7 WARNING · else SAFE.
+ *
+ * Returns the `unmount` with the element: jsdom shares ONE document per test file, so a loop
+ * that renders four screens without unmounting leaves four badges in it and `getByText` then
+ * throws "found multiple elements" on the second pass.
+ */
+function retentionBadgeFor(daysUntilOverwritten: number): { pill: HTMLElement; unmount: () => void } {
   const form = blankLocationForm()
-  render(
+  const { unmount } = render(
     <DvrInfoScreen
       dvr={{ ...form.dvr, firstRecordedDate: '2025-01-01' }}
       retention={{
@@ -39,7 +45,7 @@ function retentionBadgeFor(daysUntilOverwritten: number): HTMLElement {
       {...nav}
     />,
   )
-  return screen.getByText(/^(Safe|Warning|Critical|Overwritten)$/)
+  return { pill: screen.getByText(/^(Safe|Warning|Critical|Overwritten)$/), unmount }
 }
 
 describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => {
@@ -54,7 +60,7 @@ describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => 
       [0, 'Overwritten', 'error'],
     ]
     for (const [days, label, severity] of cases) {
-      const pill = retentionBadgeFor(days)
+      const { pill, unmount } = retentionBadgeFor(days)
       const tone = severityTone(severity)
       expect(pill).toHaveTextContent(label)
       expect(pill).toHaveStyle({ color: tone.color, borderColor: tone.borderColor })
@@ -62,12 +68,12 @@ describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => 
       // `*Light` fill — this pill is deliberately not `statusBadgeStyle`.
       expect(pill.style.background).toBe(withAlpha(tone.borderColor, 0.15))
       expect(pill.style.background).not.toBe(rgb(tone.background))
-      screen.getByText(label).remove()
+      unmount()
     }
   })
 
   it('takes the phone`s own geometry for THIS badge — radius sm (4), not the pill`s lg (12)', () => {
-    const pill = retentionBadgeFor(2)
+    const { pill } = retentionBadgeFor(2)
     // Phone `dvr-information.tsx:547-556`: `borderRadius.sm`, `spacing.xs`/`spacing.sm` padding,
     // `fontSize.xs`, semibold. Was: radius 6, `3px 8px`, 11px, weight 700.
     expect(pill).toHaveStyle({ borderRadius: '4px', padding: '4px 8px', fontSize: '12px', fontWeight: '600' })
@@ -75,7 +81,7 @@ describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => 
   })
 
   it('never paints the label with the saturated accent (C.3 rule 1)', () => {
-    const pill = retentionBadgeFor(0)
+    const { pill } = retentionBadgeFor(0)
     expect(pill.style.color).not.toBe(rgb(colors.error))
     expect(pill.style.color).toBe(rgb(colors.errorOnLight))
   })
