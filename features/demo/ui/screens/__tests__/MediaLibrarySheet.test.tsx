@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
-import { MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import type { MediaBuckets } from '@/features/demo/engine/logic/media'
 import type { MediaItem } from '@/features/demo/engine/types'
 
@@ -459,6 +460,22 @@ describe('delete (row 66)', () => {
 })
 
 describe('the fullscreen preview (row 65)', () => {
+  it('paints the close chip from MEDIA_CLOSE_CHIP and its glyph from colors.text (A90)', () => {
+    // The link the contrast rows cannot make for themselves. `palette-contrast.test.ts`'s rows
+    // 36-37 measure `colors.text` over `MEDIA_CLOSE_CHIP`; nothing there notices if this button
+    // stops painting either one. A probe proved it: weakening the glyph to `textTertiary` left
+    // the whole contrast file green (SURVIVED). This is the cell that reds instead.
+    render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View fullscreen' }))
+    const close = within(screen.getByTestId('media-fullscreen')).getByRole('button', {
+      name: 'Close fullscreen',
+    })
+    expect(close.style.background).toBe(MEDIA_CLOSE_CHIP)
+    expect(close.style.color).toBe('rgb(240, 244, 248)') // colors.text, as jsdom reads it back
+    // …and NOT the backdrop token, which is the resync this constant exists to refuse.
+    expect(close.style.background).not.toBe(colors.scrim)
+  })
+
   it('opens a photo full-bleed and returns to the sheet on close', () => {
     render(<MediaLibrarySheet {...props({ media: buckets({ photos: [item({ filename: 'front-door.jpg' })] }) })} />)
 
