@@ -88,37 +88,51 @@ describe('the retention pill (A69 owner 3 — phone RETENTION_SEVERITY)', () => 
 })
 
 describe('PaneNote (A69 owner 5 — the settings note boxes)', () => {
+  /**
+   * U6.2 moved the note onto `Banner`'s DOM: box -> icon + message, so the fill and the border
+   * live on `[data-pane-note]` and the foreground on the message child. These three pins are
+   * U3.2's; only the QUERY moved. The values they assert are unchanged, and the two things they
+   * exist to catch — the accent as text, a translucent fill — are asserted on the same
+   * elements that now carry them.
+   */
+  const message = () => screen.getByText('Body')
+  /** The note box — `[data-pane-note]`, the message's parent since the Banner-recipe port. */
+  const box = () => message().parentElement as HTMLElement
+
   it('paints all three tones from THE severity recipe', () => {
     for (const tone of ['info', 'warning', 'success'] as const) {
       const { unmount } = render(<PaneNote tone={tone}>Body</PaneNote>)
-      const note = screen.getByText('Body')
       const expected = severityTone(tone)
-      expect(note).toHaveStyle({
-        background: expected.background,
-        borderColor: expected.borderColor,
-        color: expected.color,
-      })
+      const note = box()
+      expect(note).toHaveAttribute('data-pane-note', tone)
+      expect(note).toHaveStyle({ backgroundColor: expected.background })
+      // jsdom does not synthesize `borderColor` back from the four side longhands, so the
+      // shorthand reads '' — assert per side, which also catches a PARTIAL re-tint that the
+      // shorthand read structurally cannot see.
+      for (const side of ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'] as const) {
+        expect(note.style[side], `${tone}: ${side}`).toBe(rgb(expected.borderColor))
+      }
+      expect(message()).toHaveStyle({ color: expected.color })
       unmount()
     }
   })
 
   it('stops spending the accent as the note`s TEXT — the 1.92-2.24:1 pairing', () => {
     render(<PaneNote tone="warning">Body</PaneNote>)
-    const note = screen.getByText('Body')
     // What it used to render: `#ffd93d` text on `rgba(255,217,61,0.09)`.
-    expect(note.style.color).not.toBe(rgb(colors.warning))
-    expect(note.style.color).toBe(rgb(colors.warningOnLight))
+    expect(message().style.color).not.toBe(rgb(colors.warning))
+    expect(message().style.color).toBe(rgb(colors.warningOnLight))
     // The fill is OPAQUE now — a translucent one composites over an unknown parent and the
     // ratio stops being measurable.
-    expect(note.style.background).toBe(rgb(colors.warningLight))
+    expect(box().style.backgroundColor).toBe(rgb(colors.warningLight))
   })
 
   it('writes border LONGHANDS only, so nothing downstream can erase a side', () => {
     render(<PaneNote tone="info">Body</PaneNote>)
-    const note = screen.getByText('Body')
+    const note = box()
     expect(note).toHaveStyle({ borderWidth: '1px', borderStyle: 'solid' })
-    // The `border` shorthand it used to carry is gone: a shorthand written after a longhand
-    // erases it, and React writes only CHANGED keys on update.
-    expect(note.getAttribute('style')).not.toMatch(/(^|;)\s*border:/)
+    // Neither `border:` nor `border-color:`. Both are four-side shorthands, so either one
+    // written after a longhand erases it — and React writes only CHANGED keys on update.
+    expect(note.getAttribute('style')).not.toMatch(/(^|;)\s*border(-color)?:/)
   })
 })

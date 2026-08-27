@@ -247,7 +247,8 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     'screens/TimeOffsetScreen.tsx': 'U6.4b — the dashed amber advisory (:129-136)',
     'screens/CompletionScreen.tsx': 'U6.4b — the error callout (:87-92)',
     'screens/NewCaseModal.tsx': 'U6.4a — the submit-error banner (:201-208)',
-    'screens/settings/panes/_pane-chrome.tsx': 'U6.2 — PaneNote, 3 tones, 8 sites (:75-118)',
+    'screens/settings/panes/_pane-chrome.tsx':
+      'U6.2 — PaneNote carries the RECIPE (see RECIPE_ONLY); the COMPONENT is deferred (D20)',
     'screens/AudioRecorderScreen.tsx': 'U7.2 — the notice + error pair (:252-264)',
     'screens/AudioPreviewScreen.tsx': 'U7.2 — the notice + error pair (:207-215)',
     'screens/OcrCaptureScreen.tsx': 'U7.3 — the error and assumed-date callouts (:389-423, :476-479)',
@@ -268,18 +269,51 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
     return out
   }
 
-  /** Comments stripped first — same reason as the italic census: a docblock naming the import
-   *  would otherwise count as an adoption. Block then line, as `empty-state.test.tsx` does. */
-  const importsBanner = (file: string): boolean =>
-    /from\s+'@\/features\/demo\/ui\/controls\/Banner'/.test(
-      readFileSync(file, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, ''),
-    )
+  /**
+   * Files that import ANYTHING from the Banner module. U6.2 split this from the adoption test
+   * below: importing the module is no longer the same fact as adopting the component, because
+   * `_pane-chrome.tsx` now imports `BannerIcon` while deliberately NOT rendering `<Banner>`
+   * (see `RECIPE_ONLY`).
+   *
+   * Comments stripped first — same reason as the italic census: a docblock naming the import
+   * would otherwise count as an adoption. Block then line, as `empty-state.test.tsx` does.
+   */
+  const stripComments = (file: string): string =>
+    readFileSync(file, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+
+  const importsBannerModule = (file: string): boolean =>
+    /from\s+'@\/features\/demo\/ui\/controls\/Banner'/.test(stripComments(file))
+
+  /**
+   * RENDERS `<Banner …>` — the COMPONENT adoption, which is the fact D19 actually tracks.
+   * `<BannerIcon` does not match (the char after `<Banner` must be whitespace, `/` or `>`), and
+   * a broken regex cannot pass silently: the adoption test below compares against a FOUR-entry
+   * list, so a predicate that matches nothing reds.
+   */
+  const rendersBanner = (file: string): boolean => /<Banner[\s/>]/.test(stripComments(file))
+
+  /**
+   * Imports the module WITHOUT rendering the component — the ruled middle state.
+   *
+   * `_pane-chrome.tsx`'s `PaneNote` carries every visible part of the phone's settings note
+   * (`Banner.tsx:114-144`'s recipe plus its severity glyph, imported so the two cannot draw
+   * different icons) and none of its live-region semantics. `<Banner>` is hard-wired to
+   * `role="alert"` with an explicit `aria-live` and has no `id`; adopting it would break the
+   * three `aria-describedby` targets R-6 added, make six static notes announce on mount
+   * (R-34), and turn two polite `role="status"` notes assertive. Those are accessibility-tree
+   * BEHAVIOUR changes, and plan §2's D20 carve-out does not name U6.2 — so the component
+   * adoption is proposed as a deferral in the U6.2 report rather than taken.
+   */
+  const RECIPE_ONLY: Readonly<Record<string, string>> = {
+    'screens/settings/panes/_pane-chrome.tsx':
+      'U6.2 — PaneNote takes Banner’s recipe + BannerIcon; the COMPONENT stays deferred (D20)',
+  }
 
   it('has exactly the four own-lane adoptions D19 left to U3.3', () => {
     const found = sourceFiles(UI_ROOT)
-      .filter(importsBanner)
+      .filter(rendersBanner)
       .map((f) => relative(UI_ROOT, f).split(sep).join('/'))
       .sort()
     expect(found, 'a Banner adoption landed or vanished — update ADOPTED and say why').toEqual(ADOPTED)
@@ -292,9 +326,22 @@ describe('SEAM(U3.3) — the adoption map (A71 / D19)', () => {
       // failure mode a path-keyed list has and a count-keyed one does not even notice.
       expect(existsSync(full), `${file} moved — re-anchor this row (${owner})`).toBe(true)
       expect(
-        importsBanner(full),
+        rendersBanner(full),
         `${file} adopted Banner: that is ${owner}'s row — move it into ADOPTED above and delete this line`,
       ).toBe(false)
+    }
+  })
+
+  it('records the recipe-only middle state, and holds it to BOTH halves of its ruling', () => {
+    for (const [file, why] of Object.entries(RECIPE_ONLY)) {
+      const full = join(UI_ROOT, ...file.split('/'))
+      expect(existsSync(full), `${file} moved — re-anchor this row (${why})`).toBe(true)
+      // Half one: it really does reach into this module (for the glyph), so the two cannot
+      // draw different icons for the same severity.
+      expect(importsBannerModule(full), `${file} stopped importing Banner at all — ${why}`).toBe(true)
+      // Half two: and it still does not render the component. The day it does, this row is
+      // wrong and the file belongs in ADOPTED.
+      expect(rendersBanner(full), `${file} now renders <Banner> — move it to ADOPTED (${why})`).toBe(false)
     }
   })
 })

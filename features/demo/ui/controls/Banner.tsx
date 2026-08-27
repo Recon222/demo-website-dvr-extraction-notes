@@ -100,6 +100,38 @@ const SEVERITY_ICON: Record<BannerSeverity, JSX.Element> = {
   ),
 }
 
+/**
+ * The severity glyph, in the shell phone `:70-80` draws it in — 20px (`Layout.iconSize.sm`),
+ * `fill="none"`, stroke 2, round caps, `flexShrink: 0`, and `aria-hidden` because the message
+ * already carries the meaning (`:76-77`).
+ *
+ * Exported for `_pane-chrome.tsx`'s `PaneNote`, which renders the phone's `Banner` RECIPE
+ * without its live-region SEMANTICS (see that file's docblock, and `pane-chrome.test.tsx`'s
+ * drift guard). Extracting the glyph is what keeps the two from drawing different icons for the
+ * same severity; it is not a widening of `Banner`'s own contract — there is still no `icon`
+ * prop, and `color` is not a caller choice at either site, it is the `*OnLight` foreground the
+ * severity already fixes.
+ */
+export function BannerIcon({ severity, color }: { severity: BannerSeverity; color: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={iconSize.sm}
+      height={iconSize.sm}
+      viewBox="0 0 24 24"
+      fill="none"
+      // Phone `:74` — the icon takes the FOREGROUND, never `colors[severity]`.
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      {SEVERITY_ICON[severity]}
+    </svg>
+  )
+}
+
 export interface BannerProps {
   severity: BannerSeverity
   /** The callout copy. Single paragraph — a status line, not a layout slot (phone `:39`). */
@@ -175,23 +207,9 @@ export function Banner({ severity, message, style, testId }: BannerProps) {
         ...style,
       }}
     >
-      <svg
-        // Phone `:76-77` — `accessibilityElementsHidden` + `importantForAccessibility="no"`:
-        // the message already carries the meaning, so the icon is decorative.
-        aria-hidden="true"
-        width={iconSize.sm}
-        height={iconSize.sm}
-        viewBox="0 0 24 24"
-        fill="none"
-        // Phone `:74` — the icon takes the FOREGROUND, never `colors[severity]`.
-        stroke={foreground}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
-      >
-        {SEVERITY_ICON[severity]}
-      </svg>
+      {/* Phone `:76-77` — `accessibilityElementsHidden` + `importantForAccessibility="no"`:
+          the message already carries the meaning, so the icon is decorative. */}
+      <BannerIcon severity={severity} color={foreground} />
       <div style={{ ...messageStyle, color: foreground }}>{message}</div>
     </div>
   )
