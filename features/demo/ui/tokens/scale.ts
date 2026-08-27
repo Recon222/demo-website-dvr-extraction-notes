@@ -82,22 +82,43 @@ export const iconSize = {
 
 /** `[r, g, b, a]`, or `null` for anything that is not a hex / rgb(a) colour. */
 function parseColor(color: string): [number, number, number, number] | null {
-  const rgb = color.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)/i)
+  // Anchored at BOTH ends: unanchored, `rgb(1, 2, 3) and then some` parsed as a colour.
+  const rgb = color.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i)
   if (rgb) return [+rgb[1], +rgb[2], +rgb[3], rgb[4] === undefined ? 1 : +rgb[4]]
 
-  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  // 4- and 8-digit forms carry an alpha PAIR. The demo already renders four `#rrggbbaa`
+  // values (`map/LocationDetailCard.tsx:43`, `map/LocationRow.tsx:22,23,26`) that U5.4
+  // routes through `withAlpha`; before they parsed, they came back unchanged — i.e. at
+  // their OWN alpha, which is the bug the phone's private copies had for `rgba()` inputs.
+  const hex = color.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i)
   if (!hex) return null
 
   const digits = hex[1]
   const pairs =
-    digits.length === 3
+    digits.length <= 4
       ? // `split('')`, not `[...digits]` — tsconfig targets es5 and spreading a string
         // there needs `--downlevelIteration`. Vitest transpiles it happily; `tsc` does not.
         digits.split('').map((d) => d + d)
-      : [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 6)]
-  const [r, g, b] = pairs.map((pair) => parseInt(pair, 16))
-  return [r, g, b, 1]
+      : (digits.match(/../g) as string[])
+  const [r, g, b, a] = pairs.map((pair) => parseInt(pair, 16))
+  return [r, g, b, a === undefined ? 1 : a / 255]
 }
+
+/**
+ * Dev-only breadcrumb for the two arms that hand an input straight back. Both are silent
+ * degradations: the caller gets a plausible colour that is NOT what it asked for.
+ * Shape per the repo's `generateExtractedScopes` convention
+ * (`engine/logic/case-map/geojson.ts:287-291`).
+ */
+function warnUnparseable(fn: string, color: string, detail: string): void {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[demo] ${fn}: cannot parse "${color}" — ${detail}`)
+  }
+}
+
+/** Colour-SHAPED but unparseable. `transparent` / `currentColor` are documented safe inputs
+ *  to `withAlpha`, so warning on them would be the noise that gets the warning muted. */
+const looksLikeColour = (color: string) => /^(#|rgba?\()/i.test(color)
 
 /**
  * Re-alpha a colour token — the demo's ONE way to derive a tinted variant.
@@ -120,7 +141,10 @@ function parseColor(color: string): [number, number, number, number] | null {
  */
 export function withAlpha(color: string, alpha: number): string {
   const parsed = parseColor(color)
-  if (!parsed) return color
+  if (!parsed) {
+    if (looksLikeColour(color)) warnUnparseable('withAlpha', color, `returned unchanged, alpha ${alpha} ignored`)
+    return color
+  }
   const [r, g, b] = parsed
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
@@ -144,23 +168,33 @@ export function withAlpha(color: string, alpha: number): string {
  * never meant to render at. On the phone that turned a `recessed` wash into near-black and
  * shipped the time picker's drum 27 CIE76 dE from its own sheet (`with-alpha.ts:56-65`).
  *
- * @param top     the translucent colour
- * @param grounds the layers beneath it, nearest first; the last is treated as opaque
+ * At least ONE ground is required, by signature: `flattenOver(x)` used to return `x`
+ * uncomposited, which is a plausible wrong answer no test could tell from a right one.
+ * Now it does not compile.
+ *
+ * @param top    the translucent colour
+ * @param ground the layer directly beneath it
+ * @param rest   further layers, nearest first; the LAST layer given is treated as opaque
  * @returns an opaque `rgb(...)` string, or `top` unchanged if any layer is unparseable
  */
-export function flattenOver(top: string, ...grounds: string[]): string {
-  if (grounds.length === 0) return top
-
+export function flattenOver(top: string, ground: string, ...rest: string[]): string {
+  const grounds = [ground, ...rest]
   const t = parseColor(top)
   const layers = grounds.map(parseColor)
-  if (!t || layers.some((l) => l === null)) return top
+  if (!t || layers.some((l) => l === null)) {
+    // Unlike `withAlpha`, nothing is a safe layer here: every argument must be a real
+    // colour, so this warns unconditionally.
+    const bad = t ? grounds[layers.findIndex((l) => l === null)] : top
+    warnUnparseable('flattenOver', bad, 'returned the top layer UNCOMPOSITED')
+    return top
+  }
   const parsed = layers as [number, number, number, number][]
 
-  // Bottom-up: the last ground is the painted surface, everything above washes over it.
-  let ground = parsed[parsed.length - 1]
-  for (let i = parsed.length - 2; i >= 0; i--) ground = mixOver(parsed[i], ground)
+  // Bottom-up: the last layer is the painted surface, everything above washes over it.
+  let below = parsed[parsed.length - 1]
+  for (let i = parsed.length - 2; i >= 0; i--) below = mixOver(parsed[i], below)
 
-  const [r, g, b] = mixOver(t, ground)
+  const [r, g, b] = mixOver(t, below)
   return `rgb(${r}, ${g}, ${b})`
 }
 

@@ -87,7 +87,7 @@ function luminance([r, g, b]: Rgba): number {
  * copy here would leave the helper every later recipe composites with unexercised by any gate,
  * which is the same tautology the deep-import rule above exists to avoid.
  *
- * Two seams between the two implementations, both deliberate:
+ * Three seams between the two implementations, all deliberate:
  *  - `flattenOver` ROUNDS each channel at every fold step; the phone's `over` keeps floats.
  *    Rounding is what a screen actually does, and the drift is under 1/255 per channel
  *    (< 0.01 on a ratio). The three sanity pairs below composite nothing, so they are exact.
@@ -102,15 +102,25 @@ function luminance([r, g, b]: Rgba): number {
  *    makes that a rule instead of a hope, and U1.1 is the package that will first test it.
  */
 function flatten(stack: string[]): Rgba {
+  // EVERY layer is parsed, not just the ones composited: a buried unparseable layer would
+  // otherwise reach `flattenOver` and come back as `top`, uncomposited (F3-era guard). The
+  // parsed alphas are then reused for the bottom check rather than parsed a second time.
   const parsed = stack.map(parse)
+  // W0-F6 clause (2): the bottom ground is the painted surface and `flattenOver` discards its
+  // alpha, so a translucent bottom composites against nothing and returns a plausible WRONG
+  // answer. `parse` cannot see it — the layer is valid — so it is asserted here.
   const bottom = parsed[parsed.length - 1]
   if (bottom[3] !== 1) {
     throw new Error(
       `palette-contrast: the bottom ground must be opaque, got ${stack[stack.length - 1]}`,
     )
   }
-  const [top, ...grounds] = stack
-  return parse(flattenOver(top, ...grounds))
+  // W0-F6 clause (1) is the other half: `flattenOver` requires a ground BY SIGNATURE now, so
+  // `flattenOver(top, ...grounds)` no longer type-checks (TS2556). A one-entry stack is
+  // already flat and is returned as parsed — the "nothing to composite" case must not be
+  // mistaken for a composite.
+  const [top, ground, ...rest] = stack
+  return ground === undefined ? parsed[0] : parse(flattenOver(top, ground, ...rest))
 }
 
 /**

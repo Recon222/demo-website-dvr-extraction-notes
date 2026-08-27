@@ -27,11 +27,19 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 // '#17527A']`. Kept as module CONSTS spelled as literals — the drift guard's anchors 7/8
 // read them with `readConst`, which matches literals, not identifier references.
 //
+// So the top stop is the SAME hex as `colors.primaryDark`, held twice. `= colors.primaryDark`
+// would blind the guard; `satisfies typeof colors.primaryDark` keeps the literal readable AND
+// makes the duplication a type-level identity, so re-basing the palette without re-basing the
+// stop stops compiling. Without it that mutation is green on any run where the phone repo is
+// absent (ledger §91) — and the AA claim at `palette-contrast.test.ts:307-317` measures
+// against `GLASS.accentFrom`, so it would move WITH the stale value. `ACCENT_TO` has no
+// palette sibling and stays plain.
+//
 // Measured with `onPrimary` (#ffffff): 5.80:1 on the top stop, 8.32:1 on the bottom. The
 // character INVERTS from the demo's old pair — light->mid becomes mid->dark. Do NOT lighten
 // either stop and do NOT re-tokenise the light pair to [primaryLight, primaryDark]: the old
 // dark recipe measured 2.94:1, and that light swap takes a passing 5.17 down to 3.68.
-const ACCENT_FROM = '#1F6B99'
+const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark
 const ACCENT_TO = '#17527A'
 
 export const GLASS = {
@@ -48,7 +56,10 @@ export const GLASS = {
     'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
   // border shorthands
   border: `1px solid ${colors.border}`,
-  // `colors.border` at 50% (A7/A30) — kept as a literal because CSS has no alpha-on-hex.
+  // `colors.border` at 50% (A7/A30), hand-written for one more wave: plan U1.1 DERIVES this
+  // token (with `gradientCard`, `gradientPanel` and `borderAccent`) from `GLASS_TIER.dark.card`
+  // so the ~40 existing importers keep working. Do not hand-derive it here in the meantime —
+  // `withAlpha` emits the SPACED `rgba()` form and this string is pinned byte-exactly.
   borderSoft: '1px solid rgba(28,78,132,0.5)',
   borderBtn: `1px solid ${colors.borderLight}`,
   borderAccent: '1px solid rgba(43,140,193,0.3)',

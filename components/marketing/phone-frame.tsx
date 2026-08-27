@@ -3,9 +3,13 @@ import type { CSSProperties, ReactNode } from "react";
 import { CornerBrackets } from "./corner-brackets";
 
 /**
- * The marketing device shell. Pixel constants are COPIED from the demo's shell
- * (features/demo/ui/PhoneFrame.tsx: 404 frame · 378×786 screen) — deliberately
- * NOT imported: anything reached through the demo barrel drags
+ * The marketing device shell. The GEOMETRY is copied from the demo's shell
+ * (features/demo/ui/PhoneFrame.tsx: 404 frame · 378×786 screen); the COLOURS are
+ * marketing's own and deliberately do NOT track it. The demo↔phone parity port
+ * re-based the demo's palette — PhoneFrame.tsx now paints `colors.background`
+ * (#002853) where this file keeps #0d1b2a — and marketing is not a parity target,
+ * so the two are expected to differ from here on. Nothing here is imported, and
+ * that is deliberate: anything reached through the demo barrel drags
  * mapbox-gl/pdfjs-dist/motion into marketing bundles (bundle-barrel-imports,
  * CRITICAL), and the demo's frame is a client component with viewport-fit
  * scaling we don't want.
@@ -45,6 +49,8 @@ const screenStyle: CSSProperties = {
   height: 786,
   borderRadius: 46,
   overflow: "hidden",
+  // Marketing's own navy, NOT the demo's re-based token — see the docblock. Near-
+  // invisible in practice: the screen slot is filled edge-to-edge by <AppDemo/>.
   background: "#0d1b2a",
   boxShadow: "0 0 0 2px #05080d inset",
 };
