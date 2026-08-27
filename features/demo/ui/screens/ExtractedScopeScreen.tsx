@@ -2,6 +2,7 @@
 
 import type { ScopeEntry } from '@/features/demo/engine/types'
 import { DateTimeField, Field, WizardHeader, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { GLASS, glassCard, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface ExtractedScopeScreenProps {
@@ -23,9 +24,7 @@ export function ExtractedScopeScreen({ scopes, onChange, onRemove, onRegenerate,
         <div style={{ fontSize: 13, color: '#9fc0db', lineHeight: 1.5, marginBottom: 14, padding: 12, borderRadius: 10, border: GLASS.borderAccent, background: 'rgba(43,140,193,0.07)' }}>
           Auto-generated from the time-offset calculation — these are the windows pulled off the DVR, in <strong style={{ color: '#cfe6f5' }}>DVR-clock time</strong>. Edit if you rounded the boundaries.
         </div>
-        {scopes.length === 0 && (
-          <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '14px 0' }}>Calculate the time offset first, then regenerate.</div>
-        )}
+        {scopes.length === 0 && <EmptyState message="Calculate the time offset first, then regenerate." />}
         {scopes.map((ex, i) => (
           <div key={ex.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

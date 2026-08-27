@@ -5,6 +5,7 @@ import type { CaseCard, CaseLocationRow } from '@/features/demo/ui/screens/scree
 import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/RowActions'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
@@ -83,7 +84,7 @@ export function CasesScreen({
       </div>
 
       <div style={{ padding: '0 16px' }}>
-        {cases.length === 0 && <div style={{ fontSize: 14, color: '#7a9fc4', fontStyle: 'italic' }}>No cases yet — tap + to create one.</div>}
+        {cases.length === 0 && <EmptyState message="No cases yet — tap + to create one." />}
         {cases.map((c) => (
           <CaseRow
             key={c.id}

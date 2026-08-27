@@ -5,6 +5,7 @@ import { useReducedMotion } from 'motion/react'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
@@ -59,7 +60,7 @@ export function DashboardScreen({ cases, onOpenLocation, onCaseActions, onSettin
         Recent Activity
       </div>
 
-      {recent.length === 0 && <div style={{ padding: '0 18px', fontSize: 14, color: '#7a9fc4', fontStyle: 'italic' }}>No cases yet.</div>}
+      {recent.length === 0 && <EmptyState message="No cases yet." />}
 
       {recent.map((c, ci) => (
         <TimelineCase
