@@ -99,7 +99,15 @@ export function MediaLibrarySheet({ media, onDelete, onClose }: MediaLibraryShee
   }
 
   return (
-    <ModalShell title="Media Library" subtitle={mediaLibrarySubtitle(counts.total)} onClose={onClose} fillBody>
+    <ModalShell
+      title="Media Library"
+      subtitle={mediaLibrarySubtitle(counts.total)}
+      // Verbatim, phone `MediaLibrarySheet.tsx:208` and `:231` - both spellings of the same
+      // surface's close control agree on the words.
+      closeAccessibilityLabel="Close media library"
+      onClose={onClose}
+      fillBody
+    >
       {/* Undo the shell's body padding so the tab bar and the list rows reach the sheet edges,
           as they do on the phone; the paddings below are each surface's own. */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, margin: -18 }}>

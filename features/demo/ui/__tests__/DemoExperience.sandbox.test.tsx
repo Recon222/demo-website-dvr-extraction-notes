@@ -459,7 +459,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     })
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel while the import is in flight
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // cancel while the import is in flight
     await act(async () => {
       resolveRun(okRun())
       await Promise.resolve()
@@ -576,7 +576,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
     // Run A starts and is cancelled while its request is still in flight…
     fireEvent.change(input(), { target: { files: [new File(['x'], 'stale.pdf', { type: 'application/pdf' })] } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' }))
     // …then run B starts. Starting B must NOT revive cancelled run A (a shared
     // cancel boolean would be cleared here — the exact H1 race).
     act(() => {
@@ -616,7 +616,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [new File(['x'], 'addr.pdf', { type: 'application/pdf' })] } })
     await act(async () => {}) // flush to inside the geocode await
-    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel mid-geocode
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // cancel mid-geocode
 
     await act(async () => {
       resolveGeo({ lng: -79.6505, lat: 43.6087 })
@@ -726,7 +726,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     })
     const input = () => container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input(), { target: { files: [new File(['x'], 'stale.pdf', { type: 'application/pdf' })] } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // cancel run A mid-flight
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // cancel run A mid-flight
     act(() => { store.getState().openModal('import') })
     fireEvent.change(input(), { target: { files: [new File(['y'], 'live.pdf', { type: 'application/pdf' })] } })
     expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
@@ -918,7 +918,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.change(input(), { target: { files: [new File(['a'], 'good.pdf', { type: 'application/pdf' }), new File(['b'], 'hang.pdf', { type: 'application/pdf' })] } })
       await screen.findByText(/File 2 of 2/) // run A landed file 1 and is now waiting on file 2
 
-      fireEvent.click(screen.getByRole('button', { name: 'Close' })) // supersede run A mid-flight
+      fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // supersede run A mid-flight
       act(() => { store.getState().openModal('import') })
       fireEvent.change(input(), { target: { files: [new File(['c'], 'live.pdf', { type: 'application/pdf' })] } })
       expect(screen.getByTestId('terminal-status')).toHaveTextContent('Extracting text from PDF...')
@@ -1056,7 +1056,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     await screen.findByTestId('terminal-review-cta') // dwelling
 
     const epochDuringDwell = importLogBus.getEpoch()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' })) // close mid-dwell
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' })) // close mid-dwell
     expect(store.getState().modal).toBeNull()
     expect(importLogBus.getEpoch()).toBe(epochDuringDwell + 1) // bus reset — no stale log
     expect(importLogBus.getLines()).toEqual([])

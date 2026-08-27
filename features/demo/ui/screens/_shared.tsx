@@ -139,6 +139,7 @@ export function ModalShell({
   title,
   subtitle,
   onClose,
+  closeAccessibilityLabel,
   onBack,
   backLabel = 'Back',
   fillBody = false,
@@ -153,6 +154,17 @@ export function ModalShell({
    *  phone-parity callers. */
   subtitle?: ReactNode
   onClose(): void
+  /**
+   * Screen-reader name for the close control. REQUIRED, not defaulted to "Close" - phone
+   * `ModalHeader.tsx:32-38`, verbatim: *"five near-identical page sheets that all announce
+   * 'Close' are indistinguishable to a screen-reader user, which is the regression DEF-UI-006
+   * records for `GlassBottomSheet`'s hardcoded scrim label."* The demo had EIGHT of them.
+   *
+   * Not `closeLabel`: that is `GlassBottomSheet`'s prop (`GlassBottomSheet.tsx:105`) and it
+   * labels the SCRIM. This one is `ModalHeader`'s (`:38`) and it labels the BUTTON. Two phone
+   * components, two phone names, two different elements - so both are lifted as they are found.
+   */
+  closeAccessibilityLabel: string
   onBack?(): void
   backLabel?: string
   fillBody?: boolean
@@ -224,7 +236,7 @@ export function ModalShell({
               </div>
             )}
           </div>
-          <button type="button" aria-label="Close" onClick={onClose} style={modalHeaderIconBtn}>
+          <button type="button" aria-label={closeAccessibilityLabel} onClick={onClose} style={modalHeaderIconBtn}>
             <svg width={iconSize.md} height={iconSize.md} viewBox="0 0 24 24" fill="none" stroke={colors.textSecondary} strokeWidth="2" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>

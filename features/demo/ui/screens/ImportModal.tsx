@@ -212,6 +212,9 @@ export function ImportModal(props: ImportModalProps) {
       title={stage === 'paste' ? PASTE_COPY.title : 'Import Recovery Request'}
       onBack={stage === 'paste' ? props.onBack : undefined}
       backLabel={PASTE_COPY.backLabel}
+      // Verbatim, phone `ImportPickerModal.tsx:680` and `:778` - the modal this surface ports,
+      // which spells the same label at both of its close controls.
+      closeAccessibilityLabel="Close import picker"
       onClose={props.onCancel}
     >
       {stage === 'picker' && (

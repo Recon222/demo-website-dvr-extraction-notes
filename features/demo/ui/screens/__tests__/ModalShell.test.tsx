@@ -13,7 +13,7 @@ describe('ModalShell', () => {
     document.body.appendChild(overlay)
     render(
       <PhoneOverlayContext.Provider value={overlay}>
-        <ModalShell title="Ported" onClose={vi.fn()}>
+        <ModalShell title="Ported" closeAccessibilityLabel="Close ported" onClose={vi.fn()}>
           <div>portaled body</div>
         </ModalShell>
       </PhoneOverlayContext.Provider>,
@@ -25,7 +25,7 @@ describe('ModalShell', () => {
 
   it('renders inline when there is no overlay (fallback for isolated tests)', () => {
     render(
-      <ModalShell title="Inline" onClose={vi.fn()}>
+      <ModalShell title="Inline" closeAccessibilityLabel="Close inline" onClose={vi.fn()}>
         <div>inline body</div>
       </ModalShell>,
     )
@@ -36,7 +36,7 @@ describe('ModalShell', () => {
   it('calls onClose on Escape', () => {
     const onClose = vi.fn()
     render(
-      <ModalShell title="x" onClose={onClose}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={onClose}>
         <div />
       </ModalShell>,
     )
@@ -46,7 +46,7 @@ describe('ModalShell', () => {
 
   it('renders no back chevron unless onBack is provided', () => {
     render(
-      <ModalShell title="x" onClose={vi.fn()}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={vi.fn()}>
         <div />
       </ModalShell>,
     )
@@ -57,7 +57,7 @@ describe('ModalShell', () => {
     const onBack = vi.fn()
     const onClose = vi.fn()
     render(
-      <ModalShell title="x" onClose={onClose} onBack={onBack} backLabel="Back to import options">
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={onClose} onBack={onBack} backLabel="Back to import options">
         <div />
       </ModalShell>,
     )
@@ -69,7 +69,7 @@ describe('ModalShell', () => {
   it('calls onClose when the scrim is clicked', () => {
     const onClose = vi.fn()
     const { container } = render(
-      <ModalShell title="x" onClose={onClose}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={onClose}>
         <div />
       </ModalShell>,
     )
@@ -127,7 +127,7 @@ describe('A60 — the modal header bar', () => {
 
   it('is what the rendered header actually carries (a fragment nothing spreads is decoration)', () => {
     const { container } = render(
-      <ModalShell title="x" onClose={vi.fn()}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={vi.fn()}>
         <div />
       </ModalShell>,
     )
@@ -140,7 +140,7 @@ describe('A60 — the modal header bar', () => {
 
   it('titles at 2xl/bold in the text token, flexed so the close glyph is pushed to the edge', () => {
     render(
-      <ModalShell title="Import Recovery Request" onClose={vi.fn()}>
+      <ModalShell title="Import Recovery Request" closeAccessibilityLabel="Close import picker" onClose={vi.fn()}>
         <div />
       </ModalShell>,
     )
@@ -151,11 +151,11 @@ describe('A60 — the modal header bar', () => {
 
   it('closes with a 24px glyph in the textSecondary tone (ModalHeader.tsx:75)', () => {
     render(
-      <ModalShell title="x" onClose={vi.fn()}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={vi.fn()}>
         <div />
       </ModalShell>,
     )
-    const glyph = screen.getByRole('button', { name: 'Close' }).querySelector('svg')!
+    const glyph = screen.getByRole('button', { name: 'Close x' }).querySelector('svg')!
     expect(glyph.getAttribute('width')).toBe(String(iconSize.md))
     expect(glyph.getAttribute('height')).toBe(String(iconSize.md))
     expect(glyph.getAttribute('stroke')).toBe(colors.textSecondary)
@@ -163,15 +163,69 @@ describe('A60 — the modal header bar', () => {
 
   it('gives the close control a 52x52 HIT box while its layout box stays 32x32 (the web`s hitSlop)', () => {
     render(
-      <ModalShell title="x" onClose={vi.fn()}>
+      <ModalShell title="x" closeAccessibilityLabel="Close x" onClose={vi.fn()}>
         <div />
       </ModalShell>,
     )
-    const close = screen.getByRole('button', { name: 'Close' })
+    const close = screen.getByRole('button', { name: 'Close x' })
     const pad = Number.parseInt(close.style.padding, 10)
     const bleed = Number.parseInt(close.style.margin, 10)
     // The painted+clickable box, and the box the flex row measures.
     expect(iconSize.md + pad * 2).toBe(52)
     expect(iconSize.md + pad * 2 + bleed * 2).toBe(iconSize.md + spacing.xs * 2)
+  })
+})
+
+/**
+ * A60's required close label — `ModalHeader.tsx:32-38`, verbatim:
+ *
+ *   "Required, not defaulted to 'Close': five near-identical page sheets that all announce
+ *    'Close' are indistinguishable to a screen-reader user, which is the regression DEF-UI-006
+ *    records for `GlassBottomSheet`'s hardcoded scrim label."
+ *
+ * The demo had EIGHT of them. The type is what enforces "required" (a missing prop is a compile
+ * error, and the cold `tsc` gate is what proves it); these pin the half a type cannot: that the
+ * caller's words reach the accessible name, and that no default survives to collide with them.
+ *
+ * NOTE the name: `closeAccessibilityLabel`, not `GlassBottomSheet`'s `closeLabel`. Two different
+ * phone components with two different phone prop names, labelling two different ELEMENTS — see
+ * the U4.2 report, R-1.
+ */
+describe('A60 — closeAccessibilityLabel', () => {
+  it('announces the caller`s own name, not "Close"', () => {
+    render(
+      <ModalShell title="User Profile" closeAccessibilityLabel="Close user profile" onClose={vi.fn()}>
+        <div />
+      </ModalShell>,
+    )
+    expect(screen.getByRole('button', { name: 'Close user profile' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  })
+
+  it('fires onClose from the labelled control', () => {
+    const onClose = vi.fn()
+    render(
+      <ModalShell title="x" closeAccessibilityLabel="Close import picker" onClose={onClose}>
+        <div />
+      </ModalShell>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Close import picker' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the back chevron`s label distinct from the close control`s', () => {
+    render(
+      <ModalShell
+        title="Paste Request Text"
+        closeAccessibilityLabel="Close import picker"
+        backLabel="Back to import options"
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+      >
+        <div />
+      </ModalShell>,
+    )
+    expect(screen.getByRole('button', { name: 'Back to import options' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close import picker' })).toBeInTheDocument()
   })
 })

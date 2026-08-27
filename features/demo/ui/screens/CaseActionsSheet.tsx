@@ -171,7 +171,18 @@ export function CaseActionsSheet({
   )
 
   return (
-    <ModalShell title={caseData.caseNumber} subtitle={subtitle} onClose={onClose} fillBody footer={footer}>
+    <ModalShell
+      title={caseData.caseNumber}
+      subtitle={subtitle}
+      // No phone counterpart to lift: `CaseActionsSheet.tsx:253` is a bare `pageSheet` whose
+      // dismissal is the OS swipe, so it carries no close label at all. Built in the phone's own
+      // shape ("Close " + what the sheet is) rather than repeating the case number a screen
+      // reader has already heard as the dialog's name.
+      closeAccessibilityLabel="Close case actions"
+      onClose={onClose}
+      fillBody
+      footer={footer}
+    >
       <div ref={bodyRef} style={{ flex: 1, minHeight: 0 }}>
         <div
           data-case-report
