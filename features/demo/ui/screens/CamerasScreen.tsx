@@ -6,6 +6,7 @@ import { AddRowButton, Field, SelectField, WizardHeader, WizardNext } from '@/fe
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CUSTOM_VALUE, isCustomResolution, isCustomFps } from '@/features/demo/ui/screens/field-options'
 import { CameraGpsCapture } from '@/features/demo/ui/inputs/CameraGpsCapture'
 import type { UseGpsCaptureOptions } from '@/features/demo/ui/inputs/useGpsCapture'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { glassCard } from '@/features/demo/ui/glass-tokens'
 
 /** Phone `ArrayFieldManager` cap for this screen (`app/(form)/cameras.tsx:174`, ui-mapping
@@ -80,7 +81,7 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Cameras" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        {cameras.length === 0 && <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', textAlign: 'center', padding: '8px 0 14px' }}>No cameras yet — add the ones in the recovery.</div>}
+        {cameras.length === 0 && <EmptyState message="No cameras yet — add the ones in the recovery." />}
         {cameras.map((c, i) => (
           <div key={c.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

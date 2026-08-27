@@ -5,9 +5,10 @@ import { useReducedMotion } from 'motion/react'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
+import { EmptyState } from '@/features/demo/ui/controls/EmptyState'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The phone's `DASHBOARD_CASE_LIMIT` (`app/(tabs)/home.tsx:37`), which it applies as
@@ -49,7 +50,14 @@ export function DashboardScreen({ cases, onOpenLocation, onCaseActions, onSettin
   const recent = cases.slice(0, DASHBOARD_CASE_LIMIT)
   return (
     <div style={{ minHeight: 786, padding: '58px 0 96px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px 18px 16px' }}>
+      {/* D15's GEOMETRY HALF (owner-ratified; the scroll-materialising blur stays deferred).
+          Phone `components/layout/MainHeader.tsx:105-135` after PR #125 issue 10, verbatim:
+          `paddingHorizontal: spacing.md` (16), `paddingTop`/`paddingBottom: spacing.xs` (4),
+          `minHeight: touchTarget.min` (44), and NO bottom margin — the phone deleted its
+          `marginBottom: md` outright because "inside OverlayHeader a child margin inflates
+          the measured glass box". `min` and not `large` (56): the phone's own comment calls
+          56 "a floor ABOVE the row's natural height ... padding wearing a different name". */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: `${spacing.xs}px ${spacing.md}px`, minHeight: touchTarget.min }}>
         <div style={{ fontSize: 30, fontWeight: 700, color: '#f0f4f8' }}>Dashboard</div>
         {/* The phone's `MainHeader` puts the gear at the right of BOTH tab headers, with the
             New Case folder beside it on Cases only (`MainHeader.tsx:49-74`). Same here. */}
@@ -59,7 +67,7 @@ export function DashboardScreen({ cases, onOpenLocation, onCaseActions, onSettin
         Recent Activity
       </div>
 
-      {recent.length === 0 && <div style={{ padding: '0 18px', fontSize: 14, color: '#7a9fc4', fontStyle: 'italic' }}>No cases yet.</div>}
+      {recent.length === 0 && <EmptyState message="No cases yet." />}
 
       {recent.map((c, ci) => (
         <TimelineCase
@@ -186,7 +194,9 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
             )}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic' }}>No locations yet</div>
+          // In-card empty line, phone `DashboardCaseCard.tsx:333-337`: `fontSize.sm` (14),
+          // `colors.textTertiary`, italic KEPT. NOT A80's `EmptyState` — see that module.
+          <div style={{ fontSize: 14, color: colors.textTertiary, fontStyle: 'italic' }}>No locations yet</div>
         )}
 
         {/* The expanded list shows EVERY location, including the one already on a pill —
@@ -200,7 +210,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
                 type="button"
                 onClick={() => onOpenLocation(loc.id)}
                 aria-label={`Location: ${loc.locationName}`}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', marginBottom: 8, borderRadius: 8, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', marginBottom: 8, borderRadius: radius.md, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, cursor: 'pointer', textAlign: 'left' }}
               >
                 <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#f0f4f8' }}>
                   {loc.locationName}

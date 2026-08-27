@@ -219,9 +219,18 @@ export function ExportCaseCard({
               />
             ))
           ) : (
-            // Verbatim (phone :195) — an empty case is a real state, not an error.
-            <div style={{ fontSize: 13, fontStyle: 'italic', color: '#7a9fc4', textAlign: 'center', padding: '12px 0' }}>
-              No locations — nothing exportable
+            // An empty case is a real state, not an error. In-card empty LINE, so it is NOT
+            // A80's screen-level `EmptyState` — phone
+            // `case-management/export-hub/components/ExportCaseCard.tsx:340-346`:
+            // `fontSize.sm` (14), italic KEPT, `colors.textTertiary`, centred,
+            // `paddingVertical: Layout.spacing.md` (16).
+            //
+            // The copy is now the phone's, verbatim from its `:218`. It read
+            // "No locations — nothing exportable" with an em dash, above a comment claiming
+            // "Verbatim (phone :195)" — the phone spells it with a COMMA, at `:218`, and the
+            // standing campaign copy rule (plan §4.3) bans em dashes in user-facing strings.
+            <div style={{ fontSize: 14, fontStyle: 'italic', color: colors.textTertiary, textAlign: 'center', padding: '16px 0' }}>
+              No locations, nothing exportable
             </div>
           )}
         </div>

@@ -217,6 +217,13 @@ const LIGHT_GROUNDS: string[][] = [
   ...stops(GLASS_TIER.light.recessed, [GLASS_TIER.light.sheet.gradient[0]]),
 ]
 
+/**
+ * Both halves, in report order — the rows that assert per scheme iterate this rather than
+ * spelling `['light', 'dark'] as const` at each site (phone `:283`, `:382`).
+ */
+const SCHEMES = ['light', 'dark'] as const
+type GlassScheme = (typeof SCHEMES)[number]
+
 /** Every ground `fg` can land on in that scheme, worst first. Phone `:161-165`. */
 function worst(fg: string, grounds: string[][]): number {
   return Math.min(...grounds.map((g) => contrast(fg, g)))
@@ -430,9 +437,40 @@ describe('palette contrast contract', () => {
   // stops) is now writable. The ONLY remaining missing input is `warningAccent`, so this row
   // is U3.1's alone from here — the U0.5 docblock above listed it among U1.1's un-todos, which
   // its own title refutes.
-  it.todo(
-    'rows 22-25 (U3.1): clears the 1.4.11 non-text floor for the four status accents, both themes — needs warningAccent',
-  )
+  it('clears the 1.4.11 non-text floor for the four status accents, both themes (rows 22-25)', () => {
+    // DEF-UI-017's acceptance bar, verbatim from phone `:277-304`: every severity at or above
+    // 3:1 against both `card` gradient stops AND both `sheet` stops, in BOTH themes. The dark
+    // `working` cell is the one the row recorded failing at 2.87 before the re-base, with no
+    // light mode involved.
+    //
+    // A NARROWER GROUND STACK THAN `DARK_GROUNDS`, and that is the phone's contract, not a
+    // weakening: `barGrounds` omits `nestedCard` and `recessed`. These four are read as MARKS
+    // on a status bar, a badge rail and a map sheet — surfaces that sit on `card` and `sheet` —
+    // and widening the stack here would silently re-scope a ported row into a new one.
+    const barGrounds = (s: GlassScheme): string[][] =>
+      s === 'dark'
+        ? [...stops(GLASS_TIER.dark.card, DARK_BG), ...stops(GLASS_TIER.dark.sheet, DARK_BG)]
+        : [...stops(GLASS_TIER.light.card), ...stops(GLASS_TIER.light.sheet)]
+
+    // The four tokens are named, never re-typed — `warningAccent` is U3.1's whole reason for
+    // existing and `palette.ts` carries `warningDark` at the same DARK hex. Reading the
+    // constant is what makes a re-point of either one visible here; a literal `'#ffc62b'`
+    // would stay green through exactly the edit this row exists to catch.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        offenders(
+          [
+            [`${s} started`, c.warningAccent, barGrounds(s)],
+            [`${s} working`, c.infoDark, barGrounds(s)],
+            [`${s} complete`, c.successDark, barGrounds(s)],
+            [`${s} incident`, c.error, barGrounds(s)],
+          ],
+          AA_NON_TEXT,
+        ),
+      ).toEqual([])
+    }
+  })
 
   // Row 31. Phone `:305-342`. Two channels, because only one is available in each theme: light
   // separates on the FILL, dark cannot (dark `textTertiary` sits exactly on its 3.79 floor on
@@ -512,9 +550,20 @@ describe('palette contrast contract', () => {
   // by collapsing to one colour passes the number and fails the user. `warningOnLight` clears
   // easily and is `#f0f4f8` in dark, so reassigning `started` to it would make three of the
   // four the same near-white. Needs `warningAccent` (U3.1).
-  it.todo(
-    'row 30 (U3.1): keeps the four status accents four distinguishable hues — needs warningAccent',
-  )
+  it('keeps the four status accents four distinguishable hues (row 30)', () => {
+    // Phone `:377-388`. Half the acceptance bar is a NUMBER and half is this: a palette that
+    // clears 3:1 by collapsing to one colour passes rows 22-25 and fails the user. The trap is
+    // concrete — `warningOnLight` clears easily and is `#f0f4f8` in dark, so reassigning
+    // `started` to it would make three of the four the same near-white and rows 22-25 would
+    // not notice.
+    for (const s of SCHEMES) {
+      const c = palette[s]
+      expect(
+        new Set([c.warningAccent, c.infoDark, c.successDark, c.error]).size,
+        `${s}: the four status accents collapsed`,
+      ).toBe(4)
+    }
+  })
 })
 
 describe('scrim opacity', () => {

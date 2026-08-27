@@ -30,10 +30,24 @@
  *     `*Dark` names invert between schemes on purpose, which is exactly why the phone made
  *     it a lookup instead of two literals; U2.2.
  *
- * The status-tone family (`successLight`, `warningLight`, `infoLight`, `warningAccent`, the
- * four `*OnLight`), the grid tokens and `scrim` arrive with the packages that create their
- * web-side consumers (U3.1, U8.2, U4). `errorLight` is the one exception and is here now:
- * U2.2's danger fill needs it a full phase before U3.1 runs.
+ * The grid tokens and `scrim` arrive with the packages that create their web-side consumers
+ * (U8.2, U4.4). The status-tone family landed with U3.1 and is here now.
+ *
+ * ## The naming trap — read this before spending a `*Light` token (phone §1.2, note 2)
+ *
+ * **In DARK the `*Light` names mean the DARK BACKGROUND TONE the matching `*OnLight`
+ * foreground sits on.** They are not lighter shades of their severity, and `successLight` is
+ * darker than `success`, not lighter. The names are historical: they were coined for the light
+ * theme, where they ARE pale tints, and they kept their spelling when dark was added so a
+ * consumer could write one flat name in both schemes. Every consumer gets this wrong once.
+ *
+ * The pairing contract that follows from it: a badge, chip or banner takes `*Light` as its
+ * FILL, `*` as its 1px border and `*OnLight` as its text — never `*` as text (matrix §C.3
+ * rule 1). A bare dot or a 1px selection accent takes the accent directly, which is what
+ * `warningAccent` exists for.
+ *
+ * `warningBackground` (phone `Colors.ts:68`/`:176`) is deliberately NOT ported: no demo surface
+ * takes it and no matrix row names it. It would be an unanchorable key on the web side.
  */
 
 /**
@@ -72,14 +86,36 @@ const dark = {
   // the DARK BACKGROUND TONE a matching `*OnLight` foreground sits on — they are not
   // lighter shades. `errorLight` is the deep red a filled destructive control paints.
   success: '#10d177', // Colors.ts:165
+  successLight: '#0f6b42', // Colors.ts:166 — background tone; was #1a8754 (4.10:1)
   successDark: '#0faa5e', // Colors.ts:167
   error: '#ff4757', // Colors.ts:169
   errorLight: '#b72136', // Colors.ts:170 — DangerFill.dark (A52); `onError` clears 6.39:1 on it
   errorDark: '#ee2f44', // Colors.ts:171
   warning: '#ffd93d', // Colors.ts:173
+  warningLight: '#7d5f10', // Colors.ts:174 — background tone; was #b38f2f (2.76:1)
   warningDark: '#ffc62b', // Colors.ts:175
+  // The amber that clears WCAG 1.4.11's 3:1 as a small NON-TEXT mark — a status dot, a 1px
+  // selection accent (DEF-UI-017). Dark already had one, so this is `warningDark`'s value
+  // under the name consumers reach in BOTH themes without branching (phone `Colors.ts:177-180`);
+  // light's is a different hex. It is a SEPARATE TOKEN from `warningDark`, not an alias:
+  // re-pointing either must not move the other. Measured 6.82:1 on the worst card/sheet stop.
+  warningAccent: '#ffc62b', // Colors.ts:180
   info: '#99badd', // Colors.ts:182
+  infoLight: '#2e5f97', // Colors.ts:183 — background tone. Deliberately the SAME hex as
+  // `borderLight` (A8/A16) and deliberately NOT collapsed into it: a border token and a status
+  // fill drift apart the moment either side re-tints.
   infoDark: '#7a9fc4', // Colors.ts:184
+
+  // Status FOREGROUNDS — the AA-passing text/icon tone that pairs with the matching `*Light`
+  // background tone (phone D8a). All four resolve to `text`'s own `#f0f4f8` in dark: the dark
+  // theme carries severity in the FILL and the BORDER, never in the text colour (phone §1.2
+  // note 3). They exist as four NAMES so a consumer writes `colors.warningOnLight` flat instead
+  // of branching on the active scheme — which is the whole reason light's four differ.
+  // Measured on their own `*Light` grounds: info 5.94 / warning 5.40 / success 5.93 / error 5.79.
+  infoOnLight: '#f0f4f8', // Colors.ts:191
+  warningOnLight: '#f0f4f8', // Colors.ts:192
+  successOnLight: '#f0f4f8', // Colors.ts:193
+  errorOnLight: '#f0f4f8', // Colors.ts:194
 
   // Foregrounds for filled primary / destructive surfaces (A19).
   // BINDING RIDER (phone D7a): `onPrimary` pairs with the DEEP shade, never the flat
@@ -140,14 +176,28 @@ const light = {
   borderDark: '#d1d5db', // Colors.ts:47 — Gray 300
 
   success: '#10b981', // Colors.ts:57 — Green 500
+  successLight: '#d1fae5', // Colors.ts:58 — Green 100, the pale background tone
   successDark: '#059669', // Colors.ts:59 — Green 600
   error: '#ef4444', // Colors.ts:61 — Red 500
   errorLight: '#fee2e2', // Colors.ts:62 — Red 100, the pale background tone (the names invert)
   errorDark: '#dc2626', // Colors.ts:63 — Red 600, and DangerFill.light
   warning: '#f59e0b', // Colors.ts:65 — Amber 500
+  warningLight: '#fef3c7', // Colors.ts:66 — Amber 100, the pale background tone
   warningDark: '#d97706', // Colors.ts:67 — Amber 600
+  // Light HAD no amber clearing 3:1 as a non-text mark — `warning` measured 1.76 and
+  // `warningDark` 2.62 on the worst stop, this one 4.58 (phone `Colors.ts:69-77`).
+  warningAccent: '#b45309', // Colors.ts:77 — Amber 700
   info: '#3b82f6', // Colors.ts:79 — Blue 500
+  infoLight: '#dbeafe', // Colors.ts:80 — Blue 100, the pale background tone
   infoDark: '#2563eb', // Colors.ts:81 — Blue 600
+
+  // The status foregrounds. Unlike dark's four, light's genuinely differ from each other and
+  // from `text` — in light the severity IS carried by the text colour. Measured against their
+  // own `*Light` grounds: info 7.15 / warning 8.15 / success 6.78 / error 6.80.
+  infoOnLight: '#1e40af', // Colors.ts:86 — Blue 800
+  warningOnLight: '#78350f', // Colors.ts:87 — Amber 900
+  successOnLight: '#065f46', // Colors.ts:88 — Emerald 800
+  errorOnLight: '#991b1b', // Colors.ts:89 — Red 800
 
   onPrimary: '#ffffff', // Colors.ts:95
   onError: '#ffffff', // Colors.ts:96 — 3.76:1 on `error`, 4.83:1 on `errorDark`; pair deep
