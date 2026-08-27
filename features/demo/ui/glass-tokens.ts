@@ -81,13 +81,54 @@ export const GLASS = {
   // `accent border` ban). U1.3 changes the value and re-points this line in the same commit.
   borderAccent: '1px solid rgba(43,140,193,0.3)',
   borderError: '1px solid rgba(255,71,87,0.3)',
+  // A44 (U1.2) - `Layout.shadow.card.dark`, phone `Layout.ts:130-136`: `shadowColor '#000'`,
+  // `shadowOffset {0,4}`, `shadowOpacity 0.15`, `shadowRadius 8`. RN spends five props on
+  // what CSS spends one on. The MISSING-SEAM the row names is the demo's 22 distinct
+  // box-shadows across 26 occurrences (demo inventory §2.5), almost every one a one-off;
+  // this is the raised-surface recipe they were all approximating.
+  //
+  // NOT derivable from `GLASS_TIER`: `innerShadow` is the tier's INSET, a different value on
+  // a different axis. `Layout.shadow` is one of the three things the phone's design-sync
+  // generator deliberately does not emit (phone §1.Y.3), so it is a hand-port either way.
+  shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
 } as const
 
-/** The G6 card-surface triple: radius `lg` · soft hairline · vertical card gradient. */
+/**
+ * The card surface — the phone's FOUR-part glass composition plus the card elevation shadow
+ * (matrix A31, A32, A44, A54; the composition is A40 / phone §1.8 `conventions.md`).
+ *
+ * ```css
+ * background:       <card.gradient>       A29
+ * border:           1px solid <border>    A30
+ * border-top-color: <highlightTop>        A31 - the lit top edge
+ * box-shadow:       inset 0 1px 0 <innerShadow>,   A32
+ *                   0 4px 8px rgba(0,0,0,0.15)     A44
+ * border-radius:    lg (12)               A43 - the depth tier
+ * ```
+ *
+ * WHY `borderTopColor` AND NOT A CHILD ELEMENT. The phone paints the highlight as a 1px
+ * absolutely-positioned `<View>` at `top:0, zIndex:1` inside an `overflow:'hidden'` wrapper
+ * (`Card.tsx:170-174,229-236`) because RN has no per-side border colour. On the web the
+ * published recipe is the longhand, and it is what `conventions.md` itself prescribes.
+ *
+ * KEY ORDER IS LOAD-BEARING (§4.3). `borderTopColor` must come AFTER `border`: React replays
+ * an inline style object in insertion order, and a shorthand written after a longhand erases
+ * it. The same rule binds every CONSUMER — `{ ...glassCard, border: '1px solid X' }` and
+ * `{ ...glassCard, borderColor: 'X' }` BOTH wipe the lit edge, because `border-color` is
+ * itself a four-side shorthand. A consumer that must re-tint the sides sets `borderColor`
+ * and then re-sets `borderTopColor`. Pinned across all nine consumers in
+ * `ui/__tests__/glass-card-recipe.test.tsx`, which is where that failure is observable.
+ *
+ * `padding` is deliberately NOT here even though `conventions.md` lists it: the demo's ten
+ * card sites carry six different paddings lifted from the prototype, and demo §0.4 forbids
+ * tidying lifted pixel values.
+ */
 export const glassCard = {
   borderRadius: radius.lg,
   border: GLASS.borderSoft,
+  borderTopColor: tier.card.highlightTop,
   background: GLASS.gradientCard,
+  boxShadow: `inset 0 1px 0 ${tier.card.innerShadow}, ${GLASS.shadowCard}`,
 } as const satisfies CSSProperties
 
 /** Primary CTA base: radius `control` · borderless · accent gradient · white text. */

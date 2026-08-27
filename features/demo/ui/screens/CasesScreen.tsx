@@ -7,6 +7,7 @@ import { RowActionsTray, RowActionsTrigger } from '@/features/demo/ui/screens/Ro
 import { SettingsGearButton } from '@/features/demo/ui/screens/SettingsGearButton'
 import { LONG_PRESS_SURFACE_STYLE, useLongPress } from '@/features/demo/ui/primitives/useLongPress'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { radius } from '@/features/demo/ui/tokens/scale'
 
 export interface CasesScreenProps {
   cases: CaseCard[]
@@ -140,7 +141,11 @@ function CaseRow({
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div style={{ marginBottom: 14, borderRadius: 16, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
+    // A43 (U1.2) - the depth tier, phone `Layout.ts:25-41`: a top-level CARD is `lg` (12).
+    // This shipped at 16, which is `xl` - the radius the ladder reserves for centred dialogs
+    // (A45). The nested location rows below stay at `md` (8), which is the same rule's other
+    // half, not an inconsistency.
+    <div style={{ marginBottom: 14, borderRadius: radius.lg, border: GLASS.borderSoft, background: GLASS.gradientCardDiag, overflow: 'hidden' }}>
       {/* The hook rides the BUTTON, not this strip: it is the gesture surface, so its own
           nested-control rule resolves to "this element" for a press anywhere inside, while the
           ⋯ trigger beside it stays outside the gesture entirely (R-1). */}

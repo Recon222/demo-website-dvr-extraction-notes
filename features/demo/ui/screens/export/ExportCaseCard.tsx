@@ -7,7 +7,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { withAlpha } from '@/features/demo/ui/tokens/scale'
+import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -48,7 +48,8 @@ export interface ExportCaseCardProps {
 
 const wrapper: CSSProperties = {
   marginBottom: 14,
-  borderRadius: 16,
+  // A43 (U1.2) - a top-level card is `lg` (12), not `xl`. See CasesScreen's note.
+  borderRadius: radius.lg,
   overflow: 'hidden',
 }
 
@@ -130,7 +131,7 @@ export function ExportCaseCard({
         // blue. `withAlpha` makes it follow the stop it is supposed to be a glow OF.
         boxShadow: expanded
           ? `0 4px 12px ${withAlpha(GLASS.accentFrom, 0.35)}`
-          : '0 4px 8px rgba(0,0,0,0.15)',
+          : GLASS.shadowCard,
         opacity: dimmed ? 0.5 : 1,
       }}
     >

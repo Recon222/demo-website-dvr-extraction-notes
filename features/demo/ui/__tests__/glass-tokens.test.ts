@@ -95,6 +95,7 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
+  // U1.2 is the first of those, and appends the `card` tier's other two parts below.
   ['card gradient top stop', 'rgba(14,57,101,0.85)'],
   ['card gradient bottom stop', 'rgba(23,65,110,0.92)'],
   ['nestedCard gradient top stop', 'rgba(23,65,110,0.7)'],
@@ -107,6 +108,25 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   ['sheet gradient bottom stop', 'rgba(14,57,101,1)'],
   ['recessed gradient top stop', 'rgba(0,24,50,0.6)'],
   ['recessed gradient bottom stop', 'rgba(0,32,64,0.5)'],
+  // --- the card recipe's other two parts (U1.2): reach for `glassCard` -----------------
+  // A31/A32/A44 wire `card.highlightTop`, `card.innerShadow` and `Layout.shadow.card.dark`
+  // into `glassCard`, which is what makes them re-inlinable CSS for the first time — the
+  // condition the block above names for adding an entry. All three measured ZERO live
+  // occurrences under `ui/` once `export/ExportCaseCard.tsx:133`'s hand-rolled copy of the
+  // card shadow was re-pointed at `GLASS.shadowCard` in the same commit.
+  //
+  // The inner shadow is banned as the COMPOSED declaration, not as the bare
+  // `rgba(0,0,0,0.2)`. U1.1 measured the reason and it still holds: the five `innerShadow`
+  // blacks are indistinguishable from ordinary drop shadows, so a bare ban would misfile the
+  // next generic 20%-black shadow as tier re-drift. `inset 0 1px 0 rgba(0,0,0,0.2)` can only
+  // be the card tier's inset.
+  //
+  // `0 4px 8px rgba(0,0,0,0.15)` is banned WHOLE for the same reason in the other direction:
+  // `SettingsCategoryList.tsx:30` carries `padding: '0 4px 8px'`, which a fragment-level ban
+  // on the offsets would have flagged as a colour re-inline.
+  ['card highlight edge', 'rgba(184,212,240,0.08)'],
+  ['card inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.2)'],
+  ['card shadow', '0 4px 8px rgba(0,0,0,0.15)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.
@@ -188,14 +208,21 @@ describe('glass tokens (P0.5 / G6)', () => {
       borderBtn: '1px solid #2e5f97',
       borderAccent: '1px solid rgba(43,140,193,0.3)',
       borderError: '1px solid rgba(255,71,87,0.3)',
+      shadowCard: '0 4px 8px rgba(0,0,0,0.15)',
     })
   })
 
   it('pins the spreadable fragments to the exact clusters they replaced', () => {
+    // `glassCard` is no longer "the cluster it replaced" — U1.2 gave it the two parts A31/A32
+    // say the demo never rendered, plus A44's elevation. The ORDER of these five keys is a
+    // separate contract (`__tests__/glass-card-recipe.test.tsx`): `toEqual` is order-blind, so
+    // a re-sort that erases the lit edge would pass this line unchanged.
     expect(glassCard).toEqual({
       borderRadius: 12,
       border: '1px solid rgba(28,78,132,0.5)',
+      borderTopColor: 'rgba(184,212,240,0.08)',
       background: 'linear-gradient(180deg,rgba(14,57,101,0.85),rgba(23,65,110,0.92))',
+      boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.15)',
     })
     expect(glassBtnPrimary).toEqual({
       borderRadius: 10,
@@ -231,6 +258,15 @@ describe('glass tokens (P0.5 / G6)', () => {
     )
     expect(GLASS.borderSoft).toBe(`1px solid ${t.card.border}`)
     expect(glassCard.background, 'the card fragment paints the card tier').toBe(GLASS.gradientCard)
+    // U1.2's two new parts, read back off the tier for the same reason as the four above: a
+    // spelled literal here plus a later phone-side re-tint leaves the drift guard green
+    // (it reads `tokens/glass-tiers.ts`) while `/demo` renders the old edge.
+    expect(glassCard.borderTopColor, 'the lit edge is the card tier’s highlightTop').toBe(
+      t.card.highlightTop,
+    )
+    expect(glassCard.boxShadow, 'the inset is the card tier’s innerShadow').toBe(
+      `inset 0 1px 0 ${t.card.innerShadow}, ${GLASS.shadowCard}`,
+    )
     // NOT `borderAccent`: it is still the demo's near-miss `rgba(43,140,193,0.3)` and
     // `elevated.border` is `0.25`. U1.3 owns that value change and adds the fifth line here.
     expect(GLASS.borderAccent).not.toBe(`1px solid ${t.elevated.border}`)
