@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { UserProfilePane } from '@/features/demo/ui/screens/settings/panes/UserProfilePane'
 import { DEFAULT_USER_PROFILE } from '@/features/demo/engine/logic/user-profile'
 import { clock } from '@/features/demo/ui/inputs/clock'
-import { MODAL_LAYER } from '@/features/demo/ui/screens/_shared'
+import { MODAL_LAYER, MODAL_SCRIM_Z } from '@/features/demo/ui/screens/_shared'
 import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsModal'
 import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
@@ -324,6 +324,23 @@ describe('the editor’s layer (R-29 / FD-2)', () => {
   it('renders on exactly that layer', () => {
     openEditor(FULL)
     expect(screen.getByRole('dialog', { name: 'User Profile' }).style.zIndex).toBe(String(editorZ))
+  })
+
+  it('dims on the layer under itself — the SCRIM carries the same elevation offset (F30)', () => {
+    openEditor(FULL)
+    const dialog = screen.getByRole('dialog', { name: 'User Profile' })
+    // The shell renders scrim then panel as siblings, so this is the editor's OWN scrim rather
+    // than whichever `[data-modal-scrim]` happens to come first in the document.
+    const scrim = dialog.previousElementSibling as HTMLElement
+    expect(scrim).toHaveAttribute('data-modal-scrim')
+    expect(scrim.style.zIndex).toBe(String(MODAL_SCRIM_Z + MODAL_LAYER.overSheet))
+    // W2 review F30: the panel's half of this was pinned and the scrim's was not, so dropping
+    // `+ elevation` from the scrim survived the whole suite. The consequence is not cosmetic —
+    // the dim would paint at 21, UNDER the Settings sheet at 22, leaving that sheet's controls
+    // hit-testable behind a dialog that claims `aria-modal="true"`. Asserted as the ORDERING it
+    // is, on both sides, and read from the surfaces that own the neighbours.
+    expect(Number(scrim.style.zIndex)).toBeGreaterThan(SETTINGS_SHEET_Z)
+    expect(Number(scrim.style.zIndex)).toBeLessThan(Number(dialog.style.zIndex))
   })
 
   it('is the layer the Settings sheet and the pickers actually paint on', () => {
