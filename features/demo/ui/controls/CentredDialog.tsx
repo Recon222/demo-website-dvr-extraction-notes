@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import type { ColorScheme } from '@/features/demo/ui/tokens/palette'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
@@ -48,16 +49,32 @@ import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 const elevated = GLASS_TIER[scheme].elevated
 
 /**
- * A45 — `Layout.shadow.dialog.dark` (`Layout.ts:165-171`: `#000`, offset `0 8`, opacity `0.5`,
- * radius `40`). Casts DOWNWARD: a surface floating in the middle of the screen throws its
- * shadow down, not up. The phone's own rationale for reaching for `dialog` rather than `sheet`
- * is written at its single consumer, `PasswordModal.tsx:112-123`, and names exactly this
- * shape: *"this overlay is `justifyContent: 'center'`, so the card floats in the middle of the
- * screen."*
+ * A45 — `Layout.shadow.dialog` (`Layout.ts:157-172`). Casts DOWNWARD: a surface floating in the
+ * middle of the screen throws its shadow down, not up. The phone's own rationale for reaching
+ * for `dialog` rather than `sheet` is written at its single consumer,
+ * `PasswordModal.tsx:112-123`, and names exactly this shape: *"this overlay is
+ * `justifyContent: 'center'`, so the card floats in the middle of the screen."*
+ *
+ * BOTH HALVES (D2, and W2/F34). RN spends five props (`shadowColor` / `shadowOffset` /
+ * `shadowOpacity` / `shadowRadius`) on what CSS spends one on, and light folds `shadowColor`'s
+ * own alpha into `shadowOpacity` (0.15 x 1) — the same mapping `sheet-chrome.ts`'s
+ * `SHEET_SHADOWS` and `button-recipe.ts:167-174` document. Shipping the dark string
+ * unconditionally is what F34 caught: on the flip day every dialog would cast a pure-black 40px
+ * shadow onto a pale surface.
+ *
+ * The two halves differ in RADIUS as well as colour (40 dark, 28 light) — the phone's, not a
+ * derivation. Same sign, because a centred dialog casts downward in both schemes; the SIGN is
+ * the only thing this shares with `SHEET_SHADOWS`, which is inverted.
  *
  * The demo's three copies shared `0 24px 60px rgba(0,0,0,0.55)` by value; this replaces it.
  */
-export const DIALOG_SHADOW = '0 8px 40px rgba(0,0,0,0.5)'
+export const DIALOG_SHADOWS = {
+  dark: '0 8px 40px rgba(0,0,0,0.5)', // Layout.ts:165-171 — #000 / 0 8 / 0.5 / 40
+  light: '0 8px 28px rgba(30, 58, 138, 0.15)', // Layout.ts:158-163 — 0 8 / 1 / 28
+} as const satisfies Record<ColorScheme, string>
+
+/** The consumed half. Every dialog reads this; the record above is what makes the flip one line. */
+export const DIALOG_SHADOW = DIALOG_SHADOWS[scheme]
 
 /**
  * The painted surface of a centred dialog: ground, border, lit edge, radius, cast, padding.
@@ -73,7 +90,7 @@ export const DIALOG_SHADOW = '0 8px 40px rgba(0,0,0,0.5)'
  * same value in the web form. One value, two independent sources — so it belongs to the
  * recipe rather than to three call sites.
  */
-export const dialogSurface: CSSProperties = {
+export const dialogSurface = {
   // A43 / D13(a): `lg` is "cards, modals, form sections". `Card`'s glass branch hardcodes it
   // (`Card.tsx:225,250`) and `glassVariant` selects colours only — depth rides the gradient,
   // never the corner. The demo's three copies were at 16; U1.2 deliberately left
@@ -89,7 +106,7 @@ export const dialogSurface: CSSProperties = {
   borderTopColor: elevated.highlightTop,
   boxShadow: `inset 0 1px 0 ${elevated.innerShadow}, ${DIALOG_SHADOW}`,
   padding: spacing.md,
-}
+} as const satisfies CSSProperties
 
 /**
  * The dim behind the dialog. `zIndex` is the shell's.
@@ -111,12 +128,12 @@ export const dialogSurface: CSSProperties = {
  * `ExportModal.tsx:84` - the three `rgba(4,8,14,0.66)` literals - collapsed at U4.3. That
  * literal matched neither token; it is gone now, and those three `file:line`s no longer exist.
  */
-export const dialogScrim: CSSProperties = {
+export const dialogScrim = {
   position: 'absolute',
   inset: 0,
   background: colors.overlay,
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
 /**
  * The element that started the current interaction, captured at GESTURE time.
