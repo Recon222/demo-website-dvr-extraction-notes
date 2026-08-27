@@ -682,7 +682,7 @@ describe('MapScreen — the proximity anchor chain (review R-18)', () => {
     // Said ONCE, because the ring's centre was chosen FOR the visitor rather than taken from a row
     // they can see (review R-18a). Without it the ring simply appears somewhere.
     expect(
-      await screen.findByText('Proximity centred on the current view — long-press the map to move it.'),
+      await screen.findByText('Proximity centred on the current view. Long-press the map to move it.'),
     ).toBeInTheDocument()
   })
 
