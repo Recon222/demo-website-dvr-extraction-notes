@@ -5,7 +5,8 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { ExportCaseCard, type ExportCaseCardProps } from '@/features/demo/ui/screens/export/ExportCaseCard'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
@@ -187,7 +188,7 @@ describe('ExportCaseCard — the card`s own chrome (A30 / A44)', () => {
 
   it('rules the expanded body on the CARD TIER, not on the flat border its rows use', () => {
     const { body, row } = expandedCard()
-    expect(body.style.borderTopColor).toBe(jsdomColor('rgba(28,78,132,0.5)'))
+    expect(body.style.borderTopColor).toBe(jsdomColor(GLASS_TIER[scheme].card.border)) // W4/F85: the TIER, indexed
     expect(body.style.borderTopWidth).toBe('1px')
     // phone `:336` — `paddingTop: Layout.spacing.xs`, i.e. the 4px sits BELOW the line.
     expect(body.style.paddingTop).toBe(`${spacing.xs}px`)

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
+import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
  * P5.3 fix round / review R-18 — the export overlay's spinner under
@@ -51,7 +52,8 @@ describe('ExportModal — progress spinner under reduced motion', () => {
 
     expect(document.querySelector('[data-export-spinner]')).toHaveStyle({
       // W0-F1: the arc is a non-text mark against its own track, so it takes `colors.link`.
-      borderTopColor: '#b8d4f0',
+      // W4/F85: read from the token rather than its dark literal.
+      borderTopColor: colors.link,
     })
     // …and the overlay still says what it is doing, in both channels.
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Creating ZIP archive...')

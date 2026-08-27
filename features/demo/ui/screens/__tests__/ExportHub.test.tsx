@@ -16,7 +16,7 @@ import { ExportHub, type ExportHubProps } from '@/features/demo/ui/screens/expor
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
-import { spacing } from '@/features/demo/ui/tokens/scale'
+import { spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
@@ -185,11 +185,14 @@ describe('ExportHub — single-open accordion', () => {
     expect(cardEl('PR25-A').style.opacity).toBe('1')
     expect(cardEl('PR25-B').style.opacity).toBe('0.5')
     // Lit = accent border + accent glow; the dimmed sibling keeps the idle treatment.
-    // (jsdom normalises colour literals, hence the rgb() forms — colors.link is #b8d4f0.
-    //  W0-F1: the lit outline is an accent MARK, so it is `link`, not the CTA fill shade.)
-    expect(cardEl('PR25-A').style.border).toContain('rgb(184, 212, 240)')
-    expect(cardEl('PR25-A').style.boxShadow).toContain('rgba(184, 212, 240, 0.35)')
-    expect(cardEl('PR25-B').style.border).not.toContain('rgb(184, 212, 240)')
+    // (jsdom normalises colour literals, hence the rgb() forms.
+    //  W0-F1: the lit outline is an accent MARK, so it is `link`, not the CTA fill shade.
+    //  W4/F85: composed from the consumed scheme -- what is pinned is that all three read
+    //  `link`, not which arm of it the app currently ships.)
+    const LIT = jsdomColor(colors.link)
+    expect(cardEl('PR25-A').style.border).toContain(LIT)
+    expect(cardEl('PR25-A').style.boxShadow).toContain(jsdomColor(withAlpha(colors.link, 0.35)))
+    expect(cardEl('PR25-B').style.border).not.toContain(LIT)
 
     // Opacity only — the dimmed card still takes presses.
     fireEvent.click(caseCheckbox('PR25-B'))
