@@ -16,6 +16,7 @@ import {
   sheetHandleZone,
   sheetHeaderBand,
   sheetHeaderTitleRow,
+  sheetScrim,
   sheetSubtitle,
   sheetSurface,
   sheetTitle,
@@ -146,6 +147,15 @@ describe('sheetSurface — the A38 ground', () => {
     expect(Object.keys(sheetSurface).indexOf('borderColor')).toBeLessThan(
       Object.keys(sheetSurface).indexOf('borderTopColor'),
     )
+  })
+})
+
+describe('sheetScrim — A22, the ONE backdrop token', () => {
+  it('paints colors.scrim and owns no layering of its own', () => {
+    // Was `rgba(4,8,14,0.55)`, carried here by U4.1 with a `SEAM(U4.4)` marker. `zIndex` stays
+    // the shell's (D14 froze the numbers), so this fragment must not grow one.
+    expect(sheetScrim.background).toBe(colors.scrim)
+    expect(sheetScrim).not.toHaveProperty('zIndex')
   })
 })
 

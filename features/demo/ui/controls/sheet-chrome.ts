@@ -115,16 +115,13 @@ export const sheetSurface: CSSProperties = {
 /**
  * The dim behind the sheet. `zIndex` and positioning are the shell's.
  *
- * SEAM(U4.4): this literal is one of the twelve `rgba(4,8,14,0.55)` sites the scrim family
- * collapses onto `colors.scrim` (A22/A90). It is spelled out rather than read from
- * `inputs/input-theme`'s `T.scrim` because nothing under `controls/` imports the picker theme
- * and adding that edge would be undone by U4.4 anyway. When U4.4 lands, this is the site that
- * moves — `PickerSheet.tsx:49` no longer exists.
+ * A22/A90: `colors.scrim`, the one backdrop token, at 0.32 in dark. It was
+ * `rgba(4,8,14,0.55)` — one of the twelve competing darknesses U4.4 collapsed.
  */
 export const sheetScrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  background: 'rgba(4,8,14,0.55)',
+  background: colors.scrim,
   pointerEvents: 'auto',
 }
 
