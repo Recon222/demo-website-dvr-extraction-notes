@@ -1,6 +1,6 @@
 # Ratification brief — Demo↔Phone UI Parity v2
 
-**For:** the owner · **Date:** 2026-08-27 · **Status:** planning phase COMPLETE, review cycle closed APPROVE, execution PAUSED at this gate.
+**For:** the owner · **Date:** 2026-08-27 · **Status:** **RATIFIED 2026-08-27** — D1–D17, D19, D20 as recommended; **D18 overridden** (phases merge straight to `master`); **D2 amended** (both scheme halves ship from U0; light mode stays open). Rulings live in `00-ui-parity-matrix.md` § OWNER RATIFICATION and plan §3. This brief is now historical.
 **Rule on:** D1–D20 below (one word each is enough — "accept" or your override). D18–D20 are execution-shaped and must be ruled in the same pass.
 **Full text:** `00-ui-parity-matrix.md` § DECISIONS NEEDED (each D has options + consequences) and § OWNER RATIFICATION (the table your rulings go into); `01-master-ui-parity-plan.md` §3 mirrors them.
 
@@ -8,7 +8,7 @@
 
 - **Recon:** phone delta `d9606460..dd5551ec` inventoried at 18,613 lines (High confidence; every value opened at source); demo styling state at 2,480 lines + a re-runnable `census.mjs` (1,144 colour literals / 278 distinct / 99 components / ~95 style-pinning assertions).
 - **Matrix:** 97 Tier-A token/recipe rows (41 DRIFTED · 24 MISSING · 21 MISSING-SEAM · 7 COMPLETE · 4 other) + 72 Tier-B surface rows (56 DRIFTED · 3 MISSING · 8 COMPLETE-after-Tier-A · 3 OUT · 1 OPT) + 15 inert + 14 demo-only. Effort S53 / M35 / L5.
-- **Plan:** U0 tokens+guards → U1 glass/cards → U2 controls ∥ U3 status/badges → U4 sheets/dialogs → U5 map ∥ U6 wizard/settings/export → U7 import/OCR/audio/media → U8 splash/shell/design-sync. ~4–5 weeks two-lane.
+- **Plan:** U0 tokens+guards → U1 glass/cards → U2 controls ∥ U3 status/badges → U4 sheets/dialogs → U5 map ∥ U6 wizard/settings/export → U7 import/OCR/audio/media → U8 splash/shell/design-sync — now executed as parallel WAVES per plan §6.2 (owner: "go parallel everywhere you can without sacrificing quality"). Wall-clock is agent-time.
 - **Review:** 3 Opus lanes + aggregator. r1 BLOCK (2B/16M/27m) → 45/46 fixed → delta REVISE (0B/4M/7m) → 11/11 fixed → delta r2 all lanes APPROVE → Fable closing verdict **APPROVE**. ~280 codebase claims verified true at source; every file:line in the docs was opened.
 - **Mechanical gates:** the RN↔web drift guard (currently RED, masking 4 palette drifts) becomes a per-phase gate whose anchor set grows with the phases (~15 → ~32); the phone's `palette-contrast.test.ts` is ported dark-half as a demo test in U0.
 
