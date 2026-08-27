@@ -70,7 +70,8 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Plan-review r1 aggregator v2 | `planrev-aggregator-v2` | Opus | STOPPED (redundant) — never resume |
 | Fix-delta r1 aggregator (unnamed, per §2 policy) | agentId `a7557cc07fd72b866` | **Fable** | done — issued the closing APPROVE; retire-eligible |
 | Kit-integration (dt kit → this repo: personas, hooks, git-guard, GATES.md, CLAUDE.md pointer) — on `master` in the main checkout | agentId `aab4aa3d664ebec47` | Opus | in flight |
-| **PARTNER** (`dt-partner`, WARM for the whole build — legwork seat; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight: baseline gate measurements, Colors.ts scheme-key parity, verification-harness Windows check |
+| **PARTNER — hard problems only** (`dt-partner`, WARM; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight on its one legwork task (baseline gates, Colors.ts scheme-key parity, harness check) — after that, hard questions only |
+| **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | orienting |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
