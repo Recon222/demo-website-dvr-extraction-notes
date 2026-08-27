@@ -15,7 +15,7 @@ import {
   toggleRecordingSchedule,
 } from '@/features/demo/ui/screens/field-options'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
-import { GLASS } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 const danger = { color: '#ff7a85', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)' }
@@ -190,7 +190,9 @@ export function DvrInfoScreen({ dvr, retention, onChange, isFieldVisible, onNext
                   {retention.scopes.map((s) => {
                     const st = STATUS[getRetentionStatus(s.daysUntilOverwritten)]
                     return (
-                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(13,27,42,0.6)', marginBottom: 8 }}>
+                      // A33/A55 (U1.3) - the nested tier; was `rgba(13,27,42,0.6)` on the
+                      // card hairline. Lifted `borderRadius: 10` kept (demo §0.4).
+                      <div key={s.label} style={{ ...glassCardNested, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, marginBottom: 8 }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f4f8' }}>{s.label}</div>
                           <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 2 }}>

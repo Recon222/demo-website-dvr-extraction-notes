@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
-import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { scheme } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
@@ -19,7 +19,16 @@ import { TimeOffsetScreen, type TimeOffsetScreenProps } from '@/features/demo/ui
 import { CasesScreen, type CasesScreenProps } from '@/features/demo/ui/screens/CasesScreen'
 import { DashboardScreen } from '@/features/demo/ui/screens/DashboardScreen'
 import { ExportCaseCard, type ExportCaseCardProps } from '@/features/demo/ui/screens/export/ExportCaseCard'
-import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
+import { caseStatusTheme, locationStatusTheme, toCaseSheet, type CaseCard } from '@/features/demo/ui/screens/screenData'
+import { CaseActionsSheet } from '@/features/demo/ui/screens/CaseActionsSheet'
+import { CompletionScreen } from '@/features/demo/ui/screens/CompletionScreen'
+import { DvrInfoScreen } from '@/features/demo/ui/screens/DvrInfoScreen'
+import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
+import { ImportModal } from '@/features/demo/ui/screens/ImportModal'
+import { ImportResultBody } from '@/features/demo/ui/screens/ImportResultBody'
+import type { ImportedLocationView } from '@/features/demo/ui/screens/importResultData'
+import { blankLocationForm } from '@/features/demo/engine/content/seed'
+import { demoCase, demoLocation } from '@/features/demo/engine/store/__tests__/test-utils'
 
 import type { CameraEntry } from '@/features/demo/engine/types'
 import type { CapturedMedia } from '@/features/demo/engine/logic/media'
@@ -297,5 +306,187 @@ describe('the depth rule holds — no card at radius 16 (U1.2 / A43)', () => {
     // At least one is a top-level CARD at `lg` — otherwise a screen that rendered only
     // nested rows would pass this vacuously.
     expect(surfaces.some((el) => el.style.borderRadius === `${radius.lg}px`)).toBe(true)
+  })
+})
+
+/**
+ * U1.3 — the nested tier, asserted at each of the five sites that hand-rolled a near-miss of
+ * it, plus the one that hand-rolled the `elevated` tier.
+ *
+ * These are the surfaces deferral §31 named. Each one shipped a private gradient built from
+ * the demo's OLD card stops at a different alpha (`0.6/0.7`, a flat `0.45`, three copies of
+ * `rgba(13,27,42,0.6)`, `0.9/0.96`) — near enough to look intentional, far enough that five
+ * cards on one screen never agreed. The composed-gradient bans in `glass-tokens.test.ts`
+ * sailed over every one of them because the alphas differed, which is the whole reason this
+ * check is behavioural: it reads what the element PAINTS, not what the source says.
+ *
+ * `.toBe(NESTED_GRADIENT)` is what makes it a real pin — asserting merely "not the old
+ * literal" would pass over any new private gradient.
+ */
+const NESTED_GRADIENT = normGradient(glassCardNested.background)
+const NESTED_HIGHLIGHT = normColor(tier.nestedCard.highlightTop)
+const NESTED_BORDER = normColor(tier.nestedCard.border)
+const PANEL_GRADIENT = normGradient(GLASS.gradientPanel)
+
+function expectNestedTier(el: HTMLElement) {
+  expect(el.style.backgroundImage).toBe(NESTED_GRADIENT)
+  expect(el.style.borderTopColor).toBe(NESTED_HIGHLIGHT)
+  expect(el.style.borderRightColor).toBe(NESTED_BORDER)
+  expect(el.style.borderBottomColor).toBe(NESTED_BORDER)
+  expect(el.style.borderLeftColor).toBe(NESTED_BORDER)
+  // A55 takes no elevation shadow — only the tier's inset. A54 (card) and A56 (elevated)
+  // are the rows that carry `Layout.shadow.card` / `shadow.dialog`; A55 names neither.
+  expect(el.style.boxShadow).toBe(`inset 0 1px 0 ${tier.nestedCard.innerShadow}`)
+}
+
+const importedView: ImportedLocationView = {
+  locId: 'L',
+  title: "Kim's Convenience",
+  caseNumber: 'PR25-0098213',
+  fieldCount: 9,
+  timeFrameCount: 1,
+  sections: [{ heading: 'Requesting Officer', rows: [{ label: 'Name', value: 'Det. Liam McHugh' }] }],
+  scopes: [],
+  warnings: [],
+  isSample: false,
+}
+
+const importCallbacks = {
+  onPdfFilesSelected: vi.fn(),
+  onClipboardText: vi.fn(),
+  onChoosePaste: vi.fn(),
+  onTextChange: vi.fn(),
+  onRun: vi.fn(),
+  onBack: vi.fn(),
+  onRetry: vi.fn(),
+  onOpenLocation: vi.fn(),
+  onCancel: vi.fn(),
+  onAcknowledgeResult: vi.fn(),
+  onReviewImport: vi.fn(),
+}
+
+const completionSummary = {
+  occNumber: 'PR25-0098213',
+  location: "Kim's Convenience",
+  dvr: 'Hikvision DS-7608',
+  offset: '00:05:30 AHEAD OF',
+  scopes: 1,
+  cameras: 0,
+  export: 'USB Drive',
+}
+
+describe('the nested tier reaches every adopted site (U1.3 / A33, A34, A35, A55)', () => {
+  it('ImportResultBody — the location card', () => {
+    const { container } = render(<ImportResultBody view={importedView} />)
+    const cards = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
+      (el) => el.style.backgroundImage === NESTED_GRADIENT,
+    )
+    expect(cards.length).toBeGreaterThan(0)
+    cards.forEach(expectNestedTier)
+  })
+
+  it('ImportModal — the Data Found card', () => {
+    render(
+      <ImportModal
+        stage="result"
+        text=""
+        activeStage={null}
+        lastRealStage={null}
+        batch={null}
+        result={{ ok: false, error: 'x', code: 'NO_FIELDS_FOUND', partialData: { caseNumber: 'PR25-777' } }}
+        {...importCallbacks}
+      />,
+    )
+    expectNestedTier(screen.getByTestId('import-data-found'))
+  })
+
+  it('CaseActionsSheet — the case-report panel', () => {
+    const caseData = toCaseSheet(demoCase(), [demoLocation()])
+    const { container } = render(
+      <CaseActionsSheet caseData={caseData} onComplete={vi.fn()} onReopen={vi.fn()} onArchive={vi.fn()} onClose={vi.fn()} />,
+    )
+    const panel = container.querySelector<HTMLElement>('[data-case-report]')
+    expect(panel).not.toBeNull()
+    expectNestedTier(panel as HTMLElement)
+  })
+
+  it('DvrInfoScreen — the per-scope retention rows', () => {
+    const { container } = render(
+      <DvrInfoScreen
+        dvr={blankLocationForm().dvr}
+        retention={{ totalRetention: 30, scopes: [{ label: 'Scope 1', daysUntilOverwritten: 12, overwrittenDate: '2026-09-08' }] }}
+        onChange={vi.fn()}
+        {...nav}
+      />,
+    )
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
+      (el) => el.style.backgroundImage === NESTED_GRADIENT,
+    )
+    expect(rows).toHaveLength(1)
+    rows.forEach(expectNestedTier)
+  })
+
+  it('ExportModal — the invalid-locations panel', () => {
+    render(
+      <ExportModal
+        mode="validation"
+        validationResult={{
+          caseId: 'c1',
+          caseNumber: 'PR25-0098213',
+          validLocations: [],
+          invalidLocations: [{ locationId: 'l1', locationName: 'Rear Alley Camera', valid: false, errors: ['Completion date'] }],
+          allValid: false,
+          totalLocations: 1,
+          validCount: 0,
+          invalidCount: 1,
+        }}
+        onContinueAnyway={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expectNestedTier(screen.getByTestId('export-invalid-locations'))
+  })
+})
+
+describe('the elevated tier absorbs its near-miss (U1.3 / A36, A56)', () => {
+  it('CompletionScreen — the OCC summary card paints gradientPanel, not a private 0.9/0.96', () => {
+    const { container } = render(
+      <CompletionScreen
+        summary={completionSummary}
+        validationErrors={[]}
+        isComplete={false}
+        canComplete
+        dateTimeCompleted=""
+        completedBy=""
+        onChange={vi.fn()}
+        onPreviewPdf={vi.fn()}
+        onPreviewTimeOffsetPdf={vi.fn()}
+        onExportZip={vi.fn()}
+        canExport
+        isExporting={false}
+        onComplete={vi.fn()}
+        onReviewAgain={vi.fn()}
+        onBackToDashboard={vi.fn()}
+        onBackToCases={vi.fn()}
+        {...nav}
+      />,
+    )
+    const panels = Array.from(container.querySelectorAll<HTMLElement>('*')).filter(
+      (el) => el.style.backgroundImage === PANEL_GRADIENT,
+    )
+    expect(panels).toHaveLength(1)
+    // The accent border is the SAME tier's border since U1.3 — the pair is the point.
+    expect(panels[0].style.borderRightColor).toBe(normColor(tier.elevated.border))
+    // SEAM(U6.4b): the techGlow on this element is M1(a)'s to remove, and is still here.
+    // When it goes, this line is the one that must be deleted rather than "fixed" — and the
+    // gradient assertion above must survive untouched.
+    expect(panels[0].style.boxShadow).toBe('0 0 22px rgba(43,140,193,0.12)')
+  })
+
+  it('GLASS.borderAccent and GLASS.gradientPanel are the same tier (A36)', () => {
+    expect(GLASS.borderAccent).toBe(`1px solid ${tier.elevated.border}`)
+    expect(GLASS.gradientPanel).toBe(
+      `linear-gradient(180deg,${tier.elevated.gradient[0]},${tier.elevated.gradient[1]})`,
+    )
   })
 })

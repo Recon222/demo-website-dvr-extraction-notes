@@ -20,8 +20,11 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  *
  * Conventions:
  * - `GLASS.*` string tokens are full CSS values (border shorthands include `1px solid`).
- * - `glassCard` / `glassBtnPrimary` / `glassBtnSecondary` are spreadable style fragments for
- *   the exact repeated clusters; call sites override/extend around them.
+ * - `glassCard` / `glassCardNested` / `glassBtnPrimary` / `glassBtnSecondary` are spreadable
+ *   style fragments; call sites override/extend around them. The two card fragments carry a
+ *   `borderTopColor` LONGHAND after a `border` SHORTHAND, so an override of `border` or of
+ *   `borderColor` after the spread erases the lit top edge silently (§4.3). Override
+ *   `borderColor` AND re-set `borderTopColor`, or do not override at all.
  * - Sibling token modules stay scoped: `inputs/input-theme.ts` (`T`, the picker theme — its
  *   accent stops are sourced from here) and `screens/map/mapTokens.ts` (map sheet colours).
  * - MIRROR (review R-25): `app/css/style.css` `@theme` re-declares `accentFrom`/`accentTo`
@@ -61,8 +64,8 @@ export const GLASS = {
   // owner ratified keeping it, re-based, so it re-bases with `card` by construction.
   gradientCardDiag: `linear-gradient(135deg,${tier.card.gradient[0]},${tier.card.gradient[1]})`,
   // A36 - `gradientPanel` IS the `elevated` tier's gradient; the two were the same recipe under
-  // two names. `GLASS.borderAccent` below is the other half of that tier and is NOT derived yet
-  // - see its comment.
+  // two names. `GLASS.borderAccent` below is the other half of the same tier, derived since
+  // U1.3, so the pair moves together.
   gradientPanel: `linear-gradient(180deg,${tier.elevated.gradient[0]},${tier.elevated.gradient[1]})`,
   gradientAccent: `linear-gradient(180deg,${ACCENT_FROM},${ACCENT_TO})`,
   /** Faint blueprint grid backgroundImage (phone screen + modal sheets). */
@@ -75,11 +78,11 @@ export const GLASS = {
   // line is a refactor with a byte-identical result and no pin moved.
   borderSoft: `1px solid ${tier.card.border}`,
   borderBtn: `1px solid ${colors.borderLight}`,
-  // A36/U1.3 - NOT derived, deliberately. `tier.elevated.border` is `rgba(43,140,193,0.25)`
-  // and this is still the demo's near-miss `0.3`; deriving it now would silently ship U1.3's
-  // value change inside U1.1 and redden two pins that package owns (the shape pin and the
-  // `accent border` ban). U1.3 changes the value and re-points this line in the same commit.
-  borderAccent: '1px solid rgba(43,140,193,0.3)',
+  // A36 (U1.3) - the `elevated` tier's border. The demo's `rgba(43,140,193,0.3)` was a
+  // near-miss of the phone's long-standing `0.25` (`Colors.ts:387`); U1.1 left it spelled and
+  // pinned the NEGATIVE so this package could not skip it. Derived now, so `gradientPanel` and
+  // `borderAccent` - the two halves of one tier under two names - can no longer drift apart.
+  borderAccent: `1px solid ${tier.elevated.border}`,
   borderError: '1px solid rgba(255,71,87,0.3)',
   // A44 (U1.2) - `Layout.shadow.card.dark`, phone `Layout.ts:130-136`: `shadowColor '#000'`,
   // `shadowOffset {0,4}`, `shadowOpacity 0.15`, `shadowRadius 8`. RN spends five props on
@@ -129,6 +132,42 @@ export const glassCard = {
   borderTopColor: tier.card.highlightTop,
   background: GLASS.gradientCard,
   boxShadow: `inset 0 1px 0 ${tier.card.innerShadow}, ${GLASS.shadowCard}`,
+} as const satisfies CSSProperties
+
+/**
+ * A card INSIDE a card (matrix A33, A34, A35, A55) — `GLASS_TIER[scheme].nestedCard`.
+ *
+ * The same four-part composition as `glassCard`, one tier down. Three things about the values
+ * are counter-intuitive enough to be worth naming, all of them the phone's:
+ *
+ * - **The stops are the SWAP of `card`'s, not a new pair** (A33): `card` runs
+ *   `0.85 -> 0.92` top-to-bottom, `nestedCard` runs `rgba(23,65,110,0.7) ->
+ *   rgba(14,57,101,0.6)` — the same two colours, inverted, so a nested surface reads as lit
+ *   from a different angle rather than as a darker version of its parent.
+ * - **The border does the work** (A34): at `rgba(43,140,193,0.45)` it is CIE76 dE 14.7 from
+ *   the fill, against the old hairline's 3.1. In dark it is the only part carrying the tier,
+ *   and `ui/__tests__/palette-contrast.test.ts` pins it >= 1.25 against both stops.
+ * - **The lit edge went 0.06 -> 0.2** (A35). At 0.06 the phone's was not rendering at all.
+ *
+ * NO ELEVATION SHADOW, deliberately. The matrix assigns shadows per row and A55 names none:
+ * A54 (card) takes `Layout.shadow.card` and A56 (elevated/modal) takes `shadow.dialog`, which
+ * is U4's. A nested surface casting a drop shadow inside its own parent is the phone's own
+ * "sheet on a dialog" mistake in miniature (phone §1.5).
+ *
+ * RADIUS is `lg` (12), the same as `glassCard`: a nested CARD stays at `lg` and only a nested
+ * ROW takes `md` — adjudicated-closed on the phone, guarded in both `Card.tsx` and
+ * `Layout.ts`, and restated at `tokens/scale.ts`. Depth is carried by the gradient, never by
+ * the corner. Two of the five adopters override it back to their lifted `10`; that is demo
+ * §0.4 (do not tidy lifted pixel values), and A43's sweep is the radius-16 CARD sites.
+ *
+ * The `border` / `borderTopColor` ordering rule on `glassCard` binds here identically.
+ */
+export const glassCardNested = {
+  borderRadius: radius.lg,
+  border: `1px solid ${tier.nestedCard.border}`,
+  borderTopColor: tier.nestedCard.highlightTop,
+  background: `linear-gradient(180deg,${tier.nestedCard.gradient[0]},${tier.nestedCard.gradient[1]})`,
+  boxShadow: `inset 0 1px 0 ${tier.nestedCard.innerShadow}`,
 } as const satisfies CSSProperties
 
 /** Primary CTA base: radius `control` · borderless · accent gradient · white text. */
