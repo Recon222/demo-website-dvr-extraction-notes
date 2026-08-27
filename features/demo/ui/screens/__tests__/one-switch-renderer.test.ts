@@ -29,9 +29,15 @@ const SWITCH_RENDERER = 'screens/_shared.tsx'
 const DECLARES_SWITCH = /\brole\s*[=:]\s*\{?\s*(['"`])switch\1/
 
 /**
- * The track's own geometry — `46×28` in one style object. `\b` after 46 so `width: 460`
- * (`ExitDialog.tsx:54`) is not a hit. Whitespace is stripped first, matching the sibling guard's
- * `norm`, so a reflow across lines cannot walk past it.
+ * The track's own geometry — `46×28` ADJACENT in one style object. Whitespace is stripped first,
+ * matching the sibling guard's `norm`, so a reflow across lines cannot walk past it, and `width:46,`
+ * keeps the trailing comma so `width: 460` (`ExitDialog.tsx:54`) is not a hit.
+ *
+ * KNOWN CEILING, stated rather than overclaimed: a re-implementation that puts another key
+ * BETWEEN the two (`width: 46, borderRadius: 14, height: 28`) slips past this scan. It does not
+ * slip past `DECLARES_SWITCH` — a track with no `role="switch"` is not a switch, it is a broken
+ * control — so this is the second net, not the first. Widen it to a proximity window only if a
+ * real re-drift ever gets through; a looser pattern starts matching unrelated 46/28 geometry.
  */
 const DECLARES_TRACK = /width:46,height:28|height:28,width:46/
 
