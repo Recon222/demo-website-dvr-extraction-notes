@@ -7,12 +7,18 @@
 // `Colors.dark.primary` in the RN repo fails until `palette.dark.primary` follows here
 // (and vice-versa).
 //
-// Sides read, as of U0.4:
-//   RN   src/constants/Colors.ts        `Colors.light` / `Colors.dark`, `PrimaryButtonGradient`
+// Sides read, as of U1.1:
+//   RN   src/constants/Colors.ts        `Colors.light` / `Colors.dark`, `PrimaryButtonGradient`,
+//                                       `GlassColors.light` / `.dark` (the six glass tiers)
 //        src/constants/Layout.ts        `touchTarget.min`
-//   web  features/demo/ui/tokens/palette.ts   the definition, NOT `T`'s re-export
-//        features/demo/ui/tokens/scale.ts     `touchTarget.min`
-//        features/demo/ui/glass-tokens.ts     `ACCENT_FROM` / `ACCENT_TO`
+//   web  features/demo/ui/tokens/palette.ts      the definition, NOT `T`'s re-export
+//        features/demo/ui/tokens/scale.ts        `touchTarget.min`
+//        features/demo/ui/tokens/glass-tiers.ts  `GLASS_TIER` (the six tiers, both halves)
+//        features/demo/ui/glass-tokens.ts        `ACCENT_FROM` / `ACCENT_TO`
+//
+// The tier rows close a hole the guard could not see before U1.1: `glass-tokens.test.ts` pins
+// the demo's glass values TO THEMSELVES, so it is structurally incapable of noticing a
+// phone-side re-tint. Plan §2's Tier-A caveat said so in as many words. It no longer applies.
 //
 // BOTH scheme halves are pinned (decision D2 as amended by the owner, 2026-08-27). The
 // demo renders only `dark`; a light half that quietly diverges is drift the moment
@@ -206,9 +212,15 @@ function readConst(text, name, opts = {}) {
  * ONE stop per call, on purpose: an anchor ROW is the unit of PARSE-FAILED isolation, so the
  * two stops of a gradient must be able to fail independently. Both go through `value`, so a
  * stop that is an identifier reference resolves like any other field.
+ *
+ * The pattern is CLOSED on the right (`\\s*\\]`) and that is the whole of review F21: without it a
+ * three-stop tuple matched, the reader silently compared only the first two, and the row
+ * reported OK against a gradient the demo cannot render. Truncation was the one malformed
+ * shape this reader accepted quietly; now it lands as PARSE-FAILED like every other one. A
+ * one-stop tuple already threw. Both callers pass 2-tuples, so nothing legitimate is lost.
  */
 export function readStop(text, key, i, opts = {}) {
-  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
+  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})\\s*\\]`))
   if (!m) throw new Error(`tuple stops not found: ${key}`)
   return value(m[i], opts.resolve)
 }
@@ -224,6 +236,21 @@ export function readStop(text, key, i, opts = {}) {
  */
 export const rnTierScope = (scheme, tier) => ({
   after: ['export const GlassColors', `${scheme}: {`, `${tier}: {`],
+  before: '}',
+})
+
+/**
+ * The web twin of `rnTierScope`. `tokens/glass-tiers.ts` (U1.1) deliberately mirrors
+ * `GlassColors`' own nesting — one `{ light: { <tier>: { … } }, dark: { … } }` literal rather
+ * than the two module-level consts `tokens/palette.ts` uses — so ONE scope shape addresses both
+ * sides and there is no second, differently-shaped reader to keep in step.
+ *
+ * `'export const GLASS_TIER'` and not `'GLASS_TIER'`: the shorter marker would match the first
+ * mention of the name anywhere, and on the RN side the identical mistake lands on a COMMENT
+ * (`Colors.ts:25`) that reads the LIGHT tier for both schemes — zero drift, proving nothing.
+ */
+export const webTierScope = (scheme, tier) => ({
+  after: ['export const GLASS_TIER', `${scheme}: {`, `${tier}: {`],
   before: '}',
 })
 
@@ -245,14 +272,16 @@ export const rnTierScope = (scheme, tier) => ({
  *
  * The staging rule it looked like it was obeying (plan §6.6 gate 1: never anchor a token whose
  * WEB SIDE does not exist yet) does not apply here — U0.1 created all 32 web tokens. The rule
- * still binds anything the demo has not tokenised: the six glass tiers (U1.1, +24 keys),
- * `successLight`/`warningLight` (U3.1) and `gridSubtle` (U8.2) stay out until their package
- * creates them.
+ * still binds anything the demo has not tokenised: `successLight`/`warningLight` (U3.1) and
+ * `gridSubtle` (U8.2) stay out until their package creates them. The six glass tiers were on
+ * that list until U1.1 LANDED and created `tokens/glass-tiers.ts`; their 24 keys are anchored
+ * below.
  *
  * SCHEDULE, corrected — this supersedes the plan's stage figures:
  *   U0.4 (here)  32 palette keys x 2 halves                              = 64 rows
  *                + PrimaryButtonGradient's 2 dark stops + touchFloor     = 67 rows
- *   U1.1         +24 glass-tier keys x 2                                 = +48 rows
+ *   U1.1 (LANDED) +24 glass-tier keys x 2                                 = +48 rows
+ *                -> 115 rows / 56 keys HERE, which is what this table produces today
  *   U3.1         +successLight, +warningLight x 2                        =  +4 rows
  *                (`success`/`warning`/`successDark`/`warningDark` are ALREADY HERE — U0.1
  *                 created them, so U3.1 adds two keys, not the four its row claims)
@@ -309,6 +338,33 @@ export const PALETTE_KEYS = [
   'disabledText',
 ]
 
+/**
+ * The six glass tiers x the four parts of each that the guard can read as a flat value.
+ * 6 x 4 = 24 keys, each pinned in BOTH halves = 48 anchor rows. U1.1's closing act.
+ *
+ * `innerShadow` is the fifth part and is deliberately ABSENT. It is not a CSS value on either
+ * side — the phone hands it to a native shadow prop and the web composes it into
+ * `box-shadow: inset 0 1px 0 <innerShadow>` — so an anchor on it would compare two things that
+ * are equal by transcription rather than by contract. Its twelve values are pinned instead by
+ * `features/demo/ui/tokens/__tests__/glass-tiers.test.ts`, which is the ONLY gate on them; if
+ * that file is ever thinned, they lose their last guard. (Plan §5, U1.1 row, states the
+ * exclusion; this says what covers the gap.)
+ *
+ * The two gradient stops are separate KEYS, not one, for the reason `readStop` takes an index:
+ * an anchor row is the unit of PARSE-FAILED isolation, so a gradient whose second stop moves
+ * must be able to fail without taking the first one's verdict with it.
+ */
+export const TIER_KEYS = ['card', 'nestedCard', 'elevated', 'header', 'sheet', 'recessed']
+export const TIER_PARTS = ['gradientTop', 'gradientBot', 'border', 'highlightTop']
+
+/**
+ * Keys whose two halves hold the SAME value by design, excluded from the stuck-reader check
+ * below. Both are `#ffffff` in either scheme (`Colors.ts:95-96`, `:201-202`) — a foreground for
+ * a filled surface does not change with the theme. Anything added here needs the same one-line
+ * justification, or it is hiding a stuck reader. None of the 24 tier keys qualifies.
+ */
+export const SCHEME_INVARIANT = ['onPrimary', 'onError']
+
 /** Both scheme halves, in report order. */
 export const SCHEMES = ['light', 'dark']
 
@@ -318,13 +374,18 @@ export function checkParity() {
   // U0.1 made `tokens/palette.ts` the demo's palette and turned `inputs/input-theme.ts`'s `T`
   // into a re-export of it. The guard reads the DEFINITION, not the re-export: `T`'s aliases
   // are pinned at RUNTIME by tokens/__tests__/palette.test.ts:144-158, which is a stronger
-  // check than parsing source text, and `T` only carries 8 of this stage's 15 keys anyway.
+  // check than parsing source text, and `T` only carries 8 of the 32 anyway.
   const paletteSrc = source('web tokens/palette.ts', join(WEB, 'features/demo/ui/tokens/palette.ts'))
   // U0.2's scale seam. `touchFloor` used to read `T.rowH`, a literal that U0.0 deliberately
   // left in place because it was the guard's ONLY resolving anchor at the time.
   const scaleSrc = source('web tokens/scale.ts', join(WEB, 'features/demo/ui/tokens/scale.ts'))
   // Single source for the accent gradient stops; input-theme re-exports them.
   const glass = source('web glass-tokens.ts', join(WEB, 'features/demo/ui/glass-tokens.ts'))
+  // U1.1's tier seam. The four `GLASS.*` composites derived from it are NOT read here: they are
+  // template literals, so their text holds `${tier.card.gradient[0]}` and not a colour. Reading
+  // the definition is also the right side to read — a derived key that stopped deriving would
+  // be caught by `glass-tokens.test.ts`'s byte-exact shape pin, not by this guard.
+  const tiers = source('web tokens/glass-tiers.ts', join(WEB, 'features/demo/ui/tokens/glass-tiers.ts'))
 
   // Region slices, per scheme, per side. All four are plain string-index cuts, not parsers.
   //
@@ -350,7 +411,7 @@ export function checkParity() {
 
   // Every read is wrapped by `attempt`: the readers throw on a miss, and one miss must never
   // disable the rest of the table. That is U0.0's degrade, and this table is where it earns
-  // its keep — 67 rows, each independently resolvable.
+  // its keep — 115 rows, each independently resolvable.
   const anchors = []
   for (const scheme of SCHEMES) {
     for (const key of PALETTE_KEYS) {
@@ -361,6 +422,35 @@ export function checkParity() {
         rn: attempt(colors, (t) => readField(t, key, { ...rnRegion[scheme], resolve: rnRef(scheme) })),
         web: attempt(paletteSrc, (t) => readField(t, key, { ...webRegion[scheme], resolve: webRef(scheme) })),
       })
+    }
+  }
+
+  // U1.1's 48 tier rows. `readStop` for the two gradient stops (after `gradient:` comes `[`,
+  // which matches none of `readField`'s value alternatives — all twelve would be permanent
+  // PARSE-FAILED rows without it) and `readField` for the two flat parts. No `resolve` on either
+  // side: every tier value is a spelled literal in both repos, and an identifier appearing here
+  // should become a PARSE-FAILED row to be looked at, not be quietly followed.
+  //
+  // This is where U0.4's `norm()` whitespace fix earns its keep — the phone spells
+  // `rgba(28, 78, 132, 0.5)` and the demo spells `rgba(28,78,132,0.5)`. Without it all 48 rows
+  // compare unequal forever.
+  for (const scheme of SCHEMES) {
+    for (const tier of TIER_KEYS) {
+      const rnOpts = rnTierScope(scheme, tier)
+      const webOpts = webTierScope(scheme, tier)
+      const row = (part, rnRead, webRead) => ({
+        key: `${tier}.${part}`,
+        scheme,
+        label: `${tier}.${part}.${scheme}`,
+        rn: attempt(colors, rnRead),
+        web: attempt(tiers, webRead),
+      })
+      anchors.push(
+        row('gradientTop', (t) => readStop(t, 'gradient', 1, rnOpts), (t) => readStop(t, 'gradient', 1, webOpts)),
+        row('gradientBot', (t) => readStop(t, 'gradient', 2, rnOpts), (t) => readStop(t, 'gradient', 2, webOpts)),
+        row('border', (t) => readField(t, 'border', rnOpts), (t) => readField(t, 'border', webOpts)),
+        row('highlightTop', (t) => readField(t, 'highlightTop', rnOpts), (t) => readField(t, 'highlightTop', webOpts)),
+      )
     }
   }
 
@@ -390,7 +480,33 @@ export function checkParity() {
   // A parse failure is drift even when both sides fail identically — an anchor that cannot
   // be read has not been proven equal.
   const drift = anchors.filter((a) => a.rn !== a.web || isParseFailed(a.rn))
-  return { anchors, drift, parseFailed }
+
+  // The third failure mode, and the one `drift` is structurally blind to (review F17): a reader
+  // STUCK on one half compares that half to itself, so every row is equal and the table is a
+  // wall of OK. Measured: flattening both tier scopes to one level printed "all 115 anchor rows
+  // match" and exited 0 while comparing light to light. It has to be computed here rather than
+  // in the vitest file, because the standalone CLI is advertised as authoritative ("exit 1 on
+  // drift or mismatch") and quoted as verification evidence — two entry points reaching opposite
+  // verdicts on the same tree is worse than either verdict alone.
+  //
+  // Parse-failed rows are skipped: they are already reported, and two identical
+  // "field not found" strings are not evidence of a stuck reader.
+  const halves = new Map()
+  for (const a of anchors) {
+    if (a.scheme !== 'light' && a.scheme !== 'dark') continue
+    const pair = halves.get(a.key) ?? {}
+    pair[a.scheme] = a
+    halves.set(a.key, pair)
+  }
+  const stuck = []
+  for (const [key, pair] of halves) {
+    if (!pair.light || !pair.dark || SCHEME_INVARIANT.includes(key)) continue
+    for (const side of ['rn', 'web']) {
+      if (isParseFailed(pair.light[side]) || isParseFailed(pair.dark[side])) continue
+      if (pair.light[side] === pair.dark[side]) stuck.push({ key, side, value: pair.light[side] })
+    }
+  }
+  return { anchors, drift, parseFailed, stuck }
 }
 
 const statusOf = (a) => (isParseFailed(a.rn) || isParseFailed(a.web) ? 'PARSE-FAILED' : a.rn === a.web ? 'OK' : 'DRIFT')
@@ -402,22 +518,32 @@ if (invokedDirectly) {
     console.log(`skip: RN repo not found at ${RN}`)
     process.exit(0)
   }
-  const { anchors, drift, parseFailed } = checkParity()
-  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(26)} RN=${a.rn}  web=${a.web}`)
+  const { anchors, drift, parseFailed, stuck } = checkParity()
+  // 30 fits `nestedCard.highlightTop.light`, the longest label in the set.
+  for (const a of anchors) console.log(`  ${statusOf(a).padEnd(12)}  ${a.label.padEnd(30)} RN=${a.rn}  web=${a.web}`)
   if (parseFailed.length) {
     console.error(`\n✗ ${parseFailed.length} anchor row(s) could not be parsed on one side — the guard is BLIND there:`)
     for (const p of parseFailed) console.error(`  ${p.label}: RN=${p.rn}  web=${p.web}`)
     console.error('A moved or renamed constant. Repoint the reader in .design-sync/check-rn-parity.mjs.')
+  }
+  if (stuck.length) {
+    console.error(
+      `\n✗ ${stuck.length} anchor row-pair(s) read the SAME value for light and dark — a reader is STUCK on one half:`,
+    )
+    for (const s of stuck) console.error(`  ${s.key} (${s.side} side): both halves read ${s.value}`)
+    console.error('A scope that names the tier but not the scheme lands on the LIGHT half for BOTH')
+    console.error('schemes, which reports zero drift while proving nothing. Re-read the scope markers.')
   }
   if (drift.length) {
     console.error(`\n✗ ${drift.length} anchor row(s) drifted between the RN app and the web demo:`)
     for (const d of drift) console.error(`  ${d.label}: RN Colors.${d.scheme} = ${d.rn}, web = ${d.web}`)
     console.error('\nUpdate features/demo/ui/tokens/palette.ts (or tokens/scale.ts / glass-tokens.ts for')
     console.error('the touch floor and the accent stops) to match the phone, or vice-versa.')
-    process.exit(1)
   }
+  if (drift.length || stuck.length) process.exit(1)
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
-      `(${PALETTE_KEYS.length} palette keys x both halves, + the 2 dark CTA gradient stops and the touch floor)`,
+      `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +
+      `each x both halves, + the 2 dark CTA gradient stops and the touch floor)`,
   )
 }

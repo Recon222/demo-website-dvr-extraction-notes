@@ -7,7 +7,7 @@ import { GLASS } from '@/features/demo/ui/glass-tokens'
 import type { CaseCard } from '@/features/demo/ui/screens/screenData'
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { withAlpha } from '@/features/demo/ui/tokens/scale'
+import { radius, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * One case in the Export Hub — accordion header + tri-state case checkbox + the expanded
@@ -52,7 +52,8 @@ const LIT_GLOW = `0 4px 12px ${withAlpha(colors.link, 0.35)}`
 
 const wrapper: CSSProperties = {
   marginBottom: 14,
-  borderRadius: 16,
+  // A43 (U1.2) - a top-level card is `lg` (12), not `xl`. See CasesScreen's note.
+  borderRadius: radius.lg,
   overflow: 'hidden',
 }
 
@@ -132,7 +133,9 @@ export function ExportCaseCard({
         // `GLASS.accentFrom` measures 2.44 against this panel (WCAG 1.4.11 wants 3.0), `link`
         // 9.23. The glow is derived from the same token so the two can never disagree.
         border: expanded ? `1px solid ${colors.link}` : GLASS.borderSoft,
-        boxShadow: expanded ? LIT_GLOW : '0 4px 8px rgba(0,0,0,0.15)',
+        // Idle: the card recipe's own elevation (U1.3), not the hand-typed rgba this line
+        // used to carry — `GLASS.shadowCard` is byte-identical to it, so this is a re-point.
+        boxShadow: expanded ? LIT_GLOW : GLASS.shadowCard,
         opacity: dimmed ? 0.5 : 1,
       }}
     >

@@ -6366,3 +6366,63 @@ sites** (the standing rule: a token's ban lands with its value change). Named fa
 re-points `mapTokens.ts:58` to `colors.primaryLight` and owns the `#4BA3D4` sweep if nothing changes
 the value first; **U3.2** for the status quartet. Observable violation: a diff to one of these lines in
 `palette.ts` without a matching `BANNED` entry.
+
+---
+
+## 94. W1 (PR #40) — `colors.modal` (`#17416e`) has no consumer and no adopting row; the demo's form-modal shells still paint the flat app ground
+
+**Source:** W1 verification seat `_captures/w1/DIFF.md` §4.2; matrix A5 ("add the token, use it nowhere yet"); aggregator W1 r1.
+
+**What:** `_shared.tsx:127,192` paint `background: colors.background` flat, so the New Case modal and the profile editor are byte-identical between W0 and W1 while the phone's modal surface sits ABOVE its ground on `Colors.dark.modal`. `grep colors.modal` under `features/demo` (non-test) returns zero hits at `28e7993`, and no plan row after A5 adopts the token. Same shape as §92: a token with no scheduled consumer.
+
+**Why deferred:** the modal shell is `_shared.tsx`, a §6.1 hotspot U4 owns (sheets / dialogs / scrims); adopting the token in W1 would collide with U4.2 / U4.3 in the file they open.
+
+**Trigger:** **U4.2** (queued in W2), whose row already opens `_shared.tsx`'s dialog shell — it adopts `colors.modal` there as part of that work, or records why the demo's modal stays at ground. Orchestrator: add to U4.2's row.
+
+---
+
+## 95. W1 (PR #40) — the hand-ported SHADOW values have no drift anchor on either side; only literal shape pins hold them
+
+**Source:** U1.1 report §7 D-3 (`innerShadow`); U1.2/U1.3 report §7 D-3 (`Layout.shadow.card`); `check-rn-parity.mjs:336-344` (the documented exclusion); W1 review r1 F19 (the D2 half is fixed in code; this row is the anchor half).
+
+**What:** two classes. (1) The six tiers' `innerShadow` (12 values, both halves) are deliberately not in `TIER_PARTS`: the phone hands the value to a native shadow prop and the web composes it into `box-shadow: inset 0 1px 0 <innerShadow>`, so an anchor would compare two transcriptions rather than a contract. Their only gate is `ui/tokens/__tests__/glass-tiers.test.ts`'s whole-object `toEqual` — a literal pinned to itself, structurally blind to phone-side drift (typescript probe 4 confirms it is the only gate for `elevated`/`sheet`/`recessed`; `card`/`nestedCard` are covered twice via the composed fragments). (2) `GLASS.shadowCard` (`Layout.shadow.card`, phone `Layout.ts:122-136`) — the phone's design-sync generator does not emit `Layout.shadow` (phone §1.Y.3, "hand-ports for the web") and RN spells it as five props no CSS-shaped reader can take; it is held only by `glass-tokens.test.ts`'s literal and is now on every card in the demo.
+
+**Why deferred:** the guard's `PARSE-FAILED` degrade exists precisely to avoid anchors that pass by transcription; a real anchor needs either a composed value on the phone side or a small `shadowFor(tier)` reader that composes the five RN props into one CSS string (a real contract). One hand-ported shadow is a different risk from three.
+
+**Trigger:** **U4 landing the second and third shadow tiers** (A45 `shadow.dialog`, A46 `shadow.sheet`) — that package adds the composing reader to the guard or records the gap once for all three. Fires earlier if the phone publishes a `boxShadow` string for any of these in `conventions.md`, or on the first observed `innerShadow` / shadow drift between the repos.
+
+---
+
+## 96. W1 (PR #40) — the DIAGONAL card variant (D11) did not get the four-part composition; eight surfaces, including the Cases list and the Dashboard, still render a two-part card
+
+**Source:** U1.2/U1.3 report §7 D-1; typescript lane out-of-lane observation; aggregator W1 r1.
+
+**What:** U1.2 gave `glassCard` the lit top edge, the inset and `shadow.card`. `GLASS.gradientCardDiag` is the same `card` tier at 135° but is a bare string, not a fragment, so its eight consumers compose gradient + border only: `chrome/DemoErrorBoundary.tsx:35`, `inputs/CameraGpsCapture.tsx:62`, `inputs/GpsCaptureControl.tsx:45`, `screens/CasesScreen.tsx:143,240`, `screens/DashboardScreen.tsx:122,201`, `screens/export/ExportCaseCard.tsx:127`. The two entry screens are among them. A43's radius change landed at three of the eight; the composition did not.
+
+**Why deferred:** building `glassCardDiag` is four lines; adopting it is not — three of the eight are nested ROWS at `radius.md` that a blind spread would flatten against A43, and four of the files are held open by U3.4 (`CasesScreen`, `DashboardScreen`), U5.4 (`GpsCaptureControl`) and U3.3 (`DemoErrorBoundary`, whose row already says "card re-base"). Doing it from a wave-1 package opens five files three later packages own.
+
+**Trigger:** **U3.3's `DemoErrorBoundary` card re-base** — it builds `glassCardDiag` and takes the four true top-level cards (`DemoErrorBoundary`, `CasesScreen:143`, `DashboardScreen:120`, `CameraGpsCapture`), leaving the three nested rows explicitly named as rows. Backstop: **the owner's D1 device-pass checkpoint 1** (`w1/after/01-wizard/06-case-card-expanded.png`) — "cards on the entry screens read flat" is what that pass exists to catch. Orchestrator: add to U3.3's row.
+
+---
+
+## 97. W1 (PR #40) — `nestedCard.border`'s composed form cannot be banned while `BootSequence.tsx:36` spells it
+
+**Source:** U1.2/U1.3 report §7 D-2 (R-6); aggregator W1 r1 (confirmed at `28e7993`: `screens/BootSequence.tsx:36` is `border: '1px solid rgba(43,140,193,0.45)'`).
+
+**What:** U1.2/U1.3 banned five tier values as their closing act. `nestedCard.border` (`rgba(43,140,193,0.45)`) is the exception: bare it is live at three non-tier sites, and composed as `1px solid rgba(43,140,193,0.45)` at exactly one — the boot sequence's pill, which is not a nested card. The most re-drift-prone value in the nested recipe therefore has no `BANNED` entry.
+
+**Why deferred:** the single blocking occurrence is in U8.1's file, and U8.1's row re-bases the splash and boot chrome; sweeping it from a wave-1 package means editing a phase-8 surface with no ruling on what that border should become.
+
+**Trigger:** **U8.1 re-basing `BootSequence.tsx:36`.** The moment that line stops spelling the composed literal, U8.1 appends `['nested card border', '1px solid rgba(43,140,193,0.45)']` to `BANNED` as its closing act — the same discipline U1.1–U1.4 followed.
+
+---
+
+## 98. W1 (PR #40) — `flattenOver` rounds each channel per fold; the phone's compositing keeps floats — up to 0.32 ΔE apart on the tightest rows
+
+**Source:** U1.1 report §5 / §7 D-1; `features/demo/ui/tokens/scale.ts` `flattenOver` vs phone `src/constants/__tests__/palette-contrast.test.ts:57-65`; silent-failures W1 r1 (judged bounded, not re-filed).
+
+**What:** measured on the now-live rows: row 33's dark lower stop reads 3.6920 here against the phone's 4.0124 (−8%); dark `textTertiary` reads 3.8143 against 3.7921 (our pin is looser by 0.022). The U0.5 docblock's tolerance ("< 0.01 on a ratio") is right for ratios and an order of magnitude off for ΔE.
+
+**Why deferred:** the seam is a deliberate U0.2/U0.5 decision — the contrast contract composites through the PRODUCTION helper so the helper every recipe uses is exercised by a gate; a private float copy would un-exercise it. Every affected row passes with real margin today.
+
+**Trigger:** **any `palette-contrast.test.ts` row that fails, or lands within 0.35 ΔE / 0.03 ratio of its bound, where the float computation would pass** — or **U2.4** landing the recessed well on the picker surfaces (its row carries the per-stop `recessed`-vs-`sheet` ΔE assertion, the tightest bound in the file). Then either give `flattenOver` an opt-in unrounded mode or restate the bound with the seam's error budget written into it.

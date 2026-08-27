@@ -63,7 +63,13 @@ export function CompletionScreen(p: CompletionScreenProps) {
     return (
       <div style={{ minHeight: 786, paddingBottom: 40 }}>
         <WizardHeader title="Completion & Review" onBack={p.onBack} onMenu={p.onMenu} />
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 60 }}>
+        {/* One `padding` SHORTHAND, not `padding: 16` + a `paddingTop: 60` longhand. React
+            reuses this node for the review form's `{ padding: 16 }` div at :82, so on the
+            "Review / Export again" transition it removed `paddingTop` while `padding` stayed
+            unchanged and never reasserted — the form rendered with NO top padding, and said so
+            only in a console error nobody read (lit-edge ruling §4.3; caught by the repo-wide
+            guard in `vitest.setup.ts`). Same 60/16/16 box. */}
+        <div style={{ padding: '60px 16px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ width: 84, height: 84, borderRadius: 42, background: 'rgba(16,209,119,0.13)', border: '1px solid rgba(16,209,119,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }}>
             <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#10d177" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </div>
@@ -91,7 +97,12 @@ export function CompletionScreen(p: CompletionScreenProps) {
             ))}
           </div>
         )}
-        <div style={{ borderRadius: 14, border: GLASS.borderAccent, background: 'linear-gradient(180deg,rgba(26,45,68,0.9),rgba(19,34,54,0.96))', padding: 18, marginBottom: 18, boxShadow: '0 0 22px rgba(43,140,193,0.12)' }}>
+        {/* A36/A56 (U1.3) - the `0.9/0.96` gradient was a near-miss of the `elevated` tier
+            (deferral §31 names it); `GLASS.gradientPanel` IS that tier, and `GLASS.borderAccent`
+            beside it is the same tier's border. SEAM(U6.4b): the `techGlow` boxShadow on this
+            line is M1(a)'s to REMOVE and is deliberately untouched here - one line, two
+            packages. U1.3 lands first; do not revert the gradient when the glow goes. */}
+        <div style={{ borderRadius: 14, border: GLASS.borderAccent, background: GLASS.gradientPanel, padding: 18, marginBottom: 18, boxShadow: '0 0 22px rgba(43,140,193,0.12)' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f0f4f8', fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace", marginBottom: 14 }}>OCC #{p.summary.occNumber}</div>
           <Row label="Location" value={p.summary.location} />
           <Row label="DVR" value={p.summary.dvr} />

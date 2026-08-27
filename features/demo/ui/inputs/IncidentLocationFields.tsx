@@ -131,7 +131,8 @@ function CoordinateField({
         aria-describedby={error ? errorId : undefined}
         inputMode="text"
         autoComplete="off"
-        style={error ? { ...coordInput, borderColor: '#ff4757' } : coordInput}
+        // Whole shorthand, not a longhand over the base's `border` — see `_shared.tsx`'s Field.
+        style={error ? { ...coordInput, border: '1px solid #ff4757' } : coordInput}
       />
       {error && (
         <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>

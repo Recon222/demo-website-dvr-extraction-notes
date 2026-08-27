@@ -18,7 +18,7 @@ import type {
 } from '@/features/demo/ui/import/run-import'
 import type { ImportLogBus } from '@/features/demo/engine/logic/import-log'
 import type { ImportUiStage } from '@/features/demo/engine/logic/import-flow-mode'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
 
 export interface ImportFailure {
   filename: string
@@ -178,7 +178,10 @@ function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
 function DataFoundCard({ partial }: { partial: ImportPartialData }) {
   if (!partial.caseNumber) return null
   return (
-    <div data-testid="import-data-found" style={{ width: '100%', textAlign: 'left', borderRadius: 10, border: GLASS.borderSoft, background: 'rgba(26,45,68,0.45)', padding: '10px 12px' }}>
+    // A33/A55 (U1.3) - was a FLAT `rgba(26,45,68,0.45)` fill on the card hairline; now the
+    // nested tier. The lifted `borderRadius: 10` is kept (demo §0.4) - A43's sweep is the
+    // radius-16 card sites, not every off-ladder corner.
+    <div data-testid="import-data-found" style={{ ...glassCardNested, width: '100%', textAlign: 'left', borderRadius: 10, padding: '10px 12px' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#99badd', marginBottom: 6 }}>Data Found</div>
       <div style={{ fontSize: 13, color: '#f0f4f8' }}>Case Number: {partial.caseNumber}</div>
     </div>

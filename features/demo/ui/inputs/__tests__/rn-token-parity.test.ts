@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, it, expect } from 'vitest'
 
+import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { palette, type PaletteToken } from '@/features/demo/ui/tokens/palette'
 import {
   checkParity,
@@ -13,7 +14,16 @@ import {
   rnAvailable,
   rnTierScope,
   RN_ROOT,
+  SCHEME_INVARIANT,
+  TIER_KEYS,
+  TIER_PARTS,
+  webTierScope,
 } from '../../../../../.design-sync/check-rn-parity.mjs'
+
+/** The 24 tier anchor keys, spelled the way the guard spells them: `<tier>.<part>`. */
+const TIER_ANCHOR_KEYS: string[] = TIER_KEYS.flatMap((t: string) =>
+  TIER_PARTS.map((p: string) => `${t}.${p}`),
+)
 
 /** One row of the guard's table. `scheme` is `'any'` for scheme-invariant anchors. */
 type Anchor = { key: string; scheme: string; label: string; rn: string; web: string }
@@ -40,6 +50,10 @@ type Anchor = { key: string; scheme: string; label: string; rn: string; web: str
 //   U0.4  the readers are repointed at the definitions (`tokens/palette.ts`,
 //         `tokens/scale.ts`, `Colors.ts`'s `PrimaryButtonGradient`), and BOTH lists tighten
 //         to empty. They stay empty: from here on, a non-empty list is a finding.
+//   U1.1  +48 rows: the six glass tiers x four readable parts x both halves. Before them the
+//         guard read no tier at all, and `ui/__tests__/glass-tokens.test.ts` pins the demo's
+//         glass values TO THEMSELVES — so a phone-side re-tint of any tier was invisible to
+//         every gate in this repo. That is the hole these rows close.
 const labels = (rows: ReadonlyArray<{ label: string }>) => rows.map((r) => r.label)
 const report = (rows: ReadonlyArray<{ label: string; rn: string; web: string }>) =>
   rows.map((r) => `${r.label}: RN=${r.rn} web=${r.web}`).join('; ')
@@ -90,6 +104,31 @@ describe("the guard's local invariants — nothing here reads the phone repo", (
     )
   })
 
+  it('anchors exactly the six glass tiers and every part of one', () => {
+    // MEMBERSHIP, not cardinality — review F16, and the same reasoning W0/F2 applied to
+    // `PALETTE_KEYS`. The guard is `.mjs` and cannot import this TS module, so its two tier
+    // lists are hand-maintained; held to nothing but themselves, a SEVENTH tier lands with the
+    // guard unchanged and a SHRINK that drops `recessed` reaches green by editing one number.
+    // Both shapes SURVIVED the lanes' probes against the old `.toBe(6/4/24)`.
+    //
+    // UNGATED, per W0/F11: both sides are local — a `.mjs` array and a TS module in this repo —
+    // so gating this on the sibling phone repo was the same defect F11 fixed for the palette
+    // list. These are what make the `skipIf` loops below non-tautological, on every box.
+    expect([...TIER_KEYS].sort(), 'the guard must anchor exactly the six glass tiers').toEqual(
+      Object.keys(GLASS_TIER.dark).sort(),
+    )
+    const UNANCHORED = ['innerShadow']
+    // `indexOf` dedupe, not `[...new Set()]`: tsconfig targets es5, where spreading a Set is
+    // TS2802. Four elements — a Set would buy nothing but the flag.
+    const anchoredFields = TIER_PARTS.map((p: string) =>
+      p.startsWith('gradient') ? 'gradient' : p,
+    ).filter((f: string, i: number, all: string[]) => all.indexOf(f) === i)
+    expect(
+      [...anchoredFields, ...UNANCHORED].sort(),
+      'every part of a tier is either anchored or named unanchored',
+    ).toEqual(Object.keys(GLASS_TIER.dark.card).sort())
+  })
+
   it('does not read a value out of a // comment', () => {
     // The shape that survived at review time: a refactor leaves the OLD value commented above
     // the new one, `readField` takes the first match in the slice, and the guard reports the
@@ -105,6 +144,27 @@ describe("the guard's local invariants — nothing here reads the phone repo", (
     // all declare the same four part names.
     const src = ["const dark = {", "  text: '#f0f4f8',"].join('\n')
     expect(() => readField(src, 'text', DARK)).toThrow(/region end marker not found: \} as const/)
+  })
+})
+
+// F21. Runs WITHOUT the sibling repo — it pins the reader, not an anchor. `readStop` used to
+// match an unbounded tuple, so `['a','b','c']` read as `['a','b']` and the row reported OK
+// against a gradient the demo has no way to render. Truncation was the only malformed shape the
+// reader accepted silently; every other one already threw.
+describe('readStop — the tuple reader the 48 gradient rows go through', () => {
+  it('reads both stops of a two-element tuple', () => {
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 1)).toBe('rgba(1,2,3,0.5)')
+    expect(readStop("gradient: ['rgba(1,2,3,0.5)', 'rgba(4,5,6,0.5)']", 'gradient', 2)).toBe('rgba(4,5,6,0.5)')
+  })
+
+  it('REFUSES a longer tuple instead of silently comparing its first two stops', () => {
+    // The whole point: a THREE-stop phone gradient must become a PARSE-FAILED row that someone
+    // repoints, never an OK row hiding a stop the web side cannot express.
+    expect(() => readStop("gradient: ['a', 'b', 'c']", 'gradient', 1)).toThrow(/tuple stops not found/)
+  })
+
+  it('still refuses a one-element tuple', () => {
+    expect(() => readStop("gradient: ['a']", 'gradient', 1)).toThrow(/tuple stops not found/)
   })
 })
 
@@ -136,43 +196,97 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         .sort()
       expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
     }
-    // Cardinality is derived from the membership pin above (which is UNGATED — see the
-    // `local invariants` describe), and covers only what membership cannot: deletion of
-    // the three anchors that are NOT palette keys (both CTA gradient stops + the touch floor).
-    expect(anchors.length, 'every palette key in both halves, + 2 gradient stops + touchFloor').toBe(
-      PALETTE_KEYS.length * 2 + 3,
+    // Cardinality is derived from the two MEMBERSHIP pins, which are UNGATED — see the
+    // `local invariants` describe (W0/F11 moved the palette one there; F16's tier ones went
+    // with it at the merge, for the same reason). This covers only what membership cannot:
+    // deletion of the three anchors that are NOT keys of either list (both CTA gradient stops
+    // + the touch floor).
+    expect(
+      anchors.length,
+      'every palette key AND every tier key in both halves, + 2 gradient stops + touchFloor',
+    ).toBe(PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 3)
+  })
+
+  it.skipIf(!rnAvailable())('pins all 24 glass-tier keys in BOTH halves (U1.1 closing act)', () => {
+    const { anchors } = checkParity()
+
+    for (const key of TIER_ANCHOR_KEYS) {
+      const schemes = anchors
+        .filter((a: Anchor) => a.key === key)
+        .map((a: Anchor) => a.scheme)
+        .sort()
+      expect(schemes, `${key} must be pinned in both halves`).toEqual(['dark', 'light'])
+    }
+
+    // Every tier row must have READ something on both sides. Stated separately from the
+    // file-wide PARSE-FAILED case above because these 48 are the rows most likely to go blind:
+    // they depend on three-level scoping AND on `readStop`, and a phone-side reformat of
+    // `GlassColors` breaks them without touching a single colour.
+    for (const a of anchors.filter((x: Anchor) => TIER_ANCHOR_KEYS.includes(x.key))) {
+      expect(a.rn, `${a.label} RN side`).toMatch(/^rgba\(/)
+      expect(a.web, `${a.label} web side`).toMatch(/^rgba\(/)
+    }
+  })
+
+  it.skipIf(!rnAvailable())('addresses the web tiers with the same three-level scope as the phone', () => {
+    // The web twin of the capability case at the bottom of this file. `tokens/glass-tiers.ts`
+    // mirrors `GlassColors`' nesting on purpose, so the SAME scope shape works on both sides —
+    // and the same two-level trap exists on both sides. If this reddens, someone flattened the
+    // demo's tier module (or reordered its halves) and `webTierScope` needs re-reading.
+    const tiers = readFileSync(
+      join(process.cwd(), 'features', 'demo', 'ui', 'tokens', 'glass-tiers.ts'),
+      'utf8',
     )
+    const light = readField(tiers, 'border', webTierScope('light', 'card'))
+    const dark = readField(tiers, 'border', webTierScope('dark', 'card'))
+    expect(light, 'the two halves of GLASS_TIER.card.border must not read as one').not.toBe(dark)
+    const twoLevel = readField(tiers, 'border', { after: 'card: {', before: '}' })
+    expect(twoLevel, 'a tier-only scope lands on the LIGHT tier').toBe(light)
+    expect(twoLevel).not.toBe(dark)
   })
 
   it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
-    const { anchors } = checkParity()
-    const at = (key: string, scheme: string): Anchor => {
-      const row = anchors.find((a: Anchor) => a.key === key && a.scheme === scheme)
-      // Say what is missing. Without this, dropping a scheme fails here as
-      // `TypeError: Cannot read properties of undefined (reading 'rn')` — measured.
-      if (!row) throw new Error(`no anchor row for ${key}.${scheme}: the ${scheme} half is missing`)
-      return row
-    }
+    const { stuck } = checkParity()
     // The failure this exists for: a "light" reader whose region markers actually slice the
     // DARK block still reports zero drift, because both sides then compare the same block to
     // itself. Every assertion above stays green through it.
     //
-    // Almost every palette key genuinely differs between the phone's two halves, so a stuck
-    // reader collapses one of those pairs. The exceptions are excluded BY NAME rather than by
-    // deleting the check: these two are `#ffffff` in both halves by design (`Colors.ts:95-96`,
-    // `:201-202`) — a foreground for filled surfaces does not change with the scheme. Any key
-    // added here needs the same justification, in one line, or it is hiding a stuck reader.
-    // Typed, so a typo'd exclusion is a compile error rather than a misleading runtime red.
-    // Annotated as ReadonlySet<string> so `.has(k)` still takes the untyped .mjs key.
-    const SCHEME_INVARIANT: ReadonlySet<string> = new Set<PaletteToken>(['onPrimary', 'onError'])
-    for (const key of PALETTE_KEYS.filter((k: string) => !SCHEME_INVARIANT.has(k))) {
-      expect(at(key, 'light').rn, `RN ${key}: the light and dark reads returned the same value`).not.toBe(
-        at(key, 'dark').rn,
-      )
-      expect(at(key, 'light').web, `web ${key}: the light and dark reads returned the same value`).not.toBe(
-        at(key, 'dark').web,
-      )
-    }
+    // Almost every key here genuinely differs between the phone's two halves, so a stuck reader
+    // collapses one of those pairs. The exceptions are excluded BY NAME rather than by deleting
+    // the check: these two are `#ffffff` in both halves by design (`Colors.ts:95-96`, `:201-202`)
+    // — a foreground for filled surfaces does not change with the scheme. Any key added here
+    // needs the same justification, in one line, or it is hiding a stuck reader.
+    //
+    // The 24 tier keys are in scope for a reason: their scopes are THREE levels deep and the
+    // two-level form lands on the light tier for BOTH schemes (measured at `dd5551ec`), which
+    // is precisely the reader that reports zero drift while proving nothing. The capability
+    // case at the bottom of this file pins that for one key; this pins it for all 24, on both
+    // sides, against the live anchor table rather than against a hand-built scope. None of the
+    // 24 is scheme-invariant, so none is excluded.
+    // ASSERTED OFF THE GUARD'S OWN RESULT, not re-derived here (review F17). This case used to
+    // rebuild the comparison from `anchors`, which left the standalone CLI — the entry point the
+    // module header calls authoritative — with no such check at all: it printed
+    // "all 115 anchor rows match" and exited 0 over a reader stuck on the light half. `stuck` now
+    // lives in `checkParity()` and BOTH entry points fail on it.
+    //
+    // What keeps an empty `stuck` from meaning "nothing was examined" is the pair of
+    // both-halves loops above: every palette key and every tier key is asserted to have exactly
+    // a light and a dark row, and `stuck` inspects precisely the keys that have both.
+    expect(
+      stuck.map((s: { key: string; side: string }) => `${s.key} (${s.side})`),
+      stuck
+        .map((s: { key: string; side: string; value: string }) => `${s.key} ${s.side}=${s.value}`)
+        .join('; '),
+    ).toEqual([])
+    // The exclusion list is the guard's, imported rather than restated — one place, one meaning.
+    // Typed on THIS side (W0/F11): the guard is `.mjs`, so its export arrives untyped and a
+    // typo in the exclusion list would be a misleading runtime red. Naming the two keys at
+    // `PaletteToken` makes it a compile error instead, while the guard's array stays the ONE
+    // thing that actually excludes (F17) — this pins that it is those two and nothing else.
+    const INVARIANT: readonly PaletteToken[] = ['onError', 'onPrimary']
+    expect([...SCHEME_INVARIANT].sort(), 'the only by-design scheme-invariant keys').toEqual([
+      ...INVARIANT,
+    ])
   })
 })
 

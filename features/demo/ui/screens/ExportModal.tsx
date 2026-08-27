@@ -13,7 +13,7 @@ import {
   type ProgressInfo,
 } from '@/features/demo/engine/logic/export'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { GLASS, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -296,12 +296,11 @@ function ValidationContent({
         <div
           data-testid="export-invalid-locations"
           style={{
+            // A33/A55 (U1.3) - the nested tier; was `rgba(13,27,42,0.6)` on the hard border.
+            ...glassCardNested,
             maxHeight: 200,
             overflowY: 'auto',
             overscrollBehavior: 'contain',
-            borderRadius: 12,
-            border: GLASS.border,
-            background: 'rgba(13,27,42,0.6)',
             padding: 14,
             marginBottom: 14,
           }}
