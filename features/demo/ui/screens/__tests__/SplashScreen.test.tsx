@@ -32,7 +32,7 @@ describe('SplashScreen', () => {
     it.each(BOOT_HUD_STATES)('discloses the simulation in %s', (authState) => {
       render(<SplashScreen authState={authState} onScan={vi.fn()} />)
       expect(
-        screen.getByText(/Simulated scan — a browser tab has no biometric sensor\./),
+        screen.getByText(/Simulated scan\. A browser tab has no biometric sensor\./),
       ).toBeInTheDocument()
     })
 

@@ -93,7 +93,7 @@ export function CasesScreen({
       </div>
 
       <div style={{ padding: '0 16px' }}>
-        {cases.length === 0 && <EmptyState message="No cases yet — tap + to create one." />}
+        {cases.length === 0 && <EmptyState message="No cases yet. Tap + to create one." />}
         {cases.map((c) => (
           <CaseRow
             key={c.id}

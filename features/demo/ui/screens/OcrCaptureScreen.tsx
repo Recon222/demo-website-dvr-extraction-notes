@@ -305,7 +305,7 @@ export function OcrCaptureScreen({
         if (!grab || !grab.ok) {
           // A camera that has not delivered a frame yet and a canvas that cannot encode land
           // on the same honest sentence — nothing was captured.
-          setNotice((grab && !grab.ok ? grab.failure.message : null) ?? 'This browser could not turn the camera frame into an image — nothing was captured.')
+          setNotice((grab && !grab.ok ? grab.failure.message : null) ?? 'This browser could not turn the camera frame into an image. Nothing was captured.')
           return
         }
         const recognize = deps?.recognize ?? recognizeDvrStrip
@@ -417,7 +417,7 @@ export function OcrCaptureScreen({
               </div>
               {!result.confidence.measured && (
                 <div style={{ fontSize: 11, color: '#7a9fc4', lineHeight: 1.45, marginBottom: 10 }}>
-                  Fixed for sample frames — no live frame was scored here. It rates how legibly the characters
+                  Fixed for sample frames. No live frame was scored here. It rates how legibly the characters
                   read, never which date they mean.
                 </div>
               )}
@@ -487,7 +487,7 @@ export function OcrCaptureScreen({
                 the date re-enables it (the R-7 failure shape). The click is guarded instead. */}
             <div style={{ marginTop: 'auto' }}>
               <div role="status" style={{ ...label12 }}>
-                {!dvrDraft && <div id={blockedId} style={{ marginBottom: 10 }}>DVR Time Required — please enter the DVR timestamp before continuing.</div>}
+                {!dvrDraft && <div id={blockedId} style={{ marginBottom: 10 }}>DVR Time Required. Please enter the DVR timestamp before continuing.</div>}
                 {dateNeedsConfirming && <div id={blockedId} style={{ marginBottom: 10 }}>Confirm or correct the assumed date before continuing.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -599,7 +599,7 @@ export function OcrCaptureScreen({
         ) : permission === 'unavailable' ? (
           <div style={viewfinderPanel}>
             <div style={{ fontSize: 13, color: '#ff8a93', lineHeight: 1.5 }}>
-              No camera available here — use the sample DVR clock below (same OCR pipeline).
+              No camera available here. Use the sample DVR clock below (same OCR pipeline).
             </div>
           </div>
         ) : permission === 'denied' ? (

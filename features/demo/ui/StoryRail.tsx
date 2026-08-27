@@ -51,7 +51,7 @@ export function StoryRail({ narration, explore, onJump, onBackToSite }: StoryRai
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#cfeeea', marginBottom: 5 }}>You&apos;re driving</div>
           <div style={{ fontSize: 14.5, lineHeight: 1.6, color: '#aecbc8' }}>
-            Tap through the phone like a real user — create a case, fill fields, run the AI import, calibrate time, capture the DVR clock. These notes just follow whatever screen you land on.
+            Tap through the phone like a real user: create a case, fill fields, run the AI import, calibrate time, capture the DVR clock. These notes just follow whatever screen you land on.
           </div>
         </div>
       </div>

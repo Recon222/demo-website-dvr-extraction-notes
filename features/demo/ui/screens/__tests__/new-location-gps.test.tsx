@@ -329,9 +329,9 @@ describe('NewLocationModal — the draft is the write-guard identity (deferred �
  */
 describe('NewLocationModal — the copy-to-a-new-address variant carries the REAL capture (§52.4)', () => {
   it('offers the same live control the plain caller does', () => {
-    renderModal({ requireAddress: true, subtitle: 'Submission info copied — enter the new address.' })
+    renderModal({ requireAddress: true, subtitle: 'Submission info copied. Enter the new address.' })
 
-    expect(screen.getByText('Submission info copied — enter the new address.')).toBeInTheDocument()
+    expect(screen.getByText('Submission info copied. Enter the new address.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Use Current Location' })).toHaveAttribute('aria-disabled', 'false')
     expect(screen.getByRole('switch', { name: 'Reverse-geocode captured coordinates into an address' })).toBeInTheDocument()
     expect(screen.queryByText('Capture GPS coordinates')).not.toBeInTheDocument() // §24's no-op

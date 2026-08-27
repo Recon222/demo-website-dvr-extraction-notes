@@ -214,7 +214,7 @@ export function NewCaseModal({ form, onChange, onSubmit, onCancel, mode = 'creat
         value={caseNumber}
         onChange={(v) => change('caseNumber', v)}
         placeholder="OCC2025-001"
-        hint={isEdit ? 'Case number cannot be changed' : 'Locked once the case is created — it names the evidence folder.'}
+        hint={isEdit ? 'Case number cannot be changed' : 'Locked once the case is created. It names the evidence folder.'}
         error={errors.caseNumber}
       />
       <Field label="Display Name" value={form.displayName} onChange={(v) => onChange('displayName', v)} placeholder="Friendly name" />

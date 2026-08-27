@@ -200,7 +200,7 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
             Sample
           </span>
           <span style={{ fontSize: 11, color: '#9fc0db', lineHeight: 1.45 }}>
-            A bundled sample note — no microphone was used to make this.
+            A bundled sample note. No microphone was used to make this.
           </span>
         </div>
       )}
@@ -221,7 +221,7 @@ export function AudioPreviewScreen({ captured, defaultFilenameBase, notice, onSa
           /* SEAM(U7.3): this string and the sample-note line at `:203` both carry an em dash and
              are A93's to rewrite — the copy is MOVED here verbatim by U7.2, not authored. Two of
              the demo's em-dash sites, findable from this marker. */
-          message="The browser refused to start playback. The recording itself is unaffected — it is still here and still saveable."
+          message="The browser refused to start playback. The recording itself is unaffected. It is still here and still saveable."
           style={{ marginBottom: 14 }}
         />
       )}

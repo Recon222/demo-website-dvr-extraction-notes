@@ -74,9 +74,9 @@ const clearButton: CSSProperties = {
 }
 
 export const EMPTY_COPY: Record<SheetEmptyReason, string> = {
-  'no-data': 'No located locations yet — add an address to a location to plot it here.',
+  'no-data': 'No located locations yet. Add an address to a location to plot it here.',
   filters: 'No locations match your filters.',
-  proximity: 'No locations inside the proximity radius — widen it or turn Proximity off.',
+  proximity: 'No locations inside the proximity radius. Widen it or turn Proximity off.',
 }
 
 const footer: CSSProperties = { padding: '8px 14px 20px' }

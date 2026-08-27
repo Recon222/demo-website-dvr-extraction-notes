@@ -30,8 +30,8 @@ export function AppearancePane({ settings, onChange }: SettingsPaneProps) {
   return (
     <div data-testid="settings-pane-appearance">
       <PaneStubNote>
-        The demo&apos;s phone frame renders the app&apos;s dark theme and only the dark theme —
-        there is no light palette here to switch to, so Dark Mode is fixed on. The import switch
+        The demo&apos;s phone frame renders the app&apos;s dark theme and only the dark theme.
+        There is no light palette here to switch to, so Dark Mode is fixed on. The import switch
         moves, but the live import terminal always prints its full log in the demo; on the phone
         it is what opens and closes the model&apos;s inputs and outputs while a PDF is being read.
       </PaneStubNote>
@@ -47,7 +47,7 @@ export function AppearancePane({ settings, onChange }: SettingsPaneProps) {
           }}
         />
         <PaneNote id={darkReasonId}>
-          Fixed on — the demo&apos;s phone frame has no light theme to switch to.
+          Fixed on. The demo&apos;s phone frame has no light theme to switch to.
         </PaneNote>
       </PaneGroup>
 

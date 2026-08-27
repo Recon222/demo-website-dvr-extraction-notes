@@ -81,7 +81,7 @@ export function CamerasScreen({ cameras, onChange, onAdd, onRemove, onCaptureGps
     <div style={{ minHeight: 786, paddingBottom: 40 }}>
       <WizardHeader title="Cameras" onBack={onBack} onMenu={onMenu} />
       <div style={{ padding: 16 }}>
-        {cameras.length === 0 && <EmptyState message="No cameras yet — add the ones in the recovery." />}
+        {cameras.length === 0 && <EmptyState message="No cameras yet. Add the ones in the recovery." />}
         {cameras.map((c, i) => (
           <div key={c.id} style={{ ...glassCard, padding: 16, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

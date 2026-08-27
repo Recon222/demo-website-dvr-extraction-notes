@@ -175,7 +175,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Review / Export again'))
     fireEvent.click(screen.getByText('Preview / Export PDF'))
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument() // the PdfPreview iframe
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument() // the PdfPreview iframe
 
     // Re-completing returns to the confirmation; the flag never flipped off in between.
     fireEvent.click(screen.getByLabelText('Close preview'))
@@ -821,8 +821,8 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
       fireEvent.click(cta)
       expect(await screen.findByText(/Imported 1 of 3 requests/)).toBeInTheDocument() // …and in the result view
       // …and both casualties are named, instead of one row spelled 'import'.
-      expect(screen.getByText(/b\.pdf — The import failed unexpectedly/)).toBeInTheDocument()
-      expect(screen.getByText(/c\.pdf — Not attempted — the import stopped/)).toBeInTheDocument()
+      expect(screen.getByText(/b\.pdf: The import failed unexpectedly/)).toBeInTheDocument()
+      expect(screen.getByText(/c\.pdf: Not attempted\. The import stopped/)).toBeInTheDocument()
       expect(screen.queryByText(/^import — /)).not.toBeInTheDocument()
       expect(runPdf).toHaveBeenCalledTimes(2) // c.pdf really was never attempted
       expect(store.getState().locations.length).toBe(1)
@@ -1077,7 +1077,7 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
 
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
   })
 
   it('completion: Escape dismisses the PDF preview and focus returns to the opener button (deferred §21)', () => {
@@ -1089,10 +1089,10 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     const opener = screen.getByText('Preview / Export PDF')
     opener.focus() // jsdom does not focus on click — make the opener the focused element, as a real tap/tab would
     fireEvent.click(opener)
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByTitle('Case Notes — PDF')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Case Notes (PDF)')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(opener)
   })
 
@@ -1103,14 +1103,14 @@ describe('DemoExperience — sandbox bridge paths', { timeout: 20000 }, () => {
     act(() => store.getState().setView('completion'))
 
     fireEvent.click(screen.getByText('Preview / Export PDF'))
-    const frame = screen.getByTitle('Case Notes — PDF') as HTMLIFrameElement
+    const frame = screen.getByTitle('Case Notes (PDF)') as HTMLIFrameElement
     const print = vi.fn()
     ;(frame.contentWindow as Window & { print: () => void }).print = print
 
     fireEvent.click(screen.getByRole('button', { name: 'Save as PDF' }))
     expect(print).toHaveBeenCalledTimes(1)
     // The preview stays up — printing is not a dismissal.
-    expect(screen.getByTitle('Case Notes — PDF')).toBeInTheDocument()
+    expect(screen.getByTitle('Case Notes (PDF)')).toBeInTheDocument()
   })
 
   it('completion: Preview Time-Offset Calibration mounts the distinct time-offset document', () => {

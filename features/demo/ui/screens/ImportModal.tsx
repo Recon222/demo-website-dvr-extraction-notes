@@ -200,7 +200,7 @@ function FailuresCard({ failures }: { failures: ImportFailure[] }) {
     <div style={{ borderRadius: 10, border: GLASS.borderError, background: 'rgba(255,71,87,0.08)', padding: '10px 12px', marginBottom: 10, textAlign: 'left' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#ff8a93', marginBottom: 6 }}>{failures.length} failed</div>
       {failures.map((f, i) => (
-        <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename} — {f.error}</div>
+        <div key={`${f.filename}-${i}`} style={{ fontSize: 12, color: '#cdd9e6', marginBottom: 2 }}>{f.filename}: {f.error}</div>
       ))}
     </div>
   )

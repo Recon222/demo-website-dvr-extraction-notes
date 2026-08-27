@@ -225,7 +225,7 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
               >
                 <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#f0f4f8' }}>
                   {loc.locationName}
-                  {loc.address && <span style={{ color: '#7a9fc4' }}> — {loc.address}</span>}
+                  {loc.address && <span style={{ color: '#7a9fc4' }}>, {loc.address}</span>}
                 </span>
                 {/* `small`, matching phone `CompactLocationItem.tsx:83`. */}
                 <span style={statusBadgeStyle(loc.status, 'small')}>{loc.status.label}</span>

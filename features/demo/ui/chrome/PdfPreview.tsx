@@ -13,7 +13,7 @@ export interface PdfPreviewProps {
 
 /** Honest treatment when the browser refuses to open the print dialog — never a fake success. */
 const PRINT_BLOCKED_NOTICE =
-  'Your browser blocked the print dialog for this preview — no PDF was saved. Try again, or use a different browser.'
+  'Your browser blocked the print dialog for this preview. No PDF was saved. Try again, or use a different browser.'
 
 /**
  * Renders the real generated PDF HTML into an iframe preview (the demo's "export").

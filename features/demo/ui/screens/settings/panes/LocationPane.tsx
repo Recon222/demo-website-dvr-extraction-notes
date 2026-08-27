@@ -37,7 +37,7 @@ export function LocationPane({ settings, onChange }: SettingsPaneProps) {
   return (
     <div data-testid="settings-pane-location">
       <PaneStubNote>
-        GPS capture is real in the demo — it samples <code>navigator.geolocation</code> and keeps
+        GPS capture is real in the demo: it samples <code>navigator.geolocation</code> and keeps
         the most accurate fix, just as the app does. What it does not do yet is read these two
         values: every recovery-location capture runs at Balanced (50 m) with a 30-second budget,
         and the incident-pin and per-camera captures force Precise (10 m) over 120 seconds,

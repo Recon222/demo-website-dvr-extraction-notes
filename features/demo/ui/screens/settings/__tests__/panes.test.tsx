@@ -405,7 +405,7 @@ describe('Cloud Sync pane', () => {
   it('states that nothing leaves the tab, and names what the app does instead', () => {
     renderPane('cloud-sync')
     const note = screen.getByTestId('settings-pane-stub-note')
-    expect(note).toHaveTextContent(/nothing you enter here leaves your browser tab/)
+    expect(note).toHaveTextContent(/Nothing you enter here leaves your browser tab/)
     expect(note).toHaveTextContent(/Supabase/)
   })
 })
