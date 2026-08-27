@@ -50,6 +50,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 - Agents do NOT edit the plan/matrix/HANDOFF — the orchestrator does at merge time. **Nobody but `dt-review-aggregator` writes `docs/code-reviews/deferred.md`** — implementers PROPOSE deferrals in their disk reports (with a concrete un-defer trigger); the aggregator decides and writes the row. The v1 "next free §" protocol is retired.
 - Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.
 - Quote gates only from a cold cache on the merged head (`pnpm exec tsc --noEmit --incremental false`).
+- **Hex sweeps: never `grep -F '#rrggbb'` in Git Bash** — it matches nothing and exits quietly (U1.4's first sweep was a false clean). Sweep the hex BODY without `#`, case-insensitive, with a positive control that must hit.
 - Mutation-probing lanes get their own worktree or serialise full-suite runs. **Probe worktrees are named `probe-<pkg>-<topic>` — never a generic name** (W0 fix round: two seats both cut `probe-u0-fix`; one's chained `pnpm install` ran in the other's live tree). Per-lane scratchpad subdirs likewise (W0 web lane's scratchpad was cross-contaminated).
 - **Aggregators write to disk as they go** (learned r1: an aggregator that narrates its whole analysis before writing loses everything to one API cutoff — twice). Brief every aggregator to write the findings table first, then append per step.
 - Agent context rotation: retire an implementer approaching ~700k cumulative tokens; brief a fresh one from its final report + commit list.
@@ -86,7 +87,7 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | **REVIEW AGGREGATOR — the build's warm seat, every round of every wave** (`dt-review-aggregator`; SOLE ledger writer) | agentId `a0a927cee97a72c8d` | **Fable** | in flight: W0 r1 |
 | **U1.1 implementer** (`opus-implementer-max`; worktree `worktrees/u1-tiers`, branch `uiparity/u1.tiers` off `feat/uiparity-w1`) | agentId `ac9a1a0c98322500a` | Opus max | done (`e574b48`, merged into W1; 21 probes); WARM for W1 fix rounds |
 | **U1.2→U1.3 implementer** (`opus-implementer`; worktree `u1-cards`, branch `uiparity/u1.cards`) | agentId `aec4149c990c8d0ef` | Opus xhigh | in flight |
-| **U1.4 implementer** (`opus-implementer`; worktree `u1-headers`, branch `uiparity/u1.headers`) | agentId `a9f135565ce43133b` | Opus xhigh | in flight |
+| **U1.4 implementer** (`opus-implementer`; worktree `u1-headers`, branch `uiparity/u1.headers`) | agentId `a9f135565ce43133b` | Opus xhigh | done (`4d062b1`, merged into W1; SettingsNavBar = elevated tier NOT header — matrix row 82/A37 wrong at source; TabBar is U8's); WARM for W1 fix rounds |
 | **W0 INTEGRATOR** (`dt-integrator`; owns the phase-branch merge of the fix round) | agentId `aace40599f45bd260` | Opus xhigh | in flight |
 | **VERIFICATION seat** (Playwright captures; WARM across waves; captures under `worktrees/_captures/w<N>/{before,after}`, Playwright scratch at `worktrees/_pw`) | agentId `ae2b8ca4003b5eb41` | Opus | W0 before+after done (117+117, `_captures/w0/DIFF.md`); WARM for W1 |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
