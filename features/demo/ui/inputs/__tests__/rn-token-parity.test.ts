@@ -102,8 +102,13 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
 
   it.skipIf(!rnAvailable())('reads the light half from the LIGHT region on both sides', () => {
     const { anchors } = checkParity()
-    const at = (key: string, scheme: string) =>
-      anchors.find((a: Anchor) => a.key === key && a.scheme === scheme) as Anchor
+    const at = (key: string, scheme: string): Anchor => {
+      const row = anchors.find((a: Anchor) => a.key === key && a.scheme === scheme)
+      // Say what is missing. Without this, dropping a scheme fails here as
+      // `TypeError: Cannot read properties of undefined (reading 'rn')` — measured.
+      if (!row) throw new Error(`no anchor row for ${key}.${scheme}: the ${scheme} half is missing`)
+      return row
+    }
     // The failure this exists for: a "light" reader whose region markers actually slice the
     // DARK block still reports zero drift, because both sides then compare the same block to
     // itself. Every assertion above stays green through it.
