@@ -12,7 +12,7 @@ import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
-import { iconSize, spacing } from '@/features/demo/ui/tokens/scale'
+import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
 import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
@@ -891,10 +891,23 @@ export function Toggle({
   )
 }
 
-/** "+ Add …" dashed button + "Remove" link used by the array wizard screens. */
+/**
+ * "+ Add …" dashed button used by the three array wizard screens (`ArrivalDepartureScreen`,
+ * `CamerasScreen`, `RequestedScopeScreen`).
+ *
+ * DEMO-ONLY: the phone has no dashed "add a row" affordance anywhere — `grep -rn dashed src/
+ * app/` at `dd5551ec` returns a PDF-template rule, the OCR bounding box and prose. So there is
+ * no recipe to lift, and this stays the demo's own control at its own geometry (`marginBottom:
+ * 14` is one of the lifted literals demo §0.4 forbids tidying).
+ *
+ * The COLOURS are not the demo's own, though. A66/A27's rule reaches any accent-as-text: at
+ * 14/600 the old `primaryLight` label measured 3.77 on the worst dark glass ground and
+ * `colors.link` measures 6.90. The dashed border keeps `colors.borderLight`, whose A8 re-base
+ * landed in U0.1, because the LABEL is what carries this affordance and not the outline.
+ */
 export function AddRowButton({ label, onClick }: { label: string; onClick(): void }) {
   return (
-    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: `1px dashed ${colors.borderLight}`, background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: spacing.base, borderRadius: radius.control, border: `1px dashed ${colors.borderLight}`, background: 'transparent', color: colors.link, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
       {label}
     </button>
   )

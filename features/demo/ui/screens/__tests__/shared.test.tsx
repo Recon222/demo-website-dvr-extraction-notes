@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { AddRowButton, DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { ElevatedEdges, PrimaryButtonGradient } from '@/features/demo/ui/controls/button-recipe'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
@@ -219,6 +219,24 @@ describe('_shared.Field — the phone `TextInput` label/help/error typography (A
     // Asserted HERE as well as in the setup's `afterEach`, so the failure names this
     // transition rather than arriving detached at the end of the file.
     expect(conflictingStyleWarnings).toEqual([])
+  })
+})
+
+describe('_shared.AddRowButton — the "+ Add …" affordance the three array screens render', () => {
+  it('paints the label from `link`, never the accent-as-text the demo used (A66/A27)', () => {
+    // `#4BA3D4` as 14/600 measures 3.77 worst on the dark glass grounds; `link` measures 6.90.
+    // DEF-UI-018's rule reaches this control even though it is not one of A66's six outline
+    // sites — the border stays the dashed `borderLight` the row ratified, because the LABEL is
+    // what carries the affordance here.
+    render(<AddRowButton label="+ Add Camera" onClick={vi.fn()} />)
+    const btn = screen.getByRole('button', { name: '+ Add Camera' })
+    expect(btn.style.color).toBe(hexToJsdomRgb(palette.dark.link))
+    expect(btn.style.color).not.toBe(hexToJsdomRgb(palette.dark.primaryLight))
+    // `radius.control` (10) and `spacing.base` (12) — the lifted values, now named.
+    expect(btn.style.borderRadius).toBe('10px')
+    expect(btn.style.padding).toBe('12px')
+    expect(btn.style.borderStyle).toBe('dashed')
+    expect(btn.style.borderColor).toBe(hexToJsdomRgb(palette.dark.borderLight))
   })
 })
 
