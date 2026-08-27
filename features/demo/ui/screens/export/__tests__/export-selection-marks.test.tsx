@@ -5,7 +5,7 @@ import { ExportCaseCard, type ExportCaseCardProps } from '@/features/demo/ui/scr
 import { ExportLocationRow } from '@/features/demo/ui/screens/export/ExportLocationRow'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { radius, spacing } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /** What jsdom stores for a colour written into a declaration (it re-spaces and hex->rgb). */
 function jsdomColor(value: string): string {
@@ -113,5 +113,44 @@ describe('ExportLocationRow — the circular row mark (A75)', () => {
     expect(el.style.marginRight).toBe(`${spacing.base}px`)
     expect(el.style.width).toBe('22px')
     expect(el.style.borderWidth).toBe('2px')
+  })
+})
+
+/**
+ * The row CHROME, as distinct from the mark inside it — phone `styles.row` (`:104-111`).
+ *
+ * `touchTarget.medium` (46) and not `min` (44) is the whole reason this pin reads a NUMBER.
+ * The U6.3 plan row says "`minHeight:44` becomes `touchTarget.min`"; `ExportLocationRow.tsx:107`
+ * says `Layout.touchTarget.medium`. Both names are on the scale, both are plausible in a diff,
+ * and the demo's pre-port literal was `44` — so the WRONG token renders as a faithful rename
+ * with no observable difference. Only the value tells them apart.
+ */
+describe('ExportLocationRow — the ledger row itself (A49 / A7)', () => {
+  const row = () => {
+    const { container } = render(
+      <ExportLocationRow row={location} selected={false} disabled={false} onToggle={vi.fn()} />,
+    )
+    return container.firstElementChild as HTMLElement
+  }
+
+  it('stands at `touchTarget.medium` (46), not the 44 the plan row names', () => {
+    const el = row()
+    expect(el.style.minHeight).toBe(`${touchTarget.medium}px`)
+    expect(el.style.minHeight).not.toBe(`${touchTarget.min}px`)
+    // phone `:108` — `paddingVertical: Layout.spacing.sm`, horizontal none.
+    expect(el.style.paddingTop).toBe(`${spacing.sm}px`)
+    expect(el.style.paddingLeft).toBe('0px')
+  })
+
+  it('separates on `colors.border`, not the pre-A7 navy wash', () => {
+    const el = row()
+    // Per-SIDE, because a `borderBottom` shorthand is what the component writes and jsdom
+    // expands it; reading `.border` here comes back empty and would pass vacuously.
+    expect(el.style.borderBottomColor).toBe(jsdomColor(colors.border))
+    expect(el.style.borderBottomWidth).toBe('1px')
+    // `rgba(30,58,95,0.6)` was a near-miss on TWO axes at once — a pre-A7 navy at an alpha
+    // `borderSoft` does not spell (0.5) — which is why neither U0.1's `#1c4e84` re-base nor
+    // U1.1's tier derivation could reach it, and why it survived two sweep packages.
+    expect(el.style.borderBottomColor).not.toBe(jsdomColor('rgba(30,58,95,0.6)'))
   })
 })
