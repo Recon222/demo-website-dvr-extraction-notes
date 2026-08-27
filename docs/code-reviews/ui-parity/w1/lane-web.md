@@ -1,4 +1,102 @@
-# Lane: web — W1 (phase U1), PR #40 / fix round PR #41
+# Lane: web — W1 (phase U1), PR #40 / fix rounds PR #41
+
+## Round 2 (fix delta — targeted rider round)
+
+Head: `feat/uiparity-w1` @ `d91ab76`, diff `044578a..d91ab76`, shared worktree read-only. Authority:
+the rider-round mapping on PR #41. Read: the ruling (`partner-lit-edge-ruling.md` §3–§4 + Appendix A,
+from `master`), `7a0c505`, `7fc126b`, `38cb47c`, and the four defect sites at head.
+
+**Probe:** `probe/w1d2-web-litedge` @ `d91ab76`, cut + installed (4.8 s), one test file added and
+deleted, `git status --short` empty at teardown, removed via `tools/worktree-remove.ps1` —
+*"unlinked 549 junction(s) in 2 pass(es) · .pnpm 240 → 240 · OK"*. jsdom, react-dom 19.2, motion-ON.
+**Zero React `conflicting property` warnings fired in any arm** — which, with the new guard, is
+itself the pass condition.
+
+### 1. The ruled shape holds — re-probed at this head
+
+```
+                       border-top-color            right/bottom/left        width  style
+glassCard      p1      rgba(184, 212, 240, 0.08)   rgb(1, 1, 1)             1px    solid
+  + sides      p2      rgba(184, 212, 240, 0.08)   rgb(2, 2, 2)             1px    solid   <- real toggle
+  (tint)       p3      rgba(184, 212, 240, 0.08)   rgb(1, 1, 1)             1px    solid
+conditional    lit     rgba(184, 212, 240, 0.08)   rgb(9, 9, 9)             1px    solid
+  ...(lit&&X)  collapse rgba(184, 212, 240, 0.08)  rgba(28, 78, 132, 0.5)   1px    solid   <- SELF-HEAL
+```
+
+The lit edge survives p1, a real `borderColor`-equivalent toggle at p2, and the return at p3. On
+conditional collapse the sides fall back to the fragment's own `tier.card.border`
+(`rgba(28,78,132,0.5)`) — **not** `currentColor` and not empty, exactly as the ruling's A2 row
+predicts and as the old `border`-shorthand shape did *not* do. My round-0 finding and my round-1
+withdrawal both land where the ruling puts them; nothing further from me on the rule.
+
+### 2. Rendered-value parity of the longhand fragments — IDENTICAL at `scheme='dark'`
+
+Rendered the new longhand fragment beside a reconstruction of the exact pre-rider shorthand form and
+compared all six border longhands:
+
+```
+glassCard        new == old   rgba(184,212,240,0.08) | rgba(28,78,132,0.5)  x3 | 1px | solid
+glassCardNested  new == old   rgba(184,212,240,0.2)  | rgba(43,140,193,0.45) x3 | 1px | solid
+```
+
+Byte-identical on both fragments — the split is a refactor, not a restyle. `borderWidth: 1` as a
+number resolves to `1px` (React unit-appends it), and nothing sets `border-image`, so the shorthand's
+one extra reset is a no-op difference. **No pixel moved.**
+
+### 3. The four live defects the guard caught — all four render correctly, none moved another pixel
+
+| Site | Before | After (probed at head) |
+|---|---|---|
+| `_shared.tsx:264` `Field` | error cleared → border GONE | error `1px solid rgb(255, 71, 87)` → cleared **`1px solid rgb(28, 78, 132)`** |
+| `NewCaseModal.tsx:86` / `IncidentLocationFields.tsx:134` (the two copies) | same class | same fix, same base (`GLASS.border`), same shape |
+| `CompletionScreen.tsx:66` | review form had NO top padding | success **`60px 16px 16px`** → review **`padding:16px`, `paddingTop:16px`** |
+
+Both fixes are value-preserving in the state that already rendered correctly: the error border was
+`1px solid #ff4757` before (the base supplied width+style to the `borderColor` longhand) and is
+`1px solid #ff4757` now; the success view's box was 60/16/16/16 and is 60/16/16/16. The only changed
+pixels are the two that were WRONG — a border that had vanished and a 60px gap that had collapsed to
+0. Confirmed on the real `CompletionScreen` across the real `Review / Export again` transition, which
+is the reconciliation that produced the defect.
+
+### 4. Blast radius of the repo-wide guard
+
+`vitest.setup.ts`'s promotion of React's detector to a test failure is a global change, so I ran the
+demo UI suite at the probe head: **161 files, 2035 passed, 10 todo, 0 failed** (49 s). No collateral
+reds. Turning a warning nobody reads into a failing test is the right shape, and it has already paid
+for itself four times in one round.
+
+### Findings this round
+
+**None.** F14/F19 remain FIXED; the rider supersedes both with a stronger, measured rule and fixes
+four live defects that my round-0 and round-1 probes did not reach because I probed the fragment, not
+its consumers. That is the gap worth naming: my probes tested the *rule*, the guard tested the
+*codebase*, and only the second found the bugs.
+
+---
+
+## Web Summary (Round 2 — rider round, current)
+
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 0
+Round-0: HIGH 1 FIXED · MEDIUM 1 FIXED. Round-1: no new. Round-2: no new.
+Verdict: APPROVE
+
+Marketing<->demo isolation: preserved — no `components/`, `lib/` or `app/(default)/` file in the
+rider diff.
+Bundle impact: none in the diff (no dependency, import-shape or lazy->static change). Still not
+independently verified: I have seen no W1 build log in any of the three rounds.
+Browser-resource cleanup: n/a.
+Accessibility: no change — the fragments are byte-identical at `scheme='dark'`, and the two repaired
+defects both RESTORE a missing affordance (an input border that had disappeared when its error
+cleared, and 60px of top padding).
+Style-convention adherence: correct half; lifted rules intact.
+
+Out-of-lane observations:
+- Captures: `_captures/w1/after-riders` was not present when I read; `after-fixed` never appeared
+  either. Across three rounds this wave has had no pixel-level verification I could read — every
+  claim in my sections is arithmetic and probes. The fresh verification seat is still the first look.
+- Probe trees not mine, still registered: `probe-u2.2-recipe`, `probe-w1d-tests`. Left alone.
+
+---
 
 ## Round 1 (fix delta)
 

@@ -1,5 +1,171 @@
 # Lane: silent-failures — Wave 1 (U1.1–U1.4), PR #40
 
+## Round 2 (fix delta — targeted rider round)
+
+Head: `feat/uiparity-w1` @ `d91ab76`. Delta read: `git diff 044578a..d91ab76`, scoped to the four
+rider items. Authority: the "W1 rider round" mapping comment on PR #41. Probe worktree
+`probe-w1d2-sfh-switch` off `d91ab76`; torn down with `tools/worktree-remove.ps1` —
+`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0. No leftover
+`probe-w1d2-sfh-*` existed at start. Baseline in that worktree: the six token/tier/recipe/header
+suites **74 passed (74)**, exit 0.
+
+### F23 (my r1 MEDIUM — the scheme-half scan's hand-typed roster) — FIXED
+
+`glass-tokens.test.ts`: the roster is **deleted**. `SCHEME_HALF` is now two form-agnostic patterns
+over a WILDCARD identifier — member access (`X.dark`), bracket access (`X['dark']` / `X["light"]`)
+and destructure (`const { dark } = X`) — with the only exemption being the FILE
+(`SCHEME_DECLARERS`). That is a better fix than the one I prescribed: I asked for `SHADOW_CARD` in
+the alternation or a `satisfies Record<ColorScheme, …>` derivation, and the commit's own reasoning
+refutes the second — *"enrolling records BY NAME … would be the fourth [recurrence], because the
+record that forgets to enrol is exactly the one that drifts"* — naming W0/F2, W1/F16 and F23 as the
+same class three times over. I accept the refutation; a wildcard has no list to keep honest.
+
+```
+MUTATION PROBE: re-run of my r1 survivor, plus the new form
+Provenance: canonical source, probe worktree probe-w1d2-sfh-switch at d91ab76
+(a) glass-tokens.ts:155  `shadowCard: SHADOW_CARD[scheme]` -> `SHADOW_CARD.dark`
+    At 044578a: SURVIVED (exit 0, 33 passed).  At d91ab76: **EXIT 1 — KILLED**
+    ("no production module hard-codes a scheme half (plan §9 clause 12)")
+(b) glass-tokens.ts:62   `const tier = GLASS_TIER[scheme]` -> `GLASS_TIER['dark']`
+    the bracket form the old dot-only pattern could not see: **EXIT 1 — KILLED**
+Restore: verified byte-identical (git checkout --; git status --porcelain empty; 74/74 green)
+```
+Measured cost of the widening: zero offenders across every non-test file under `ui/` — no false red.
+
+### New finding (the exemption question, answered with a probe)
+
+```
+[MEDIUM] The `SCHEME_DECLARERS` file exemption hides exactly one real access — the one-site SWITCH
+         itself — because its only pin hard-codes the same half — SURVIVED
+File: features/demo/ui/tokens/palette.ts:189 (exempt from the scan) ·
+      features/demo/ui/tokens/__tests__/palette.test.ts:144-146 (the pin that should cover it)
+Code:
+  export const colors = palette[scheme]          // palette.ts:189 — the switch
+  it('exposes the consumed scheme as a single switchable site', () => {
+    expect(colors).toBe(palette.dark)            // palette.test.ts:146 — hard-codes the half
+  })
+Issue: the scan's file-level exemption is right in principle — a declaring file must be able to
+  name its own halves — but `tokens/palette.ts` is not only a declarer, it also CONSUMES: `:189` is
+  the single consumed-scheme site plan §9 clause 12 is built on, and the module's own docblock at
+  `:177` says "no consumer may reach for `palette.dark` directly". Regress that line to
+  `palette.dark` and the scan cannot see it (exempt file) and the pin cannot see it either,
+  because the assertion spells `palette.dark` too. The test's NAME says "single switchable site"
+  while its assertion is scheme-blind — the one place in this campaign where the exemption has
+  something real to hide, and it is the most load-bearing line of the two-scheme design.
+  `tokens/glass-tiers.ts`, the other exempt file, declares only and consumes nothing, so it carries
+  no equivalent exposure.
+Adversarial input / sequence: any later package "simplifies" `palette[scheme]` to `palette.dark`,
+  or a merge resolves that line to the pre-U1.1 form (it WAS `palette.dark` until U1.1).
+Observable wrong behavior: every gate green — 74/74 — while the one-site flip promise is void and
+  the U8-exit light-flip worktree renders dark colours with light tiers.
+MUTATION PROBE: does the exemption hide the switch?
+  Mutation: palette.ts:189 `palette[scheme]` -> `palette.dark`
+  Result: **SURVIVED** (exit 0, 74 passed across all six suites)
+  Negative control: the same regression in a NON-exempt file — probes (a) and (b) above, both
+    KILLED. Four clauses met: shipped code, non-equivalent (it voids the flip), covered by the
+    suites run, on an executed arm. The only difference is the file exemption plus a pin that
+    restates the half.
+  Restore: verified byte-identical (porcelain 0; 74/74 green)
+Severity note: MEDIUM, not the contract's HIGH default for a survivor, and consistent with how F18
+  and F23 were scored — no live violation, no runtime or visitor-facing failure, and the harm lands
+  on the light-flip day. It is MEDIUM rather than LOW because that day has no reviewer and this is
+  the switch every other seam depends on.
+Fix: one token in the pin — `expect(colors).toBe(palette[scheme])`, importing `scheme` beside
+  `colors`. That makes the assertion mean what its title already claims and closes the exemption's
+  only real hiding place without touching the scan.
+```
+
+### The `vitest.setup.ts` guard (`7fc126b`) — its own failure surface
+
+**Does it swallow or downgrade any other `console.error`? NO — and this is the part it gets
+exactly right.** `vitest.setup.ts:52-58`: the wrapper pushes onto `conflictingStyleWarnings` only
+when the regex matches, and then calls `realConsoleError(...args)` **unconditionally, outside the
+branch**. Every console.error in the suite — matched or not — still reaches the real console with
+its original arguments. Nothing is filtered, muted, or re-levelled. The narrowing is in what gets
+PROMOTED to a failure, never in what gets printed, which is the opposite of the swallow pattern
+this lane exists to catch. The `afterEach` throw is also correctly placed AFTER `cleanup()`, so
+warnings emitted during unmount are collected before the array is read, and the docblock records
+why it is not thrown from the console call itself (a throw inside React's commit phase surfaces as
+an unrelated failure elsewhere).
+
+**Can a violation escape it?** Four routes, all bounded, none a defect in the guard:
+1. **Warning-text variants — covered, and slightly wider than the docblock claims.** The regex is
+   `/conflicting property/` against `args[0]`, and React emits the phrase in a format string, so it
+   catches BOTH members of the family: "Updating a style property during rerender (%s) when a
+   conflicting property is set (%s)" and the "Removing a style property…" sibling — which is the
+   one that fired on `CompletionScreen`'s padding. A React release that reworded the phrase would
+   silently disarm the tripwire; that is inherent to any warning-text gate and is why the value
+   pins in `glass-card-recipe.test.tsx` are called a complement rather than a duplicate.
+2. **A test that spies `console.error` replaces the wrapper for its duration.** 12 sites do
+   (`DemoErrorBoundary.test.tsx:22`, `DemoExperience.boundary.test.tsx:22`,
+   `DemoExperience.boot-boundary.test.tsx:18`, `DemoExperience.sandbox.test.tsx:772,799,836,873`,
+   `PickerStage.test.tsx:170,188`, `MapCanvas.test.tsx:583,594`, `useGpsCapture.test.ts:105`).
+   Inside those cases the tripwire is off. I checked the leak risk rather than assuming it:
+   `vitest.config.mts` sets no `restoreMocks`, so an unrestored spy would disable the guard for the
+   REST of its file — but all three of the `beforeEach`-installed spies restore
+   (`restoreAllMocks`/`mockRestore` present in each), so the blindness is per-case, not per-file.
+   Worth knowing, not worth a change.
+3. **Production build / no test.** The tripwire is dev-React and test-time only: it can fire only
+   for a component some test actually renders AND updates. A consumer with no update-path test —
+   the `AudioRecorderScreen.tsx:127` case the rider explicitly scopes out — is invisible to it.
+   That is the coverage boundary, correctly stated in the docblock as a complement to value pins.
+4. **`act()` batching / late warnings.** Collection is synchronous at console.error time, so
+   batching does not lose anything. A warning arriving in a later macrotask after `afterEach` would
+   be attributed to the next test (`beforeEach` clears the array) — a misattribution, never an
+   escape. No test observed doing this.
+
+**Its own evidence:** the guard caught four live defects on first run, which is the strongest thing
+that can be said for a tripwire — including `CompletionScreen:66`, a real visitor-visible defect
+(the review form rendering with no top padding after "Export again") whose only prior signal was a
+console error nobody read. That is precisely this lane's failure class, found by a gate rather than
+by a reviewer.
+
+### `Field`'s error-clear path — LOUD-OR-CORRECT: correct, with no fallback at all
+
+`_shared.tsx`: `const boxStyle = error ? { ...fieldInput, border: '1px solid #ff4757' } : fieldInput`.
+I checked the base rather than trusting the comment: `fieldInput:191` carries `border: GLASS.border`
+— a SHORTHAND — so both branches now declare the SAME key, and the error-clear transition is an
+in-place rewrite of `border` back to the base value. There is no longhand left over a shorthand,
+so React has nothing to remove and nothing to fail to reassert; the previous
+`{ ...fieldInput, borderColor: '#ff4757' }` was the defect because clearing it removed the longhand
+while the base's shorthand stayed untouched and the input lost its border entirely. Same shape and
+same verification at both copies — `IncidentLocationFields.tsx:134` and `NewCaseModal.tsx:86`, whose
+base `coordInput:91` likewise carries `border: GLASS.border`. All three are 15-consumer root fixes,
+not per-call-site patches. `CompletionScreen:66` collapses `padding: 16` + `paddingTop: 60` into the
+single `padding: '60px 16px 16px'` shorthand — same box, one key, nothing to remove on the
+transition. **No silent fallback anywhere in the four: every branch declares a value, none relies on
+a base reasserting itself.**
+
+Note for the aggregator, not a finding: the fragments went longhand-only under the lit-edge ruling
+while these input bases stayed shorthand-only. Both are internally consistent and each is correct
+for its own shape (a fragment publishes per-side colours a consumer re-tints; an input declares one
+uniform border), and the tripwire now covers the seam between them repo-wide.
+
+### Round 2 Summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 1 (new) · LOW: 0
+Prior-round disposition: **F23 FIXED** — my r1 survivor re-probed and KILLED, plus the bracket form
+the old pattern could not see. 1 of 1 closed.
+Verdict: **APPROVE with comments**
+
+Fallback honesty: **n/a** — no fallback or notice surface touched.
+Failure-cause distinctions preserved: **yes** — and the new tripwire adds one without removing any:
+it promotes one named React warning to a failure and forwards every console.error untouched.
+Partial results flagged: **yes**.
+Async cancellation / stale-write safety: **n/a**.
+Operator breadcrumbs intact: **yes** — none removed; `realConsoleError` is called unconditionally.
+Probes: 3 run this round — 2 KILLED (F23's re-verification + the bracket form), **1 SURVIVED** (the
+new MEDIUM). Restores proven byte-identical; teardown verified.
+
+Out-of-lane observations:
+- Third recurrence of one class, now named by the fix author as well: a hand-maintained roster
+  standing in for a derived set (W0/F2, W1/F16, W1/F23). The rider's wildcard is the first fix that
+  removes the list rather than lengthening it — worth promoting to a campaign convention.
+- The exemption finding above is the mirror image: the ONE thing a wildcard scan still cannot see
+  is inside a file it must exempt, so that file's behaviour needs a pin instead of a scan.
+- No foreign content was found in my lane file, and I wrote no other path.
+
+---
+
 ## Round 1 (fix delta)
 
 Head: `feat/uiparity-w1` @ `044578a` (branch is one docs-only commit further on, `1b4ac86`).

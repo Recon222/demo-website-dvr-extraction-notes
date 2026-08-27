@@ -1,5 +1,178 @@
 # Lane: tests — Wave 1 (U1.1-U1.4), PR #41
 
+## Round 2 (fix delta — rider round)
+
+Head `d91ab76` · diff `044578a..d91ab76` · authority: the **W1 rider round** mapping comment on
+PR #41. Warm, scoped: I judged only the three items I was given.
+Probes in my own worktree `worktrees/probe-w1d2-tests` cut from `d91ab76`; the previous round's
+`probe-w1d-tests` was already gone (`git worktree list` clean, nothing on disk — the r1 teardown
+had completed), so there was nothing to clean first. Torn down with the script:
+*`unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0*.
+**Provenance: the canonical source at `d91ab76`.** Motion mode: default, motion-ON.
+
+Baseline before any mutation: the three suites **46 passed**, exit 0; full suite **3576 passed |
+10 todo**, cold `tsc` exit 0, drift-guard CLI exit 0 (115/115).
+
+### Per-item status
+
+| Item | Status | Proof |
+|---|---|---|
+| **F23** (`69dbd34`) — my r1 finding | **FIXED**, and generalised past what I asked for | E1, E2, E3 KILLED · E4 false-red control clean |
+| Ruling re-cut pins (`7a0c505`) | **SOUND** — per-side, no tautology | P1 KILLED (shape pin *and* negative control) |
+| `vitest.setup.ts` guard (`7fc126b`) | **SOUND** — fires, correctly scoped, transitively covers all four fixes | G2, G3, G4b |
+
+```
+PROBE E1 — F23: the SHADOW_CARD case my r1 probe D recorded SURVIVED
+Target:      features/demo/ui/glass-tokens.ts — shadowCard: SHADOW_CARD[scheme] -> SHADOW_CARD.dark
+Claimed pin: glass-tokens.test.ts:274 — "no production module hard-codes a scheme half"
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed        [r1: SURVIVED, 45 passed]
+Provenance:  canonical source at d91ab76.  Restore: verified byte-identical.
+
+PROBE E2 — F23: the bracket form my r1 probe D2 recorded SURVIVED
+Mutation:    header-chrome.ts:63  GLASS_TIER[scheme].header -> GLASS_TIER['dark'].header
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed        [r1: SURVIVED, 7 passed]
+
+PROBE E3 — F23: the destructure form, which I did NOT ask for
+Mutation:    const { dark: half } = GLASS_TIER; const header = half.header
+Result:      KILLED (exit 1) — Tests 1 failed | 6 passed
+  The fix went past my prescription. I asked for `SHADOW_CARD` added to the alternation and
+  the bracket spelling allowed; the shipped `SCHEME_HALF` is a two-form array with the
+  identifier as a WILDCARD (`[A-Za-z_$][\w$]*`), so the roster is deleted entirely and the only
+  exemption is the FILE (`SCHEME_DECLARERS`). That is strictly better: a fourth two-half record
+  needs no edit here at all, which is the class of gap my finding was.
+
+PROBE E4 — the false-red question, deliberately adversarial
+Mutation:    header-chrome.ts given, in one file: a LINE comment naming `GLASS_TIER.dark` and
+             `palette.light`, a BLOCK comment naming `SHADOW_CARD.dark`, and a real
+             `const _t: typeof palette.dark.primary = colors.primary` type position
+Result:      NO RED (exit 0) — Tests 7 passed
+  `stripComments` (`:99`) removes block and line comments before matching, and the `typeof`
+  lookbehind survives the widening to a wildcard identifier. Zero false reds confirmed against
+  the three shapes most likely to produce one, not merely against the current clean tree.
+Restore:     verified byte-identical after each of E1-E4.
+
+PROBE P1 — the re-cut pins: reintroduce a shorthand into the ruled fragment
+Target:      features/demo/ui/glass-tokens.ts — `border: 1px solid ${tier.card.border}` added
+             back to `glassCard`
+Result:      KILLED (exit 1) — Tests 2 failed | 25 passed
+  × carries NO border shorthand key — the ruled fragment shape
+  × NEGATIVE CONTROL — a `border` override now loses it on FIRST paint too, not on the second
+  BOTH firing is the point: the negative control's claim is "with no shorthand in the fragment
+  there is nothing for `border` to agree with, so it is wrong immediately". Reintroducing a
+  shorthand flips exactly that cell, so the control is load-bearing rather than decorative.
+Provenance:  canonical source.  Restore: verified byte-identical.
+```
+
+**Re-cut pins — tautology check: clean, and per-side as asked.** p1, p2/p3 and the self-heal cell
+assert only `borderTopColor` / `borderRightColor` / `borderLeftColor`; `borderColor` appears
+nowhere as an assertion target, only as a *negative control's* input. Constants still come from a
+different module than the subject (`HIGHLIGHT = normColor(tier.card.highlightTop)`,
+`SIDE_BORDER = normColor(tier.card.border)`, `glass-card-recipe.test.tsx:90-91`). The self-heal
+cell is the strongest of the three and is not a restatement of the code: it asserts that on the
+collapse render `borderLeftColor` returns to `SIDE_BORDER` — the fragment's own tint — rather than
+to `''`, which is a claim about jsdom/React behaviour that the old fragment shape provably failed.
+
+### The `vitest.setup.ts` guard — the three questions asked
+
+**Does it fire on a shorthand-after-spread consumer? YES, on the shape that actually ships.**
+
+```
+PROBE G3 — revert the root fix the guard was built to catch
+Target:      features/demo/ui/screens/_shared.tsx:270 — Field's error border
+Mutation:    { ...fieldInput, border: '1px solid #ff4757' }  ->  { ...fieldInput, borderColor: '#ff4757' }
+             (i.e. the pre-fix code: a longhand layered over the base's shorthand, removed when
+             `error` clears, with the base's `border` never reasserting)
+Result:      KILLED (exit 1) — Test Files 5 failed | 156 passed · Tests 8 failed | 2027 passed
+  Error: React reported a conflicting style shorthand/longhand update. …
+  EIGHT tests across FIVE files, none of them written for this defect. That is the guard working
+  as a repo-wide tripwire: the existing consumer suites became detectors without a line of new
+  test code.
+Provenance:  canonical source.  Restore: verified byte-identical.
+
+PROBE G4/G4b — the fourth fix, the padding one (a different property family)
+Target:      features/demo/ui/screens/CompletionScreen.tsx:72
+Mutation:    padding: '60px 16px 16px'  ->  padding: 16, …, paddingTop: 60
+Result (scoped to hardwareFinale.test.tsx, which clicks "Review / Export again"): SURVIVED, 12 passed
+Result (scoped to features/demo/ui):                                              KILLED (exit 1), 4 tests
+  MY SCOPING ERROR, recorded rather than buried — the same mistake I made at r1 and it is worth
+  naming twice: the transition that reuses the node is exercised in a different file than the one
+  whose title matches the feature. The fix IS covered. Scope wide, or find the transition first.
+Restore:     verified byte-identical.
+```
+
+**Is it scoped so a legitimate `console.error` still surfaces? YES.**
+
+```
+PROBE G2 — two ordinary console.error calls in a scratch test
+Result:      NO FAILURE (exit 0) — Tests 2 passed
+  The wrapper matches the single regex /conflicting property/ and calls `realConsoleError(...args)`
+  UNCONDITIONALLY, so every other error still prints and none of them fails a test. The docblock's
+  claim that a blanket "fail on any console.error" would be "a permanent source of unrelated red"
+  is correct, and the narrow form is what shipped.
+Scratch test written inside the probe worktree only, deleted afterwards; tree verified clean.
+```
+
+**Did it add the four fixes' pins? NO — and it did not need to, with one caveat worth stating.**
+No dedicated regression test names any of the four defects (`git diff --name-only` on the round
+touches only `glass-card-recipe.test.tsx`, `glass-tokens.test.ts` and `vitest.setup.ts`). All four
+are covered **transitively**: probes G3 and G4b show existing consumer suites red on revert.
+The caveat is the dependency that creates — **the tripwire is now the sole guard for all four
+root fixes**, so weakening or removing it silently un-pins every one of them. That is a reasonable
+trade (four dedicated pins would not have caught the fifth, sixth and seventh instances of this
+class, and the tripwire does), but it should be an explicit, recorded property of the guard rather
+than an accident, and the setup docblock does not currently say it.
+
+**One boundary I verified and it is documented correctly.** My first synthetic attempt — adding a
+`borderColor` shorthand on an update while the longhands stayed unchanged — did NOT trip the guard,
+because React only warns when a shorthand and a conflicting longhand are *both* in the same style
+update. That is precisely the split the setup docblock already claims (*"React is silent on the two
+cells that are wrong on FIRST paint, and those pins are silent on nothing. Each covers what the
+other cannot"*), and `glass-card-recipe.test.tsx`'s two negative controls are what cover it. The
+complement claim is accurate, not aspirational.
+
+---
+
+## [LOW] The repo-wide guard's message is W1-specific, so a non-border trip mis-directs the reader
+
+**File:** `vitest.setup.ts:66-72`
+
+The guard is repo-wide and, as probe G4b shows, genuinely fires on a **padding** collision. Its
+message says *"A style object wrote a border SHORTHAND over a longhand the fragment sets … Re-tint
+with colour LONGHANDS only — see the fragment docblocks in features/demo/ui/glass-tokens.ts."* A
+developer who trips it on `padding`/`paddingTop` is told to re-tint a border and sent to the glass
+tokens. React's own message is appended via `${seen}` and does name the real property, so the
+information is present — but the lead sentence is wrong for every non-border member of the class,
+and this guard will outlive W1.
+
+**Fix.** Make the lead sentence property-agnostic and keep the border case as the example: *"A style
+object wrote a SHORTHAND over a conflicting longhand on an update; the painted result is wrong from
+this render on. Re-declare the whole shorthand in both branches, or use longhands only — see
+`partner-lit-edge-ruling.md` §4.3."* One string.
+
+---
+
+## Round 2 summary
+CRITICAL: 0 · HIGH: 0 · MEDIUM: 0 · LOW: 1 (new)
+**F23 FIXED** (and generalised) · re-cut pins **SOUND** · setup guard **SOUND**.
+Verdict: **APPROVE with comments**
+
+Probes run: **9** · Killed: **7** · Survived: **1** (G4, my own scoping error — the wide-scope
+re-run G4b KILLED it) · Non-firing-by-design: **1** (G2, the scope control).
+Restores: all verified byte-identical; final `git status --porcelain` = 0 and
+`git diff d91ab76` = **0 lines**. Regression sweep at the same head: suite **3576 passed | 10
+todo** exit 0, cold `tsc` exit 0, drift-guard CLI exit 0. **No fix-introduced regressions.**
+Teardown: `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0; branch deleted.
+
+Worth carrying forward: **F23 is the third consecutive fix in this campaign that shipped stronger
+than the finding asked for** (after F18's `SCHEME_DECLARERS` and F16's derived part set). My r1
+fix text proposed adding one name to a roster; the implementers deleted the roster. The pattern is
+consistent enough to be worth the aggregator noting — the fixing seats are reading past the
+finding to the defect class behind it.
+
+Out-of-lane observations: none.
+
+---
+
 ## Round 1 (fix delta)
 
 Head `044578a` · fix diff `fc75577..044578a` · authority: the **W1 review round 1** fix-mapping

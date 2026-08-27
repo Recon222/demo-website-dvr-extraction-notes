@@ -1,5 +1,150 @@
 # Lane: type-design - Wave 1 (U1), PR #40/#41
 
+## Round 2 (fix delta)
+
+Warm, scoped. Phase branch `feat/uiparity-w1` @ `d91ab76`, delta `044578a..d91ab76`. Authority:
+the "rider round" mapping comment on PR #41. Probes ran in `probe/w1d2-types-scan` (own worktree
+off `d91ab76`), torn down via `tools/worktree-remove.ps1` - "unlinked 549 junction(s) in 2
+pass(es)", `.pnpm` 240 -> 240, exit 0.
+
+Baseline at `d91ab76` BEFORE any mutation: `tsc --noEmit --incremental false` -> **EXIT 0**;
+`glass-tokens.test.ts` + `glass-card-recipe.test.tsx` -> **34 passed, exit 0**. That green run is
+itself the negative control the fix commit calls C0: F15's `satisfies typeof
+palette.dark.primaryDark` is LIVE at `glass-tokens.ts:77`, inside a file the scan covers, and it
+does not red. The `typeof` carve-out is load-bearing production source, not a hypothetical.
+
+### F23 - FIXED, all three forms, verified independently
+
+`69dbd34` deletes the record roster instead of extending it: the identifier is now a wildcard and
+the only exemption is the FILE.
+
+```
+member access  /(?<!\btypeof\s+)\b[A-Za-z_$][\w$]*\s*(?:\.\s*|\[\s*['"])(?:dark|light)\b/
+destructure    /\{[^}]*\b(?:dark|light)\b[^}]*\}\s*=\s*[A-Za-z_$][\w$]*/
+```
+
+Re-probed my two r1 survivors plus the record their own round created, one mutation each, against
+the canonical files:
+
+```
+SHADOW_CARD[scheme] -> SHADOW_CARD.dark   (glass-tokens.ts:177)
+   KILLED  exit 1   AssertionError: expected [ 'glass-tokens.ts' ] to deeply equal []
+GLASS_TIER[scheme] -> GLASS_TIER['dark']  (header-chrome.ts:72)
+   KILLED  exit 1   AssertionError: expected [ 'controls/header-chrome.ts' ] to deeply equal []
+const { dark: halves } = GLASS_TIER       (header-chrome.ts:72)
+   KILLED  exit 1   AssertionError: expected [ 'controls/header-chrome.ts' ] to deeply equal []
+```
+
+Restore proved after each: `git checkout --`, `git diff` **0 bytes**, both suites 34/34 green.
+
+`SHADOW_CARD.dark` is the one worth naming: it is a two-half record that F19 created in the SAME
+round as F18's scan, and the roster never learned about it. That is the enrolment failure mode,
+observed rather than argued - and it is the third recurrence of one class in this campaign
+(W0 F2 `PALETTE_KEYS`, W1 F16 `TIER_KEYS`, F23 here). Deleting the roster is the correct
+generalisation and I would have prescribed extending it, which would have been the fourth.
+
+**Ruling on the wildcard plus `SCHEME_DECLARERS` (the coordinator's question).**
+`SCHEME_DECLARERS` is still a two-entry `ReadonlySet<string>` of paths, and it **matters less than
+it did**, not more. The list that could go stale in a dangerous direction - the roster of record
+NAMES - no longer exists, so there is nothing to keep in step and a two-half record added next
+wave is covered on the day it is written. What remains is a file exemption whose both stale
+directions fail safe: a renamed declarer stops being exempt and REDS; a path that no longer
+exists exempts nothing. There is no type for "a path in this repo", the sibling `TOKEN_MODULES`
+is the identical shape and is a review-hardened decision U0.5's row forbids relaxing into a
+predicate, and typing or deriving it would prove nothing. **No finding**; this is the right shape
+and it is now the smaller of the two surfaces it used to be.
+
+---
+
+### `7a0c505` - the longhand fragments: scan/guard-pinned only, NOT type-guarded. **Proposal, not a finding.**
+
+Answering the coordinator's question with a measurement rather than a reading. Mutation: put a
+`border` shorthand back into `glassCard`, ahead of the longhands.
+
+```
+tsc --noEmit --incremental false                      EXIT 0   the TYPE permits it
+glass-card-recipe.test.tsx                            EXIT 1   2 failed
+  "a card fragment must not carry `border`:
+     expected [ 'borderRadius', 'border', ...(8) ] to not include 'border'"   (:257)
+  "expected 'rgba(184, 212, 240, 0.08)' to be 'rgb(1, 1, 1)'"  (the consumer-level cell)
+```
+
+So the contract is real and enforced at runtime in two independent places - and not at all at the
+type level. `as const satisfies CSSProperties` admits `border`, `borderColor` and `borderTop`, and
+a guard would be three lines with no new machinery:
+
+```ts
+type NoBorderShorthand = { [K in 'border' | 'borderColor' | 'borderTop']?: never }
+export const glassCard = { ... } as const satisfies CSSProperties & NoBorderShorthand
+```
+
+**I rule it a PROPOSAL and am not filing it.** Three reasons, in order of weight:
+
+1. **It would guard the half that does not break.** The type constrains the DECLARATION - two
+   static literals, one file, one author. It cannot constrain a consumer writing a border
+   shorthand after the spread, and the call site is where the hazard actually lives: 22
+   consumers, and the form that "was right on the first paint and wrong on the next" - the trap
+   that ships green through a render-once test. That half is not typeable at all, and this round
+   covered it with two real mechanisms: the per-consumer DOM loop, and React's own
+   conflicting-property warning promoted to a repo-wide test failure (`7fc126b`), which caught
+   four live defects on its first run. Adding type machinery for the cheap half while the
+   expensive half stays runtime-guarded is churn, not coverage.
+2. **`deferred.md` §27 is exactly this shape** - the ratified precedent that a test is the
+   accepted enforcement for a static, single-author literal and that a type-level fix there is
+   disproportionate. Its un-defer trigger ("if the registry stops being a single static literal")
+   has not fired: the fragments are still two literals in one file.
+3. **The existing pin is specific and immediate.** It names the offending key in the failure
+   message and bans exactly the three keys in the hazard class. I checked the omissions:
+   `borderBottom` / `borderLeft` / `borderRight` are per-side and cannot erase the TOP edge, so
+   they are correctly absent. (`borderBlock` would, but this repo uses no logical properties
+   anywhere; not worth an entry.)
+
+If the aggregator wants it anyway it is cheap and harmless - but it buys a compile error for the
+one edit that already fails loudly, and buys nothing for the one that used to ship silently.
+
+## Residual, not filed
+
+- **The wildcard's false-POSITIVE surface is unbounded by construction.** Any `x.dark` /
+  `x.light` / `x['light']` in a scanned file now reds. Measured today: 138 non-test files under
+  `ui/`, **zero** offenders. The forward risk is a future token record with a `light` key meaning
+  something other than a scheme (a font weight, a shadow tone). The failure mode is a loud,
+  legible red that a human resolves by renaming the key or exempting the file - the safe
+  direction - and the implementer measured the cost before widening. Worth a ledger line with the
+  trigger "a package reds this scan on a non-scheme `light`/`dark` key", not a finding.
+- `INVARIANT` still needs hand-maintained sort order (carried from round 1, unchanged).
+
+## Regression sweep over the rider commits' blast radius
+
+- **`glassCard` / `glassCardNested` gained five keys each** (`borderStyle`, `borderWidth`, three
+  side colour longhands) and lost `border`. Both are still `as const satisfies CSSProperties`, so
+  the literal types survive and a typo'd CSS property is still a compile error. `tsc` exit 0.
+- **`SCHEME_HALF` became `readonly RegExp[]`** consumed with `.some(...)`. Typed correctly; the
+  array is module-local and immutable.
+- **`vitest.setup.ts` promotes React's conflicting-property warning to a failure repo-wide.**
+  Out of my lane (no type surface), but noted: it is a mechanism-level guard for the class my
+  lane cannot type, and it found four live defects immediately. That is the right trade against
+  the `NoBorderShorthand` proposal above.
+- Baseline at the merged head, before any mutation: `tsc` exit 0; the two suites 34/34.
+
+---
+
+## Type Design Summary (Round 2 fix delta)
+CRITICAL: 0 - HIGH: 0 - MEDIUM: 0 - LOW: 0
+Prior-round findings: F23 **FIXED** (0 PARTIAL, 0 UNFIXED)
+Verdict: **APPROVE**
+
+| Check | Result |
+|---|---|
+| Fix addresses the finding, not the symptom | **yes** - the roster was deleted rather than extended, which closes the recurrence class, not just my two forms |
+| Fix-introduced regressions in blast radius | **none** |
+| Prescriptions superseded on evidence | **one** - I would have extended the roster; deleting it is correct, and `SHADOW_CARD.dark` is the observed proof |
+| Type-level guard on the longhand fragments | **absent by ruling** - proposal recorded above, deliberately not filed (§27) |
+| Mutation probes this round | 4 - **4 KILLED, 0 SURVIVED**, plus the C0 negative control confirmed on the clean tree. Restores proved byte-identical (`git diff` 0 bytes); probe worktree torn down with the script's proof line |
+
+Out-of-lane observations: none new this round.
+
+---
+
 ## Round 1 (fix delta)
 
 Warm seat. Phase branch `feat/uiparity-w1` @ `044578a`, delta `fc75577..044578a`. Authority: the

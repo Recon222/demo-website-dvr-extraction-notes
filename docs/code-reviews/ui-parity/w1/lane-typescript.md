@@ -1,5 +1,152 @@
 # Lane: typescript — Wave 1 (phase U1), PR #40 / #41
 
+## Round 2 (fix delta — rider round, scoped)
+
+Head: `feat/uiparity-w1` @ `d91ab76` (r1 was `044578a`). Authority: the "W1 rider round" comment on
+PR #41. Read the delta only: `69dbd34`, `7a0c505`, `7fc126b`, `38cb47c`, the four root-cause
+hunks, and the lit-edge ruling's §3–§4 as cited by the docblocks.
+Probes in `worktrees/probe-w1d2-typescript-scan` off `d91ab76`; torn down with
+`tools/worktree-remove.ps1` — `unlinked 549 junction(s) in 2 pass(es)` · `.pnpm` 240 -> 240 · exit 0.
+
+### Cold gates (own worktree, solo)
+
+| Gate | r1 | r2 |
+|---|---|---|
+| `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` | exit 0 | **exit 0** |
+| `node .design-sync/check-rn-parity.mjs` | exit 0, 115/115 | **exit 0, 115/115** |
+| `pnpm test --silent` | 272 files / 3575 passed / 10 todo | **272 files / 3576 passed / 10 todo, exit 0** |
+
+Matches the PR body's claim (3,576 passed / 10 todo) exactly.
+
+### F23 — my r1 HIGH — FIXED
+
+Commit `69dbd34`. The roster is gone: `SCHEME_HALF` is now two regexes over a WILDCARD identifier,
+exempting only the declaring FILES (`SCHEME_DECLARERS`). That is the shape I proposed and
+pre-verified in r1's PROBE 5, plus two forms other lanes found. All three re-probed:
+
+```
+MUTATION PROBE 1: the three hard-coding forms, one at a time
+Target: features/demo/ui/glass-tokens.ts (:155 shadowCard, :115 tier)
+Claimed pin: ui/__tests__/glass-tokens.test.ts:272 — "no production module hard-codes a scheme half"
+  (a) shadowCard: SHADOW_CARD.dark           -> KILLED, exit 1, expected [ 'glass-tokens.ts' ]
+  (b) shadowCard: SHADOW_CARD['dark']        -> KILLED, exit 1, expected [ 'glass-tokens.ts' ]
+  (c) const { dark } = GLASS_TIER; tier=dark -> KILLED, exit 1, expected [ 'glass-tokens.ts' ]
+(a) is the exact mutation that SURVIVED three gates in r1 — scan, cold tsc and full suite, exit 0
+each. It is dead.
+Restore: verified after each — git status --porcelain empty.
+```
+
+The `typeof` carve-out still holds, and I re-probed it because the widening RAISED the risk: the
+wildcard now matches `palette` in F15's `satisfies typeof palette.dark.primaryDark`, where the old
+roster form matched it only via the named alternation.
+
+```
+MUTATION PROBE 2: remove the typeof lookbehind from form[0] (glass-tokens.test.ts:135)
+Result: KILLED, exit 1, expected [ 'glass-tokens.ts' ]
+So the carve-out is exactly what exempts F15's line under the widened regex, not incidentally.
+F15 and F23 remain correctly interlocked. Restore: verified.
+```
+
+### Ruling riders in my territory
+
+**`7a0c505` — fragments to longhands: the types are sound, and stronger than before.**
+`glassCard` / `glassCardNested` now spell `borderStyle` / `borderWidth` / three side colour
+longhands / `borderTopColor`, with no shorthand key, and both keep `as const satisfies CSSProperties`.
+Three things I checked rather than assumed:
+
+- **The `satisfies` chain survives the new keys.** `borderStyle: 'solid'` and `borderWidth: 1` both
+  satisfy `CSSProperties` under `as const` — `Property.BorderStyle` accepts the literal, and
+  `Property.BorderWidth<string | number>` accepts the number, which React renders as `1px`.
+  Cold `tsc` exit 0.
+- **`as const` still preserves every literal.** The inferred type is
+  `{ readonly borderRadius: 12; readonly borderStyle: "solid"; readonly borderWidth: 1; readonly
+  borderRightColor: "rgba(28,78,132,0.5)"; … readonly borderTopColor: "rgba(184,212,240,0.08)"; … }`.
+  The derivation from `tier.card.*` is intact in the type, so F16/F17's tier gates still reach it.
+- **The removed shorthand is genuinely gone from the type, not widened away.** A stale reader
+  cannot compile:
+
+```
+MUTATION PROBE 3: a consumer reads the removed key
+Target: CamerasScreen.tsx:85 — borderTopColor: glassCard.border
+Result: KILLED at compile time (tsc exit 2)
+  TS2339: Property 'border' does not exist on type '{ readonly borderRadius: 12; readonly
+  borderStyle: "solid"; readonly borderWidth: 1; readonly borderRightColor: … }'.
+Restore: verified.
+```
+
+That is what makes the ruling's "fragments carry only longhands" a type-level fact rather than a
+convention: there is no shorthand key to order against, to override, or to read.
+
+**`7fc126b` — the `vitest.setup.ts` guard: NO, it cannot mask a real console.error.** That was the
+question asked, and the answer is unconditional in the code: the interceptor's only branch *adds* to
+`conflictingStyleWarnings`, and `realConsoleError(...args)` is called on **every** call, match or
+not (`vitest.setup.ts:56-62`). Nothing is swallowed, downgraded or filtered. The scoping is right on
+the other axis too — one narrow regex on the phrase "conflicting property" rather than "fail on any
+console.error", which the docblock correctly justifies (the suite logs expected React errors from
+error boundaries and act warnings on purpose). Collecting in the interceptor and throwing in
+`afterEach`, rather than throwing inside React's commit phase, is also the correct choice; a throw
+there unwinds through React internals and mis-attributes the failure.
+
+And it is not decorative. I reverted one root-cause fix to see whether the tripwire actually fires:
+
+```
+MUTATION PROBE 4: revert _shared.tsx:264 Field to the pre-fix longhand
+Target: { ...fieldInput, border: '1px solid #ff4757' }  ->  { ...fieldInput, borderColor: '#ff4757' }
+Result: KILLED (suite exit 1) — 5 files failed, 8 tests, and the guard's own message
+  ("React reported a conflicting style shorthand/longhand update…") present in the output:
+  DemoExperience.new-location · MetadataForm · DuplicateLocationModal · NewCaseModal.gate ·
+  new-location-validation
+Restore: verified — git status --porcelain empty.
+```
+
+Note the blast pattern: five files, none of them a card-recipe test. This tripwire catches the class
+repo-wide, which is what the four live defects it surfaced already demonstrated.
+
+**The four root-cause fixes — correct at root, no regression.** `_shared.tsx:264`'s `Field` is the
+real root (15 consumers) and the two copies at `IncidentLocationFields.tsx:134` and
+`NewCaseModal.tsx:86` are fixed the same way: declaring `border` in BOTH branches makes the
+error-clear an in-place rewrite instead of a longhand removal that the base shorthand never
+reasserts. `CompletionScreen.tsx:66`'s `padding: '60px 16px 16px'` is box-identical to the old
+`padding: 16` plus `paddingTop: 60` — top 60, sides 16, bottom 16; I checked the arithmetic rather
+than trusting the comment. Full suite green at 3,576 with no pin deleted to accommodate them.
+
+### New findings
+
+None.
+
+### Observation (not a finding; does not change the verdict)
+
+The tripwire is blind inside any test that replaces `console.error` wholesale. A
+`vi.spyOn` on console.error with a no-op implementation substitutes the *patched* function, so the
+collection branch never runs and a conflicting-property warning raised in that test body is not
+recorded. There are ~15 such sites today (`DemoExperience.sandbox.test.tsx` ×6,
+`DemoExperience.boundary`, `boot-boundary`, `MapCanvas` ×2, `PickerStage` ×2, `DemoErrorBoundary`,
+`route.test.ts`, `useGpsCapture`). This is a **coverage bound, not a masking bug** — nothing real is
+hidden from the console, and the guard still covers the other ~3,560 tests. Stated from code
+reading: my attempt to demonstrate it with a synthetic clobber component did not reproduce the
+warning at all, so that probe was invalid and I discarded it rather than report it as evidence. If
+anyone wants the bound closed, the cheap shape is a `beforeEach` in `vitest.setup.ts` that
+re-installs the interceptor over whatever console.error currently is. Test-lane's call.
+
+## Typescript Summary (Round 2 — rider fix delta)
+FIXED: 1 (r1 HIGH F23) · PARTIAL: 0 · UNFIXED: 0
+Riders verified in my territory: 3 — `7a0c505` fragment types and the `satisfies` chain; `7fc126b`
+guard scoping; the four root-cause fixes' blast radius. All sound.
+New findings this round: CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 0
+Verdict: **APPROVE**
+
+Scheme seam (single consumption site): guarded, name- and form-agnostic; all three forms KILL
+Store-bridge integrity: preserved
+Engine purity: preserved
+Barrel + marketing/demo isolation: preserved
+Determinism seam: preserved
+Mutation probes this round: 6 run — 6 KILLED (2 of them at COMPILE time), 0 SURVIVED, 1 discarded
+as invalid (stated above rather than counted). All restores verified byte-identical.
+Out-of-lane observations: one, above.
+
+---
+
+
 ## Round 1 (fix delta)
 
 Head: `feat/uiparity-w1` @ `044578a` (round 0 was `28e7993`). Authority: the fix-mapping comment on
