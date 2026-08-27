@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { DateTimeField, WizardNext } from '@/features/demo/ui/screens/_shared'
+import { AddRowButton, DateTimeField, Field, SectionCard, WizardNext } from '@/features/demo/ui/screens/_shared'
 import { ElevatedEdges, PrimaryButtonGradient } from '@/features/demo/ui/controls/button-recipe'
 import { palette } from '@/features/demo/ui/tokens/palette'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
+import { conflictingStyleWarnings } from '@/vitest.setup'
 
 // The old datetime-local DateTimeField was replaced by the custom Date/Time picker
 // (features/demo/ui/inputs/*). The canonical "seconds always present" guarantee now lives
@@ -66,6 +67,185 @@ describe('_shared.WizardNext — the primary CTA ten wizard screens render (A64/
     expect(cta.style.fontSize).toBe('16px')
     expect(cta.style.color).toBe('rgb(255, 255, 255)') // `onPrimary`, not the old `#fff` literal
     expect(palette.dark.onPrimary).toBe('#ffffff')
+  })
+})
+
+describe('_shared.SectionCard — the phone `FormSection` glass recipe (A77 / U6.1)', () => {
+  /**
+   * The demo renders `FormSection`'s GLASS branch only — all five consumers are glass sections —
+   * so the values below are `FormSection.tsx:150-200`'s `glassContainer` + `glassGradient` +
+   * `header` + `title`, resolved through `Layout.spacing` / `Typography.fontSize`.
+   */
+  it('paints the section geometry: 24 outer, 16 padding, clipped, over an 18/600 title', () => {
+    const { container } = render(<SectionCard title="Basic DVR Details">body</SectionCard>)
+    const card = container.firstElementChild as HTMLElement
+
+    // `glassContainer` (`:155-160`): `marginBottom: Layout.spacing.lg` (24, was 18),
+    // `overflow: 'hidden'`. Radius, shadow and the lit edge arrive with `glassCard` (U1.2).
+    expect(card.style.marginBottom).toBe('24px')
+    expect(card.style.overflow).toBe('hidden')
+    // `glassGradient` (`:171-175`): `padding: Layout.spacing.md`.
+    expect(card.style.padding).toBe('16px')
+
+    const title = screen.getByText('Basic DVR Details')
+    // `title` (`:184-187`): `Typography.fontSize.lg` / `fontWeight.semibold`, `colors.text`.
+    // 17 -> 18 is plan §4.9's ladder step, not a re-tune.
+    expect(title.style.fontSize).toBe('18px')
+    expect(title.style.fontWeight).toBe('600')
+    expect(title.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    // `header` (`:176-183`): `paddingBottom: spacing.sm`, `borderBottomWidth: 1`, and
+    // `marginBottom: spacing.md` SUMMED with `content`'s `marginTop: spacing.sm` (`:198`) —
+    // see the component docblock for why the web spells the pair as one 24.
+    expect(title.style.paddingBottom).toBe('8px')
+    expect(title.style.marginBottom).toBe('24px')
+    expect(title.style.borderBottomWidth).toBe('1px')
+  })
+
+  it('leaves the header rule TRANSPARENT, because the section is glass (`:75`)', () => {
+    // `borderBottomColor: glass ? 'transparent' : colors.border`. The demo painted
+    // `GLASS.border` here; on the phone a glass section's title rule is invisible and the
+    // 1px only holds its place in the layout.
+    render(<SectionCard title="Retention">body</SectionCard>)
+    expect(screen.getByText('Retention').style.borderBottomColor).toBe('transparent')
+  })
+
+  it('renders NOTHING when every child is gated off (`:118-120`)', () => {
+    // Form Customization gates fields, and a section whose every field is hidden must not
+    // leave an empty titled box. `Children.toArray` drops false/null/undefined, so an
+    // all-`{show && <Field/>}` section resolves to [].
+    const show = false
+    const { container } = render(
+      <SectionCard title="Requester Information">
+        {show && <div>Requester Name</div>}
+        {show && <div>Requester Badge</div>}
+      </SectionCard>,
+    )
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByText('Requester Information')).not.toBeInTheDocument()
+  })
+
+  it('still renders when ONE child survives the gate', () => {
+    // The negative control for the clause above: the guard must key off the children, not
+    // off some property every mount shares.
+    render(
+      <SectionCard title="Requester Information">
+        {false && <div>Requester Name</div>}
+        <div>Requester Badge</div>
+      </SectionCard>,
+    )
+    expect(screen.getByText('Requester Information')).toBeInTheDocument()
+  })
+})
+
+describe('_shared.Field — the phone `TextInput` label/help/error typography (A72 / U6.1)', () => {
+  /** Values from `src/components/common/TextInput.tsx:150-190` @ `dd5551ec`. */
+  it('sets the label 14/500 in `colors.text`, 4 above the box, 16 below the block', () => {
+    const { container } = render(<Field label="Case Number" value="" onChange={vi.fn()} />)
+    const block = container.firstElementChild as HTMLElement
+    // `container:151-153` — `marginBottom: Layout.spacing.md` (was 14).
+    expect(block.style.marginBottom).toBe('16px')
+
+    const label = screen.getByText('Case Number')
+    // `label:158-161` — `fontSize.sm` / `fontWeight.medium`; `:105` paints `colors.text`.
+    // The demo's `#cdd9e6` is not a palette token at all.
+    expect(label.style.fontSize).toBe('14px')
+    expect(label.style.fontWeight).toBe('500')
+    expect(label.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    // `labelContainer:155-157` — `marginBottom: Layout.spacing.xs` (was 6).
+    expect(label.style.marginBottom).toBe('4px')
+  })
+
+  it('paints the required asterisk from `colors.error` (`:110`)', () => {
+    render(<Field label="Unit" required value="" onChange={vi.fn()} />)
+    expect(screen.getByText('*').style.color).toBe(hexToJsdomRgb(palette.dark.error))
+  })
+
+  it('sets the helper line 14 in `textSecondary`, 4 below the box', () => {
+    // `helperContainer:181-183` + `helperText:184-186` — `spacing.xs` / `fontSize.sm`; `:133`
+    // paints `colors.textSecondary`. The demo's `#7a9fc4` is `textTertiary`, which D5's rider
+    // forbids taking on NEW text (3.81:1 worst dark glass vs `textSecondary`'s 5.24).
+    render(<Field label="Display Name" value="" onChange={vi.fn()} hint="Friendly name for case" />)
+    const hint = screen.getByText('Friendly name for case')
+    expect(hint.style.fontSize).toBe('14px')
+    expect(hint.style.color).toBe(hexToJsdomRgb(palette.dark.textSecondary))
+    expect(hint.style.marginTop).toBe('4px')
+  })
+
+  it('carries the error SEVERITY on the icon and the MESSAGE in `colors.text` (C.3 rule 1)', () => {
+    // The phone spells this line `color: colors.error` (`:128`, `errorText:185`). Matrix §C.3
+    // rule 1 — adjudicated-closed `P8-DEF-A`, "the single most portable recipe in the whole
+    // ledger" — forbids exactly that, and names `#ff6b78` (this site's colour) among the six
+    // the demo ships "doing exactly what this rule forbids". Measured on the dark glass
+    // grounds `palette-contrast.test.ts` composites: `#ff6b78` 3.84 worst, `colors.error`
+    // 3.16 worst — so porting the phone verbatim would LOWER it. Severity moves to the icon
+    // (a non-text mark: 3.16 clears 1.4.11's 3.0) and the message takes `colors.text` (9.56).
+    render(<Field label="Case Number" value="" onChange={vi.fn()} error="Case number is required" />)
+    const alert = screen.getByRole('alert')
+    expect(alert.style.color).toBe(hexToJsdomRgb(palette.dark.text))
+    expect(alert.style.fontSize).toBe('14px')
+    expect(alert.style.marginTop).toBe('4px')
+
+    const icon = alert.querySelector('svg')
+    expect(icon).not.toBeNull()
+    expect(icon).toHaveAttribute('aria-hidden', 'true')
+    expect(icon).toHaveAttribute('stroke', palette.dark.error)
+    // The colour is on the ICON, not on the text — the two must not be the same value, or the
+    // rule was not applied. This is the relational half the value pins cannot express.
+    expect(alert.style.color).not.toBe(hexToJsdomRgb(palette.dark.error))
+  })
+
+  it('gives the multiline box the phone `styles.multiline` height (`:176`)', () => {
+    render(<Field label="Notes" multiline value="" onChange={vi.fn()} />)
+    expect(screen.getByRole('textbox').style.minHeight).toBe('100px')
+  })
+
+  it('keeps ONE border declaration across an error toggle on a MOUNTED field (ledger I-7)', () => {
+    // The tripwire (`vitest.setup.ts:41-48`) declares itself the sole guard for W1's `Field`
+    // error-border fix, with "transitive" coverage from the consumer suites. W2's integration
+    // probe proved that false: reintroducing the split (error branch declares `borderColor`,
+    // the other declares `border`) left the screens and inputs suites entirely green, because
+    // NOTHING toggles `error` on a mounted `Field`. This drives that transition in both
+    // directions.
+    //
+    // WHAT ACTUALLY KILLS THE MUTANT, measured (probe M15, `probe-u6.1-pins` @ a993ee3):
+    // the BORDER VALUE assertions below, not the tripwire. Re-applying W2's exact split makes
+    // this file exit 1 on `expected '' to be '2px solid rgb(255, 71, 87)'` — jsdom does not
+    // synthesise `style.border` from the three longhands, so the error state reads empty —
+    // while `conflictingStyleWarnings` stays EMPTY and React logs nothing. So I-7 understated
+    // its own case: for this defect shape the tripwire is not merely un-driven, it does not
+    // fire at all, and a VALUE pin is the only guard available. The emptiness assertion below
+    // is kept because it is a true property of this transition, but it is not the catch.
+    const { rerender } = render(<Field label="Case Number" value="x" onChange={vi.fn()} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+
+    rerender(<Field label="Case Number" value="x" onChange={vi.fn()} error="Case number is required" />)
+    expect(input.style.border).toBe(`2px solid ${hexToJsdomRgb(palette.dark.error)}`)
+
+    rerender(<Field label="Case Number" value="x" onChange={vi.fn()} />)
+    expect(input.style.border).toBe(`1px solid ${hexToJsdomRgb(palette.dark.border)}`)
+
+    // Asserted HERE as well as in the setup's `afterEach`, so a future shape that DOES trip
+    // React names this transition rather than arriving detached at the end of the file.
+    expect(conflictingStyleWarnings).toEqual([])
+  })
+})
+
+describe('_shared.AddRowButton — the "+ Add …" affordance the three array screens render', () => {
+  it('paints the label from `link`, never the accent-as-text the demo used (A66/A27)', () => {
+    // `#4BA3D4` as 14/600 measures 3.77 worst on the dark glass grounds; `link` measures 6.90.
+    // DEF-UI-018's rule reaches this control even though it is not one of A66's six outline
+    // sites — the border stays the dashed `borderLight` the row ratified, because the LABEL is
+    // what carries the affordance here.
+    render(<AddRowButton label="+ Add Camera" onClick={vi.fn()} />)
+    const btn = screen.getByRole('button', { name: '+ Add Camera' })
+    expect(btn.style.color).toBe(hexToJsdomRgb(palette.dark.link))
+    expect(btn.style.color).not.toBe(hexToJsdomRgb(palette.dark.primaryLight))
+    // `radius.control` (10) and `spacing.base` (12) — the lifted values, now named.
+    expect(btn.style.borderRadius).toBe('10px')
+    expect(btn.style.padding).toBe('12px')
+    expect(btn.style.borderStyle).toBe('dashed')
+    expect(btn.style.borderColor).toBe(hexToJsdomRgb(palette.dark.borderLight))
   })
 })
 

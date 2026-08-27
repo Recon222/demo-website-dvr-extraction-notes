@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { Children, useEffect, useId, useState } from 'react'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PickerOption } from '@/features/demo/engine/content/form-options'
@@ -12,7 +12,7 @@ import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
-import { iconSize, spacing } from '@/features/demo/ui/tokens/scale'
+import { iconSize, radius, spacing } from '@/features/demo/ui/tokens/scale'
 import { fieldInputStyle } from '@/features/demo/ui/tokens/field-input'
 
 /** Enter/Space → activate, for `role="switch"`/`button` divs. */
@@ -416,10 +416,16 @@ export function Field({
       ? ({ autoCorrect: 'off', autoCapitalize: 'off', spellCheck: false } as const)
       : {}
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#cdd9e6', marginBottom: 6 }}>
+    // The block's own rhythm is the phone's `styles.container` (`TextInput.tsx:151-153`):
+    // `marginBottom: Layout.spacing.md` (was 14).
+    <div style={{ marginBottom: spacing.md }}>
+      {/* `styles.labelContainer:155-157` + `styles.label:158-161` — `spacing.xs` above the box,
+          `fontSize.sm` / `fontWeight.medium`, and `:105` paints it `colors.text`. The demo's
+          `#cdd9e6` was not a palette token at all. */}
+      <div style={{ fontSize: 14, fontWeight: 500, color: colors.text, marginBottom: spacing.xs }}>
         {label}
-        {required && <span style={{ color: '#ff4757' }}> *</span>}
+        {/* `:110` — `styles.required` in `colors.error`. Same hex, now the token. */}
+        {required && <span style={{ color: colors.error }}> *</span>}
       </div>
       {multiline ? (
         <textarea
@@ -434,7 +440,13 @@ export function Field({
           maxLength={maxLength}
           {...assist}
           {...focusProps}
-          style={{ ...boxStyle, minHeight: 76, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          // `styles.multiline` (`TextInput.tsx:175-179`): `minHeight: 100` (was 76). Its
+          // `paddingTop: Layout.spacing.md` is NOT re-declared — `fieldInputStyle` already
+          // writes `padding: 16`, and a `paddingTop` after a `padding` is the exact clobber
+          // `vitest.setup.ts`'s tripwire exists to catch (it shipped once, in
+          // `CompletionScreen`). `textAlignVertical: 'top'` is RN-only; a `<textarea>` is
+          // top-aligned by construction. The other three keys are the demo's web affordances.
+          style={{ ...boxStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       ) : (
         <input
@@ -452,11 +464,56 @@ export function Field({
         />
       )}
       {error ? (
-        <div id={errorId} role="alert" style={{ fontSize: 12, color: '#ff6b78', marginTop: 5 }}>
+        /**
+         * `styles.errorContainer` + `styles.errorText` (`TextInput.tsx:181-186`): `spacing.xs`
+         * above, `fontSize.sm`. The COLOUR is a deliberate divergence from the phone's `:128`
+         * `color: colors.error`, and the divergence is the campaign's own ruling rather than a
+         * preference — matrix §C.3 rule 1, adjudicated-closed as `P8-DEF-A` and called "the
+         * single most portable recipe in the whole ledger":
+         *
+         *   "Stop using red as text. […] The answer is not a better red — it is severity on
+         *    the icon (3:1 non-text floor), text in `colors.text`."
+         *
+         * It names `#ff6b78` — the value this line used to carry — among the six error-text
+         * reds "doing exactly what this rule forbids". Measured on the dark glass grounds
+         * `ui/__tests__/palette-contrast.test.ts` composites (background + both `card` stops +
+         * both `nestedCard` stops): `#ff6b78` 3.84 worst / 5.34 best, `colors.error` 3.16 /
+         * 4.40 — so porting the phone's token verbatim would have LOWERED this line's
+         * contrast, and neither clears AA's 4.5. Severity moves to the glyph, which is a
+         * non-text mark and needs only 1.4.11's 3.0 (3.16 clears it); the message takes
+         * `colors.text` at 9.56 worst.
+         *
+         * The glyph is `Banner`'s `error` icon — the alert-circle the demo already reads as
+         * "error" at `PickerStage`, `ImportModal` and `DemoErrorBoundary` — so a field error
+         * and a callout error are the same mark. `aria-hidden` because the message inside the
+         * same `role="alert"` already says it.
+         */
+        <div
+          id={errorId}
+          role="alert"
+          style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.xs, fontSize: 14, color: colors.text, marginTop: spacing.xs }}
+        >
+          <svg
+            aria-hidden="true"
+            width={iconSize.xs}
+            height={iconSize.xs}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={colors.error}
+            strokeWidth="2"
+            strokeLinecap="round"
+            style={{ flexShrink: 0 }}
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v5M12 16h.01" />
+          </svg>
           {error}
         </div>
       ) : (
-        hint && <div style={{ fontSize: 12, color: '#7a9fc4', marginTop: 5 }}>{hint}</div>
+        /* `styles.helperContainer` + `styles.helperText` (`:181-186`) — `spacing.xs`,
+           `fontSize.sm`; `:133` paints `colors.textSecondary`. The demo's `#7a9fc4` is
+           `textTertiary`, which D5's rider bars from NEW text (3.81 worst vs 5.24). */
+        hint && <div style={{ fontSize: 14, color: colors.textSecondary, marginTop: spacing.xs }}>{hint}</div>
       )}
     </div>
   )
@@ -574,11 +631,68 @@ export function WizardNext({ label, onClick }: { label: string; onClick(): void 
   )
 }
 
-/** A titled form section card. */
+/**
+ * A titled form section card — the phone's `FormSection` (`src/components/form/FormSection.tsx`
+ * at `dd5551ec`) in its GLASS branch, which is the only branch the demo renders: all five
+ * consumers (`CompletionScreen`, `DvrInfoScreen`, `ExportInfoScreen`, `SubmissionScreen`,
+ * `TimeOffsetScreen`) are glass sections. Matrix A77.
+ *
+ * ## Three RN nodes collapse to one web node
+ *
+ * The phone paints the glass branch with a stack (`:126-139`): an `overflow:'hidden'` wrapper
+ * carrying `Layout.shadow.card`, an absolutely positioned 1px `highlight` View, and the
+ * `LinearGradient` that carries the border and the padding. On the web `glassCard` already
+ * spells all four parts of the tier in ONE declaration — the gradient, the three side border
+ * longhands plus the lit `borderTopColor` (A31), the inner shadow and `GLASS.shadowCard` (A44)
+ * — so the wrapper and the highlight strip have nothing left to do. `overflow: 'hidden'` is
+ * kept from the wrapper (`:159`): it is what clips a child to the card's corner, which the
+ * radius alone does only for the background.
+ *
+ * ## The header's bottom margin is the phone's TWO values, summed
+ *
+ * The phone puts `marginBottom: Layout.spacing.md` (16) on the header (`:182`) and
+ * `marginTop: Layout.spacing.sm` (8) on a content wrapper (`:198`) — 24 between the title rule
+ * and the first field, because RN does not collapse margins. CSS does: two adjacent siblings'
+ * facing margins collapse to the LARGER, so spelling the pair verbatim would render 16 and
+ * silently lose 8px. The sum is written on the header instead, and the content wrapper is not
+ * created — same rendered 24, one node rather than two. (The one case that diverges is a first
+ * child carrying its own `marginTop`, which would collapse into this 24 instead of adding to
+ * it. No consumer has one: `Field`, `SelectField` and `DateTimeField` all lead with
+ * `marginBottom`.)
+ */
 export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+  // Phone `:114-120`, load-bearing: a section whose every field is gated off by Form
+  // Customization renders NOTHING, not an empty titled box. `Children.toArray` drops
+  // false/null/undefined and flattens fragments, so an all-`{show && <Field/>}` section
+  // resolves to []. Two consumers rely on it today by hoisting the same test to the call site
+  // (`DvrInfoScreen.tsx:84-86`, `SubmissionScreen`'s `showRequester`); with the guard in the
+  // recipe a third consumer cannot forget it.
+  if (Children.toArray(children).length === 0) return null
   return (
-    <div style={{ marginBottom: 18, ...glassCard, padding: 16 }}>
-      <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f4f8', paddingBottom: 10, marginBottom: 14, borderBottom: GLASS.border }}>{title}</div>
+    <div style={{ marginBottom: spacing.lg, ...glassCard, overflow: 'hidden', padding: spacing.md }}>
+      <div
+        style={{
+          // Phone `:184-187` — `Typography.fontSize.lg` / `fontWeight.semibold`. 17 -> 18 is a
+          // step on plan §4.9's ladder, not a re-tune.
+          fontSize: 18,
+          fontWeight: 600,
+          color: colors.text,
+          // Phone `:180` — `paddingBottom: Layout.spacing.sm` (was 10).
+          paddingBottom: spacing.sm,
+          // Phone `:182` + `:198`, summed — see the docblock (was 14).
+          marginBottom: spacing.md + spacing.sm,
+          // Phone `:181` + `:75`: the rule is 1px and TRANSPARENT under glass. It holds its
+          // 1px of layout and paints nothing; the demo used to draw `GLASS.border` here.
+          // Three longhands rather than the `borderBottom` shorthand the demo had, so the
+          // width and the colour are separately readable — jsdom does not decompose a
+          // shorthand into the sides a pin needs (HANDOFF §4, measured by U3.3).
+          borderBottomWidth: 1,
+          borderBottomStyle: 'solid',
+          borderBottomColor: 'transparent',
+        }}
+      >
+        {title}
+      </div>
       {children}
     </div>
   )
@@ -777,10 +891,23 @@ export function Toggle({
   )
 }
 
-/** "+ Add …" dashed button + "Remove" link used by the array wizard screens. */
+/**
+ * "+ Add …" dashed button used by the three array wizard screens (`ArrivalDepartureScreen`,
+ * `CamerasScreen`, `RequestedScopeScreen`).
+ *
+ * DEMO-ONLY: the phone has no dashed "add a row" affordance anywhere — `grep -rn dashed src/
+ * app/` at `dd5551ec` returns a PDF-template rule, the OCR bounding box and prose. So there is
+ * no recipe to lift, and this stays the demo's own control at its own geometry (`marginBottom:
+ * 14` is one of the lifted literals demo §0.4 forbids tidying).
+ *
+ * The COLOURS are not the demo's own, though. A66/A27's rule reaches any accent-as-text: at
+ * 14/600 the old `primaryLight` label measured 3.77 on the worst dark glass ground and
+ * `colors.link` measures 6.90. The dashed border keeps `colors.borderLight`, whose A8 re-base
+ * landed in U0.1, because the LABEL is what carries this affordance and not the outline.
+ */
 export function AddRowButton({ label, onClick }: { label: string; onClick(): void }) {
   return (
-    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: 12, borderRadius: 10, border: `1px dashed ${colors.borderLight}`, background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
+    <button type="button" onClick={onClick} style={{ width: '100%', textAlign: 'center', padding: spacing.base, borderRadius: radius.control, border: `1px dashed ${colors.borderLight}`, background: 'transparent', color: colors.link, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 14 }}>
       {label}
     </button>
   )
