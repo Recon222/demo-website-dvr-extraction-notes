@@ -17,16 +17,18 @@ import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
  * authorised re-derive day. So the value pins guard the VALUE and this guards the OWNERSHIP, and
  * neither is sufficient alone.
  *
- * ## Scoped, not repo-wide, and that is measured rather than cautious
+ * ## Scoped, not repo-wide, and NARROW — both measured rather than cautious
  *
  * `glass-tokens.test.ts`'s `BANNED` list is the repo's global mechanism and it is the wrong one
  * here: its own rule is that a value is banned only when it "cannot be reached for innocently",
- * and two of these three CAN be. `#ffd07a` is live as advisory TEXT at four sites in
- * `MediaCaptureScreen` alone plus `ExpiredMediaNotice`'s copy, and `rgba(255,200,90,0.3)` is the
- * sample-data CARD's border at `MediaCaptureScreen.tsx:891` — the chip's own wrapper, which F51
- * explicitly excludes as part of "the looser 0.06-0.28 amber family". A repo-wide ban would
- * report every one of them as a badge re-inline. Same judgement, same shape and the same reason
- * as `camera-chrome.test.ts`'s scoped sweep.
+ * and two of the three CAN be — see `OWNED` below for both, with counts. So the scan is scoped to
+ * the three files F51 names (the shape and reason of `camera-chrome.test.ts`'s sweep) AND to the
+ * single trio member that is unambiguous.
+ *
+ * That narrowing is the point rather than a shortfall. This round's pipeline notes name the
+ * wave's theme as "source-scan guards whose pattern or exemption is narrower than the claim
+ * written beside them", four waves running. The honest response is to shrink the CLAIM to the
+ * pattern, not to widen the pattern until it lies.
  *
  * ## The control exercises the CLAIM (F67's lesson, applied here on purpose)
  *
@@ -50,18 +52,36 @@ const read = (rel: string): string => readFileSync(join(UI_ROOT, ...rel.split('/
 const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
 
 /**
- * The two values that CANNOT be reached for innocently — a fill and a hairline at alphas nothing
- * else in the demo paints. `foreground` (`#ffd07a`) is deliberately absent: it is a live advisory
- * TEXT colour at five sites across these same files, so banning it would report the excluded
- * amber family as badge drift. The render-site pins cover the foreground; this covers what a
- * source scan can honestly cover.
+ * ONE value — the 12% fill. The claim is deliberately no wider than the pattern can carry, which
+ * is this round's own pipeline lesson (four waves of guards whose comment out-promised their
+ * regex). Both other members of the trio have LEGITIMATE non-badge uses in these same files, so a
+ * text scan cannot tell a re-inline from a live sibling:
+ *
+ *   `foreground` `#ffd07a` — advisory TEXT at five sites in `MediaCaptureScreen` plus
+ *     `ExpiredMediaNotice`'s copy.
+ *   `border` `rgba(255,200,90,0.3)` — the sample-data CARD's own border at
+ *     `MediaCaptureScreen.tsx:891`, which is the chip's WRAPPER and which F51 excludes by name as
+ *     part of "the looser 0.06-0.28 amber family". Measured: two live occurrences outside the
+ *     seam, one of them legitimate.
+ *
+ * The fill has exactly ONE occurrence in the whole of `features/demo/` outside `sample-badge.ts`
+ * (measured), so it is the member that can be owned mechanically. It is also the discriminating
+ * one: nothing else in the demo paints an amber at 12%.
+ *
+ * What this does NOT cover, stated so no one reads the file name as a wider promise: a re-inline
+ * of the foreground or the border ALONE, at the same value. Those are covered by the three
+ * render-site pins, which kill any re-inline that drifts — measured, probes Q3/Q4.
  */
-const OWNED = ['background', 'border'] as const
+const OWNED = ['background'] as const
 
 describe('SAMPLE_BADGE ownership (W3 r1 F51 / D12)', () => {
   it.each(CONSUMERS)('%s reaches for the seam, never a re-typed literal', (file) => {
     const text = norm(read(file))
-    const offenders = OWNED.filter((key) => text.includes(norm(`'${SAMPLE_BADGE[key]}'`))).map(
+    // The bare value, NOT quote-wrapped: `AudioPreviewScreen` composes its hairline as
+    // `` `1px solid ${...}` ``, so a re-inline arrives as `'1px solid rgba(...)'` and a
+    // quote-anchored needle walks straight past it (measured — probe Q2b SURVIVED on the
+    // quote-wrapped form). The closing paren is what keeps 0.12 from matching 0.125.
+    const offenders = OWNED.filter((key) => text.includes(norm(SAMPLE_BADGE[key]))).map(
       (key) => `${file} re-inlines SAMPLE_BADGE.${key} (${SAMPLE_BADGE[key]})`,
     )
     expect(
@@ -79,10 +99,12 @@ describe('SAMPLE_BADGE ownership (W3 r1 F51 / D12)', () => {
   })
 
   it('bans only what cannot be reached for innocently', () => {
-    // The scan's own scope, asserted rather than described: the foreground is EXCLUDED because it
-    // is a live advisory-text colour in these files, and the excluded amber family must not be
-    // reportable as badge drift.
-    expect(OWNED).not.toContain('foreground')
-    expect(norm(read('screens/MediaCaptureScreen.tsx'))).toContain(norm(SAMPLE_BADGE.foreground))
+    // The scope, ASSERTED rather than described, so it cannot be widened without this reddening.
+    expect(OWNED).toEqual(['background'])
+    // Both exclusions are live in the scanned files for legitimate, non-badge reasons — that is
+    // the whole reason they are excluded, and it is checked rather than claimed.
+    const camera = norm(read('screens/MediaCaptureScreen.tsx'))
+    expect(camera, 'foreground is a live advisory-text colour here').toContain(norm(SAMPLE_BADGE.foreground))
+    expect(camera, "border is the sample-data CARD's own hairline here").toContain(norm(SAMPLE_BADGE.border))
   })
 })
