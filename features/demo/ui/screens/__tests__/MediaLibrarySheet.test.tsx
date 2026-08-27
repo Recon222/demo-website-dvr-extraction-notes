@@ -719,7 +719,13 @@ describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
    * `CentredDialog.test.tsx:627-641`); each `@ts-expect-error` IS the assertion and goes unused,
    * reddening `tsc`, the moment an `as const` is dropped for a bare `: CSSProperties`.
    *
-   * MUTATION: `const previewActionFace: CSSProperties = { … }`.
+   * MUTATION, and its exact form matters: `const x: CSSProperties = { … }` — the bare annotation
+   * F61 found at 35 sites. Measured (probes Q9/Q10b/Q13): that form KILLS. Dropping only
+   * `as const` while keeping `satisfies` SURVIVES, and that is a property of TypeScript rather
+   * than a weak pin — `satisfies` already pins a fresh literal's type, so `as const` adds only
+   * the `readonly` modifier, which no assignment-plus-directive can distinguish from a
+   * literal-type mismatch. The regression this guards is the annotation, and it is the only form
+   * anyone writes.
    */
   it('ships its module-level style tables readonly (F61)', () => {
     const reject = () => {

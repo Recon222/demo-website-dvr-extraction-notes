@@ -191,7 +191,13 @@ describe('OverlayHeader — W3 r1 fixes', () => {
    * `as const satisfies` and not an annotation: `satisfies` keeps `CONTROL`'s literal types, so
    * a missing variant is still a compile error.
    *
-   * MUTATION: drop `as const` from `row`, `titleText` or `CONTROL`.
+   * MUTATION, and its exact form matters: `const x: CSSProperties = { … }` — the bare annotation
+   * F61 found at 35 sites. Measured (probes Q9/Q10b/Q13): that form KILLS. Dropping only
+   * `as const` while keeping `satisfies` SURVIVES, and that is a property of TypeScript rather
+   * than a weak pin — `satisfies` already pins a fresh literal's type, so `as const` adds only
+   * the `readonly` modifier, which no assignment-plus-directive can distinguish from a
+   * literal-type mismatch. The regression this guards is the annotation, and it is the only form
+   * anyone writes.
    */
   it('ships its style tables readonly (F61)', () => {
     // `as const` constrains the TYPE, not the runtime object, so the writes live in a function
