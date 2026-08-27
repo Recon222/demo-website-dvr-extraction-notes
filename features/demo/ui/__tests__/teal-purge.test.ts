@@ -89,13 +89,18 @@ const stripComments = (src: string): string =>
  */
 const canonicalTeals = (src: string): string[] => {
   const found: string[] = []
-  const pattern = /#[0-9a-fA-F]{6}\b|rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*[,)]/g
+  // `{3,8}`, matching every sibling scan in this repo (`settings-palette-sweep.test.ts:100`,
+  // `field-recipe-sweep.test.tsx`). W4/F88: this read `{6}`, so `#4ecdc4ff` — the same colour
+  // with an alpha channel — walked past a guard whose docblock claims every literal is
+  // canonicalised. Zero 8-digit literals are live today; the point is that the docblock's claim
+  // and the mechanism now agree, which is convention 2.
+  const pattern = /#[0-9a-fA-F]{3,8}\b|rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*[,)]/g
   let m = pattern.exec(src)
   while (m !== null) {
     // `toString(16)` + a manual pad, not `padStart`: tsconfig targets es5.
     const hex =
       m[1] === undefined
-        ? m[0].toLowerCase()
+        ? '#' + expandHex(m[0].slice(1).toLowerCase())
         : '#' +
           [m[1], m[2], m[3]]
             .map((n) => {
@@ -108,6 +113,17 @@ const canonicalTeals = (src: string): string[] => {
   }
   return found
 }
+
+/**
+ * A hex literal's digits -> its six RGB digits: `#rgb`/`#rgba` double, `#rrggbb`/`#rrggbbaa`
+ * truncate. The alpha channel is DROPPED rather than compared — `#4ecdc4ff` and `#4ecdc480` are
+ * the same colour at two opacities, and A89 purged the colour.
+ *
+ * 5- and 7-digit runs are not valid CSS colours; they fall through `slice(0, 6)` and simply
+ * never equal the needle, which is the right answer for a string that is not a colour.
+ */
+const expandHex = (digits: string): string =>
+  digits.length <= 4 ? digits.slice(0, 3).replace(/./g, (c) => c + c) : digits.slice(0, 6)
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = []
@@ -137,9 +153,17 @@ describe('the teal purge (A89 / D12)', () => {
     expect(canonicalTeals("color: '#4ECDC4'")).toEqual([TEAL])
     expect(canonicalTeals("background: 'rgb(78,205,196)'")).toEqual([TEAL])
     expect(canonicalTeals("boxShadow: '0 0 12px rgba(78, 205, 196, 0.6)'")).toEqual([TEAL])
+    // W4/F88 — the eight-digit form, in both cases. The alpha channel is dropped, not compared:
+    // the same colour at two opacities is the same purged colour.
+    expect(canonicalTeals("color: '#4ecdc4ff'")).toEqual([TEAL])
+    expect(canonicalTeals("color: '#4ECDC480'")).toEqual([TEAL])
     // Not a blanket cyan ban: one channel off is a different colour and must pass.
     expect(canonicalTeals("color: '#4ecdc5'")).toEqual([])
     expect(canonicalTeals("background: 'rgba(78, 205, 197, 0.35)'")).toEqual([])
+    // Widening to `{3,8}` must not invent matches. `#4ec` expands to `#44eecc`, which is a
+    // different colour and stays silent — the shorthand is now SEEN, not assumed to be teal.
+    expect(canonicalTeals("color: '#4ec'")).toEqual([])
+    expect(canonicalTeals("color: '#4ecf'")).toEqual([])
     // The tree is non-empty — an empty walk makes every assertion below vacuously true, which
     // is the one failure a source scan has and a behaviour test does not.
     expect(files.length).toBeGreaterThan(50)
