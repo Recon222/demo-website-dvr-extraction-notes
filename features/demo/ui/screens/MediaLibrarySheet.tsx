@@ -853,14 +853,17 @@ function KindGlyph({ kind }: { kind: MediaItem['kind'] }) {
 
 // ---- Styles -----------------------------------------------------------------
 
-const listReset: CSSProperties = { listStyle: 'none', margin: 0, padding: 0 }
+// W3 r1 F61 — the module-level style tables ship readonly. `as const satisfies CSSProperties`
+// and never a bare annotation: `satisfies` keeps the literal types while `as const` makes the
+// object immutable, which an annotation alone does neither of.
+const listReset = { listStyle: 'none', margin: 0, padding: 0 } as const satisfies CSSProperties
 
-const metaLine: CSSProperties = {
+const metaLine = {
   display: 'block',
   fontSize: 11,
   color: '#7a9fc4',
   marginTop: 2,
-}
+} as const satisfies CSSProperties
 
 /**
  * The 3D-glass face shared by the header close and the two preview action buttons — phone
@@ -878,7 +881,7 @@ const metaLine: CSSProperties = {
  * writes only the keys that CHANGED. It is inert today (a module const never updates) and it is
  * a live trap the moment anything spreads or conditions it.
  */
-const glassButtonFace: CSSProperties = {
+const glassButtonFace = {
   background: 'rgba(255,255,255,0.06)', // MediaPreview.tsx:278
   borderStyle: 'solid',
   borderWidth: 1,
@@ -887,7 +890,7 @@ const glassButtonFace: CSSProperties = {
   borderTopColor: ElevatedEdges[scheme].top, // :280 — A51
   borderBottomColor: ElevatedEdges[scheme].bottom, // :281 — A51
   color: '#cdd9e6',
-}
+} as const satisfies CSSProperties
 
 /**
  * The painted disc of a preview action button — phone `ACTION_BUTTON_SIZE = 36`
@@ -903,7 +906,7 @@ const PREVIEW_ACTION_SIZE = 36
 /** Phone `ACTION_ICON_SIZE = 20` (`MediaPreview.tsx:70`), was 18 here. */
 const ACTION_ICON_SIZE = iconSize.sm
 
-const previewActionFace: CSSProperties = {
+export const previewActionFace = {
   width: PREVIEW_ACTION_SIZE,
   height: PREVIEW_ACTION_SIZE,
   borderRadius: radius.full,
@@ -911,7 +914,7 @@ const previewActionFace: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   ...glassButtonFace,
-}
+} as const satisfies CSSProperties
 
 /**
  * The demo's sample badge — a bundled asset is labelled everywhere it appears, never only where
@@ -927,7 +930,7 @@ const previewActionFace: CSSProperties = {
  * amber family. If a fourth surface ever needs the geometry too, that is the day to lift it —
  * `sample-badge.ts` is U7.3's file, not this package's.
  */
-const sampleBadge: CSSProperties = {
+export const sampleBadge = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: 0.8,
@@ -937,4 +940,4 @@ const sampleBadge: CSSProperties = {
   border: `1px solid ${SAMPLE_BADGE.border}`,
   borderRadius: 6,
   padding: '1px 6px',
-}
+} as const satisfies CSSProperties

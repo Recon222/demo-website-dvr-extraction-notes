@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
-import { MEDIA_CLOSE_CHIP, MediaLibrarySheet, type MediaLibrarySheetProps } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import {
+  MEDIA_CLOSE_CHIP,
+  MediaLibrarySheet,
+  previewActionFace,
+  sampleBadge,
+  type MediaLibrarySheetProps,
+} from '@/features/demo/ui/screens/MediaLibrarySheet'
 import { ElevatedEdges } from '@/features/demo/ui/controls/button-recipe'
 import { SAMPLE_BADGE } from '@/features/demo/ui/controls/sample-badge'
 import { colors, scheme } from '@/features/demo/ui/tokens/palette'
@@ -672,6 +678,26 @@ describe('the item info panel (row 64)', () => {
 })
 
 describe('MediaLibrarySheet — U7.2 (rows 57-66: A49, A51, A58, A80)', () => {
+  /**
+   * W3 r1 F61 — this file's five module-level style tables ship readonly. `as const` constrains
+   * the TYPE only, so the writes live in a never-called function (the repo's idiom,
+   * `CentredDialog.test.tsx:627-641`); each `@ts-expect-error` IS the assertion and goes unused,
+   * reddening `tsc`, the moment an `as const` is dropped for a bare `: CSSProperties`.
+   *
+   * MUTATION: `const previewActionFace: CSSProperties = { … }`.
+   */
+  it('ships its module-level style tables readonly (F61)', () => {
+    const reject = () => {
+      // @ts-expect-error previewActionFace is readonly
+      previewActionFace.width = 32
+      // @ts-expect-error sampleBadge is readonly
+      sampleBadge.color = 'red'
+    }
+    expect(typeof reject).toBe('function')
+    expect(previewActionFace.width).toBe(36)
+    expect(sampleBadge.color).toBe(SAMPLE_BADGE.foreground)
+  })
+
   /**
    * MUTATION: put `<ModalShell …>` back around the body.
    *
