@@ -21,27 +21,44 @@ import { radius } from '@/features/demo/ui/tokens/scale'
  * Conventions:
  * - `GLASS.*` string tokens are full CSS values (border shorthands include `1px solid`).
  * - `glassCard` / `glassCardNested` / `glassBtnPrimary` / `glassBtnSecondary` are spreadable
- *   style fragments; call sites override/extend around them. The two card fragments carry a
- *   `borderTopColor` LONGHAND after a `border` SHORTHAND, so writing ANY border shorthand
- *   after the spread erases the lit top edge silently (§4.3) — `border` and `borderColor`
- *   alike, because `border-color` is itself a four-side shorthand.
+ *   style fragments; call sites override/extend around them.
  *
- *   TO RE-TINT A CARD'S SIDES, write the three side LONGHANDS and no shorthand:
+ *   THE LIT-EDGE RULE, both halves. Ruled by measurement — 40 cells x 3 paints, jsdom AND
+ *   real Chromium, react-dom 19.2.3, zero disagreement:
+ *   `docs/planning/demo-phone-ui-parity/reports/partner-lit-edge-ruling.md` §3-§4.
  *
- *       { ...glassCard, borderRightColor: X, borderBottomColor: X, borderLeftColor: X }
+ *     FRAGMENTS carry ONLY longhands. `glassCard` and `glassCardNested` spell
+ *     `borderStyle` / `borderWidth` / the three side colour longhands / `borderTopColor`,
+ *     and NO `border`, `borderColor` or `borderTop` key. Pinned in
+ *     `ui/__tests__/glass-card-recipe.test.tsx`.
  *
- *   Nothing there can erase the edge, on any render, because nothing writes it. The two
- *   forms that LOOK right and are not, both measured in
- *   `ui/__tests__/glass-card-recipe.test.tsx` and kept there as negative controls:
- *     - `{ ...glassCard, borderColor: X, borderTopColor: h }` — spread keeps a duplicate key
- *       at the FIRST occurrence's position with the last value, so the "re-set" edge collapses
- *       back into the spread's slot and `borderColor` lands after it. Wrong on first paint.
- *     - lifting the edge out first (`const { borderTopColor, ...base } = glassCard`) — right
- *       on first paint, wrong on the next render: React writes only the keys that CHANGED, so
- *       an unchanged `borderTopColor` is skipped while the changed shorthand is written.
+ *     CONSUMERS re-tint with colour LONGHANDS only:
+ *
+ *         { ...glassCard, borderRightColor: X, borderBottomColor: X, borderLeftColor: X }
+ *
+ *   Nothing there can erase the lit edge, on any paint, because nothing writes it — and when
+ *   the tint is CONDITIONAL (`...(lit && sides)`) the sides self-heal to the fragment's own
+ *   colour on collapse instead of falling to `currentColor`. Both are pinned.
+ *
+ *   Any border SHORTHAND after the spread is wrong, and it is wrong on FIRST paint now that
+ *   the fragment holds no shorthand to agree with — `{ ...glassCard, border: X }` and
+ *   `{ ...glassCard, borderColor: X }` alike, because `border-color` is itself a four-side
+ *   shorthand. Two forms that look like fixes and are not, both kept as negative controls in
+ *   the pin file: re-setting `borderTopColor` after the shorthand (spread keeps a duplicate
+ *   key at the FIRST occurrence's position, so the "re-set" collapses back in front of it),
+ *   and lifting the edge out of the fragment first (right on first paint, wrong on the next —
+ *   React writes only the keys that CHANGED, so an unchanged longhand is skipped while the
+ *   changed shorthand is written). The second class also has a runtime tripwire: React's own
+ *   "conflicting property" warning is a test failure repo-wide (`vitest.setup.ts`).
+ *
  *   `boxShadow` is the same class: `glassCard`'s fuses the tier inset (A32) with
  *   `GLASS.shadowCard` (A44), so overriding it after the spread drops the inset. Compose —
  *   `` boxShadow: `${glassCard.boxShadow}, <yours>` `` — or do not override.
+ *
+ *   `glassBtnPrimary` / `glassBtnSecondary` are NOT longhands-only and do not need to be:
+ *   neither carries a per-side longhand, so `{ ...glassBtnSecondary, border: X }` — which
+ *   `RowActions.tsx` and `controls/AlertDialog.tsx` both ship — replaces the whole border and
+ *   has nothing to clobber. The rule follows the lit edge, not the word "fragment".
  * - Sibling token modules stay scoped: `inputs/input-theme.ts` (`T`, the picker theme — its
  *   accent stops are sourced from here) and `screens/map/mapTokens.ts` (map sheet colours).
  * - MIRROR (review R-25): `app/css/style.css` `@theme` re-declares `accentFrom`/`accentTo`
@@ -173,15 +190,15 @@ export const GLASS = {
  * (`Card.tsx:170-174,229-236`) because RN has no per-side border colour. On the web the
  * published recipe is the longhand, and it is what `conventions.md` itself prescribes.
  *
- * KEY ORDER IS LOAD-BEARING (§4.3). `borderTopColor` must come AFTER `border`: React replays
- * an inline style object in insertion order, and a shorthand written after a longhand erases
- * it. The same rule binds every CONSUMER — `{ ...glassCard, border: '1px solid X' }` and
- * `{ ...glassCard, borderColor: 'X' }` BOTH wipe the lit edge, because `border-color` is
- * itself a four-side shorthand. **Re-tint with the three side LONGHANDS**
- * (`borderRightColor` / `borderBottomColor` / `borderLeftColor`) and no shorthand at all; the
- * module header lists the two forms that look right and are not, and
- * `ui/__tests__/glass-card-recipe.test.tsx` pins all of it — the working form on first paint
- * AND across an update, the two broken ones as negative controls, and the `boxShadow` clause.
+ * NO SHORTHAND KEY EXISTS IN THIS FRAGMENT, and that is the contract — not an ordering.
+ * Ordering only mattered while there was a shorthand to order against, and it could not be
+ * made safe: with `border` at slot 2 and the edge after it, `{ ...glassCard, border: X }` was
+ * right on the first paint and wrong on the next, which is a trap that ships green through a
+ * render-once test. The measured ruling (module header; `partner-lit-edge-ruling.md` §3-§4)
+ * is to take the shorthand out of the FRAGMENT rather than ask 22 consumers to dodge it.
+ * Re-tint with the three side colour longhands. `ui/__tests__/glass-card-recipe.test.tsx`
+ * pins all of it — first paint, the update path, the conditional self-heal, both negative
+ * controls, and the `boxShadow` clause.
  * A NEW CONSUMER MUST BE ADDED TO `CONSUMERS` IN THAT FILE: the per-consumer loop is what
  * observes an erased edge, and a consumer outside the list is unobserved.
  *
@@ -231,7 +248,8 @@ export const glassCard = {
  * the corner. Two of the five adopters override it back to their lifted `10`; that is demo
  * §0.4 (do not tidy lifted pixel values), and A43's sweep is the radius-16 CARD sites.
  *
- * The `border` / `borderTopColor` ordering rule on `glassCard` binds here identically.
+ * Longhands only, exactly as `glassCard` — the lit-edge rule in the module header binds
+ * here identically, and this fragment is pinned by the same no-shorthand-key assertion.
  */
 export const glassCardNested = {
   borderRadius: radius.lg,
