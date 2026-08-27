@@ -100,17 +100,50 @@ export interface RadioOptionProps {
  * (`rgba(75,163,212,0.08)`). `withAlpha` and not a `token + '15'` concat, for the reason the
  * phone's own comment gives at `:69-74`.
  *
- * `flexShrink: 1` + `minWidth: 0` on the label (`:175-191`) are load-bearing at three-up, and
- * BOTH are required (W2 review F29). The phone's comment names only the shrink because RN's
- * flex defaults differ; on the web a flex item's default `min-width: auto` resolves to the
- * min-content width of an unbreakable word (`Forensic` / `Limited` / `Canvas`), so shrink can
- * never engage and the group overflowed the settings pane by ~42px with the SELECTED chip
- * clipped at the frame edge. `minWidth: 0` is what releases that floor.
+ * ## Shrinking at three-up — THREE properties, and the earlier notes here were wrong twice
  *
- * NO truncation, deliberately. The phone's own note (`RadioGroup.tsx:184-187`) says the
- * overflow becomes "a controlled two-line wrap", and `optionsContainer` sets no `alignItems`
- * so the default `stretch` keeps the cells the same height — the demo's row does the same.
- * `whiteSpace: 'nowrap'` + `textOverflow` would ellipse a profile name instead.
+ * `flex: 1` alone does not shrink a flex item below its min-content width: `min-width: auto`
+ * is the CSS default and it is the binding floor. There are two nested flex items here, and
+ * releasing one does nothing while the other holds:
+ *
+ *   1. `minWidth: 0` on the **`<button>`** — the item the parent row shrinks. THIS is the floor
+ *      that was still binding (W2 rider F29'), and two lanes measured it independently at
+ *      `250e12f`, after the label had already been released:
+ *        - web, in Chromium: pane clientWidth **342**, row scrollWidth **363**,
+ *          `fc-profile-canvas` right edge **433.8** against the pane's 413.
+ *        - verification, from the re-cut pixels (`_captures/w2/DIFF.md` §f1-§f7): the group's
+ *          rightmost pixel at **x781** against the pane inset at **x739** — 42 shot-px = 21
+ *          CSS-px, byte-identical across all four settings shots and to the pre-fix set.
+ *      The arithmetic behind it: 60px of fixed chrome per option (16+16 padding, a 20px ring,
+ *      its 8px margin) x3, plus two 8px gaps, is 196px before a single glyph.
+ *   2. `minWidth: 0` on the **label span** — the inner item. Released in W2 F29; necessary, and
+ *      on its own it only moved the overflow from ~42px to ~21px.
+ *   3. `overflowWrap: 'break-word'` on the label — what makes 1+2 LEGIBLE rather than merely
+ *      unfloored. Below min-content the box is narrower than the word, and an unbreakable word
+ *      does not wrap: it paints outside its box, over the neighbouring chip's border. With
+ *      342px available each label box lands at ~48.7px against `Forensic` at ~62px, so all
+ *      three overflow without this.
+ *
+ * That is the phone's own outcome, not an invention: `RadioGroup.tsx:178-191` sizes the same
+ * 3-up group at "~39px of text budget at 360dp" and says the overflow "becomes a controlled
+ * two-line wrap" — RN's `Text` breaks the word rather than spilling. `optionsContainer` sets no
+ * `alignItems`, so the default `stretch` keeps the cells the same height under a two-line
+ * label; the demo's row does the same. The phone's comment names only `flexShrink` because RN's
+ * flex defaults differ from CSS's — transcribing its reasoning was the original mistake.
+ *
+ * STILL NO truncation. `whiteSpace: 'nowrap'` + `textOverflow` would ellipse a profile name;
+ * breaking wraps it, and every character stays on screen. Pinned as a negative control.
+ *
+ * WHAT IS AND IS NOT PROVEN HERE — CAPTURE-GATED, and said that way on purpose. jsdom performs
+ * no layout, so the tests below pin the three DECLARATIONS and nothing more: they catch a
+ * revert, they cannot catch a miscalculation, a changed padding or a longer label. Every
+ * rendered number above measures the DEFECT, at `250e12f`; **no capture of this fix exists
+ * yet.** The rendered proof will be the NEXT verification re-cut, and until it lands this note
+ * claims a mechanism, not an outcome.
+ *
+ * Two previous notes at this site asserted a fix that half-worked. That is why this one
+ * separates what was measured (the defect, by two lanes, with figures and a source) from what
+ * is still owed (a shot of the fix).
  */
 export function RadioOption({ label, selected, onSelect, direction = 'row', testId }: RadioOptionProps) {
   const edge = selected ? colors.link : UNCHECKED_MARK_EDGE
@@ -122,7 +155,9 @@ export function RadioOption({ label, selected, onSelect, direction = 'row', test
       data-testid={testId}
       onClick={onSelect}
       style={{
-        ...(direction === 'row' ? { flex: 1 } : { width: '100%' }),
+        // `minWidth: 0` travels with `flex: 1`: a shrinking flex item that keeps its automatic
+        // minimum cannot shrink. See the docblock — this is the floor F29' measured.
+        ...(direction === 'row' ? { flex: 1, minWidth: 0 } : { width: '100%' }),
         display: 'flex',
         alignItems: 'center',
         padding: `${spacing.sm}px ${spacing.md}px`,
@@ -165,6 +200,9 @@ export function RadioOption({ label, selected, onSelect, direction = 'row', test
           flexShrink: 1,
           // Without this, `flexShrink` is inert — see the docblock. F29.
           minWidth: 0,
+          // ...and without THIS, an unbreakable word paints outside the shrunken box instead of
+          // wrapping inside it. The phone's `Text` breaks it; `overflow-wrap` is how CSS does.
+          overflowWrap: 'break-word',
         }}
       >
         {label}
