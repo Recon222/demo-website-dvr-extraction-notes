@@ -21,8 +21,6 @@ export const T = {
   bg: colors.background,
   raised: colors.backgroundSecondary,
   border: colors.border,
-  // `border` at 50% — the same derivation the phone's GlassColors.dark.card.border makes.
-  borderSoft: 'rgba(28,78,132,0.5)',
   // text
   text: colors.text,
   textDim: '#cdd9e6',
@@ -40,6 +38,5 @@ export const T = {
   // status
   error: colors.error,
   // dimensions
-  radius: 12,
   rowH: 44,
 } as const

@@ -56,7 +56,10 @@ export const GLASS = {
     'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
   // border shorthands
   border: `1px solid ${colors.border}`,
-  // `colors.border` at 50% (A7/A30) — kept as a literal because CSS has no alpha-on-hex.
+  // `colors.border` at 50% (A7/A30), hand-written for one more wave: plan U1.1 DERIVES this
+  // token (with `gradientCard`, `gradientPanel` and `borderAccent`) from `GLASS_TIER.dark.card`
+  // so the ~40 existing importers keep working. Do not hand-derive it here in the meantime —
+  // `withAlpha` emits the SPACED `rgba()` form and this string is pinned byte-exactly.
   borderSoft: '1px solid rgba(28,78,132,0.5)',
   borderBtn: `1px solid ${colors.borderLight}`,
   borderAccent: '1px solid rgba(43,140,193,0.3)',
