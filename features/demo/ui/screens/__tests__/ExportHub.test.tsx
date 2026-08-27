@@ -163,7 +163,7 @@ describe('ExportHub — tri-state case checkbox', () => {
     renderHub({ cases: [cardEmpty] })
     expect(caseCheckbox('PR25-C')).toBeDisabled()
     fireEvent.click(caseHeader('PR25-C'))
-    expect(screen.getByText('No locations — nothing exportable')).toBeInTheDocument()
+    expect(screen.getByText('No locations, nothing exportable')).toBeInTheDocument() // phone ExportCaseCard.tsx:218, verbatim
   })
 
   it('reports location toggles with both ids', () => {

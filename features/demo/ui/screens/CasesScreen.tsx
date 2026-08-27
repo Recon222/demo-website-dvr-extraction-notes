@@ -208,7 +208,12 @@ function CaseRow({
               />
             ))
           ) : (
-            <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
+            // The IN-CARD empty LINE, not A80's screen-level `EmptyState`. Phone
+            // `case-management/components/CaseCard.tsx:274-278`: `fontSize.base` (16),
+            // `colors.textSecondary`, and it KEEPS `fontStyle: 'italic'` at `dd5551ec`.
+            // The padding is the demo's own — the phone's style carries none, and an
+            // Import / Add Location row sits 6px below this. See controls/EmptyState.tsx.
+            <div style={{ fontSize: 16, color: colors.textSecondary, fontStyle: 'italic', padding: '6px 0 14px' }}>No locations yet</div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
             <button type="button" onClick={() => onImport(c.id)} style={{ flex: 1, textAlign: 'center', padding: 10, ...glassBtnSecondary, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import</button>

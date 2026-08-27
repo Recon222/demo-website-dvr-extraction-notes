@@ -187,7 +187,9 @@ function TimelineCase({ card, index, isLast, onOpenLocation, onCaseActions }: Ti
             )}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: '#7a9fc4', fontStyle: 'italic' }}>No locations yet</div>
+          // In-card empty line, phone `DashboardCaseCard.tsx:333-337`: `fontSize.sm` (14),
+          // `colors.textTertiary`, italic KEPT. NOT A80's `EmptyState` — see that module.
+          <div style={{ fontSize: 14, color: colors.textTertiary, fontStyle: 'italic' }}>No locations yet</div>
         )}
 
         {/* The expanded list shows EVERY location, including the one already on a pill —
