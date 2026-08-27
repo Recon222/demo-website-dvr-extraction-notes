@@ -161,22 +161,22 @@ export function ExportHub({
         <div style={emptyArea}>No cases to export</div>
       ) : (
         <div style={listArea}>
-          {footer && (
-            // The armed case echoed at the top of the list (phone :203-209): quiet mono that
-            // mirrors the footer's promise while the visitor scrolls away from it.
-            <div style={{ textAlign: 'right', paddingBottom: 8 }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-jbmono),'JetBrains Mono',monospace",
-                  fontSize: 11,
-                  letterSpacing: 0.6,
-                  color: '#7a9fc4',
-                }}
-              >
-                {footer.caseNumber}
-              </span>
-            </div>
-          )}
+          {/*
+           * THE ARMED-CASE ECHO ROW LIVED HERE until U6.3 (D16). It was a right-aligned jbmono
+           * line — `fontSize:11, letterSpacing:0.6, color:'#7a9fc4'` — repeating the footer's
+           * case number above the list, and its comment cited phone `ExportHub.tsx:203-209`.
+           *
+           * The citation was ALREADY STALE when it was written and is stale twice over now:
+           * PR #125 `16d8c67c` deleted the row from the phone by owner ruling, and at `dd5551ec`
+           * `:203-209` is a block of `Reanimated.FlatList` props (`onEndReachedThreshold`,
+           * `onScroll`, `scrollEventThrottle`, `ListHeaderComponent`) — not a rendered surface at
+           * all. The phone's list area between `:178` and `:196` is the stale-data Banner and
+           * nothing else.
+           *
+           * So the footer is the ONLY place the armed case is named, which is also what makes it
+           * "the export truth" in `ExportCaseCard`'s lit-follows-open note: one statement of what
+           * is armed, in the one place that also carries the CTA that acts on it.
+           */}
           {cases.map((card) => (
             <ExportCaseCard
               key={card.id}

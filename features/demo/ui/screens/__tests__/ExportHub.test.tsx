@@ -220,8 +220,33 @@ describe('ExportHub — pre-flight footer', () => {
     expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toBeInTheDocument()
     expect(screen.getByText('1 of 2 locations selected')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export 1 Location' })).toBeInTheDocument()
-    // The armed case is named in the footer AND echoed above the list.
-    expect(screen.getAllByText('PR25-A').length).toBeGreaterThanOrEqual(2)
+  })
+
+  /**
+   * D16 — PR #125 `16d8c67c` deleted the armed-case echo row on the phone by owner ruling, and
+   * the demo's copy of it cited phone `:203-209`, which at `dd5551ec` is a block of FlatList
+   * props rather than a rendered surface.
+   *
+   * The assertion this replaces was `getAllByText('PR25-A').length >= 2` under the comment "the
+   * armed case is named in the footer AND echoed above the list". It could not observe the echo
+   * row: the CASE CARD's header renders the same string, so `>= 2` was satisfied by header +
+   * footer alone and stayed green with the echo row deleted (measured — exit 0). Counting is
+   * only a pin here if it counts EXACTLY, and says which node is which.
+   */
+  it('names the armed case ONCE outside the footer — the echo row is gone (D16)', () => {
+    const selection = selectionOf('c1', ['l1'])
+    renderHub({ selection, footer: footerFor(cardA, selection) })
+    const footer = document.querySelector('[data-export-footer]') as HTMLElement
+
+    // Three before D16 (card header + echo + footer), two after.
+    const named = screen.getAllByText('PR25-A')
+    expect(named).toHaveLength(2)
+    expect(named.filter((el) => footer.contains(el))).toHaveLength(1)
+
+    // The one outside the footer is the accordion header itself, not a second quiet mono line.
+    const outside = named.filter((el) => !footer.contains(el))
+    expect(outside).toHaveLength(1)
+    expect(outside[0].closest('button')).toBe(caseHeader('PR25-A'))
   })
 
   it('renders the engine plan verbatim for a full case', () => {
