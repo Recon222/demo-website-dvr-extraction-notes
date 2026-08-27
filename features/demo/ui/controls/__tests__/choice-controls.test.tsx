@@ -174,16 +174,28 @@ describe('CheckboxBox (A75)', () => {
 describe('no hand-rolled copy of either control survives', () => {
   const UI_ROOT = join(process.cwd(), 'features', 'demo', 'ui')
 
-  /** Controls the phone ALSO hand-rolls, so importing the shared recipe would be wrong. */
-  const EXEMPT: ReadonlyMap<string, string> = new Map([
+  /** The two roles this module owns, and the component each one must render. */
+  const CONTROLS = { radio: 'RadioOption', checkbox: 'CheckboxBox' } as const
+  type Role = keyof typeof CONTROLS
+
+  /**
+   * Controls the phone ALSO hand-rolls, so importing the shared recipe would be wrong.
+   *
+   * KEYED BY `<role>:<path>`, not by path (W2 review F32). Both entries are CHECKBOX rulings,
+   * and a file-keyed exemption silently excused those files from the RADIO scan too: the review
+   * planted a hand-rolled radio in `DvrInfoScreen.tsx` and the whole suite stayed green
+   * (290 files / 3,881), while the identical block in a non-exempt file was caught. An
+   * exemption may only excuse the control it was argued for.
+   */
+  const EXEMPT: ReadonlyMap<`${Role}:${string}`, string> = new Map([
     [
-      'screens/export/ExportLocationRow.tsx',
+      'checkbox:screens/export/ExportLocationRow.tsx',
       // 22px circle, 2px ring — the phone hand-rolls it too (`ExportLocationRow.tsx:121-136`)
       // rather than using its shared `Checkbox`. A row mark, not a checkbox.
       'circular row indicator, hand-rolled on the phone as well',
     ],
     [
-      'screens/DvrInfoScreen.tsx',
+      'checkbox:screens/DvrInfoScreen.tsx',
       // A 16px box inside a 2-up pill. The phone uses two stacked shared `Checkbox` rows
       // (`app/(form)/dvr-information.tsx:318-329`), so porting it is a LAYOUT change, not a
       // recipe adoption — and `DvrInfoScreen.tsx` is U6.4b's file (matrix B.5 row 41), open
@@ -220,44 +232,54 @@ describe('no hand-rolled copy of either control survives', () => {
    * while `CheckboxBox` paints an `aria-hidden` box beneath it. "Declares the role, therefore
    * renders the component" is the predicate that holds for both.
    */
-  function offenders(role: string, component: string): string[] {
+  /** Would this file be reported for this role, exemptions aside? The one predicate. */
+  function reported(role: Role, text: string): boolean {
+    return text.includes(`role="${role}"`) && !text.includes(`<${CONTROLS[role]}`)
+  }
+
+  function offenders(role: Role): string[] {
     const found: string[] = []
     for (const file of sourceFiles(UI_ROOT)) {
       const rel = relative(UI_ROOT, file).split(sep).join('/')
-      if (rel === 'controls/choice-controls.tsx' || EXEMPT.has(rel)) continue
-      const text = readFileSync(file, 'utf8')
-      if (text.includes(`role="${role}"`) && !text.includes(`<${component}`)) found.push(rel)
+      if (rel === 'controls/choice-controls.tsx' || EXEMPT.has(`${role}:${rel}`)) continue
+      if (reported(role, readFileSync(file, 'utf8'))) found.push(rel)
     }
     return found
   }
 
   it('every radio site renders `RadioOption`', () => {
     expect(
-      offenders('radio', 'RadioOption'),
+      offenders('radio'),
       'import RadioOption from ui/controls/choice-controls instead of re-inlining the ring',
     ).toEqual([])
   })
 
   it('every checkbox site renders `CheckboxBox`', () => {
     expect(
-      offenders('checkbox', 'CheckboxBox'),
+      offenders('checkbox'),
       'import CheckboxBox from ui/controls/choice-controls instead of re-inlining the box',
     ).toEqual([])
   })
 
   /**
-   * The exemption list is itself pinned: an exemption for a file that no longer declares the
-   * role is a dead entry, and a dead entry is how an exemption list quietly becomes a licence.
+   * The exemption list is itself pinned, and the predicate is **"would this file be reported
+   * were the entry removed?"** — not "does the file still declare the role" (W2 review F32).
+   *
+   * The old question could never go false through an ADOPTION: `ExportCaseCard` keeps
+   * `role="checkbox"` on its pressable while `CheckboxBox` paints beneath it, by design, so a
+   * file that adopts the recipe still declares the role and its exemption would outlive its
+   * reason permanently. Deferral ledger §100's close condition depends on this test firing, so
+   * the predicate has to be the one that actually fires.
    */
   it('carries no dead exemptions', () => {
     // `Array.from`, not a spread: tsconfig targets es5 and spreading a Map iterator there needs
     // `--downlevelIteration` (the same trap `tokens/scale.ts:97-99` records). Vitest transpiles
     // it happily; `tsc` does not.
-    const dead = Array.from(EXEMPT.keys()).filter((rel) => {
-      const text = readFileSync(join(UI_ROOT, ...rel.split('/')), 'utf8')
-      return !text.includes('role="radio"') && !text.includes('role="checkbox"')
+    const dead = Array.from(EXEMPT.keys()).filter((key) => {
+      const [role, rel] = [key.slice(0, key.indexOf(':')) as Role, key.slice(key.indexOf(':') + 1)]
+      return !reported(role, readFileSync(join(UI_ROOT, ...rel.split('/')), 'utf8'))
     })
-    expect(dead, 'this file no longer declares the role — drop its exemption').toEqual([])
+    expect(dead, 'this entry excuses nothing — the file would not be reported. Drop it.').toEqual([])
   })
 })
 
