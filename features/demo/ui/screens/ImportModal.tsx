@@ -134,7 +134,12 @@ export function deriveTerminalOutcome(result: ImportResult | null): TerminalOutc
 const secondaryBtn: CSSProperties = { ...buttonStyle({ variant: 'secondary' }) }
 const primaryBtn: CSSProperties = { ...buttonStyle() }
 
-const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
+// A94/D13, the one violation the mono policy's scan found: this face was Share Tech Mono, the
+// SCANNER/terminal role. The block it paints is a raw failure payload — evidence, not chrome —
+// and the phone agrees at the exact counterpart: `ImportFlowModal.tsx:674`,
+// `detailsText: { fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.mono }`,
+// the evidentiary role, NOT `scannerMono`. Pinned by `ui/__tests__/fonts.test.ts`'s mono policy.
+const mono = "var(--font-jbmono),'JetBrains Mono',monospace"
 
 /**
  * Collapsible raw-failure context — the phone's "Technical Details" block
@@ -161,7 +166,7 @@ function TechnicalDetails({ details }: { details: ImportErrorDetails }) {
         <pre
           id="import-technical-details"
           data-testid="import-technical-details"
-          style={{ margin: '8px 0 0', padding: '8px 10px', borderRadius: 8, background: '#0a1626', border: GLASS.borderSoft, fontFamily: stmono, fontSize: 11, lineHeight: '16px', color: '#8aa3bd', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+          style={{ margin: '8px 0 0', padding: '8px 10px', borderRadius: 8, background: '#0a1626', border: GLASS.borderSoft, fontFamily: mono, fontSize: 11, lineHeight: '16px', color: '#8aa3bd', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
         >
           {JSON.stringify(details, null, 2)}
         </pre>
