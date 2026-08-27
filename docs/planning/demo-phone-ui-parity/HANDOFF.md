@@ -5,7 +5,7 @@ last-full-plan-read: 152487a
 
 **Purpose:** everything a fresh orchestrator instance needs to pick up EXACTLY where the previous one left off. Updated at every milestone — trust the newest "Current state" snapshot over any conversation summary.
 
-**Last updated:** 2026-08-27 — milestone: ***BUILD STARTED — WAVE 0 / U0 IN FLIGHT.*** Phase branch `feat/uiparity-u0` cut off `master` @ `bf0020a` (pushed). Implementer A (`opus-implementer`, unnamed) on `uiparity/u0.foundation` in worktree `worktrees/u0-foundation`: **U0.0 → U0.1 → U0.2 → U0.3 sequentially** (S packages ride the warm tree per fleet §2). Next: when A reports, spawn TWO `opus-implementer-max` seats in their own worktrees off A's head — **U0.4** (guard repair + first anchor stage; deps U0.1+U0.3) ∥ **U0.5** (contrast test + banned-literal allow-list; deps U0.1+U0.2) — then assemble `feat/uiparity-u0`, cold gates, review cycle (`docs/code-reviews/ui-parity/u0/`), PR → master. Planning is CLOSED (bundle merged `152487a`; trail in `plan-review/`).
+**Last updated:** 2026-08-27 — milestone: ***W0/U0: U0.0–U0.3 LANDED (`uiparity/u0.foundation` @ `7c6b931`, merged --no-ff into `feat/uiparity-u0`): 3,502 tests green (from red 3,480/3,481), cold tsc + build green, 107 kB held, 12 probes KILLED, 9 refutations recorded in its report. U0.4 (guard, `uiparity/u0.guard`, worktree `u0-guard`) ∥ U0.5 (contrast + allow-list, `uiparity/u0.contrast`, worktree `u0-contrast`) IN FLIGHT, both `opus-implementer-max` off `7c6b931`. Verification seat capturing BEFORE shots on master. Next: merge both into `feat/uiparity-u0` (fixed order U0.4 then U0.5; integrator if not clean in one pass), cold gates at the merged head, AFTER captures, W0 review cycle (`docs/code-reviews/ui-parity/w0/`), PR → master, then W1.*** Orchestrator rulings this phase: Playwright captures run at ASSEMBLY (verification seat), not per package; the two camera-screen ground sites (`MediaCaptureScreen:444`, `OcrCaptureScreen:494`) STAY ported — D17 freezes the camera CHROME palette, not the screen ground (flag for the review lanes).
 
 ## 1. Mission & role
 
@@ -77,7 +77,9 @@ You are the ORCHESTRATOR: you brief agents, merge branches, run reviews, keep do
 | Kit-integration (dt kit → this repo: personas, hooks, git-guard, GATES.md, CLAUDE.md pointer) — on `master` in the main checkout | agentId `aab4aa3d664ebec47` | Opus | in flight |
 | **PARTNER — hard problems only** (`dt-partner`, WARM; resume by id) | agentId `ae623de02de846e92` | **Fable** | in flight on its one legwork task (baseline gates, Colors.ts scheme-key parity, harness check) — after that, hard questions only |
 | **PARTNER — legwork** (`dt-partner-opus`, WARM for the whole build; resume by id) | agentId `aa1ddb75b9ac90195` | Opus | warm; probed U0.1/U0.5 premises (one refuted, one confirmed) |
-| **U0 implementer A** (`opus-implementer`; U0.0→U0.3; worktree `worktrees/u0-foundation`, branch `uiparity/u0.foundation`) | agentId `ae5f52b4da850cd08` | Opus xhigh | in flight |
+| **U0 implementer A** (`opus-implementer`; U0.0→U0.3; worktree `worktrees/u0-foundation`, branch `uiparity/u0.foundation`) | agentId `ae5f52b4da850cd08` | Opus xhigh | done (~351k tokens); WARM for W0 fix rounds on its packages |
+| **U0.4 implementer** (`opus-implementer-max`; worktree `worktrees/u0-guard`, branch `uiparity/u0.guard`) | agentId `adff9eb9a7670742f` | Opus max | in flight |
+| **U0.5 implementer** (`opus-implementer-max`; worktree `worktrees/u0-contrast`, branch `uiparity/u0.contrast`) | agentId `aaa5c5ea7ea00825b` | Opus max | in flight |
 | Demo UI inventory | `recon-demo-ui` | Opus | done (resumable for §3 line-range re-checks) |
 
 ## 7. Next-step queue
