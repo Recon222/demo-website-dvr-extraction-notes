@@ -182,11 +182,16 @@ export type CheckboxChecked = boolean | 'mixed'
  * The glyphs are LITERAL CHARACTERS, not an SVG path — phone `Checkbox.tsx:75-85`.
  * `−` is U+2212 MINUS SIGN (not a hyphen) and `✓` is U+2713 CHECK MARK.
  */
-const GLYPH: Record<'true' | 'false' | 'mixed', ReactNode> = {
+const GLYPH = {
   true: '✓',
   mixed: '−',
   false: null,
-}
+  // The wave's own template-literal idiom (`tokens/status.ts:121-123`), and NOT a hand-written
+  // `'true' | 'false' | 'mixed'` union with an `as` cast at the lookup (W2 review F44): the cast
+  // made the table's keys independent of `CheckboxChecked`, so widening the union would compile
+  // and render a silent `undefined` glyph. `satisfies` ties them together — add a member and
+  // this line stops compiling.
+} as const satisfies Record<`${CheckboxChecked}`, ReactNode>
 
 /**
  * The 24x24 box — phone `Checkbox.tsx:57-86` + `:109-128`.
@@ -228,7 +233,7 @@ export function CheckboxBox({ checked }: { checked: CheckboxChecked }) {
   }
   return (
     <span aria-hidden data-checkbox-box style={style}>
-      {GLYPH[String(checked) as keyof typeof GLYPH]}
+      {GLYPH[`${checked}`]}
     </span>
   )
 }
