@@ -192,4 +192,205 @@ Per the hazard playbook I do not write `docs/code-reviews/deferred.md`; I propos
 
 ---
 
+---
+
+# § master carry (W1)
+
+**Merge commit:** `48eaae3` — `origin/master` @ `43ccbad` into `feat/uiparity-u2` @ `e11d3a4`
+**Merge base:** `28e7993` · **Seat:** `dt-integrator` (Opus 5, xhigh)
+
+`master` now carries W1 and its fix rounds (F14–F25): the lit-edge longhand fragments, the
+`vitest.setup.ts` conflicting-property tripwire, F24's `SCHEME_DECLARERS` deletion, and the four
+root-cause repairs in `7fc126b`.
+
+**Four conflicts, one hunk each — and one RED that only the merged tree could produce.**
+
+## w.1 Three conflicts, one reason: U2.1's seam subsumes W1's fix
+
+`screens/_shared.tsx` (Field's error border) · `inputs/IncidentLocationFields.tsx` ·
+`screens/NewCaseModal.tsx`
+
+W1 repaired each of the three by hand — re-declare the whole `border` **shorthand** in both
+branches so React rewrites in place instead of removing a longhand the base never reasserts:
+
+```ts
+// Whole shorthand, not a longhand over the base's `border` — see `_shared.tsx`'s Field.
+style={error ? { ...coordInput, border: '1px solid #ff4757' } : coordInput}
+```
+
+U2.1 had already applied the **identical remedy structurally**. `fieldInputStyle()` returns one
+object that always carries a single `border` shorthand, and `tokens/field-input.ts` says why in as
+many words:
+
+> *"A `borderColor` longhand would be erased by any later `border` shorthand (§4.3); one shorthand
+> written once cannot be."*
+
+There is no conditional key left to clobber — the stronger form of the same fix, applied once at a
+seam instead of three times at copies. **W1's hunks are moot, and taking them would not compile:**
+`coordInput` and `fieldInput` were deleted by U2.1 and have no definition left in any of the three
+files. Verified by grep after resolution — zero references remain.
+
+One transcription difference, recorded rather than smoothed over: W1's hand-fix painted
+`1px solid #ff4757`; U2.1's seam paints **2px** on error, transcribed from the phone's
+`styles.inputError` `borderWidth: 2` (`TextInput.tsx:174`). Same colour (`palette.dark.error` *is*
+`#ff4757`), phone-correct width, seam-owner's call.
+
+## w.2 The fourth conflict — a true union in `rn-token-parity.test.ts`
+
+The same file as `§ master carry (W0 r2)`, one round later, and the two halves come from opposite
+directions:
+
+- **F11's relocation stands** (master side): the palette membership pin lives in the **ungated**
+  `local invariants` describe. The U2 side still had it inline in the `skipIf` case, so that copy
+  is dropped — keeping both would have been a doubled assertion. Verified: exactly one
+  `'the guard must anchor exactly the palette tokens'` in the file.
+- **U2.2's arithmetic stands** (this branch): there are **five** non-key anchors, not three,
+  because U2.2 anchored the LIGHT CTA pair as its closing act. The derived count is
+  `PALETTE_KEYS.length * 2 + TIER_ANCHOR_KEYS.length * 2 + 5` = **117**, and the comment now says
+  five rather than three.
+
+F24's `SCHEME_DECLARERS` deletion stands — zero references in the guard or its test.
+
+## w.3 The RED — green on both parents, red merged
+
+```
+FAIL features/demo/ui/__tests__/glass-tokens.test.ts
+  > no production module hard-codes a scheme half (plan §9 clause 12)
+AssertionError: expected [ 'controls/button-recipe.ts' ] to deeply equal []
+```
+
+This is the widening interaction the playbook warns about, in its textbook form. **F24 emptied
+that scan's skip set** — *"An EMPTY skip set: nothing is exempt"* — on a tree where no production
+module declared both scheme halves. **U2.2 then wrote the first one that does**, and the two
+branches never met until now. The scan does not exist at all on the U2 side (`git show HEAD:` has
+no such case), so neither seat could have seen it.
+
+The offender:
+
+```ts
+export const DangerFill = {
+  light: palette.light.errorDark,
+  dark: palette.dark.errorLight,
+} as const                                    // button-recipe.ts:99-102, consumed as DangerFill[scheme]
+```
+
+**That record is not a clause-12 violation — it is the shape clause 12 wants.** Flip `scheme` in
+`palette.ts` and it follows, exactly like its two siblings in the same file. It trips the regex
+only because its values are *read from* `palette.<half>` where `PrimaryButtonGradient` and
+`ElevatedEdges` hold literals and escape **by luck, not by rigour**. And the constant has to name
+both halves: the `*Light`/`*Dark` names **invert** between schemes (the deep red is `errorDark` in
+light and `errorLight` in dark), which is the whole reason U2.2 wrote a lookup instead of two
+literals.
+
+So this is a **scan false positive**, not a code defect. Fixed in the scan, following the
+precedent its own docblock already sets for `typeof` (*"a TYPE position is the opposite of a
+violation"*):
+
+```ts
+const src = stripComments(readFileSync(full, 'utf8'))
+  .split(/\r?\n/)
+  .filter((line) => !/^\s*(?:light|dark)\s*:/.test(line))
+  .join('\n')
+```
+
+A `light:` / `dark:` **record arm** is skipped — **the arm, never the file.** A record built this
+way is inert until something *reads* a half, and `X.dark` is a member access on its own line,
+which is still an offender. Probes G3 / NEW-a below prove exactly that.
+
+What I did **not** do: re-add F24's skip set (that reverts a review fix), or rewrite `DangerFill`
+to dodge a regex (that obfuscates a correct, well-documented constant to satisfy a scan bug).
+**This is a merge-time ruling and the lanes may overturn it** — §w.6.
+
+*Process note:* the first attempt at this edit shipped a real newline into the source where `\n`
+was intended, because the escape collapsed through the shell→Python layering. Repaired by building
+the literal from `chr(92)` and asserting the **replacement** landed byte-correct, not just that
+the search hit — the rule the U0 foundation report asked to carry forward, earning its keep.
+
+## w.4 Read past the markers
+
+Five further files were touched by both sides and auto-merged. Checked: no duplicate export in
+`glass-tokens.ts`, no duplicate const in `glass-tokens.test.ts` or `check-rn-parity.mjs`, and
+**W1's fourth root-cause fix survived intact** — `CompletionScreen.tsx:73` still carries the single
+`padding: '60px 16px 16px'` shorthand rather than `padding: 16` plus a `paddingTop: 60` longhand.
+
+## w.5 Probes — 7 run, 6 KILLED, 1 SURVIVED
+
+Fix committed first (`48eaae3`); probes in `worktrees/probe-u2-w1` at `48eaae3`, `node_modules`
+junctioned from `u2-phase`, junction removed with `cmd /c rmdir` **before** `git worktree remove`
+(33 entries before and after). Every mutation asserted its own pattern matched and that the file
+changed; all five mutated files restored **byte-identically**.
+
+| Probe | Origin | Mutation | Exit | Evidence |
+|-------|--------|----------|------|----------|
+| **G3** | W1 / F24 | a hard-coded half **consumed**: `ElevatedEdges[scheme]` → `ElevatedEdges.dark` | **1 · KILLED** | `expected [ 'controls/button-recipe.ts' ] to deeply equal []` |
+| **G3b** | W1 / F24 | the U2.1 seam reads one half: `palette[scheme]` → `palette.dark` | **1 · KILLED** | `expected [ 'tokens/field-input.ts' ]` |
+| **F24-D1** | W1 / F24 | a hard-coded half inside `tokens/palette.ts` itself | **1 · KILLED** | `expected [ 'tokens/palette.ts' ]` — the exemption really is gone |
+| **NEW-a** | **integrator** | a half written as a record arm **and then consumed** (`_p.dark`) | **1 · KILLED** | `expected [ 'controls/button-recipe.ts' ]` — the arm skip does not cover the read |
+| **NEW-b** | **integrator** | an arm-style record never consumed | **1 · KILLED** | reds too: a **single-line** record is not an arm line, so the skip never applies to it |
+| **U2.1** | U2.1 | the field-input seam severed at `Field` | **1 · KILLED** | `7 failed` — `expected '10px' to be '8px'`, `expected '' to be 'none'` |
+| **W1** | W1 / `7fc126b` | the Field error border put **back** to a longhand over the base | **0 · SURVIVED** | 1036 passed — see §w.6 |
+
+The arm-skip's true boundary, stated precisely rather than claimed away: it applies only to a
+**multi-line** `light:` / `dark:` arm whose value is never read as a half elsewhere — i.e.
+`DangerFill`'s exact shape, which is inert by construction. NEW-a and NEW-b together bracket it.
+
+## w.6 Findings
+
+### I-7 — [MEDIUM] W1's Field-error fix has no effective coverage; the tripwire cannot see it
+
+Probe **W1** is the important one, and it answers the question this merge was asked to settle.
+Putting the defect back into `fieldInputStyle` — error branch declares `borderColor`, non-error
+branch declares `border`, the exact split W1 repaired — leaves the screens and inputs suites
+**entirely green: 1036 passed, exit 0.**
+
+`vitest.setup.ts:41-48` states its own claim plainly:
+
+> *"IT IS THE SOLE GUARD FOR FOUR PRODUCTION FIXES … got NO dedicated regression pins. Their
+> coverage is transitive: the existing consumer suites already drive [them]."*
+
+**For the `Field` error border that claim is false.** The tripwire only fires when React *updates*
+a style property during rerender while a conflicting property is set — which requires a test that
+mounts a `Field` and then **toggles `error` on the mounted tree**. No suite does: nothing in the
+repo asserts on `conflictingStyleWarnings`, and the defect survives every rerender the suites do
+perform. The guard is real and correct; it simply never gets driven through this path.
+
+The merged code is **not** affected — `fieldInputStyle` always emits one `border` shorthand, so the
+defect is unreachable today. The finding is about the *guard*, and it matters because U2.1's seam
+is now the single place all five inputs resolve through: if a later package reintroduces a
+longhand there, nothing reds. **Proposed ledger row in §w.7.**
+
+### I-8 — [INFO] Two of the three scheme-keyed records escape the clause-12 scan by luck
+
+`PrimaryButtonGradient` and `ElevatedEdges` pass only because their values are literals; the moment
+either is re-pointed at `palette.<half>` — which is exactly what a future re-tokenisation would do
+— it becomes an offender for the same non-reason `DangerFill` did. The §w.3 arm skip covers all
+three uniformly, which is why it was fixed as a class rather than as one file.
+
+## w.7 Proposed deferral-ledger row — for `dt-review-aggregator`
+
+**Proposed §N — the conflicting-property tripwire never drives the `Field` error path (I-7)**
+- **Source:** W2 integration `48eaae3`, probe **W1** (SURVIVED, 1036 passed); `vitest.setup.ts:41-48`.
+- **What:** the tripwire is declared the sole guard for four production fixes whose coverage is
+  "transitive". For `_shared.tsx`'s `Field` error border it is not: reintroducing the
+  longhand/shorthand split in `fieldInputStyle` leaves the screens and inputs suites fully green,
+  because no test toggles `error` on a mounted `Field` and nothing asserts on
+  `conflictingStyleWarnings`.
+- **Why deferred:** the fix is one small test — render a `Field`, rerender with `error` set and
+  then cleared, assert `conflictingStyleWarnings` is empty and the border is present — but it
+  belongs in the `field-input-recipe` suite, which is U2.1's, and U6.1 owns `Field`'s block. The
+  right owner should write it rather than the integrator bolting it on at merge time.
+- **Trigger:** **U6.1**, which opens `Field`'s block — or, sooner, any package that edits
+  `fieldInputStyle`'s border precedence.
+
+## w.8 Gates — cold cache at `48eaae3`
+
+`tsconfig.tsbuildinfo`, `.next/`, `node_modules/.vite`, `node_modules/.cache` deleted first.
+
+| Gate | Exit | Result |
+|------|------|--------|
+| `pnpm exec tsc --noEmit --incremental false` | **0** | — |
+| `pnpm test --silent` | **0** | 277 files · **3634 passed \| 8 todo (3642)** |
+| `node .design-sync/check-rn-parity.mjs` | **0** | **117/117** anchor rows |
+| `pnpm build` | **0** | **`/demo` First Load 107 kB** ✓ |
+
 *Integrator: `dt-integrator` (Opus 5, xhigh). Gates quoted from a cold cache at `e11d3a4`.*
