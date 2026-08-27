@@ -21,9 +21,30 @@ import { spacing } from '@/features/demo/ui/tokens/scale'
 
 // ---- Text -------------------------------------------------------------------
 
-/** The pane's opening paragraph (phone `styles.description`). */
+/**
+ * The pane's opening paragraph — phone `styles.description`
+ * (`MediaCaptureSettingsSection.tsx:383-387`, byte-identical in `LocationSettingsSection`,
+ * `TimeSyncSettingsSection` and `SecuritySettingsSection`):
+ *
+ *   fontSize   `Typography.fontSize.sm`   14   (was 13)
+ *   lineHeight `fontSize.base * lineHeight.relaxed` = 16 x 1.75 = **28**, an absolute value
+ *   colour     `colors.textSecondary`     (was the same hex, spelled)
+ *
+ * `lineHeight` is spelled as a `px` PRODUCT, not a unitless ratio, for `Banner.tsx:140-143`'s
+ * reason: RN takes points, and 28 is derived from `fontSize.base` rather than from this
+ * paragraph's own 14 — a unitless 2.0 would silently re-derive if the size ever moved.
+ *
+ * The bottom margin is the phone's TWO gaps summed. `description.marginBottom` is
+ * `Layout.spacing.sm` (8) and the section container adds `gap: Layout.spacing.lg` (24)
+ * between every child (`:380-382`); RN adds a container gap to a child's margin exactly as
+ * CSS does, so the description-to-first-group distance on the phone is **32**. The demo has no
+ * shared pane container to hang the 24 on — each pane is a hand-written `<div>` — so the sum
+ * lives here and `PaneGroup` carries the 24 as its own `marginBottom`.
+ */
 export function PaneDescription({ children }: { children: ReactNode }) {
-  return <p style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.55, color: '#99badd' }}>{children}</p>
+  return (
+    <p style={{ margin: '0 0 32px', fontSize: 14, lineHeight: '28px', color: colors.textSecondary }}>{children}</p>
+  )
 }
 
 /**
@@ -40,6 +61,35 @@ export function PaneDescription({ children }: { children: ReactNode }) {
  * by its current value then tells a screen-reader user *what is selected* but not *what for*;
  * naming the surrounding group restores that without printing the label twice or touching a
  * shared input eight other screens depend on.
+ *
+ * ## The recipe (A78's sibling — phone `MediaCaptureSettingsSection.tsx:388-408`)
+ *
+ * ```
+ * settingGroup   gap Layout.spacing.xs (4)                     was: margins, per child
+ * settingHeader  row · space-between · center                  was: the same, plus a gap: 10
+ * settingLabel   fontSize.base 16 / semibold / colors.text     was: 15 / 600 / the hex
+ * settingValue   fontSize.base 16 / bold / colors.primary      was: 15 / 700 / the hex
+ * settingHelp    fontSize.sm 14 / lineHeight 14x1.5 = 21 /
+ *                colors.textSecondary / marginBottom xs (4)    was: 12.5 / 1.45 / textTertiary
+ * ```
+ *
+ * Three of those are more than a number:
+ *
+ * - **The help line moves off `textTertiary` onto `textSecondary`** (`:170`, `:196`, … — every
+ *   `settingHelp` in the file). `textTertiary` carries the documented M2(b) ceiling (4.23:1 on
+ *   `card`) and D5's rider says do not ADD text to it; this REMOVES eight lines from it.
+ * - **The header row loses its `gap: 10`.** The phone's `settingHeader` has none (`:391-395`) —
+ *   `space-between` on two items is the whole layout. A demo-only gap changes where the value
+ *   sits the moment a label wraps.
+ * - **`gap` replaces the per-child margins.** RN adds a container gap to a child's own margin
+ *   exactly as CSS does, which is how the phone gets 4 between the label row and the help, 8
+ *   between the help and the control (gap 4 + `settingHelp.marginBottom` 4), and 8 between the
+ *   control and a note (gap 4 + `styles.note.marginTop` 4). Spelling the same three distances
+ *   as three margins here would look identical and drift on the first insertion.
+ *
+ * `marginBottom` is the phone's CONTAINER gap (`:380-382`, `Layout.spacing.lg` = 24), carried
+ * here because the demo's panes are hand-written `<div>`s with no shared wrapper to hang it on.
+ * `PaneDescription`'s docblock carries the other half of that arithmetic.
  */
 export function PaneGroup({
   label,
@@ -53,12 +103,20 @@ export function PaneGroup({
   children?: ReactNode
 }) {
   return (
-    <div role="group" aria-label={label} style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#f0f4f8' }}>{label}</div>
-        {value !== undefined && <div style={{ fontSize: 15, fontWeight: 700, color: '#2B8CC1' }}>{value}</div>}
+    <div
+      role="group"
+      aria-label={label}
+      style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginBottom: spacing.lg }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: colors.text }}>{label}</div>
+        {value !== undefined && <div style={{ fontSize: 16, fontWeight: 700, color: colors.primary }}>{value}</div>}
       </div>
-      {help && <div style={{ fontSize: 12.5, lineHeight: 1.45, color: '#7a9fc4', margin: '4px 0 10px' }}>{help}</div>}
+      {help && (
+        <div style={{ fontSize: 14, lineHeight: '21px', color: colors.textSecondary, marginBottom: spacing.xs }}>
+          {help}
+        </div>
+      )}
       {children}
     </div>
   )
