@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { render } from '@testing-library/react'
 import {
   glassHeaderBar,
   glassWizardHeaderBar,
   glassHeaderFooterBar,
 } from '@/features/demo/ui/controls/header-chrome'
+import { WizardHeader } from '@/features/demo/ui/screens/_shared'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
 import { scheme } from '@/features/demo/ui/tokens/palette'
 
@@ -76,5 +78,26 @@ describe('the header tier recipe (A37 / U1.4)', () => {
     expect([bar.angle, footer.angle]).toEqual(['180deg', '0deg'])
     expect(glassHeaderFooterBar.borderTop).toBe(`1px solid ${header.border}`)
     expect(glassHeaderFooterBar.borderBottom).toBeUndefined()
+  })
+})
+
+/**
+ * The consumers. One recipe means every chrome bar in the demo reads it — so this asserts on
+ * RENDERED elements, not on the fragments, and it loops rather than picking one component. The
+ * phone's whole A37 finding was four bars that each looked *nearly* right on its own screen;
+ * the only assertion that catches that class is one that compares them to each other and to
+ * the tier.
+ *
+ * The plan's Tests column asks for "a pin that `WizardHeader` and `SettingsNavBar` render the
+ * same background". `SettingsNavBar` is NOT in this set — the phone's own
+ * `SettingsNavBar.tsx:43` reads `GlassColors[colorScheme ?? 'light'].elevated`, not `.header`,
+ * and the demo's `GLASS.gradientPanel` is that same tier's gradient since U1.1 (its R-8). The
+ * demo bar is already byte-exact; pinning it to the header tier would pin a divergence. See the
+ * U1.4 report's refutation R-2.
+ */
+describe('the header tier reaches the screen (A37 / U1.4)', () => {
+  it('WizardHeader paints the recipe, lit edge and all', () => {
+    const { container } = render(<WizardHeader title="Case Details" onBack={vi.fn()} onMenu={vi.fn()} />)
+    expect(container.firstElementChild).toHaveStyle(glassWizardHeaderBar)
   })
 })

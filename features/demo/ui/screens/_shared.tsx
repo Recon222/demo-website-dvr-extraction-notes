@@ -6,6 +6,7 @@ import type { PickerOption } from '@/features/demo/engine/content/form-options'
 import { Dropdown } from '@/features/demo/ui/inputs/Dropdown'
 import { DateTimeField as DateTimeFieldImpl } from '@/features/demo/ui/inputs/DateTimeField'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
+import { glassWizardHeaderBar } from '@/features/demo/ui/controls/header-chrome'
 import { GLASS, glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
@@ -391,11 +392,20 @@ export function ModalActions({
   )
 }
 
-/** Sticky wizard header — back arrow + title + hamburger (opens the wizard drawer). */
+/**
+ * Sticky wizard header — back arrow + title + hamburger (opens the wizard drawer).
+ *
+ * The bar is the `header` glass tier (A37 / U1.4). This is the demo's counterpart of the
+ * phone's `Header.tsx` glass variant, the ONE header-tier consumer there that also paints the
+ * tier's lit top edge — hence `glassWizardHeaderBar` rather than the plain bar. The `56px` top
+ * padding is the demo frame's own status-bar clearance and stays the demo's (A37 carries no
+ * geometry; the phone's `Layout.headerPadding.ios` is a notch inset with nothing here to match,
+ * the same finding D6 ratified for `TAB_BAR_HEIGHT`).
+ */
 export function WizardHeader({ title, onBack, onMenu }: { title: string; onBack(): void; onMenu(): void }) {
   const iconBtn: CSSProperties = { cursor: 'pointer', display: 'flex', padding: 4, background: 'transparent', border: 'none' }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 16, background: 'linear-gradient(180deg,#1b2e48,#15273b)', padding: '56px 12px 11px', borderBottom: GLASS.border }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 16, padding: '56px 12px 11px', ...glassWizardHeaderBar }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button type="button" aria-label="Back" onClick={onBack} style={iconBtn}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#99badd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
