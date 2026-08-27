@@ -46,15 +46,15 @@ describe('the design-sync bundle entry (D7 / U8.4)', () => {
     expect(pinned.length).toBeGreaterThan(30)
   })
 
-  it('resolves every pinned component from the GENERATED entry', async () => {
-    // One import, then one lookup per name — the entry is the single module the bundle is built
-    // from, so importing it once is what the bundler does too.
+  // Per-name rather than one collected list, because plan §5 U8.4 words the gate as "import
+  // each by its `componentSrcMap` key" and a per-case run PRINTS each key — the gate's output
+  // is then the evidence, not a summary of it. The module is imported once and cached.
+  it.each(pinned)('%s resolves from the GENERATED entry', async (name) => {
     const entry = (await import('@/.design-sync/ds-entry')) as unknown as Record<string, unknown>
-    const unreachable = pinned.filter((name) => typeof entry[name] !== 'function')
     expect(
-      unreachable,
-      `bundled-but-unreachable — run \`node .design-sync/gen-entry.mjs\` after editing componentSrcMap`,
-    ).toEqual([])
+      typeof entry[name],
+      `${name} is bundled-but-unreachable — run \`node .design-sync/gen-entry.mjs\` after editing componentSrcMap`,
+    ).toBe('function')
   })
 
   it('gives every pinned component a cardMode override', () => {
