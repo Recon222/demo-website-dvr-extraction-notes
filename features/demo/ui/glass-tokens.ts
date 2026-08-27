@@ -191,7 +191,11 @@ export const GLASS = {
  */
 export const glassCard = {
   borderRadius: radius.lg,
-  border: GLASS.borderSoft,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.card.border,
+  borderBottomColor: tier.card.border,
+  borderLeftColor: tier.card.border,
   borderTopColor: tier.card.highlightTop,
   background: GLASS.gradientCard,
   boxShadow: `inset 0 1px 0 ${tier.card.innerShadow}, ${GLASS.shadowCard}`,
@@ -231,7 +235,11 @@ export const glassCard = {
  */
 export const glassCardNested = {
   borderRadius: radius.lg,
-  border: `1px solid ${tier.nestedCard.border}`,
+  borderStyle: 'solid',
+  borderWidth: 1,
+  borderRightColor: tier.nestedCard.border,
+  borderBottomColor: tier.nestedCard.border,
+  borderLeftColor: tier.nestedCard.border,
   borderTopColor: tier.nestedCard.highlightTop,
   background: `linear-gradient(180deg,${tier.nestedCard.gradient[0]},${tier.nestedCard.gradient[1]})`,
   boxShadow: `inset 0 1px 0 ${tier.nestedCard.innerShadow}`,
