@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { colors, scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, palette, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -54,10 +54,18 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 // '#17527A']`. Kept as module CONSTS spelled as literals — the drift guard's anchors 7/8
 // read them with `readConst`, which matches literals, not identifier references.
 //
-// So the top stop is the SAME hex as `colors.primaryDark`, held twice. `= colors.primaryDark`
-// would blind the guard; `satisfies typeof colors.primaryDark` keeps the literal readable AND
-// makes the duplication a type-level identity, so re-basing the palette without re-basing the
-// stop stops compiling. Without it that mutation is green on any run where the phone repo is
+// So the top stop is the SAME hex as `palette.dark.primaryDark`, held twice.
+// `= palette.dark.primaryDark` would blind the guard; `satisfies` keeps the literal readable
+// AND makes the duplication a type-level identity, so re-basing the palette without re-basing
+// the stop stops compiling.
+//
+// `palette.dark.primaryDark`, NOT `colors.primaryDark` (W1/F15). `colors` is `palette[scheme]`,
+// so binding to it would bind a DARK-ONLY constant to the CONSUMED scheme and `scheme = 'light'`
+// — the one-site flip plan §9 clause 12 promises and this module's own docblock asserts —
+// became a hard TS1360 here. `ACCENT_FROM` is `PrimaryButtonGradient.dark`'s top stop by
+// definition and has no light sibling (ledger §90), so it is scheme-INDEPENDENT and must say
+// so. Verified both ways: the flip now compiles, and a one-sided `primaryDark` re-base still
+// fails to compile. Without it that mutation is green on any run where the phone repo is
 // absent (ledger §91) — and the AA claim at `palette-contrast.test.ts:307-317` measures
 // against `GLASS.accentFrom`, so it would move WITH the stale value. `ACCENT_TO` has no
 // palette sibling and stays plain.
@@ -66,7 +74,7 @@ import { radius } from '@/features/demo/ui/tokens/scale'
 // character INVERTS from the demo's old pair — light->mid becomes mid->dark. Do NOT lighten
 // either stop and do NOT re-tokenise the light pair to [primaryLight, primaryDark]: the old
 // dark recipe measured 2.94:1, and that light swap takes a passing 5.17 down to 3.68.
-const ACCENT_FROM = '#1F6B99' satisfies typeof colors.primaryDark
+const ACCENT_FROM = '#1F6B99' satisfies typeof palette.dark.primaryDark
 const ACCENT_TO = '#17527A'
 
 /**
