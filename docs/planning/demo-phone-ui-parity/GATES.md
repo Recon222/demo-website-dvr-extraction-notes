@@ -18,6 +18,9 @@ and delete the caches first — an incremental cache can return exit 0 over a br
 2. The ported `palette-contrast.test.ts` green — **both scheme halves** (D2 as amended: the
    token layer ships light and dark from U0 even though the demo consumes dark).
 3. `pnpm test --silent` → exit 0. Test count recorded in HANDOFF §5, and it may not fall.
+   **Baseline as of 2026-08-26 is RED: 3,480 passed / 1 failed** — the same drift guard as gate 1,
+   throwing at `.design-sync/check-rn-parity.mjs:75`. U0 must land this green; from U0 onward a
+   single failure is a BLOCK, not the baseline.
 4. `rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false` → exit 0.
 5. `pnpm build` → succeeds. A gate that never produces the shipped artifact can stay green over
    a project that cannot produce one; v1 hid an unbuildable app for two milestones this way.

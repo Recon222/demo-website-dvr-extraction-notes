@@ -114,10 +114,10 @@ verified against it. It lives here because the standalone `dt-mutation-tester` s
 probing became the job of whoever is already reading the code — which means **you**, if you hold Bash
 and are about to run a probe.
 
-## Probe worktrees are cheap here — cut one, never probe in place
+## Probe worktrees are cheap to CUT and need a script to REMOVE
 
-There are no junctions in this repo and there never should be. `pnpm` uses a content-addressed shared
-store, so a probe worktree installs in seconds rather than minutes:
+Cutting one is fast — `pnpm`'s content-addressed shared store makes the install seconds, not minutes
+(measured 2026-08-26: **9.6 s** for a full `pnpm install --prefer-offline` in a fresh worktree):
 
 ```bash
 git worktree add <scratch>/probe-<topic> -b probe/<topic> <head>
@@ -126,14 +126,53 @@ pnpm install --prefer-offline
 ```
 
 Scratch base: your session scratchpad, or `D:\Work Coding Projects\CCTV Recovery Notes App\worktrees\`
-(where this campaign's worktrees already live). Teardown is a plain `git worktree remove <path>` —
-nothing is linked, so nothing outside the worktree can be destroyed by it. **Do not create junctions
-to share `node_modules`.** A junctioned `node_modules` makes `git worktree remove` follow the link and
-delete the main checkout's dependencies, which is the failure mode this rule exists to prevent.
+(where this campaign's worktrees already live).
 
-`pnpm install` in a worktree is safe (shared store, per-worktree symlink farm) but **never** run it in
-a tree another agent is live in — a concurrent install broke typecheck under a running agent twice on
-the previous campaign.
+**⚠ `git worktree remove` DOES NOT WORK HERE. Use `tools/worktree-remove.ps1` instead.**
+`pnpm` does not install a flat tree — it lays a symlink farm of **directory junctions** inside
+`node_modules`, ~535–549 of them in this repo, whose targets sit in-tree under `node_modules/.pnpm/`.
+Measured on exactly the worktree above:
+
+```
+$ git worktree remove "<...>/worktrees/probe-kit-teardown"
+error: failed to delete '<...>/probe-kit-teardown': Directory not empty
+EXIT=255
+$ git worktree list      # ... and it is ALREADY GONE from the list
+```
+
+**It deregisters the worktree and then fails to delete it** — leaving a full tree on disk that git no
+longer knows about, which is worse than either outcome alone. Do not "just `rm -rf` it": a recursive
+delete FOLLOWS junctions and deletes what is on the other side.
+
+Correct teardown, which the script implements:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/worktree-remove.ps1 "<worktree path>"
+```
+
+1. Unlink every reparse point first, deepest first — `[System.IO.Directory]::Delete(<junction>)`
+   removes the **link**, never the target.
+2. `Remove-Item -Recurse` the now-ordinary tree.
+3. `git worktree prune` to clear the administrative entry.
+
+The script prints the MAIN checkout's `node_modules/.pnpm` entry count before and after and **exits 1
+if it moved**. Verified run: `unlinked 535 junction(s) in 2 pass(es)` · `.pnpm` 240 → 240 · exit 0.
+Quote that proof line when you report a teardown; a silent teardown is not a verified one.
+
+`pnpm install` in a worktree is safe but **never** run it in a tree another agent is live in — a
+concurrent install broke typecheck under a running agent twice on the previous campaign.
+
+## The suite is RED on master today — know your baseline
+
+As of `master` @ 2026-08-26, `pnpm test` is **265 files / 3,480 passed / 1 failed (3,481)**, 46 s.
+The single failure is the RN drift guard throwing at `.design-sync/check-rn-parity.mjs:75` —
+`Error: Button PRIMARY_GRADIENT.dark not found`, because the phone's P9 renamed
+`PRIMARY_GRADIENT` → `PrimaryButtonGradient`. **U0 owns repairing it.**
+
+**A probe run that shows that one failure is seeing the BASELINE, not a kill.** Record the pre-mutation
+result before you mutate anything, and report kills as a delta against it. This interacts with the
+`skipIf` hazard below: the same file both throws at import time here *and* skips when the sibling repo
+is absent, so it has two distinct non-verdicts.
 
 ## jsdom shares ONE window per test file — `sessionStorage` couples mounts
 
@@ -204,6 +243,10 @@ a run where the guard skipped is the opposite-of-the-truth failure this file war
 Before quoting anything from this test, print `rnAvailable()` or the reporter's skip count and confirm
 the guard actually executed. Same rule for any future `skipIf` guard.
 
+On THIS box it currently resolves and runs — the 2026-08-26 baseline run named the RN root in the test
+title — so today the guard's non-verdict is the import-time throw above, not a skip. Both are
+non-verdicts; do not assume which one you are looking at.
+
 ## State the motion mode every probe ran under
 
 All demo motion gates on `useReducedMotion` (`lib/hooks/use-reduced-motion.ts`), which returns `false`
@@ -232,7 +275,10 @@ pnpm exec vitest run <path>            # scoped — what a probe runs
 pnpm test --silent                     # full suite
 rm -f tsconfig.tsbuildinfo && pnpm exec tsc --noEmit --incremental false
 pnpm build                             # the artifact gate
+
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/worktree-remove.ps1 "<worktree>"
 ```
 
 Delete `tsconfig.tsbuildinfo` **before** the typecheck — an incremental cache can return exit 0 over a
-broken tree. Run the full three at phase boundaries only; probes use the scoped form.
+broken tree. Run the full three at phase boundaries only; probes use the scoped form. And never
+`git worktree remove` — that is what the last line is for.
