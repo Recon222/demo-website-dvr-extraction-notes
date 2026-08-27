@@ -147,9 +147,13 @@ describe('ExportHub — empty state', () => {
   it('does NOT route through the `EmptyState` seam — the phone hand-rolls this one', () => {
     renderHub({ cases: [] })
     const line = screen.getByText('No cases to export')
-    expect(line.style.paddingTop).not.toBe(`${spacing.xxl}px`)
-    expect(line.querySelector('div')).toBeNull()
+    // `EmptyState` hangs `marginBottom: spacing.lg` (24) under its message whether or not an
+    // action follows — its own docblock calls that unconditional and lifted. Nothing else in
+    // the demo puts a bottom margin on this line, so it is the cheapest live observation.
     expect(line.style.marginBottom).toBe('')
+    // And under the seam this node would be the message INSIDE the 48pt block rather than the
+    // block itself, so its own padding would be empty rather than `spacing.xl`.
+    expect(line.style.padding).toBe(`${spacing.xl}px`)
   })
 })
 
