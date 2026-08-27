@@ -48,13 +48,12 @@ and delete the caches first — an incremental cache can return exit 0 over a br
 
 ## Owner — cannot be delegated, automated, or inferred
 
-13. **Owner device-pass checkpoints after U1, U5 and U8** (decision D1). These catch the
-    ΔE-shaped, "cards on cards read flat" defect class that a computed contrast ratio is
-    structurally blind to — exactly what the phone's own PR #125 device pass found. No agent
-    passes this on the owner's behalf.
-    ⚠ **Unresolved:** `02-ratification-brief.md:19` says U1/U5/U8; `01-master-ui-parity-plan.md`
-    (§D1 row, §6.6, :536) says U1/U4/U5. The brief is what the owner ratified, so U1/U5/U8
-    stands here until the plan is corrected. Settle it before U4.
+13. **Owner device-pass checkpoints at WAVE boundaries** (decision D1, settled 2026-08-27 in
+    plan-review r3): **after wave 1** (U1 + U3.1 — the glass/card look, where PR #125's device pass
+    found the two ΔE-shaped defects a ratio is blind to), **after wave 2** (U2 + U3 + U4 — controls,
+    sheets, dialogs, scrims), and **at U8 exit** (final side-by-side). These catch the "cards on cards
+    read flat" defect class that a computed contrast ratio is structurally blind to. No agent passes
+    this on the owner's behalf. (Earlier "U1/U5/U8" vs "U1/U4/U5" wording is superseded.)
 14. **The fidelity bar is the definition of done, and it is the owner's call** (verbatim: *"right
     now it looks bang on for what it used to look like; after this I want it bang on for what it
     looks like now"*). Every mechanical gate above is the FLOOR under that judgement, never a
