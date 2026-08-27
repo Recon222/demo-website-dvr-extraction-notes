@@ -16,6 +16,11 @@ import { SAMPLE_FALLBACK_PREFIX, type ImportStageId as RunStageId, type ImportRe
 import { useReducedMotion } from 'motion/react'
 import { TerminalLine } from '@/features/demo/ui/screens/import/TerminalLine'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import {
+  TERMINAL_PALETTE,
+  TERMINAL_FONT_SIZE,
+  TERMINAL_SCHEME,
+} from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
  * ImportTerminalProgress — the live import terminal (parity P1.4, matrix row 74).
@@ -28,7 +33,7 @@ import { colors } from '@/features/demo/ui/tokens/palette'
  * Presentational: props in / callbacks out; no store imports. The terminal panel is
  * DARK regardless of site theme — phone parity ("dark in both themes by design",
  * phone-inventory §5.7.3): the demo phone frame renders the phone's dark theme, so
- * the dark-scheme screen value #060a12 applies (phone :97).
+ * the dark arm of `TERMINAL_PALETTE.screen` applies (phone :97).
  *
  * Honesty (owner rule — never claim on-device): the phone's title bar reads
  * "pdf-import · on-device" / "nothing leaves this phone" because its model IS
@@ -176,29 +181,18 @@ const stmono = "var(--font-stmono),'Share Tech Mono',monospace"
 /** Fixed slot height — the badge morphs with ZERO reflow (phone minHeight 60, :459). */
 export const BADGE_SLOT_HEIGHT = 60
 
-// Terminal chrome palette (phone term object, ImportTerminalProgress.tsx:95-106).
-const TERM_CHROME = {
-  screen: '#060a12', // dark-scheme value (:97) — the demo phone is the dark theme
-  bar: '#0a0f18',
-  border: '#141c28',
-  cursor: '#4BA3D4', // colors.primaryLight (dark)
-  titleText: '#55606b', // :314
-  titleMeta: '#4a7c76', // :317
-  liveDot: '#4ECDC4', // term.accent.verbose (:316)
-  dot: '#242a31', // :434
-} as const
-
-// Theme tokens resolved against the phone's dark theme (Colors.ts:68-104).
-const C = {
-  primary: '#2B8CC1',
-  text: '#f0f4f8',
-  textSecondary: '#99badd',
-  border: colors.border,
-  success: '#10d177',
-  warning: '#ffd93d',
-  error: '#ff4757',
-} as const
-
+// U7.1 (A85/A91): the console chrome moved to the ONE owned palette,
+// `screens/import/terminal-palette.ts`. Two token sets meet in this file and the split is
+// the phone's, not a stylistic choice:
+//
+//   * inside the terminal panel — the phone's `<ForceColorScheme scheme="dark">` subtree
+//     (phone ImportTerminalProgress.tsx:343-404) — every value comes from TERMINAL_PALETTE,
+//     which resolves through TERMINAL_SCHEME and therefore stays dark if the app flips;
+//   * outside it — headline, progress track, outcome badge/CTA — the phone reads the APP
+//     theme, so those take `colors.*` and SHOULD follow a scheme flip.
+//
+// The local `C` object that used to re-type seven palette hexes here is gone (A85: "`C.*`
+// re-expresses GLASS/T values under new names").
 const rootStyle: CSSProperties = {
   height: '100%',
   display: 'flex',
@@ -211,7 +205,7 @@ const headlineStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   letterSpacing: 1,
-  color: C.text,
+  color: colors.text,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -220,7 +214,7 @@ const headlineStyle: CSSProperties = {
 const trackStyle: CSSProperties = {
   height: 3,
   borderRadius: 9999,
-  background: C.border,
+  background: colors.border,
   overflow: 'hidden',
   flexShrink: 0,
 }
@@ -228,24 +222,24 @@ const terminalStyle: CSSProperties = {
   flex: 1,
   minHeight: 260,
   borderRadius: 12, // Layout.borderRadius.lg
-  border: `1px solid ${TERM_CHROME.border}`,
-  background: TERM_CHROME.screen,
+  border: `1px solid ${TERMINAL_PALETTE.border}`,
+  background: TERMINAL_PALETTE.screen[TERMINAL_SCHEME],
   overflow: 'hidden',
   position: 'relative',
   display: 'flex',
   flexDirection: 'column',
 }
-// Phone title bar (:425-438): bg #0a0f18, 12/8 padding, bottom border #141c28.
+// Phone title bar (:425-438): `TERMINAL_PALETTE.bar` ground, 12/8 padding, `.border` divider.
 const titleBarStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   padding: '8px 12px',
-  background: TERM_CHROME.bar,
-  borderBottom: `1px solid ${TERM_CHROME.border}`,
+  background: TERMINAL_PALETTE.bar,
+  borderBottom: `1px solid ${TERMINAL_PALETTE.border}`,
   flexShrink: 0,
 }
-const dotStyle: CSSProperties = { width: 8, height: 8, borderRadius: 4, background: TERM_CHROME.dot }
+const dotStyle: CSSProperties = { width: 8, height: 8, borderRadius: 4, background: TERMINAL_PALETTE.dot }
 const logStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
@@ -263,7 +257,7 @@ const jumpPillStyle: CSSProperties = {
   padding: '5px 10px',
   borderRadius: 9999,
   border: 'none',
-  background: C.primary,
+  background: colors.primary,
   cursor: 'pointer',
 }
 const badgeBase: CSSProperties = {
@@ -288,7 +282,7 @@ const badgeTitleStyle: CSSProperties = {
 const badgeSubStyle: CSSProperties = {
   fontSize: 12, // Typography.fontSize.xs
   marginTop: 1,
-  color: C.textSecondary,
+  color: colors.textSecondary,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -323,7 +317,7 @@ function Spinner({ reduce }: { reduce: boolean | null }) {
       height="20"
       viewBox="0 0 24 24"
       fill="none"
-      stroke={C.primary}
+      stroke={colors.primary}
       strokeWidth="2.5"
       data-testid="terminal-spinner"
       style={{ animation: reduce ? undefined : 'spin 0.9s linear infinite', flexShrink: 0 }}
@@ -362,13 +356,13 @@ interface CtaView {
  */
 function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: boolean): CtaView {
   const reviewSub = runHadSample
-    ? { sub: 'sample import — review →', subColor: C.warning }
-    : { sub: 'Review import →', subColor: C.textSecondary }
+    ? { sub: 'sample import — review →', subColor: colors.warning }
+    : { sub: 'Review import →', subColor: colors.textSecondary }
   switch (outcome.status) {
     case 'success': {
       const batch = outcome.totalFiles > 1
       return {
-        icon: <Icon path="M8 12l2.5 2.5L16 9" size={22} color={C.success} circle />, // checkmark-circle
+        icon: <Icon path="M8 12l2.5 2.5L16 9" size={22} color={colors.success} circle />, // checkmark-circle
         titleColor: '#7fe6b6', // :240
         border: 'rgba(16,209,119,0.32)',
         bg: 'rgba(16,209,119,0.10)',
@@ -383,8 +377,8 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
     case 'partial': {
       const failed = outcome.totalFiles - outcome.successCount
       return {
-        icon: <Icon path="M12 8v5M12 16h.01" size={22} color={C.warning} circle />, // alert-circle
-        titleColor: C.warning,
+        icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.warning} circle />, // alert-circle
+        titleColor: colors.warning,
         border: 'rgba(255,217,61,0.36)',
         bg: 'rgba(255,217,61,0.10)',
         headline: 'Batch partially failed',
@@ -395,14 +389,14 @@ function ctaView(outcome: TerminalOutcome, isBatchRun: boolean, runHadSample: bo
     }
     case 'failure':
       return {
-        icon: <Icon path="M12 8v5M12 16h.01" size={22} color={C.error} circle />,
-        titleColor: C.error,
+        icon: <Icon path="M12 8v5M12 16h.01" size={22} color={colors.error} circle />,
+        titleColor: colors.error,
         border: 'rgba(255,71,87,0.32)',
         bg: 'rgba(255,71,87,0.10)',
         headline: isBatchRun ? 'Batch failed' : 'Import failed',
         title: isBatchRun ? 'Batch failed' : 'Import failed',
         sub: 'See error details →',
-        subColor: C.textSecondary,
+        subColor: colors.textSecondary,
         a11y: 'See error details',
       }
     default: {
@@ -546,7 +540,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
         aria-valuemin={0}
         aria-valuemax={100}
       >
-        <div data-testid="terminal-progress-fill" style={{ width: `${percent}%`, height: '100%', borderRadius: 9999, background: C.primary }} />
+        <div data-testid="terminal-progress-fill" style={{ width: `${percent}%`, height: '100%', borderRadius: 9999, background: colors.primary }} />
       </div>
 
       {/* Terminal panel — dark in both themes by design. */}
@@ -557,10 +551,10 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
             <span style={dotStyle} />
             <span style={dotStyle} />
           </div>
-          <span style={{ fontFamily: stmono, fontSize: 10, letterSpacing: 0.5, color: TERM_CHROME.titleText }}>{TERMINAL_TITLE}</span>
+          <span style={{ fontFamily: stmono, fontSize: TERMINAL_FONT_SIZE.row, letterSpacing: 0.5, color: TERMINAL_PALETTE.titleText }}>{TERMINAL_TITLE}</span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 5, height: 5, borderRadius: 3, background: TERM_CHROME.liveDot }} aria-hidden="true" />
-            <span data-testid="terminal-trust-line" style={{ fontFamily: stmono, fontSize: 9.5, color: TERM_CHROME.titleMeta }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: TERMINAL_PALETTE.cursor }} aria-hidden="true" />
+            <span data-testid="terminal-trust-line" style={{ fontFamily: stmono, fontSize: TERMINAL_FONT_SIZE.meta, color: TERMINAL_PALETTE.titleMeta }}>
               {trustLine}
             </span>
           </span>
@@ -593,8 +587,8 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
                 aria-hidden="true"
                 style={{
                   fontFamily: stmono,
-                  fontSize: 11,
-                  color: TERM_CHROME.cursor,
+                  fontSize: TERMINAL_FONT_SIZE.cursor,
+                  color: TERMINAL_PALETTE.cursor,
                   animation: reduce ? undefined : 'termCursorBlink 1s step-end infinite',
                 }}
               >
@@ -607,7 +601,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
         {!pinned && lines.length > 0 && (
           <button type="button" data-testid="jump-to-latest-pill" aria-label="Jump to latest log line" onClick={jumpToLatest} style={jumpPillStyle}>
             <Icon path="M12 5v13M19 12l-7 7-7-7" size={13} color="#fff" />
-            <span style={{ fontFamily: stmono, fontSize: 10, fontWeight: 600, color: '#fff' }}>latest</span>
+            <span style={{ fontFamily: stmono, fontSize: TERMINAL_FONT_SIZE.row, fontWeight: 600, color: '#fff' }}>latest</span>
           </button>
         )}
       </div>
@@ -637,7 +631,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
               <span style={{ ...badgeTitleStyle, color: cta.titleColor }}>{cta.title}</span>
               <span style={{ ...badgeSubStyle, color: cta.subColor }}>{cta.sub}</span>
             </span>
-            <Icon path="M9 18l6-6-6-6" size={18} color={C.textSecondary} />
+            <Icon path="M9 18l6-6-6-6" size={18} color={colors.textSecondary} />
           </button>
           {/* Sibling, NOT a child: inside the button it would join the accname. */}
           <span id="terminal-cta-desc" style={visuallyHidden}>
@@ -651,7 +645,7 @@ export function ImportTerminalProgress({ stage, lastRealStage, outcome, batch, o
         >
           <Spinner reduce={reduce} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <span style={{ ...badgeTitleStyle, color: C.text }}>
+            <span style={{ ...badgeTitleStyle, color: colors.text }}>
               {isBatchRun ? 'Processing recovery requests' : 'Processing recovery request'}
             </span>
             <span style={badgeSubStyle}>

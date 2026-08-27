@@ -10,6 +10,7 @@ import { palette } from '@/features/demo/ui/tokens/palette'
 import { flattenOver } from '@/features/demo/ui/tokens/scale'
 import { SEVERITIES, neutralTone, severityTone } from '@/features/demo/ui/tokens/status'
 import { MEDIA_CLOSE_CHIP } from '@/features/demo/ui/screens/MediaLibrarySheet'
+import { TERMINAL_PALETTE, TERMINAL_SCHEME } from '@/features/demo/ui/screens/import/terminal-palette'
 
 /**
  * Palette contrast contract — ported from the phone's
@@ -770,4 +771,67 @@ describe('map chrome contrast floors', () => {
   it.todo(
     'row 45 (U5.2): clears AA for MapFiltersSheet section labels on the sheet tier — needs GLASS_TIER + MapFiltersSheet',
   )
+})
+
+describe('terminal console contrast (U7.1 / A85, §C "Terminal title bar / privacy meta / gutter")', () => {
+  // The console has its OWN ground stack — `screen.dark`, `bar`, `blockBg` — none of which is
+  // `palette.background` (A91/D6(a): the terminal ground is deliberately far darker than the
+  // app ground and must NOT be tokenised to it). So these rows composite against the terminal
+  // palette, not `DARK_GROUNDS`, and there is no light half: `TERMINAL_SCHEME` is dark by
+  // construction. Every ground is an opaque hex, so no flattening is involved.
+  //
+  // This block is the falsifiable half of U7.1. The `toEqual` shape pin in
+  // `screens/import/__tests__/terminal-palette.test.ts` fails on ANY edit; these fail only on
+  // the edit that MATTERS — a foreground dropping back under AA. The three §C rows are the
+  // package's whole contrast deliverable, and each was measured on the phone before the raise:
+  // titleText 2.99, titleMeta 4.05, time 2.10.
+  const SCREEN = TERMINAL_PALETTE.screen[TERMINAL_SCHEME]
+
+  it('§C: every console foreground clears AA on its own ground (phone terminal-palette.ts:20-35)', () => {
+    const pairs: [name: string, fg: string, ground: string][] = [
+      ['titleText on bar', TERMINAL_PALETTE.titleText, TERMINAL_PALETTE.bar],
+      ['titleMeta on bar', TERMINAL_PALETTE.titleMeta, TERMINAL_PALETTE.bar],
+      ['time on screen', TERMINAL_PALETTE.time, SCREEN],
+      ['body on screen', TERMINAL_PALETTE.body, SCREEN],
+      ['blockText on blockBg', TERMINAL_PALETTE.blockText, TERMINAL_PALETTE.blockBg],
+      ['error on screen', TERMINAL_PALETTE.error, SCREEN],
+      ['cursor on screen', TERMINAL_PALETTE.cursor, SCREEN],
+      // The live dot is a 5px non-text mark, but it takes `cursor` — already covered above at
+      // the stricter text floor, so it needs no row of its own.
+    ]
+    expect(
+      pairs
+        .map(([name, fg, ground]) => ({ name, ratio: round(contrast(fg, [ground])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: all ten syntax accents clear AA on the console ground (phone: 5.94 error to 14.38 norm)', () => {
+    // Measured at the STRICTER normal-text threshold precisely because the tag text is 10px
+    // (phone `:37-44`) — the large-text allowance never applies anywhere in this palette.
+    expect(
+      Object.entries(TERMINAL_PALETTE.accent)
+        .map(([level, fg]) => ({ level, ratio: round(contrast(fg, [SCREEN])) }))
+        .filter(({ ratio }) => ratio < AA_TEXT),
+    ).toEqual([])
+  })
+
+  it('§C: the three raised foregrounds land on the phone\'s measured ratios, not merely above the floor', () => {
+    // A floor-only assertion would stay green over a foreground pushed to pure white, which is
+    // the opposite of "hue preserved, lightness lifted until each cleared AA" (phone `:32-35`).
+    // These are the phone's own published numbers.
+    expect(round(contrast(TERMINAL_PALETTE.titleText, [TERMINAL_PALETTE.bar]))).toBe(4.97)
+    expect(round(contrast(TERMINAL_PALETTE.titleMeta, [TERMINAL_PALETTE.bar]))).toBe(5.22)
+    expect(round(contrast(TERMINAL_PALETTE.time, [SCREEN]))).toBe(4.98)
+  })
+
+  it('the console ground stays far darker than the app ground (A91 / D6(a) — do not tokenise it)', () => {
+    // The rider is a RELATIONSHIP, so pin the relationship rather than the hex: any future
+    // "tidy" that points `screen` at `colors.background` reds here even if the hex it lands on
+    // is a plausible navy.
+    expect(SCREEN).not.toBe(palette.dark.background)
+    expect(round(contrast('#ffffff', [SCREEN]))).toBeGreaterThan(
+      round(contrast('#ffffff', [palette.dark.background])),
+    )
+  })
 })
