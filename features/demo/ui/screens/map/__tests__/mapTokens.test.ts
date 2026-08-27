@@ -5,9 +5,13 @@ import { describe, it, expect } from 'vitest'
 
 import { GLASS, glassCardNested } from '@/features/demo/ui/glass-tokens'
 import {
+  CAMERA_MARKER,
+  CLUSTER_COLORS,
   MAP_GLASS_COLORS,
   MAP_GLASS_SCHEMES,
+  MAP_PIN_COLORS,
   MAP_SURFACE_COLORS,
+  PROXIMITY_COLORS,
   SHEET_COLORS,
 } from '@/features/demo/ui/screens/map/mapTokens'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
@@ -193,6 +197,102 @@ describe('MAP_SURFACE_COLORS (map-domain, always dark by the phone’s own rulin
     expect(MAP_SURFACE_COLORS.overlayMedium).toBe(withAlpha(colors.background, 0.85))
     expect(MAP_SURFACE_COLORS.controlsBg).toBe(withAlpha(colors.background, 0.95))
     expect(MAP_SURFACE_COLORS.borderStrong).toBe(withAlpha(colors.border, 0.6))
+  })
+})
+
+describe('the marks painted ONTO the tiles — theme-invariant, and still the phone’s values', () => {
+  it('derives the proximity fills FROM the accent instead of hand-writing their rgba', () => {
+    // Phone `constants/index.ts:77-84`, whose docblock states the bug this closes: "hand-written
+    // rgba drifted the moment `PIN_COLORS.working` moved off the old #00BFFF". The demo held
+    // three literals and a comment ASSERTING the identity; now the identity is the code.
+    expect(PROXIMITY_COLORS.accent).toBe(MAP_PIN_COLORS.working)
+    expect(PROXIMITY_COLORS.fillLight).toBe(withAlpha(MAP_PIN_COLORS.working, 0.15))
+    expect(PROXIMITY_COLORS.fillMedium).toBe(withAlpha(MAP_PIN_COLORS.working, 0.2))
+    // STRUCTURAL, and here it is the only pin that means anything: the three literals the
+    // demo shipped ALREADY equalled these values, so the three value assertions above passed
+    // over the un-derived code (measured — they were green before the edit landed). What
+    // changes is whether they still hold after `MAP_PIN_COLORS.working` moves.
+    const src = source()
+    for (const [key, call] of [
+      ['accent', 'MAP_PIN_COLORS\\.working'],
+      ['fillLight', 'withAlpha\\(MAP_PIN_COLORS\\.working, 0\\.15\\)'],
+      ['fillMedium', 'withAlpha\\(MAP_PIN_COLORS\\.working, 0\\.2\\)'],
+    ] as const) {
+      expect(new RegExp(`\\b${key}\\s*:\\s*${call}`).test(src), `${key} must DERIVE from the pin colour`).toBe(true)
+    }
+  })
+
+  it('re-bases the cluster bubble onto the badge-blue ground at the phone opacity', () => {
+    // Phone `CLUSTER_CIRCLE_STYLE` (`constants/index.ts:222-223`) — `circleColor:
+    // Colors.dark.background`, `circleOpacity: 0.65`. The demo composes the two into one CSS
+    // value, and it was still composing them from the RETIRED navy.
+    //
+    // `palette.dark`, not `colors`, and that is the point: this is a mark painted onto satellite
+    // tiles, which never follow a theme, so it must NOT move when the scheme flips. The phone
+    // anchors it on `Colors.dark` for the same reason (`:55-56`).
+    expect(CLUSTER_COLORS.circle).toBe(withAlpha(palette.dark.background, 0.65))
+  })
+
+  it('stops hand-copying the callout chrome and reads the map surfaces', () => {
+    // Phone `CAMERA_MARKER` `:133`/`:135` are literally `MAP_SURFACE_COLORS.controlsBg` and
+    // `.borderStrong`. The demo asserted both in a DOCBLOCK and then re-typed the old navy —
+    // the exact shape `tokens/__tests__/palette.test.ts`'s alias pins exist to catch.
+    expect(CAMERA_MARKER.calloutBg).toBe(MAP_SURFACE_COLORS.controlsBg)
+    expect(CAMERA_MARKER.calloutBorder).toBe(MAP_SURFACE_COLORS.borderStrong)
+    // `:131` — the white base's border. Was the retired navy at the same 55%.
+    expect(CAMERA_MARKER.baseBorder).toBe(withAlpha(palette.dark.background, 0.55))
+    // Frozen by the plan's U5.1 row and by the phone: a monochrome camera on a white base is
+    // what sets it apart from the coloured status pins (`constants/index.ts:125-129`).
+    expect(CAMERA_MARKER.glyphColor).toBe('#111111')
+    expect(CAMERA_MARKER.baseColor).toBe('#ffffff')
+  })
+})
+
+describe('the retired ramp is gone from the map island, in rgb() form too', () => {
+  /**
+   * U5.1's closing scan. `tokens/__tests__/palette.test.ts`'s `RETIRED` sweep is HEX-ONLY, and
+   * the map island's entire surviving drift was spelled in `rgba()`, where no hex sweep could
+   * see it. Measured under `ui/` at this commit, the retired ramp still survives at ~24
+   * `rgba()` occurrences across 15 files owned by U6, U7 and U8 — so widening `RETIRED`
+   * repo-wide would redden files this package must not open. The ban is therefore scoped to
+   * the ONE file U5.1 owns, and the repo-wide widening is PROPOSED as a deferral with U5.4 as
+   * its trigger (U5.4 removes the last such occurrences from `screens/map/`).
+   *
+   * Whitespace-stripped and lower-cased on both sides, per §4.7: the demo mixes `rgba(19,34,54,`
+   * and `rgba(19, 34, 54,` for one colour, and a spacing-sensitive sweep passes over live drift.
+   */
+  const RETIRED_IN_RGB: ReadonlyArray<[name: string, form: string]> = [
+    ['the retired background navy', 'rgba(13, 27, 42,'],
+    ['the retired background navy, opaque', 'rgb(13, 27, 42)'],
+    ['the retired border navy', 'rgba(30, 58, 95,'],
+    ['the retired raised navy', 'rgba(19, 34, 54,'],
+    ['the hand-rolled sheet ground', 'rgb(10, 22, 36)'],
+    // The two split-brain sheet text tones, which had no owner in either palette half.
+    ['the second "primary text" white', '#e7eef6'],
+    ['the second "secondary text" blue', '#9fb6d0'],
+    // The sheet accent that sat on no ramp at all.
+    ['the off-ramp sheet accent', '#1a8fc2'],
+  ]
+  const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '')
+
+  it('carries none of them, in code OR in a comment', () => {
+    // Deliberately NOT comment-stripped, unlike `source()` above: `palette.test.ts`'s own
+    // sweep reads raw text, and a retired value quoted in a comment is exactly how a later
+    // reader reintroduces it. (This landed as a real red during slice 1.)
+    const text = norm(readFileSync(MAP_TOKENS_SRC, 'utf8'))
+    const offenders = RETIRED_IN_RGB.filter(([, form]) => text.includes(norm(form))).map(
+      ([name, form]) => `${name} (${form})`,
+    )
+    expect(offenders, `mapTokens.ts still carries:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  it('is a scan that can actually fail (positive control)', () => {
+    // Without this the case above is indistinguishable from a scan reading an empty string:
+    // a `readFileSync` of a moved path, a `norm` that lower-cases into a mismatch, a typo in
+    // every entry. It proves the mechanism, on the real file, on every box.
+    const text = norm(readFileSync(MAP_TOKENS_SRC, 'utf8'))
+    expect(text).toContain(norm('rgba(0, 40, 83, 0.82)'))
+    expect(text.length).toBeGreaterThan(1000)
   })
 })
 

@@ -82,16 +82,16 @@ const MAP_GLASS_SCHEME = {
     border: 'rgba(100, 116, 139, 0.35)',
   },
   dark: {
-    // constants/index.ts:257 — `Colors.dark.background` (#002853) at 82%. Was
-    // `rgba(13, 27, 42, 0.65)`: the retired navy ramp's base AND the pre-redesign 0.65 alpha,
-    // two drifts in one value (A83). (The retired hexes are named in
-    // `tokens/__tests__/palette.test.ts`, which forbids them from appearing anywhere under
-    // `ui/` — including in a comment here.) **DEF-062 is inherited knowingly per D5**: 0.82 still
+    // constants/index.ts:257 — `Colors.dark.background` (#002853) at 82%. It was the retired
+    // navy ramp's base at the pre-redesign 0.65 alpha: two drifts in one value (A83). (The
+    // retired values are named in `tokens/__tests__/palette.test.ts` and in this module's own
+    // `__tests__/mapTokens.test.ts`, both of which forbid them from appearing here — including
+    // inside a comment.) **DEF-062 is inherited knowingly per D5**: 0.82 still
     // leaves the 1.70:1 / 1.77:1 shortfall the phone closed as ACCEPTED — not fixed, and with
     // no reopen trigger. Port the value; do not "improve" it unasked.
     containerBg: 'rgba(0, 40, 83, 0.82)',
-    // constants/index.ts:269 — `Colors.dark.border` (#1c4e84) at 45%. Was
-    // `rgba(30, 58, 95, 0.35)`, the retired border hex at the pre-redesign alpha.
+    // constants/index.ts:269 — `Colors.dark.border` (#1c4e84) at 45%. It was the retired
+    // border navy at the pre-redesign 0.35 alpha.
     border: 'rgba(28, 78, 132, 0.45)',
   },
 } as const satisfies Record<ColorScheme, { containerBg: string; border: string }>
@@ -136,14 +136,23 @@ export const MAP_GLASS_COLORS = {
   clearActiveBg: withAlpha(colors.primary, 0.2),
 } as const
 
-/** Proximity accent + fills — phone `PROXIMITY_COLORS` (constants/index.ts:60-67). */
+/**
+ * Proximity accent + fills — phone `PROXIMITY_COLORS` (constants/index.ts:77-84).
+ *
+ * DERIVED, not written out, and the phone's own docblock says why (`:73-76`): *"The fills are
+ * derived with `withAlpha` rather than written out, because they are defined as opacity
+ * variants OF the accent: hand-written rgba drifted the moment `PIN_COLORS.working` moved off
+ * the old #00BFFF."* The demo held three literals and a COMMENT asserting the identity — the
+ * same shape review r1 F5 caught in `input-theme.ts`, where a value pin cannot tell an alias
+ * from a re-typed literal. Values are byte-unchanged; only the guarantee is new.
+ */
 export const PROXIMITY_COLORS = {
-  /** Solid accent — ring border line, active toggle text. Equal to `PIN_COLORS.working`. */
-  accent: '#00BFFF',
+  /** Solid accent — ring border line, active toggle text. */
+  accent: MAP_PIN_COLORS.working,
   /** 15 % fill — ring interior and the active proximity toggle background. */
-  fillLight: 'rgba(0, 191, 255, 0.15)',
+  fillLight: withAlpha(MAP_PIN_COLORS.working, 0.15),
   /** 20 % fill — the selected radius preset background. */
-  fillMedium: 'rgba(0, 191, 255, 0.2)',
+  fillMedium: withAlpha(MAP_PIN_COLORS.working, 0.2),
 } as const
 
 /**
@@ -152,8 +161,19 @@ export const PROXIMITY_COLORS = {
  * white halo'd count on top: clusters read as map chrome rather than a fourth status colour.
  */
 export const CLUSTER_COLORS = {
-  /** `Colors.dark.background` at `circleOpacity` 0.65. */
-  circle: 'rgba(13, 27, 42, 0.65)',
+  /**
+   * `Colors.dark.background` at `circleOpacity` 0.65 — the phone's `CLUSTER_CIRCLE_STYLE`
+   * (`constants/index.ts:222-223`) composed into one CSS value. It was still composing the
+   * RETIRED navy, which is drift rather than theme-invariance.
+   *
+   * SPELLED, not `withAlpha(colors.background, …)`, and that is the whole distinction this
+   * module now draws: a cluster bubble is painted onto satellite tiles, which never follow a
+   * theme, so it must NOT move when `scheme` flips — the phone anchors it on `Colors.dark` for
+   * exactly that reason (`:55-56`). Reaching for `palette.dark` here would name a scheme half
+   * in a value position and red `ui/__tests__/glass-tokens.test.ts`'s scan; the derivation is
+   * pinned instead in `__tests__/mapTokens.test.ts`, where naming the half is allowed.
+   */
+  circle: 'rgba(0, 40, 83, 0.65)',
   text: '#FFFFFF',
   halo: 'rgba(0, 0, 0, 0.5)',
 } as const
@@ -191,23 +211,10 @@ export const PROXIMITY_PRESETS = [0.5, 1, 2, 5] as const
 export type RadiusPreset = (typeof PROXIMITY_PRESETS)[number]
 export const DEFAULT_PROXIMITY_RADIUS: RadiusPreset = 1
 
-/** Per-camera marker chrome — phone `CAMERA_MARKER` (constants/index.ts:103-123). */
-export const CAMERA_MARKER = {
-  glyphSize: 30,
-  iconSize: 18,
-  glyphColor: '#111111',
-  baseColor: '#ffffff',
-  baseBorder: 'rgba(13, 27, 42, 0.55)',
-  /** Callout bubble background — `MAP_SURFACE_COLORS.controlsBg`. */
-  calloutBg: 'rgba(13, 27, 42, 0.95)',
-  /** Callout bubble border — `MAP_SURFACE_COLORS.borderStrong`. */
-  calloutBorder: 'rgba(30, 58, 95, 0.6)',
-  calloutText: '#ffffff',
-  calloutTextDim: 'rgba(255, 255, 255, 0.7)',
-} as const
-
 /**
  * SEAM(U5.1): map-overlay surfaces — phone `MAP_SURFACE_COLORS` (constants/index.ts:92-109).
+ * Declared BEFORE `CAMERA_MARKER` because that record now references it, exactly as the phone's
+ * does (`:133`, `:135`).
  *
  * ALWAYS DARK, and that is the phone's own ruling rather than a demo shortcut
  * (`constants/index.ts:86-91`): *"The map always uses the Mapbox satellite-streets style, so
@@ -223,10 +230,38 @@ export const CAMERA_MARKER = {
 export const MAP_SURFACE_COLORS = {
   /** constants/index.ts:94 — `Colors.dark.background` at 95%. `CAMERA_MARKER`'s callout fill. */
   controlsBg: 'rgba(0, 40, 83, 0.95)',
-  /** constants/index.ts:98 — `Colors.dark.background` at 85%. Was `rgba(13, 27, 42, 0.85)` (A20/A83). */
+  /** constants/index.ts:98 — `Colors.dark.background` at 85%. Re-based off the retired navy (A20/A83). */
   overlayMedium: 'rgba(0, 40, 83, 0.85)',
   /** constants/index.ts:104 — `Colors.dark.border` at 60%. `CAMERA_MARKER`'s callout border. */
   borderStrong: 'rgba(28, 78, 132, 0.6)',
+} as const
+
+/**
+ * Per-camera marker chrome — phone `CAMERA_MARKER` (constants/index.ts:120-140; the old
+ * `:103-123` cite predates PR #127's edits to that file).
+ *
+ * The glyph, the white base and the callout text are theme-INVARIANT by the phone's own
+ * reasoning (`:125-129`): a monochrome camera on a white base is what sets this marker apart
+ * from the coloured status pins and the red incident teardrop. Those stay spelled.
+ *
+ * The three NAVY values did not stay: they tracked the retired ramp, and two of them were
+ * declared aliases of `MAP_SURFACE_COLORS` in a DOCBLOCK while re-typing the old value
+ * underneath — the shape `tokens/__tests__/palette.test.ts`'s alias pins exist to catch. The
+ * phone spells those two as real references; so does this now.
+ */
+export const CAMERA_MARKER = {
+  glyphSize: 30,
+  iconSize: 18,
+  glyphColor: '#111111',
+  baseColor: '#ffffff',
+  /** constants/index.ts:131 — `Colors.dark.background` at 55%, so the white badge stays legible on light tiles. */
+  baseBorder: 'rgba(0, 40, 83, 0.55)',
+  /** constants/index.ts:133 — the phone's own reference, not a copy of its value. */
+  calloutBg: MAP_SURFACE_COLORS.controlsBg,
+  /** constants/index.ts:135 — likewise. */
+  calloutBorder: MAP_SURFACE_COLORS.borderStrong,
+  calloutText: '#ffffff',
+  calloutTextDim: 'rgba(255, 255, 255, 0.7)',
 } as const
 
 /**
@@ -270,8 +305,8 @@ export const SHEET_COLORS = {
   /**
    * Phone `SHEET_SURFACE_COLORS[scheme].backgroundGradient` (`constants/index.ts:350-367`)
    * painted by `SheetBackground.tsx:31-37` at `locations` `[0, 0.5, 1]`, vertical. Renamed from
-   * `background` because it is no longer a colour: the old `rgb(10, 22, 36)` was a hand-rolled
-   * navy on no ramp in the palette at all.
+   * `background` because it is no longer a colour: the flat navy it replaces was hand-rolled
+   * and sat on no ramp in the palette at all.
    */
   backgroundGradient: `linear-gradient(180deg,${colors.background} 0%,${colors.backgroundSecondary} 50%,${colors.background} 100%)`,
   /** Phone `MapBottomSheet.tsx:208` — `GlassColors[colorScheme].sheet.border`. */
@@ -292,7 +327,7 @@ export const SHEET_COLORS = {
   /**
    * The sheet's accent SURFACE. Its one reader is `MapCanvas`'s retry button — a filled
    * control — so A19's binding rider applies and it takes the DEEP shade: `onPrimary` measures
-   * 3.73:1 on `primary` and 5.80:1 on `primaryDark`. Was `#1a8fc2`, an accent on no ramp.
+   * 3.73:1 on `primary` and 5.80:1 on `primaryDark`. It used to be an accent on no ramp at all.
    * (U5.4 may fold that button onto U2.2's `buttonStyle`, at which point this key can go.)
    */
   accent: colors.primaryDark,
