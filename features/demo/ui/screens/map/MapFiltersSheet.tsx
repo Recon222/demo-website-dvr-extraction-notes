@@ -200,6 +200,12 @@ const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: color
 /** Phone `styles.hintText` `:279-282`, painted `colors.textTertiary` (`:217`). */
 const hintText: CSSProperties = { fontSize: 12, lineHeight: '16px', color: colors.textTertiary }
 
+/**
+ * The proximity switch's visible label AND its accessible name — one string, read once (F59).
+ * Phone `:170`. `switch-name-is-its-label` in the suite pins that the two stay the same value.
+ */
+const PROXIMITY_SWITCH_LABEL = 'Filter by radius'
+
 /** The phone's hint, verbatim (`MapFiltersSheet.tsx:218`). Only true when a map is rendered. */
 const HINT_CAN_PLACE = 'Long-press the map to place or move the proximity ring.'
 /**
@@ -328,7 +334,10 @@ export function MapFiltersSheet({
             type="button"
             data-testid="filter-done"
             onClick={onClose}
-            aria-label="Apply filters and close"
+            // F59 / WCAG 2.5.3: the visible word leads, the phone's own sentence (`:123`)
+            // follows. "Apply filters and close" alone left a speech-input visitor unable to say
+            // "click Done" — the one thing the button reads as.
+            aria-label="Done, apply filters and close"
             style={{ ...buttonStyle({ variant: 'primary' }), ...footerButton }}
           >
             Done
@@ -372,16 +381,29 @@ export function MapFiltersSheet({
         {/* ---- Proximity ---- */}
         <div style={MAP_FILTER_SECTION_LABEL}>Proximity</div>
         <div style={switchRow}>
-          <span style={switchLabel}>Filter by radius</span>
+          {/* `aria-hidden` because the switch's own accessible name IS these words (below):
+              without it a screen reader read the line twice, once as loose text and once as the
+              control's name — and with the OLD name it read two DIFFERENT things, "Filter by
+              radius" then "Activate proximity mode, switch, off". */}
+          <span aria-hidden="true" style={switchLabel}>
+            {PROXIMITY_SWITCH_LABEL}
+          </span>
           {/* The demo's ONE switch renderer (SEAM(U2.3)). `hideLabel` is exactly what the phone
               does here — it passes the shared `<Switch>` no `label` and draws its own row
               (`:169-180`) — and it is the prop U2.3 added so a host with its own label never
-              re-implements the track. The accessible name carries the DIRECTION, verbatim from
-              `:175-177`. */}
+              re-implements the track.
+
+              F59, FOURTH SITE — the row counts three map controls and this is a fourth, in the
+              same file and the same failure class. The phone's two-state name (`:175-177`,
+              "Activate/Deactivate proximity mode") shares NO substring with the visible "Filter
+              by radius", so speech input could not address the switch at all. Dropped rather than
+              appended, because `role="switch"` + `aria-checked` already announce the direction:
+              "Activate proximity mode, switch, off" states "off" twice and the phone's RN
+              `Switch` carries `accessibilityState` for the same reason. Named divergence. */}
           <Toggle
             hideLabel
             testId="filter-proximity"
-            label={proximityActive ? 'Deactivate proximity mode' : 'Activate proximity mode'}
+            label={PROXIMITY_SWITCH_LABEL}
             on={proximityActive}
             onClick={onProximityToggle}
           />
@@ -398,7 +420,11 @@ export function MapFiltersSheet({
                   type="button"
                   data-testid={`filter-radius-${preset}`}
                   onClick={() => onRadiusChange(preset)}
-                  aria-label={`${preset} kilometre radius`}
+                  // F59 / WCAG 2.5.3. The phone spells this `${preset} kilometre radius`
+                  // (`:200`), which does not contain the chip's own visible token `0.5 km` — so
+                  // "click 0.5 km", the only name a speech-input visitor can read off the chip,
+                  // addressed nothing. `km` is kept as the unit the chip prints.
+                  aria-label={`${preset} km radius`}
                   aria-pressed={isSelected}
                   style={isSelected ? { ...chip, ...chipSelected(info) } : chip}
                 >

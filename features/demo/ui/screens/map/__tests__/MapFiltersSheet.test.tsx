@@ -191,20 +191,34 @@ describe('MapFiltersSheet — status chips', () => {
 })
 
 describe('MapFiltersSheet — proximity', () => {
-  it('renders the demo`s ONE switch, reflecting state and naming both directions', () => {
+  it('renders the demo`s ONE switch, named by its own visible label (F59)', () => {
     mount({ proximityActive: false })
     const sw = screen.getByTestId('filter-proximity')
     expect(sw).toHaveAttribute('role', 'switch')
     expect(sw).toHaveAttribute('aria-checked', 'false')
-    expect(sw).toHaveAttribute('aria-label', 'Activate proximity mode')
-    expect(screen.getByText('Filter by radius')).toBeInTheDocument()
+    // WCAG 2.5.3: the name IS the visible label, so "click Filter by radius" reaches it. The
+    // phone's two-state "Activate/Deactivate proximity mode" shared no substring with it.
+    expect(sw).toHaveAttribute('aria-label', 'Filter by radius')
   })
 
-  it('names the OFF direction when proximity is already running', () => {
+  it('states the direction through aria-checked, not through a second name', () => {
     mount({ proximityActive: true })
     const sw = screen.getByTestId('filter-proximity')
     expect(sw).toHaveAttribute('aria-checked', 'true')
-    expect(sw).toHaveAttribute('aria-label', 'Deactivate proximity mode')
+    // The name does NOT move with the state — `role="switch"` + `aria-checked` announce the
+    // direction, and a name that also said it read "off" twice.
+    expect(sw).toHaveAttribute('aria-label', 'Filter by radius')
+    expect(sw.getAttribute('aria-label')).not.toMatch(/activate/i)
+  })
+
+  it('reads the switch label ONCE — the visible span is hidden from the a11y tree', () => {
+    // The span and the switch carry the same string by construction. Without `aria-hidden` a
+    // screen reader reads the line twice; with it, deleting the switch's name would leave the
+    // control anonymous — so the two are pinned as one value, not two literals.
+    const { container } = mount()
+    const span = container.querySelector('span[aria-hidden="true"][style*="font-weight: 500"]')
+    expect(span).toHaveTextContent('Filter by radius')
+    expect(screen.getByTestId('filter-proximity')).toHaveAttribute('aria-label', span!.textContent!)
   })
 
   it('flips proximity from the switch', () => {
@@ -240,7 +254,7 @@ describe('MapFiltersSheet — proximity', () => {
 
     fireEvent.click(screen.getByTestId('filter-radius-5'))
     expect(onRadiusChange).toHaveBeenCalledWith(5)
-    expect(screen.getByTestId('filter-radius-0.5')).toHaveAttribute('aria-label', '0.5 kilometre radius')
+    expect(screen.getByTestId('filter-radius-0.5')).toHaveAttribute('aria-label', '0.5 km radius')
   })
 
   it('states the long-press hint verbatim when there IS a map to press', () => {
@@ -277,7 +291,19 @@ describe('MapFiltersSheet — footer', () => {
     // A68: medium, not large. `buttonStyle`'s medium is 48 high.
     expect(clear).toHaveStyle({ minHeight: '48px' })
     expect(clear).toHaveAttribute('aria-label', 'Clear all filters')
-    expect(done).toHaveAttribute('aria-label', 'Apply filters and close')
+    expect(done).toHaveAttribute('aria-label', 'Done, apply filters and close')
+  })
+
+  it('F59: every named control in the sheet contains its own visible text (WCAG 2.5.3)', () => {
+    // The rule, as a loop rather than as four literals — a new control that omits its visible
+    // word reds here without anyone remembering to add a case. Speech input matches
+    // case-insensitively, which is what lets "Clear All" pass against "Clear all filters".
+    mount({ proximityActive: true })
+    const offenders = ['filter-clear-all', 'filter-done', 'filter-radius-0.5', 'filter-radius-5']
+      .map((id) => screen.getByTestId(id))
+      .map((el) => [el.getAttribute('data-testid'), el.textContent ?? '', el.getAttribute('aria-label') ?? ''])
+      .filter(([, visible, name]) => !name.toLowerCase().includes(visible.toLowerCase().trim()))
+    expect(offenders).toEqual([])
   })
 
   it('fires onClearAll from Clear All and NOT onClose', () => {
