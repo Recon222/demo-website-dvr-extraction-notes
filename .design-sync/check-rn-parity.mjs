@@ -391,6 +391,59 @@ export const TIER_PARTS = ['gradientTop', 'gradientBot', 'border', 'highlightTop
  */
 export const SCHEME_INVARIANT = ['onPrimary', 'onError']
 
+/**
+ * U5.1's closing act: the MAP CHROME's own constants, which live in a different file on each
+ * side and were the last unanchored token surface in the demo.
+ *
+ *   RN   src/features/location/map-view/constants/index.ts
+ *   web  features/demo/ui/screens/map/mapTokens.ts
+ *
+ * Three lists, because `MAP_GLASS_COLORS` is a MIXED record and the distinction is the whole
+ * point of the package:
+ *
+ *   MAP_GLASS_KEYS         two halves each. The phone spells them as four FLAT keys
+ *                          (`containerBgDark` / `containerBgLight` / `borderDark` /
+ *                          `borderLight`, `constants/index.ts:255-274`) and resolves them with
+ *                          an `isDark ? … : …` at the call site; the demo spells them as a
+ *                          record indexed by `[scheme]`. So the RN key is `<key><Scheme>` and
+ *                          the web key is `<key>` inside a `<scheme>: {` arm — the one place
+ *                          in this file where the two sides are addressed differently, and it
+ *                          is a naming difference, not a value one.
+ *   MAP_GLASS_FLAT_KEYS    scheme-INVARIANT by the phone's own declaration ("Shadow colour for
+ *                          pill elements (both modes)", `:272`). One row, `scheme: 'any'`, so
+ *                          the stuck-reader check skips it the way it skips `touchFloor`.
+ *   MAP_GLASS_DERIVED_KEYS NOT anchored here, and named so that "every key is covered" is
+ *                          checkable. These six alias `tokens/palette.ts`, so they are already
+ *                          anchored through the palette rows above; a second anchor would
+ *                          compare an alias to its own source, which is the tautology W0/F2
+ *                          named. `rn-token-parity.test.ts` asserts the three lists together
+ *                          equal `Object.keys(MAP_GLASS_COLORS)` — so a key that stops being
+ *                          an alias, or a new key with no anchor, reds on every box.
+ *
+ * `MAP_SURFACE_KEYS` are all `scheme: 'any'` for a documented reason rather than convenience:
+ * `constants/index.ts:86-91` — *"The map always uses the Mapbox satellite-streets style, so
+ * these are map-domain constants rather than theme-switched values."* There is no light half
+ * to diverge. The phone's other five `MAP_SURFACE_COLORS` keys are absent from the demo (no
+ * consumer), and anchoring a token with no web side is what plan §6.6 gate 1 forbids.
+ *
+ * `SHEET_COLORS` takes no anchors at all, and that is not an omission: `6e10eea3` collapsed the
+ * phone's `SHEET_SURFACE_COLORS` to the background gradient alone and derives everything else
+ * from the theme at the call site, so the demo's eleven sheet keys are aliases of
+ * `tokens/palette.ts` / `tokens/glass-tiers.ts` / `glass-tokens.ts`. Every one of their sources
+ * is already anchored; an anchor here would compare a value to itself.
+ */
+export const MAP_GLASS_KEYS = ['containerBg', 'border']
+export const MAP_GLASS_FLAT_KEYS = ['shadow']
+export const MAP_GLASS_DERIVED_KEYS = [
+  'text',
+  'textSecondary',
+  'textTertiary',
+  'primary',
+  'primaryLight',
+  'clearActiveBg',
+]
+export const MAP_SURFACE_KEYS = ['controlsBg', 'overlayMedium', 'borderStrong']
+
 /** Both scheme halves, in report order. */
 export const SCHEMES = ['light', 'dark']
 
@@ -419,6 +472,16 @@ export function checkParity() {
   // the definition is also the right side to read — a derived key that stopped deriving would
   // be caught by `glass-tokens.test.ts`'s byte-exact shape pin, not by this guard.
   const tiers = source('web tokens/glass-tiers.ts', join(WEB, 'features/demo/ui/tokens/glass-tiers.ts'))
+  // U5.1's map-chrome seam. Both sides live OUTSIDE the palette/tier files, which is why they
+  // are read here rather than folded into an existing source.
+  const mapConst = source(
+    'RN map-view constants',
+    join(RN, 'src/features/location/map-view/constants/index.ts'),
+  )
+  const mapTokens = source(
+    'web screens/map/mapTokens.ts',
+    join(WEB, 'features/demo/ui/screens/map/mapTokens.ts'),
+  )
 
   // Region slices, per scheme, per side. All four are plain string-index cuts, not parsers.
   //
@@ -485,6 +548,51 @@ export function checkParity() {
         row('highlightTop', (t) => readField(t, 'highlightTop', rnOpts), (t) => readField(t, 'highlightTop', webOpts)),
       )
     }
+  }
+
+  // U5.1's map-chrome rows. `deepFreeze({` / `} as const)` on the RN side, plain `{` /
+  // `} as const` on the web side — both are substring cuts, not parses, and both markers are
+  // spelled with `export const` for the reason `webTierScope` documents: the bare name matches
+  // its own docblock first.
+  const rnMapGlass = { after: 'export const MAP_GLASS_COLORS = deepFreeze({', before: '} as const)' }
+  const rnMapSurface = { after: 'export const MAP_SURFACE_COLORS = deepFreeze({', before: '} as const)' }
+  const webMapSurface = { after: 'export const MAP_SURFACE_COLORS = {', before: '} as const' }
+  // The web's two-half arm. Three levels, exactly like `webTierScope`, and for the same reason:
+  // `light: {` is declared first, so a scope that names only the key lands on LIGHT for both
+  // schemes and reports zero drift while proving nothing.
+  const webMapGlassScope = (s) => ({ after: ['const MAP_GLASS_SCHEME = {', `${s}: {`], before: '}' })
+  // `containerBg` + `dark` -> `containerBgDark`. The phone's flat spelling; see MAP_GLASS_KEYS.
+  const rnMapGlassKey = (key, s) => `${key}${s[0].toUpperCase()}${s.slice(1)}`
+  for (const scheme of SCHEMES) {
+    for (const key of MAP_GLASS_KEYS) {
+      anchors.push({
+        key: `mapGlass.${key}`,
+        scheme,
+        label: `mapGlass.${key}.${scheme}`,
+        rn: attempt(mapConst, (t) => readField(t, rnMapGlassKey(key, scheme), rnMapGlass)),
+        web: attempt(mapTokens, (t) => readField(t, key, webMapGlassScope(scheme))),
+      })
+    }
+  }
+  // Always-dark rows. `scheme: 'any'` keeps them out of the stuck-reader pairing, which is
+  // correct here and would be a hole anywhere a light sibling exists — see MAP_GLASS_KEYS.
+  for (const key of MAP_GLASS_FLAT_KEYS) {
+    anchors.push({
+      key: `mapGlass.${key}`,
+      scheme: 'any',
+      label: `mapGlass.${key}`,
+      rn: attempt(mapConst, (t) => readField(t, key, rnMapGlass)),
+      web: attempt(mapTokens, (t) => readField(t, key, { after: 'export const MAP_GLASS_COLORS = {', before: '} as const' })),
+    })
+  }
+  for (const key of MAP_SURFACE_KEYS) {
+    anchors.push({
+      key: `mapSurface.${key}`,
+      scheme: 'any',
+      label: `mapSurface.${key}`,
+      rn: attempt(mapConst, (t) => readField(t, key, rnMapSurface)),
+      web: attempt(mapTokens, (t) => readField(t, key, webMapSurface)),
+    })
   }
 
   // The CTA gradient moved on the phone's P9: `PRIMARY_GRADIENT` in `Button.tsx` became
@@ -590,7 +698,9 @@ if (invokedDirectly) {
   if (drift.length || stuck.length) process.exit(1)
   console.log(
     `\n✓ all ${anchors.length} anchor rows match between the RN app and the web demo ` +
-      `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys, ` +
-      `each x both halves, + the 4 CTA gradient stops (both halves too) and the touch floor)`,
+      `(${PALETTE_KEYS.length} palette keys + ${TIER_KEYS.length * TIER_PARTS.length} glass-tier keys + ` +
+      `${MAP_GLASS_KEYS.length} map-glass keys, each x both halves, + ` +
+      `${MAP_GLASS_FLAT_KEYS.length + MAP_SURFACE_KEYS.length} always-dark map-chrome rows ` +
+      `+ the 4 CTA gradient stops (both halves too) and the touch floor)`,
   )
 }
