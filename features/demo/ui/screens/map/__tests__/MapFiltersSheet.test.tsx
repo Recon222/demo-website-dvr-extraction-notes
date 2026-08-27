@@ -32,6 +32,7 @@ function mount(over: Partial<Parameters<typeof MapFiltersSheet>[0]> = {}) {
     onClearAll: noop,
     locationCount: 3,
     filteredCount: 3,
+    canPlaceRing: true,
     ...over,
   }
   return render(<MapFiltersSheet {...props} />)
@@ -242,9 +243,21 @@ describe('MapFiltersSheet — proximity', () => {
     expect(screen.getByTestId('filter-radius-0.5')).toHaveAttribute('aria-label', '0.5 kilometre radius')
   })
 
-  it('states the long-press hint verbatim', () => {
-    mount()
-    expect(screen.getByText('Long-press the map to place or move the proximity ring.')).toBeInTheDocument()
+  it('states the long-press hint verbatim when there IS a map to press', () => {
+    mount({ canPlaceRing: true })
+    expect(screen.getByTestId('filter-hint')).toHaveTextContent(
+      'Long-press the map to place or move the proximity ring.',
+    )
+  })
+
+  it('F58: swaps the hint when there is no map surface, promising no gesture', () => {
+    // Without `NEXT_PUBLIC_MAPBOX_TOKEN` the canvas is replaced by a panel that says "Map preview
+    // unavailable" in as many words. A sheet mounted over that panel telling the visitor to
+    // long-press the map contradicts the surface underneath it.
+    mount({ canPlaceRing: false })
+    const hint = screen.getByTestId('filter-hint')
+    expect(hint).toHaveTextContent('The live map is unavailable, so the proximity ring cannot be moved.')
+    expect(hint).not.toHaveTextContent(/Long-press/)
   })
 })
 
@@ -303,6 +316,7 @@ describe('MapFiltersSheet — the live region D-5 asked this package to place', 
         onClearAll={noop}
         locationCount={1}
         filteredCount={1}
+        canPlaceRing
       />,
     )
     expect(screen.getByTestId('map-filters-announcement')).toHaveTextContent('1 location')
@@ -328,6 +342,7 @@ describe('MapFiltersSheet — the live region D-5 asked this package to place', 
         onClearAll={noop}
         locationCount={3}
         filteredCount={3}
+        canPlaceRing
       />,
     )
     expect(screen.getByTestId('map-filters-announcement')).toBeEmptyDOMElement()

@@ -85,6 +85,20 @@ export interface MapFiltersSheetProps {
   locationCount: number
   /** Locations surviving those filters AND the proximity ring. */
   filteredCount: number
+  /**
+   * Is there a live map surface to long-press? (F58.)
+   *
+   * The hint below is the phone's, and the phone always has a map. The demo does not: without
+   * `NEXT_PUBLIC_MAPBOX_TOKEN`, `MapCanvas` returns `[data-map-fallback]` INSTEAD of
+   * `[data-map-canvas]` (`MapCanvas.tsx:620-626`) — a panel that says "Map preview unavailable"
+   * in as many words. Shipping the long-press hint over that panel had the sheet contradicting
+   * the surface underneath it, which is the demo's honesty rule failing in the one direction it
+   * exists to catch: telling the visitor to perform a gesture on something that is not there.
+   *
+   * REQUIRED, not defaulted-true: a default would make the honest branch the one a caller has to
+   * remember, and there is exactly one caller.
+   */
+  canPlaceRing: boolean
 }
 
 /**
@@ -186,6 +200,15 @@ const switchLabel: CSSProperties = { fontSize: 14, fontWeight: 500, color: color
 /** Phone `styles.hintText` `:279-282`, painted `colors.textTertiary` (`:217`). */
 const hintText: CSSProperties = { fontSize: 12, lineHeight: '16px', color: colors.textTertiary }
 
+/** The phone's hint, verbatim (`MapFiltersSheet.tsx:218`). Only true when a map is rendered. */
+const HINT_CAN_PLACE = 'Long-press the map to place or move the proximity ring.'
+/**
+ * F58: what the sheet says instead when there is no map surface to press. It promises no gesture
+ * and describes no view — it states the one thing that is true, which is that the ring is where
+ * the demo put it and cannot be moved. No em-dash (A93's sweep + its guard).
+ */
+const HINT_NO_MAP = 'The live map is unavailable, so the proximity ring cannot be moved.'
+
 /** Phone `styles.footerRow` `:283-287`. The shell wraps this in `paddingBottom: 12` and nothing else. */
 const footerRow: CSSProperties = {
   display: 'flex',
@@ -238,6 +261,7 @@ export function MapFiltersSheet({
   onClearAll,
   locationCount,
   filteredCount,
+  canPlaceRing,
 }: MapFiltersSheetProps) {
   // Phone `:94-98`, verbatim — including that BOTH arms take their plural from `locationCount`.
   const plural = locationCount === 1 ? 'location' : 'locations'
@@ -385,7 +409,9 @@ export function MapFiltersSheet({
           </div>
         )}
 
-        <div style={hintText}>Long-press the map to place or move the proximity ring.</div>
+        <div data-testid="filter-hint" style={hintText}>
+          {canPlaceRing ? HINT_CAN_PLACE : HINT_NO_MAP}
+        </div>
 
         {/* Last in the body so the sr-only copy never interrupts the linear reading order; a live
             region announces from wherever it sits. */}
