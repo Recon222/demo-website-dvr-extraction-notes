@@ -620,6 +620,13 @@ describe('the card elevation shadow ships both halves (F19 / A44, D2)', () => {
       // `Layout.ts:130-136` — `#000`, offset {0,4}, shadowOpacity 0.15, radius 8.
       dark: '0 4px 8px rgba(0,0,0,0.15)',
     })
+    // Pins that the consumed half is the one that ships. It does NOT catch the indirection
+    // being SEVERED back to a spelled `'0 4px 8px rgba(0,0,0,0.15)'` — measured, probe Q7,
+    // SURVIVED (exit 0) — because the severed literal equals `SHADOW_CARD[scheme]` while
+    // `scheme` is `'dark'`, and a literal-vs-reference distinction is not observable at
+    // runtime (same class as U1.1's P4b). That is exactly the class W1/F18 files against
+    // `GLASS_TIER.dark`, and its source scan is the mechanism that catches it: `SHADOW_CARD`
+    // belongs in that scan's list. Not duplicated here — F18's owner holds that file.
     expect(GLASS.shadowCard).toBe(SHADOW_CARD[scheme])
   })
 })
