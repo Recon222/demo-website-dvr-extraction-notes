@@ -1,5 +1,6 @@
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { touchTarget } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Shared inline-style tokens for the demo's custom pickers.
@@ -38,5 +39,7 @@ export const T = {
   // status
   error: colors.error,
   // dimensions
-  rowH: 44,
+  // The phone's `Layout.touchTarget.min` (44). `as const` keeps the literal type, and the
+  // drift guard reads `scale.ts` directly, so this hop costs the guard nothing.
+  rowH: touchTarget.min,
 } as const

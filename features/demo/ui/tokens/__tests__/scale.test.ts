@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { spacing, radius, touchTarget, iconSize, withAlpha, flattenOver } from '@/features/demo/ui/tokens/scale'
+import { T } from '@/features/demo/ui/inputs/input-theme'
 import { glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the U0.2 scale seam (matrix A41, A42, A49, A53).
@@ -27,6 +30,15 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
   it('pins the touch-target and icon scales', () => {
     expect(touchTarget).toEqual({ min: 44, medium: 46, comfortable: 48, large: 56 })
     expect(iconSize).toEqual({ xs: 16, sm: 20, md: 24, lg: 32, xl: 40 })
+  })
+
+  it('routes the picker row height through the touch floor, in SOURCE and in value (W0-F9)', () => {
+    // Value alone cannot tell an alias from a re-typed `44`, and a source match alone stays
+    // green over a wrong import — so both. (The drift guard reads `scale.ts` directly for
+    // `touchFloor`, so nothing here duplicates it; this pins the DEMO-side hop.)
+    const src = readFileSync(join(process.cwd(), 'features', 'demo', 'ui', 'inputs', 'input-theme.ts'), 'utf8')
+    expect(src, 'T.rowH must alias touchTarget.min, not re-type 44').toMatch(/\browH:\s*touchTarget\.min\b/)
+    expect(T.rowH).toBe(touchTarget.min)
   })
 
   it('routes the glass fragments through the radius ladder (A42/A43 depth rule)', () => {
