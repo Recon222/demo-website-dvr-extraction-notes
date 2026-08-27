@@ -16,7 +16,7 @@
 | `demo-ui-inventory.md` | this directory | The demo side, 2,480 lines. §0 binding constraints, §1 token modules, §2 census, §3 per-component map, §4 leverage points + consumer lists, §5 drift guard, §6 the ~95 style-pinning assertions, §7 boundaries, §8 design-sync. Cited as "demo §N". |
 | `census.mjs` | this directory | Re-runnable, zero-dependency literal census. **Run it at the start of a sweep package and again at the end** — the delta is the package's own evidence. `node docs/planning/demo-phone-ui-parity/census.mjs .` |
 | `features/demo/CLAUDE.md` | demo repo | The demo architecture contract. **Binding.** Read in full before writing code. |
-| `docs/code-reviews/deferred.md` | demo repo | The living deferral ledger — **86 sections, numbered to §88 (46 and 47 are absent). Next free section is §89.** Deferral **§31 names "any actual demo restyle" as its un-defer trigger — this port IS that trigger.** |
+| `docs/code-reviews/deferred.md` | demo repo | The living deferral ledger — **86 sections, numbered to §88 (46 and 47 are absent). `dt-review-aggregator` is its sole writer (§6.5); the reserved-§-range protocol is retired.** Deferral **§31 names "any actual demo restyle" as its un-defer trigger — this port IS that trigger.** |
 | `verification/` | this directory | v1's drive harness. §2 (Playwright, the demo) runs on Windows; §1 (Maestro / simctl / Vision OCR, the phone) does **not** — see §6.5. |
 | `docs/planning/demo-phone-parity/` | demo repo | v1's matrix + plan + HANDOFF. **Row IDs and machinery only** — its Status column is stale (demo §7.3). |
 
@@ -141,6 +141,8 @@ GREEN after: 3,478 passed.
 2. **A relational pin survives a restyle** and must not be "updated". `AlertDialog.test.tsx:168` asserts destructive ≠ cancel, not a value. Leave it.
 3. **Three tests pin the modal-over-modal z ordering** (`UserProfilePane.test.tsx:306,315,316`). D14 says do not renumber — so if one of these reddens, **something is wrong**, not something to update.
 
+**Every new or replacement style pin is mutation-verified** per `.claude/skills/mutation-testing/SKILL.md`: name the production change the pin must catch, apply it **in a probe-dedicated worktree** (never the shared tree, and never over uncommitted work — commit the fix first), run only the pinning test, take the verdict from the **runner's exit code**, then **restore and prove the restore** (test green again AND `git diff` against the probe base empty). A pin that SURVIVES its mutation does not pin what it claims — fix the test or the claim, never the mutation. This port replaces ~95 existing assertions and adds more; an unfalsifiable replacement is the failure mode the whole RED/GREEN rule exists to prevent.
+
 **Cross-package reds.** If a package reddens an assertion **owned by another package** (per §5's Tests columns), it updates the value and **hands the pin back to the owning package unchanged** — recording the cross-package red in **both** PR bodies. The live instance: `controls.test.tsx`'s `#4BA3D4` / `#5d7a9a` TabBar pins belong to **U8.3**, but U2.2's glass-button change may redden them first.
 
 ### 4.5 Git & review
@@ -150,7 +152,7 @@ GREEN after: 3,478 passed.
 - Every commit body ends with `Co-Authored-By: <the agent's own model name> <noreply@anthropic.com>` and a `Claude-Session:` link.
 - **Merges are merge commits** (`gh pr merge N --merge --delete-branch`). **Never squash, never rebase.**
 - PR bodies are written for the review fan-out: scope, the matrix rows closed, evidence (before/after captures from the Playwright harness), deviations-with-justification, and a "deliberate choices — don't re-flag" section.
-- After each phase the **orchestrator** updates §7 here and the Status column of touched matrix rows. **Agents do not edit the plan, the matrix or the HANDOFF.** Agents **do** append to `deferred.md` at the next free § — check first.
+- After each phase the **orchestrator** updates §7 here and the Status column of touched matrix rows. **Agents do not edit the plan, the matrix or the HANDOFF.** **Agents do NOT write `deferred.md`** — `dt-review-aggregator` is its sole writer (§6.5). Report what belongs there.
 
 ### 4.6 Verification per package
 
@@ -160,16 +162,18 @@ GREEN after: 3,478 passed.
 
 **U5's Playwright captures need a Mapbox token.** Without `NEXT_PUBLIC_MAPBOX_TOKEN`, `MapCanvas` early-returns the `[data-map-fallback]` panel and clustering, the proximity ring and long-press do not exist to capture at all. Read it **read-only** from the phone repo's `.env` — the variable there is **`EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN`** (`app.config.js:236`), not the name `verification/README.md` gives — and pass it inline: `NEXT_PUBLIC_MAPBOX_TOKEN=$TOK pnpm dev --port 3001`. **Never write a `.env.local`, never commit the value, never paste it into a PR body.** If the token is unavailable, U5's evidence is `[data-map-fallback]` captures plus the sheet and chrome surfaces, and the PR body says so. **Quote a gate only from a cold cache on the merged head** — `tsc` with `incremental: true` can return exit 0 from a stale `tsbuildinfo` against a broken tree, and branch-level gates never prove the combined tree.
 
-### 4.7 Standing operational rules (inherited, all still binding)
+### 4.7 Standing operational rules — **read the playbook, not this section**
 
-- **NEVER `git stash`** in any form — the stash stack is shared across all worktrees of a repo; two agents collided on it in v1.
-- **Foreground commands only.** Raise timeouts; never background a watcher for an install or a build.
-- **Re-run flaky-looking failures before concluding** — parallel-agent CPU contention produces load-induced flakes that pass clean solo.
-- **Never `git checkout -- <file>` / `git restore` on a shared worktree without reading the diff first.** A v1 lane destroyed a sibling's uncommitted probe edit this way.
-- **Mutation-probing lanes get their own worktree**, or serialise full-suite runs. A green count from a shared worktree is trustworthy only if the runner proves no source file moved mid-run.
-- **Agent context rotation:** the `subagent_tokens` figure in each notification is CUMULATIVE. At **~700k**, retire the agent and brief a fresh one from its final report, its commit list and the package specs.
-- **Windows specifics:** never `rm -rf` anything that might be a junction. `pnpm install --prefer-offline` in a worktree is fine (shared pnpm store). **Do not re-type `census.mjs` into `node -e '…'` under Git Bash** — Git Bash eats a backslash, so `"\\s"` reaches JS as literal `s` and the check silently passes wrong. Run the file.
-- No `.env.local` exists in the demo repo — map/AI degrade gracefully by design. **Never fabricate tokens.**
+**Every repo-writing agent in this port reads `.claude/skills/fleet-orchestration/hazard-playbook.md` FIRST. Those are its rules** — git (never `git stash`, never blanket-discard, never `commit -a` in a live worktree, push only your own branch), gates (exit codes not grepped output; cold cache at the merged head; run the build; verify the built artifact when the defect is in a transform), process (foreground only, re-run unexplained failures in isolation, every scripted edit asserts its own pattern matched, never fabricate tokens), diagnosis, records and resume-after-stall.
+
+Restating them here is how they drift — the playbook exists in exactly one place for that reason. **The only rules below are the ones the playbook does not carry, because they are specific to this repo.**
+
+- **Worktree setup.** `pnpm install --prefer-offline` in a fresh worktree (~2s, shared pnpm store). **On Windows, never `rm -rf` a path that might be a junction.**
+- **jsdom hygiene.** The suite shares one window per file. A style pin reads **inline `element.style`** — jsdom renders no CSS — so a value moved into a class or a CSS variable **silently un-pins its test** (§4.2). jsdom also re-spaces `rgba()`, which is why pins go through the existing `hexToJsdomRgb`-style helper rather than asserting byte-identity.
+- **`vitest.setup.ts` contracts.** `navigator.mediaDevices` is left **undefined on purpose** so media tests take the sample path — that is the tested contract, not an oversight. `ResizeObserver` / `IntersectionObserver` are no-op stubs, so anything that measures sees zero callbacks. `Element.prototype.scrollIntoView` is a no-op.
+- **Reduced motion.** `window.matchMedia` is stubbed; `useReducedMotion` is testable through it, and `PickerStage`'s deliberate per-render `matchMedia` read depends on it. The Playwright harness defaults to `reducedMotion: 'reduce'`, which makes the boot gate instant-complete — pass `{ motion: 'no-preference', gotoDemo: false }` to observe it (§6.6).
+- **No `.env.local` exists.** Map and AI degrade gracefully by design. Never fabricate a token; for U5's captures read the phone repo's `.env` read-only (§6.6).
+- **`census.mjs` is run as a file**, never re-typed into `node -e` under Git Bash — Git Bash eats a backslash, so `"\\s"` arrives as literal `s` and the check silently passes wrong.
 
 ### 4.8 Integration model and rollback (D18)
 
@@ -379,6 +383,8 @@ Parallel agents each get their own `git worktree` (created by the orchestrator) 
 
 Every implementer brief must contain, in this order:
 
+0. **`.claude/skills/fleet-orchestration/hazard-playbook.md`** — read first, before anything else in the brief. It is the non-negotiable set (§4.7).
+0b. **The verify-then-refute duty, verbatim:** *"Verify every claim in this brief against source; refute with file:line evidence instead of silently complying."* Briefs are wrong sometimes; each refutation is a spec correction the orchestrator commits.
 1. **§2 and §4 of this file in full** — the scope carve-out (D20 lives there), the conventions, the demo's frozen list, the campaign's case law, RED/GREEN discipline, git and review, the standing operational rules.
 2. **The package's row from §5**, verbatim, including its Effort, Tier, Deps and SEAM contracts.
 3. **Its matrix rows** — Tier A and Tier B — pasted with their **full Delta text**. Not a reference: the text.
@@ -387,24 +393,49 @@ Every implementer brief must contain, in this order:
 6. **The exact list of tests it is expected to redden** (from demo §6), with the RED/GREEN rule restated: *update in the same commit, record the observed red line in the body.*
 7. **Its contrast targets** from matrix §C, with the provenance rule (COMPUTED unless stated).
 8. **Which decisions (D1–D20) govern it**, and the instruction to stop if one it depends on is unruled. **D20's carve-out (§2) is quoted in full in the briefs for U2.3, U4.2, U4.3, U5.2, U5.3 and U6.3.**
-9. The instruction to commit granularly with its own model name in the trailer, and to **log deliberate deferrals in `deferred.md` at the next free § (check first — §89 is next) before finishing**.
-10. **"You do not edit the plan, the matrix or the HANDOFF."**
+9. The instruction to commit granularly with its own model name in the trailer. **Deferrals are NOT written by the implementer** — see §6.5: `dt-review-aggregator` is the sole writer of `docs/code-reviews/deferred.md`. Report what you believe belongs there and it lands through the aggregator.
+10. **"You do not edit the plan, the matrix or the HANDOFF."** Report what you believe belongs there.
+11. **Reply ≤15 lines. The full report goes to disk** at `docs/planning/demo-phone-ui-parity/reports/<pkg>-implementation-report.md` — the orchestrator's context is the one resource that cannot be recreated.
 
 ### 6.5 Review mechanics
 
-Unchanged from v1 except for the owner's spawn policy (`HANDOFF.md` §2, 2026-08-26 — **this supersedes the earlier "force opus on any agents"**):
+**The pipeline is the Dreamteam kit's, not a local invention.** Every lane reads
+`.claude/skills/fleet-orchestration/reviewer-contract.md` as its base contract; the seats below are
+its personas. This section says only what is *specific to this port*.
 
-- **Implementers** spawn as `subagent_type: "opus-implementer"` (xhigh effort). `opus-implementer-high` / `opus-implementer-max` **only where a package's Tier column says so**.
-- **Review lanes** spawn with an **EXPLICIT `model: "opus"` on every call** — most `.claude/agents/*-reviewer.md` definitions carry no model frontmatter and would silently inherit something else.
-- **The aggregator is FABLE** (`model: "fable"`), as in v1 — the one seat that settles disputes.
-- **NO NAMED AGENTS from the build phase on.** `name:` forces the teams machinery, which is flaky. **Spawn unnamed, record the raw `agentId` from each spawn result in `HANDOFF.md` §6, and resume via that id.**
+**Spawn policy** (`HANDOFF.md` §2, 2026-08-26 — supersedes the earlier "force opus on any agents"):
+implementers as `subagent_type: "opus-implementer"` (xhigh; `-high` / `-max` **only** where a
+package's Tier column says so) · review lanes with an **explicit `model: "opus"` on every call**
+(most `*-reviewer.md` definitions carry no model frontmatter and would inherit silently) ·
+**no named agents from the build phase on** — spawn unnamed, record the raw `agentId` in
+`HANDOFF.md` §6, resume by that id.
 
+**The seats:**
 
-- At each phase boundary, **five parallel Opus lane reviewers** (`typescript-reviewer`, `web-reviewer`, `test-analyzer`, `silent-failure-hunter`, `type-design-analyzer`) write FULL findings to disk under `docs/code-reviews/ui-parity/<phase>/lane-*.md`.
-- A **Fable aggregator** dedupes cross-lane duplicates, settles conflicts against the binding contracts, spot-checks every blocker, and writes the single vetted `<phase>-review.md` with per-finding suggested owners. **Only that doc plus verdict counts enters the orchestrator's context.**
-- **Fix rounds are run by the ORIGINAL authoring agents, resumed warm.** Fresh reviewers per phase; warm within a phase.
-- **Fix-delta re-reviews RESUME the same reviewers** via their stored agent IDs, so each judges the fixes to *its own* findings.
-- Decision: any CRITICAL → BLOCK · any HIGH → REVISE · otherwise APPROVE.
+| Seat | Who | Notes |
+|---|---|---|
+| Five code lanes | `typescript-reviewer` · `web-reviewer` · `test-analyzer` · `silent-failure-hunter` · `type-design-analyzer` | Each reads `reviewer-contract.md` as its base. **Each probes in its OWN worktree** — the contract makes probing part of reviewing, and a probe outranks any argument either lane can make. Lane files to disk; the orchestrator opens none of them. |
+| Aggregator | **`dt-review-aggregator`** (Fable), **warm across every round of the port** | Dedupes, settles disputes empirically, normalises severity, spot-checks every CRITICAL/HIGH at source, writes ONE vetted doc. **Sole writer of `docs/code-reviews/deferred.md`.** |
+| Fix rounds | the **original authoring agents, resumed warm** | Fix-delta per `reviewer-contract.md` §7: the PR mapping comment is the authority, read the delta not the artifact, never confirm a fix from memory, hunt fix-introduced regressions in each fix commit's blast radius. |
+| Merge help | **`dt-integrator`** | Only when a merge does not come out clean in **one** mechanical pass. The one seat allowed to touch the phase branch. |
+| Orchestrator legwork | one warm **`dt-partner`** (Fable) | Investigates, probes, measures, and returns *answers* — never file dumps. |
+
+**Severity and verdict are the contract's, not v1's:** **CRITICAL · HIGH · MEDIUM · LOW**
+(BLOCKER ≡ CRITICAL, MAJOR ≡ HIGH — the r1 review's vocabulary maps directly).
+**Verdict: any CRITICAL → BLOCK · any HIGH → REVISE · only MEDIUM/LOW → APPROVE with comments · zero → APPROVE.**
+HIGH and CRITICAL carry the contract's proof burden: the snippet with `file:line`, a concrete failure
+scenario naming a function and an input, and either an in-repo example of the correct pattern or the
+doc passage violated — missing any one, demote or drop.
+
+**The deferral ledger has one writer.** `docs/code-reviews/deferred.md` is written **only** by
+`dt-review-aggregator`. **The "next free §" / reserved-§-range protocol is retired for this port** —
+it existed to stop numbering collisions between multiple concurrent writers, and there is now exactly
+one. Implementers and lanes **report** what they believe belongs in the ledger; the aggregator lands
+it. A lane that believes a ledgered Trigger has fired says so as a `TRIGGER-LAPSED` finding citing the
+§ number — that is the only mechanism that reopens a suppressed issue.
+
+**Artifacts:** lane files and the vetted doc go to **`docs/code-reviews/ui-parity/u<N>/`**.
+
 - **Brief every reviewer with the phase's package scope**, so they do not flag surfaces scheduled for a later phase. For this port, add three specific briefing lines:
   - *"This is a STYLE port, but D20 carves out what IS in scope: component-local UI state, prop signatures and presentational composition, **where a named package specifies it** (U2.3's `hideLabel`, U4.2's required close label, U4.3's single focus trap, U5.3's `filtersVisible`, U5.2's and U6.3's owner-ruled deletions). Do not file against a package for doing what its own row specifies. The store bridge, engine functions, data flow and new store subscriptions remain out."*
   - *"Reddened style assertions are expected. Check that each was updated in the SAME commit as its value and that the commit body records the observed red line. A pin updated in a later commit, or without the red line, is a HIGH."*

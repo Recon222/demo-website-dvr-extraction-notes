@@ -18,7 +18,7 @@
 | `docs/planning/demo-phone-parity/00-surface-parity-matrix.md` (v1) | **Row IDs only.** Its Status column is stale — demo §7.3 documents exactly how. The `#` and `ui-mapping` columns are the join key both inventories use. |
 | `docs/planning/demo-phone-parity/01-master-parity-plan.md` (v1) | Format, conventions, phase/package shape, execution model. |
 | `features/demo/CLAUDE.md` | The binding demo architecture contract (store bridge, inline `CSSProperties`, frame math, portal rule, determinism). |
-| `docs/code-reviews/deferred.md` | The demo's **86-section** deferral ledger (numbered to §88; **46 and 47 are absent**). §31 names **"any actual demo restyle"** as its un-defer trigger — **this port is that trigger.** Next free section is **§89**. |
+| `docs/code-reviews/deferred.md` | The demo's **86-section** deferral ledger (numbered to §88; **46 and 47 are absent**). §31 names **"any actual demo restyle"** as its un-defer trigger — **this port is that trigger.** **`dt-review-aggregator` is its sole writer** (plan §6.5); the reserved-§-range protocol is retired. |
 
 **What was NOT re-read.** Neither repo was re-opened to build this matrix, per the brief — the two inventories are the join. The places where they disagreed are recorded in §6.
 
@@ -683,19 +683,19 @@ What ports: the WCAG 2.1 relative-luminance helper, `flattenOver` (A53) so trans
 
 ## By phase
 
-| Phase | Tier A rows | Tier B rows | Rough size |
-|---|---|---|---|
-| **U0** — Token layer + guards | A1–A9, A19, **A27**, A28, A41, A42, A47, A50, A53, A96, A97 (**19**) | — | ~3–4 days |
-| **U1** — Glass tiers & the card family | A29–A37, A40, A43, A44, A54–A56 (**15**) | 32, 42, 44, `_shared` (4) | ~4–5 days |
-| **U2** — Control primitives | A23, A39, A49, A51, A52, A59, A64–A68, A72–A74, A76 (**15**; A27's ADOPTION also lands here, its token in U0) | 29, 30, 31, 33, 56 (5) | ~1 week |
-| **U3** — Status, notices, badges | A14–A18, A57, A69, A70, A71, A80 (10) | 6, 8, 10, 38/39, 43 (5) — rows 6 and 43 are U3.3's | ~4–5 days |
-| **U4** — Sheets & dialogs | A20–A22, A38, A45, A46, A58, A60, A90 (9) | 9, 15, 16, 25, 27, 28, 81, `AlertDialog` (8) — row 9 is U4.2's | ~1 week |
-| **U5** — Map chrome | A81–A84 (4) | 17, 18, 19, 20, 21/22, `LocationRow`, `MapControls`, + 2 MISSING (9) | ~1 week |
-| **U6** — Wizard, settings, export surfaces | A48, A62, A75, A77–A79 (6) | 11/12, 13, 14, 23, 24, 34, 35, 41, 46, 82–93, A1, A2, `_pane-chrome`, `ExportCaseCard`, `ExportLocationRow` (**21** — rows 29, 31 and 43 belong to U2.1/U2.4/U3.3, not here) | ~1 week |
-| **U7** — Import, OCR, audio, media | A61, A85, A86, A91–A94 (7) | 37, 45, 49–55, 57–66, 67–69, 71/72, 73, 74, 79 (10) | ~1 week |
-| **U8** — Splash, boot, shell, design-sync | A10–A12, A63, A87–A89 (7) | 1, 2, 7 (3) | ~3–4 days |
-| **OUT** | A95 (1) | 4, 5, 26, 94 | — |
-| **no phase** (already COMPLETE) | A13, A24, A25, A26 (4) | — | — |
+| Phase | Tier A rows | Tier B rows |
+|---|---|---|
+| **U0** — Token layer + guards | A1–A9, A19, **A27**, A28, A41, A42, A47, A50, A53, A96, A97 (**19**) | — |
+| **U1** — Glass tiers & the card family | A29–A37, A40, A43, A44, A54–A56 (**15**) | 32, 42, 44, `_shared` (4) |
+| **U2** — Control primitives | A23, A39, A49, A51, A52, A59, A64–A68, A72–A74, A76 (**15**; A27's ADOPTION also lands here, its token in U0) | 29, 30, 31, 33, 56 (5) |
+| **U3** — Status, notices, badges | A14–A18, A57, A69, A70, A71, A80 (10) | 6, 8, 10, 38/39, 43 (5) — rows 6 and 43 are U3.3's |
+| **U4** — Sheets & dialogs | A20–A22, A38, A45, A46, A58, A60, A90 (9) | 9, 15, 16, 25, 27, 28, 81, `AlertDialog` (8) — row 9 is U4.2's |
+| **U5** — Map chrome | A81–A84 (4) | 17, 18, 19, 20, 21/22, `LocationRow`, `MapControls`, + 2 MISSING (9) |
+| **U6** — Wizard, settings, export surfaces | A48, A62, A75, A77–A79 (6) | 11/12, 13, 14, 23, 24, 34, 35, 41, 46, 82–93, A1, A2, `_pane-chrome`, `ExportCaseCard`, `ExportLocationRow` (**21** — rows 29, 31 and 43 belong to U2.1/U2.4/U3.3, not here) |
+| **U7** — Import, OCR, audio, media | A61, A85, A86, A91–A94 (7) | 37, 45, 49–55, 57–66, 67–69, 71/72, 73, 74, 79 (10) |
+| **U8** — Splash, boot, shell, design-sync | A10–A12, A63, A87–A89 (7) | 1, 2, 7 (3) |
+| **OUT** | A95 (1) | 4, 5, 26, 94 |
+| **no phase** (already COMPLETE) | A13, A24, A25, A26 (4) | — |
 
 **Sequencing, not scheduling.** The dependency shape is `U0 → U1 → (U2 ∥ U3) → U4 → (U5 ∥ U6) → U7 → U8`. Running U2∥U3 and U5∥U6 as lanes costs ~2s of worktree setup each (shared pnpm store), so **the only real question per phase is file contention — see the plan §6.1**, not elapsed time.
 
