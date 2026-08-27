@@ -96,13 +96,27 @@ function attempt(src, read) {
   }
 }
 
-/** Slice a source file down to one object-literal region. Both markers are plain indexOf. */
+/**
+ * Slice a source file down to one object-literal region. Every marker is a plain `indexOf`,
+ * not a parser — a reordered source file degrades these silently, which is why a marker that
+ * misses THROWS (and lands as PARSE-FAILED) rather than falling back to the whole file.
+ *
+ * `after` may be a LIST of successive markers, each searched from the previous hit. That is
+ * how a NESTED literal is addressed, and the phone's glass tiers need three levels:
+ * `['export const GlassColors', 'dark: {', 'card: {']`. Two levels is not enough and one is
+ * actively wrong — measured at `dd5551ec`:
+ *   `'card: {'`      alone -> `GlassColors.LIGHT.card` (:275), because light is declared first
+ *   `'dark: {'`      alone -> `Colors.dark` (:128), 200 lines above `GlassColors.dark` (:345)
+ *   `'GlassColors'`  alone -> a COMMENT at :25 that happens to name it
+ * The first marker must therefore be `'export const GlassColors'`, not `'GlassColors'`.
+ */
 function region(text, { after, before } = {}) {
   let out = text
-  if (after) {
-    const i = text.indexOf(after)
-    if (i === -1) throw new Error(`region marker not found: ${after}`)
-    out = text.slice(i)
+  const markers = after == null ? [] : Array.isArray(after) ? after : [after]
+  for (const marker of markers) {
+    const i = out.indexOf(marker)
+    if (i === -1) throw new Error(`region marker not found: ${marker}`)
+    out = out.slice(i)
   }
   if (before) {
     const j = out.indexOf(before)
@@ -145,8 +159,13 @@ function value(raw, follow) {
   return follow(raw.split('.').pop())
 }
 
-/** Pull `key: <value>` from a specific object-literal region of a source file. */
-function readField(text, key, opts = {}) {
+/**
+ * Pull `key: <value>` from a specific object-literal region of a source file.
+ *
+ * It reads scalars only. A field whose value is an ARRAY (`gradient: ['…','…']`) matches none
+ * of `VALUE`'s alternatives and throws `field not found` — use `readStop` for those.
+ */
+export function readField(text, key, opts = {}) {
   const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*(${VALUE})`))
   if (!m) throw new Error(`field not found: ${key}`)
   return value(m[1], opts.resolve)
@@ -162,12 +181,37 @@ function readConst(text, name, opts = {}) {
   return value(m[1], opts.resolve)
 }
 
-/** Pull stop `i` (1 or 2) of `<scheme>: [a, b]` — the phone's per-scheme gradient pairs. */
-function readStop(text, scheme, i, opts = {}) {
-  const m = region(text, opts).match(new RegExp(`\\b${scheme}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
-  if (!m) throw new Error(`gradient stops not found: ${scheme}`)
+/**
+ * Pull stop `i` (1 or 2) of a two-element tuple field, `key: [a, b]`.
+ *
+ * `key` is whatever names the tuple. Two shapes use it today and they are why it is not
+ * spelled for either one of them:
+ *   `PrimaryButtonGradient` -> `readStop(t, 'dark', 1, …)`      the scheme names the tuple
+ *   `GlassColors[s][tier]`  -> `readStop(t, 'gradient', 1, …)`  the part names it (U1.1's 12)
+ *
+ * ONE stop per call, on purpose: an anchor ROW is the unit of PARSE-FAILED isolation, so the
+ * two stops of a gradient must be able to fail independently. Both go through `value`, so a
+ * stop that is an identifier reference resolves like any other field.
+ */
+export function readStop(text, key, i, opts = {}) {
+  const m = region(text, opts).match(new RegExp(`\\b${key}\\s*:\\s*\\[\\s*(${VALUE})\\s*,\\s*(${VALUE})`))
+  if (!m) throw new Error(`tuple stops not found: ${key}`)
   return value(m[i], opts.resolve)
 }
+
+/**
+ * The scope of ONE glass tier part in the phone's `GlassColors` — the shape U1.1's 24 tier
+ * keys read through. Three levels, each load-bearing; see `region` above for what each of the
+ * shorter forms actually hits.
+ *
+ * `before: '}'` is safe for every tier: a tier body holds only `rgba()` (parens) and one
+ * `[…]` tuple, so the first `}` after the opening brace is the tier's own close. Verified
+ * across all six tiers in both halves at `dd5551ec`.
+ */
+export const rnTierScope = (scheme, tier) => ({
+  after: ['export const GlassColors', `${scheme}: {`, `${tier}: {`],
+  before: '}',
+})
 
 /**
  * The palette keys anchored at THIS stage of the port.

@@ -1,5 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, it, expect } from 'vitest'
-import { checkParity, norm, PALETTE_KEYS, rnAvailable, RN_ROOT } from '../../../../../.design-sync/check-rn-parity.mjs'
+import {
+  checkParity,
+  norm,
+  PALETTE_KEYS,
+  readField,
+  readStop,
+  rnAvailable,
+  rnTierScope,
+  RN_ROOT,
+} from '../../../../../.design-sync/check-rn-parity.mjs'
 
 /** One row of the guard's table. `scheme` is `'any'` for scheme-invariant anchors. */
 type Anchor = { key: string; scheme: string; label: string; rn: string; web: string }
@@ -108,5 +120,45 @@ describe('RN <-> Web token parity (design-system drift guard)', () => {
         at(key, 'dark').web,
       )
     }
+  })
+})
+
+// U1.1 adds 24 glass-tier keys to this guard. Two reader capabilities it needs did not exist,
+// and both are cheaper to land (and to pin) here than inside a package whose job is meant to
+// be "add anchors, nothing more". These two cases pin the CAPABILITIES; U1.1 adds the rows.
+//
+// No anchors are added here: an anchor whose web-side token does not exist yet is the one
+// thing plan §6.6 gate 1 forbids, and `ui/tokens/glass-tiers.ts` is U1.1's to create.
+describe('glass-tier reader capabilities U1.1 depends on', () => {
+  const phoneColors = () => readFileSync(join(RN_ROOT, 'src', 'constants', 'Colors.ts'), 'utf8')
+
+  it.skipIf(!rnAvailable())('reads a TUPLE field — the gradient stops readField is blind to', () => {
+    const t = phoneColors()
+    const scope = rnTierScope('dark', 'card')
+    const top = readStop(t, 'gradient', 1, scope)
+    const bottom = readStop(t, 'gradient', 2, scope)
+    expect(top).toMatch(/^rgba\(/)
+    expect(bottom).toMatch(/^rgba\(/)
+    expect(top, 'a gradient whose two stops are equal is not a gradient').not.toBe(bottom)
+    // The reason `readStop` exists at all: after `gradient:` comes `[`, which matches none of
+    // readField's value alternatives. Without this, all 12 stops become permanent
+    // PARSE-FAILED rows — a red gate that no token change can clear.
+    expect(() => readField(t, 'gradient', scope)).toThrow(/field not found: gradient/)
+  })
+
+  it.skipIf(!rnAvailable())('addresses the light and dark tiers separately (three-level scope)', () => {
+    const t = phoneColors()
+    const light = readField(t, 'border', rnTierScope('light', 'card'))
+    const dark = readField(t, 'border', rnTierScope('dark', 'card'))
+    expect(light, 'the two halves of GlassColors.card.border must not read as one').not.toBe(dark)
+
+    // Why THREE levels and not two. `GlassColors.light` is declared before `GlassColors.dark`,
+    // so a scope that only names the tier lands on the light one for both schemes — which
+    // reads as zero drift while proving nothing (the same trap as the palette light half
+    // above). If this ever reddens, the phone reordered `Colors.ts` and the markers in
+    // `rnTierScope` need re-reading, not deleting.
+    const twoLevel = readField(t, 'border', { after: 'card: {', before: '}' })
+    expect(twoLevel, 'a tier-only scope lands on the LIGHT tier').toBe(light)
+    expect(twoLevel).not.toBe(dark)
   })
 })
