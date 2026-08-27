@@ -113,8 +113,15 @@ describe('A60 — the modal header bar', () => {
     // The lit-edge ruling, §1: the longhand-only fragment is the only measured shape with no
     // first-paint-OK / update-FAIL trap. A `border` / `borderColor` / `borderBottom` key here
     // reintroduces exactly that trap for eight surfaces.
+    //
+    // Widened to `CSSProperties` to READ it: since W2/F38' closed the table with
+    // `as const satisfies CSSProperties`, those four keys are absent from its literal type and
+    // indexing it directly is a TS7053. That is the guarantee getting STRONGER, not weaker -
+    // adding a shorthand back is now a compile-time change as well as a runtime one, and this
+    // case still reds on the runtime value either way.
+    const fragment = modalHeaderBar as CSSProperties
     for (const key of ['border', 'borderColor', 'borderBottom', 'borderTop'] as const) {
-      expect(modalHeaderBar[key]).toBeUndefined()
+      expect(fragment[key]).toBeUndefined()
     }
   })
 

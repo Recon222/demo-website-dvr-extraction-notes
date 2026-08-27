@@ -52,12 +52,12 @@ export type ModalLayer = (typeof MODAL_LAYER)[keyof typeof MODAL_LAYER]
 export const MODAL_SCRIM_Z = 21
 export const MODAL_SHEET_Z = 22
 
-const grid: CSSProperties = {
+const grid = {
   position: 'absolute',
   inset: 0,
   backgroundImage: GLASS.gridOverlay,
   pointerEvents: 'none',
-}
+} as const satisfies CSSProperties
 
 /**
  * SEAM(U4.2): the page-sheet chrome - scrim + panel - shared by `ModalShell` and the Settings
@@ -94,7 +94,7 @@ const grid: CSSProperties = {
  * have no phone number to match - the same finding D6 ratified for `TAB_BAR_HEIGHT` and U1.4 for
  * `WizardHeader`'s 56px. Do not "correct" them toward `radius.sheet`.
  */
-export const modalScrim: CSSProperties = {
+export const modalScrim = {
   position: 'absolute',
   inset: 0,
   zIndex: MODAL_SCRIM_Z,
@@ -102,10 +102,10 @@ export const modalScrim: CSSProperties = {
   // `palette[scheme].scrim`. Two sites became one here; this is the survivor.
   background: 'rgba(4,8,14,0.55)',
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
 /** The panel the scrim sits under. See `modalScrim`'s docblock - one recipe, two surfaces. */
-export const modalSheet: CSSProperties = {
+export const modalSheet = {
   position: 'absolute',
   left: 0,
   right: 0,
@@ -119,7 +119,7 @@ export const modalSheet: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   pointerEvents: 'auto',
-}
+} as const satisfies CSSProperties
 
 /**
  * The panel's entrance, SEPARATE from the panel, because it is conditional.
@@ -134,7 +134,7 @@ export const modalSheet: CSSProperties = {
  * that the latter caches its `matchMedia` subscription module-globally, and U4.1's
  * `GlassBottomSheet.tsx:5` chose the same way for the same reason.
  */
-export const modalSheetEnter: CSSProperties = { animation: 'screenIn 0.3s ease' }
+export const modalSheetEnter = { animation: 'screenIn 0.3s ease' } as const satisfies CSSProperties
 
 /**
  * SEAM(U4.2): the page-sheet header bar - matrix A60, phone `ModalHeader.tsx:54-97`.
@@ -171,7 +171,7 @@ export const modalSheetEnter: CSSProperties = { animation: 'screenIn 0.3s ease' 
  * prop with one honest value and seven invented ones is worse than no prop, so the slot is not
  * built here. See the U4.2 report's deferral proposals for the trigger.
  */
-export const modalHeaderBar: CSSProperties = {
+export const modalHeaderBar = {
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
@@ -181,7 +181,7 @@ export const modalHeaderBar: CSSProperties = {
   borderBottomStyle: 'solid', // :86 `borderBottomWidth: 1`, spelled in longhands per the ruling
   borderBottomWidth: 1,
   borderBottomColor: GLASS_TIER[scheme].elevated.border, // :59
-}
+} as const satisfies CSSProperties
 
 /**
  * The header's two glyph buttons (close, and the optional back chevron).
@@ -197,14 +197,14 @@ export const modalHeaderBar: CSSProperties = {
  * flex row. The painted glyph lands in exactly the position `padding: 4` put it, because the
  * margin box is 32 either way and the glyph is centred in it.
  */
-const modalHeaderIconBtn: CSSProperties = {
+const modalHeaderIconBtn = {
   cursor: 'pointer',
   display: 'flex',
   background: 'transparent',
   border: 'none',
   padding: 14, // (52 - iconSize.md) / 2
   margin: -10, // 14 - spacing.xs: the phone's hitSlop, spelled as layout
-}
+} as const satisfies CSSProperties
 
 /** The bottom-sheet modal chrome shared by the New Case / New Location / Import modals.
  *  `onBack` (optional) renders a chevron before the title for in-modal sub-steps — the
