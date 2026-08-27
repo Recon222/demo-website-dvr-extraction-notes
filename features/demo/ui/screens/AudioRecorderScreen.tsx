@@ -11,6 +11,7 @@ import {
   recorderStatusLabel,
   type RecordingPhase,
 } from '@/features/demo/engine/logic/media'
+import { buttonStyle, SAMPLE_TINT } from '@/features/demo/ui/controls/button-recipe'
 import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 import type { AudioMeter } from '@/features/demo/ui/inputs/useAudioAnalyser'
 
@@ -505,16 +506,12 @@ const pillButton: CSSProperties = {
   cursor: 'pointer',
 }
 
+/** The second site of the demo-only tinted-fill recipe documented at
+ *  `OcrCaptureScreen.tsx`'s `panelButton`. `outline` + the wash, never a sixth variant. */
 const sampleButton: CSSProperties = {
   width: '100%',
-  padding: 13,
-  borderRadius: 10,
-  border: '1px solid #4BA3D4',
-  background: 'rgba(43,140,193,0.14)',
-  color: '#9fd4ee',
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
+  ...buttonStyle({ variant: 'outline' }),
+  background: SAMPLE_TINT,
 }
 
 function PauseIcon() {

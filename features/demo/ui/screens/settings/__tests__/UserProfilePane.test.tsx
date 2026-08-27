@@ -8,6 +8,7 @@ import { SETTINGS_SHEET_Z } from '@/features/demo/ui/screens/settings/SettingsMo
 import { PICKER_SHEET_Z } from '@/features/demo/ui/inputs/PickerSheet'
 import type { UserProfile } from '@/features/demo/engine/types'
 import type { SaveStateKind } from '@/features/demo/engine/logic/save-status'
+import { palette } from '@/features/demo/ui/tokens/palette'
 
 /**
  * The User Profile pane + its editor (P7.2, matrix rows 85/86).
@@ -80,6 +81,25 @@ describe('the pane — configured', () => {
     expect(screen.getByTestId('user-profile-section-unit')).toHaveTextContent('Unit: Forensic Video Unit')
     expect(screen.getByTestId('user-profile-section-edit-button')).toHaveTextContent('Edit Profile')
     expect(screen.queryByTestId('user-profile-section-empty')).not.toBeInTheDocument()
+  })
+
+  it('paints its edit button with the shared outline recipe, not a hand-rolled accent pair (A66)', () => {
+    // demo §3.5 flags this site explicitly, and it is the ONE A66 site where the phone names a
+    // size: `src/features/settings/user-profile/components/UserProfileSection.tsx:95-102`,
+    // `variant="outline" size="small"`.
+    //
+    // This is the ADOPTION pin. `controls/__tests__/button-recipe.test.tsx` proves the recipe
+    // holds the phone's values; nothing there can fail if the seam is never CALLED, which is the
+    // dead-import failure a seam-only suite is blind to by construction. One real surface reading
+    // it closes that, and this is the only A66 site with a test file to put it in.
+    renderPane(FULL)
+    expect(screen.getByTestId('user-profile-section-edit-button')).toHaveStyle({
+      color: palette.dark.link, // was `#4BA3D4` — 2.81:1 as 16px semibold on the pane's glass
+      borderTopColor: palette.dark.link, // was `#2B8CC1`; the recipe emits four side longhands
+      borderRadius: '10px', // was a hand-rolled 8; A68 makes the corner one value
+      minHeight: '44px', // `touchTarget.min` — the demo had no min-height on any button
+      padding: '8px 16px', // `spacing.sm` / `spacing.md`; was '9px 16px'
+    })
   })
 
   it('drops only the lines that are empty — a name with no badge keeps the rest', () => {

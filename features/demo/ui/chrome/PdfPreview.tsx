@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
-import { glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
 
 export interface PdfPreviewProps {
   title: string
@@ -167,8 +167,8 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
         <div role="status" style={{ margin: '10px 18px 0', fontSize: 12.5, color: '#ffd07a', background: 'rgba(255,200,90,0.1)', border: '1px solid rgba(255,200,90,0.28)', borderRadius: 8, padding: '8px 12px' }}>{printNotice}</div>
       )}
       <div style={{ padding: '14px 18px 24px', borderTop: '1px solid #2a3340', display: 'flex', gap: 10 }}>
-        <button type="button" onClick={onClose} style={{ padding: '14px 20px', ...glassBtnSecondary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Close</button>
-        <button type="button" ref={saveBtnRef} onClick={printDocument} style={{ flex: 1, textAlign: 'center', padding: 14, ...glassBtnPrimary, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Save as PDF</button>
+        <button type="button" onClick={onClose} style={{ ...buttonStyle({ variant: 'secondary' }) }}>Close</button>
+        <button type="button" ref={saveBtnRef} onClick={printDocument} style={{ flex: 1, ...buttonStyle() }}>Save as PDF</button>
       </div>
     </div>
   )

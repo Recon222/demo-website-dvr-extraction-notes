@@ -2,10 +2,11 @@
 
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { ModalShell } from '@/features/demo/ui/screens/_shared'
 import { actionsForStatus } from '@/features/demo/engine/logic/case-actions'
 import type { CaseSheetData } from '@/features/demo/ui/screens/screenData'
-import { glassBtnPrimary, glassBtnSecondary, glassCardNested } from '@/features/demo/ui/glass-tokens'
+import { glassCardNested } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 
 /**
@@ -72,14 +73,12 @@ export interface CaseActionsSheetProps {
   onClose: () => void
 }
 
+/** Grid GEOMETRY only — the paint comes from `buttonStyle()` at each call site, spread AFTER
+ *  this so the recipe wins on every key it owns. Phone `styles.gridButton`. */
 const gridButton: CSSProperties = {
   flexBasis: '48%',
   flexGrow: 1,
   minWidth: 0,
-  padding: 12,
-  fontSize: 14.5,
-  fontWeight: 600,
-  cursor: 'pointer',
 }
 
 export function CaseActionsSheet({
@@ -143,28 +142,34 @@ export function CaseActionsSheet({
     // Edit + Complete/Reopen, row 2 Archive + Cancel. An ARCHIVED case has one button
     // fewer, so Cancel lands alone on its row and flexGrow stretches it full width —
     // the phone's exact wrap behaviour.
+    //
+    // VARIANTS, from the phone's own call sites and its own comment
+    // (`src/features/case-management/components/CaseActionsSheet.tsx:314-343`): "Edit and
+    // Complete are the primary positive actions — blue gradient. Reopen / Archive / Cancel stay
+    // `outline` so the primary actions read first." The demo painted all three of those as
+    // SECONDARY, which flattened a three-level hierarchy into two.
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {onEdit && (
-        <button type="button" onClick={onEdit} style={{ ...gridButton, ...glassBtnPrimary }}>
+        <button type="button" onClick={onEdit} style={{ ...gridButton, ...buttonStyle() }}>
           Edit Case
         </button>
       )}
       {canComplete && (
-        <button type="button" onClick={onComplete} style={{ ...gridButton, ...glassBtnPrimary }}>
+        <button type="button" onClick={onComplete} style={{ ...gridButton, ...buttonStyle() }}>
           Complete Case
         </button>
       )}
       {canReopen && (
-        <button type="button" onClick={onReopen} style={{ ...gridButton, ...glassBtnSecondary }}>
+        <button type="button" onClick={onReopen} style={{ ...gridButton, ...buttonStyle({ variant: 'outline' }) }}>
           Reopen Case
         </button>
       )}
       {canArchive && (
-        <button type="button" onClick={onArchive} style={{ ...gridButton, ...glassBtnSecondary }}>
+        <button type="button" onClick={onArchive} style={{ ...gridButton, ...buttonStyle({ variant: 'outline' }) }}>
           Archive Case
         </button>
       )}
-      <button type="button" onClick={onClose} style={{ ...gridButton, ...glassBtnSecondary }}>
+      <button type="button" onClick={onClose} style={{ ...gridButton, ...buttonStyle({ variant: 'outline' }) }}>
         Cancel
       </button>
     </div>

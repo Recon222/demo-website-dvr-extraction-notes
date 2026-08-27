@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spacing, radius, touchTarget, iconSize, withAlpha, flattenOver } from '@/features/demo/ui/tokens/scale'
 import { T } from '@/features/demo/ui/inputs/input-theme'
-import { glassCard, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { glassCard } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 
 // Guards for the U0.2 scale seam (matrix A41, A42, A49, A53).
 //
@@ -44,8 +45,12 @@ describe('scale (U0.2 / A41, A42, A49, A53)', () => {
   it('routes the glass fragments through the radius ladder (A42/A43 depth rule)', () => {
     // Cards are `lg`; buttons, pills and other small tap targets are `control`.
     expect(glassCard.borderRadius).toBe(radius.lg)
-    expect(glassBtnPrimary.borderRadius).toBe(radius.control)
-    expect(glassBtnSecondary.borderRadius).toBe(radius.control)
+    // The two button fragments this used to read were deleted by U2.2; `buttonStyle()` is the
+    // one recipe now, and A68 makes `control` the corner for ALL FIVE variants and all three
+    // sizes (phone `Button.tsx:90`). Two cells stand in here for the grid that
+    // `controls/__tests__/button-recipe.test.tsx` walks exhaustively.
+    expect(buttonStyle().borderRadius).toBe(radius.control)
+    expect(buttonStyle({ variant: 'ghost', size: 'large' }).borderRadius).toBe(radius.control)
   })
 
   describe('withAlpha', () => {

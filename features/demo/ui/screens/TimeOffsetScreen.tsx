@@ -5,7 +5,8 @@ import { DateTimeField, SectionCard, Toggle, WizardHeader, WizardNext } from '@/
 import { SyncStatusCard } from '@/features/demo/ui/screens/SyncStatusCard'
 import type { SyncResult } from '@/features/demo/engine/types'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
-import { GLASS, glassCard, glassBtnPrimary } from '@/features/demo/ui/glass-tokens'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
+import { GLASS, glassCard } from '@/features/demo/ui/glass-tokens'
 
 export interface CorrectedScope {
   id: string
@@ -71,12 +72,19 @@ export function TimeOffsetScreen(p: TimeOffsetScreenProps) {
           <DateTimeField label="DVR Date / Time" value={p.dvrDateTime} onChange={p.onChangeDvr} />
           <DateTimeField label="Actual Date / Time" value={p.actualDateTime} onChange={p.onChangeActual} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', color: '#4BA3D4', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Use Current Time</button>
-            <button type="button" onClick={onCalculateClick} disabled={!canCalc} style={{ flex: 1, textAlign: 'center', padding: 11, ...glassBtnPrimary, fontSize: 14, fontWeight: 600, cursor: canCalc ? 'pointer' : 'not-allowed', opacity: canCalc ? 1 : 0.45 }}>Calculate</button>
+            {/* Phone `app/(form)/time-offset.tsx:467-476`: `variant="outline"`, default size,
+                `style={styles.flexButton}`. A66. */}
+            <button type="button" onClick={p.onUseCurrentTime} style={{ flex: 1, ...buttonStyle({ variant: 'outline' }) }}>Use Current Time</button>
+            <button type="button" onClick={onCalculateClick} disabled={!canCalc} style={{ flex: 1, ...buttonStyle({ disabled: !canCalc }) }}>Calculate</button>
           </div>
-          <button type="button" onClick={p.onCaptureOcr} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: 12, borderRadius: 10, border: '1px solid #2B8CC1', background: 'transparent', cursor: 'pointer', width: '100%' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4BA3D4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#4BA3D4' }}>Capture from DVR</span>
+          {/* Phone `app/(form)/time-offset.tsx:505-533`: `variant="outline"`, default size, with
+              NON-STRING children — so the phone has to re-state `colors.link` on both the icon
+              (`:521`) and the label (`:527`), and its `ocrCaptureText` is `fontSize.base`/semibold
+              (`:736-740`). On the web both inherit from the button, so they are dropped rather
+              than restated: one source for the token, and `currentColor` for the glyph. */}
+          <button type="button" onClick={p.onCaptureOcr} style={{ gap: 9, width: '100%', ...buttonStyle({ variant: 'outline' }) }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+            <span>Capture from DVR</span>
           </button>
         </SectionCard>
 

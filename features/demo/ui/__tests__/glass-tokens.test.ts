@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { GLASS, glassCard, glassCardNested, glassBtnPrimary, glassBtnSecondary } from '@/features/demo/ui/glass-tokens'
+import { GLASS, glassCard, glassCardNested } from '@/features/demo/ui/glass-tokens'
 
 // Guards for the P0.5 glass-token extraction (matrix G6).
 //
@@ -261,18 +261,12 @@ describe('glass tokens (P0.5 / G6)', () => {
       background: 'linear-gradient(180deg,rgba(23,65,110,0.7),rgba(14,57,101,0.6))',
       boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.15)',
     })
-    expect(glassBtnPrimary).toEqual({
-      borderRadius: 10,
-      border: 'none',
-      background: 'linear-gradient(180deg,#1F6B99,#17527A)',
-      color: '#fff',
-    })
-    expect(glassBtnSecondary).toEqual({
-      borderRadius: 10,
-      border: '1px solid #2e5f97',
-      background: '#0e3965',
-      color: '#99badd',
-    })
+    // `glassBtnPrimary` / `glassBtnSecondary` were pinned here until U2.2 deleted them
+    // (A64/A65/A68). Their replacement is pinned as a whole recipe in
+    // `ui/controls/__tests__/button-recipe.test.tsx`, which asserts far more than these four
+    // keys ever could — the two that mattered here were both WRONG against the phone anyway:
+    // the secondary border read `borderLight` where `Button.tsx:144` reads `colors.border`, and
+    // its label read `textSecondary` where `:216` reads `colors.text`.
   })
 
   it('keeps the four legacy composites DERIVED from GLASS_TIER (U1.1)', async () => {
