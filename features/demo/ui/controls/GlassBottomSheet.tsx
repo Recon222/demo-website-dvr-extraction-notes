@@ -368,7 +368,7 @@ export function GlassBottomSheet({
         </div>
       )}
 
-      <div style={sheetHeaderBand}>
+      <div data-sheet-header style={sheetHeaderBand}>
         <div style={sheetHeaderTitleRow}>
           <div style={sheetAccentDot} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -387,9 +387,35 @@ export function GlassBottomSheet({
     <PhoneOverlayPortal>
       <div
         data-sheet-scrim
-        // Announced only when the caller named what is being dismissed — see `closeLabel`.
+        // Announced ONLY when the caller named what is being dismissed — see `closeLabel`.
+        //
+        // W2/F46: announcing it is a promise of operability. A `role="button"` that cannot be
+        // reached or activated from a keyboard fails WCAG 2.1.1, so the role, the tab stop and
+        // the key handler arrive together or not at all. The alternative the finding offered —
+        // drop the role, click-only, matching the bare scrims of `ModalShell` (`_shared.tsx
+        // :277`) and `CentredDialog` (`:288-290`) — was rejected because A82's map filters sheet
+        // renders NO close control of its own, so for that caller this is the announced exit and
+        // "unannounced div" would be a real loss rather than parity with two siblings that each
+        // have a labelled button elsewhere.
+        //
+        // The tab stop is the first thing inside the dialog, which is where a close affordance
+        // belongs. Callers that already render a labelled ✕ pass no `closeLabel` and get the
+        // bare div — see the prop's docblock.
         role={closeLabel ? 'button' : undefined}
         aria-label={closeLabel}
+        tabIndex={closeLabel ? 0 : undefined}
+        // `screens/_shared.tsx:18-25`'s `switchKeyDown`, inlined: `controls/` importing from
+        // `screens/` would close a cycle (`_shared.tsx` already imports `controls/header-chrome`).
+        onKeyDown={
+          closeLabel
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onClose()
+                }
+              }
+            : undefined
+        }
         onClick={onClose}
         style={{ ...sheetScrim, zIndex: PICKER_SHEET_Z, animation: animation(SCRIM_FADE_KEYFRAME) }}
       />
