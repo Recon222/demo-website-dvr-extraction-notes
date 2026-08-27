@@ -136,12 +136,25 @@ describe('OverlayHeader — placement is the caller’s', () => {
     expect(row).toHaveStyle({ display: 'flex', justifyContent: 'space-between' })
   })
 
-  // MUTATION: spread `...style` BEFORE `...row` so the recipe wins over the caller.
+  /**
+   * MUTATION: spread `...style` BEFORE `...row` so the recipe wins over the caller.
+   *
+   * THE FIRST SHAPE OF THIS PIN SURVIVED that mutation, and the reason is worth keeping: it
+   * asserted only `position` / `top` / `padding`, none of which `row` sets — so the spread order
+   * was invisible to its input and it was pinning nothing. An override pin has to override
+   * something. `justifyContent` is a key BOTH sides write, which is the only kind that can tell
+   * the two orders apart. (Probe P9, U7.2 report §3.)
+   */
   it('lets the caller’s style win — that is the whole placement contract', () => {
     const { container } = render(
-      <OverlayHeader variant="cameraScrim" style={{ position: 'absolute', top: 44, padding: '0 20px' }} />,
+      <OverlayHeader
+        variant="cameraScrim"
+        style={{ position: 'absolute', top: 44, padding: '0 20px', justifyContent: 'flex-start' }}
+      />,
     )
     const row = container.firstElementChild as HTMLElement
     expect(row).toHaveStyle({ position: 'absolute', top: '44px', padding: '0 20px' })
+    // The discriminating assertion: the recipe's own `space-between` must have LOST.
+    expect(row.style.justifyContent).toBe('flex-start')
   })
 })
