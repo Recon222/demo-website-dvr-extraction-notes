@@ -151,9 +151,22 @@ export const GLASS = {
   // U1.3, so the pair moves together.
   gradientPanel: `linear-gradient(180deg,${tier.elevated.gradient[0]},${tier.elevated.gradient[1]})`,
   gradientAccent: `linear-gradient(180deg,${ACCENT_FROM},${ACCENT_TO})`,
-  /** Faint blueprint grid backgroundImage (phone screen + modal sheets). */
+  /**
+   * A10/A88 (U8.2) — the blueprint grid backgroundImage (phone screen + modal sheets).
+   *
+   * DERIVED from `colors.gridSubtle`, not spelled: the demo's old `rgba(153,186,221,0.05)` was
+   * a near-miss of the phone's app-wide default, which P0 moved to `0.11`. Deriving it means a
+   * later phone-side re-tint moves both axes and both consumers at once, and the drift guard —
+   * which reads `tokens/palette.ts` — is what catches the re-tint.
+   *
+   * The 40px PITCH is the demo's own and stays (A88 ratifies 40px, `strokeWidth 1`). It is the
+   * one part of this value no token owns, so `glass-tokens.test.ts` pins it as a literal.
+   *
+   * D9: `demo.css:29-50`'s page backdrop is a DIFFERENT surface at 46px/`0.035` and is FROZEN.
+   * These two were never meant to match — matrix note 4 settles them as separate rows.
+   */
   gridOverlay:
-    'repeating-linear-gradient(0deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(153,186,221,0.05) 0 1px,transparent 1px 40px)',
+    `repeating-linear-gradient(0deg,${colors.gridSubtle} 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,${colors.gridSubtle} 0 1px,transparent 1px 40px)`,
   // border shorthands
   border: `1px solid ${colors.border}`,
   // A30 - `card.border`. U0.1 already landed the VALUE (`colors.border` at 50%, which CSS

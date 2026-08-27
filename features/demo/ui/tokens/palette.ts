@@ -30,8 +30,17 @@
  *     `*Dark` names invert between schemes on purpose, which is exactly why the phone made
  *     it a lookup instead of two literals; U2.2.
  *
- * The grid tokens and `scrim` arrive with the packages that create their web-side consumers
- * (U8.2, U4.4). The status-tone family landed with U3.1 and is here now.
+ * `scrim` landed with U4.4 and the status-tone family with U3.1; both are here now.
+ *
+ * Of the phone's THREE grid tokens (`Colors.ts:52-54` / `:158-160`) U8.2 ports exactly ONE.
+ * `gridSubtle` is the app-wide default and the demo has a consumer for it — `GLASS.gridOverlay`,
+ * which paints the phone frame and every modal sheet. `grid` (A11) and `gridLight` (A12) have
+ * NO web-side surface: the demo never rendered a second or third grid weight, and A12's own
+ * matrix row records the demo side as "None". Adding them here would create two tokens nothing
+ * reads and — because `PALETTE_KEYS`' membership pin forces an anchor per key — two drift-guard
+ * rows over values no demo pixel depends on. Plan §6.6 gate 1 forbids exactly that, and D3
+ * ("leave unique unchanged literals alone") points the same way. They stay unported until a
+ * demo surface needs a second grid weight; that surface's package ports them.
  *
  * ## The naming trap — read this before spending a `*Light` token (phone §1.2, note 2)
  *
@@ -81,6 +90,14 @@ const dark = {
   border: '#1c4e84', // Colors.ts:153
   borderLight: '#2e5f97', // Colors.ts:154
   borderDark: '#063d72', // Colors.ts:155
+
+  // The grid (A10, U8.2). `GLASS.gridOverlay` composes both of its repeating gradients from
+  // this one token, so the phone frame's ambient grid and every modal sheet's move together.
+  //
+  // SPACED, like `overlay`/`scrim` below and unlike the demo's own rgba literals: this is
+  // lifted verbatim from `Colors.ts:158` and nothing here is re-spelled. The drift guard's
+  // `norm` strips whitespace on both sides, and `glass-tokens.test.ts`'s sweep does too.
+  gridSubtle: 'rgba(153, 186, 221, 0.11)', // Colors.ts:158 — app-wide default grid opacity
 
   // Status (A28). NOTE the naming trap, phone §1.2 note 3: in DARK the `*Light` names are
   // the DARK BACKGROUND TONE a matching `*OnLight` foreground sits on — they are not
@@ -175,6 +192,10 @@ const light = {
   border: '#e5e7eb', // Colors.ts:45 — Gray 200
   borderLight: '#f3f4f6', // Colors.ts:46 — Gray 100
   borderDark: '#d1d5db', // Colors.ts:47 — Gray 300
+
+  // Navy lines over the white ground, derived from light's `primary` rgb(30,58,138) — the
+  // phone's own comment at `Colors.ts:49-51`. NOT dark's value at another alpha.
+  gridSubtle: 'rgba(30, 58, 138, 0.06)', // Colors.ts:52
 
   success: '#10b981', // Colors.ts:57 — Green 500
   successLight: '#d1fae5', // Colors.ts:58 — Green 100, the pale background tone
