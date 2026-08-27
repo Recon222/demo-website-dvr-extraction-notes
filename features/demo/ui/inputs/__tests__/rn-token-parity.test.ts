@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkParity, rnAvailable, RN_ROOT } from '../../../../../.design-sync/check-rn-parity.mjs'
+import { checkParity, norm, rnAvailable, RN_ROOT } from '../../../../../.design-sync/check-rn-parity.mjs'
 
 // Drift guard: the web demo's dark palette (`T` in input-theme.ts + the hexes hardcoded
 // across the wizard screens) mirrors the RN app's Colors.dark BY HAND. This test pins the
@@ -25,6 +25,28 @@ const KNOWN_PARSE_FAILED = KNOWN_DRIFT
 const labels = (rows: ReadonlyArray<{ label: string }>) => rows.map((r) => r.label)
 const report = (rows: ReadonlyArray<{ label: string; rn: string; web: string }>) =>
   rows.map((r) => `${r.label}: RN=${r.rn} web=${r.web}`).join('; ')
+
+// U0.4 defect (5). This runs WITHOUT the sibling repo — it pins the comparison function
+// itself, not an anchor, and no anchor in U0.4's set exercises it (every value in reach is
+// either a bare hex or is spelled identically on both sides). Its first real consumer is
+// U1.1, whose 24 glass-tier keys are all `rgba(...)` strings the phone spells with spaces
+// and the demo spells without.
+describe('norm — the compare-time normalisation both sides go through', () => {
+  it('reconciles the rgba() spelling the two repos each use', () => {
+    // phone `Colors.ts` style            vs  demo `glass-tokens.ts` style
+    expect(norm('rgba(14, 57, 101, 0.85)')).toBe(norm('rgba(14,57,101,0.85)'))
+  })
+
+  it('still trims and lowercases', () => {
+    expect(norm('  #1F6B99\n')).toBe('#1f6b99')
+  })
+
+  it('does not collapse a real value difference', () => {
+    // The guard would be worthless if normalising could equate two different colours.
+    expect(norm('rgba(14, 57, 101, 0.85)')).not.toBe(norm('rgba(14,57,101,0.86)'))
+    expect(norm('#1f6b99')).not.toBe(norm('#1f6b9a'))
+  })
+})
 
 describe('RN <-> Web token parity (design-system drift guard)', () => {
   it.skipIf(!rnAvailable())(`shared dark-palette anchors match the RN app (${RN_ROOT})`, () => {

@@ -32,7 +32,25 @@ export const rnAvailable = () => existsSync(join(RN, 'src', 'constants', 'Colors
 
 // Each anchor: a human label, how to read the RN value, how to read the web value.
 // value readers return a normalized string (lowercased hex or bare number).
-const norm = (v) => v.trim().toLowerCase()
+
+/**
+ * Compare-time normalisation.
+ *
+ * Whitespace INSIDE function notation is stripped because the two repos spell `rgba()`
+ * differently and neither is wrong: the phone writes `rgba(14, 57, 101, 0.85)`, the demo's
+ * older literals write `rgba(19,34,54,0.85)`. Without this, every string-valued anchor that
+ * is not a bare hex compares unequal forever (U1.1's 24 glass-tier keys are all of that
+ * shape, which is why the plan makes this a hard input to that package).
+ *
+ * DO NOT "fix" the mismatch the other way by re-spacing the demo's literals:
+ * `features/demo/ui/__tests__/glass-tokens.test.ts` pins several of them BYTE-EXACTLY, so a
+ * format-only edit reddens shape pins for no behaviour change. Normalising here is the
+ * sanctioned answer (plan U0.4, defect 5).
+ *
+ * It cannot mask real drift: it is applied to BOTH sides of every anchor, and every value
+ * the guard compares is a colour or a scalar, where whitespace carries no meaning.
+ */
+export const norm = (v) => v.trim().toLowerCase().replace(/\s+/g, '')
 
 /**
  * The value an anchor takes when its source could not be parsed at all — a renamed
