@@ -114,11 +114,18 @@ describe('A60 — the modal header bar', () => {
     // first-paint-OK / update-FAIL trap. A `border` / `borderColor` / `borderBottom` key here
     // reintroduces exactly that trap for eight surfaces.
     //
-    // Widened to `CSSProperties` to READ it: since W2/F38' closed the table with
-    // `as const satisfies CSSProperties`, those four keys are absent from its literal type and
-    // indexing it directly is a TS7053. That is the guarantee getting STRONGER, not weaker -
-    // adding a shorthand back is now a compile-time change as well as a runtime one, and this
-    // case still reds on the runtime value either way.
+    // THIS RUNTIME ASSERTION IS THE ONLY THING GUARDING IT. `satisfies CSSProperties` admits
+    // `border` — it is a perfectly valid CSS property — so adding the shorthand back compiles
+    // clean. Measured (W2/F50, type-design PROBE F, re-run here): planting
+    // `border: '1px solid red'` in `modalHeaderBar` gives cold `tsc --noEmit` EXIT 0, and only
+    // this case reds — `expected '1px solid red' to be undefined`. So do not delete it on the
+    // theory that the type layer has this covered; it does not.
+    //
+    // The widening cast is a READ mechanism, nothing more: W2/F38' closed the table with
+    // `as const`, so its literal type carries only the keys actually present and indexing it
+    // by an absent key is a TS7053. A type that genuinely forbade the shorthands (W1's
+    // `NoBorderShorthand`, i.e. `satisfies CSSProperties & { border?: never; … }`) was
+    // DECLINED, so the compile-time guarantee does not exist.
     const fragment = modalHeaderBar as CSSProperties
     for (const key of ['border', 'borderColor', 'borderBottom', 'borderTop'] as const) {
       expect(fragment[key]).toBeUndefined()
