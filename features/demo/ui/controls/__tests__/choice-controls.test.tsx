@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
-import { CheckboxBox, RadioOption } from '@/features/demo/ui/controls/choice-controls'
+import { CheckboxBox, RadioOption, UNCHECKED_MARK_EDGE } from '@/features/demo/ui/controls/choice-controls'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { radius, touchTarget, withAlpha } from '@/features/demo/ui/tokens/scale'
 
@@ -15,7 +15,11 @@ function jsdomColor(value: string): string {
 }
 
 const LINK = jsdomColor(colors.link)
-const BORDER = jsdomColor(colors.border)
+// F27: the unchecked/unselected edge is `textTertiary`, NOT `colors.border`. Composed from the
+// exported constant so this pin moves WITH the control rather than freezing a hex — and the
+// RATIO is bounded at that same constant in `palette-contrast.test.ts` (row 1.4.11-mark), which
+// is what a hex equality could never see: the shipped `colors.border` measured 1.33:1.
+const UNCHECKED = jsdomColor(UNCHECKED_MARK_EDGE)
 
 function radio(selected: boolean, direction: 'row' | 'column' = 'row') {
   // Scoped to THIS render's container: several cases below render more than one option, and a
@@ -54,8 +58,8 @@ describe('RadioOption — the selected treatment (A74)', () => {
 
   it('leaves an unselected option on `border` + `text`, with no dot at all', () => {
     const { row, ring, dot, label } = radio(false)
-    expect(row.style.borderColor).toBe(BORDER)
-    expect(ring.style.borderColor).toBe(BORDER)
+    expect(row.style.borderColor).toBe(UNCHECKED)
+    expect(ring.style.borderColor).toBe(UNCHECKED)
     expect(dot).toBeNull()
     expect(label.style.color).toBe(jsdomColor(colors.text))
   })
@@ -142,7 +146,7 @@ describe('CheckboxBox (A75)', () => {
   it('leaves an unchecked box opaque on `background` with a `border` ring and no glyph', () => {
     const el = box(false)
     expect(el.style.backgroundColor).toBe(jsdomColor(colors.background))
-    expect(el.style.borderColor).toBe(jsdomColor(colors.border))
+    expect(el.style.borderColor).toBe(jsdomColor(UNCHECKED_MARK_EDGE))
     expect(el.textContent).toBe('')
   })
 

@@ -39,6 +39,35 @@ import { radius, spacing, touchTarget, withAlpha } from '@/features/demo/ui/toke
  * wrong. `checked x error` does not exist for either control on either platform.
  */
 
+/**
+ * The edge of an UNCHECKED box / UNSELECTED radio — the one value both controls share, and a
+ * DELIBERATE DIVERGENCE FROM THE PHONE (W2 review F27).
+ *
+ * The phone spells `colors.border` here (`Checkbox.tsx:61`, `RadioGroup.tsx:68` and `:97`) and
+ * U2.4 transcribed it faithfully. On the demo's dark tiers that measures **1.33:1** against
+ * WCAG 1.4.11's 3.0 floor, and master shipped `#7a9fc4` at 3.87-4.41 — so the faithful port was
+ * a PASS -> FAIL regression on the one part of the control that carries it. An unchecked box has
+ * no fill, no glyph, and on the export hub's "Select all" no label either: the ring IS the
+ * control.
+ *
+ * Matrix C.3 rule 4 is the governing case law, owner-ratified: "The border is decorative only
+ * when the fill, the icon and the text each carry the severity independently ... a sole-boundary
+ * input border at 1.26 is not." D5's amendment is the house precedent for declining a phone
+ * value that fails the contract (the map filter badge took `primaryDark` over the phone's
+ * failing `primary`).
+ *
+ * `textTertiary` and not `textSecondary`: it is master's own value, it clears the 3.0 non-text
+ * floor with room (3.87 on the worst dark glass stop, row 8), and lifting further would make an
+ * UNSELECTED option louder than the `link` edge of the selected one.
+ *
+ * The RATIO is bounded at this constant in `ui/__tests__/palette-contrast.test.ts` — the hex
+ * equality that guarded it before stayed green through the whole 3.3x drop.
+ *
+ * Phone-side follow-up candidate (plan §8, NOT a fix from here): the phone's own unchecked
+ * `Checkbox` and `RadioGroup` measure 1.33:1 on its dark theme for the same reason.
+ */
+export const UNCHECKED_MARK_EDGE = colors.textTertiary
+
 /* -------------------------------------------------------------------------- radio ---- */
 
 export interface RadioOptionProps {
@@ -76,7 +105,7 @@ export interface RadioOptionProps {
  * without the shrink the label overflows under the neighbouring option's border.
  */
 export function RadioOption({ label, selected, onSelect, direction = 'row', testId }: RadioOptionProps) {
-  const edge = selected ? colors.link : colors.border
+  const edge = selected ? colors.link : UNCHECKED_MARK_EDGE
   return (
     <button
       type="button"
@@ -177,7 +206,7 @@ export function CheckboxBox({ checked }: { checked: CheckboxChecked }) {
     borderRadius: radius.sm,
     borderWidth: 2,
     borderStyle: 'solid',
-    borderColor: filled ? colors.primary : colors.border,
+    borderColor: filled ? colors.primary : UNCHECKED_MARK_EDGE,
     background: filled ? colors.primary : colors.background,
     display: 'flex',
     alignItems: 'center',
