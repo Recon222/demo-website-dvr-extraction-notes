@@ -176,12 +176,10 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // straight over every one of them because the alphas differ. Banning the stop itself is what
   // stops U1.3/U1.4/U2.4/U4.1 pasting the NEW values back in the same way.
   // Measured before landing: all twelve have ZERO occurrences under `ui/`, so this costs no sweep.
-  // KNOWN LIMIT, not this package's to fix: the scan below is WHITESPACE-sensitive, so these
-  // twelve catch `rgba(23,65,110,0.7)` and miss `rgba(23, 65, 110, 0.7)` — which is the spelling
-  // `Colors.ts` uses and therefore the one a paste out of the phone arrives in. W0's review
-  // raised it as a HIGH against `:132-134` with a SURVIVED probe; the fix is one `replace(/\s+/g,'')`
-  // on both sides of the comparison and it belongs to that round, not here. Until it lands these
-  // entries bite only on the unspaced form.
+  // The whitespace limit this block used to record is CLOSED, and the note is corrected here
+  // rather than left to mislead a later package (U2.4): `norm()` above strips whitespace on
+  // BOTH sides of the comparison since review r1 F3, so these twelve catch the spaced
+  // `rgba(23, 65, 110, 0.7)` a paste out of `Colors.ts` arrives in as well as the unspaced form.
   // `border` / `highlightTop` / `innerShadow` are deliberately NOT here — see the report; they
   // become re-inlinable CSS values only when U1.2/U1.3/U1.4/U2.4/U4.1 wire them into a recipe,
   // and this list's own rule is that ENTRIES ARE CURRENT LIVE VALUES of a live token.
@@ -228,6 +226,21 @@ const BANNED: ReadonlyArray<[name: string, literal: string]> = [
   // landing or drag a sweep into another package's file. U8.1 can add it for free.
   ['nestedCard highlight edge', 'rgba(184,212,240,0.2)'],
   ['nestedCard inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.15)'],
+  // --- the recessed tier's other two parts (U2.4): reach for `glassWell` ------------------
+  // The condition the U1.1 block above names, met: A39/A59 wire `recessed.border`,
+  // `recessed.highlightTop` and `recessed.innerShadow` into `glassWell`, which is what makes
+  // them re-inlinable CSS for the first time. All three measured ZERO live occurrences under
+  // `ui/` before landing, in BOTH spacings.
+  //
+  // `border` and `highlightTop` are banned BARE, unlike the card tier's, because neither is a
+  // generic value a future site could reach for innocently: `rgba(0,14,30,0.75)` and
+  // `rgba(0,12,26,0.55)` are near-black navies that exist nowhere else in the palette. The
+  // inner shadow follows the card/nested precedent and is banned COMPOSED — bare
+  // `rgba(0,0,0,0.45)` is an ordinary 45% drop shadow and banning it would misfile the next
+  // one as tier re-drift.
+  ['recessed well border', 'rgba(0,14,30,0.75)'],
+  ['recessed well lip', 'rgba(0,12,26,0.55)'],
+  ['recessed well inner shadow', 'inset 0 1px 0 rgba(0,0,0,0.45)'],
   // --- bare palette hexes (A97, U0.5): reach for `colors.<phoneName>` -----------------
   // Exactly the fifteen values U0.1/U0.3 CREATED. Measured before landing: all fifteen have
   // ZERO bare occurrences under `ui/` outside the token modules, so this ban costs no sweep.

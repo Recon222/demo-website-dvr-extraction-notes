@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DateField } from '@/features/demo/ui/inputs/DateField'
 import { stubClock } from '@/features/demo/ui/inputs/__tests__/test-utils'
+import { radius, spacing, touchTarget } from '@/features/demo/ui/tokens/scale'
 
 beforeEach(() => stubClock())
 afterEach(() => vi.restoreAllMocks())
@@ -67,5 +68,28 @@ describe('DateField interaction', () => {
     await user.click(screen.getByRole('button', { name: 'Set date' }))
     await user.click(screen.getByRole('button', { name: 'Next month' }))
     expect(screen.getByText('January 2026')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The DATE/TIME trigger pair — phone `DateTimePicker.tsx:490-508` (`datetimeButton`,
+ * `buttonLabel`, `buttonValue`). The plan's U2.4 file cite is `DateField.tsx:64-92`, which
+ * spans the trigger as well as the footer; no Tier-A row names this control, so this is the
+ * geometry half of the same `DateTimePicker` port U2.1 did for `TextInput`.
+ *
+ * `minHeight` goes DOWN, 48 -> 44. The phone's is `touchTarget.min` and 48 was the demo's own
+ * number; the two triggers sit in a row beside a `fieldInputStyle()` field, which U2.1 put at
+ * 44.
+ */
+describe('DateField trigger geometry (phone DateTimePicker.tsx:490-508)', () => {
+  it('takes the phone paddings, the 44 floor and the base value size', () => {
+    render(<DateField value="" onChange={vi.fn()} />)
+    const trigger = screen.getByRole('button', { name: 'Set date' })
+    expect(trigger.style.padding).toBe(`${spacing.sm}px ${spacing.md}px`)
+    expect(trigger.style.minHeight).toBe(`${touchTarget.min}px`)
+    expect(trigger.style.borderRadius).toBe(`${radius.md}px`)
+    const [label, value] = Array.from(trigger.children) as HTMLElement[]
+    expect(label.style.fontSize).toBe('12px')
+    expect(value.style.fontSize).toBe('16px')
   })
 })

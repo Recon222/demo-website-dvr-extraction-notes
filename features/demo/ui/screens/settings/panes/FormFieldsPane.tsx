@@ -11,10 +11,11 @@ import {
 } from '@/features/demo/engine/content/form-customization'
 import { PROFILE_BLURBS, PROFILE_LABELS, describeProfile } from '@/features/demo/engine/content/profiles'
 import { PROFILES, type FormFieldId, type FormStepDef, type FormStepId, type Profile } from '@/features/demo/engine/types'
+import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { Toggle } from '@/features/demo/ui/screens/_shared'
 import { PaneDescription } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
-import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Detail pane: **Form Fields** (matrix row A2, owner decision D9) — the phone's
@@ -147,33 +148,21 @@ function ProfilePicker({
     <div style={{ marginBottom: 18 }}>
       <div style={{ fontSize: 15, fontWeight: 600, color: '#f0f4f8' }}>{COPY.profileLabel}</div>
       <div style={{ fontSize: 12.5, lineHeight: 1.45, color: '#7a9fc4', margin: '4px 0 10px' }}>{COPY.profileHelp}</div>
-      <div role="radiogroup" aria-label={COPY.profileLabel} style={{ display: 'flex', gap: 8 }}>
-        {PROFILES.map((p) => {
-          const active = p === profile
-          return (
-            <button
-              key={p}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              data-testid={`fc-profile-${p}`}
-              onClick={() => onApplyProfile(p)}
-              style={{
-                flex: 1,
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: `1px solid ${active ? '#2B8CC1' : colors.border}`,
-                background: active ? 'rgba(43,140,193,0.14)' : 'transparent',
-                color: active ? '#2B8CC1' : '#cdd9e6',
-                fontSize: 13.5,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              {PROFILE_LABELS[p]}
-            </button>
-          )
-        })}
+      {/* A74 — the profile chips are the shared radio now, as they are on the phone: PR #123
+          moved this very picker off its hand-rolled chips and onto `RadioGroup`
+          (`ProfilePicker.tsx:75-81`), and `RadioGroup.tsx:151-156` records that the migration
+          could not ship until the radio grew `minHeight: touchTarget.min`, because these chips
+          were 46px. This is the 3-up group `RadioOption`'s `flexShrink: 1` exists for. */}
+      <div role="radiogroup" aria-label={COPY.profileLabel} style={{ display: 'flex', gap: spacing.sm }}>
+        {PROFILES.map((p) => (
+          <RadioOption
+            key={p}
+            label={PROFILE_LABELS[p]}
+            selected={p === profile}
+            onSelect={() => onApplyProfile(p)}
+            testId={`fc-profile-${p}`}
+          />
+        ))}
       </div>
       <div style={{ fontSize: 12.5, color: '#99badd', marginTop: 10 }}>{PROFILE_BLURBS[profile]}</div>
       {/* Derived from PROFILE_DEFAULTS, never from the blurb above it.
