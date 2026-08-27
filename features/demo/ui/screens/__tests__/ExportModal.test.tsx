@@ -256,11 +256,47 @@ describe('ExportModal — validation mode, behaviour', () => {
     )
   })
 
+  /**
+   * U4.3. The live region used to be a SIBLING of the panel. `aria-modal="true"` prunes
+   * everything outside the dialog from the accessibility tree — the same trap
+   * `MediaLibrarySheet.tsx`'s `MediaFullscreen` docblock names — so out there it announced to
+   * nobody. It is inside the dialog now, and this is what keeps it there.
+   */
+  it('keeps the live region INSIDE the aria-modal dialog, where it can be heard', () => {
+    renderValidation({ validationResult: result() })
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toContainElement(screen.getByTestId('export-validation-announcement'))
+  })
+
+  /**
+   * U4.3. This dialog used to read `document.activeElement` in its mount effect. The export CTA
+   * that opens it disables itself in the same commit (`ExportHub`'s footer CTA, the map's
+   * Export Map belt), so the old read captured `<body>` and cancelling dropped a keyboard
+   * visitor at document start. The shell's capture-phase tracker reads the opener at gesture
+   * time.
+   */
+  it('restores focus to the export CTA that was pressed, even after it disabled itself', () => {
+    const opener = document.createElement('button')
+    opener.textContent = 'Export'
+    document.body.appendChild(opener)
+    opener.focus()
+    fireEvent.pointerDown(opener)
+    opener.blur()
+    opener.disabled = true
+    expect(document.activeElement).toBe(document.body)
+
+    const { unmount } = renderValidation({ validationResult: result() })
+    opener.disabled = false
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
+
   it('cancels from the button, from Escape and from the scrim', () => {
     const { onCancel, onContinueAnyway } = renderValidation({ validationResult: result() })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel export' }))
     fireEvent.keyDown(document, { key: 'Escape' })
-    fireEvent.click(document.querySelector('[data-export-scrim]')!)
+    fireEvent.click(document.querySelector('[data-dialog-scrim]')!)
     expect(onCancel).toHaveBeenCalledTimes(3)
     expect(onContinueAnyway).not.toHaveBeenCalled()
   })
@@ -280,7 +316,7 @@ describe('ExportModal — validation mode, behaviour', () => {
     expect(screen.getByRole('button', { name: 'Continue with export' })).toBeDisabled()
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    fireEvent.click(document.querySelector('[data-export-scrim]')!)
+    fireEvent.click(document.querySelector('[data-dialog-scrim]')!)
     expect(onCancel).not.toHaveBeenCalled()
     expect(onContinueAnyway).not.toHaveBeenCalled()
   })

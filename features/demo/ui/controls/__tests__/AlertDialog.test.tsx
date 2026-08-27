@@ -145,7 +145,7 @@ describe('AlertDialog — the in-phone blocking alert (Alert.alert analog)', () 
     const { container } = render(
       <AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={onDismiss} />,
     )
-    fireEvent.click(container.querySelector('[data-alert-scrim]')!)
+    fireEvent.click(container.querySelector('[data-dialog-scrim]')!)
     expect(onDismiss).not.toHaveBeenCalled()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onDismiss).toHaveBeenCalledTimes(1)

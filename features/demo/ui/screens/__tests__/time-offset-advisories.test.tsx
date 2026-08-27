@@ -132,7 +132,7 @@ describe('TimeOffsetScreen — recalculate guard', () => {
     // AlertDialog's scrim is inert by design (a native alert is answered by choosing a
     // button) — clicking it must NOT let a visitor skip the decision the phone forces.
     fireEvent.click(screen.getByText('Calculate'))
-    fireEvent.click(document.querySelector('[data-alert-scrim]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-dialog-scrim]') as HTMLElement)
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
 
     expect(onCalculate).not.toHaveBeenCalled()
