@@ -2,9 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import { Banner } from '@/features/demo/ui/controls/Banner'
-import { PaneDescription, PaneGroup, PaneNote } from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
+import {
+  PaneDescription,
+  PaneGroup,
+  PaneNote,
+  PaneSlider,
+  PaneStubNote,
+} from '@/features/demo/ui/screens/settings/panes/_pane-chrome'
 import { colors } from '@/features/demo/ui/tokens/palette'
-import { spacing } from '@/features/demo/ui/tokens/scale'
+import { spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * U6.2 — the settings pane chrome against the phone's `*SettingsSection` stylesheet
@@ -167,5 +173,61 @@ describe('PaneNote IS Banner’s recipe — the drift guard for a ruled duplicat
     const note = screen.getByText('Body').parentElement as HTMLElement
     expect(note).not.toHaveAttribute('role')
     expect(note).not.toHaveAttribute('aria-live')
+  })
+})
+
+describe('PaneSlider (phone `styles.slider` / `sliderLabels` / `sliderLabel`)', () => {
+  const renderSlider = () =>
+    render(
+      <PaneSlider
+        label="Photo Quality"
+        testId="q"
+        value={0.9}
+        valueText="90%"
+        min={0.5}
+        max={1}
+        step={0.05}
+        onChange={() => {}}
+        minLabel="50% (Smallest)"
+        maxLabel="100% (Best)"
+      />,
+    )
+
+  it('takes the phone’s track height and paints the fill + thumb from colors.primary', () => {
+    // `accentColor` is `minimumTrackTintColor` + `thumbTintColor` in one property. The phone's
+    // third tint (`maximumTrackTintColor`) needs a pseudo-element and is a recorded divergence.
+    renderSlider()
+    expect(screen.getByTestId('q')).toHaveStyle({
+      width: '100%',
+      height: '40px',
+      accentColor: colors.primary,
+    })
+  })
+
+  it('sets the min/max captions at fontSize.xs in textTertiary — the phone’s own token here', () => {
+    // textTertiary is right at THIS site and wrong on the help line above it: the phone spends
+    // `sliderLabel: colors.textTertiary` (`:186-187`) and `settingHelp: colors.textSecondary`.
+    renderSlider()
+    const captions = screen.getByText('50% (Smallest)').parentElement as HTMLElement
+    expect(captions).toHaveStyle({
+      display: 'flex',
+      justifyContent: 'space-between',
+      fontSize: '12px',
+      color: colors.textTertiary,
+    })
+  })
+})
+
+describe('PaneStubNote (demo-only, D12’s "follow" arm)', () => {
+  it('derives its wash from colors.primary instead of spelling the alpha', () => {
+    render(<PaneStubNote>Body</PaneStubNote>)
+    expect(screen.getByTestId('settings-pane-stub-note')).toHaveStyle({
+      backgroundColor: withAlpha(colors.primary, 0.08),
+    })
+  })
+
+  it('puts its eyebrow on textTertiary', () => {
+    render(<PaneStubNote>Body</PaneStubNote>)
+    expect(screen.getByText('In the demo')).toHaveStyle({ color: colors.textTertiary })
   })
 })

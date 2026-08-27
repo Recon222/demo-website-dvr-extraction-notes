@@ -8,7 +8,7 @@ import { RadioOption } from '@/features/demo/ui/controls/choice-controls'
 import { GLASS } from '@/features/demo/ui/glass-tokens'
 import { colors } from '@/features/demo/ui/tokens/palette'
 import { severityTone } from '@/features/demo/ui/tokens/status'
-import { radius, spacing } from '@/features/demo/ui/tokens/scale'
+import { radius, spacing, withAlpha } from '@/features/demo/ui/tokens/scale'
 
 /**
  * Shared chrome for the Settings detail panes — the demo's equivalent of the styles every
@@ -236,6 +236,16 @@ export function PaneNote({
  * Same shape as the export terminals (`exportNotices.ts`): say what the real app does with the
  * setting, then say plainly why nothing here does. Never a fake success, never a claim about a
  * device capability a browser tab does not have.
+ *
+ * **D12 puts this in the "follow" arm, not the "freeze" arm** — it renders INSIDE the phone
+ * frame, so its colours move with the palette. Its GEOMETRY does not: there is no phone recipe
+ * to port one from, and D3 leaves an unchanged unique literal alone rather than snapping it to
+ * a step. So `14 / 18 / 10 / 7` and the two off-ladder type sizes (§4.9's rule) stay spelled.
+ *
+ * `#cdd9e6` on the body also stays, and it is the one literal here with a reason rather than a
+ * shrug: it is `T.textDim`, the demo-wide form-label tone at ~20 sites, and moving one of them
+ * leaves that surface disagreeing with its neighbours. U2.4's deferral proposal D-3 owns the
+ * family and names U6.4a as its trigger.
  */
 export function PaneStubNote({ children }: { children: ReactNode }) {
   return (
@@ -246,7 +256,9 @@ export function PaneStubNote({ children }: { children: ReactNode }) {
         marginBottom: 18,
         borderRadius: 10,
         border: GLASS.borderAccent,
-        background: 'rgba(43,140,193,0.08)',
+        // Was the same alpha spelled as a bare `rgba()`. Derived now, so a `primary` re-base
+        // moves the wash with it — the phone's own idiom for exactly this (`withAlpha`).
+        background: withAlpha(colors.primary, 0.08),
       }}
     >
       <div
@@ -256,12 +268,13 @@ export function PaneStubNote({ children }: { children: ReactNode }) {
           fontWeight: 600,
           letterSpacing: 1.4,
           textTransform: 'uppercase',
-          color: '#7a9fc4',
+          color: colors.textTertiary,
           marginBottom: 7,
         }}
       >
         In the demo
       </div>
+      {/* `T.textDim` — see the docblock. Not a palette token, and not this package's to move. */}
       <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#cdd9e6' }}>{children}</div>
     </div>
   )
@@ -368,6 +381,27 @@ export function PaneSelect<T extends string | number>({
  * several AT/browser pairs announce percent-OF-RANGE (70% for the same reading), either of which
  * CONTRADICTS the number on screen. Not merely missing information: announced information that
  * is false (WCAG 4.1.2). Required rather than optional so a second slider cannot repeat it.
+ *
+ * ## The recipe (phone `MediaCaptureSettingsSection.tsx:173-188` + `:409-418`)
+ *
+ * ```
+ * slider       width '100%' · height 40
+ *              minimumTrackTintColor colors.primary
+ *              thumbTintColor        colors.primary
+ *              maximumTrackTintColor colors.border      <- see below
+ * sliderLabels row · space-between
+ * sliderLabel  fontSize.xs 12 · colors.textTertiary     was: 11 · the same hex, spelled
+ * ```
+ *
+ * **`maximumTrackTintColor` has no inline expression and is deliberately not ported.**
+ * `accentColor` is the CSS property carrying the phone's other two — it paints the FILLED track
+ * and the thumb, which is exactly `minimumTrackTintColor` + `thumbTintColor` — but the UNFILLED
+ * track is reachable only through `::-webkit-slider-runnable-track` / `::-moz-range-track`,
+ * i.e. a stylesheet. `features/demo/**` styles with `CSSProperties` and `ui/demo.css` is frozen
+ * (plan §4.2, D9), and a value moved into a class would un-pin its own test (jsdom renders no
+ * CSS). Hand-rolling the track instead would trade one unportable value for a whole control the
+ * phone does not have. So the demo keeps the UA's neutral trough, and this divergence is
+ * recorded rather than faked.
  */
 export function PaneSlider({
   label,
@@ -405,9 +439,9 @@ export function PaneSlider({
         max={max}
         step={step}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: '100%', accentColor: '#2B8CC1', cursor: 'pointer' }}
+        style={{ width: '100%', height: 40, accentColor: colors.primary, cursor: 'pointer' }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#7a9fc4' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: colors.textTertiary }}>
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
