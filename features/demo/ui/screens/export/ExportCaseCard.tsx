@@ -69,14 +69,14 @@ const LIT_GLOW = `0 4px 12px ${withAlpha(colors.link, 0.35)}`
  * cost for it — the grid backdrop stops showing through its cards. Painting that fill here would
  * buy nothing and would put a solid navy under this card's own alpha-0.85 gradient.
  */
-const wrapper: CSSProperties = {
+const wrapper = {
   // phone `ExportHub.tsx:310-312` — `cardWrapper.marginBottom: Layout.spacing.md`. The demo's
   // 14 was a prototype value sitting two short of the scale beside it.
   marginBottom: spacing.md,
   // A43 (U1.2) - a top-level card is `lg` (12), not `xl`. See CasesScreen's note.
   borderRadius: radius.lg,
   overflow: 'hidden',
-}
+} as const satisfies CSSProperties
 
 /**
  * The expanded body — phone `styles.locationsContainer` (`:334-339`).
@@ -93,12 +93,12 @@ const wrapper: CSSProperties = {
  * 4px BELOW the line is the phone's `paddingTop: spacing.xs` (`:336`), which is where the demo's
  * old `marginBottom: 4` already sat.
  */
-const locationsBody: CSSProperties = {
+const locationsBody = {
   borderTop: GLASS.borderSoft,
   paddingTop: spacing.xs,
-}
+} as const satisfies CSSProperties
 
-const headerBtn: CSSProperties = {
+const headerBtn = {
   flex: 1,
   display: 'flex',
   alignItems: 'flex-start',
@@ -110,7 +110,7 @@ const headerBtn: CSSProperties = {
   textAlign: 'left',
   cursor: 'pointer',
   color: 'inherit',
-}
+} as const satisfies CSSProperties
 
 /*
  * `boxBase` LIVED HERE until U2.4 (A75). It was a 20x20 / radius 5 / 12px-glyph square with
