@@ -13,6 +13,7 @@ vi.mock('motion/react', async (orig) => ({
 import { resolveExportPlan, type ExportSelection } from '@/features/demo/engine/logic/export'
 import { ExportHub, type ExportHubProps } from '@/features/demo/ui/screens/export/ExportHub'
 import { caseStatusTheme, locationStatusTheme, type CaseCard } from '@/features/demo/ui/screens/screenData'
+import { colors } from '@/features/demo/ui/tokens/palette'
 import { severityTone } from '@/features/demo/ui/tokens/status'
 
 /**
@@ -245,10 +246,16 @@ describe('ExportHub — pre-flight footer', () => {
   it('colours the artifact line by the plan kind, not by a second branch', () => {
     const full = selectionOf('c1', ['l1', 'l2'], true)
     const { rerender } = renderHub({ selection: full, footer: footerFor(cardA, full) })
-    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toHaveStyle({ color: '#10d177' })
+    // Read off the tokens (phone `export-hub/ExportHub.tsx:329-337`: `colors.success` /
+    // `colors.textSecondary` / `colors.warning`). The literals these replace would have stayed
+    // green through a re-point of any of the three.
+    expect(screen.getByText('CASE ZIP · CANONICAL · INCLUDES CASE MAP')).toHaveStyle({ color: colors.success })
     const one = selectionOf('c1', ['l1'])
     rerender({ selection: one, footer: footerFor(cardA, one) })
-    expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toHaveStyle({ color: '#99badd' })
+    expect(screen.getByText('LOCATION ZIP · SINGLE LOCATION')).toHaveStyle({ color: colors.textSecondary })
+    const subset = selectionOf('c1', ['l1', 'l2'])
+    rerender({ cases: [{ ...cardA, locationCountLabel: '3 locations' }], selection: subset, footer: footerFor({ ...cardA, locations: [...cardA.locations, { id: 'l3', locationName: 'Side', address: '', status: locationStatusTheme('started') }] }, subset) })
+    expect(screen.getByText(/^SUBSET ZIP/)).toHaveStyle({ color: colors.warning })
   })
 
   it('drops the rise animation under prefers-reduced-motion, keeping the footer itself (R-23)', () => {
