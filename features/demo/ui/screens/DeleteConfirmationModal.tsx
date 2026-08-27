@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { CentredDialog } from '@/features/demo/ui/controls/CentredDialog'
 import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { colors } from '@/features/demo/ui/tokens/palette'
+import { spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
  * The phone's `DeleteConfirmationModal` (ui-mapping 11 § DeleteConfirmationModal;
@@ -164,7 +165,8 @@ export function DeleteConfirmationModal({ target, onConfirm, onCancel }: DeleteC
             `ERROR` above KEEPS its other two consumers untouched: the 48px
             icon at `:126` and the italic warning line at `:183` are not buttons, and
             re-pointing the const wholesale would recolour both. */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Phone `DeleteConfirmationModal.tsx:315`: `gap: Layout.spacing.md` (W2 F41). */}
+        <div style={{ display: 'flex', gap: spacing.md }}>
           <button
             type="button"
             data-testid="delete-modal-cancel"

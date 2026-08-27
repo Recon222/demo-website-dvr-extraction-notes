@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { PhoneOverlayPortal } from '@/features/demo/ui/phone-overlay'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion'
 
@@ -94,21 +94,27 @@ export const dialogSurface: CSSProperties = {
 /**
  * The dim behind the dialog. `zIndex` is the shell's.
  *
- * SEAM(U4.4): this literal is where `AlertDialog.tsx:131`, `DeleteConfirmationModal.tsx:97`
- * and `ExportModal.tsx:84` — the three `rgba(4,8,14,0.66)` sites the scrim family names — now
- * live, as ONE site. Those three `file:line`s no longer exist.
+ * A22, RULED (W2 F43). The phone paints TWO backdrop values, not one, and this is the second:
+ *   - the SHEET family takes `colors.scrim` (0.32), shipped by U4.4 on `sheetScrim`;
+ *   - the CENTRED DIALOGS take `colors.overlay` (0.9), at phone source in both of its dialog
+ *     files: `DeleteConfirmationModal.tsx:229` and `export/ExportModal.tsx:325,360`, each
+ *     `backgroundColor: colors.overlay`.
  *
- * FINDING for U4.4, recorded where it will be read: A22 folds these onto `colors.scrim`, but
- * the phone paints BOTH centred dialogs' backdrops with `colors.overlay`
- * (`DeleteConfirmationModal.tsx:229`, `export/ExportModal.tsx:325,360`) and reserves
- * `colors.scrim` for the sheet family and `PasswordModal.tsx:98`. `overlay` is
- * `rgba(0,40,83,0.9)`; `scrim` is `rgba(0,40,83,0.32)`. They are not interchangeable and A22
- * says so itself.
+ * A22's "three darknesses collapse into one" is refuted for the dialog subset; the half of it
+ * that survives is its own sentence, that scrim and overlay are deliberately NOT
+ * interchangeable. Do NOT "resync" this to `colors.scrim` - the pin asserts the DIFFERENCE as
+ * well as the value, because a resync would pass a value pin written independently. The phone
+ * reserves `scrim` for the sheet family and for `PasswordModal.tsx:98`, which is matrix B.4
+ * row 26 and ruled OUT of this port.
+ *
+ * This site is where `AlertDialog.tsx:131`, `DeleteConfirmationModal.tsx:97` and
+ * `ExportModal.tsx:84` - the three `rgba(4,8,14,0.66)` literals - collapsed at U4.3. That
+ * literal matched neither token; it is gone now, and those three `file:line`s no longer exist.
  */
 export const dialogScrim: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  background: 'rgba(4,8,14,0.66)',
+  background: colors.overlay,
   pointerEvents: 'auto',
 }
 

@@ -3,12 +3,13 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import type { CSSProperties } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
-import { CentredDialog, DIALOG_SHADOW, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
+import { CentredDialog, DIALOG_SHADOW, dialogScrim, dialogSurface } from '@/features/demo/ui/controls/CentredDialog'
 import { AlertDialog } from '@/features/demo/ui/controls/AlertDialog'
+import { buttonStyle } from '@/features/demo/ui/controls/button-recipe'
 import { DeleteConfirmationModal } from '@/features/demo/ui/screens/DeleteConfirmationModal'
 import { ExportModal } from '@/features/demo/ui/screens/ExportModal'
 import { GLASS_TIER } from '@/features/demo/ui/tokens/glass-tiers'
-import { scheme } from '@/features/demo/ui/tokens/palette'
+import { colors, scheme } from '@/features/demo/ui/tokens/palette'
 import { radius, spacing } from '@/features/demo/ui/tokens/scale'
 
 /**
@@ -467,5 +468,122 @@ describe('the fold — one centred dialog, not three', () => {
     expect(shapes.alert).toContain('padding:16px')
     expect(shapes.alert).toContain(`borderTopColor:${norm(elevated.highlightTop)}`)
     expect(shapes.alert).toContain('left:24px;right:24px')
+  })
+})
+
+/**
+ * W2 F41. The phone spells the dialog action row's gap `Layout.spacing.md` (16) in BOTH of its
+ * centred-dialog files — `DeleteConfirmationModal.tsx:313-316` and
+ * `export/ExportModal.tsx:439-442`, each `actions: { flexDirection: 'row', gap: Layout.spacing.md }`.
+ * All three demo dialogs shipped 8.
+ *
+ * The row is the CALLERS' content, not the shell's surface, so it is pinned across the three
+ * callers here rather than three times in three files — one place to read, one place to break.
+ */
+describe('the dialog action row — F41, the phone gap', () => {
+  const rowOf = (buttonName: string): HTMLElement =>
+    screen.getByRole('button', { name: buttonName }).parentElement!
+
+  it('AlertDialog, DeleteConfirmationModal and ExportModal all space their actions at spacing.md', () => {
+    render(<AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />)
+    expect(rowOf('OK').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    render(
+      <DeleteConfirmationModal
+        target={{ type: 'location', locationName: 'Kim', address: '' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(rowOf('Cancel').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    render(
+      <ExportModal
+        mode="validation"
+        validationResult={{
+          caseId: 'c1',
+          caseNumber: 'PR25-0098213',
+          validLocations: [],
+          invalidLocations: [
+            { locationId: 'l1', locationName: 'Rear Alley Camera', valid: false, errors: ['Completion date'] },
+          ],
+          allValid: false,
+          totalLocations: 1,
+          validCount: 0,
+          invalidCount: 1,
+        }}
+        onContinueAnyway={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(rowOf('Cancel export').style.gap).toBe(`${spacing.md}px`)
+    cleanup()
+
+    // …and 16 is the phone's value, not a coincidence of the scale.
+    expect(spacing.md).toBe(16)
+  })
+})
+
+/**
+ * W2 F43 — the backdrop ruling, settled at phone source this round.
+ *
+ * A22's "three darknesses collapse into one" is refuted for the DIALOG subset. The phone paints
+ * TWO backdrop values, and the half of A22 that survives is its own sentence saying so:
+ *   - sheet family -> `colors.scrim` (0.32). Shipped by U4.4, `sheet-chrome.test.tsx:208-214`.
+ *   - centred dialogs -> `colors.overlay` (0.9): `DeleteConfirmationModal.tsx:229`,
+ *     `export/ExportModal.tsx:325,360` — both `backgroundColor: colors.overlay`.
+ * The shipped `rgba(4,8,14,0.66)` matched NEITHER token.
+ *
+ * Pinned as a DIFFERENCE as well as a value, for the reason `palette-contrast.test.ts:675-686`
+ * gives about the same pair: "do NOT resync the two" is the finding, and a resync to `scrim`
+ * would pass a value pin written independently.
+ */
+describe('the dialog backdrop — F43, colors.overlay and not colors.scrim', () => {
+  it('dialogScrim paints colors.overlay and owns no layering of its own', () => {
+    expect(dialogScrim.background).toBe(colors.overlay)
+    expect(dialogScrim.background).not.toBe(colors.scrim)
+    // `zIndex` stays the shell's — D14 froze the numbers per caller.
+    expect(dialogScrim).not.toHaveProperty('zIndex')
+  })
+
+  it('the rendered dialog backdrop is the token, not a literal', () => {
+    mount()
+    expect(norm(scrim().style.background)).toBe(norm(colors.overlay))
+  })
+
+  it("ExportModal's PROGRESS backdrop follows the dialogs, not the sheets", () => {
+    // Not a dialog panel — a full-bleed centred column — but it is the same overlay behind the
+    // same export flow, and DIFF.md counted it among the surviving 0.66 literals.
+    render(<ExportModal mode="progress" stage="zipping" onContinueAnyway={vi.fn()} onCancel={vi.fn()} />)
+    const progressScrim = document.querySelector<HTMLElement>('[data-export-scrim]')!
+    expect(norm(progressScrim.style.background)).toBe(norm(colors.overlay))
+  })
+})
+
+/**
+ * W2 F47. `AlertDialog`'s action buttons carried `padding` / `fontSize` / `fontWeight` /
+ * `cursor` BEFORE the `buttonStyle(…)` spread — four keys the recipe sets itself
+ * (`button-recipe.ts:137` `SIZES.medium`, `:251` weight, `:256` cursor), so the spread
+ * overrode all four and the locals were dead. Deleting them changes no pixel.
+ *
+ * "Dead" is only true while they stay ahead of the spread, and that is the falsifiable part:
+ * the same four keys written AFTER it would silently take the button off the recipe. This pins
+ * the recipe as the source, so the resurrection has somewhere to fail.
+ */
+describe('the alert action button — F47, the recipe is the only source', () => {
+  it('takes its geometry, weight and cursor from buttonStyle, not from local keys', () => {
+    const recipe = buttonStyle({ variant: 'primary' })
+    render(<AlertDialog title="T" message="m" actions={[{ label: 'OK', onPress: vi.fn() }]} onDismiss={vi.fn()} />)
+    const ok = screen.getByRole('button', { name: 'OK' })
+    expect(ok.style.padding).toBe(recipe.padding)
+    expect(ok.style.fontSize).toBe(`${recipe.fontSize}px`)
+    expect(ok.style.fontWeight).toBe(String(recipe.fontWeight))
+    expect(ok.style.cursor).toBe(recipe.cursor)
+    // The four locals were 12 / 14.5 / 600 / pointer; the recipe is 16px 24px / 16 / 600 /
+    // pointer. Two of the four genuinely differ, so this is not a tautology.
+    expect(ok.style.fontSize).not.toBe('14.5px')
+    expect(ok.style.padding).not.toBe('12px')
   })
 })
